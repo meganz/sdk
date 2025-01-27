@@ -27386,8 +27386,9 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
         }
         const std::string filePath{request->getFile()};
         const auto source = static_cast<FileSource>(request->getParamType());
-        const auto [error, badEntries] =
+        const auto [error, badEntries, nGoodEntries] =
             client->importPasswordsFromFile(filePath, source, parentHandle, request->getTag());
+        // Populate request with bad entries
         MegaStringIntegerMapPrivate stringIntegerMap;
         std::for_each(badEntries.begin(),
                       badEntries.end(),
@@ -27395,8 +27396,13 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
                       {
                           stringIntegerMap.set(arg.first, toPublicErrorCode(arg.second));
                       });
-
         request->setMegaStringIntegerMap(&stringIntegerMap);
+        if (error == API_OK && nGoodEntries == 0)
+        {
+            // Special case: All entries are wrong, so there was no call to putnodes
+            request->setMegaHandleList(std::vector<handle>{});
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        }
         return error;
     };
 

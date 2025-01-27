@@ -69,10 +69,17 @@ private:
 class MockRequestListener: public ::mega::MegaRequestListener, public SynchronizationHelper
 {
 public:
-    MockRequestListener()
+    MockRequestListener(::mega::MegaApi* megaApi = nullptr):
+        mMegaApi{megaApi}
     {
         ON_CALL(*this, onRequestFinish)
             .WillByDefault(::testing::Invoke(this, &MockRequestListener::defaultOnRequestFinish));
+    }
+
+    ~MockRequestListener()
+    {
+        if (mMegaApi)
+            mMegaApi->removeRequestListener(this);
     }
 
     MOCK_METHOD(void,
@@ -127,6 +134,7 @@ public:
     }
 
 private:
+    ::mega::MegaApi* mMegaApi{nullptr};
     void defaultOnRequestFinish(::mega::MegaApi*, ::mega::MegaRequest*, ::mega::MegaError*)
     {
         markAsFinished();

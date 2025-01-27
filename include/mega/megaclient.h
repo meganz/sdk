@@ -2955,6 +2955,8 @@ public:
                               std::shared_ptr<Node> nParent,
                               int rTag);
 
+    using ImportPaswordResult = std::tuple<error, MegaClient::BadPasswordData, std::size_t>;
+
     /**
      * @brief Import password nodes from a file
      *
@@ -2962,7 +2964,7 @@ public:
      * @param source Specifies the source of the input file (e.g. `FileSource::GOOGLE_PASSWORD`)
      * @param parentHandle The handle of the parent node that will contain the imported entries
      * @param rTag tag parameter for putnodes call
-     * @return std::pair with
+     * @return std::tuple with
      * - error: An error code indicating that the whole import operation failed.
      *   + API_EARGS:
      *      * The given parent handle doesn't map to a node
@@ -2975,12 +2977,13 @@ public:
      *   + Errors returned by `MegaClient::createPasswordNodes`
      * - BadPasswordData: A vector of pairs<string, PasswordEntryError> with the lines that were not
      *   successfully parsed (first) and an error code (second) to specify the reason.
+     * - size_t: The number of successfully parsed entries that were sent to putnodes
+     *   @note This number can be 0, in that case, no call to putnodes will be done.
      */
-    std::pair<error, MegaClient::BadPasswordData>
-        importPasswordsFromFile(const std::string& filePath,
-                                const pwm::import::FileSource source,
-                                const NodeHandle parentHandle,
-                                const int rTag);
+    ImportPaswordResult importPasswordsFromFile(const std::string& filePath,
+                                                const pwm::import::FileSource source,
+                                                const NodeHandle parentHandle,
+                                                const int rTag);
 
     /**
      * @brief Ensures the given data can be used to create a new password node.

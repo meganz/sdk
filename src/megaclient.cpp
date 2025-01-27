@@ -21304,18 +21304,17 @@ static std::vector<std::string> getNodesNames(const sharedNode_list& nodes)
     return nodesNames;
 }
 
-std::pair<error, MegaClient::BadPasswordData>
+MegaClient::ImportPaswordResult
     MegaClient::importPasswordsFromFile(const std::string& filePath,
                                         const pwm::import::FileSource source,
                                         const NodeHandle parentHandle,
                                         const int rTag)
 {
     using namespace pwm::import;
-    const auto logReturnErr = [](const error err,
-                                 const char* errMsg) -> std::pair<error, BadPasswordData>
+    const auto logReturnErr = [](const error err, const char* errMsg) -> ImportPaswordResult
     {
         LOG_err << "importPasswordsFromFile: " << errMsg;
-        return {err, {}};
+        return {err, {}, 0};
     };
     std::shared_ptr<Node> parent = nodeByHandle(parentHandle);
     if (!parent || !parent->isPasswordNodeFolder())
@@ -21340,10 +21339,11 @@ std::pair<error, MegaClient::BadPasswordData>
     const auto [badEntries, goodEntries] =
         MegaClient::validatePasswordEntries(std::move(parserResult.mResults), collisionSolver);
 
-    if (goodEntries.empty())
-        return logReturnErr(API_EARGS, "none entry is valid");
+    const auto nGoodEntries = goodEntries.size();
+    if (nGoodEntries == 0)
+        return {API_OK, badEntries, nGoodEntries};
 
-    return {createPasswordNodes(std::move(goodEntries), parent, rTag), badEntries};
+    return {createPasswordNodes(std::move(goodEntries), parent, rTag), badEntries, nGoodEntries};
 }
 
 PasswordEntryError MegaClient::validatePasswordData(const AttrMap& data)

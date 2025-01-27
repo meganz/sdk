@@ -15,6 +15,7 @@ target_sources(test_integration
     SdkTestNodesSetUp_test.cpp
     SdkTestFilter_test.cpp
     SdkTestPasswordManager_test.cpp
+    SdkTestPasswordManagerImport_test.cpp
     SdkTestCreateAccount_test.cpp
     SdkTestTransferStats_test.cpp
     sdk_test_user_attributes.cpp
