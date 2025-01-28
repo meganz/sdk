@@ -91,7 +91,7 @@ pipeline {
                         VCPKGPATH = "${env.HOME}/jenkins/vcpkg"
                         BUILD_DIR = "build_dir"
                         BUILD_DIR_X64 = "build_dir_x64"
-                        COMMON_CMAKE_OPTIONS = "-DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_CHAT=ON -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS}"
+                        COMMON_CMAKE_OPTIONS = "-DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_CHAT=ON -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS}"
                     }
                     steps{
                         dir(mac_sources_workspace){
