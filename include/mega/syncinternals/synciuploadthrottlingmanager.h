@@ -79,7 +79,9 @@ public:
     // Getters
 
     /**
-     * @brief Gets the upload counter inactivity expiration time.
+     * @brief Gets the inactivity expiration time after which the file upload counter should be
+     * reset.
+     *
      */
     virtual std::chrono::seconds uploadCounterInactivityExpirationTime() const = 0;
 
