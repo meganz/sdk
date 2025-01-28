@@ -1492,6 +1492,40 @@ std::string Utils::uint64ToHexString(uint64_t input)
     return output;
 }
 
+int Utils::icasecmp(const std::string& lhs, const std::string& rhs)
+{
+    return icasecmp(lhs.c_str(), rhs.c_str());
+}
+
+int Utils::icasecmp(const char* lhs, const char* rhs)
+{
+    assert(lhs);
+    assert(rhs);
+
+#ifdef _WIN32
+    return _stricmp(lhs, rhs);
+#else // _WIN32
+    return strcasecmp(lhs, rhs);
+#endif // ! _WIN32
+}
+
+int Utils::icasecmp(const std::wstring& lhs, const std::wstring& rhs)
+{
+    return icasecmp(lhs.c_str(), rhs.c_str());
+}
+
+int Utils::icasecmp(const wchar_t* lhs, const wchar_t* rhs)
+{
+    assert(lhs);
+    assert(rhs);
+
+#ifdef _WIN32
+    return _wcsicmp(lhs, rhs);
+#else // _WIN32
+    return wcscasecmp(lhs, rhs);
+#endif // ! _WIN32
+}
+
 int Utils::icasecmp(const std::string& lhs,
                     const std::string& rhs,
                     const size_t length)

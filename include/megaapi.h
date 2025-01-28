@@ -4044,8 +4044,7 @@ class MegaContactRequestList
     public:
         virtual ~MegaContactRequestList();
 
-        virtual MegaContactRequestList *copy();
-
+        virtual MegaContactRequestList* copy() const;
 
         /**
          * @brief Returns the MegaContactRequest at the position i in the MegaContactRequestList
@@ -4058,13 +4057,13 @@ class MegaContactRequestList
          * @param i Position of the MegaContactRequest that we want to get for the list
          * @return MegaContactRequest at the position i in the list
          */
-        virtual MegaContactRequest* get(int i);
+        virtual const MegaContactRequest* get(int i) const;
 
         /**
          * @brief Returns the number of MegaContactRequest objects in the list
          * @return Number of MegaContactRequest objects in the list
          */
-        virtual int size();
+        virtual int size() const;
 };
 
 /**
@@ -15705,7 +15704,9 @@ class MegaApi
          *
          * @param listener MegaRequestListener to track this request
          */
-        void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
+        void replyContactRequest(const MegaContactRequest* request,
+                                 int action,
+                                 MegaRequestListener* listener = NULL);
 
         /**
          * @brief Remove a contact to the MEGA account
@@ -18743,7 +18744,7 @@ class MegaApi
          *
          * @return List of MegaContactRequest objects
          */
-        MegaContactRequestList *getIncomingContactRequests();
+        MegaContactRequestList* getIncomingContactRequests() const;
 
         /**
          * @brief Get a list with all outgoing contact requests
@@ -18752,7 +18753,7 @@ class MegaApi
          *
          * @return List of MegaContactRequest objects
          */
-        MegaContactRequestList *getOutgoingContactRequests();
+        MegaContactRequestList* getOutgoingContactRequests() const;
 
         /**
          * @brief Get the access level of a MegaNode

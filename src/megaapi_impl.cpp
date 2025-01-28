@@ -6028,12 +6028,12 @@ MegaContactRequestListPrivate::~MegaContactRequestListPrivate()
     delete [] list;
 }
 
-MegaContactRequestList *MegaContactRequestListPrivate::copy()
+MegaContactRequestList* MegaContactRequestListPrivate::copy() const
 {
     return new MegaContactRequestListPrivate(this);
 }
 
-MegaContactRequest *MegaContactRequestListPrivate::get(int i)
+const MegaContactRequest* MegaContactRequestListPrivate::get(int i) const
 {
     if(!list || (i < 0) || (i >= s))
         return NULL;
@@ -6041,12 +6041,13 @@ MegaContactRequest *MegaContactRequestListPrivate::get(int i)
     return list[i];
 }
 
-int MegaContactRequestListPrivate::size()
+int MegaContactRequestListPrivate::size() const
 {
     return s;
 }
 
-MegaContactRequestListPrivate::MegaContactRequestListPrivate(MegaContactRequestListPrivate *requestList)
+MegaContactRequestListPrivate::MegaContactRequestListPrivate(
+    const MegaContactRequestListPrivate* requestList)
 {
     s = requestList->size();
     if (!s)
@@ -11971,7 +11972,7 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
     return new MegaNodeListPrivate(vNodes);
 }
 
-MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
+MegaContactRequestList* MegaApiImpl::getIncomingContactRequests() const
 {
     SdkMutexGuard g(sdkMutex);
     vector<PendingContactRequest*> vContactRequests;
@@ -11986,7 +11987,7 @@ MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
     return new MegaContactRequestListPrivate(vContactRequests.data(), int(vContactRequests.size()));
 }
 
-MegaContactRequestList *MegaApiImpl::getOutgoingContactRequests()
+MegaContactRequestList* MegaApiImpl::getOutgoingContactRequests() const
 {
     SdkMutexGuard g(sdkMutex);
     vector<PendingContactRequest*> vContactRequests;
@@ -21922,7 +21923,9 @@ void MegaApiImpl::inviteContact(const char* email, const char* message, int acti
     waiter->notify();
 }
 
-void MegaApiImpl::replyContactRequest(MegaContactRequest* r, int action, MegaRequestListener* listener)
+void MegaApiImpl::replyContactRequest(const MegaContactRequest* r,
+                                      int action,
+                                      MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REPLY_CONTACT_REQUEST, listener);
     if (r)

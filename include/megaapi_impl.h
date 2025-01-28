@@ -2523,12 +2523,12 @@ class MegaContactRequestListPrivate : public MegaContactRequestList
         MegaContactRequestListPrivate();
         MegaContactRequestListPrivate(PendingContactRequest ** newlist, int size);
         ~MegaContactRequestListPrivate() override;
-        MegaContactRequestList *copy() override;
-        MegaContactRequest* get(int i) override;
-        int size() override;
+        MegaContactRequestList* copy() const override;
+        const MegaContactRequest* get(int i) const override;
+        int size() const override;
 
     protected:
-        MegaContactRequestListPrivate(MegaContactRequestListPrivate *requestList);
+        MegaContactRequestListPrivate(const MegaContactRequestListPrivate* requestList);
         MegaContactRequest** list;
         int s;
 };
@@ -3419,7 +3419,9 @@ class MegaApiImpl : public MegaApp
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void inviteContact(const char* email, const char* message, int action, MegaHandle contactLink, MegaRequestListener* listener = NULL);
-        void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
+        void replyContactRequest(const MegaContactRequest* request,
+                                 int action,
+                                 MegaRequestListener* listener = NULL);
         void respondContactRequest();
 
         void removeContact(MegaUser *user, MegaRequestListener* listener=NULL);
@@ -3729,8 +3731,8 @@ public:
         bool isPrivateNode(MegaHandle h);
         bool isForeignNode(MegaHandle h);
         MegaNodeList *getPublicLinks(int order);
-        MegaContactRequestList *getIncomingContactRequests();
-        MegaContactRequestList *getOutgoingContactRequests();
+        MegaContactRequestList* getIncomingContactRequests() const;
+        MegaContactRequestList* getOutgoingContactRequests() const;
 
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);

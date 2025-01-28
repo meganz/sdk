@@ -241,17 +241,17 @@ int MegaTransferList::size()
 
 MegaContactRequestList::~MegaContactRequestList() { }
 
-MegaContactRequestList *MegaContactRequestList::copy()
+MegaContactRequestList* MegaContactRequestList::copy() const
 {
     return NULL;
 }
 
-MegaContactRequest *MegaContactRequestList::get(int)
+const MegaContactRequest* MegaContactRequestList::get(int) const
 {
     return NULL;
 }
 
-int MegaContactRequestList::size()
+int MegaContactRequestList::size() const
 {
     return 0;
 }
@@ -3494,7 +3494,9 @@ void MegaApi::inviteContact(const char *email, const char *message, int action, 
     pImpl->inviteContact(email, message, action, contactLink, listener);
 }
 
-void MegaApi::replyContactRequest(MegaContactRequest *r, int action, MegaRequestListener *listener)
+void MegaApi::replyContactRequest(const MegaContactRequest* r,
+                                  int action,
+                                  MegaRequestListener* listener)
 {
     pImpl->replyContactRequest(r, action, listener);
 }
@@ -4202,12 +4204,12 @@ MegaNodeList *MegaApi::getPublicLinks(int order)
     return pImpl->getPublicLinks(order);
 }
 
-MegaContactRequestList *MegaApi::getIncomingContactRequests()
+MegaContactRequestList* MegaApi::getIncomingContactRequests() const
 {
     return pImpl->getIncomingContactRequests();
 }
 
-MegaContactRequestList *MegaApi::getOutgoingContactRequests()
+MegaContactRequestList* MegaApi::getOutgoingContactRequests() const
 {
     return pImpl->getOutgoingContactRequests();
 }
