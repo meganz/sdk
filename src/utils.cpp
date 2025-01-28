@@ -3629,10 +3629,11 @@ SplitResult split(const std::string& value, char delimiter)
 // Set up a collator for numeric (natural) sorting, so it behaves the same as
 // the web client collator instance Intl.Collator('co', {numeric: true}).
 // For reference, see the Google V8 engine function JSCollator::New in commit 3b9350b6fc0.
+// Use English locale on all platforms: such as avoid en_US_POSIX default locale on iOS
 static icu::Collator* createCollator()
 {
     UErrorCode ec = U_ZERO_ERROR;
-    auto collator = icu::Collator::createInstance(ec);
+    auto collator = icu::Collator::createInstance(icu::Locale::getEnglish(), ec);
     if (U_FAILURE(ec))
     {
         LOG_err << "ICU::collator fail to createInstance: " << ec;
