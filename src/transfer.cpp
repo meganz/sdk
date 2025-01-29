@@ -1683,39 +1683,34 @@ void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
 
 std::pair<std::set<size_t>, size_t> DirectReadSlot::searchSlowConnsUnderThreshold()
 {
+    const unsigned minSpeedPerConnBytesPerSec = getMinSpeedPerConnBytesPerSec();
+    if (!minSpeedPerConnBytesPerSec)
+    {
+        // minstreamingrate == 0, so no StreamingMinimumRate has been set
+        return {{}, mReqs.size()};
+    }
+
     std::set<size_t> slowConns;
     size_t slowestConnectionIndex = mReqs.size(); // init to `invalid` conn num
     m_off_t slowestThroughput = 0; // init slowest throughput
     for (size_t i = 0; i < mReqs.size(); ++i)
     {
-        if (!mReqs[i] || i == mUnusedConn.getNum() || !isConnectionDone(i))
+        if (!mReqs[i] || i == mUnusedConn.getNum())
         {
             continue;
         }
 
-        auto isConnSpeedTooSlow =
-            [this, minSpeedPerConnBytesPerSec = getMinSpeedPerConnBytesPerSec()](const size_t i)
-        {
-            if (!minSpeedPerConnBytesPerSec)
-            {
-                // minstreamingrate == 0, so no StreamingMinimumRate has been set
-                return false;
-            }
-
-            // checks if there's a minimum comparable throughput to perform comparisson, and then
-            // compare conn Throughput with minimum expected speed per connection (both in
-            // Bytes/sec)
-            return isMinComparableThroughputForThisConnection(i) &&
-                   getThroughput(i) * 1000 < getMinSpeedPerConnBytesPerSec();
-        };
-
         // detect those connections whose Throughput is under min threshold
-        if (isConnSpeedTooSlow(i))
+        // checks if there's a minimum comparable throughput to perform comparisson, and then
+        // compare conn Throughput with minimum expected speed per connection (both in
+        // Bytes/sec)
+        if (auto isConnSpeedTooSlow = isMinComparableThroughputForThisConnection(i) &&
+                                      getThroughput(i) * 1000 < minSpeedPerConnBytesPerSec;
+            isConnSpeedTooSlow)
         {
-            slowConns.emplace(slowestConnectionIndex);
-            const auto isCurrentIdxInvalid = slowestConnectionIndex == mReqs.size();
-            const m_off_t currentThroughput = getThroughput(i);
-            if (isCurrentIdxInvalid || currentThroughput < slowestThroughput)
+            slowConns.emplace(i);
+            if (const m_off_t currentThroughput = getThroughput(i);
+                !slowestThroughput || currentThroughput < slowestThroughput)
             {
                 slowestConnectionIndex = i;
                 slowestThroughput = currentThroughput;
@@ -1802,7 +1797,7 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
             continue;
         }
 
-        if (!isConnectionDone(i) && isMinComparableThroughputForThisConnection(i))
+        if (isMinComparableThroughputForThisConnection(i))
         {
             const auto invalidIdx = slowestConnectionIndex == mReqs.size();
             const m_off_t currentThroughput = getThroughput(i);
