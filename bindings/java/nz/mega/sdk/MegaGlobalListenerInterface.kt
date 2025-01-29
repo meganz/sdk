@@ -70,17 +70,6 @@ interface MegaGlobalListenerInterface {
     fun onNodesUpdate(api: MegaApiJava, nodeList: ArrayList<MegaNode>?)
 
     /**
-     * This function is called when an inconsistency is detected in the local cache.
-     *
-     *
-     * You should call MegaApi.fetchNodes() when this callback is received.
-     *
-     * @param api
-     * API connected to account.
-     */
-    fun onReloadNeeded(api: MegaApiJava)
-
-    /**
      * This function is called when the account has been updated (confirmed/upgraded/downgraded)
      *
      * The usage of this callback to handle the external account confirmation is deprecated.
