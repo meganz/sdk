@@ -492,12 +492,12 @@ public:
     static constexpr unsigned MAX_CONN_SWITCHES_BELOW_SPEED_THRESHOLD = 6;
 
     /**
-     *   @brief Max times we can detect same raided part (connection) as slow before retrying entire
-     * transfer.
+     *   @brief Max times we can detect same raided part (connection) slower than threshold before
+     * retrying entire transfer.
      *
      *   @see DirectReadSlot::detectAndManageSlowRaidedConns()
      */
-    static constexpr unsigned MAX_SLOW_CONNECTION_DETECTED = 6;
+    static constexpr unsigned MAX_CONN_BELOW_SPEED_THRESHOLD_DETECTED = 2;
 
     /**
     *   @brief Requests are sent in batch, and no connection is allowed to request the next chunk until the other connections have finished fetching their current one.

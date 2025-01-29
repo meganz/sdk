@@ -1744,12 +1744,14 @@ std::pair<bool, bool> DirectReadSlot::detectAndManageSlowConnsUnderThreshold()
         return {true /*slowConnsDetected*/, false /*entireTransferRetried*/};
     }
 
-    // we cannot replace slowest conn by unused one (as it already has failed)
-    // ensure that any particular connection has been detected slow N times, before retry entire
-    // transfer (to exlude punctual network issues)
+    // we cannot replace slowest conn by unused one, due to any of the following reasons:
+    //  1) unused conn has already failed
+    //  2) we have reached MAX_CONN_SWITCHES_BELOW_SPEED_THRESHOLD
+    // in this case we want to ensure that any particular connection has been detected slow N times,
+    // before retrying entire transfer (to exlude punctual network issues)
     for (auto& idx: slowConns)
     {
-        if (++mNumConnDetectedBelowSpeedThreshold[idx] > MAX_SLOW_CONNECTION_DETECTED)
+        if (++mNumConnDetectedBelowSpeedThreshold[idx] > MAX_CONN_BELOW_SPEED_THRESHOLD_DETECTED)
         {
             LOG_warn << "DirectReadSlot: detectAndManageLowRaidedParts -> Cannot find another "
                         "raided part "
