@@ -22,6 +22,7 @@ RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install
     cmake \
     curl \
     git \
+    libtool-bin \
     nasm \
     openjdk-21-jdk \
     pkg-config \

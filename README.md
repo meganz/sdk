@@ -58,7 +58,7 @@ Developer tools, run the following command and follow the instructions:
 
 The following packages should be available in the system as well:
 
- - autoconf, autoconf-archive, automake, pkg-config and nasm.
+ - autoconf, autoconf-archive, automake, pkg-config, nasm and libtool.
 
 You can use any package manager if you have one installed or build and install them from sources
 
@@ -66,7 +66,7 @@ You can use any package manager if you have one installed or build and install t
 
 For debian-based distributions, you can install the needed compilers and tools using the following command:
 
-	sudo apt install build-essential curl zip unzip autoconf autoconf-archive nasm
+	sudo apt install build-essential curl zip unzip autoconf autoconf-archive nasm libtool-bin
 
 Package names may vary for other Linux distros, but it should build successfully with similar packages to the ones listed above.
 
