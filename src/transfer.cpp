@@ -1465,12 +1465,12 @@ size_t UnusedConn::getNum() const
     return mNum;
 }
 
-bool UnusedConn::isErrReason() const
+bool UnusedConn::CanBeReused() const
 {
-    return isErrReason(mReason);
+    return mReason == UN_NOT_ERR;
 }
 
-bool UnusedConn::setUnused(const size_t num, const unusedReason reason)
+bool UnusedConn::setUnused(const size_t num, const UnusedReason reason)
 {
     if (!isValidUnusedReason(reason))
     {
@@ -1622,58 +1622,57 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
     {
         LOG_verbose << "DirectReadSlot::retryOnError: Retrying DirectRead Transfer";
         retryEntireTransfer(API_EREAD);
+        return;
     }
-    else
+
+    assert(mReqs.size() <= RAIDPARTS);
+    std::string msg =
+        "DirectReadSlot::retryOnError [Raided] [conn " + std::to_string(connectionNum) + "]: ";
+    if (connectionNum >= mReqs.size())
     {
-        assert(mReqs.size() <= RAIDPARTS);
-        std::string msg =
-            "DirectReadSlot::retryOnError [Raided] [conn " + std::to_string(connectionNum) + "]: ";
-        if (connectionNum >= mReqs.size())
-        {
-            LOG_err << msg + "invalid connectionNum (out of bounds)";
-            assert(false);
-            return;
-        }
-
-        if (std::unique_ptr<HttpReq>& failedReq = mReqs[connectionNum]; !failedReq)
-        {
-            LOG_err << msg + "invalid connectionNum (not found)";
-            assert(false);
-            return;
-        }
-
-        if (connectionNum == mUnusedConn.getNum())
-        {
-            LOG_err << msg + "connectionNum provided matches the unused connectionNum.";
-            assert(false);
-            return;
-        }
-
-        const auto reason = UnusedConn::getReasonFromHttpStatus(httpstatus);
-        if (!UnusedConn::isErrReason(reason))
-        {
-            LOG_err << msg + "unexpected reason: " << reason << " httpstatus: " << httpstatus;
-            assert(false);
-            retryEntireTransfer(API_EREAD);
-            return;
-        }
-
-        if (isUnusedConnectionFailed())
-        {
-            msg += "we cannot replace failed part by unused one, as it's also failed. Retry "
-                   "entire transfer";
-            LOG_debug << msg;
-            retryEntireTransfer(API_EREAD);
-            return;
-        }
-
-        msg += "we will replace that part by [conn " + std::to_string(mUnusedConn.getNum()) + "]";
-        LOG_debug << msg;
-        mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum));
-        resetConnection(mUnusedConn.getNum());
-        mUnusedConn.setUnused(connectionNum, reason);
-        resetConnection(mUnusedConn.getNum());
+        LOG_err << msg + "invalid connectionNum (out of bounds)";
+        assert(false);
+        return;
     }
+
+    if (std::unique_ptr<HttpReq>& failedReq = mReqs[connectionNum]; !failedReq)
+    {
+        LOG_err << msg + "invalid connectionNum (not found)";
+        assert(false);
+        return;
+    }
+
+    if (connectionNum == mUnusedConn.getNum())
+    {
+        LOG_err << msg + "connectionNum provided matches the unused connectionNum.";
+        assert(false);
+        return;
+    }
+
+    const auto reason = UnusedConn::getReasonFromHttpStatus(httpstatus);
+    if (reason != UnusedConn::UN_DEFINITIVE_ERR)
+    {
+        LOG_err << msg + "unexpected reason: " << reason << " httpstatus: " << httpstatus;
+        assert(false);
+        retryEntireTransfer(API_EREAD);
+        return;
+    }
+
+    if (!unusedConnectionCanBeReused())
+    {
+        msg += "we cannot replace failed part by unused one, as it's also failed. Retry "
+               "entire transfer";
+        LOG_debug << msg;
+        retryEntireTransfer(API_EREAD);
+        return;
+    }
+
+    msg += "we will replace that part by [conn " + std::to_string(mUnusedConn.getNum()) + "]";
+    LOG_debug << msg;
+    mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum));
+    resetConnection(mUnusedConn.getNum());
+    mUnusedConn.setUnused(connectionNum, reason);
+    resetConnection(mUnusedConn.getNum());
 }
 
 void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
@@ -1727,21 +1726,21 @@ std::pair<std::set<size_t>, size_t> DirectReadSlot::searchSlowConnsUnderThreshol
     return {slowConns, slowestConnectionIndex};
 }
 
-std::pair<bool, bool> DirectReadSlot::detectAndManageLowRaidedParts()
+std::pair<bool, bool> DirectReadSlot::detectAndManageSlowConnsUnderThreshold()
 {
     if (!mDr->drbuf.isRaid())
     {
         return {false /*slowConnsDetected*/, false /*entireTransferRetried*/};
     }
 
-    auto [slowConns, slowestConnectionIndex] = searchSlowConnsUnderThreshold();
+    const auto [slowConns, slowestConnectionIndex] = searchSlowConnsUnderThreshold();
     if (slowConns.empty())
     {
         return {false /*slowConnsDetected*/, false /*entireTransferRetried*/};
     }
 
-    if (auto canReplaceByUnused =
-            !isUnusedConnectionFailed() &&
+    if (const auto canReplaceByUnused =
+            unusedConnectionCanBeReused() &&
             !maxUnusedConnSwitchesReached(UnusedConn::CONN_SPEED_UNDER_THRESHOLD);
         canReplaceByUnused)
     {
@@ -1755,7 +1754,7 @@ std::pair<bool, bool> DirectReadSlot::detectAndManageLowRaidedParts()
     // transfer (to exlude punctual network issues)
     for (auto& idx: slowConns)
     {
-        if (++mNumSlowConnectionsDetected[idx] > MAX_SLOW_CONNECTION_DETECTED)
+        if (++mNumConnDetectedBelowSpeedThreshold[idx] > MAX_SLOW_CONNECTION_DETECTED)
         {
             LOG_warn << "DirectReadSlot: detectAndManageLowRaidedParts -> Cannot find another "
                         "raided part "
@@ -1781,7 +1780,7 @@ void DirectReadSlot::onLowSpeedRaidedTransfer()
         return;
     }
 
-    if (isUnusedConnectionFailed() ||
+    if (!unusedConnectionCanBeReused() ||
         maxUnusedConnSwitchesReached(UnusedConn::TRANSFER_MEAN_SPEED_UNDER_THRESHOLD))
     {
         // A raided part has been detected too slow and it cannot be replaced by unused one => Retry
@@ -1858,15 +1857,15 @@ bool DirectReadSlot::exitDueReqsOnFlight() const
     return false;
 }
 
-bool DirectReadSlot::isUnusedConnectionFailed()
+bool DirectReadSlot::unusedConnectionCanBeReused()
 {
-    return mUnusedConn.isErrReason();
+    return mUnusedConn.CanBeReused();
 }
 
 bool DirectReadSlot::replaceConnectionByUnused(const size_t connectionNum,
-                                               const UnusedConn::connReplacementReason reason)
+                                               const UnusedConn::ConnReplacementReason reason)
 {
-    if (!mDr->drbuf.isRaid() || isUnusedConnectionFailed() ||
+    if (!mDr->drbuf.isRaid() || !unusedConnectionCanBeReused() ||
         maxUnusedConnSwitchesReached(reason) || connectionNum >= mReqs.size() ||
         !mReqs[connectionNum])
     {
@@ -1882,8 +1881,7 @@ bool DirectReadSlot::replaceConnectionByUnused(const size_t connectionNum,
     mUnusedConn.setUnused(connectionNum, UnusedConn::UN_NOT_ERR);
     LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
                 << " Continuing after setting slow connection"
-                << " [total slow connections switches = " << mNumPerformanceConnectionsSwitches
-                << "]"
+                << " [total slow connections switches = " << mNumConnSwitchesSlowestPart << "]"
                 << " [this = " << this << "]";
 
     resetConnection(mUnusedConn.getNum());
@@ -1965,8 +1963,7 @@ bool DirectReadSlot::canSwitchSlowestByUnusedConn(const size_t connectionNum,
                      << " KB/s"
                      << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024)
                      << " KB/s]"
-                     << " [total slow connections switches = " << mNumPerformanceConnectionsSwitches
-                     << "]"
+                     << " [total slow connections switches = " << mNumConnSwitchesSlowestPart << "]"
                      << " [current unused raid connection = " << mUnusedConn.getNum() << "]"
                      << " [this = " << this << "]";
 
@@ -1980,25 +1977,25 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(const size_t connectio
 {
     // If mUnusedConn has failed due an error, we won't consider it valid for replacement
     assert(connectionNum < mReqs.size());
-    if (!mDr->drbuf.isRaid() || isUnusedConnectionFailed() || exitDueReqsOnFlight() ||
+    if (!mDr->drbuf.isRaid() || !unusedConnectionCanBeReused() || exitDueReqsOnFlight() ||
         !mReqs[connectionNum] || (connectionNum == mUnusedConn.getNum()) ||
         !isMinComparableThroughputForThisConnection(connectionNum))
     {
         return false;
     }
 
-    if (maxUnusedConnSwitchesReached(UnusedConn::CONN_SPEED_LOW_PERFORMANCE))
+    if (maxUnusedConnSwitchesReached(UnusedConn::CONN_SPEED_SLOWEST_PART))
     {
         auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::seconds>(now - mSlowDetetionBackoff).count() >
+        if (std::chrono::duration_cast<std::chrono::seconds>(now - mSlowDetectionBackoff).count() >
             SLOW_DETECTION_BACKOFF.count())
         {
             LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
                         << " SlowDetetionBackoff has expired (it will be reset) and slowest "
                            "connection will be replaced by unused one"
                         << " [this = " << this << "]";
-            mNumPerformanceConnectionsSwitches = 0;
-            mSlowDetetionBackoff = std::chrono::steady_clock::time_point::min();
+            mNumConnSwitchesSlowestPart = 0;
+            mSlowDetectionBackoff = std::chrono::steady_clock::time_point::min();
         }
         else
         {
@@ -2008,7 +2005,7 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(const size_t connectio
 
     auto [slowestConnection, fastestConnection] = searchSlowestAndFastestConns(connectionNum);
     if (canSwitchSlowestByUnusedConn(connectionNum, slowestConnection, fastestConnection) &&
-        replaceConnectionByUnused(slowestConnection, UnusedConn::CONN_SPEED_LOW_PERFORMANCE))
+        replaceConnectionByUnused(slowestConnection, UnusedConn::CONN_SPEED_SLOWEST_PART))
     {
         return true;
     }
@@ -2113,7 +2110,8 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         }
         else if (minspeed)
         {
-            if (auto [slowConnsDetected, entireTransferRetried] = detectAndManageLowRaidedParts();
+            if (auto [slowConnsDetected, entireTransferRetried] =
+                    detectAndManageSlowConnsUnderThreshold();
                 slowConnsDetected)
             {
                 return entireTransferRetried;
@@ -2607,9 +2605,9 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
         mDr->drbuf.setUnusedRaidConnection(0);
         mUnusedConn.setUnused(0, UnusedConn::UN_NOT_ERR);
     }
-    mNumSlowConnectionsDetected.clear();
-    mNumPerformanceConnectionsSwitches = 0;
-    mNumSlowSpeedSwitches = 0;
+    mNumConnDetectedBelowSpeedThreshold.clear();
+    mNumConnSwitchesSlowestPart = 0;
+    mNumConnSwitchesBelowSpeedThreshold = 0;
     mNumReqsInflight = 0;
     mWaitForParts = false;
     mMaxChunkSubmitted = 0;
@@ -2625,7 +2623,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     }
     mMinComparableThroughput = DirectReadSlot::DEFAULT_MIN_COMPARABLE_THROUGHPUT;
     mSlotStartTime = std::chrono::steady_clock::now();
-    mSlowDetetionBackoff = std::chrono::steady_clock::time_point::min();
+    mSlowDetectionBackoff = std::chrono::steady_clock::time_point::min();
 }
 
 DirectReadSlot::~DirectReadSlot()
