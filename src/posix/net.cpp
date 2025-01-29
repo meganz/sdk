@@ -2219,15 +2219,19 @@ void CurlHttpIO::cancel(HttpReq* req)
 // real-time progress information on POST data
 m_off_t CurlHttpIO::postpos(void* handle)
 {
-    double bytes = 0;
-    CurlHttpContext* httpctx = (CurlHttpContext*)handle;
+    assert(handle);
+    const CurlHttpContext* httpctx = static_cast<CurlHttpContext*>(handle);
+    if (!httpctx || !httpctx->curl)
+        return 0;
 
-    if (httpctx->curl)
+    curl_off_t bytes;
+    if (const CURLcode errorCode = curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD_T, &bytes);
+        errorCode)
     {
-        curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD_T, &bytes);
+        LOG_err << "Unable to get CURLINFO_SIZE_UPLOAD_T. Error code: " << errorCode;
+        return 0;
     }
-
-    return (m_off_t)bytes;
+    return bytes;
 }
 
 // process events

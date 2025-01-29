@@ -1280,4 +1280,22 @@ public:
     using SendInvitationToResult = std::pair<std::unique_ptr<MegaContactRequest>, Error>;
 
     auto sendInvitationTo(MegaApi& client0, MegaApi& client1) -> SendInvitationToResult;
+
+    /**
+     * @brief Returns the current tests suite and case name.
+     * @example calling this inside `TEST_F(SdkTest, Foo)` returns `std::pair {"SdkTest", "Foo"}`
+     */
+    std::pair<std::string, std::string> getTestSuiteAndName() const;
+
+    /**
+     * @brief Returns an identifier of the current test. It can be used to prefix log messages.
+     * @example calling this inside `TEST_F(SdkTest, Foo)` returns `"SdkTest.Foo : "`
+     */
+    std::string getLogPrefix() const;
+
+    /**
+     * @brief Gets a file name prefix unique for the test case
+     * @example calling this inside `TEST_F(SdkTest, Foo)` returns `"SdkTest_Foo_"`
+     */
+    std::string getFilePrefix() const;
 };

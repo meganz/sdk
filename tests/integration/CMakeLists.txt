@@ -26,7 +26,7 @@ target_sources(test_integration
     share_test.cpp
     integration_test_utils.cpp
     DisableBackupSync_test.cpp
-
+    SdkTestTransferMaxSpeeds_test.cpp
     sdk_test_node_tags.cpp
     sdk_test_node_tags.h
 )

@@ -386,6 +386,29 @@ void SdkTest::TearDown()
     out() << "Teardown done, test exiting";
 }
 
+std::pair<std::string, std::string> SdkTest::getTestSuiteAndName() const
+{
+    const auto* testInfo = ::testing::UnitTest::GetInstance()->current_test_info();
+    if (testInfo == nullptr)
+    {
+        assert(testInfo && "This is expected to be called from a test");
+        return {};
+    }
+    return {testInfo->test_suite_name(), testInfo->name()};
+}
+
+std::string SdkTest::getLogPrefix() const
+{
+    const auto [suite, name] = getTestSuiteAndName();
+    return suite + "." + name + " : ";
+}
+
+std::string SdkTest::getFilePrefix() const
+{
+    const auto [suite, name] = getTestSuiteAndName();
+    return suite + "_" + name + "_";
+}
+
 void SdkTest::Cleanup()
 {
      out() << "Cleaning up accounts";

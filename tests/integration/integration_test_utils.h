@@ -13,7 +13,9 @@
 #include "gmock/gmock.h"
 #include "mega/types.h"
 #include "megaapi.h"
+#include "sdk_test_utils.h"
 
+#include <filesystem>
 #include <memory>
 #include <optional>
 
@@ -156,6 +158,20 @@ bool checkAndExpectThat(const T& value, const MatcherT& matcher)
     EXPECT_THAT(value, matcher);
     return matched;
 }
+
+/**
+ * @brief Uploads the file in the given path to the given parentNode.
+ */
+std::unique_ptr<::mega::MegaNode> uploadFile(::mega::MegaApi* megaApi,
+                                             const std::filesystem::path& localPath,
+                                             ::mega::MegaNode* parentNode = nullptr);
+
+/**
+ * @brief Overloaded version to upload a temp file.
+ */
+std::unique_ptr<::mega::MegaNode> uploadFile(::mega::MegaApi* megaApi,
+                                             LocalTempFile&& file,
+                                             ::mega::MegaNode* parentNode = nullptr);
 }
 
 #endif // INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_
