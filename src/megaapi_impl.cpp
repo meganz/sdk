@@ -7900,12 +7900,16 @@ void MegaApiImpl::share(MegaNode* node, MegaUser *user, int access, MegaRequestL
     return share(node, user ? user->getEmail() : NULL, access, listener);
 }
 
-void MegaApiImpl::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
+void MegaApiImpl::loginToFolder(const char* megaFolderLink,
+                                const char* authKey,
+                                bool tryToResumeFolderLinkFromCache,
+                                MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setLink(megaFolderLink);
     request->setPassword(authKey);
     request->setEmail("FOLDER");
+    request->setFlag(tryToResumeFolderLinkFromCache);
 
     request->performRequest = [this, request]()
     {
@@ -19723,6 +19727,7 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             const char *password = request->getPassword();
             const char* megaFolderLink = request->getLink();
             const char* sessionKey = request->getSessionKey();
+            const bool tryToResumeFolderLinkFromCache{request->getFlag()};
 
             if (!megaFolderLink && (!(login && password)) && !sessionKey)
             {
@@ -19755,7 +19760,7 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             }
             else
             {
-                e = client->folderaccess(megaFolderLink, password);
+                e = client->folderaccess(megaFolderLink, password, tryToResumeFolderLinkFromCache);
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
