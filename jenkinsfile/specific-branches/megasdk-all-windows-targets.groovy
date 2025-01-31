@@ -50,6 +50,11 @@ pipeline {
                 sh "rm -rf build_dir_x86; mkdir build_dir_x86"
                 sh "cmake -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_PREFIX_PATH='${QTPATH}'\\\\x86 -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_x86\\\\"
                 sh "cmake --build '${WORKSPACE}'\\\\build_dir_x86\\\\ --config RelWithDebInfo -j 1"
+
+                sh "echo Building SDK arm64"
+                sh "rm -rf build_dir_arm64; mkdir build_dir_arm64"
+                sh "cmake -A ARM64 -DVCPKG_ROOT='${VCPKGPATH}' -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_arm64\\\\"
+                sh "cmake --build '${WORKSPACE}'\\\\build_dir_arm64\\\\ -j 1"
             }
         }    
     }
