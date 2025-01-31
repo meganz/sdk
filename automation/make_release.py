@@ -81,4 +81,4 @@ release.manage_versions(args["target_apps"])
 
 # STEP 8: Post release notes to Slack
 apps = [a.strip() for a in args["target_apps"].split("/")]
-release.post_notes(apps)
+release.post_notes(apps, releaseType="newRelease")

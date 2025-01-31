@@ -283,15 +283,30 @@ class ReleaseProcess:
         self._jira.create_new_version()
 
     # STEP 8: Post release notes to Slack
-    def post_notes(self, apps: list[str]):
+    def post_notes(self, apps: list[str], releaseType: str):
         print("Generating release notes...", flush=True)
         assert self._rc_tag is not None
         assert self._jira is not None
+        assert releaseType is not None
         tag_url = self._remote_private_repo.get_tag_url(self._rc_tag)
 
-        notes: str = (
-            f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
-        ) + self._jira.get_release_notes_for_slack(apps)
+        if releaseType == "newRelease":
+            notes: str = (
+                f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
+            )
+        elif releaseType == "releaseCandidate":
+            notes: str = (
+                f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n"
+                f"\U000026A0 What's new in this candidate:\n\n"
+            )
+        elif releaseType == "patchRelease":
+            major, minor, micro = (int(n) for n in self._new_version.split("."))
+            previousVersion = f"{major}.{minor}.{micro - 1}";
+            notes: str = (
+                f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n"
+                f"\U000026A0 \U000026A0 Hotfix created from `{previousVersion}` not develop, please only use this if your app was affected by some of the fixed issues\n\n"
+            )
+        notes = notes + self._jira.get_release_notes_for_slack(apps)
         if not self._slack or not self._slack_channel_announce:
             print("Enjoy:\n\n" + notes, flush=True)
         else:
