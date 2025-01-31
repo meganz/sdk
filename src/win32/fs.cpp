@@ -977,8 +977,12 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     // we are only interested in the path's last component
     wchar_t* ptr;
 
-    if ((ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L'\\')) ||
-        (ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L':')))
+    ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L'\\');
+    if (!ptr)
+    {
+        ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L':');
+    }
+    if (ptr)
     {
         sname.erase(0, ptr - sname.data() + 1);
     }

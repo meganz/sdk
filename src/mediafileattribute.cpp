@@ -154,7 +154,8 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
     bool working = json.enterarray();
     if (working)
     {
-        while ((working = json.enterarray()))
+        working = json.enterarray();
+        while (working)
         {
             MediaFileInfo::MediaCodecs::shortformatrec rec;
             unsigned id = static_cast<unsigned>(atoi(json.getvalue()));
@@ -170,6 +171,7 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
                 vec.push_back(rec);
             }
             json.leavearray();
+            working = json.enterarray();
         }
         json.leavearray();
     }
@@ -566,7 +568,8 @@ MediaProperties MediaProperties::decodeMediaPropertiesAttributes(const std::stri
         r.playtime = static_cast<uint32_t>((v[4] >> 7) + (v[5] << 1) + (v[6] << 9));
         if (v[4] & 64) r.playtime = r.playtime * 60 + 131100;
 
-        if (!(r.shortformat = v[7]))
+        r.shortformat = v[7];
+        if (!r.shortformat)
         {
             ppo = Node::hasfileattribute(&attrs, fa_mediaext);
             pos = ppo - 1;
@@ -607,7 +610,9 @@ const char* MediaProperties::supportedformatsMediaInfoAudio()
 
 bool MediaProperties::isMediaFilenameExtAudio(const std::string& ext)
 {
-    for (const char* ptr = supportedformatsMediaInfoAudio(); (ptr = strstr(ptr, ext.c_str())); ptr += ext.size())
+    for (const char* ptr = supportedformatsMediaInfoAudio();
+         (ptr = strstr(ptr, ext.c_str())) != nullptr;
+         ptr += ext.size())
     {
         if (ptr[ext.size()] == '.')
         {

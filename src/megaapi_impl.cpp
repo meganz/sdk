@@ -13342,7 +13342,8 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
         }
 
         const char* code;
-        if ((code = strstr(request->getLink(), MegaClient::verifyLinkPrefix())))
+        code = strstr(request->getLink(), MegaClient::verifyLinkPrefix());
+        if (code)
         {
             code += strlen(MegaClient::verifyLinkPrefix());
 
@@ -13392,7 +13393,8 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
 
     const char *link = request->getLink();
     const char* code;
-    if ((code = strstr(link, MegaClient::recoverLinkPrefix())))
+    code = strstr(link, MegaClient::recoverLinkPrefix());
+    if (code)
     {
         code += strlen(MegaClient::recoverLinkPrefix());
     }
@@ -13872,8 +13874,11 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 {
     MegaRequestPrivate* request = NULL;
     auto it = requestMap.find(client->restag);
-    if (it == requestMap.end() || !(request = it->second)
-            || request->getType() != MegaRequest::TYPE_PUBLIC_LINK_INFORMATION) return;
+    if (it == requestMap.end())
+        return;
+    request = it->second;
+    if (!request || request->getType() != MegaRequest::TYPE_PUBLIC_LINK_INFORMATION)
+        return;
 
     if (e == API_OK)
     {
@@ -15170,7 +15175,8 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
             {
                 error err;
                 byte pwkey[SymmCipher::KEYLENGTH];
-                if ((err = client->pw_key(password, pwkey)))
+                err = client->pw_key(password, pwkey);
+                if (err)
                 {
                     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(err));
                     return;
@@ -15205,7 +15211,8 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         const char* code;
         const char *mk64;
 
-        if ((code = strstr(link, MegaClient::recoverLinkPrefix())))
+        code = strstr(link, MegaClient::recoverLinkPrefix());
+        if (code)
         {
             code += strlen(MegaClient::recoverLinkPrefix());
         }
@@ -15393,9 +15400,12 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 {
     MegaRequestPrivate* request = NULL;
     auto it = requestMap.find(client->restag);
-    if (it == requestMap.end() || !(request = it->second)
-            || ( request->getType() != MegaRequest::TYPE_IMPORT_LINK
-                 && request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)) return;
+    if (it == requestMap.end())
+        return;
+    request = it->second;
+    if (!request || (request->getType() != MegaRequest::TYPE_IMPORT_LINK &&
+                     request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))
+        return;
 
     if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
     {
@@ -19477,7 +19487,8 @@ void MegaApiImpl::sendPendingRequests()
 
         e = API_OK;
 
-        if (!(request = requestQueue.pop()))
+        request = requestQueue.pop();
+        if (!request)
         {
             break;
         }
@@ -20086,7 +20097,8 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
             }
 
             error e = API_OK;
-            if ((e = client->checkmove(node.get(), newParent.get())))
+            e = client->checkmove(node.get(), newParent.get());
+            if (e)
             {
                 // If it's not possible to move the node, try copy-delete,
                 // but only when it's not possible due to access rights
@@ -22106,7 +22118,8 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
             const char* tptr;
 
             // is it a link to confirm the account? ie. https://mega.nz/#confirm<code_in_B64>
-            if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix())))
+            tptr = strstr(ptr, MegaClient::confirmLinkPrefix());
+            if (tptr)
             {
                 ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
 
@@ -22139,7 +22152,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
                 }
             }
             // is it a new singup link? ie. https://mega.nz/#newsignup<code_in_B64>
-            else if ((tptr = strstr(ptr, MegaClient::newsignupLinkPrefix())))
+            else if ((tptr = strstr(ptr, MegaClient::newsignupLinkPrefix())) != nullptr)
             {
                 ptr = tptr + strlen(MegaClient::newsignupLinkPrefix());
 
@@ -22195,7 +22208,9 @@ error MegaApiImpl::performRequest_confirmAccount(MegaRequestPrivate* request)
             const char* ptr = link;
             const char* tptr;
 
-            if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix()))) ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
+            tptr = strstr(ptr, MegaClient::confirmLinkPrefix());
+            if (tptr)
+                ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
 
             error e = API_OK;
             string code = Base64::atob(string(ptr));
@@ -22266,15 +22281,15 @@ void MegaApiImpl::queryRecoveryLink(const char* link, MegaRequestListener* liste
             const char *link = request->getLink();
 
             const char* code;
-            if (link && (code = strstr(link, MegaClient::recoverLinkPrefix())))
+            if (link && (code = strstr(link, MegaClient::recoverLinkPrefix())) != nullptr)
             {
                 code += strlen(MegaClient::recoverLinkPrefix());
             }
-            else if (link && (code = strstr(link, MegaClient::verifyLinkPrefix())))
+            else if (link && (code = strstr(link, MegaClient::verifyLinkPrefix())) != nullptr)
             {
                 code += strlen(MegaClient::verifyLinkPrefix());
             }
-            else if (link && (code = strstr(link, MegaClient::cancelLinkPrefix())))
+            else if (link && (code = strstr(link, MegaClient::cancelLinkPrefix())) != nullptr)
             {
                 code += strlen(MegaClient::cancelLinkPrefix());
             }
@@ -22302,17 +22317,19 @@ void MegaApiImpl::confirmResetPasswordLink(const char* link, const char* newPwd,
         {
             const char *link = request->getLink();
             const char *newPwd = request->getPassword();
-
-            const char* code;
-            if (newPwd && link && (code = strstr(link, MegaClient::recoverLinkPrefix())))
-            {
-                code += strlen(MegaClient::recoverLinkPrefix());
-            }
-            else
+            if (!newPwd || !link)
             {
                 return API_EARGS;
             }
 
+            const char* code;
+            code = strstr(link, MegaClient::recoverLinkPrefix());
+            if (!code)
+            {
+                return API_EARGS;
+            }
+
+            code += strlen(MegaClient::recoverLinkPrefix());
             // concatenate query + confirm requests
             client->queryrecoverylink(code);
             return API_OK;
@@ -22331,17 +22348,19 @@ void MegaApiImpl::checkRecoveryKey(const char* link, const char* recoveryKey, Me
     request->performRequest = [this, request]()
         {
             const char* link = request->getLink();
-
-            const char* code;
-            if (link && (code = strstr(link, MegaClient::recoverLinkPrefix())))
-            {
-                code += strlen(MegaClient::recoverLinkPrefix());
-            }
-            else
+            if (!link)
             {
                 return API_EARGS;
             }
 
+            const char* code;
+            code = strstr(link, MegaClient::recoverLinkPrefix());
+            if (!code)
+            {
+                return API_EARGS;
+            }
+
+            code += strlen(MegaClient::recoverLinkPrefix());
             // concatenate query + confirm requests
             client->getprivatekey(code);
             return API_OK;
@@ -22385,8 +22404,14 @@ void MegaApiImpl::confirmCancelAccount(const char* link, const char* pwd, MegaRe
                 return API_EACCESS;
             }
 
+            if (!pwd || !link)
+            {
+                return API_EARGS;
+            }
+
             const char* code;
-            if (!pwd || !link || !(code = strstr(link, MegaClient::cancelLinkPrefix())))
+            code = strstr(link, MegaClient::cancelLinkPrefix());
+            if (!code)
             {
                 return API_EARGS;
             }
@@ -22439,16 +22464,19 @@ void MegaApiImpl::confirmChangeEmail(const char* link, const char* pwd, MegaRequ
                 return API_EACCESS;
             }
 
-            const char* code;
-            if (pwd && link && (code = strstr(link, MegaClient::verifyLinkPrefix())))
-            {
-                code += strlen(MegaClient::verifyLinkPrefix());
-            }
-            else
+            if (!pwd || !link)
             {
                 return API_EARGS;
             }
 
+            const char* code;
+            code = strstr(link, MegaClient::verifyLinkPrefix());
+            if (!code)
+            {
+                return API_EARGS;
+            }
+
+            code += strlen(MegaClient::verifyLinkPrefix());
             // concatenates query + validate pwd + confirm
             client->queryrecoverylink(code);
             return API_OK;

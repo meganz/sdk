@@ -8,6 +8,7 @@ if (NOT WIN32)
     set(USE_CPPTHREAD 0)
 else()
     set(USE_CPPTHREAD 1)
+    set(CMAKE_GENERATOR_TOOLSET "v142")
 endif()
 
 include(detect_host_architecture)

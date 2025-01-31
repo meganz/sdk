@@ -1870,7 +1870,8 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     fsaccess->waiter = w.get();
     transferlist.client = this;
 
-    if ((app = a))
+    app = a;
+    if (app)
     {
         a->client = this;
     }
@@ -1878,7 +1879,8 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     waiter = w;
     httpio = h;
 
-    if ((gfx = g))
+    gfx = g;
+    if (gfx)
     {
         g->client = this;
     }
@@ -5564,7 +5566,8 @@ void MegaClient::initsc()
             // 2. write all users
             for (user_map::iterator it = users.begin(); it != users.end(); it++)
             {
-                if (!(complete = sctable->put(CACHEDUSER, &it->second, &key)))
+                complete = sctable->put(CACHEDUSER, &it->second, &key);
+                if (!complete)
                 {
                     break;
                 }
@@ -5576,7 +5579,8 @@ void MegaClient::initsc()
             // 4. write new or modified pcrs, purge deleted pcrs
             for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
             {
-                if (!(complete = sctable->put(CACHEDPCR, it->second.get(), &key)))
+                complete = sctable->put(CACHEDPCR, it->second.get(), &key);
+                if (!complete)
                 {
                     break;
                 }
@@ -5603,7 +5607,8 @@ void MegaClient::initsc()
             // 7. write new or modified chats
             for (textchat_map::iterator it = chats.begin(); it != chats.end(); it++)
             {
-                if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
+                complete = sctable->put(CACHEDCHAT, it->second, &key);
+                if (!complete)
                 {
                     break;
                 }
@@ -5691,7 +5696,8 @@ void MegaClient::updatesc()
                     if ((*it)->dbid)
                     {
                         LOG_verbose << clientname << "Removing inactive user from database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
-                        if (!(complete = sctable->del((*it)->dbid)))
+                        complete = sctable->del((*it)->dbid);
+                        if (!complete)
                         {
                             break;
                         }
@@ -5700,7 +5706,8 @@ void MegaClient::updatesc()
                 else
                 {
                     LOG_verbose << clientname << "Adding/updating user to database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->put(CACHEDUSER, *it, &key)))
+                    complete = sctable->put(CACHEDUSER, *it, &key);
+                    if (!complete)
                     {
                         break;
                     }
@@ -5722,7 +5729,8 @@ void MegaClient::updatesc()
                     if ((*it)->dbid)
                     {
                         LOG_verbose << "Removing pcr from database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::PCRHANDLE,base64) ? base64 : "");
-                        if (!(complete = sctable->del((*it)->dbid)))
+                        complete = sctable->del((*it)->dbid);
+                        if (!complete)
                         {
                             break;
                         }
@@ -5731,7 +5739,8 @@ void MegaClient::updatesc()
                 else if (!(*it)->removed())
                 {
                     LOG_verbose << "Adding pcr to database: " << (Base64::btoa((byte*)&((*it)->id),MegaClient::PCRHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->put(CACHEDPCR, *it, &key)))
+                    complete = sctable->put(CACHEDPCR, *it, &key);
+                    if (!complete)
                     {
                         break;
                     }
@@ -5758,7 +5767,8 @@ void MegaClient::updatesc()
             for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
             {
                 LOG_verbose << "Adding chat to database: " << Base64Str<sizeof(handle)>(it->second->getChatId());
-                if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
+                complete = sctable->put(CACHEDCHAT, it->second, &key);
+                if (!complete)
                 {
                     break;
                 }
@@ -5801,7 +5811,8 @@ error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey,
     int p, pp;
 
     // find position of file attribute or 0 if not present
-    if (!(p = Node::hasfileattribute(fileattrstring, t)))
+    p = Node::hasfileattribute(fileattrstring, t);
+    if (!p)
     {
         return API_ENOENT;
     }
@@ -6947,7 +6958,11 @@ void MegaClient::sc_userattr()
                 {
                     LOG_err << "Failed to parse the user :" << uh;
                 }
-                else if (!(u = finduser(uh)))
+                else
+                {
+                    u = finduser(uh);
+                }
+                if (!u)
                 {
                     LOG_debug << "User attributes update for non-existing user";
                 }
@@ -8447,7 +8462,8 @@ void MegaClient::notifypurge(void)
     // purge of notifications related to nodes have been moved to NodeManager since NodesOnDemand
     mNodeManager.notifyPurge();
 
-    if ((t = int(pcrnotify.size())))
+    t = int(pcrnotify.size());
+    if (t)
     {
         if (!fetchingnodes)
         {
@@ -8474,7 +8490,8 @@ void MegaClient::notifypurge(void)
     }
 
     // users are never deleted (except at account cancellation)
-    if ((t = int(usernotify.size())))
+    t = int(usernotify.size());
+    if (t)
     {
         if (!fetchingnodes)
         {
@@ -8522,7 +8539,8 @@ void MegaClient::notifypurge(void)
     }
 
 #ifdef ENABLE_CHAT
-    if ((t = int(chatnotify.size())))
+    t = int(chatnotify.size());
+    if (t)
     {
         if (!fetchingnodes)
         {
@@ -8689,8 +8707,8 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
         }
 
         User* u;
-
-        if ((u = finduser(c[0].c_str())))
+        u = finduser(c[0].c_str());
+        if (u)
         {
             // locate matching share from this user
             handle_set::iterator sit;
@@ -9382,8 +9400,8 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
     }
 
     error e;
-
-    if ((e = checkmove(n.get(), p.get())))
+    e = checkmove(n.get(), p.get());
+    if (e)
     {
         return e;
     }
@@ -9780,7 +9798,8 @@ error MegaClient::pw_key(const char* utf8pw, byte* keyBuffer) const
     int t;
     char* pw;
 
-    if (!(pw = utf8_to_a32forjs(utf8pw, &t)))
+    pw = utf8_to_a32forjs(utf8pw, &t);
+    if (!pw)
     {
         return API_EARGS;
     }
@@ -10944,7 +10963,7 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
             }
             User* u = finduser(uh, 0);
             bool notify = !u;
-            if (u || (u = finduser(uh, 1)))
+            if (u || (u = finduser(uh, 1)) != nullptr)
             {
                 const string oldEmail = u->email;
                 mapuser(uh, m);
@@ -11035,27 +11054,27 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* extractedK
 {
     bool isFolder;
     const char* ptr = nullptr;
-    if ((ptr = strstr(link, "#F!")))
+    if ((ptr = strstr(link, "#F!")) != nullptr)
     {
         ptr += 3;
         isFolder = true;
     }
-    else if ((ptr = strstr(link, "folder/")))
+    else if ((ptr = strstr(link, "folder/")) != nullptr)
     {
         ptr += 7;
         isFolder = true;
     }
-    else if ((ptr = strstr(link, "#!")))
+    else if ((ptr = strstr(link, "#!")) != nullptr)
     {
         ptr += 2;
         isFolder = false;
     }
-    else if ((ptr = strstr(link, "file/")))
+    else if ((ptr = strstr(link, "file/")) != nullptr)
     {
         ptr += 5;
         isFolder = false;
     }
-    else if ((ptr = strstr(link, "collection/")))
+    else if ((ptr = strstr(link, "collection/")) != nullptr)
     {
         ptr += 11; // std::strlen("collection/");
         isFolder = false;
@@ -14099,7 +14118,9 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
 
     const char* ptr = NULL;
     const char* end = NULL;
-    if (!(ptr = strstr(link, "#P!")))
+
+    ptr = strstr(link, "#P!");
+    if (!ptr)
     {
         LOG_err << "This link is not password protected";
         return API_EARGS;
@@ -14369,7 +14390,13 @@ error MegaClient::changepw(const char* password, const char *pin)
 {
     User* u;
 
-    if (!loggedin() || !(u = finduser(me)))
+    if (!loggedin())
+    {
+        return API_EACCESS;
+    }
+
+    u = finduser(me);
+    if (!u)
     {
         return API_EACCESS;
     }
@@ -14416,7 +14443,8 @@ error MegaClient::changePasswordV1(User* u, const char* password, const char* pi
 {
     error e;
     byte newpwkey[SymmCipher::KEYLENGTH];
-    if ((e = pw_key(password, newpwkey)))
+    e = pw_key(password, newpwkey);
+    if (e)
     {
         return e;
     }
@@ -14662,7 +14690,8 @@ bool MegaClient::fetchsc(DbTable* stateCacheTable)
                 break;
 
             case CACHEDPCR:
-                if ((pcr = PendingContactRequest::unserialize(&data)))
+                pcr = PendingContactRequest::unserialize(&data);
+                if (pcr)
                 {
                     mappcr(pcr->id, unique_ptr<PendingContactRequest>(pcr));
                     pcr->dbid = id;
@@ -14675,7 +14704,8 @@ bool MegaClient::fetchsc(DbTable* stateCacheTable)
                 break;
 
             case CACHEDUSER:
-                if ((u = User::unserialize(this, &data)))
+                u = User::unserialize(this, &data);
+                if (u)
                 {
                     u->dbid = id;
                 }
@@ -14700,7 +14730,8 @@ bool MegaClient::fetchsc(DbTable* stateCacheTable)
 #ifdef ENABLE_CHAT
                 {
                     TextChat *chat;
-                    if ((chat = TextChat::unserialize(this, &data)))
+                    chat = TextChat::unserialize(this, &data);
+                    if (chat)
                     {
                         chat->dbid = id;
                     }
@@ -14950,7 +14981,8 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
             switch (id & 15)
             {
                 case CACHEDTRANSFER:
-                    if ((t = Transfer::unserialize(this, &data, multi_cachedtransfers)))
+                    t = Transfer::unserialize(this, &data, multi_cachedtransfers);
+                    if (t)
                     {
                         t->dbid = id;
                         if (t->priority > transferlist.currentpriority)

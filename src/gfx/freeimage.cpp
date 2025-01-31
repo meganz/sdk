@@ -187,8 +187,10 @@ bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int s
     if (fif == FIF_JPEG)
     {
         // load JPEG (scale & EXIF-rotate)
-        if (!(dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(),
-                                    JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
+        dib = FreeImage_LoadX(fif,
+                              imagePath.localpath.c_str(),
+                              JPEG_EXIFROTATE | JPEG_FAST | (size << 16));
+        if (!dib)
         {
             return false;
         }
@@ -197,12 +199,14 @@ bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int s
 #endif
     {
         // load all other image types - for RAW formats, rely on embedded preview
-        if (!(dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(),
+        (dib = FreeImage_LoadX(fif,
+                               imagePath.localpath.c_str(),
 #ifndef OLD_FREEIMAGE
-                                    (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
+                               (fif == FIF_RAW) ? RAW_PREVIEW : 0));
 #else
-                                    0)))
+                               0));
 #endif
+        if (!dib)
         {
             return false;
         }
@@ -234,7 +238,8 @@ const char *GfxProviderFreeImage::supportedformatsFfmpeg()
 bool GfxProviderFreeImage::isFfmpegFile(const string& ext)
 {
     const char* ptr;
-    if ((ptr = strstr(supportedformatsFfmpeg(), ext.c_str())) && ptr[ext.size()] == '.')
+    ptr = strstr(supportedformatsFfmpeg(), ext.c_str());
+    if (ptr && ptr[ext.size()] == '.')
     {
         return true;
     }
@@ -511,9 +516,16 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
                     h = 0;
 
                     // Try and generate an image from our raw frame.
-                    if (!(dib = FreeImage_ConvertFromRawBits((BYTE*)fmemory.data,width,height,
-                                                             pitch, 24, FI_RGBA_RED_SHIFT, FI_RGBA_GREEN_MASK,
-                                                             FI_RGBA_BLUE_MASK | 0xFFFF, TRUE) ) )
+                    (dib = FreeImage_ConvertFromRawBits((BYTE*)fmemory.data,
+                                                        width,
+                                                        height,
+                                                        pitch,
+                                                        24,
+                                                        FI_RGBA_RED_SHIFT,
+                                                        FI_RGBA_GREEN_MASK,
+                                                        FI_RGBA_BLUE_MASK | 0xFFFF,
+                                                        TRUE));
+                    if (!dib)
                     {
                         LOG_warn << "Error loading freeimage from memory: " << imagePath;
                         return false;
@@ -562,7 +574,8 @@ const char* GfxProviderFreeImage::supportedformatsPDF()
 bool GfxProviderFreeImage::isPdfFile(const string &ext)
 {
     const char* ptr;
-    if ((ptr = strstr(supportedformatsPDF(), ext.c_str())) && ptr[ext.size()] == '.')
+    ptr = strstr(supportedformatsPDF(), ext.c_str());
+    if (ptr && ptr[ext.size()] == '.')
     {
         return true;
     }
@@ -704,13 +717,15 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 
     jpegout->clear();
 
-    if ((tdib = FreeImage_Rescale(dib, w, h, FILTER_BILINEAR)))
+    tdib = FreeImage_Rescale(dib, w, h, FILTER_BILINEAR);
+    if (tdib)
     {
         FreeImage_Unload(dib);
 
         dib = tdib;
 
-        if ((tdib = FreeImage_Copy(dib, px, py, px + rw, py + rh)))
+        tdib = FreeImage_Copy(dib, px, py, px + rw, py + rh);
+        if (tdib)
         {
             FreeImage_Unload(dib);
 
@@ -727,7 +742,8 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* jpegout)
                 dib = tdib;
             }
 
-            if ((hmem = FreeImage_OpenMemory()))
+            hmem = FreeImage_OpenMemory();
+            if (hmem)
             {
                 if (FreeImage_SaveToMemory(FIF_JPEG, dib, hmem,
                 #ifndef OLD_FREEIMAGE

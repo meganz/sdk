@@ -165,7 +165,8 @@ void SharedMutex::unlock()
         assert(mWriterID == std::this_thread::get_id());
 
         // Release the mutex.
-        if (!(counter = ++mCounter))
+        counter = ++mCounter;
+        if (!counter)
             mWriterID = std::thread::id();
     }
 
