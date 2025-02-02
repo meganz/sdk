@@ -4049,6 +4049,19 @@ class MegaContactRequestList
         /**
          * @brief Returns the MegaContactRequest at the position i in the MegaContactRequestList
          *
+         * The MegaContactRequestList retains the ownership of the returned MegaContactRequest. It
+         * will be only valid until the MegaContactRequestList is deleted.
+         *
+         * If the index is >= the size of the list, this function returns NULL.
+         *
+         * @param i Position of the MegaContactRequest that we want to get for the list
+         * @return MegaContactRequest at the position i in the list
+         */
+        MegaContactRequest* get(int i);
+
+        /**
+         * @brief Returns the MegaContactRequest at the position i in the MegaContactRequestList
+         *
          * The MegaContactRequestList retains the ownership of the returned MegaContactRequest. It will be only valid until
          * the MegaContactRequestList is deleted.
          *

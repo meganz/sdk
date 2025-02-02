@@ -246,6 +246,13 @@ MegaContactRequestList* MegaContactRequestList::copy() const
     return NULL;
 }
 
+MegaContactRequest* MegaContactRequestList::get(int index)
+{
+    auto self = static_cast<const MegaContactRequestList*>(this);
+
+    return const_cast<MegaContactRequest*>(self->get(index));
+}
+
 const MegaContactRequest* MegaContactRequestList::get(int) const
 {
     return NULL;
