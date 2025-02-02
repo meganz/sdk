@@ -36,11 +36,6 @@ typedef const wchar_t freeimage_filename_char_t;
 typedef const char freeimage_filename_char_t;
 #endif
 
-#if FREEIMAGE_MAJOR_VERSION < 3 || FREEIMAGE_MINOR_VERSION < 13
-#define OLD_FREEIMAGE
-#endif
-
-
 #ifdef HAVE_FFMPEG
 extern "C" {
 #include <libavformat/avformat.h>
@@ -183,7 +178,6 @@ bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int s
         return false;
     }
 
-#ifndef OLD_FREEIMAGE
     if (fif == FIF_JPEG)
     {
         // load JPEG (scale & EXIF-rotate)
@@ -196,16 +190,9 @@ bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int s
         }
     }
     else
-#endif
     {
         // load all other image types - for RAW formats, rely on embedded preview
-        (dib = FreeImage_LoadX(fif,
-                               imagePath.localpath.c_str(),
-#ifndef OLD_FREEIMAGE
-                               (fif == FIF_RAW) ? RAW_PREVIEW : 0));
-#else
-                               0));
-#endif
+        dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(), (fif == FIF_RAW) ? RAW_PREVIEW : 0);
         if (!dib)
         {
             return false;
@@ -745,11 +732,7 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* jpegout)
             hmem = FreeImage_OpenMemory();
             if (hmem)
             {
-                if (FreeImage_SaveToMemory(FIF_JPEG, dib, hmem,
-                #ifndef OLD_FREEIMAGE
-                    JPEG_BASELINE | JPEG_OPTIMIZE |
-                #endif
-                    85))
+                if (FreeImage_SaveToMemory(FIF_JPEG, dib, hmem, JPEG_BASELINE | JPEG_OPTIMIZE | 85))
                 {
                     BYTE* tdata;
                     DWORD tlen;
