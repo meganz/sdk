@@ -3658,11 +3658,11 @@ class MegaApiImpl : public MegaApp
                                  const char* newLocalSyncRootPath,
                                  MegaRequestListener* listener);
 
-        void setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
-                                       MegaRequestListener* const listener);
+        void setSyncUploadThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                             MegaRequestListener* const listener);
 
         void setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
-                                             MegaRequestListener* listener);
+                                             MegaRequestListener* const listener);
 
         void getSyncUploadThrottleValues(MegaRequestListener* const listener);
 

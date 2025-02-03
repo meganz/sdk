@@ -32,14 +32,8 @@ public:
 
     MOCK_METHOD(void,
                 processDelayedUploads,
-                (std::function<void(std::weak_ptr<SyncUpload_inClient>&&,
-                                    const VersioningOption,
-                                    const bool,
-                                    const NodeHandle)> &&
-                 completion),
+                (std::function<void(DelayedSyncUpload&&)> && completion),
                 (override));
-
-    MOCK_METHOD(bool, setThrottleUpdateRate, (const unsigned intervalSeconds), (override));
 
     MOCK_METHOD(bool, setThrottleUpdateRate, (const std::chrono::seconds interval), (override));
 
@@ -50,7 +44,7 @@ public:
 
     MOCK_METHOD(std::chrono::seconds, uploadCounterInactivityExpirationTime, (), (const, override));
 
-    MOCK_METHOD(unsigned, throttleUpdateRate, (), (const, override));
+    MOCK_METHOD(std::chrono::seconds, throttleUpdateRate, (), (const, override));
 
     MOCK_METHOD(unsigned, maxUploadsBeforeThrottle, (), (const, override));
 
@@ -79,10 +73,7 @@ void forwardAllThrottlingMethods(
 
     ON_CALL(*mockUploadThrottlingManager, processDelayedUploads(_))
         .WillByDefault(
-            [uploadThrottlingManager](std::function<void(std::weak_ptr<SyncUpload_inClient>&&,
-                                                         const VersioningOption,
-                                                         const bool,
-                                                         const NodeHandle)>&& completion)
+            [uploadThrottlingManager](std::function<void(DelayedSyncUpload &&)>&& completion)
             {
                 uploadThrottlingManager->processDelayedUploads(std::move(completion));
             });
@@ -328,11 +319,11 @@ public:
         const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
 
         // 2) Set the minimum values possible.
-        const auto updateRateSeconds = throttleValueLimits.throttleUpdateRateLowerLimit;
+        const auto throttleUpdateRate = throttleValueLimits.throttleUpdateRateLowerLimit;
         const auto maxUploadsBeforeThrottle =
             throttleValueLimits.maxUploadsBeforeThrottleLowerLimit;
 
-        ASSERT_TRUE(uploadThrottlingManager->setThrottleUpdateRate(updateRateSeconds));
+        ASSERT_TRUE(uploadThrottlingManager->setThrottleUpdateRate(throttleUpdateRate));
         ASSERT_EQ(uploadThrottlingManager->throttleUpdateRate(),
                   throttleValueLimits.throttleUpdateRateLowerLimit);
 
@@ -340,8 +331,9 @@ public:
         ASSERT_EQ(uploadThrottlingManager->maxUploadsBeforeThrottle(),
                   throttleValueLimits.maxUploadsBeforeThrottleLowerLimit);
 
-        LOG_debug << "[SdkTestSyncUploadThrottling] Throttle rate: " << updateRateSeconds
-                  << " , maxUploadsBeforeThrottle: " << maxUploadsBeforeThrottle;
+        LOG_debug << "[SdkTestSyncUploadThrottling] throttleUpdateRate: "
+                  << throttleUpdateRate.count()
+                  << " secs, maxUploadsBeforeThrottle: " << maxUploadsBeforeThrottle;
 
         // 3) Forward all throttling methods from the mocked UTM to the real UTM.
         forwardAllThrottlingMethods(mockUploadThrottlingManager, uploadThrottlingManager);
@@ -370,7 +362,8 @@ public:
      * @param expectedError The expected error for the MegaApi::setSyncMaxUploadsBeforeThrottle
      * result.
      */
-    void setThrottleUpdateRate(const unsigned throttleUpdateRate, const error expectedError)
+    void setThrottleUpdateRate(const std::chrono::seconds throttleUpdateRate,
+                               const error expectedError)
     {
         // Expectations on the request listener.
         NiceMock<MockRequestListener> mockReqListener;
@@ -379,7 +372,9 @@ public:
                                              MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES);
 
         // Code execution.
-        megaApi[0]->setSyncThrottleUpdateRate(throttleUpdateRate, &mockReqListener);
+        megaApi[0]->setSyncUploadThrottleUpdateRate(
+            static_cast<unsigned>(throttleUpdateRate.count()),
+            &mockReqListener);
 
         // Wait for everything to finish.
         ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
@@ -560,7 +555,9 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_I
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
     ASSERT_NE(throttleValueLimits.maxUploadsBeforeThrottleLowerLimit, 0);
 
-    setThrottleUpdateRate(throttleValueLimits.throttleUpdateRateLowerLimit - 1, API_EARGS);
+    setThrottleUpdateRate(throttleValueLimits.throttleUpdateRateLowerLimit -
+                              std::chrono::seconds(1),
+                          API_EARGS);
 }
 
 /**
@@ -576,7 +573,9 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_I
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
 
-    setThrottleUpdateRate(throttleValueLimits.throttleUpdateRateUpperLimit + 1, API_EARGS);
+    setThrottleUpdateRate(throttleValueLimits.throttleUpdateRateUpperLimit +
+                              std::chrono::seconds(1),
+                          API_EARGS);
 }
 
 /**
@@ -699,8 +698,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
     const auto throttlingManagers = createAndSetThrottlingManagers();
     const auto& uploadThrottlingManager = throttlingManagers.first;
     const auto& mockUploadThrottlingManager = throttlingManagers.second;
-    const unsigned updateRateSeconds = uploadThrottlingManager->throttleUpdateRate();
-    const unsigned maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
+    const auto updateRateSeconds = uploadThrottlingManager->throttleUpdateRate();
+    const auto maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
 
     LOG_verbose << logPre << "Get the dir path node handle";
     const auto dir1HandleOpt = getNodeHandleByPath("dir1");
@@ -730,19 +729,16 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
         // However, the second time some secs may have lapsed so we can just add updateRateSeconds
         // as the expected minimum.
         const auto minTimeToStartUpload = std::invoke(
-            [i, updateRateSeconds, &uploadThrottlingManager]() -> unsigned
+            [i, updateRateSeconds, &uploadThrottlingManager]() -> std::chrono::seconds
             {
                 if (i == 0)
                     return updateRateSeconds;
 
-                if (uploadThrottlingManager->timeSinceLastProcessedUpload().count() >=
-                    updateRateSeconds)
-                    return 0;
+                if (uploadThrottlingManager->timeSinceLastProcessedUpload() >= updateRateSeconds)
+                    return std::chrono::seconds(0);
 
-                return updateRateSeconds -
-                       static_cast<unsigned>(
-                           uploadThrottlingManager->timeSinceLastProcessedUpload().count() +
-                           1); // +1 to round up non-whole seconds.
+                return updateRateSeconds - uploadThrottlingManager->timeSinceLastProcessedUpload() +
+                       std::chrono::seconds(1); // +1 to round up non-whole seconds.
             });
 
         // Define the edit action to be executed within editFileAndWaitForUpload().
@@ -939,8 +935,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFilePauseSyncAndUploadItUnthr
     const auto throttlingManagers = createAndSetThrottlingManagers();
     const auto& uploadThrottlingManager = throttlingManagers.first;
     const auto& mockUploadThrottlingManager = throttlingManagers.second;
-    const unsigned updateRateSeconds = uploadThrottlingManager->throttleUpdateRate();
-    const unsigned maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
+    const auto updateRateSeconds = uploadThrottlingManager->throttleUpdateRate();
+    const auto maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
 
     LOG_verbose << logPre << "Get the dir path node handle";
     const auto dir1HandleOpt = getNodeHandleByPath("dir1");

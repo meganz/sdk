@@ -22,8 +22,8 @@ namespace mega
  */
 struct ThrottleValueLimits
 {
-    unsigned throttleUpdateRateLowerLimit;
-    unsigned throttleUpdateRateUpperLimit;
+    std::chrono::seconds throttleUpdateRateLowerLimit;
+    std::chrono::seconds throttleUpdateRateUpperLimit;
     unsigned maxUploadsBeforeThrottleLowerLimit;
     unsigned maxUploadsBeforeThrottleUpperLimit;
 };
@@ -33,76 +33,45 @@ struct ThrottleValueLimits
  * @brief Interface for the manager in charge of throttling and delayed processing of uploads.
  *
  * The IUploadThrottlingManager is meant to handle the collecting and processing of delayed uploads,
- * including the throttling time and the max number of uploads allowed for a file before throttle.
+ * as well as owning and defining the configurable values to be used either from this manager or
+ * from other components which are part of the throttling logic.
+ *
+ * The configurable values are:
+ * throttleUpdateRate: delay to process next delayed upload. This one is meant to be used directly
+ * within the internal process of delayed uploads. maxUploadsBeforeThrottle: number of uploads that
+ * doesn't go through the throttling logic. This one is meant to be used by other components
+ * handling the individual uploads and calling addToDelayedUploads when needed.
+ *
+ * Additionally, the uploadCounterInactivityExpirationTime is used to reset the individual upload
+ * counters after some time, to avoid increasing them forever.
  */
 class IUploadThrottlingManager
 {
 public:
-    /**
-     * @brief IUploadThrottlingManager destructor.
-     */
     virtual ~IUploadThrottlingManager() = default;
 
-    /**
-     * @brief Adds a delayed upload to be processed.
-     */
-    virtual void addToDelayedUploads(DelayedSyncUpload&& /* delayedUpload */) = 0;
+    // Delayed uploads perations.
 
-    /**
-     * @brief Processes the delayed uploads.
-     *
-     * Calls completion function to be called if a DelayedUpload was processed.
-     */
-    virtual void processDelayedUploads(
-        std::function<void(std::weak_ptr<SyncUpload_inClient>&& /* upload */,
-                           const VersioningOption /* vo */,
-                           const bool /* queueFirst */,
-                           const NodeHandle /* ovHandleIfShortcut */)>&& /* completion */) = 0;
+    virtual void addToDelayedUploads(DelayedSyncUpload&&) = 0;
 
-    // Setters
+    virtual void processDelayedUploads(std::function<void(DelayedSyncUpload&&)>&&) = 0;
 
-    /**
-     * @brief Sets the throttle update rate in seconds.
-     */
-    virtual bool setThrottleUpdateRate(const unsigned /* intervalSeconds */) = 0;
+    // Setters.
 
-    /**
-     * @brief Sets the throttle update rate as a duration.
-     */
-    virtual bool setThrottleUpdateRate(const std::chrono::seconds /* interval */) = 0;
+    virtual bool setThrottleUpdateRate(const std::chrono::seconds) = 0;
 
-    /**
-     * @brief Sets the maximum uploads allowed before throttling.
-     */
-    virtual bool setMaxUploadsBeforeThrottle(const unsigned /* maxUploadsBeforeThrottle */) = 0;
+    virtual bool setMaxUploadsBeforeThrottle(const unsigned) = 0;
 
-    // Getters
+    // Getters.
 
-    /**
-     * @brief Gets the inactivity expiration time after which the file upload counter should be
-     * reset.
-     *
-     */
     virtual std::chrono::seconds uploadCounterInactivityExpirationTime() const = 0;
 
-    /**
-     * @brief Gets the throttle update rate for uploads in seconds.
-     */
-    virtual unsigned throttleUpdateRate() const = 0;
+    virtual std::chrono::seconds throttleUpdateRate() const = 0;
 
-    /**
-     * @brief Gets the maximum uploads allowed before throttling.
-     */
     virtual unsigned maxUploadsBeforeThrottle() const = 0;
 
-    /**
-     * @brief Gets the lower and upper limits for throttling values.
-     */
     virtual ThrottleValueLimits throttleValueLimits() const = 0;
 
-    /**
-     * @brief Calculates the time since last delayed upload was processed.
-     */
     virtual std::chrono::seconds timeSinceLastProcessedUpload() const = 0;
 };
 

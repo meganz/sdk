@@ -2230,7 +2230,7 @@ public:
      * @see IUploadThrottlingManager::throttleUpdateRate()
      * Expected to be called on the sync thread.
      */
-    unsigned throttleUpdateRate() const;
+    std::chrono::seconds throttleUpdateRate() const;
 
     /**
      * @see IUploadThrottlingManager::maxUploadsBeforeThrottle()
@@ -2239,104 +2239,71 @@ public:
     unsigned maxUploadsBeforeThrottle() const;
 
     /**
-     * @brief Enqueues setThrottleValuesInThread() to be later called within the sync thread.
-     * Method to be executed from the MegaClient thread.
-     */
-    void setThrottleValues(std::optional<const unsigned> updateRateInSeconds,
-                           std::optional<const unsigned> maxUploadsBeforeThrottle,
-                           std::function<void(const error /* errorSetThrottleUpdateRate */,
-                                              const error /* errorSetMaxUploadsBeforeThrottle */)>&&
-                               completionForClient);
-
-    /**
-     * @brief Sets the upload throttling configurable values: throttleUpdateRate and
-     * maxUploadsBeforeThrottle.
+     * @brief Sets the throttleUpdateRate configurable value for upload throttling.
      *
-     * Method to be executed oon the sync thread.
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
      *
-     * @param completionForClient The completion function to be called after the operations
-     * finishes. First error corresponds to setting updateRateInSeconds and second error corresponds
-     * to setting maxUploadsBeforeThrottle.
+     * @param completion The completion function to be called after the operations finishes.
      * Error values:
      * - API_OK: Value was updated correctly.
-     * - API_EARGS: Value was below or above throttle value limits.
-     * - API_ENOENT: Optional value was empty.
-     * @return True if values were updated (excluding the empty optional ones), otherwise false
-     * (including if both optional values were empty).
+     * - API_EARGS: Value was below or above throttleUpdateRate lower/upper limits.
      */
-    bool setThrottleValuesInThread(
-        std::optional<const unsigned> updateRateInSeconds,
-        std::optional<const unsigned> maxUploadsBeforeThrottle,
-        std::function<void(const error /* errorSetThrottleUpdateRate */,
-                           const error /* errorSetMaxUploadsBeforeThrottle */)>&& completion =
-            nullptr);
+    void setThrottleUpdateRate(std::chrono::seconds throttleUpdateRate,
+                               std::function<void(const error)>&& completion);
 
     /**
-     * @brief Enqueues getThrottleValuesInThread() to be later called within the sync thread.
-     * Method to be executed from the MegaClient thread.
+     * @brief Sets the maxUploadsBeforeThrottle configurable value for upload throttling.
+     *
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
+     *
+     * @param completion The completion function to be called after the operations finishes.
+     * Error values:
+     * - API_OK: Value was updated correctly.
+     * - API_EARGS: Value was below or above maxUploadsBeforeThrottle lower/upper limits.
      */
-    void getThrottleValues(
-        std::function<void(const unsigned /* updateRateInSeconds */,
-                           const unsigned /* maxUploadsBeforeThrottle */)>&& completionForClient);
+    void setMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                     std::function<void(const error)>&& completion);
 
     /**
-     * @brief Gets the upload throttling configurable values: throttleUpdateRate and
+     * @brief Retrieves the upload throttling configurable values: throttleUpdateRate and
      * maxUploadsBeforeThrottle.
      *
-     * Method to be executed on the sync thread.
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
      *
-     * @param completionForClient The completion function to be called after the operations
-     * finishes.
+     * @param completion The completion function to be called after the operations finishes.
      * @return a pair with throttleUpdateRate, maxUploadsBeforeThrottle.
      */
-    std::pair<unsigned, unsigned> getThrottleValuesInThread(
-        std::function<void(const unsigned /* throttleUpdateRate */,
-                           const unsigned /* maxUploadsBeforeThrottle */)>&& completion =
-            nullptr) const;
+    void uploadThrottleValues(
+        std::function<void(const std::chrono::seconds /* throttleUpdateRate */,
+                           const unsigned /* maxUploadsBeforeThrottle */)>&& completion);
 
     /**
-     * @brief Enqueues getThrottleValuesLimitsInThread() to be later called within the sync thread.
-     * Method to be executed from the MegaClient thread.
-     */
-    void getThrottleValuesLimits(
-        std::function<void(const ThrottleValueLimits)>&& completionForClient);
-
-    /**
-     * @brief Gets the lower/upper limits for the upload throttling configurable values.
+     * @brief Retrieves the lower/upper limits for the upload throttling configurable values.
      *
-     * Method to be executed on sync thread.
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
      *
-     * @param completionForClient The completion function to be called after the operations
-     * finishes.
-     * @return ThrottleValueLimits struct containing the throttleUpdateRate and
-     * maxUploadsBeforeThrottle lower and upper limits.
+     * @param completion The completion function to be called after the operations finishes.
      */
-    ThrottleValueLimits getThrottleValuesLimitsInThread(
-        std::function<void(const ThrottleValueLimits)>&& completion = nullptr) const;
-
-    /**
-     * @brief Enqueues setThrottlingManagerInThread() to be later called within the sync thread.
-     * Method to be executed from the MegaClient thread.
-     */
-    void setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
-                              std::function<void(const error)>&& completionForClient);
+    void uploadThrottleValuesLimits(std::function<void(ThrottleValueLimits&&)>&& completion);
 
     /**
      * @brief Sets the throttling manager object.
      *
-     * Method to be executed on the sync thread.
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
      *
      * @param uploadThrottlingManager A valid shared_ptr to IUploadThrottlingManager.
-     * @param completionForClient The completion function to be called after the operations
-     * finishes.
+     * @param completion The completion function to be called after the operations finishes.
      * Error values:
      * - API_OK: New IUploadThrottlingManager was set correctly.
      * - API_EARGS: uploadThrottlingManager is not a valid pointer.
-     * @return True if the IUploadThrottlingManager was set correctly, false otherwise.
      */
-    bool setThrottlingManagerInThread(
-        std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
-        std::function<void(const error)>&& completion = nullptr);
+    void setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
+                              std::function<void(const error)>&& completion);
 
 private:
     /**

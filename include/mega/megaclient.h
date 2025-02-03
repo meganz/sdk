@@ -1262,41 +1262,32 @@ public:
                         std::function<void(error, SyncError)>&& completion);
 
     /**
-     * @brief Sets the upload throttling configurable values.
+     * @brief Sets the upload throttling configurable value throttleUpdateRate.
      *
-     * @param updateRateInSeconds Optional param to change the update rate in seconds.
-     * @param maxUploadsBeforeThrottle Optional param to change the max number of uploads before
-     * throttle.
-     * @param completion The completion function to be called after the operations
-     * finishes.
+     * @see Syncs::setThrottleUpdateRate()
      */
-    void setSyncUploadThrottleValues(
-        std::optional<const unsigned> updateRateInSeconds,
-        std::optional<const unsigned> maxUploadsBeforeThrottle,
-        std::function<void(const error /* errorSetUpdateRateInSeconds */,
-                           const error /* errorSetMaxUploadsBeforeThrottle */)>&& completion);
+    void setSyncUploadThrottleUpdateRate(std::chrono::seconds throttleUpdateRate,
+                                         std::function<void(const error)>&& completion);
 
     /**
-     * @brief Gets the upload throttling configurable values.
+     * @brief Sets the upload throttling configurable value maxUploadsBeforeThrottle.
      *
-     * @param completion The completion function to be called after the operations
-     * finishes.
+     * @see Syncs::setMaxUploadsBeforeThrottle()
      */
-    void getSyncUploadThrottleValues(
-        std::function<void(const unsigned /* updateRateInSeconds */,
+    void setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                         std::function<void(const error)>&& completion);
+
+    /**
+     * @brief Retrieves the upload throttling configurable values.
+     */
+    void syncUploadThrottleValues(
+        std::function<void(const std::chrono::seconds /* updateRateInSeconds */,
                            const unsigned /* maxUploadsBeforeThrottle */)>&& completion);
 
     /**
-     * @brief Gets the lower and upper upload throttling configurable values.
-     *
-     * @param completion The completion function to be called after the operations
-     * finishes.
+     * @brief Retrieves the lower and upper upload throttling configurable values.
      */
-    void getSyncUploadThrottleValuesLimits(
-        std::function<void(const unsigned /* updateRateInSecondsLowerLimit */,
-                           const unsigned /* updateRateInSecondsUpperLimit */,
-                           const unsigned /* maxUploadsBeforeThrottleLowerLimit */,
-                           const unsigned /* maxUploadsBeforeThrottleUpperLimit */)>&& completion);
+    void syncUploadThrottleValuesLimits(std::function<void(ThrottleValueLimits&&)>&& completion);
 
     /**
      * @brief Sets the IUploadThrottlingManager for Syncs.

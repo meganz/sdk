@@ -17625,8 +17625,8 @@ class MegaApi
          * @param updateRateInSeconds The update rate for the throttling queue in seconds.
          * @param listener A MegaRequestListener to track this request.
          */
-        void setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
-                                       MegaRequestListener* const listener);
+        void setSyncUploadThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                             MegaRequestListener* const listener);
 
         /**
          * @brief Set the max number of sync uploads per file before applying throttling logic.

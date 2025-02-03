@@ -1708,8 +1708,8 @@ void MegaApiImpl::changeSyncLocalRoot(const MegaHandle syncBackupId,
     waiter->notify();
 }
 
-void MegaApiImpl::setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
-                                            MegaRequestListener* const listener)
+void MegaApiImpl::setSyncUploadThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                                  MegaRequestListener* const listener)
 {
     MegaRequestPrivate* const request =
         new MegaRequestPrivate(MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES, listener);
@@ -1718,15 +1718,12 @@ void MegaApiImpl::setSyncThrottleUpdateRate(const unsigned updateRateInSeconds,
     request->performRequest = [this, request]()
     {
         const auto updateRateInSeconds = static_cast<unsigned>(request->getNumber());
-        client->setSyncUploadThrottleValues(
-            std::optional<unsigned>(updateRateInSeconds),
-            std::nullopt,
-            [this, request](const error errorSetUpdateRateInSeconds,
-                            const error /* errorSetMaxUploadsBeforeThrottle */)
+        client->setSyncUploadThrottleUpdateRate(
+            std::chrono::seconds(updateRateInSeconds),
+            [this, request](const error errorSetUpdateRate)
             {
-                fireOnRequestFinish(
-                    request,
-                    std::make_unique<MegaErrorPrivate>(errorSetUpdateRateInSeconds));
+                fireOnRequestFinish(request,
+                                    std::make_unique<MegaErrorPrivate>(errorSetUpdateRate));
             });
         return API_OK;
     };
@@ -1745,11 +1742,9 @@ void MegaApiImpl::setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBefor
     request->performRequest = [this, request]()
     {
         const auto maxUploadsBeforeThrottle = static_cast<unsigned>(request->getTotalBytes());
-        client->setSyncUploadThrottleValues(
-            std::nullopt,
-            std::optional<unsigned>(maxUploadsBeforeThrottle),
-            [this, request](const error /* errorSetUpdateRateInSeconds */,
-                            const error errorSetMaxUploadsBeforeThrottle)
+        client->setSyncMaxUploadsBeforeThrottle(
+            maxUploadsBeforeThrottle,
+            [this, request](const error errorSetMaxUploadsBeforeThrottle)
             {
                 fireOnRequestFinish(
                     request,
@@ -1769,11 +1764,11 @@ void MegaApiImpl::getSyncUploadThrottleValues(MegaRequestListener* const listene
 
     request->performRequest = [this, request]()
     {
-        client->getSyncUploadThrottleValues(
-            [this, request](const unsigned updateRateInSeconds,
+        client->syncUploadThrottleValues(
+            [this, request](const std::chrono::seconds updateRateInSeconds,
                             const unsigned maxUploadsBeforeThrottle)
             {
-                request->setNumber(updateRateInSeconds);
+                request->setNumber(updateRateInSeconds.count());
                 request->setTotalBytes(maxUploadsBeforeThrottle);
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
             });
@@ -1793,17 +1788,16 @@ void MegaApiImpl::getSyncUploadThrottleLimits(const bool upperLimits,
     request->setFlag(upperLimits);
     request->performRequest = [this, request]()
     {
-        client->getSyncUploadThrottleValuesLimits(
-            [this, request](const unsigned updateRateInSecondsLowerLimit,
-                            const unsigned updateRateInSecondsUpperLimit,
-                            const unsigned maxUploadsBeforeThrottleLowerLimit,
-                            const unsigned maxUploadsBeforeThrottleUpperLimit)
+        client->syncUploadThrottleValuesLimits(
+            [this, request](ThrottleValueLimits&& throttleValueLimits)
             {
                 const auto getUpperLimits = request->getFlag();
-                request->setNumber(getUpperLimits ? updateRateInSecondsUpperLimit :
-                                                    updateRateInSecondsLowerLimit);
-                request->setTotalBytes(getUpperLimits ? maxUploadsBeforeThrottleUpperLimit :
-                                                        maxUploadsBeforeThrottleLowerLimit);
+                request->setNumber(getUpperLimits ?
+                                       throttleValueLimits.throttleUpdateRateUpperLimit.count() :
+                                       throttleValueLimits.throttleUpdateRateLowerLimit.count());
+                request->setTotalBytes(getUpperLimits ?
+                                           throttleValueLimits.maxUploadsBeforeThrottleUpperLimit :
+                                           throttleValueLimits.maxUploadsBeforeThrottleLowerLimit);
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
             });
         return API_OK;

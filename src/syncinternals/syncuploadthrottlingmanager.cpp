@@ -27,9 +27,9 @@ static bool valueIsOutOfRange(const T& value, const T& lower, const T& upper)
 
 bool UploadThrottlingManager::setThrottleUpdateRate(const std::chrono::seconds interval)
 {
-    if (valueIsOutOfRange(static_cast<unsigned>(interval.count()),
-                          THROTTLE_UPDATE_RATE_LOWER_LIMIT,
-                          THROTTLE_UPDATE_RATE_UPPER_LIMIT))
+    if (valueIsOutOfRange(interval.count(),
+                          THROTTLE_UPDATE_RATE_LOWER_LIMIT.count(),
+                          THROTTLE_UPDATE_RATE_UPPER_LIMIT.count()))
     {
         return false;
     }
@@ -81,10 +81,7 @@ bool UploadThrottlingManager::checkProcessDelayedUploads() const
 }
 
 void UploadThrottlingManager::processDelayedUploads(
-    std::function<void(std::weak_ptr<SyncUpload_inClient>&& upload,
-                       const VersioningOption vo,
-                       const bool queueFirst,
-                       const NodeHandle ovHandleIfShortcut)>&& completion)
+    std::function<void(DelayedSyncUpload&&)>&& completion)
 {
     if (!checkProcessDelayedUploads())
     {
@@ -95,7 +92,7 @@ void UploadThrottlingManager::processDelayedUploads(
                 << mDelayedQueue.size();
 
     bool delayedUploadProcessed{false};
-    do
+    while (!mDelayedQueue.empty() && !delayedUploadProcessed)
     {
         DelayedSyncUpload delayedUpload = std::move(mDelayedQueue.front());
         mDelayedQueue.pop();
@@ -108,12 +105,8 @@ void UploadThrottlingManager::processDelayedUploads(
 
         delayedUploadProcessed = true;
         resetLastProcessedTime();
-        completion(std::move(delayedUpload.mWeakUpload),
-                   delayedUpload.mVersioningOption,
-                   delayedUpload.mQueueFirst,
-                   delayedUpload.mOvHandleIfShortcut);
+        completion(std::move(delayedUpload));
     }
-    while (!mDelayedQueue.empty() && !delayedUploadProcessed);
 }
 
 } // namespace mega

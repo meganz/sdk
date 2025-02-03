@@ -15,19 +15,13 @@ namespace mega
 
 /**
  * @class UploadThrottlingManager
- * @brief Manages throttling and delayed processing of uploads.
- *
- * The UploadThrottlingManager handles the queuing and processing of delayed uploads,
- * including the throttling time and the max number of uploads allowed for a file before throttle.
+ * @brief Manages throttling, delayed processing of uploads and configurable values.
  *
  * @see IUploadThrottlingManager
  */
 class UploadThrottlingManager: public IUploadThrottlingManager
 {
 public:
-    /**
-     * @see IUploadThrottlingManager::addToDelayedUploads()
-     */
     void addToDelayedUploads(DelayedSyncUpload&& delayedUpload) override
     {
         mDelayedQueue.emplace(std::move(delayedUpload));
@@ -47,11 +41,7 @@ public:
      *
      * @see checkProcessDelayedUploads()
      */
-    void processDelayedUploads(
-        std::function<void(std::weak_ptr<SyncUpload_inClient>&& upload,
-                           const VersioningOption vo,
-                           const bool queueFirst,
-                           const NodeHandle ovHandleIfShortcut)>&& completion) override;
+    void processDelayedUploads(std::function<void(DelayedSyncUpload&&)>&& completion) override;
 
     /**
      * @brief Resets last processed time of a delayed upload from the queue.
@@ -66,24 +56,15 @@ public:
     // Setters
 
     /**
-     * @see IUploadThrottlingManager::setMaxUploadsBeforeThrottle(const unsigned)
-     * @param intervalSeconds The interval in seconds. It cannot be below
-     * THROTTLE_UPDATE_RATE_LOWER_LIMIT nor above THROTTLE_UPDATE_RATE_UPPER_LIMIT.
-     */
-    bool setThrottleUpdateRate(const unsigned intervalSeconds) override
-    {
-        return setThrottleUpdateRate(std::chrono::seconds(intervalSeconds));
-    }
-
-    /**
-     * @see IUploadThrottlingManager::setMaxUploadsBeforeThrottle(const std::chrono::seconds)
-     * @param interval The interval in seconds with same restrictions as the overloaded
-     * setThrottleUpdateRate().
+     * Sets the throttleUpdateRate configurable value.
+     * @param interval The new throttle update rate or delay to process the next
+     * delayed upload. It cannot be below THROTTLE_UPDATE_RATE_LOWER_LIMIT nor above
+     * THROTTLE_UPDATE_RATE_UPPER_LIMIT.
      */
     bool setThrottleUpdateRate(const std::chrono::seconds interval) override;
 
     /**
-     * @see IUploadThrottlingManager::setMaxUploadsBeforeThrottle()
+     * Sets the maxUploadsBeforeThrottle configurable value.
      * @param maxUploadsBeforeThrottle The maximum number of uploads that will be uploaded
      * unthrottled. It cannot be below MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT nor above
      * MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT.
@@ -92,33 +73,21 @@ public:
 
     // Getters
 
-    /**
-     * @see IUploadThrottlingManager::uploadCounterInactivityExpirationTime()
-     */
     std::chrono::seconds uploadCounterInactivityExpirationTime() const override
     {
         return mUploadCounterInactivityExpirationTime;
     }
 
-    /**
-     * @see IUploadThrottlingManager::throttleUpdateRate()
-     */
-    unsigned throttleUpdateRate() const override
+    std::chrono::seconds throttleUpdateRate() const override
     {
-        return static_cast<unsigned>(mThrottleUpdateRate.count());
+        return mThrottleUpdateRate;
     }
 
-    /**
-     * @see IUploadThrottlingManager::maxUploadsBeforeThrottle()
-     */
     unsigned maxUploadsBeforeThrottle() const override
     {
         return mMaxUploadsBeforeThrottle;
     }
 
-    /**
-     * @see IUploadThrottlingManager::throttleValueLimits()
-     */
     ThrottleValueLimits throttleValueLimits() const override
     {
         return {THROTTLE_UPDATE_RATE_LOWER_LIMIT,
@@ -127,9 +96,6 @@ public:
                 MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT};
     }
 
-    /**
-     * @see IUploadThrottlingManager::timeSinceLastProcessedUpload()
-     */
     std::chrono::seconds timeSinceLastProcessedUpload() const override
     {
         return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
@@ -138,38 +104,27 @@ public:
 
 private:
     // Limits
-    static constexpr unsigned TIMEOUT_TO_RESET_UPLOAD_COUNTERS_SECONDS{
-        86400}; // Timeout (in seconds) to reset upload counters due to inactivity.
-    static constexpr unsigned THROTTLE_UPDATE_RATE_LOWER_LIMIT{
-        60}; // Minimum allowed interval for processing delayed uploads.
-    static constexpr unsigned THROTTLE_UPDATE_RATE_UPPER_LIMIT{
-        TIMEOUT_TO_RESET_UPLOAD_COUNTERS_SECONDS - 1}; // Maximum allowed interval for processing
-                                                       // delayed uploads.
-    static constexpr unsigned MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT{
-        2}; // Minimum allowed of max uploads before throttle.
-    static constexpr unsigned MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT{
-        5}; // Maximum allowed of max uploads before throttle.
+    static constexpr std::chrono::seconds TIMEOUT_TO_RESET_UPLOAD_COUNTERS{
+        86400}; // Timeout to reset upload counters due to inactivity.
+    static constexpr std::chrono::seconds THROTTLE_UPDATE_RATE_LOWER_LIMIT{60};
+    static constexpr std::chrono::seconds THROTTLE_UPDATE_RATE_UPPER_LIMIT{
+        TIMEOUT_TO_RESET_UPLOAD_COUNTERS - std::chrono::seconds(1)};
+    static constexpr unsigned MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT{2};
+    static constexpr unsigned MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT{5};
 
     // Default values
-    static constexpr unsigned DEFAULT_PROCESS_INTERVAL_SECONDS{
-        180}; // Default interval (in seconds) for processing delayed uploads.
+    static constexpr std::chrono::seconds DEFAULT_THROTTLE_UPDATE_RATE{180};
     static constexpr unsigned DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE{
-        MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT}; // Default maximum uploads allowed before
-                                                  // throttling.
+        MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT};
 
     // Members
-    std::queue<DelayedSyncUpload> mDelayedQueue; // Queue of delayed uploads to be processed.
-    std::chrono::steady_clock::time_point mLastProcessedTime{
-        std::chrono::steady_clock::now()}; // Timestamp of the last processed upload.
-    std::chrono::seconds mUploadCounterInactivityExpirationTime{
-        TIMEOUT_TO_RESET_UPLOAD_COUNTERS_SECONDS}; // Timeout for resetting upload counters due to
-                                                   // inactivity.
+    std::queue<DelayedSyncUpload> mDelayedQueue;
+    std::chrono::steady_clock::time_point mLastProcessedTime{std::chrono::steady_clock::now()};
+    std::chrono::seconds mUploadCounterInactivityExpirationTime{TIMEOUT_TO_RESET_UPLOAD_COUNTERS};
 
     // Configurable members
-    std::chrono::seconds mThrottleUpdateRate{
-        DEFAULT_PROCESS_INTERVAL_SECONDS}; // Configurable interval for processing uploads.
-    unsigned mMaxUploadsBeforeThrottle{
-        DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE}; // Maximum uploads allowed before throttling.
+    std::chrono::seconds mThrottleUpdateRate{DEFAULT_THROTTLE_UPDATE_RATE};
+    unsigned mMaxUploadsBeforeThrottle{DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE};
 
     /**
      * @brief Checks if the next delayed upload in the queue should be processed.
