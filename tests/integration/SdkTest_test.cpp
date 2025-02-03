@@ -19473,6 +19473,17 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
             &listener);
         ASSERT_EQ(listener.waitForResult(), API_OK);
     }
+
+    // Cancel all subscriptions using null values (no-op for free account)
+    {
+        RequestTracker listener{megaApi[0].get()};
+        megaApi[0]->creditCardCancelSubscriptions(
+            static_cast<MegaCancelSubscriptionReasonList*>(nullptr), // only nullptr is ambiguous
+            nullptr,
+            MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+            &listener);
+        ASSERT_EQ(listener.waitForResult(), API_OK);
+    }
 }
 
 TEST_F(SdkTest, SdkTestSetAccountLevel)

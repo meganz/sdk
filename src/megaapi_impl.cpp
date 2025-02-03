@@ -23622,7 +23622,7 @@ void MegaApiImpl::creditCardCancelSubscriptions(const MegaCancelSubscriptionReas
 {
     MegaRequestPrivate* request =
         new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
-    request->setMegaCancelSubscriptionReasons(reasons->copy());
+    request->setMegaCancelSubscriptionReasons(reasons ? reasons->copy() : nullptr);
     request->setName(id);
     request->setNumDetails(canContact);
 
