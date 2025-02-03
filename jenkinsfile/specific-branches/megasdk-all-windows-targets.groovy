@@ -53,8 +53,8 @@ pipeline {
 
                 sh "echo Building SDK arm64"
                 sh "rm -rf build_dir_arm64; mkdir build_dir_arm64"
-                sh "cmake -A ARM64 -DVCPKG_ROOT='${VCPKGPATH}' -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_arm64\\\\"
-                sh "cmake --build '${WORKSPACE}'\\\\build_dir_arm64\\\\ -j 1"
+                sh "cmake -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_GENERATOR_PLATFORM=ARM64 -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_arm64\\\\"
+                sh "cmake --build '${WORKSPACE}'\\\\build_dir_arm64\\\\ --config RelWithDebInfo -j 1"
             }
         }    
     }
