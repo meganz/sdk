@@ -3669,6 +3669,8 @@ class MegaApiImpl : public MegaApp
         void getSyncUploadThrottleLimits(const bool upperLimits,
                                          MegaRequestListener* const listener);
 
+        void checkSyncUploadsThrottled(MegaRequestListener* const listener);
+
         AddressedStallFilter mAddressedStallFilter;
 
 #endif // ENABLE_SYNC

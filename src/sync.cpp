@@ -14000,27 +14000,40 @@ void Syncs::uploadThrottleValues(
         "uploadThrottleValues");
 }
 
-void Syncs::uploadThrottleValuesLimits(
-    std::function<void(ThrottleValueLimits&&)>&& completionForClient)
+void Syncs::uploadThrottleValuesLimits(std::function<void(ThrottleValueLimits&&)>&& completion)
 {
     assert(!onSyncThread());
 
     queueSync(
         [this,
          completionForClientWrapped =
-             wrapToRunInClientThread(std::move(completionForClient), FromAnyThread::yes)]() mutable
+             wrapToRunInClientThread(std::move(completion), FromAnyThread::yes)]() mutable
         {
             assertThrottlingManagerIsValid();
 
-            const auto throttleValueLimits = mThrottlingManager->throttleValueLimits();
-
-            completionForClientWrapped(std::move(throttleValueLimits));
+            completionForClientWrapped(mThrottlingManager->throttleValueLimits());
         },
         "uploadThrottleValuesLimits");
 }
 
+void Syncs::checkSyncUploadsThrottled(std::function<void(const bool)>&& completion)
+{
+    assert(!onSyncThread());
+
+    queueSync(
+        [this,
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completion), FromAnyThread::yes)]() mutable
+        {
+            assertThrottlingManagerIsValid();
+
+            completionForClientWrapped(mThrottlingManager->anyDelayedUploads());
+        },
+        "checkSyncUploadsThrottled");
+}
+
 void Syncs::setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
-                                 std::function<void(const error)>&& completionForClient)
+                                 std::function<void(const error)>&& completion)
 {
     assert(!onSyncThread());
 
@@ -14028,16 +14041,15 @@ void Syncs::setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploa
         [this,
          uploadThrottlingManager = std::move(uploadThrottlingManager),
          completionForClientWrapped =
-             wrapToRunInClientThread(std::move(completionForClient), FromAnyThread::yes)]() mutable
+             wrapToRunInClientThread(std::move(completion), FromAnyThread::yes)]() mutable
         {
             if (!uploadThrottlingManager)
             {
                 completionForClientWrapped(API_EARGS);
             }
 
-            LOG_debug
-                << "[Syncs::setThrottlingManagerInThread] Setting a new Throttling Manager. All "
-                   "previous stored values will be lost";
+            LOG_debug << "[Syncs::setThrottlingManager] Setting a new Throttling Manager. All "
+                         "previous stored values will be lost";
             mThrottlingManager = std::move(uploadThrottlingManager);
             completionForClientWrapped(API_OK);
         },

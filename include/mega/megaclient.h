@@ -1290,6 +1290,11 @@ public:
     void syncUploadThrottleValuesLimits(std::function<void(ThrottleValueLimits&&)>&& completion);
 
     /**
+     * @brief Checks whether there are delayed uploads pending to be processed.
+     */
+    void checkSyncUploadsThrottled(std::function<void(const bool)>&& completion);
+
+    /**
      * @brief Sets the IUploadThrottlingManager for Syncs.
      *
      * The Syncs object already constructs a IUploadThrottlingManager type object by default.

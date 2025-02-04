@@ -2291,6 +2291,16 @@ public:
     void uploadThrottleValuesLimits(std::function<void(ThrottleValueLimits&&)>&& completion);
 
     /**
+     * @brief Checks whether or not there are delayed/throttled uploads waiting for processing.
+     *
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
+     *
+     * @param completion The completion function to be called after the operations finishes.
+     */
+    void checkSyncUploadsThrottled(std::function<void(const bool)>&& completion);
+
+    /**
      * @brief Sets the throttling manager object.
      *
      * Method to be executed out of the sync thread. The logic is enqueued to be later called within

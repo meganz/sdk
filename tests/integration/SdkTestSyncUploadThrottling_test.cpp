@@ -42,6 +42,8 @@ public:
                 (const unsigned maxUploadsBeforeThrottle),
                 (override));
 
+    MOCK_METHOD(bool, anyDelayedUploads, (), (const, override));
+
     MOCK_METHOD(std::chrono::seconds, uploadCounterInactivityExpirationTime, (), (const, override));
 
     MOCK_METHOD(std::chrono::seconds, throttleUpdateRate, (), (const, override));
@@ -76,6 +78,13 @@ void forwardThrottlingMethods(
             [uploadThrottlingManager](std::function<void(DelayedSyncUpload &&)>&& completion)
             {
                 uploadThrottlingManager->processDelayedUploads(std::move(completion));
+            });
+
+    ON_CALL(*mockUploadThrottlingManager, anyDelayedUploads())
+        .WillByDefault(
+            [uploadThrottlingManager]()
+            {
+                return uploadThrottlingManager->anyDelayedUploads();
             });
 
     ON_CALL(*mockUploadThrottlingManager, uploadCounterInactivityExpirationTime())
@@ -296,17 +305,25 @@ public:
         forwardThrottlingMethods(mockUploadThrottlingManager, uploadThrottlingManager);
 
         // 4) Now set up the mock in the client.
-        std::promise<void> setMockThrottlingManagerPromise;
-        auto client = megaApi[0]->getClient();
-        client->setSyncUploadThrottlingManager(mockUploadThrottlingManager,
-                                               [&setMockThrottlingManagerPromise](const error e)
+        ASSERT_NO_FATAL_FAILURE(
+            setThrottlingManager(megaApi[0]->getClient(), mockUploadThrottlingManager));
+    }
+
+    /**
+     * @brief Sets a IUploadThrottlingManager to be used by the Syncs object.
+     */
+    void setThrottlingManager(MegaClient* const client,
+                              std::shared_ptr<IUploadThrottlingManager> throttlingManager) const
+    {
+        std::promise<void> setThrottlingManagerPromise;
+        client->setSyncUploadThrottlingManager(throttlingManager,
+                                               [&setThrottlingManagerPromise](const error e)
                                                {
                                                    EXPECT_EQ(e, API_OK);
-                                                   setMockThrottlingManagerPromise.set_value();
+                                                   setThrottlingManagerPromise.set_value();
                                                });
 
-        // 5) Wait for the operation to finish.
-        ASSERT_EQ(setMockThrottlingManagerPromise.get_future().wait_for(MAX_TIMEOUT),
+        ASSERT_EQ(setThrottlingManagerPromise.get_future().wait_for(MAX_TIMEOUT),
                   std::future_status::ready)
             << "The upload throttling manager set operation has timed out";
     }
@@ -397,6 +414,40 @@ public:
                                              MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES);
 
         megaApi[0]->setSyncMaxUploadsBeforeThrottle(maxUploadsBeforeThrottle, &mockReqListener);
+
+        ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    /**
+     * @brief Calls MegaApi::checkSyncUploadsThrottled with parametrizable flag
+     * expectAnyDelayedUploads.
+     *
+     * @param expectAnyDelayedUploads The expected flag returned from the call: true for delayed
+     * uploads waiting to be uploaded, false otherwise.
+     */
+    void checkSyncUploadsThrottled(const bool expectAnyDelayedUploads)
+    {
+        NiceMock<MockRequestListener> mockReqListener{megaApi[0].get()};
+
+        EXPECT_CALL(mockReqListener, onRequestFinish)
+            .Times(1)
+            .WillOnce(
+                [&mockReqListener, expectAnyDelayedUploads](::mega::MegaApi*,
+                                                            ::mega::MegaRequest* req,
+                                                            ::mega::MegaError* err)
+                {
+                    const bool matchesType = sdk_test::checkAndExpectThat(
+                        req->getType(),
+                        MegaRequest::TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS);
+                    const bool matchesError =
+                        sdk_test::checkAndExpectThat(err->getErrorCode(), API_OK);
+                    const bool matchesAnyDelayedUploads =
+                        sdk_test::checkAndExpectThat(req->getFlag(), expectAnyDelayedUploads);
+                    mockReqListener.markAsFinished(matchesType && matchesError &&
+                                                   matchesAnyDelayedUploads);
+                });
+
+        megaApi[0]->checkSyncUploadsThrottled(&mockReqListener);
 
         ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
@@ -630,6 +681,45 @@ TEST_F(SdkTestSyncUploadThrottling,
         setMaxUploadsBeforeThrottle(megaApi[0].get(),
                                     throttleValueLimits.maxUploadsBeforeThrottleUpperLimit + 1,
                                     API_EARGS));
+}
+
+/**
+ * @brief
+ * SdkTestSyncUploadThrottling.TestPublicInterfaces_CheckSyncUploadsThrottled_NoPendingDelayedUploads
+ *
+ * Test MegaApi::checkSyncUploadsThrottled when there the delayed uploads collection is empty. It
+ * should return false.
+ */
+TEST_F(SdkTestSyncUploadThrottling,
+       TestPublicInterfaces_CheckSyncUploadsThrottled_NoPendingDelayedUploads)
+{
+    static const auto logPre = getLogPrefix();
+
+    constexpr bool expectAnyDelayedUploads{false};
+    ASSERT_NO_FATAL_FAILURE(checkSyncUploadsThrottled(expectAnyDelayedUploads));
+}
+
+/**
+ * @brief
+ * SdkTestSyncUploadThrottling.TestPublicInterfaces_CheckSyncUploadsThrottled_PendingDelayedUploads
+ *
+ * Test MegaApi::checkSyncUploadsThrottled when there the delayed uploads collection is not empty.
+ * It should return true.
+ */
+TEST_F(SdkTestSyncUploadThrottling,
+       TestPublicInterfaces_CheckSyncUploadsThrottled_PendingDelayedUploads)
+{
+    static const auto logPre = getLogPrefix();
+
+    // Add some delayed uploads to a custom UploadThrottlingManager and then inject it to the
+    // client.
+    const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
+    DelayedSyncUpload delayedSyncUpload{nullptr, {}, {}, {}};
+    uploadThrottlingManager->addToDelayedUploads(std::move(delayedSyncUpload));
+    setThrottlingManager(megaApi[0]->getClient(), uploadThrottlingManager);
+
+    constexpr bool expectAnyDelayedUploads{true};
+    ASSERT_NO_FATAL_FAILURE(checkSyncUploadsThrottled(expectAnyDelayedUploads));
 }
 
 /**

@@ -3957,6 +3957,11 @@ void MegaApi::getSyncUploadThrottleUpperLimits(MegaRequestListener* const listen
     pImpl->getSyncUploadThrottleLimits(upperLimits, listener);
 }
 
+void MegaApi::checkSyncUploadsThrottled(MegaRequestListener* const listener)
+{
+    pImpl->checkSyncUploadsThrottled(listener);
+}
+
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
     return pImpl->getSyncByBackupId(backupId);

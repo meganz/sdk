@@ -73,6 +73,11 @@ public:
 
     // Getters
 
+    bool anyDelayedUploads() const override
+    {
+        return !mDelayedQueue.empty();
+    }
+
     std::chrono::seconds uploadCounterInactivityExpirationTime() const override
     {
         return mUploadCounterInactivityExpirationTime;

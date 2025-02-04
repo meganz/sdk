@@ -4623,7 +4623,8 @@ class MegaRequest
             TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES = 202,
             TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES = 203,
             TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS = 204,
-            TOTAL_OF_REQUEST_TYPES = 205,
+            TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS = 205,
+            TOTAL_OF_REQUEST_TYPES = 206,
         };
 
         virtual ~MegaRequest();
@@ -17694,6 +17695,32 @@ class MegaApi
          * @param listener A MegaRequestListener to track this request.
          */
         void getSyncUploadThrottleUpperLimits(MegaRequestListener* const listener);
+
+        /**
+         * @brief Check if there are delayed/throttled uploads pending to be processed.
+         * When delayed/throttled uploads are pending, those files are not fully synchronized. In
+         * that case, the sync state would be Syncing.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns true if there are delayed uploads waiting for
+         * processing, false otherwise.
+         *
+         * @param listener A MegaRequestListener to track this request.
+         *
+         * @warning It is not guaranteed that the delayed uploads pending to be processed are valid.
+         * They could be invalid if the files have been removed, or if the upload transfer has been
+         * reset for other reasons. This is not checked until they are processed after the
+         * throttlingUpdateRate time. The caller should consider this method as an extra check: if
+         * the sync is in Syncing state, there are no stall issues nor MegaTransfers being processed
+         * nor other situations explaining the Syncing state, it could be expected that there are
+         * delayed uploads pending to be processed. Note that, if the delayed uploads are not valid
+         * anymore (for example, because the underlying files have been removed), even when this
+         * method could return true, the sync shouldn't be in Syncing state.
+         */
+        void checkSyncUploadsThrottled(MegaRequestListener* const listener);
 
 #endif // ENABLE_SYNC
 

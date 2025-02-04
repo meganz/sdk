@@ -64,6 +64,8 @@ public:
 
     // Getters.
 
+    virtual bool anyDelayedUploads() const = 0;
+
     virtual std::chrono::seconds uploadCounterInactivityExpirationTime() const = 0;
 
     virtual std::chrono::seconds throttleUpdateRate() const = 0;

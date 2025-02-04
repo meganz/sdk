@@ -17097,6 +17097,11 @@ void MegaClient::syncUploadThrottleValuesLimits(
     syncs.uploadThrottleValuesLimits(std::move(completion));
 }
 
+void MegaClient::checkSyncUploadsThrottled(std::function<void(const bool)>&& completion)
+{
+    syncs.checkSyncUploadsThrottled(std::move(completion));
+}
+
 void MegaClient::setSyncUploadThrottlingManager(
     std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
     std::function<void(const error)>&& completion)

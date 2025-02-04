@@ -1807,6 +1807,26 @@ void MegaApiImpl::getSyncUploadThrottleLimits(const bool upperLimits,
     waiter->notify();
 }
 
+void MegaApiImpl::checkSyncUploadsThrottled(MegaRequestListener* const listener)
+{
+    MegaRequestPrivate* const request =
+        new MegaRequestPrivate(MegaRequest::TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS, listener);
+
+    request->performRequest = [this, request]()
+    {
+        client->checkSyncUploadsThrottled(
+            [this, request](const bool throttledElements)
+            {
+                request->setFlag(throttledElements);
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+            });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaSyncStallPrivate::MegaSyncStallPrivate(const SyncStallEntry& e)
 :info(e)
 {}
