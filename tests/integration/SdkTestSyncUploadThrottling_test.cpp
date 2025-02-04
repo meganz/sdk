@@ -60,7 +60,7 @@ namespace
  * @brief Forwards the necessary MockUploadThrottlingManager methods to use the
  * UploadThrottlingManager methods.
  */
-void forwardAllThrottlingMethods(
+void forwardThrottlingMethods(
     const std::shared_ptr<MockUploadThrottlingManager>& mockUploadThrottlingManager,
     const std::shared_ptr<UploadThrottlingManager>& uploadThrottlingManager)
 {
@@ -98,104 +98,6 @@ void forwardAllThrottlingMethods(
             {
                 return uploadThrottlingManager->maxUploadsBeforeThrottle();
             });
-
-    ON_CALL(*mockUploadThrottlingManager, throttleValueLimits())
-        .WillByDefault(
-            [uploadThrottlingManager]()
-            {
-                return uploadThrottlingManager->throttleValueLimits();
-            });
-
-    ON_CALL(*mockUploadThrottlingManager, timeSinceLastProcessedUpload())
-        .WillByDefault(
-            [uploadThrottlingManager]()
-            {
-                return uploadThrottlingManager->timeSinceLastProcessedUpload();
-            });
-}
-
-/**
- * @brief Sets up expectations on transfer requests through the MockTransferListener.
- *
- * @param uploadStarted The promised to be resolved upon onTransferStart()
- * @param uploadFinished The promised to be resolved upon onTransferFinish()
- * @param otherConcurrentCalls Whether there can be other concurrent calls to this method,
- * overlapping expectations. In that case, we add an additional expectation call without expected
- * properties (corresponding to the other concurrent call with different expectations), which is
- * expected to be called at most otherConcurrentCalls times.
- */
-void setupMockListenerExpectations(MockTransferListener& mockListener,
-                                   const std::string_view fileName,
-                                   const MegaHandle parentNodeHandle,
-                                   std::promise<void>& uploadStarted,
-                                   std::promise<void>& uploadFinished,
-                                   const unsigned otherConcurrentCalls)
-{
-    const auto isMyFile = Pointee(Property(&MegaTransfer::getPath, EndsWith(fileName)));
-    const auto isUpload = Pointee(Property(&MegaTransfer::getType, MegaTransfer::TYPE_UPLOAD));
-    const auto isBelowDir = Pointee(Property(&MegaTransfer::getParentHandle, parentNodeHandle));
-    const auto isOkError = Pointee(Property(&MegaError::getErrorCode, API_OK));
-
-    EXPECT_CALL(mockListener, onTransferStart)
-        .Times(AtMost(static_cast<int>(otherConcurrentCalls)));
-    EXPECT_CALL(mockListener, onTransferStart(_, AllOf(isMyFile, isUpload, isBelowDir)))
-        .WillOnce(
-            [&uploadStarted]
-            {
-                uploadStarted.set_value();
-            });
-
-    EXPECT_CALL(mockListener, onTransferFinish)
-        .Times(AtMost(static_cast<int>(otherConcurrentCalls)));
-    EXPECT_CALL(mockListener, onTransferFinish(_, AllOf(isMyFile, isUpload, isBelowDir), isOkError))
-        .WillOnce(
-            [&uploadFinished]
-            {
-                uploadFinished.set_value();
-            });
-}
-
-/**
- * @brief Helper waiter for onTransferStart()
- *
- * @param timeBeforeFileAction The time point that should have been set right before the action of
- * editing/updating the file which triggers the sync upload.
- */
-void waitForUploadStart(std::promise<void>& uploadStarted,
-                        const std::chrono::seconds minWaitForTransferStart,
-                        const std::chrono::seconds waitForTransferStart,
-                        const std::chrono::steady_clock::time_point timeBeforeFileAction)
-{
-    auto futStart = uploadStarted.get_future();
-    if (futStart.wait_for(waitForTransferStart) != std::future_status::ready)
-    {
-        throw std::runtime_error("The upload didn't start within the timeout");
-    }
-    if (minWaitForTransferStart.count() &&
-        (std::chrono::steady_clock::now() - timeBeforeFileAction < minWaitForTransferStart))
-    {
-        LOG_debug << "The upload started before the minimum time expected after editing the file. "
-                     "Expected min: "
-                  << minWaitForTransferStart.count() << " secs. Started at: "
-                  << std::chrono::duration_cast<std::chrono::seconds>(
-                         std::chrono::steady_clock::now() - timeBeforeFileAction)
-                         .count()
-                  << " secs.";
-        throw std::runtime_error("The upload started before the minimum time expected");
-    }
-}
-
-/**
- * @brief Helper waiter for onTransferFinish()
- */
-void waitForUploadFinish(std::promise<void>& transferTerminated,
-                         const std::chrono::seconds waitForTransferFinish)
-{
-    auto futFinish = transferTerminated.get_future();
-    if (futFinish.wait_for(waitForTransferFinish) != std::future_status::ready)
-    {
-        throw std::runtime_error("The upload didn't finish within the timeout");
-    }
 }
 
 /**
@@ -218,56 +120,107 @@ struct UploadWaitConfig
 
     // The maximum expected time to complete the transfer after it has started
     std::chrono::seconds waitForTransferFinish{DEFAULT_MAX_WAIT_FOR_TRANSFER_FINISH};
-
-    // Total number of other concurrent calls with expectations on global transfer request
-    // listeners.
-    unsigned otherConcurrentCalls{0};
 };
+
+/**
+ * @brief Sets up expectations on transfer requests through the MockTransferListener.
+ *
+ * @param uploadStarted The promised to be resolved upon onTransferStart()
+ * @param uploadFinished The promised to be resolved upon onTransferFinish()
+ */
+void setupMockListenerExpectations(MockTransferListener& mockListener,
+                                   const std::string_view fileName,
+                                   const MegaHandle parentNodeHandle,
+                                   std::promise<void>& uploadStarted,
+                                   std::promise<void>& uploadFinished)
+{
+    const auto isMyFile = Pointee(Property(&MegaTransfer::getPath, EndsWith(fileName)));
+    const auto isUpload = Pointee(Property(&MegaTransfer::getType, MegaTransfer::TYPE_UPLOAD));
+    const auto isBelowDir = Pointee(Property(&MegaTransfer::getParentHandle, parentNodeHandle));
+    const auto isOkError = Pointee(Property(&MegaError::getErrorCode, API_OK));
+
+    EXPECT_CALL(mockListener, onTransferStart(_, AllOf(isMyFile, isUpload, isBelowDir)))
+        .WillOnce(
+            [&uploadStarted]
+            {
+                uploadStarted.set_value();
+            });
+
+    EXPECT_CALL(mockListener, onTransferFinish(_, AllOf(isMyFile, isUpload, isBelowDir), isOkError))
+        .WillOnce(
+            [&uploadFinished]
+            {
+                uploadFinished.set_value();
+            });
+}
 
 /**
  * @brief Helper method to edit a file and wait for it to be uploaded.
  *
- * @param MegaHandle The handle of the parent directory to upload the file to.
- * @param fileAction The completion function where the file should be edited and other necessary
- * calls should be triggered.
- * @param UploadWaitConfig The configurable time wait values.
+ * @param uploadStarted Promise that should be resolved when the transfer request starts
+ * (onTransferStart).
+ * @param uploadFinished Promise that should be resolved when the transfer request finishes
+ * (onTransferFinish).
+ * @param config The configurable time wait values.
  *
  * @see UploadWaitConfig.
  */
-void editFileAndWaitForUpload(MegaApi* const api,
-                              const std::string_view fileName,
-                              const MegaHandle parentNodeHandle,
+void editFileAndWaitForUpload(std::promise<void>& uploadStarted,
+                              std::promise<void>& uploadFinished,
                               std::function<void()>&& fileAction,
                               const UploadWaitConfig& config = {})
 {
-    // 1) Set up a MockTransferListener and expectations.
-    NiceMock<MockTransferListener> mockListener{};
+    // 1) Call the completion fileAction function to perform now edits or changes in the file.
+    const auto timeBeforeFileAction = std::chrono::steady_clock::now();
+    fileAction();
+
+    // 2) Wait for upload events.
+    const auto waitForTransferStart =
+        config.minWaitForTransferStart + config.maxWaitForTransferStartFromMinWait;
+    ASSERT_FALSE(uploadStarted.get_future().wait_for(waitForTransferStart) !=
+                 std::future_status::ready)
+        << "The upload didn't start within the timeout";
+
+    ASSERT_FALSE(
+        config.minWaitForTransferStart.count() &&
+        (std::chrono::steady_clock::now() - timeBeforeFileAction < config.minWaitForTransferStart))
+        << "The upload started before the minimum time expected after editing the file. "
+           "Expected min: "
+        << config.minWaitForTransferStart.count() << " secs. Started at: "
+        << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
+                                                            timeBeforeFileAction)
+               .count()
+        << " secs.";
+
+    ASSERT_FALSE(uploadFinished.get_future().wait_for(config.waitForTransferFinish) !=
+                 std::future_status::ready)
+        << "The upload didn't finish within the timeout";
+}
+
+/**
+ * @brief Helper method to call editFileAndWaitForUpload() with a scoped MockTransferListener with
+ * expectations.
+ *
+ * @param MegaHandle The handle of the parent directory to upload the file to.
+ * @see editFileAndWaitForUpload() for the other params.
+ */
+void editFileAndWaitForUploadScoped(MegaApi* const api,
+                                    const std::string_view fileName,
+                                    const MegaHandle parentNodeHandle,
+                                    std::function<void()>&& fileAction,
+                                    const UploadWaitConfig& config = {})
+{
+    NiceMock<MockTransferListener> mockListener{api};
     std::promise<void> uploadStarted;
     std::promise<void> uploadFinished;
     setupMockListenerExpectations(mockListener,
                                   fileName,
                                   parentNodeHandle,
                                   uploadStarted,
-                                  uploadFinished,
-                                  config.otherConcurrentCalls);
-
-    // 2) Register the listener with the MegaApi.
+                                  uploadFinished);
     api->addListener(&mockListener);
-    const MrProper clean{[&api, &mockListener]()
-                         {
-                             api->removeListener(&mockListener);
-                         }};
 
-    // 3) Call the completion fileAction function to perform now edits or changes in the file.
-    const auto timeBeforeFileAction = std::chrono::steady_clock::now();
-    fileAction();
-
-    // 4) Wait for upload events.
-    waitForUploadStart(uploadStarted,
-                       config.minWaitForTransferStart,
-                       config.minWaitForTransferStart + config.maxWaitForTransferStartFromMinWait,
-                       timeBeforeFileAction);
-    waitForUploadFinish(uploadFinished, config.waitForTransferFinish);
+    editFileAndWaitForUpload(uploadStarted, uploadFinished, std::move(fileAction), config);
 }
 } // namespace
 
@@ -296,7 +249,11 @@ public:
         const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
         const auto mockUploadThrottlingManager =
             std::make_shared<NiceMock<MockUploadThrottlingManager>>();
-        setThrottlingManagers(uploadThrottlingManager, mockUploadThrottlingManager);
+        EXPECT_NO_FATAL_FAILURE(
+            setThrottlingManagers(uploadThrottlingManager, mockUploadThrottlingManager));
+
+        if (HasFatalFailure())
+            return {};
 
         return {uploadThrottlingManager, mockUploadThrottlingManager};
     }
@@ -335,8 +292,8 @@ public:
                   << throttleUpdateRate.count()
                   << " secs, maxUploadsBeforeThrottle: " << maxUploadsBeforeThrottle;
 
-        // 3) Forward all throttling methods from the mocked UTM to the real UTM.
-        forwardAllThrottlingMethods(mockUploadThrottlingManager, uploadThrottlingManager);
+        // 3) Forward throttling methods from the mocked UTM to the real UTM.
+        forwardThrottlingMethods(mockUploadThrottlingManager, uploadThrottlingManager);
 
         // 4) Now set up the mock in the client.
         std::promise<void> setMockThrottlingManagerPromise;
@@ -354,6 +311,50 @@ public:
             << "The upload throttling manager set operation has timed out";
     }
 
+    void getThrottleValueLimits(MegaApi* const api,
+                                const bool upperLimits,
+                                const std::chrono::seconds expectedThrottleUpdateRateLimit,
+                                const unsigned expectedMaxUploadsBeforeThrottleLimit)
+    {
+        NiceMock<MockRequestListener> mockReqListener{api};
+
+        EXPECT_CALL(mockReqListener, onRequestFinish)
+            .Times(1)
+            .WillOnce(
+                [&mockReqListener,
+                 &expectedThrottleUpdateRateLimit,
+                 &expectedMaxUploadsBeforeThrottleLimit](::mega::MegaApi*,
+                                                         ::mega::MegaRequest* req,
+                                                         ::mega::MegaError* err)
+                {
+                    const bool matchesType = sdk_test::checkAndExpectThat(
+                        req->getType(),
+                        MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS);
+                    const bool matchesError =
+                        sdk_test::checkAndExpectThat(err->getErrorCode(), API_OK);
+                    const bool matchesThrottleUpdateRateLimit =
+                        sdk_test::checkAndExpectThat(req->getNumber(),
+                                                     expectedThrottleUpdateRateLimit.count());
+                    const bool matchesMaxUploadsBeforeThrottleLimit = sdk_test::checkAndExpectThat(
+                        req->getTotalBytes(),
+                        static_cast<long long>(expectedMaxUploadsBeforeThrottleLimit));
+                    mockReqListener.markAsFinished(matchesType && matchesError &&
+                                                   matchesThrottleUpdateRateLimit &&
+                                                   matchesMaxUploadsBeforeThrottleLimit);
+                });
+
+        if (upperLimits)
+        {
+            megaApi[0]->getSyncUploadThrottleUpperLimits(&mockReqListener);
+        }
+        else
+        {
+            megaApi[0]->getSyncUploadThrottleLowerLimits(&mockReqListener);
+        }
+
+        ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
     /**
      * @brief Calls MegaApi::setThrottleUpdateRate with parametrizable limits and expected
      * errors.
@@ -362,21 +363,19 @@ public:
      * @param expectedError The expected error for the MegaApi::setSyncMaxUploadsBeforeThrottle
      * result.
      */
-    void setThrottleUpdateRate(const std::chrono::seconds throttleUpdateRate,
+    void setThrottleUpdateRate(MegaApi* const api,
+                               const std::chrono::seconds throttleUpdateRate,
                                const error expectedError)
     {
-        // Expectations on the request listener.
-        NiceMock<MockRequestListener> mockReqListener;
+        NiceMock<MockRequestListener> mockReqListener{api};
         mockReqListener.setErrorExpectations(expectedError,
                                              _,
                                              MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES);
 
-        // Code execution.
         megaApi[0]->setSyncUploadThrottleUpdateRate(
             static_cast<unsigned>(throttleUpdateRate.count()),
             &mockReqListener);
 
-        // Wait for everything to finish.
         ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
 
@@ -388,19 +387,17 @@ public:
      * @param expectedError The expected error for the MegaApi::setSyncMaxUploadsBeforeThrottle
      * result.
      */
-    void setMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+    void setMaxUploadsBeforeThrottle(MegaApi* const api,
+                                     const unsigned maxUploadsBeforeThrottle,
                                      const error expectedError)
     {
-        // Expectations on the request listener.
-        NiceMock<MockRequestListener> mockReqListener;
+        NiceMock<MockRequestListener> mockReqListener{api};
         mockReqListener.setErrorExpectations(expectedError,
                                              _,
                                              MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES);
 
-        // Code execution.
         megaApi[0]->setSyncMaxUploadsBeforeThrottle(maxUploadsBeforeThrottle, &mockReqListener);
 
-        // Wait for everything to finish.
         ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
 
@@ -422,21 +419,28 @@ public:
                               const MegaHandle dirHandle,
                               const unsigned maxUploadsBeforeThrottle)
     {
+        if (maxUploadsBeforeThrottle == 0)
+        {
+            LOG_debug << "[doUnthrottledUploads] Max uploads before throttle is 0. There cannot be "
+                         "any unthrottled upload";
+            return;
+        }
+
         // Wait for the created file to be uploaded. This upload must be unthrottled.
-        editFileAndWaitForUpload(megaApi[0].get(),
-                                 newFileName,
-                                 dirHandle,
-                                 [&tempFile, &newFilePath]()
-                                 {
-                                     tempFile = std::make_shared<LocalTempFile>(newFilePath, 1000);
-                                 });
+        editFileAndWaitForUploadScoped(megaApi[0].get(),
+                                       newFileName,
+                                       dirHandle,
+                                       [&tempFile, &newFilePath]()
+                                       {
+                                           tempFile =
+                                               std::make_shared<LocalTempFile>(newFilePath, 1000);
+                                       });
 
         // Now we'll do (maxBeforeThrottle - 1) edits to trigger sync-uploads that should also be
         // unthrottled.
-        ASSERT_NE(maxUploadsBeforeThrottle, 0);
         const unsigned unthrottledEdits = maxUploadsBeforeThrottle - 1;
 
-        // File edit action to be executed within editFileAndWaitForUpload().
+        // File edit action to be executed within editFileAndWaitForUploadScoped().
         const auto fileEditAction = [&tempFile = std::as_const(tempFile)]()
         {
             tempFile->appendData(100);
@@ -445,7 +449,10 @@ public:
         for (const auto i: range(unthrottledEdits))
         {
             LOG_debug << "[doUnthrottledUploads] Doing unthrottled edit #" << i + 1;
-            editFileAndWaitForUpload(megaApi[0].get(), newFileName, dirHandle, fileEditAction);
+            editFileAndWaitForUploadScoped(megaApi[0].get(),
+                                           newFileName,
+                                           dirHandle,
+                                           fileEditAction);
         }
     }
 };
@@ -462,16 +469,13 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValues)
         "SdkTestSyncUploadThrottling.TestPublicInterfaces_GetThrottleValues : "};
     LOG_verbose << logPre << "Getting upload throttle configurable values";
 
-    // Expectations on the request listener.
-    NiceMock<MockRequestListener> mockReqListener;
+    NiceMock<MockRequestListener> mockReqListener{megaApi[0].get()};
     mockReqListener.setErrorExpectations(API_OK,
                                          _,
                                          MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES);
 
-    // Get the throttle values.
     megaApi[0]->getSyncUploadThrottleValues(&mockReqListener);
 
-    // Wait for everything to finish.
     ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
 }
 
@@ -487,17 +491,15 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValuesLowerL
         "SdkTestSyncUploadThrottling.TestPublicInterfaces_GetThrottleValuesLowerLimits : "};
     LOG_verbose << logPre << "Getting lower limits of throttle configurable values";
 
-    // Expectations on the request listener.
-    NiceMock<MockRequestListener> mockReqListener;
-    mockReqListener.setErrorExpectations(API_OK,
-                                         _,
-                                         MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS);
+    const auto throttlingManager = std::make_unique<UploadThrottlingManager>();
+    const auto throttleValueLimits = throttlingManager->throttleValueLimits();
 
-    // Get the lower limits.
-    megaApi[0]->getSyncUploadThrottleLowerLimits(&mockReqListener);
-
-    // Wait for everything to finish.
-    ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    const bool upperLimits = false;
+    ASSERT_NO_FATAL_FAILURE(
+        getThrottleValueLimits(megaApi[0].get(),
+                               upperLimits,
+                               throttleValueLimits.throttleUpdateRateLowerLimit,
+                               throttleValueLimits.maxUploadsBeforeThrottleLowerLimit));
 }
 
 /**
@@ -512,17 +514,15 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValuesUpperL
         "SdkTestSyncUploadThrottling.TestPublicInterfaces_GetThrottleValuesUpperLimits : "};
     LOG_verbose << logPre << "Getting upper limits of throttle configurable values";
 
-    // Expectations on the request listener
-    NiceMock<MockRequestListener> mockReqListener;
-    mockReqListener.setErrorExpectations(API_OK,
-                                         _,
-                                         MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS);
+    const auto throttlingManager = std::make_unique<UploadThrottlingManager>();
+    const auto throttleValueLimits = throttlingManager->throttleValueLimits();
 
-    // Get the upper limits
-    megaApi[0]->getSyncUploadThrottleUpperLimits(&mockReqListener);
-
-    // Wait for everything to finish
-    ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+    const bool upperLimits = true;
+    ASSERT_NO_FATAL_FAILURE(
+        getThrottleValueLimits(megaApi[0].get(),
+                               upperLimits,
+                               throttleValueLimits.throttleUpdateRateUpperLimit,
+                               throttleValueLimits.maxUploadsBeforeThrottleUpperLimit));
 }
 
 /**
@@ -538,7 +538,9 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_V
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
 
-    setThrottleUpdateRate(throttleValueLimits.throttleUpdateRateLowerLimit, API_OK);
+    ASSERT_NO_FATAL_FAILURE(setThrottleUpdateRate(megaApi[0].get(),
+                                                  throttleValueLimits.throttleUpdateRateLowerLimit,
+                                                  API_OK));
 }
 
 /**
@@ -555,9 +557,10 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_I
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
     ASSERT_NE(throttleValueLimits.maxUploadsBeforeThrottleLowerLimit, 0);
 
-    setThrottleUpdateRate(throttleValueLimits.throttleUpdateRateLowerLimit -
-                              std::chrono::seconds(1),
-                          API_EARGS);
+    ASSERT_NO_FATAL_FAILURE(setThrottleUpdateRate(megaApi[0].get(),
+                                                  throttleValueLimits.throttleUpdateRateLowerLimit -
+                                                      std::chrono::seconds(1),
+                                                  API_EARGS));
 }
 
 /**
@@ -573,9 +576,10 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_I
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
 
-    setThrottleUpdateRate(throttleValueLimits.throttleUpdateRateUpperLimit +
-                              std::chrono::seconds(1),
-                          API_EARGS);
+    ASSERT_NO_FATAL_FAILURE(setThrottleUpdateRate(megaApi[0].get(),
+                                                  throttleValueLimits.throttleUpdateRateUpperLimit +
+                                                      std::chrono::seconds(1),
+                                                  API_EARGS));
 }
 
 /**
@@ -591,7 +595,10 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetMaxUploadsBeforeThro
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
 
-    setMaxUploadsBeforeThrottle(throttleValueLimits.maxUploadsBeforeThrottleLowerLimit, API_OK);
+    ASSERT_NO_FATAL_FAILURE(
+        setMaxUploadsBeforeThrottle(megaApi[0].get(),
+                                    throttleValueLimits.maxUploadsBeforeThrottleLowerLimit,
+                                    API_OK));
 }
 
 /**
@@ -610,8 +617,10 @@ TEST_F(SdkTestSyncUploadThrottling,
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
     ASSERT_NE(throttleValueLimits.maxUploadsBeforeThrottleLowerLimit, 0);
 
-    setMaxUploadsBeforeThrottle(throttleValueLimits.maxUploadsBeforeThrottleLowerLimit - 1,
-                                API_EARGS);
+    ASSERT_NO_FATAL_FAILURE(
+        setMaxUploadsBeforeThrottle(megaApi[0].get(),
+                                    throttleValueLimits.maxUploadsBeforeThrottleLowerLimit - 1,
+                                    API_EARGS));
 }
 
 /**
@@ -629,8 +638,10 @@ TEST_F(SdkTestSyncUploadThrottling,
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
 
-    setMaxUploadsBeforeThrottle(throttleValueLimits.maxUploadsBeforeThrottleUpperLimit + 1,
-                                API_EARGS);
+    ASSERT_NO_FATAL_FAILURE(
+        setMaxUploadsBeforeThrottle(megaApi[0].get(),
+                                    throttleValueLimits.maxUploadsBeforeThrottleUpperLimit + 1,
+                                    API_EARGS));
 }
 
 /**
@@ -653,6 +664,9 @@ TEST_F(SdkTestSyncUploadThrottling, UploadUnthrottledFile)
     const auto throttlingManagers = createAndSetThrottlingManagers();
     const auto& uploadThrottlingManager = throttlingManagers.first;
     const auto& mockUploadThrottlingManager = throttlingManagers.second;
+    ASSERT_TRUE(uploadThrottlingManager);
+    ASSERT_TRUE(mockUploadThrottlingManager);
+
     const unsigned maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
 
     LOG_verbose << logPre << "Get the dir path node handle";
@@ -698,6 +712,9 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
     const auto throttlingManagers = createAndSetThrottlingManagers();
     const auto& uploadThrottlingManager = throttlingManagers.first;
     const auto& mockUploadThrottlingManager = throttlingManagers.second;
+    ASSERT_TRUE(uploadThrottlingManager);
+    ASSERT_TRUE(mockUploadThrottlingManager);
+
     const auto updateRateSeconds = uploadThrottlingManager->throttleUpdateRate();
     const auto maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
 
@@ -724,24 +741,17 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
                         // -> transfer requests.
         EXPECT_CALL(*mockUploadThrottlingManager, addToDelayedUploads(_)).Times(Exactly(1));
 
-        // Calculate min time to start the upload.
-        // First time we are resetting the last processed time.
-        // However, the second time some secs may have lapsed so we can just add updateRateSeconds
-        // as the expected minimum.
         const auto minTimeToStartUpload = std::invoke(
-            [i, updateRateSeconds, &uploadThrottlingManager]() -> std::chrono::seconds
+            [&]() -> std::chrono::seconds
             {
-                if (i == 0)
-                    return updateRateSeconds;
+                const auto diff =
+                    (updateRateSeconds - uploadThrottlingManager->timeSinceLastProcessedUpload()) -
+                    std::chrono::seconds(i); // Subtract an additional margin/tolerance value.
 
-                if (uploadThrottlingManager->timeSinceLastProcessedUpload() >= updateRateSeconds)
-                    return std::chrono::seconds(0);
-
-                return updateRateSeconds - uploadThrottlingManager->timeSinceLastProcessedUpload() +
-                       std::chrono::seconds(1); // +1 to round up non-whole seconds.
+                return std::max(std::chrono::seconds(0), diff);
             });
 
-        // Define the edit action to be executed within editFileAndWaitForUpload().
+        // Define the edit action to be executed within editFileAndWaitForUploadScoped().
         const auto fileEditAction =
             [&tempFile = std::as_const(tempFile), &uploadThrottlingManager, i]()
         {
@@ -756,11 +766,12 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
         };
 
         // Finally edit the file and wait for upload and meeting expectations.
-        editFileAndWaitForUpload(megaApi[0].get(),
-                                 newFileName,
-                                 dir1Handle,
-                                 fileEditAction,
-                                 UploadWaitConfig{std::chrono::seconds(minTimeToStartUpload)});
+        editFileAndWaitForUploadScoped(
+            megaApi[0].get(),
+            newFileName,
+            dir1Handle,
+            fileEditAction,
+            UploadWaitConfig{std::chrono::seconds(minTimeToStartUpload)});
     }
 }
 
@@ -788,6 +799,9 @@ TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
     const auto throttlingManagers = createAndSetThrottlingManagers();
     const auto& uploadThrottlingManager = throttlingManagers.first;
     const auto& mockUploadThrottlingManager = throttlingManagers.second;
+    ASSERT_TRUE(uploadThrottlingManager);
+    ASSERT_TRUE(mockUploadThrottlingManager);
+
     const auto updateRateSeconds = uploadThrottlingManager->throttleUpdateRate();
     const auto maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
 
@@ -825,7 +839,6 @@ TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
                          maxUploadsBeforeThrottle);
 
     LOG_verbose << logPre << "Prepare expectations and limits";
-
     EXPECT_CALL(*mockUploadThrottlingManager, processDelayedUploads(_)).Times(AtLeast(2));
     EXPECT_CALL(*mockUploadThrottlingManager, addToDelayedUploads(_)).Times(Exactly(2));
 
@@ -848,11 +861,9 @@ TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
     {
         // Wait until file1 has been edited.
         // Give 10secs as max, but it should be almost immediate.
-        auto file1EditedFuture = file1Edited.get_future();
-        if (file1EditedFuture.wait_for(std::chrono::seconds(10)) != std::future_status::ready)
-        {
-            throw std::runtime_error("The file1 wasn't edited within the timeout");
-        }
+        ASSERT_FALSE(file1Edited.get_future().wait_for(std::chrono::seconds(10)) !=
+                     std::future_status::ready)
+            << "The file1 wasn't edited within the timeout";
 
         // Simulate editing file2.
         tempFile2->appendData(100);
@@ -864,8 +875,6 @@ TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
         {
             UploadWaitConfig uploadWaitConfig{};
             uploadWaitConfig.minWaitForTransferStart = std::chrono::seconds(updateRateSeconds);
-            uploadWaitConfig.otherConcurrentCalls =
-                1; // Task2 adds expectations to the transfer request listeners.
             return uploadWaitConfig;
         });
 
@@ -876,11 +885,30 @@ TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
             UploadWaitConfig uploadWaitConfig{};
             uploadWaitConfig.minWaitForTransferStart = std::chrono::seconds(updateRateSeconds * 2);
             uploadWaitConfig.maxWaitForTransferStartFromMinWait =
-                UploadWaitConfig::TOLERANCE_SECONDS_FOR_STARTING_UPLOADS * 2,
-            uploadWaitConfig.otherConcurrentCalls =
-                1; // Task1 adds expectations to the transfer request listeners.
+                UploadWaitConfig::TOLERANCE_SECONDS_FOR_STARTING_UPLOADS * 2;
             return uploadWaitConfig;
         });
+
+    // Prepare expectations for task 1.
+    NiceMock<MockTransferListener> mockListener{
+        megaApi[0].get()}; // Global mocked listener for both tasks.
+    std::promise<void> upload1Started;
+    std::promise<void> upload1Finished;
+    setupMockListenerExpectations(mockListener,
+                                  newFile1Name,
+                                  dir1Handle,
+                                  upload1Started,
+                                  upload1Finished);
+
+    // Prepare expectations for task 2.
+    std::promise<void> upload2Started;
+    std::promise<void> upload2Finished;
+    setupMockListenerExpectations(mockListener,
+                                  newFile2Name,
+                                  dir1Handle,
+                                  upload2Started,
+                                  upload2Finished);
+    megaApi[0]->addListener(&mockListener);
 
     // First file upload task.
     LOG_verbose << logPre
@@ -888,9 +916,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
     auto task1 = std::async(std::launch::async,
                             [&]()
                             {
-                                editFileAndWaitForUpload(megaApi[0].get(),
-                                                         newFile1Name,
-                                                         dir1Handle,
+                                editFileAndWaitForUpload(upload1Started,
+                                                         upload1Finished,
                                                          file1EditAction,
                                                          uploadWaitConfigTask1);
                             });
@@ -902,9 +929,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
     auto task2 = std::async(std::launch::async,
                             [&]()
                             {
-                                editFileAndWaitForUpload(megaApi[0].get(),
-                                                         newFile2Name,
-                                                         dir1Handle,
+                                editFileAndWaitForUpload(upload2Started,
+                                                         upload2Finished,
                                                          file2EditAction,
                                                          uploadWaitConfigTask2);
                             });
@@ -935,6 +961,9 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFilePauseSyncAndUploadItUnthr
     const auto throttlingManagers = createAndSetThrottlingManagers();
     const auto& uploadThrottlingManager = throttlingManagers.first;
     const auto& mockUploadThrottlingManager = throttlingManagers.second;
+    ASSERT_TRUE(uploadThrottlingManager);
+    ASSERT_TRUE(mockUploadThrottlingManager);
+
     const auto updateRateSeconds = uploadThrottlingManager->throttleUpdateRate();
     const auto maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
 
@@ -978,6 +1007,6 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFilePauseSyncAndUploadItUnthr
         LOG_verbose << logPre << "Waiting for the upload to resume and finish";
     };
 
-    editFileAndWaitForUpload(megaApi[0].get(), newFileName, dir1Handle, fileEditAction);
+    editFileAndWaitForUploadScoped(megaApi[0].get(), newFileName, dir1Handle, fileEditAction);
 }
 #endif // ENABLE_SYNC
