@@ -5304,6 +5304,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_putvpncredential, sequence(text("putvpncredential"), param("region"), opt(sequence(flag("-file"), param("credentialfilewithoutextension"))), opt(flag("-noconsole"))));
     p->Add(exec_delvpncredential, sequence(text("delvpncredential"), param("slotID")));
     p->Add(exec_checkvpncredential, sequence(text("checkvpncredential"), param("userpublickey")));
+    p->Add(exec_getnetworktestserver, text("getnetworktestserver"));
     /* MEGA VPN commands END */
 
     p->Add(exec_fetchcreditcardinfo, text("cci"));
@@ -13124,6 +13125,32 @@ void exec_checkvpncredential(autocomplete::ACState& s)
                 }
                 cout << endl;
             });
+}
+
+void exec_getnetworktestserver(autocomplete::ACState&)
+{
+    client->getNetworkConnectivityTestServerInfo(
+        [](const Error& e,
+           CommandGetNetworkConnectivityTestServerInfo::NetworkConnectivityTestServerInfo&& info)
+        {
+            if (e == API_OK)
+            {
+                cout << "Network connectivity test server info: \n";
+                cout << "\tIPv4: " << info.ipv4 << "\n";
+                cout << "\tIPv6: " << info.ipv6 << "\n";
+                cout << "\tPorts: ";
+                for (const auto port: info.ports)
+                {
+                    cout << port << " ";
+                }
+                cout << endl;
+            }
+            else
+            {
+                cout << "Error requesting network connectivity test server info: " << errorstring(e)
+                     << " (" << e << ")" << endl;
+            }
+        });
 }
 /* MEGA VPN commands */
 
