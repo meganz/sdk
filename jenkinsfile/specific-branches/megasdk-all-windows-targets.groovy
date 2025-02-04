@@ -31,27 +31,37 @@ pipeline {
             }
         }
         stage('Build Windows'){
-            environment{
-                VCPKGPATH  = "${WORKSPACE}\\..\\..\\vcpkg"
-                QTPATH = "C:\\Qt\\Qt5.15.13\\5.15.13"
-                BUILD_DIR = "build_dir"
-            }
             options{
                 timeout(time: 150, unit: 'MINUTES')
             }
-            steps{
-                //Build SDK
-                sh "echo Building SDK x64"
-                sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
-                sh "cmake -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_PREFIX_PATH='${QTPATH}'\\\\x64 -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_GENERATOR_PLATFORM=x64 -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir\\\\"
-                sh "cmake --build '${WORKSPACE}'\\\\build_dir\\\\ --config RelWithDebInfo -j 1"
+            matrix {
+                axes {
+                    axis {
+                        name 'ARCHITECTURE'
+                        values 'x64', 'x86', 'arm64'
+                    }
+                }
+                stages {
+                    stage("Build") {
+                        steps{
+                            script {
+                                def BUILD_DIR = "${WORKSPACE}\\build_dir_${ARCHITECTURE}"
+                                def QTPATH = "C:\\Qt\\Qt5.15.13\\5.15.13"
+                                def VCPKGPATH  = "${WORKSPACE}\\..\\..\\vcpkg"
+                                def CMAKE_FLAGS = "-DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -S '${WORKSPACE}' -B '${BUILD_DIR}'"
 
-                sh "echo Building SDK x86"
-                sh "rm -rf build_dir_x86; mkdir build_dir_x86"
-                sh "cmake -DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_PREFIX_PATH='${QTPATH}'\\\\x86 -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -S '${WORKSPACE}' -B '${WORKSPACE}'\\\\build_dir_x86\\\\"
-                sh "cmake --build '${WORKSPACE}'\\\\build_dir_x86\\\\ --config RelWithDebInfo -j 1"
+                                // x64 and x86 have QT bindings. arm64 does not.
+                                def CMAKE_QT_FLAGS = ARCHITECTURE in ['x64', 'x86'] ? "-DCMAKE_PREFIX_PATH='${QTPATH}\\${ARCHITECTURE}' -DENABLE_QT_BINDINGS=ON" : ""
+
+                                sh "rm -vrf '${BUILD_DIR}'; mkdir -v '${BUILD_DIR}'"
+                                sh "cmake ${CMAKE_QT_FLAGS} ${CMAKE_FLAGS}"
+                                sh "cmake --build '${BUILD_DIR}' --config RelWithDebInfo -j 1"
+                            }
+                        }
+                    }
+                }
             }
-        }    
+        }
     }
     post {
         always {
