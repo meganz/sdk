@@ -465,9 +465,7 @@ public:
  */
 TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValues)
 {
-    static const std::string logPre{
-        "SdkTestSyncUploadThrottling.TestPublicInterfaces_GetThrottleValues : "};
-    LOG_verbose << logPre << "Getting upload throttle configurable values";
+    static const auto logPre = getLogPrefix();
 
     NiceMock<MockRequestListener> mockReqListener{megaApi[0].get()};
     mockReqListener.setErrorExpectations(API_OK,
@@ -487,9 +485,7 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValues)
  */
 TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValuesLowerLimits)
 {
-    static const std::string logPre{
-        "SdkTestSyncUploadThrottling.TestPublicInterfaces_GetThrottleValuesLowerLimits : "};
-    LOG_verbose << logPre << "Getting lower limits of throttle configurable values";
+    static const auto logPre = getLogPrefix();
 
     const auto throttlingManager = std::make_unique<UploadThrottlingManager>();
     const auto throttleValueLimits = throttlingManager->throttleValueLimits();
@@ -510,9 +506,7 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValuesLowerL
  */
 TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValuesUpperLimits)
 {
-    static const std::string logPre{
-        "SdkTestSyncUploadThrottling.TestPublicInterfaces_GetThrottleValuesUpperLimits : "};
-    LOG_verbose << logPre << "Getting upper limits of throttle configurable values";
+    static const auto logPre = getLogPrefix();
 
     const auto throttlingManager = std::make_unique<UploadThrottlingManager>();
     const auto throttleValueLimits = throttlingManager->throttleValueLimits();
@@ -532,8 +526,7 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValuesUpperL
  */
 TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_ValidValue)
 {
-    static const std::string logPre{
-        "SdkTestSyncUploadThrottling.TestPublicInterfaces_SetThrottleUpdateRate_ValidValue : "};
+    static const auto logPre = getLogPrefix();
 
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
@@ -550,8 +543,7 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_V
  */
 TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_InvalidLowerValue)
 {
-    static const std::string logPre{"SdkTestSyncUploadThrottling.TestPublicInterfaces_"
-                                    "SetThrottleUpdateRate_InvalidLowerValue : "};
+    static const auto logPre = getLogPrefix();
 
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
@@ -570,8 +562,7 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_I
  */
 TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_InvalidUpperValue)
 {
-    static const std::string logPre{"SdkTestSyncUploadThrottling.TestPublicInterfaces_"
-                                    "SetThrottleUpdateRate_InvalidUpperValue : "};
+    static const auto logPre = getLogPrefix();
 
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
@@ -589,8 +580,7 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetThrottleUpdateRate_I
  */
 TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetMaxUploadsBeforeThrottle_ValidValue)
 {
-    static const std::string logPre{"SdkTestSyncUploadThrottling.TestPublicInterfaces_"
-                                    "SetMaxUploadsBeforeThrottle_ValidValue : "};
+    static const auto logPre = getLogPrefix();
 
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
@@ -610,8 +600,7 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_SetMaxUploadsBeforeThro
 TEST_F(SdkTestSyncUploadThrottling,
        TestPublicInterfaces_SetMaxUploadsBeforeThrottle_InvalidLowerValue)
 {
-    static const std::string logPre{"SdkTestSyncUploadThrottling.TestPublicInterfaces_"
-                                    "SetMaxUploadsBeforeThrottle_InvalidLowerValue : "};
+    static const auto logPre = getLogPrefix();
 
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
@@ -632,8 +621,7 @@ TEST_F(SdkTestSyncUploadThrottling,
 TEST_F(SdkTestSyncUploadThrottling,
        TestPublicInterfaces_SetMaxUploadsBeforeThrottle_InvalidUpperValue)
 {
-    static const std::string logPre{"SdkTestSyncUploadThrottling.TestPublicInterfaces_"
-                                    "SetMaxUploadsBeforeThrottle_InvalidUpperValue : "};
+    static const auto logPre = getLogPrefix();
 
     const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
     const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
@@ -655,7 +643,7 @@ TEST_F(SdkTestSyncUploadThrottling,
  */
 TEST_F(SdkTestSyncUploadThrottling, UploadUnthrottledFile)
 {
-    static const std::string logPre{"SdkTestSyncUploadThrottling.UploadUnthrottledFile : "};
+    static const auto logPre = getLogPrefix();
 
     LOG_verbose << logPre << "Ensuring sync is running on dir1";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -703,7 +691,7 @@ TEST_F(SdkTestSyncUploadThrottling, UploadUnthrottledFile)
  */
 TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
 {
-    static const std::string logPre{"SdkTestSyncUploadThrottling.UploadThrottledFile : "};
+    static const auto logPre = getLogPrefix();
 
     LOG_verbose << logPre << "Ensuring sync is running on dir1";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -790,7 +778,7 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
  */
 TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
 {
-    static const std::string logPre{"SdkTestSyncUploadThrottling.UploadSeveralThrottledFiles : "};
+    static const auto logPre = getLogPrefix();
 
     LOG_verbose << logPre << "Ensuring sync is running on dir1";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -951,8 +939,7 @@ TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
  */
 TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFilePauseSyncAndUploadItUnthrottled)
 {
-    static const std::string logPre{
-        "SdkTestSyncUploadThrottling.UploadThrottledFilePauseSyncAndUploadItUnthrottled : "};
+    static const auto logPre = getLogPrefix();
 
     LOG_verbose << logPre << "Ensuring sync is running on dir1";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
