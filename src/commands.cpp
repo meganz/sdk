@@ -12093,6 +12093,92 @@ bool CommandCheckVpnCredential::procresult(Command::Result r, JSON&)
     }
     return r.wasErrorOrOK();
 }
+
+CommandGetNetworkConnectivityTestServerInfo::CommandGetNetworkConnectivityTestServerInfo(
+    MegaClient* client,
+    Completion&& completion)
+{
+    cmd("vpnv");
+    tag = client->reqtag;
+
+    mCompletion = std::move(completion);
+}
+
+bool CommandGetNetworkConnectivityTestServerInfo::procresult(Command::Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        assert(r.wasStrictlyError());
+        if (mCompletion)
+            mCompletion(r.errorOrOK(), {});
+        return true;
+    }
+
+    if (!r.hasJsonObject())
+    {
+        onParseFailure();
+        return false;
+    }
+
+    NetworkConnectivityTestServerInfo info;
+
+    for (bool finished = false; !finished;)
+    {
+        switch (json.getnameid())
+        {
+            case makeNameid("t"): // IPv4
+                if (!json.storeobject(&info.ipv4))
+                {
+                    onParseFailure();
+                    return false;
+                }
+                break;
+            case makeNameid("t6"): // IPv6
+                if (!json.storeobject(&info.ipv6))
+                {
+                    onParseFailure();
+                    return false;
+                }
+                break;
+            case makeNameid("p"): // ports list
+                if (!json.enterarray())
+                {
+                    onParseFailure();
+                    return false;
+                }
+
+                while (json.isnumeric())
+                {
+                    info.ports.push_back(json.getint32());
+                }
+
+                if (!json.leavearray())
+                {
+                    onParseFailure();
+                    return false;
+                }
+                break;
+
+            default:
+                if (!json.storeobject())
+                {
+                    onParseFailure();
+                    return false;
+                }
+                break;
+            case EOO:
+                finished = true;
+                break;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(API_OK, std::move(info));
+    }
+    return true;
+}
+
 /* MegaVPN Commands END*/
 
 CommandFetchCreditCard::CommandFetchCreditCard(MegaClient* client, CommandFetchCreditCardCompletion completion)

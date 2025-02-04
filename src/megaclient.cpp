@@ -21321,6 +21321,13 @@ string MegaClient::generateVpnCredentialString(const std::string& host,
         .append(":51820");
     return credential;
 }
+
+void MegaClient::getNetworkConnectivityTestServerInfo(
+    CommandGetNetworkConnectivityTestServerInfo::Completion&& completion)
+{
+    reqs.add(new CommandGetNetworkConnectivityTestServerInfo(this, std::move(completion)));
+}
+
 /* Mega VPN methods END */
 
 void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion)

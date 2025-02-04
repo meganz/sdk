@@ -3024,6 +3024,8 @@ public:
         std::string&& /* IPv6 */,
         StringKeyPair&& /* Peer Key Pair <User Private, Cluster Public> */);
 
+    void getNetworkConnectivityTestServerInfo(
+        CommandGetNetworkConnectivityTestServerInfo::Completion&& completion);
     /* Mega VPN methods END */
 
     void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);

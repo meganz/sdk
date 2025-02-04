@@ -2104,6 +2104,30 @@ public:
 private:
     Cb mCompletion;
 };
+
+class MEGA_API CommandGetNetworkConnectivityTestServerInfo: public Command
+{
+public:
+    struct NetworkConnectivityTestServerInfo
+    {
+        string ipv4;
+        string ipv6;
+        vector<int> ports;
+    };
+
+    using Completion = std::function<void(const Error&, NetworkConnectivityTestServerInfo&&)>;
+    CommandGetNetworkConnectivityTestServerInfo(MegaClient*, Completion&&);
+    bool procresult(Result, JSON&) override;
+
+private:
+    void onParseFailure()
+    {
+        if (mCompletion)
+            mCompletion(API_EINTERNAL, {});
+    }
+
+    Completion mCompletion;
+};
 /* MegaVPN Commands END*/
 
 typedef std::function<void(const Error&, const std::map<std::string, std::string>& creditCardInfo)> CommandFetchCreditCardCompletion;
