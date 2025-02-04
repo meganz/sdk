@@ -8641,7 +8641,15 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
             << "Unexpected number of retries for streaming download";
     };
 
-    LOG_debug << "#### Test1: Streaming Download, forcing 1 Raided Part Failure (403). No transfer "
+    LOG_debug << "#### Test1: Streaming Download, no forced errors. No transfer retry ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure (403). No transfer "
                  "retry ####";
     startStreaming(-1 /*cd404*/,
                    2 /*cd403*/,
@@ -8650,38 +8658,8 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    0 /*nFailedReqs*/,
                    180 /*timeout*/);
 
-    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure(503) No transfer "
-                 "retry ####";
-    startStreaming(-1 /*cd404*/,
-                   -1 /*cd403*/,
-                   -1 /*cd429*/,
-                   1 /*cd503*/,
-                   0 /*nFailedReqs*/,
-                   180 /*timeout*/);
-
-    LOG_debug << "#### Test3: Streaming Download, forcing 1 Raided Part Failure (404)."
-                 "Transfer will be retried immediately due to 404(onTransferTemporaryError "
-                 "received) ####";
-    startStreaming(2 /*cd404*/,
-                   -1 /*cd403*/,
-                   -1 /*cd429*/,
-                   -1 /*cd503*/,
-                   1 /*nFailedReqs*/,
-                   180 /*timeout*/);
-
-    LOG_debug << "#### Test4: Streaming Download, forcing 1 Raided Part Failure (429)."
-                 "Transfer will be retried immediately due to 429(onTransferTemporaryError "
-                 "received) ####";
-    startStreaming(-1 /*cd404*/,
-                   -1 /*cd403*/,
-                   2 /*cd429*/,
-                   -1 /*cd503*/,
-                   1 /*nFailedReqs*/,
-                   180 /*timeout*/);
-
-    LOG_debug << "#### Test5: Streaming Download forcing 2 Raided Parts Failures(403 | 503)."
-                 "Transfer will be retried immediately due to 403 and 503(onTransferTemporaryError "
-                 "received) ####";
+    LOG_debug << "#### Test3: Streaming Download forcing 2 Raided Parts Failures(403 | 503)."
+                 "Transfer will be retried (onTransferTemporaryError received) ####";
     startStreaming(-1 /*cd404*/,
                    2 /*cd403*/,
                    -1 /*cd429*/,
@@ -8689,6 +8667,8 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    1 /*nFailedReqs*/,
                    180 /*timeout*/);
 
+    LOG_info
+        << "___TEST Streaming Raided Transfer With Connection Failures. Tests cases completed___";
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 

@@ -331,6 +331,7 @@ public:
     {
         CONN_SPEED_SLOWEST_PART = 0,
         TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD = 1,
+        ON_RAIDED_ERROR = 2,
     };
 
     /**
@@ -724,11 +725,13 @@ public:
      * - UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD: replaced part is the slowest one AND
      * transfer mean speed is below minstreamingrate OR replaced part speed is below min speed
      * threshold
+     * - UnusedConn::ON_RAIDED_ERROR replaced part has failed due a Http err
      *
-     * @return true if connection could be replaced, otherwise false
+     * @param unusedReason reason to be set at new unused connection. See UnusedReason enum
      */
-    bool replaceConnectionByUnused(const size_t connectionNum,
-                                   const UnusedConn::ConnReplacementReason reason);
+    void replaceConnectionByUnused(const size_t connectionNum,
+                                   const UnusedConn::ConnReplacementReason replamecementReason,
+                                   const UnusedConn::UnusedReason unusedReason);
 
     /**
      * @brief Identifies the slowest and fastest connections (ignoring unused connection)
@@ -1026,6 +1029,9 @@ private:
      * mNumConnSwitchesSlowestPart
      *  - if TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD comparison will be
      * done against mNumConnSwitchesBelowSpeedThreshold
+     *  - if ON_RAIDED_ERROR we don't need to check any switch counter as any HTTP err
+     * is considered as permanent, which means that unused connection cannot be reused anymore. See
+     * unusedConnectionCanBeReused
      *
      * @return `true` if the maximum number of connection switches has been reached or
      * exceeded, `false` otherwise.
@@ -1040,8 +1046,9 @@ private:
             case UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD:
                 return mNumConnSwitchesBelowSpeedThreshold >=
                        DirectReadSlot::MAX_CONN_SWITCHES_BELOW_SPEED_THRESHOLD;
+            case UnusedConn::ON_RAIDED_ERROR:
+                return false;
         }
-        assert(false);
         return false;
     }
 
@@ -1058,8 +1065,13 @@ private:
             case UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD:
                 ++mNumConnSwitchesBelowSpeedThreshold;
                 return;
+            case UnusedConn::ON_RAIDED_ERROR:
+                // in case we need to replace unused conn by failed raided part we don't need to
+                // increase any switch counter as any HTTP err is considered as permanent, which
+                // means that unused connection cannot be reused anymore. See
+                // unusedConnectionCanBeReused
+                return;
         }
-        assert(false);
     }
 
     /**
