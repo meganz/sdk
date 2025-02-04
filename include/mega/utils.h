@@ -1498,7 +1498,6 @@ public:
         mStart(start),
         mEnd(end)
     {
-        assert(end > start);
         if (mStart > mEnd)
         {
             assert(false && "Range 'start' should not be greater than 'end'");

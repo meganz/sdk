@@ -3210,8 +3210,10 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
 
     const auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
 
+    const bool transferDirectionNeedsToChange = dir != (uploadPtr ? PUT : GET);
+
     const auto different =
-        dir != (uploadPtr ? PUT : GET) || transferSP->fingerprint() != fingerprint;
+        transferDirectionNeedsToChange || transferSP->fingerprint() != fingerprint;
 
     const auto transferTerminatedAndIsRetryable = transferSP->wasTerminated &&
                                                   transferSP->mError != API_EKEY &&
@@ -3219,8 +3221,6 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
 
     if (!different && !transferTerminatedAndIsRetryable)
         return true;
-
-    const bool transferDirectionNeedsToChange = dir != (uploadPtr ? PUT : GET);
 
     if (uploadPtr && !transferDirectionNeedsToChange &&
         !mUploadThrottling.handleAbortUpload(*uploadPtr,
