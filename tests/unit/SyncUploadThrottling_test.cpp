@@ -1,3 +1,10 @@
+/**
+ * @file SyncUploadThrottling_test.cpp
+ * @brief This file is expected to contain unit tests involving SyncUploadThrottlingFile logic.
+ */
+
+#ifdef ENABLE_SYNC
+
 #include "mega/megaclient.h"
 #include "mega/syncinternals/syncuploadthrottlingfile.h"
 
@@ -11,31 +18,6 @@ using namespace testing;
 
 static constexpr std::chrono::seconds DEFAULT_UPLOAD_COUNTER_INACTIVITY_EXPIRATION_TIME{10};
 static constexpr unsigned DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE{2};
-
-/**
- * @brief Mock class for SyncThreadsafeState
- *
- * The purpose is to be able to have a real SyncUpload_inClient, which is feasible for our unit
- * tests, and only mock the SyncThreadsafeState attribute. This mocked class will also be used to
- * set some expectations on calls that we know that should be triggered upon new code flows, like
- * updating the fingerprint when the file has changed while it was delayed/throttled and not
- * started.
- */
-class MockSyncThreadsafeState: public SyncThreadsafeState
-{
-public:
-    MockSyncThreadsafeState(const handle backupId,
-                            MegaClient* const client,
-                            const bool canChangeVault):
-        SyncThreadsafeState(backupId, client, canChangeVault)
-    {}
-
-    // Mock methods from SyncThreadsafeState
-    MOCK_METHOD(void, transferBegin, (direction_t direction, m_off_t numBytes), (override));
-    MOCK_METHOD(void, transferComplete, (direction_t direction, m_off_t numBytes), (override));
-    MOCK_METHOD(void, transferFailed, (direction_t direction, m_off_t numBytes), (override));
-    MOCK_METHOD(void, removeExpectedUpload, (NodeHandle h, const std::string& name), (override));
-};
 
 namespace
 {
@@ -52,52 +34,102 @@ FileFingerprint generateFingerprint(const m_off_t size, const m_time_t mtime)
 }
 
 /**
- * @brief Creates the SyncUpload_inClient object along with the MockSyncThreadsafeState.
+ * @brief Fixture to test SyncUpload_inClient with the mocked MockSyncThreadsafeState.
  *
- * The MockSyncThreadsafeState is an attribute of SyncUpload_inClient which is mocked for this test,
- * so we don't need to mock the whole SyncUpload_inClient. Also, this function adds the necessary
- * expectation of the transferBegin method which is called during the SyncUpload_inClient, as the
- * expectation needs to be added before the constructor. That expectation is necessary in order to
- * correctly check other later expectations which are specific of the new changes, like the
+ * This fixture is useful to test changes in the SyncUpload_inClient for in-flight uploads or
+ * delayed uploads, testing that the abortion or adjustement logic works as expected.
+ *
+ * The MockSyncThreadsafeState is an attribute of SyncUpload_inClient which is mocked for this
+ * fixture, so we don't need to mock the whole SyncUpload_inClient. Also, it uses a StrictMock to
+ * ensure the order of the expectations, such as the one for the transferBegin method which is
+ * called during the SyncUpload_inClient instantiation. That initial expectation is necessary in
+ * order to correctly check other later expectations which are specific of the new changes, like the
  * fingerprint update.
+ *
+ * Apart from using a StrictMock, the expectations are forced to be checked in order with
+ * InSequence.
  */
-std::pair<shared_ptr<SyncUpload_inClient>, std::shared_ptr<MockSyncThreadsafeState>>
-    createSyncUploadWithExpectations()
+class UploadThrottlingFileChangesTest: public Test
 {
-    // Arrange
-    const handle dummyBackupId{1};
-    MegaClient* const dummyClient{nullptr};
-    const bool canChangeVault{false};
-    const auto mockSyncThreadsafeState =
-        std::make_shared<StrictMock<MockSyncThreadsafeState>>(dummyBackupId,
-                                                              dummyClient,
-                                                              canChangeVault);
+protected:
+    /**
+     * @brief Mock class for SyncThreadsafeState
+     *
+     * The purpose is to be able to have a real SyncUpload_inClient, which is feasible for our unit
+     * tests, and only mock the SyncThreadsafeState attribute.
+     */
+    class MockSyncThreadsafeState: public SyncThreadsafeState
+    {
+    public:
+        MockSyncThreadsafeState(const handle backupId,
+                                MegaClient* const client,
+                                const bool canChangeVault):
+            SyncThreadsafeState(backupId, client, canChangeVault)
+        {}
 
-    const NodeHandle dummyHandle;
-    const LocalPath dummyFullPath;
-    const std::string nodeName{"testNode"};
-    const FileFingerprint initialFingerprint =
-        generateFingerprint(50, 60); // Use some random values for size (50) and mtime (60)
-    const handle fsid{123};
-    const LocalPath dummyLocalName;
-    const bool fromInshare{false};
+        // Mock methods from SyncThreadsafeState
+        MOCK_METHOD(void, transferBegin, (direction_t direction, m_off_t numBytes), (override));
+        MOCK_METHOD(void, transferComplete, (direction_t direction, m_off_t numBytes), (override));
+        MOCK_METHOD(void, transferFailed, (direction_t direction, m_off_t numBytes), (override));
+        MOCK_METHOD(void,
+                    removeExpectedUpload,
+                    (NodeHandle h, const std::string& name),
+                    (override));
+    };
 
-    // Set expectations
-    EXPECT_CALL(*mockSyncThreadsafeState, transferBegin(PUT, initialFingerprint.size)).Times(1);
+    void SetUp() override
+    {
+        const handle dummyBackupId{1};
+        MegaClient* const dummyClient{nullptr};
+        const bool canChangeVault{false};
+        mMockSyncThreadsafeState =
+            std::make_shared<StrictMock<MockSyncThreadsafeState>>(dummyBackupId,
+                                                                  dummyClient,
+                                                                  canChangeVault);
 
-    // Create the SyncUpload_inClient
-    const auto syncUpload = std::make_shared<SyncUpload_inClient>(dummyHandle,
-                                                                  dummyFullPath,
-                                                                  nodeName,
-                                                                  initialFingerprint,
-                                                                  mockSyncThreadsafeState,
-                                                                  fsid,
-                                                                  dummyLocalName,
-                                                                  fromInshare);
-    syncUpload->wasRequesterAbandoned = true; // We do not complete uploads.
+        // Add the initial expectation that should be triggered during SyncUpload_inClient
+        // instantiation.
+        EXPECT_CALL(*mMockSyncThreadsafeState, transferBegin(PUT, mInitialFingerprint.size))
+            .Times(1);
+    }
 
-    return {syncUpload, mockSyncThreadsafeState};
-}
+    /**
+     * @brief Create and initialize the SyncUpload_inClient with the MockSyncThreadSafeState.
+     * This method should be called right after adding all the necessary expectations.
+     *
+     * @warning No additional expectations should be added after calling this method.
+     */
+    void initializeSyncUpload_inClient()
+    {
+        const LocalPath dummyFullPath;
+        const handle fsid{123};
+        const LocalPath dummyLocalName;
+        const bool fromInshare{false};
+
+        // Create the SyncUpload_inClient
+        mSyncUpload = std::make_shared<SyncUpload_inClient>(mDummyHandle,
+                                                            dummyFullPath,
+                                                            mNodeName,
+                                                            mInitialFingerprint,
+                                                            mMockSyncThreadsafeState,
+                                                            fsid,
+                                                            dummyLocalName,
+                                                            fromInshare);
+        mSyncUpload->wasRequesterAbandoned = true; // We do not finish uploads.
+    }
+
+    static constexpr size_t DEFAULT_SIZE{50};
+    static constexpr m_time_t DEFAULT_MTIME{50};
+
+    const NodeHandle mDummyHandle{};
+    const std::string mNodeName{"testNode"};
+    const LocalPath mDummyLocalName{};
+    const FileFingerprint mInitialFingerprint{generateFingerprint(DEFAULT_SIZE, DEFAULT_MTIME)};
+
+    InSequence mSeq; // We want the expectations to be called in order.
+    std::shared_ptr<MockSyncThreadsafeState> mMockSyncThreadsafeState;
+    shared_ptr<SyncUpload_inClient> mSyncUpload;
+};
 
 /**
  * @brief Increases the upload counter nTimes.
@@ -105,17 +137,16 @@ std::pair<shared_ptr<SyncUpload_inClient>, std::shared_ptr<MockSyncThreadsafeSta
  * @param UploadThrottlingFile The throttling file object whose upload counter must be increased.
  * @param nTimes The number of times to increase the counter.
  */
-void increaseUploadCounter(UploadThrottlingFile& throttlingFile,
-                           const unsigned nTimes = DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE)
+void increaseUploadCounter(UploadThrottlingFile& throttlingFile, const unsigned nTimes)
 {
-    for ([[maybe_unused]] const auto _: range(nTimes))
+    for (auto i = nTimes; i--;)
     {
         throttlingFile.increaseUploadCounter();
     }
 }
-}
+} // namespace
 
-// Test cases
+// UploadThrottlingFileTest test cases
 
 /**
  * @test Verifies that the upload counter method increases the counter correctly.
@@ -163,142 +194,6 @@ TEST(UploadThrottlingFileTest, CheckUploadThrottlingExceedsMaxUploads)
 }
 
 /**
- * @test Verifies that no abort occurs when putnodes have started.
- */
-TEST(UploadThrottlingFileTest, HandleAbortUploadNoAbortWhenPutnodesStarted)
-{
-    InSequence seq; // We want the expectations to be called in order.
-
-    const auto [syncUpload, mockSyncThreadsafeState] = createSyncUploadWithExpectations();
-    syncUpload->putnodesStarted = true;
-
-    const FileFingerprint dummyFingerprint;
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
-
-    EXPECT_CALL(*mockSyncThreadsafeState, transferFailed(PUT, syncUpload->fingerprint().size))
-        .Times(1);
-    EXPECT_CALL(*mockSyncThreadsafeState, removeExpectedUpload(syncUpload->h, syncUpload->name))
-        .Times(1);
-    ASSERT_FALSE(throttlingFile.handleAbortUpload(*syncUpload,
-                                                  dummyFingerprint,
-                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                  dummyFullPath));
-}
-
-/**
- * @test Verifies that no abort occurs when upload is completed but it wasn't processed yet when
- * calling handleAbortUpload.
- */
-TEST(UploadThrottlingFileTest, HandleAbortUploadNoAbortWhenUploadIsCompleted)
-{
-    InSequence seq; // We want the expectations to be called in order.
-
-    const auto [syncUpload, mockSyncThreadsafeState] = createSyncUploadWithExpectations();
-    syncUpload->putnodesStarted = true;
-    syncUpload->wasCompleted = true;
-    syncUpload->wasPutnodesCompleted = true;
-    syncUpload->wasRequesterAbandoned = false;
-
-    const FileFingerprint dummyFingerprint;
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
-
-    EXPECT_CALL(*mockSyncThreadsafeState, transferComplete(PUT, syncUpload->fingerprint().size))
-        .Times(1);
-    EXPECT_CALL(*mockSyncThreadsafeState, removeExpectedUpload(syncUpload->h, syncUpload->name))
-        .Times(1);
-    ASSERT_FALSE(throttlingFile.handleAbortUpload(*syncUpload,
-                                                  dummyFingerprint,
-                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                  dummyFullPath));
-}
-
-/**
- * @test Verifies that no abort occurs when the upload hasn't started and the fingerprint is
- * updated. The fingerprint is checked before and after handleUbortUpload to ensure it is correctly
- * updated.
- */
-TEST(UploadThrottlingFileTest, HandleAbortUploadNoAbortWhenNotStartedAndUpdateFingerprint)
-{
-    InSequence seq; // We want the expectations to be called in order.
-
-    const auto [syncUpload, mockSyncThreadsafeState] = createSyncUploadWithExpectations();
-
-    const FileFingerprint newFingerprint = generateFingerprint(100, 20);
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
-
-    EXPECT_CALL(*mockSyncThreadsafeState, transferFailed(PUT, syncUpload->fingerprint().size))
-        .Times(1);
-    EXPECT_CALL(*mockSyncThreadsafeState, transferBegin(PUT, newFingerprint.size)).Times(1);
-    EXPECT_CALL(*mockSyncThreadsafeState, transferFailed(PUT, newFingerprint.size)).Times(1);
-
-    ASSERT_NE(newFingerprint.size, syncUpload->fingerprint().size);
-    ASSERT_NE(newFingerprint.mtime, syncUpload->fingerprint().mtime);
-
-    ASSERT_FALSE(throttlingFile.handleAbortUpload(*syncUpload,
-                                                  newFingerprint,
-                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                  dummyFullPath));
-
-    ASSERT_EQ(newFingerprint.size, syncUpload->fingerprint().size);
-    ASSERT_EQ(newFingerprint.mtime, syncUpload->fingerprint().mtime);
-}
-
-/**
- * @test Verifies that the upload must be aborted if it started but putnodes does not.
- * Case 1: The upload counter did not reach DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE and the upload must
- * bypass throttling logic next time.
- */
-TEST(UploadThrottlingFileTest, HandleAbortUploadDoNotSetBypassFlag)
-{
-    InSequence seq; // We want the expectations to be called in order.
-
-    const auto [syncUpload, mockSyncThreadsafeState] = createSyncUploadWithExpectations();
-    syncUpload->wasStarted = true;
-
-    const FileFingerprint dummyFingerprint;
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
-    increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE - 1);
-
-    EXPECT_CALL(*mockSyncThreadsafeState, transferFailed(PUT, syncUpload->fingerprint().size))
-        .Times(1);
-    ASSERT_TRUE(throttlingFile.handleAbortUpload(*syncUpload,
-                                                 dummyFingerprint,
-                                                 DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                 dummyFullPath));
-    ASSERT_FALSE(throttlingFile.willBypassThrottlingNextTime());
-}
-
-/**
- * @test Verifies that the upload must be aborted if it started but putnodes does not.
- * Case 2: The upload counter reached DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE and the upload must
- * bypass throttling logic next time.
- */
-TEST(UploadThrottlingFileTest, HandleAbortUploadAndSetBypassFlag)
-{
-    InSequence seq; // We want the expectations to be called in order.
-
-    const auto [syncUpload, mockSyncThreadsafeState] = createSyncUploadWithExpectations();
-    syncUpload->wasStarted = true;
-
-    const FileFingerprint dummyFingerprint;
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
-    increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
-
-    EXPECT_CALL(*mockSyncThreadsafeState, transferFailed(PUT, syncUpload->fingerprint().size))
-        .Times(1);
-    ASSERT_TRUE(throttlingFile.handleAbortUpload(*syncUpload,
-                                                 dummyFingerprint,
-                                                 DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                 dummyFullPath));
-    ASSERT_TRUE(throttlingFile.willBypassThrottlingNextTime());
-}
-
-/**
  * @test Verifies that the bypass flag is respected during throttling checks.
  * 1. First call should not bypass throttling.
  * 2. After setting the flag, next call should bypass throttling.
@@ -327,3 +222,131 @@ TEST(UploadThrottlingFileTest, CheckUploadThrottlingBypassFlag)
         throttlingFile.checkUploadThrottling(DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
                                              DEFAULT_UPLOAD_COUNTER_INACTIVITY_EXPIRATION_TIME));
 }
+
+// UploadThrottlingFileChangesTest test cases
+
+/**
+ * @test Verifies that no abort occurs when putnodes have started.
+ */
+TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenPutnodesStarted)
+{
+    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, mInitialFingerprint.size)).Times(1);
+    EXPECT_CALL(*mMockSyncThreadsafeState, removeExpectedUpload(mDummyHandle, mNodeName)).Times(1);
+
+    initializeSyncUpload_inClient();
+    mSyncUpload->putnodesStarted = true;
+
+    const FileFingerprint dummyFingerprint;
+    const LocalPath dummyFullPath;
+    UploadThrottlingFile throttlingFile;
+
+    ASSERT_FALSE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                  dummyFingerprint,
+                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                  dummyFullPath));
+}
+
+/**
+ * @test Verifies that no abort occurs when upload is completed but it wasn't processed yet when
+ * calling handleAbortUpload.
+ */
+TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenUploadIsCompleted)
+{
+    EXPECT_CALL(*mMockSyncThreadsafeState, transferComplete(PUT, mInitialFingerprint.size))
+        .Times(1);
+    EXPECT_CALL(*mMockSyncThreadsafeState, removeExpectedUpload(mDummyHandle, mNodeName)).Times(1);
+
+    initializeSyncUpload_inClient();
+    mSyncUpload->putnodesStarted = true;
+    mSyncUpload->wasCompleted = true;
+    mSyncUpload->wasPutnodesCompleted = true;
+    mSyncUpload->wasRequesterAbandoned = false;
+
+    const FileFingerprint dummyFingerprint;
+    const LocalPath dummyFullPath;
+    UploadThrottlingFile throttlingFile;
+
+    ASSERT_FALSE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                  dummyFingerprint,
+                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                  dummyFullPath));
+}
+
+/**
+ * @test Verifies that no abort occurs when the upload hasn't started and the fingerprint is
+ * updated. The fingerprint is checked before and after handleAbortUpload to ensure it is correctly
+ * updated.
+ */
+TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenNotStartedAndUpdateFingerprint)
+{
+    const FileFingerprint newFingerprint = generateFingerprint(100, 20);
+
+    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, mInitialFingerprint.size)).Times(1);
+    EXPECT_CALL(*mMockSyncThreadsafeState, transferBegin(PUT, newFingerprint.size)).Times(1);
+    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, newFingerprint.size)).Times(1);
+
+    initializeSyncUpload_inClient();
+    const LocalPath dummyFullPath;
+    UploadThrottlingFile throttlingFile;
+
+    ASSERT_NE(newFingerprint.size, mSyncUpload->fingerprint().size);
+    ASSERT_NE(newFingerprint.mtime, mSyncUpload->fingerprint().mtime);
+
+    ASSERT_FALSE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                  newFingerprint,
+                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                  dummyFullPath));
+
+    ASSERT_EQ(newFingerprint.size, mSyncUpload->fingerprint().size);
+    ASSERT_EQ(newFingerprint.mtime, mSyncUpload->fingerprint().mtime);
+}
+
+/**
+ * @test Verifies that the upload must be aborted if it started but putnodes does not.
+ * Case 1: The upload counter did not reach DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE and the upload must
+ * bypass throttling logic next time.
+ */
+TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadDoNotSetBypassFlag)
+{
+    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, mInitialFingerprint.size)).Times(1);
+
+    initializeSyncUpload_inClient();
+    mSyncUpload->wasStarted = true;
+
+    const FileFingerprint dummyFingerprint;
+    const LocalPath dummyFullPath;
+    UploadThrottlingFile throttlingFile;
+    increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE - 1);
+
+    ASSERT_TRUE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                 dummyFingerprint,
+                                                 DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                 dummyFullPath));
+    ASSERT_FALSE(throttlingFile.willBypassThrottlingNextTime());
+}
+
+/**
+ * @test Verifies that the upload must be aborted if it started but putnodes does not.
+ * Case 2: The upload counter reached DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE and the upload must
+ * bypass throttling logic next time.
+ */
+TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadAndSetBypassFlag)
+{
+    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, mInitialFingerprint.size)).Times(1);
+
+    initializeSyncUpload_inClient();
+    mSyncUpload->wasStarted = true;
+
+    const FileFingerprint dummyFingerprint;
+    const LocalPath dummyFullPath;
+    UploadThrottlingFile throttlingFile;
+    increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
+
+    ASSERT_TRUE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                 dummyFingerprint,
+                                                 DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                 dummyFullPath));
+    ASSERT_TRUE(throttlingFile.willBypassThrottlingNextTime());
+}
+
+#endif // ENABLE_SYNC
