@@ -1753,3 +1753,100 @@ TEST_P(CreateIdFromName, ValidateNewImplementation)
 }
 
 INSTANTIATE_TEST_SUITE_P(NameidTests, CreateIdFromName, testing::Values(1, 2, 3, 4, 5, 6, 7, 8));
+
+// Test class Range
+TEST(RangeTest, IteratesOverValidRange)
+{
+    // Range from 2 to 5 -> expect iteration over 2, 3, 4
+    Range r(2, 5);
+
+    std::vector<unsigned> values;
+    for (const auto val: r)
+    {
+        values.push_back(val);
+    }
+
+    ASSERT_EQ(values.size(), 3u);
+    EXPECT_EQ(values[0], 2u);
+    EXPECT_EQ(values[1], 3u);
+    EXPECT_EQ(values[2], 4u);
+}
+
+TEST(RangeTest, IteratesOverEmptyRangeWhenStartEqualsToEnd)
+{
+    // Range from 5 to 5 -> empty range
+    Range r(5, 5);
+
+    unsigned count = 0;
+    for ([[maybe_unused]] const auto val: r)
+    {
+        ++count;
+    }
+
+    EXPECT_EQ(count, 0);
+}
+
+TEST(RangeTest, IteratesOverEmptyRangeWhenStartGreaterThanEnd)
+{
+    // Range from 6 to 5 -> empty range
+    Range r(6, 5);
+
+    unsigned count = 0;
+    for ([[maybe_unused]] const auto val: r)
+    {
+        ++count;
+    }
+
+    EXPECT_EQ(count, 0);
+}
+
+TEST(RangeTest, EmptyRangeWhenStartGreaterThanEnd)
+{
+    // Start > End -> will trigger assert(false) in debug but continue in release
+    // Range will act as empty: start truncated to end
+    Range r(10, 5);
+
+    int count = 0;
+    for ([[maybe_unused]] const auto val: r)
+    {
+        ++count;
+    }
+
+    EXPECT_EQ(count, 0);
+}
+
+TEST(RangeTest, OverloadRangeToZeroStart)
+{
+    // range(5) -> Range(0, 5)
+    auto r = range(5);
+
+    std::vector<unsigned> values;
+    for (const auto val: r)
+    {
+        values.push_back(val);
+    }
+
+    ASSERT_EQ(values.size(), 5u);
+    EXPECT_EQ(values[0], 0u);
+    EXPECT_EQ(values[1], 1u);
+    EXPECT_EQ(values[2], 2u);
+    EXPECT_EQ(values[3], 3u);
+    EXPECT_EQ(values[4], 4u);
+}
+
+TEST(RangeTest, VerifySingleElementRange)
+{
+    // Range(7, 8) should iterate exactly once
+    auto r = range(7, 8);
+
+    unsigned count = 0;
+    unsigned valueCollected = 0;
+    for (const auto val: r)
+    {
+        ++count;
+        valueCollected = val;
+    }
+
+    EXPECT_EQ(count, 1);
+    EXPECT_EQ(valueCollected, 7u);
+}

@@ -1500,7 +1500,6 @@ public:
     {
         if (mStart > mEnd)
         {
-            assert(false && "Range 'start' should not be greater than 'end'");
             mStart = mEnd;
         }
     }
