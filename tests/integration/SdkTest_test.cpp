@@ -19474,12 +19474,24 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
         ASSERT_EQ(listener.waitForResult(), API_OK);
     }
 
-    // Cancel all subscriptions using null values (no-op for free account)
+    // Cancel all subscriptions using null reason list (no-op for free account)
     {
         RequestTracker listener{megaApi[0].get()};
         megaApi[0]->creditCardCancelSubscriptions(
-            static_cast<MegaCancelSubscriptionReasonList*>(nullptr), // only nullptr is ambiguous
-            nullptr,
+            static_cast<MegaCancelSubscriptionReasonList*>(
+                nullptr), // passing 'nullptr' is ambiguous
+            nullptr, // id
+            MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+            &listener);
+        ASSERT_EQ(listener.waitForResult(), API_OK);
+    }
+
+    // Cancel all subscriptions using null char pointer (no-op for free account)
+    {
+        RequestTracker listener{megaApi[0].get()};
+        megaApi[0]->creditCardCancelSubscriptions(
+            static_cast<char*>(nullptr), // passing 'nullptr' is ambiguous
+            nullptr, // id
             MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
             &listener);
         ASSERT_EQ(listener.waitForResult(), API_OK);
