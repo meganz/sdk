@@ -63,6 +63,25 @@ static constexpr auto ErrorTag = std::in_place_type<Error>;
 static constexpr auto NodeTag = std::in_place_type<std::unique_ptr<MegaNode>>;
 static constexpr auto StringVectorTag = std::in_place_type<std::vector<std::string>>;
 
+TEST_F(SdkTestNodeTagsBasic, add_tag_fails_when_read_only)
+{
+    auto root = rootNode(*client1);
+    ASSERT_NE(root, nullptr);
+
+    // Make sure client1 has something to share with client0.
+    auto d = createDirectory(*client1, *root, "d");
+    ASSERT_EQ(result(d), API_OK);
+
+    // Make sure client0 and client1 are friends.
+    EXPECT_EQ(befriend(*client0, *client1), API_OK);
+
+    // client1 should share d with client0.
+    EXPECT_EQ(share(*client1, *value(d), *client0, MegaShare::ACCESS_READ), API_OK);
+
+    // client0 shouldn't be able to add a new tag to client0's directory.
+    EXPECT_EQ(addTag(*client0, *value(d), "d"), API_EACCESS);
+}
+
 TEST_F(SdkTestNodeTagsBasic, add_tag_fails_when_tag_contains_separator)
 {
     auto file = nodeByPath(*client0, "/d0/f0");
