@@ -118,7 +118,7 @@ pipeline {
                     steps{
                         dir(megachat_sources_workspace){
                             sh "echo Building MEGAchat"
-                            sh "cmake -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_CHATLIB_WERROR=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
+                            sh "cmake -DENABLE_QT_BINDINGS=ON -DENABLE_CHATLIB_WERROR=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
                             -S ${megachat_sources_workspace} -B ${megachat_sources_workspace}/${BUILD_DIR}"
                             sh "cmake --build ${megachat_sources_workspace}/${BUILD_DIR} -j3"
                         }
