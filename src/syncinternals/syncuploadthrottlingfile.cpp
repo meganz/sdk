@@ -51,13 +51,16 @@ bool UploadThrottlingFile::checkUploadThrottling(
 }
 
 bool UploadThrottlingFile::handleAbortUpload(SyncUpload_inClient& upload,
+                                             const bool transferDirectionNeedsToChange,
                                              const FileFingerprint& fingerprint,
                                              const unsigned maxUploadsBeforeThrottle,
                                              const LocalPath& transferPath)
 {
-    // 1. Upload cannot be aborted.
     if (upload.putnodesStarted)
         return false;
+
+    if (transferDirectionNeedsToChange)
+        return true;
 
     if (!upload.wasStarted)
     {
@@ -67,7 +70,6 @@ bool UploadThrottlingFile::handleAbortUpload(SyncUpload_inClient& upload,
         return false;
     }
 
-    // 2. Upload must be aborted
     // If the upload is going to be aborted either due to a change while it was inflight or after a
     // failure, and the file was being throttled, let it start immediately next time.
     bypassThrottlingNextTime(maxUploadsBeforeThrottle);

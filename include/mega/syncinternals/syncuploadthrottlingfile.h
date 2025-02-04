@@ -86,16 +86,18 @@ public:
      *
      * The upload can only be aborted if:
      *   - The upload has already started (not in the throttling queue). Otherwise the
-     * fingerprint of the upload is updated with the new one. No need to cancel the upload.
+     * fingerprint of the upload is updated with the new one (unless the transfer direction needs to
+     * change). No need to cancel the upload.
      *   - The upload has not started the putnodes request.
      *
      * If the above conditions are met the upload must be aborted.
      * Additionally, bypassThrottlingNextTime() is called in case that the upload must be
-     * aborted.
+     * aborted and the transfer direction does not need to change.
      *
      * @return True if the upload should be aborted, otherwise false.
      */
     bool handleAbortUpload(SyncUpload_inClient& upload,
+                           const bool transferDirectionNeedsToChange,
                            const FileFingerprint& fingerprint,
                            const unsigned maxUploadsBeforeThrottle,
                            const LocalPath& transferPath);

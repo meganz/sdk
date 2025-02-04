@@ -118,6 +118,7 @@ protected:
         mSyncUpload->wasRequesterAbandoned = true; // We do not finish uploads.
     }
 
+    static constexpr bool DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE{false};
     static constexpr size_t DEFAULT_SIZE{50};
     static constexpr m_time_t DEFAULT_MTIME{50};
 
@@ -241,6 +242,7 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenPutnodesStar
     UploadThrottlingFile throttlingFile;
 
     ASSERT_FALSE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                  DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
                                                   dummyFingerprint,
                                                   DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
                                                   dummyFullPath));
@@ -267,6 +269,7 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenUploadIsComp
     UploadThrottlingFile throttlingFile;
 
     ASSERT_FALSE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                  DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
                                                   dummyFingerprint,
                                                   DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
                                                   dummyFullPath));
@@ -293,6 +296,7 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenNotStartedAn
     ASSERT_NE(newFingerprint.mtime, mSyncUpload->fingerprint().mtime);
 
     ASSERT_FALSE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                  DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
                                                   newFingerprint,
                                                   DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
                                                   dummyFullPath));
@@ -319,6 +323,7 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadDoNotSetBypassFlag)
     increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE - 1);
 
     ASSERT_TRUE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                 DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
                                                  dummyFingerprint,
                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
                                                  dummyFullPath));
@@ -343,10 +348,33 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadAndSetBypassFlag)
     increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
 
     ASSERT_TRUE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                 DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
                                                  dummyFingerprint,
                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
                                                  dummyFullPath));
     ASSERT_TRUE(throttlingFile.willBypassThrottlingNextTime());
+}
+
+/**
+ * @test Verifies that the upload must be aborted when the transfer direction needs to change (and
+ * put nodes has not started).
+ */
+TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadAbortDueToTransferDirectionNeedsToChange)
+{
+    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, mInitialFingerprint.size)).Times(1);
+
+    initializeSyncUpload_inClient();
+
+    constexpr bool transferDirectionNeedsToChange{true};
+    const FileFingerprint dummyFingerprint;
+    const LocalPath dummyFullPath;
+    UploadThrottlingFile throttlingFile;
+
+    ASSERT_TRUE(throttlingFile.handleAbortUpload(*mSyncUpload,
+                                                 transferDirectionNeedsToChange,
+                                                 dummyFingerprint,
+                                                 DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                 dummyFullPath));
 }
 
 #endif // ENABLE_SYNC

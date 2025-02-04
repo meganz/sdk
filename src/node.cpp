@@ -3222,11 +3222,11 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
     if (!different && !transferTerminatedAndIsRetryable)
         return true;
 
-    if (uploadPtr && !transferDirectionNeedsToChange &&
-        !mUploadThrottling.handleAbortUpload(*uploadPtr,
-                                             fingerprint,
-                                             sync->syncs.maxUploadsBeforeThrottle(),
-                                             transferSP->getLocalname()))
+    if (uploadPtr && !mUploadThrottling.handleAbortUpload(*uploadPtr,
+                                                          transferDirectionNeedsToChange,
+                                                          fingerprint,
+                                                          sync->syncs.maxUploadsBeforeThrottle(),
+                                                          transferSP->getLocalname()))
     {
         return !uploadPtr->putnodesStarted;
     }
