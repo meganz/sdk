@@ -766,6 +766,7 @@ public:
     static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
     static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
     static constexpr char NODE_ATTR_SEN[] = "sen";
+    static constexpr char NODE_ATTR_LABEL[] = "lbl";
     static constexpr char TAG_DELIMITER = NodeSearchFilter::TAG_DELIMITER;
     static constexpr uint32_t MAX_NUMBER_TAGS = 10;
     static constexpr uint32_t MAX_TAGS_SIZE = 3000;

@@ -1722,10 +1722,10 @@ void SdkTest::inviteContact(const unsigned apiIndex, const string& email, const 
     ASSERT_EQ(API_OK, synchronousInviteContact(apiIndex, email.c_str(), message.c_str(), action)) << "Contact invitation failed";
 }
 
-void SdkTest::replyContact(MegaContactRequest *cr, int action)
+void SdkTest::replyContact(MegaContactRequest* cr, int action, const unsigned apiIndex)
 {
-    unsigned int apiIndex = 1;
-    ASSERT_EQ(API_OK, synchronousReplyContactRequest(apiIndex, cr, action)) << "Contact reply failed";
+    ASSERT_EQ(API_OK, synchronousReplyContactRequest(apiIndex, cr, action))
+        << "Contact reply failed";
 }
 
 int SdkTest::removeContact(unsigned apiIndex, string email)

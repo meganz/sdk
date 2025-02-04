@@ -9094,12 +9094,13 @@ error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSe
     }
 
     // Check and delete invalid fav attributes
-    if (n->firstancestor()->getShareType() == ShareType_t::IN_SHARES) // Avoid an inshare to be tagged as favourite by the sharee
+    if (n->firstancestor()->getShareType() ==
+        ShareType_t::IN_SHARES) // Avoid an inshare to be tagged as favourite or sensitive by the
+                                // sharee
     {
         std::vector<nameid> nameIds = {AttrMap::string2nameid("fav"),
-                                       AttrMap::string2nameid("lbl"),
                                        AttrMap::string2nameid("sen")};
-        for (nameid& nameId : nameIds)
+        for (nameid& nameId: nameIds)
         {
             updates.erase(nameId);
         }

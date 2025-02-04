@@ -402,6 +402,7 @@ void exec_help(autocomplete::ACState& s);
 void exec_quit(autocomplete::ACState& s);
 void exec_find(autocomplete::ACState& s);
 void exec_nodedescription(autocomplete::ACState& s);
+void exec_nodelabel(autocomplete::ACState& s);
 void exec_nodesensitive(autocomplete::ACState& s);
 void exec_nodeTag(autocomplete::ACState& s);
 void exec_treecompare(autocomplete::ACState& s);

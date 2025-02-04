@@ -941,7 +941,7 @@ public:
 
     void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
     void inviteContact(unsigned apiIndex, const string &email, const string& message, const int action);
-    void replyContact(MegaContactRequest *cr, int action);
+    void replyContact(MegaContactRequest* cr, int action, const unsigned apiIndex = 1);
     int removeContact(unsigned apiIndex, string email);
     void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout, int accountIndex = 1);
 
