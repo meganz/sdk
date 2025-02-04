@@ -37,7 +37,7 @@ public:
      * be skipped and the next delayed upload in the queue, if any, will be the one to be processed.
      *
      * If a valid delayed upload is processed, it will be passed to the completion function for
-     * futher processing (ex: enqueue the upload to the client).
+     * further processing (ex: enqueue the upload to the client).
      *
      * @see checkProcessDelayedUploads()
      */

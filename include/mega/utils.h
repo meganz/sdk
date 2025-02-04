@@ -1170,12 +1170,23 @@ struct IsStringType<std::wstring> : std::true_type { };
 
 // Retrieve a file's extension.
 template<typename StringType>
-auto extensionOf(const StringType& path, std::string& extension)
-  -> typename std::enable_if<IsStringType<StringType>::value, bool>::type;
+auto extensionOf(const StringType& path, std::string& extension) ->
+    typename std::enable_if<IsStringType<StringType>::value, bool>::type;
 
 template<typename StringType>
-auto extensionOf(const StringType& path)
-  -> typename std::enable_if<IsStringType<StringType>::value, std::string>::type;
+auto extensionOf(const StringType& path) ->
+    typename std::enable_if<IsStringType<StringType>::value, std::string>::type;
+
+/**
+ * @brief Remove the dot for a string beginning with '.'
+ */
+template<typename StringType>
+StringType removeDot(StringType&& s)
+{
+    if (!s.empty() && s.front() == '.')
+        s.erase(0, 1);
+    return s;
+}
 
 // Translate a character representing a hexadecimal digit to an integer.
 template<typename T>
@@ -1477,6 +1488,8 @@ overloaded(Ts...) -> overloaded<Ts...>;
  * for-each loops or other iteration contexts.
  *
  * The range is of type [start, end), i.e., "start" is inclusive, "end" is exclusive.
+ * 'start' should be smaller than 'end'. Otherwise the 'start' value will be truncated to the 'end'
+ * value, resulting in an empty Range.
  */
 class Range
 {
@@ -1486,6 +1499,11 @@ public:
         mEnd(end)
     {
         assert(end > start);
+        if (mStart > mEnd)
+        {
+            assert(false && "Range 'start' should not be greater than 'end'");
+            mStart = mEnd;
+        }
     }
 
     class Iterator
@@ -1544,12 +1562,12 @@ private:
  * @endcode
  *
  * @param start The starting value of the range (inclusive).
- * @param end The ending value of the range (exclusive).
+ * @param end The ending value of the range (exclusive). Expected to be greater than 'start'.
+ * Otherwise the returned Range will start from 'end' (i.e., empty Range).
  * @return A Range object representing the specified range.
  */
 inline Range range(const unsigned start, const unsigned end)
 {
-    assert(end > start);
     return Range(start, end);
 }
 

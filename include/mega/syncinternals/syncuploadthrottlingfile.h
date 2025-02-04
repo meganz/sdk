@@ -70,17 +70,12 @@ public:
     /**
      * @brief Checks throttling control logic for uploads.
      *
-     * Checks if:
-     *   - Flag to bypass throttling (mBypassThrottlingNextTime) is false. Otherwise it returns
-     * false.
-     *   - Time lapsed since last upload counter processing does not exceed
-     * uploadCounterInactivityExpirationTime. Otherwise the the upload counter is reset along
-     * with mUploadCounterLastTime and returns false.
-     *   - The number of uploads exceeds the configured maximum before throttling. Otherwise it
-     * returns false.
+     * Checks the bypassThrottlingNextTime flag in case it needs bypassing, and whether the number
+     * of uploads exceeds the configured maximum before throttling, always that the time lapsed
+     * since last upload counter processing does not exceed the
+     * uploadCounterInactivityExpirationTime.
      *
      * @param uploadCounterInactivityExpirationTime Timeout for resetting the upload counter.
-     *
      * @return True if throttling must be applied, otherwise false.
      */
     bool checkUploadThrottling(const unsigned maxUploadsBeforeThrottle,

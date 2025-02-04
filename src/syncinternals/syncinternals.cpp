@@ -164,88 +164,137 @@ std::pair<bool, LocalNode*> findLocalNodeByFsid(const fsid_localnode_map& fsidLo
 *  FIND NODE CANDIDATE TO CLONE  *
 \********************************/
 
-bool FindCloneNodeCandidatePredicate::operator()(const Node& node)
+/**
+ * @struct FindCloneNodeCandidatePredicate
+ * @brief Predicate for identifying a suitable node candidate to be cloned.
+ *
+ * This struct encapsulates the logic required to determine if a Node in the cloud
+ * matches the content and extension of a local file being uploaded. It is used in
+ * conjunction with std::find_if to search for clone candidates in a collection of
+ * nodes.
+ *
+ * @see findCloneNodeCandidate_if
+ */
+struct FindCloneNodeCandidatePredicate
 {
-    const std::string cloudExtension = mExtractExtensionFromNode(node);
-    if (mClient.treatAsIfFileDataEqual(node, mLocalExtension, *mUpload, cloudExtension))
+    /**
+     * @brief Reference to the MegaClient managing the synchronization process.
+     */
+    MegaClient& mClient;
+
+    /**
+     * @brief Const reference to the upload task being processed.
+     */
+    const SyncUpload_inClient& mUpload;
+
+    /**
+     * @brief The file extension of the local file being uploaded.
+     */
+    const std::string& mLocalExtension;
+
+    /**
+     * @brief Function for extracting the file extension from a Node.
+     *
+     * This function is used to retrieve the extension of cloud nodes being evaluated
+     * as potential clone candidates.
+     */
+    std::function<std::string(const Node& node)> mExtractExtensionFromNode;
+
+    /**
+     * @brief Flag indicating if a candidate node with a zero key was found.
+     *
+     * If true, the predicate encountered a candidate node that matches the local file
+     * but has an invalid key, which can be used to prevent it from being cloned.
+     */
+    bool mFoundCandidateHasZeroKey{false};
+
+    /**
+     * @brief Constructs a FindCloneNodeCandidatePredicate instance.
+     *
+     * @param client Reference to the MegaClient managing synchronization.
+     * @param upload Const ref to the shared pointer to the upload task being processed.
+     * @param localExtension File extension of the local file being uploaded.
+     * @param extractExtensionFromNode Function to extract the file extension from a `Node`.
+     */
+    FindCloneNodeCandidatePredicate(
+        MegaClient& client,
+        const SyncUpload_inClient& upload,
+        const std::string& localExtension,
+        std::function<std::string(const Node& node)>&& extractExtensionFromNode):
+        mClient(client),
+        mUpload(upload),
+        mLocalExtension(localExtension),
+        mExtractExtensionFromNode(std::move(extractExtensionFromNode))
+    {}
+
+    /**
+     * @brief Evaluates if the provided Node is a suitable clone candidate.
+     *
+     * Checks if the node matches the local file in terms of content and extension.
+     * If a match is found but the node has a zero key, it returns true but it logs a warning
+     * and updates the mFoundCandidateHasZeroKey flag accordingly.
+     *
+     * @param node The cloud node to evaluate.
+     * @return True if a match is found, otherwise false.
+     */
+    bool operator()(const Node& node)
     {
-        // Found a candidate that matches content
-        if (node.hasZeroKey())
+        const std::string cloudExtension = mExtractExtensionFromNode(node);
+        if (mClient.treatAsIfFileDataEqual(node, mLocalExtension, mUpload, cloudExtension))
         {
-            LOG_warn << "Clone node key is a zero key!! Avoid cloning node [path = '"
-                     << node.displaypath() << "', sourceLocalname = '" << mUpload->sourceLocalname
-                     << "']";
-            mClient.sendevent(99486, "Node has a zerokey");
-            mFoundCandidateHasZeroKey = true;
+            // Found a candidate that matches content
+            if (node.hasZeroKey())
+            {
+                LOG_warn << "Clone node key is a zero key!! Avoid cloning node [path = '"
+                         << node.displaypath() << "', sourceLocalname = '"
+                         << mUpload.sourceLocalname << "']";
+                mClient.sendevent(99486, "Node has a zerokey");
+                mFoundCandidateHasZeroKey = true;
+            }
+            return true; // Done searching (zero key or valid node)
         }
-        return true; // Done searching (zero key or valid node)
+        return false; // keep searching
     }
-    return false; // keep searching
-}
 
-sharedNode_vector::const_iterator
-    findCloneNodeCandidate_if(const sharedNode_vector& candidates,
-                              FindCloneNodeCandidatePredicate& predicate)
-{
-    // Search for a suitable node
-    return std::find_if(candidates.begin(),
-                        candidates.end(),
-                        [&predicate](const std::shared_ptr<Node>& nodePtr)
-                        {
-                            if (!nodePtr)
-                                return false;
+    /**
+     * @brief Overloaded operator() to check the validity of a shared_ptr to a Node.
+     */
+    bool operator()(const std::shared_ptr<Node>& node)
+    {
+        return node && operator()(*node);
+    }
+};
 
-                            return predicate(*nodePtr);
-                        });
-}
-
-Node* findCloneNodeCandidate(MegaClient& mc, const std::shared_ptr<SyncUpload_inClient>& upload)
+Node* findCloneNodeCandidate(MegaClient& mc, const SyncUpload_inClient& upload)
 {
     // Prepare the local extension.
-    const std::string extLocal = std::invoke(
-        [&mc](const LocalPath& localPath)
-        {
-            std::string extension;
-            mc.fsaccess->getextension(localPath, extension);
-            if (!extension.empty() && extension.front() == '.')
-            {
-                extension.erase(0, 1);
-            }
-            return extension;
-        },
-        upload->getLocalname());
+    const auto extLocal = [](const LocalPath& localPath) -> std::string
+    {
+        std::string extension;
+        FileSystemAccess::getextension(localPath, extension);
+        return removeDot(std::move(extension));
+    }(upload.getLocalname());
 
     // Helper for node-based extension.
-    const auto extractExtensionFromNode = [](const Node& node) -> std::string
+    auto extractExtensionFromNode = [](const Node& node) -> std::string
     {
         std::string extension;
         node.getExtension(extension, node.displayname());
-        if (!extension.empty() && extension.front() == '.')
-        {
-            extension.erase(0, 1);
-        }
-        return extension;
+        return removeDot(std::move(extension));
     };
 
-    // Get candidate nodes.
-    const auto candidates{mc.mNodeManager.getNodesByFingerprint(*upload)};
-
-    // Construct the predicate.
     FindCloneNodeCandidatePredicate predicate{mc,
                                               upload,
                                               extLocal,
                                               std::move(extractExtensionFromNode)};
 
-    // Find the candidate if the predicate matches.
-    auto findCloneNodeCandidateIt = findCloneNodeCandidate_if(candidates, predicate);
+    const auto candidates{mc.mNodeManager.getNodesByFingerprint(upload)};
 
-    // CloneNode: nullptr if none found, or a valid pointer otherwise.
-    Node* cloneNode =
-        (findCloneNodeCandidateIt != std::end(candidates) && !predicate.mFoundCandidateHasZeroKey) ?
-            (*findCloneNodeCandidateIt).get() :
-            nullptr;
+    if (const auto it = std::find_if(begin(candidates), end(candidates), predicate);
+        (it != std::end(candidates) && !predicate.mFoundCandidateHasZeroKey))
+        return it->get();
 
-    return cloneNode;
+    return nullptr;
 }
 
 /****************\
@@ -254,7 +303,7 @@ Node* findCloneNodeCandidate(MegaClient& mc, const std::shared_ptr<SyncUpload_in
 
 void clientUpload(MegaClient& mc,
                   TransferDbCommitter& committer,
-                  const std::shared_ptr<SyncUpload_inClient>& upload,
+                  std::shared_ptr<SyncUpload_inClient> upload,
                   const VersioningOption vo,
                   const bool queueFirst,
                   const NodeHandle ovHandleIfShortcut)
@@ -263,7 +312,7 @@ void clientUpload(MegaClient& mc,
     upload->wasStarted = true;
 
     // If we found a node to clone with a valid key, call putNodesToCloneNode.
-    if (Node* cloneNode = findCloneNodeCandidate(mc, upload); cloneNode)
+    if (auto cloneNode = findCloneNodeCandidate(mc, *upload); cloneNode)
     {
         LOG_debug << "Cloning node rather than sync uploading: " << cloneNode->displaypath()
                   << " for " << upload->sourceLocalname;

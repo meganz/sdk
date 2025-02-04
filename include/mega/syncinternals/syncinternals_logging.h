@@ -16,8 +16,9 @@ namespace mega
 {
 
 // Constants
-const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED{20000}; // 20 secs
-const std::chrono::milliseconds TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED{1000}; // 1 sec
+using namespace std::chrono_literals;
+const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED{20s};
+const std::chrono::milliseconds TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED{1s};
 
 // Macros
 #define SYNC_verbose \

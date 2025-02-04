@@ -34,7 +34,7 @@ void writeFileContent(const fs::path& filePath, const std::ios::openmode openMod
         throw std::runtime_error(msg);
     }
 
-    if constexpr (std::is_same_v<T, std::size_t>)
+    if constexpr (std::is_convertible_v<T, std::size_t>)
     {
         // data is a byte count -> write that many zeros
         const std::vector<char> buffer(data, 0);

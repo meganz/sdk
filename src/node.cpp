@@ -3150,7 +3150,7 @@ bool LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload,
             MegaClient& mc,
             TransferDbCommitter& committer)
         {
-            clientUpload(mc, committer, syncUpload, vo, queueFirst, ovHandleIfShortcut);
+            clientUpload(mc, committer, std::move(syncUpload), vo, queueFirst, ovHandleIfShortcut);
         });
 
     return true;
