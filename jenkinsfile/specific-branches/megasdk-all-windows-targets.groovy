@@ -52,9 +52,11 @@ pipeline {
 
                                 // x64 and x86 have QT bindings. arm64 does not.
                                 def CMAKE_QT_FLAGS = ARCHITECTURE in ['x64', 'x86'] ? "-DCMAKE_PREFIX_PATH='${QTPATH}\\${ARCHITECTURE}' -DENABLE_QT_BINDINGS=ON" : ""
+                                // x86 is called Win32 here
+                                def CMAKE_PLATFORM = ARCHITECTURE == 'x86' ? "-DCMAKE_GENERATOR_PLATFORM=Win32" : "-DCMAKE_GENERATOR_PLATFORM=${ARCHITECTURE}"
 
                                 sh "rm -vrf '${BUILD_DIR}'; mkdir -v '${BUILD_DIR}'"
-                                sh "cmake ${CMAKE_QT_FLAGS} ${CMAKE_FLAGS}"
+                                sh "cmake ${CMAKE_PLATFORM} ${CMAKE_QT_FLAGS} ${CMAKE_FLAGS}"
                                 sh "cmake --build '${BUILD_DIR}' --config RelWithDebInfo -j 1"
                             }
                         }
