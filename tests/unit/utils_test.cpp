@@ -18,6 +18,7 @@
 
 #include "megafs.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mega/base64.h>
 #include <mega/db.h>
@@ -1759,17 +1760,8 @@ TEST(RangeTest, IteratesOverValidRange)
 {
     // Range from 2 to 5 -> expect iteration over 2, 3, 4
     Range r(2, 5);
-
-    std::vector<unsigned> values;
-    for (const auto val: r)
-    {
-        values.push_back(val);
-    }
-
-    ASSERT_EQ(values.size(), 3u);
-    EXPECT_EQ(values[0], 2u);
-    EXPECT_EQ(values[1], 3u);
-    EXPECT_EQ(values[2], 4u);
+    std::vector<unsigned> values(std::begin(r), std::end(r));
+    EXPECT_THAT(values, testing::ElementsAre(2, 3, 4));
 }
 
 TEST(RangeTest, IteratesOverEmptyRangeWhenStartEqualsToEnd)
@@ -1826,12 +1818,7 @@ TEST(RangeTest, OverloadRangeToZeroStart)
         values.push_back(val);
     }
 
-    ASSERT_EQ(values.size(), 5u);
-    EXPECT_EQ(values[0], 0u);
-    EXPECT_EQ(values[1], 1u);
-    EXPECT_EQ(values[2], 2u);
-    EXPECT_EQ(values[3], 3u);
-    EXPECT_EQ(values[4], 4u);
+    EXPECT_THAT(values, testing::ElementsAre(0, 1, 2, 3, 4));
 }
 
 TEST(RangeTest, VerifySingleElementRange)

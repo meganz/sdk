@@ -1507,6 +1507,12 @@ public:
     class Iterator
     {
     public:
+        using value_type = unsigned;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const unsigned*;
+        using reference = const unsigned&;
+        using iterator_category = std::input_iterator_tag;
+
         explicit Iterator(const unsigned current):
             mCurrent(current)
         {}

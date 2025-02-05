@@ -425,7 +425,7 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootWhenTransfersInProgress)
     const auto isBelowDir1 = Pointee(Property(&MegaTransfer::getParentHandle, *dir1HandleOpt));
     const auto isExpectedError = Pointee(Property(&MegaError::getErrorCode, API_EINCOMPLETE));
 
-    NiceMock<MockTransferListener> mockListener{};
+    NiceMock<MockTransferListener> mockListener{megaApi[0]};
     std::promise<void> fileStartedUpload;
     EXPECT_CALL(mockListener, onTransferStart).Times(AnyNumber());
     EXPECT_CALL(mockListener, onTransferStart(_, AllOf(isMyFile, isUpload, isBelowDir1)))
@@ -445,10 +445,6 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootWhenTransfersInProgress)
             });
     // Register the listener
     megaApi[0]->addListener(&mockListener);
-    MrProper clean{[&api = megaApi[0], &mockListener]()
-                   {
-                       api->removeListener(&mockListener);
-                   }};
 
     LOG_verbose << logPre << "Create the new file locally";
     const auto newFilePath = getLocalTmpDir() / newFileName;

@@ -126,6 +126,9 @@ protected:
     const std::string mNodeName{"testNode"};
     const LocalPath mDummyLocalName{};
     const FileFingerprint mInitialFingerprint{generateFingerprint(DEFAULT_SIZE, DEFAULT_MTIME)};
+    const FileFingerprint mDummyFingerprint;
+    const LocalPath mDummyFullPath;
+    UploadThrottlingFile mThrottlingFile;
 
     InSequence mSeq; // We want the expectations to be called in order.
     std::shared_ptr<MockSyncThreadsafeState> mMockSyncThreadsafeState;
@@ -237,15 +240,11 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenPutnodesStar
     initializeSyncUpload_inClient();
     mSyncUpload->putnodesStarted = true;
 
-    const FileFingerprint dummyFingerprint;
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
-
-    ASSERT_FALSE(throttlingFile.handleAbortUpload(*mSyncUpload,
-                                                  DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
-                                                  dummyFingerprint,
-                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                  dummyFullPath));
+    ASSERT_FALSE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
+                                                   DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
+                                                   mDummyFingerprint,
+                                                   DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                   mDummyFullPath));
 }
 
 /**
@@ -264,15 +263,11 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenUploadIsComp
     mSyncUpload->wasPutnodesCompleted = true;
     mSyncUpload->wasRequesterAbandoned = false;
 
-    const FileFingerprint dummyFingerprint;
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
-
-    ASSERT_FALSE(throttlingFile.handleAbortUpload(*mSyncUpload,
-                                                  DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
-                                                  dummyFingerprint,
-                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                  dummyFullPath));
+    ASSERT_FALSE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
+                                                   DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
+                                                   mDummyFingerprint,
+                                                   DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                   mDummyFullPath));
 }
 
 /**
@@ -289,17 +284,15 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenNotStartedAn
     EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, newFingerprint.size)).Times(1);
 
     initializeSyncUpload_inClient();
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
 
     ASSERT_NE(newFingerprint.size, mSyncUpload->fingerprint().size);
     ASSERT_NE(newFingerprint.mtime, mSyncUpload->fingerprint().mtime);
 
-    ASSERT_FALSE(throttlingFile.handleAbortUpload(*mSyncUpload,
-                                                  DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
-                                                  newFingerprint,
-                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                  dummyFullPath));
+    ASSERT_FALSE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
+                                                   DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
+                                                   newFingerprint,
+                                                   DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                   mDummyFullPath));
 
     ASSERT_EQ(newFingerprint.size, mSyncUpload->fingerprint().size);
     ASSERT_EQ(newFingerprint.mtime, mSyncUpload->fingerprint().mtime);
@@ -317,17 +310,14 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadDoNotSetBypassFlag)
     initializeSyncUpload_inClient();
     mSyncUpload->wasStarted = true;
 
-    const FileFingerprint dummyFingerprint;
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
-    increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE - 1);
+    increaseUploadCounter(mThrottlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE - 1);
 
-    ASSERT_TRUE(throttlingFile.handleAbortUpload(*mSyncUpload,
-                                                 DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
-                                                 dummyFingerprint,
-                                                 DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                 dummyFullPath));
-    ASSERT_FALSE(throttlingFile.willBypassThrottlingNextTime());
+    ASSERT_TRUE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
+                                                  DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
+                                                  mDummyFingerprint,
+                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                  mDummyFullPath));
+    ASSERT_FALSE(mThrottlingFile.willBypassThrottlingNextTime());
 }
 
 /**
@@ -342,17 +332,14 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadAndSetBypassFlag)
     initializeSyncUpload_inClient();
     mSyncUpload->wasStarted = true;
 
-    const FileFingerprint dummyFingerprint;
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
-    increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
+    increaseUploadCounter(mThrottlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
 
-    ASSERT_TRUE(throttlingFile.handleAbortUpload(*mSyncUpload,
-                                                 DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
-                                                 dummyFingerprint,
-                                                 DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                 dummyFullPath));
-    ASSERT_TRUE(throttlingFile.willBypassThrottlingNextTime());
+    ASSERT_TRUE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
+                                                  DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
+                                                  mDummyFingerprint,
+                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                  mDummyFullPath));
+    ASSERT_TRUE(mThrottlingFile.willBypassThrottlingNextTime());
 }
 
 /**
@@ -366,15 +353,11 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadAbortDueToTransferDirec
     initializeSyncUpload_inClient();
 
     constexpr bool transferDirectionNeedsToChange{true};
-    const FileFingerprint dummyFingerprint;
-    const LocalPath dummyFullPath;
-    UploadThrottlingFile throttlingFile;
-
-    ASSERT_TRUE(throttlingFile.handleAbortUpload(*mSyncUpload,
-                                                 transferDirectionNeedsToChange,
-                                                 dummyFingerprint,
-                                                 DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                 dummyFullPath));
+    ASSERT_TRUE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
+                                                  transferDirectionNeedsToChange,
+                                                  mDummyFingerprint,
+                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
+                                                  mDummyFullPath));
 }
 
 #endif // ENABLE_SYNC

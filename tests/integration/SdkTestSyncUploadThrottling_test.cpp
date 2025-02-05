@@ -186,9 +186,7 @@ void editFileAndWaitForUpload(std::promise<void>& uploadStarted,
     // 2) Wait for upload events.
     const auto waitForTransferStart =
         config.minWaitForTransferStart + config.maxWaitForTransferStartFromMinWait;
-    ASSERT_FALSE(uploadStarted.get_future().wait_for(waitForTransferStart) !=
-                 std::future_status::ready)
-        << "The upload didn't start within the timeout";
+    ASSERT_EQ(uploadStarted.get_future().wait_for(waitForTransferStart), std::future_status::ready);
 
     ASSERT_FALSE(
         config.minWaitForTransferStart.count() &&
@@ -201,9 +199,8 @@ void editFileAndWaitForUpload(std::promise<void>& uploadStarted,
                .count()
         << " secs.";
 
-    ASSERT_FALSE(uploadFinished.get_future().wait_for(config.waitForTransferFinish) !=
-                 std::future_status::ready)
-        << "The upload didn't finish within the timeout";
+    ASSERT_EQ(uploadFinished.get_future().wait_for(config.waitForTransferFinish),
+              std::future_status::ready)
 }
 
 /**
@@ -1035,9 +1032,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFilePauseSyncAndUploadItUnthr
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
 
     LOG_verbose << logPre << "Creating real and mocked upload manager";
-    const auto throttlingManagers = createAndSetThrottlingManagers();
-    const auto& uploadThrottlingManager = throttlingManagers.first;
-    const auto& mockUploadThrottlingManager = throttlingManagers.second;
+    const auto [uploadThrottlingManager, mockUploadThrottlingManager] =
+        createAndSetThrottlingManagers();
     ASSERT_TRUE(uploadThrottlingManager);
     ASSERT_TRUE(mockUploadThrottlingManager);
 
