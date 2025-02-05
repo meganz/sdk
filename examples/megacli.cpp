@@ -28,6 +28,7 @@
 #include "mega/pwm_file_parser.h"
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
+#include "mega/udp_socket.h"
 #include "mega/user_attribute.h"
 
 #include <bitset>
@@ -4905,6 +4906,33 @@ void exec_proxyset(autocomplete::ACState& state)
     client->httpio->setproxy(settings);
 }
 
+void exec_udp_send_recv(autocomplete::ACState& state)
+{
+    const string& address = state.words[1].s;
+    bool addressIsIPv4 = address.find(':') == std::string::npos;
+    bool convertIPv4toIPv6 = state.extractflag("-IPv4toIPv6");
+    const string& finalAddress = addressIsIPv4 && convertIPv4toIPv6 ? "::ffff:" + address : address;
+
+    UdpSocket socket(finalAddress, atoi(state.words[2].s.c_str()));
+
+    auto sendError = socket.sendAsyncMessage(state.words[3].s).get();
+    if (sendError.first)
+    {
+        cout << "Failed to send (" << sendError.first << "): " << sendError.second << endl;
+        return;
+    }
+
+    auto received = socket.receiveAsyncMessage(atoi(state.words[4].s.c_str())).get();
+    if (received.first)
+    {
+        cout << "Failed to receive (" << received.first << "): " << received.second << endl;
+    }
+    else
+    {
+        cout << "Received: " << received.second << endl;
+    }
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -5462,6 +5490,14 @@ autocomplete::ACN autocompleteSyntax()
                     opt(sequence(flag("-user"), param("user"))),
                     opt(sequence(flag("-password"), param("password"))),
                     opt(sequence(flag("-type"), param("type")))));
+
+    p->Add(exec_udp_send_recv,
+           sequence(text("udp_send_recv"),
+                    param("ip"),
+                    param("port"),
+                    param("message"),
+                    param("recv_timeout"),
+                    opt(flag("-IPv4toIPv6"))));
 
     return autocompleteTemplate = std::move(p);
 }
