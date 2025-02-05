@@ -51,7 +51,7 @@ extern "C" {
 namespace
 {
 
-// Rescale the image and convert it to standard FIT_BITMAP so that it can be saved in JPEG or PNG.
+// Rescale the image and convert it to standard FIT_BITMAP
 // @ return nullptr if it fails, otherwise the pointer to the new rescaled image
 FIBITMAP* rescale(FIBITMAP* dib, int width, int height)
 {
@@ -120,13 +120,130 @@ FIBITMAP* rescale(FIBITMAP* dib, int width, int height)
     return standardBitmap;
 }
 
-// Save the standard bitmap image to PNG if it has transparency, otherwise to JPEG for smaller size
+// Remove all metadata
+void removeAllMetadata(FIBITMAP* dib)
+{
+    FreeImage_SetMetadata(FIMD_COMMENTS, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_MAIN, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_EXIF, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_GPS, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_MAKERNOTE, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_INTEROP, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_IPTC, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_XMP, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_GEOTIFF, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_ANIMATION, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_CUSTOM, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_RAW, dib, nullptr, nullptr);
+}
+
+// Create EXIF data with Orientation tag
+std::vector<uint8_t> createOrientationOnlyExifRawData(int orientation)
+{
+    // Minimal EXIF structure
+    return std::vector<uint8_t>{
+        // EXIF Header "Exif\0\0"
+        0x45,
+        0x78,
+        0x69,
+        0x66,
+        0x00,
+        0x00,
+        // TIFF Header (little-endian)
+        0x49,
+        0x49,
+        0x2A,
+        0x00,
+        0x08,
+        0x00,
+        0x00,
+        0x00,
+        // Number of IFD entries (1 entry)
+        0x01,
+        0x00,
+        // Orientation tag (ID=0x0112, Type=SHORT, Count=1, Value=orientation)
+        0x12,
+        0x01,
+        0x03,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0x00,
+        static_cast<uint8_t>(orientation & 0xFF),
+        0x00,
+        0x00,
+        0x00,
+        // End of IFD (no next IFD)
+        0x00,
+        0x00,
+        0x00,
+        0x00};
+}
+
+using FITAGPtr = std::unique_ptr<FITAG, decltype(&FreeImage_DeleteTag)>;
+
+FITAGPtr getTagCopy(FREE_IMAGE_MDMODEL model, FIBITMAP* dib, const char* key)
+{
+    FITAG* searchedTag = nullptr;
+    FreeImage_GetMetadata(model, dib, key, &searchedTag);
+    return mega::makeUniqueFrom(FreeImage_CloneTag(searchedTag), FreeImage_DeleteTag);
+}
+
+FITAGPtr createTag(const char* key, const std::vector<uint8_t>& data)
+{
+    auto tagPtr = mega::makeUniqueFrom(FreeImage_CreateTag(), FreeImage_DeleteTag);
+    if (tagPtr)
+    {
+        FreeImage_SetTagKey(tagPtr.get(), key);
+        FreeImage_SetTagLength(tagPtr.get(), static_cast<DWORD>(data.size()));
+        FreeImage_SetTagCount(tagPtr.get(), static_cast<DWORD>(data.size()));
+        FreeImage_SetTagType(tagPtr.get(), FIDT_BYTE);
+        FreeImage_SetTagValue(tagPtr.get(), data.data());
+    }
+    return tagPtr;
+};
+
+// Remove all metadata but keep orientation
+void keepOrientationMetadataOnly(FIBITMAP* dib)
+{
+    if (!dib)
+        return;
+
+    // Get orientation copy
+    const auto orientationPtr = getTagCopy(FIMD_EXIF_MAIN, dib, "Orientation");
+
+    // Remove all meta
+    removeAllMetadata(dib);
+
+    // Add orientation only exif to ExifRaw tag as FreeImage lib only add this tag to webp's Exif
+    if (orientationPtr && (FIDT_SHORT == FreeImage_GetTagType(orientationPtr.get())))
+    {
+        const uint16_t value = *((const uint16_t*)FreeImage_GetTagValue(orientationPtr.get()));
+        const auto exifRawData = createOrientationOnlyExifRawData(value);
+        const auto tagPtr = createTag("ExifRaw", exifRawData);
+        if (!tagPtr)
+        {
+            LOG_err << "FreeImage creates ExifRaw Error";
+            return;
+        }
+
+        const auto ret = FreeImage_SetMetadata(FIMD_EXIF_RAW,
+                                               dib,
+                                               FreeImage_GetTagKey(tagPtr.get()),
+                                               tagPtr.get());
+        if (!ret)
+        {
+            LOG_err << "FreeImage SetMetadata FIMD_EXIF_RAW Error";
+        }
+    }
+}
+
+// Save the standard bitmap image in webp format.
 std::string saveToMemory(FIBITMAP* dib)
 {
     if (!dib)
-    {
         return {};
-    }
 
     assert(FreeImage_GetImageType(dib) == FIT_BITMAP);
 
@@ -136,29 +253,16 @@ std::string saveToMemory(FIBITMAP* dib)
                                            FreeImage_CloseMemory(p);
                                        });
     if (!hmem)
-    {
         return {};
-    }
 
-    auto [format, flag] = [dib]() -> std::pair<FREE_IMAGE_FORMAT, int>
-    {
-        if (FreeImage_IsTransparent(dib))
-            return {FIF_PNG, PNG_DEFAULT};
-        else
-            return {FIF_JPEG, JPEG_BASELINE | JPEG_OPTIMIZE | 85};
-    }();
-
-    if (!FreeImage_SaveToMemory(format, dib, hmem.get(), flag))
-    {
+    if (!FreeImage_SaveToMemory(FIF_WEBP, dib, hmem.get(), 75))
         return {};
-    }
 
     BYTE* tdata;
     DWORD tlen;
     FreeImage_AcquireMemory(hmem.get(), &tdata, &tlen);
     return std::string{reinterpret_cast<char*>(tdata), tlen};
 }
-
 }
 
 namespace mega {
@@ -832,7 +936,9 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut)
     FreeImage_Unload(dib);
     dib = tdib;
 
-    // save in jpeg or png if it has transparency
+    // Remove all but keep Orientation meta data for display and smaller size
+    keepOrientationMetadataOnly(dib);
+
     *imageOut = saveToMemory(dib);
 
     return !imageOut->empty();
