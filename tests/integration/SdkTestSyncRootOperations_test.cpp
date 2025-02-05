@@ -425,7 +425,7 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootWhenTransfersInProgress)
     const auto isBelowDir1 = Pointee(Property(&MegaTransfer::getParentHandle, *dir1HandleOpt));
     const auto isExpectedError = Pointee(Property(&MegaError::getErrorCode, API_EINCOMPLETE));
 
-    NiceMock<MockTransferListener> mockListener{megaApi[0]};
+    NiceMock<MockTransferListener> mockListener{megaApi[0].get()};
     std::promise<void> fileStartedUpload;
     EXPECT_CALL(mockListener, onTransferStart).Times(AnyNumber());
     EXPECT_CALL(mockListener, onTransferStart(_, AllOf(isMyFile, isUpload, isBelowDir1)))
