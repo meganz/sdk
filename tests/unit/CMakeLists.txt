@@ -46,6 +46,7 @@ target_sources(test_unit
     pwm_file_parser_test.cpp
     pwm_import_validation.cpp
     LRUCache_test.cpp
+    totp_test.cpp
 )
 
 target_sources_conditional(test_unit
