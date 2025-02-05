@@ -27657,7 +27657,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
             }
         }
 
-        auto result{[this, request, nodeTree = nodeTree.release()](
+        auto result{[this, request, nodeTree = std::shared_ptr<MegaNodeTree>(nodeTree.release())](
                         const Error& error,
                         targettype_t,
                         vector<NewNode>& newNodes,
@@ -27666,7 +27666,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                         const map<string, string>& fileHandles)
                     {
                         size_t i{};
-                        auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
+                        auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree.get())};
                         while (i < newNodes.size() && tmpNodeTree)
                         {
                             if (auto node{client->nodebyhandle(newNodes[i].mAddedHandle)})
@@ -27677,7 +27677,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                             tmpNodeTree =
                                 dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild());
                         }
-                        request->setMegaNodeTree(nodeTree);
+                        request->setMegaNodeTree(nodeTree->copy());
                         request->setMegaStringMap(fileHandles);
                         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(error));
                     }};
