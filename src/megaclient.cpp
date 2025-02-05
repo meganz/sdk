@@ -8954,9 +8954,8 @@ error MegaClient::addTagToNode(std::shared_ptr<Node> node,
 
     AttrMap map;
     map.map[tagNameid] = std::move(tags);
-    setattr(node, std::move(map.map), std::move(c), false);
 
-    return API_OK;
+    return setattr(node, std::move(map.map), std::move(c), false);
 }
 
 std::vector<std::string> MegaClient::getNodeTags(const std::string& delimitedTags)
@@ -9021,9 +9020,8 @@ error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
 
     AttrMap map;
     map.map[tagNameid] = std::move(str);
-    setattr(node, std::move(map.map), std::move(c), false);
 
-    return API_OK;
+    return setattr(node, std::move(map.map), std::move(c), false);
 }
 
 error MegaClient::updateTagNode(std::shared_ptr<Node> node,
@@ -9060,9 +9058,8 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
 
     AttrMap map;
     map.map[tagNameid] = std::move(str);
-    setattr(node, std::move(map.map), std::move(c), false);
 
-    return API_OK;
+    return setattr(node, std::move(map.map), std::move(c), false);
 }
 
 // update node attributes
