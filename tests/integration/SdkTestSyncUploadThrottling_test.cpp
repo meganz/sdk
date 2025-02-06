@@ -325,10 +325,23 @@ public:
             << "The upload throttling manager set operation has timed out";
     }
 
-    void getThrottleValueLimits(MegaApi* const api,
-                                const bool upperLimits,
-                                const std::chrono::seconds expectedThrottleUpdateRateLimit,
-                                const unsigned expectedMaxUploadsBeforeThrottleLimit)
+    /**
+     * @brief Calls MegaApi::getSyncUploadThrottleUpperLimits or
+     * MegaApi::getSyncUploadThrottleLowerLimits to obtain the limits for the
+     * ISyncUploadThrottlingManager configurable values and compare them with the expected ones.
+     *
+     * @param upperLimits True to retrieve the upper limits
+     * (MegaApi::getSyncUploadThrottleUpperLimits), False for the lower limits
+     * (MegaApi::getSyncUploadThrottleLowerLimits)
+     * @param expectedThrottleUpdateRateLimit The throttleUpdateRateLimit value (default) that is
+     * expected to match with the one returned by the MegaApi.
+     * @param expectedMaxUploadsBeforeThrottleLimit The maxUploadsBeforeThrottleLimit value
+     * (default) that is expected to match with the one returned by the MegaApi.
+     */
+    void validateThrottleValueLimits(MegaApi* const api,
+                                     const bool upperLimits,
+                                     const std::chrono::seconds expectedThrottleUpdateRateLimit,
+                                     const unsigned expectedMaxUploadsBeforeThrottleLimit)
     {
         NiceMock<MockRequestListener> mockReqListener{api};
 
@@ -384,13 +397,15 @@ public:
         NiceMock<MockRequestListener> mockReqListener{api};
         mockReqListener.setErrorExpectations(expectedError,
                                              _,
-                                             MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES);
+                                             MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES);
 
         megaApi[0]->setSyncUploadThrottleUpdateRate(
             static_cast<unsigned>(throttleUpdateRate.count()),
             &mockReqListener);
 
         ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
+
+
     }
 
     /**
@@ -528,7 +543,7 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValues)
 /**
  * @brief SdkTestSyncUploadThrottling.TestPublicInterfaces_GetThrottleValuesLowerLimits
  *
- * Test MegaApi::getSyncUploadThrottleUpperLimits to get the lower limits for the configurable
+ * Test MegaApi::getSyncUploadThrottleLowerLimits to get the lower limits for the configurable
  * throttle values.
  */
 TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValuesLowerLimits)
@@ -540,10 +555,10 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValuesLowerL
 
     const bool upperLimits = false;
     ASSERT_NO_FATAL_FAILURE(
-        getThrottleValueLimits(megaApi[0].get(),
-                               upperLimits,
-                               throttleValueLimits.throttleUpdateRateLowerLimit,
-                               throttleValueLimits.maxUploadsBeforeThrottleLowerLimit));
+        validateThrottleValueLimits(megaApi[0].get(),
+                                    upperLimits,
+                                    throttleValueLimits.throttleUpdateRateLowerLimit,
+                                    throttleValueLimits.maxUploadsBeforeThrottleLowerLimit));
 }
 
 /**
@@ -561,10 +576,10 @@ TEST_F(SdkTestSyncUploadThrottling, TestPublicInterfaces_GetThrottleValuesUpperL
 
     const bool upperLimits = true;
     ASSERT_NO_FATAL_FAILURE(
-        getThrottleValueLimits(megaApi[0].get(),
-                               upperLimits,
-                               throttleValueLimits.throttleUpdateRateUpperLimit,
-                               throttleValueLimits.maxUploadsBeforeThrottleUpperLimit));
+        validateThrottleValueLimits(megaApi[0].get(),
+                                    upperLimits,
+                                    throttleValueLimits.throttleUpdateRateUpperLimit,
+                                    throttleValueLimits.maxUploadsBeforeThrottleUpperLimit));
 }
 
 /**

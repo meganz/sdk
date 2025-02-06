@@ -118,7 +118,7 @@ private:
     static constexpr unsigned MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT{5};
 
     // Default values
-    static constexpr std::chrono::seconds DEFAULT_THROTTLE_UPDATE_RATE{1800};
+    static constexpr std::chrono::seconds DEFAULT_THROTTLE_UPDATE_RATE{180};
     static constexpr unsigned DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE{
         MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT};
 

@@ -1547,6 +1547,16 @@ public:
         return Iterator(mEnd);
     }
 
+    size_t size() const
+    {
+        return mEnd - mStart;
+    }
+
+    bool empty() const
+    {
+        return !size();
+    }
+
 private:
     unsigned mStart;
     unsigned mEnd;

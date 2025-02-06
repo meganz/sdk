@@ -1029,6 +1029,8 @@ struct MEGA_API LocalNode
                            const NodeHandle ovHandleIfShortcut);
     void queueClientDownload(shared_ptr<SyncDownload_inClient> upload, bool queueFirst);
     void resetTransfer(shared_ptr<SyncTransfer_inClient> p);
+    void checkTransferCompleted(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
+    void updateTransferLocalname();
 
     /**
      * @brief Determines whether a transfer associated with the local node should be reset,
@@ -1059,10 +1061,6 @@ struct MEGA_API LocalNode
      * @todo Improve accuracy of the matching criteria, considering additional factors beyond
      * fingerprints.
      */
-    void checkTransferCompleted(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
-    void updateTransferLocalname();
-    /**
-    */
     bool transferResetUnlessMatched(const direction_t, const FileFingerprint& fingerprint);
 
     shared_ptr<SyncTransfer_inClient> transferSP;

@@ -1756,7 +1756,7 @@ TEST_P(CreateIdFromName, ValidateNewImplementation)
 INSTANTIATE_TEST_SUITE_P(NameidTests, CreateIdFromName, testing::Values(1, 2, 3, 4, 5, 6, 7, 8));
 
 // Test class Range
-TEST(RangeTest, IteratesOverValidRange)
+TEST(RangeTest, ValidRange)
 {
     // Range from 2 to 5 -> expect iteration over 2, 3, 4
     Range r(2, 5);
@@ -1764,41 +1764,21 @@ TEST(RangeTest, IteratesOverValidRange)
     EXPECT_THAT(values, testing::ElementsAre(2, 3, 4));
 }
 
-TEST(RangeTest, IteratesOverEmptyRangeWhenStartEqualsToEnd)
+TEST(RangeTest, EmptyRangeWhenStartEqualsToEnd)
 {
     // Range from 5 to 5 -> empty range
     Range r(5, 5);
 
-    unsigned count = 0;
-    for ([[maybe_unused]] const auto val: r)
-    {
-        ++count;
-    }
-
-    EXPECT_EQ(count, 0);
-}
-
-TEST(RangeTest, IteratesOverEmptyRangeWhenStartGreaterThanEnd)
-{
-    // Range from 6 to 5 -> empty range
-    Range r(6, 5);
-
-    unsigned count = 0;
-    for ([[maybe_unused]] const auto val: r)
-    {
-        ++count;
-    }
-
-    EXPECT_EQ(count, 0);
+    EXPECT_TRUE(r.empty());
 }
 
 TEST(RangeTest, EmptyRangeWhenStartGreaterThanEnd)
 {
-    // Start > End -> will trigger assert(false) in debug but continue in release
-    // Range will act as empty: start truncated to end
-    Range r(10, 5);
+    // Range from 6 to 5 -> empty range
+    Range r(6, 5);
+    EXPECT_TRUE(r.empty());
 
-    int count = 0;
+    unsigned count = 0;
     for ([[maybe_unused]] const auto val: r)
     {
         ++count;
