@@ -1,6 +1,6 @@
 /**
  * @file
- * @brief This file is expected to contain tests involving syncs and operations with nodes (local
+ * @brief This file is expected to contain tests involving sync root paths (local
  * and remote), e.g., what happens when the remote root of a sync gets deleted.
  */
 
@@ -11,7 +11,7 @@
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
-#include "SdkTestNodesSetUp_test.h"
+#include "SdkTestSyncNodesOperations_test.h"
 
 #include <gmock/gmock.h>
 
@@ -19,285 +19,14 @@ using namespace sdk_test;
 using namespace testing;
 
 /**
- * @class SdkTestSyncNodeOperations
- * @brief Test fixture designed to test operations involving node operations and syncs
- *
- * @note As a reminder, everything is done inside the remote node named by getRootTestDir() which
- * means that all the methods involving a remote "path" are relative to that root test dir.
+ * @class SdkTestSyncRootOperations
+ * @brief Test fixture designed to test operations involving sync root local and remote paths.
  */
-class SdkTestSyncNodeOperations: public SdkTestNodesSetUp
+class SdkTestSyncRootOperations: public SdkTestSyncNodesOperations
 {
 public:
-    static constexpr auto MAX_TIMEOUT = 3min; // Timeout for operations in this tests suite
-
-    void SetUp() override
-    {
-        SdkTestNodesSetUp::SetUp();
-        ASSERT_NO_FATAL_FAILURE(initiateSync(getLocalTmpDir().u8string(), "dir1/", mBackupId));
-        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
-    }
-
-    void TearDown() override
-    {
-        ASSERT_TRUE(removeSync(megaApi[0].get(), mBackupId));
-        SdkTestNodesSetUp::TearDown();
-    }
-
-    /**
-     * @brief Build a simple file tree
-     */
-    const std::vector<NodeInfo>& getElements() const override
-    {
-        // To ensure "testCommonFile" is identical in both dirs
-        static const auto currentTime = std::chrono::system_clock::now();
-        static const std::vector<NodeInfo> ELEMENTS{
-            DirNodeInfo("dir1")
-                .addChild(FileNodeInfo("testFile").setSize(1))
-                .addChild(FileNodeInfo("testCommonFile").setMtime(currentTime))
-                .addChild(FileNodeInfo("testFile1")),
-            DirNodeInfo("dir2")
-                .addChild(FileNodeInfo("testFile").setSize(2))
-                .addChild(FileNodeInfo("testCommonFile").setMtime(currentTime))
-                .addChild(FileNodeInfo("testFile2"))};
-        return ELEMENTS;
-    }
-
-    const std::string& getRootTestDir() const override
-    {
-        static const std::string dirName{"SDK_TEST_SYNC_NODE_OPERATIONS_AUX_DIR"};
-        return dirName;
-    }
-
-    /**
-     * @brief We don't want different creation times
-     */
-    bool keepDifferentCreationTimes() override
-    {
-        return false;
-    }
-
-    /**
-     * @brief Where should we put our sync locally?
-     */
-    static const fs::path& getLocalTmpDir()
-    {
-        // Prevent parallel test from the same suite writing to the same dir
-        thread_local const fs::path localTmpDir{"./SDK_TEST_SYNC_NODE_OPERATIONS_AUX_LOCAL_DIR_" +
-                                                getThisThreadIdStr()};
-        return localTmpDir;
-    }
-
-    /**
-     * @brief Returns the identifier to get the sync from the megaApi
-     */
-    handle getBackupId() const
-    {
-        return mBackupId;
-    }
-
-    /**
-     * @brief Returns the current sync state
-     */
-    std::unique_ptr<MegaSync> getSync() const
-    {
-        return std::unique_ptr<MegaSync>(megaApi[0]->getSyncByBackupId(mBackupId));
-    }
-
-    /**
-     * @brief Moves the cloud node that is in the relative path "sourcePath" to the relative
-     * "destPath"
-     */
-    void moveRemoteNode(const std::string& sourcePath, const std::string& destPath)
-    {
-        const auto source = getNodeByPath(sourcePath);
-        const auto dest = getNodeByPath(destPath);
-        ASSERT_EQ(API_OK, doMoveNode(0, nullptr, source.get(), dest.get()));
-    }
-
-    /**
-     * @brief Renames the remote node located at sourcePath with the new given name
-     */
-    void renameRemoteNode(const std::string& sourcePath, const std::string& newName)
-    {
-        const auto source = getNodeByPath(sourcePath);
-        ASSERT_EQ(API_OK, doRenameNode(0, source.get(), newName.c_str()));
-    }
-
-    /**
-     * @brief Removes the node located at the give relative path
-     */
-    void removeRemoteNode(const std::string& path)
-    {
-        const auto node = getNodeByPath(path);
-        ASSERT_EQ(API_OK, doDeleteNode(0, node.get()));
-    }
-
-    /**
-     * @brief Asserts there is a sync pointing to the remote relative path and that it is in
-     * RUNSTATE_RUNNING
-     */
-    void ensureSyncNodeIsRunning(const std::string& path)
-    {
-        const auto syncNode = getNodeByPath(path);
-        ASSERT_TRUE(syncNode);
-        const auto sync = megaApi[0]->getSyncByNode(syncNode.get());
-        ASSERT_TRUE(sync);
-        ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_RUNNING);
-    }
-
-    void suspendSync()
-    {
-        ASSERT_TRUE(sdk_test::suspendSync(megaApi[0].get(), mBackupId))
-            << "Error when trying to suspend the sync";
-    }
-
-    void disableSync()
-    {
-        ASSERT_TRUE(sdk_test::disableSync(megaApi[0].get(), mBackupId))
-            << "Error when trying to disable the sync";
-    }
-
-    void resumeSync()
-    {
-        ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), mBackupId))
-            << "Error when trying to resume the sync";
-    }
-
-    /**
-     * @brief Asserts that the sync last known remote folder matches with the one give relative path
-     */
-    void ensureSyncLastKnownMegaFolder(const std::string& path)
-    {
-        std::unique_ptr<MegaSync> sync(megaApi[0]->getSyncByBackupId(getBackupId()));
-        ASSERT_TRUE(sync);
-        ASSERT_EQ(sync->getLastKnownMegaFolder(), convertToTestPath(path));
-    }
-
-    void initiateSync(const std::string& localPath,
-                      const std::string& remotePath,
-                      MegaHandle& backupId)
-    {
-        LOG_verbose << "SdkTestSyncNodeOperations : Initiate sync";
-        backupId = sdk_test::syncFolder(megaApi[0].get(),
-                                        localPath,
-                                        getNodeByPath(remotePath)->getHandle());
-    }
-
-    /**
-     * @brief Waits until all direct successors from both remote and local roots of the sync match.
-     *
-     * Asserts false if a timeout is exceeded.
-     */
-    void waitForSyncToMatchCloudAndLocal()
-    {
-        const auto areLocalAndCloudSynched = [this]() -> bool
-        {
-            const auto childrenCloudName =
-                getCloudFirstChildrenNames(megaApi[0].get(), getSync()->getMegaHandle());
-            return childrenCloudName && Value(getLocalFirstChildrenNames(),
-                                              UnorderedElementsAreArray(*childrenCloudName));
-        };
-        ASSERT_TRUE(waitFor(areLocalAndCloudSynched, MAX_TIMEOUT, 10s));
-    }
-
-    void checkCurrentLocalMatchesOriginal(const std::string_view cloudDirName)
-    {
-        const auto& originals = getElements();
-        const auto it = std::find_if(std::begin(originals),
-                                     std::end(originals),
-                                     [&cloudDirName](const auto& node)
-                                     {
-                                         return getNodeName(node) == cloudDirName;
-                                     });
-        ASSERT_NE(it, std::end(originals))
-            << cloudDirName << ": directory not found in original elements";
-        const auto* dirNode = std::get_if<DirNodeInfo>(&(*it));
-        ASSERT_TRUE(dirNode) << "The found original element is not a directory";
-
-        using ChildNameSize = std::pair<std::string, std::optional<unsigned>>;
-        // Get info from original cloud
-        std::vector<ChildNameSize> childOriginalInfo;
-        std::transform(std::begin(dirNode->childs),
-                       std::end(dirNode->childs),
-                       std::back_inserter(childOriginalInfo),
-                       [](const auto& child) -> ChildNameSize
-                       {
-                           return std::visit(
-                               overloaded{[](const DirNodeInfo& dir) -> ChildNameSize
-                                          {
-                                              return {dir.name, {}};
-                                          },
-                                          [](const FileNodeInfo& file) -> ChildNameSize
-                                          {
-                                              return {file.name, file.size};
-                                          }},
-                               child);
-                       });
-
-        // Get info from current local
-        std::vector<ChildNameSize> childLocalInfo;
-        std::filesystem::directory_iterator children{getLocalTmpDir()};
-        std::for_each(begin(children),
-                      end(children),
-                      [&childLocalInfo](const std::filesystem::path& path)
-                      {
-                          const auto name = path.filename().string();
-                          if (name.front() == '.' || name == DEBRISFOLDER)
-                              return;
-                          if (std::filesystem::is_directory(path))
-                              childLocalInfo.push_back({name, {}});
-                          else
-                              childLocalInfo.push_back(
-                                  {name, static_cast<unsigned>(std::filesystem::file_size(path))});
-                      });
-
-        ASSERT_THAT(childLocalInfo, testing::UnorderedElementsAreArray(childOriginalInfo));
-    }
-
-    /**
-     * @brief Asserts that there are 2 stall issues pointing to local paths that end with the given
-     * names and their reason is LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose.
-     *
-     * Useful to validate mirroring state between dir1 and dir2.
-     */
-    void thereIsAStall(const std::string_view fileName) const
-    {
-        const auto stalls = sdk_test::getStalls(megaApi[0].get());
-        ASSERT_EQ(stalls.size(), 1);
-        ASSERT_TRUE(stalls[0]);
-        const auto& stall = *stalls[0];
-        ASSERT_THAT(stall.path(false, 0), EndsWith(fileName));
-        ASSERT_THAT(
-            stall.reason(),
-            MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose);
-    }
-
-    /**
-     * @brief Asserts that the local sync directory contains all the files matching a mirroring
-     * state (all the files in dir1 merged with those in dir2)
-     */
-    void checkCurrentLocalMatchesMirror() const
-    {
-        ASSERT_THAT(getLocalFirstChildrenNames(),
-                    UnorderedElementsAre("testFile", "testCommonFile", "testFile1", "testFile2"));
-        ASSERT_NO_FATAL_FAILURE(thereIsAStall("testFile"));
-    }
-
-    /**
-     * @brief Returns a vector with the names of the first successor files/directories inside the
-     * local root.
-     *
-     * Hidden files (starting with . are excludoed)
-     */
-    std::vector<std::string> getLocalFirstChildrenNames() const
-    {
-        return sdk_test::getLocalFirstChildrenNames_if(getLocalTmpDir(),
-                                                       [](const std::string& name)
-                                                       {
-                                                           return name.front() != '.' &&
-                                                                  name != DEBRISFOLDER;
-                                                       });
-    }
+    static constexpr auto MAX_TIMEOUT =
+        COMMON_TIMEOUT; // Timeout for operations in this tests suite
 
     enum class MoveOp
     {
@@ -363,15 +92,11 @@ public:
         // Wait for everything to finish
         mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT);
     }
-
-private:
-    LocalTempDir mTempLocalDir{getLocalTmpDir()};
-    handle mBackupId{UNDEF};
 };
 
-TEST_F(SdkTestSyncNodeOperations, MoveRemoteRoot)
+TEST_F(SdkTestSyncRootOperations, MoveRemoteRoot)
 {
-    static const std::string logPre{"SdkTestSyncNodeOperations.MoveRemoteRoot : "};
+    static const std::string logPre{"SdkTestSyncRootOperations.MoveRemoteRoot : "};
 
     // The state of the sync shouldn't change so we will be checking that all across the test
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -393,9 +118,9 @@ TEST_F(SdkTestSyncNodeOperations, MoveRemoteRoot)
     ASSERT_NO_FATAL_FAILURE(ensureSyncLastKnownMegaFolder("dir2/dir1moved"));
 }
 
-TEST_F(SdkTestSyncNodeOperations, RemoveRemoteRoot)
+TEST_F(SdkTestSyncRootOperations, RemoveRemoteRoot)
 {
-    static const std::string logPre{"SdkTestSyncNodeOperations.RemoveRemoteRoot : "};
+    static const std::string logPre{"SdkTestSyncRootOperations.RemoveRemoteRoot : "};
 
     // We expect the sync to stop if the remote root node gets deleted
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -412,9 +137,9 @@ TEST_F(SdkTestSyncNodeOperations, RemoveRemoteRoot)
     ASSERT_EQ(sync->getError(), MegaSync::REMOTE_NODE_NOT_FOUND);
 }
 
-TEST_F(SdkTestSyncNodeOperations, MoveSyncToAnotherSync)
+TEST_F(SdkTestSyncRootOperations, MoveSyncToAnotherSync)
 {
-    static const std::string logPre{"SdkTestSyncNodeOperations.MoveSyncToAnotherSync : "};
+    static const std::string logPre{"SdkTestSyncRootOperations.MoveSyncToAnotherSync : "};
 
     // Moving a sync to another sync should disable it
     LOG_verbose << logPre << "Create a new sync in dir2";
@@ -446,13 +171,13 @@ TEST_F(SdkTestSyncNodeOperations, MoveSyncToAnotherSync)
 }
 
 /**
- * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootErrors
+ * @brief SdkTestSyncRootOperations.ChangeSyncRemoteRootErrors
  *
  * Tests multiple error paths when calling changeSyncRemoteRoot
  */
-TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
+TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootErrors)
 {
-    static const std::string logPre{"SdkTestSyncNodeOperations.ChangeSyncRemoteRootErrors : "};
+    static const std::string logPre{"SdkTestSyncRootOperations.ChangeSyncRemoteRootErrors : "};
 
     {
         LOG_verbose << logPre << "Giving undef backupId and undef remote handle";
@@ -507,14 +232,14 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrors)
 }
 
 /**
- * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootErrorOnBackup
+ * @brief SdkTestSyncRootOperations.ChangeSyncRemoteRootErrorOnBackup
  *
  * Checks that changing the remote root of a backup returns an error (not allowed operation).
  */
-TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrorOnBackup)
+TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootErrorOnBackup)
 {
     static const std::string logPre{
-        "SdkTestSyncNodeOperations.ChangeSyncRemoteRootErrorOnBackup : "};
+        "SdkTestSyncRootOperations.ChangeSyncRemoteRootErrorOnBackup : "};
 
     LOG_verbose << logPre << "Create a backup";
     ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceName(megaApi[0].get()));
@@ -544,14 +269,14 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootErrorOnBackup)
 }
 
 /**
- * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootOK
+ * @brief SdkTestSyncRootOperations.ChangeSyncRemoteRootOK
  *
  * Changes the remote root node of the running sync and validates the final state (which is expected
  * to mimic the state of the new root)
  */
-TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootOK)
+TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootOK)
 {
-    static const std::string logPre{"SdkTestSyncNodeOperations.ChangeSyncRemoteRootOK : "};
+    static const std::string logPre{"SdkTestSyncRootOperations.ChangeSyncRemoteRootOK : "};
 
     LOG_verbose << logPre << "Ensuring sync is running on dir1";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -570,15 +295,15 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootOK)
 }
 
 /**
- * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenSyncPausedOK
+ * @brief SdkTestSyncRootOperations.ChangeSyncRemoteRootWhenSyncPausedOK
  *
- * Same as SdkTestSyncNodeOperations.ChangeSyncRemoteRootOK but the change is applied on a paused
+ * Same as SdkTestSyncRootOperations.ChangeSyncRemoteRootOK but the change is applied on a paused
  * sync. Once the change is done, the sync gets resumed and the final state is validated.
  */
-TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenSyncPausedOK)
+TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootWhenSyncPausedOK)
 {
     static const std::string logPre{
-        "SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenSyncPausedOK : "};
+        "SdkTestSyncRootOperations.ChangeSyncRemoteRootWhenSyncPausedOK : "};
 
     LOG_verbose << logPre << "Ensuring sync is running on dir1";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -603,7 +328,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenSyncPausedOK)
 }
 
 /**
- * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenSyncDisableOK
+ * @brief SdkTestSyncRootOperations.ChangeSyncRemoteRootWhenSyncDisableOK
  *
  * Changes the remote root node of a sync that has been disabled. Then it is resumed and the final
  * state is validated.
@@ -611,10 +336,10 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenSyncPausedOK)
  * @note In this case, as the local nodes database is removed after disabling, a mirroring is
  * expected after resuming.
  */
-TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenSyncDisableOK)
+TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootWhenSyncDisableOK)
 {
     static const std::string logPre{
-        "SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenSyncDisableOK : "};
+        "SdkTestSyncRootOperations.ChangeSyncRemoteRootWhenSyncDisableOK : "};
 
     LOG_verbose << logPre << "Ensuring sync is running on dir1";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -639,14 +364,14 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenSyncDisableOK)
 }
 
 /**
- * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootPersistsAfterDisable
+ * @brief SdkTestSyncRootOperations.ChangeSyncRemoteRootPersistsAfterDisable
  *
  * Changes the remote root node of the running sync, suspends it, resumes it and validates the final
  * state (which is expected to mimic the state of the new root)
  */
-TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootPersistsAfterDisabled)
+TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootPersistsAfterDisabled)
 {
-    static const std::string logPre{"SdkTestSyncNodeOperations.ChangeSyncRemoteRootOK : "};
+    static const std::string logPre{"SdkTestSyncRootOperations.ChangeSyncRemoteRootOK : "};
 
     LOG_verbose << logPre << "Ensuring sync is running on dir1";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -671,7 +396,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootPersistsAfterDisabled)
 }
 
 /**
- * @brief SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenTransfersInProgress
+ * @brief SdkTestSyncRootOperations.ChangeSyncRemoteRootWhenTransfersInProgress
  *
  * Similar to ChangeSyncRemoteRootOK but we must detect a transfer being cancelled and the file that
  * was being transferred will be removed as it is not in the new cloud root.
@@ -682,10 +407,10 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootPersistsAfterDisabled)
  * 4. Expect the transfer to terminate
  * 5. Validate final state with the new root
  */
-TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenTransfersInProgress)
+TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootWhenTransfersInProgress)
 {
     static const std::string logPre{
-        "SdkTestSyncNodeOperations.ChangeSyncRemoteRootWhenTransfersInProgress : "};
+        "SdkTestSyncRootOperations.ChangeSyncRemoteRootWhenTransfersInProgress : "};
 
     LOG_verbose << logPre << "Ensuring sync is running on dir1";
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
@@ -700,7 +425,7 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenTransfersInProgress)
     const auto isBelowDir1 = Pointee(Property(&MegaTransfer::getParentHandle, *dir1HandleOpt));
     const auto isExpectedError = Pointee(Property(&MegaError::getErrorCode, API_EINCOMPLETE));
 
-    NiceMock<MockTransferListener> mockListener{};
+    NiceMock<MockTransferListener> mockListener{megaApi[0].get()};
     std::promise<void> fileStartedUpload;
     EXPECT_CALL(mockListener, onTransferStart).Times(AnyNumber());
     EXPECT_CALL(mockListener, onTransferStart(_, AllOf(isMyFile, isUpload, isBelowDir1)))
@@ -720,10 +445,6 @@ TEST_F(SdkTestSyncNodeOperations, ChangeSyncRemoteRootWhenTransfersInProgress)
             });
     // Register the listener
     megaApi[0]->addListener(&mockListener);
-    MrProper clean{[&api = megaApi[0], &mockListener]()
-                   {
-                       api->removeListener(&mockListener);
-                   }};
 
     LOG_verbose << logPre << "Create the new file locally";
     const auto newFilePath = getLocalTmpDir() / newFileName;

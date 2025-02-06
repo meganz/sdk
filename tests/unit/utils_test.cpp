@@ -18,6 +18,7 @@
 
 #include "megafs.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mega/base64.h>
 #include <mega/db.h>
@@ -1753,3 +1754,66 @@ TEST_P(CreateIdFromName, ValidateNewImplementation)
 }
 
 INSTANTIATE_TEST_SUITE_P(NameidTests, CreateIdFromName, testing::Values(1, 2, 3, 4, 5, 6, 7, 8));
+
+// Test class Range
+TEST(RangeTest, ValidRange)
+{
+    // Range from 2 to 5 -> expect iteration over 2, 3, 4
+    Range r(2, 5);
+    std::vector<unsigned> values(std::begin(r), std::end(r));
+    EXPECT_THAT(values, testing::ElementsAre(2, 3, 4));
+}
+
+TEST(RangeTest, EmptyRangeWhenStartEqualsToEnd)
+{
+    // Range from 5 to 5 -> empty range
+    Range r(5, 5);
+
+    EXPECT_TRUE(r.empty());
+}
+
+TEST(RangeTest, EmptyRangeWhenStartGreaterThanEnd)
+{
+    // Range from 6 to 5 -> empty range
+    Range r(6, 5);
+    EXPECT_TRUE(r.empty());
+
+    unsigned count = 0;
+    for ([[maybe_unused]] const auto val: r)
+    {
+        ++count;
+    }
+
+    EXPECT_EQ(count, 0);
+}
+
+TEST(RangeTest, OverloadRangeToZeroStart)
+{
+    // range(5) -> Range(0, 5)
+    auto r = range(5);
+
+    std::vector<unsigned> values;
+    for (const auto val: r)
+    {
+        values.push_back(val);
+    }
+
+    EXPECT_THAT(values, testing::ElementsAre(0, 1, 2, 3, 4));
+}
+
+TEST(RangeTest, VerifySingleElementRange)
+{
+    // Range(7, 8) should iterate exactly once
+    auto r = range(7, 8);
+
+    unsigned count = 0;
+    unsigned valueCollected = 0;
+    for (const auto val: r)
+    {
+        ++count;
+        valueCollected = val;
+    }
+
+    EXPECT_EQ(count, 1);
+    EXPECT_EQ(valueCollected, 7u);
+}

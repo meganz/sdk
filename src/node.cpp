@@ -3129,53 +3129,31 @@ void LocalNode::updateMoveInvolvement()
     }
 }
 
-void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst, NodeHandle ovHandleIfShortcut)
+bool LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload,
+                                  const VersioningOption vo,
+                                  const bool queueFirst,
+                                  const NodeHandle ovHandleIfShortcut)
 {
     resetTransfer(upload);
 
-    sync->syncs.queueClient([upload, vo, queueFirst, ovHandleIfShortcut](MegaClient& mc, TransferDbCommitter& committer)
+    if (mUploadThrottling.checkUploadThrottling(
+            sync->syncs.maxUploadsBeforeThrottle(),
+            sync->syncs.uploadCounterInactivityExpirationTime()))
+    {
+        sync->syncs.addToDelayedUploads(
+            DelayedSyncUpload(std::move(upload), vo, queueFirst, ovHandleIfShortcut));
+        return false;
+    }
+
+    sync->syncs.queueClient(
+        [syncUpload = std::move(upload), vo, queueFirst, ovHandleIfShortcut](
+            MegaClient& mc,
+            TransferDbCommitter& committer)
         {
-            // Can we do it by Node clone if there is a matching file already in the cloud?
-            Node* cloneNode = nullptr;
-            sharedNode_vector v = mc.mNodeManager.getNodesByFingerprint(*upload);
-            for (auto& n: v)
-            {
-                string ext1, ext2;
-                mc.fsaccess->getextension(upload->getLocalname(), ext1);
-                n->getExtension(ext2, n->displayname());
-                if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
-                if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
-
-                if (mc.treatAsIfFileDataEqual(*n, ext1, *upload, ext2))
-                {
-                    cloneNode = n.get();
-                    if (cloneNode->hasZeroKey())
-                    {
-                        LOG_warn << "Clone node key is a zero key!! Avoid cloning node to generate a new key [cloneNode path = '" << cloneNode->displaypath() << "', sourceLocalname = '" << upload->sourceLocalname << "']";
-                        mc.sendevent(99486, "Node has a zerokey");
-                        cloneNode = nullptr;
-                    }
-                    break;
-                }
-            }
-
-            if (cloneNode)
-            {
-                LOG_debug << "Cloning node rather than sync uploading: " << cloneNode->displaypath() << " for " << upload->sourceLocalname;
-                // completion function is supplied to putNodes command
-                upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNode);
-                upload->putnodesStarted = true;
-                upload->wasCompleted = true;
-            }
-            else
-            {
-                // upload will get called back on either completed() or termainted()
-                upload->tag = mc.nextreqtag();
-                upload->selfKeepAlive = upload;
-                mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo, nullptr, upload->tag);
-            }
+            clientUpload(mc, committer, std::move(syncUpload), vo, queueFirst, ovHandleIfShortcut);
         });
 
+    return true;
 }
 
 void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download, bool queueFirst)
@@ -3224,36 +3202,45 @@ void LocalNode::updateTransferLocalname()
     }
 }
 
-bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)
+bool LocalNode::transferResetUnlessMatched(const direction_t dir,
+                                           const FileFingerprint& fingerprint)
 {
-    if (!transferSP) return true;
+    if (!transferSP)
+        return true;
 
-    auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
+    const auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
 
-    auto different =
-      dir != (uploadPtr ? PUT : GET)
-      || transferSP->fingerprint() != fingerprint;
+    const bool transferDirectionNeedsToChange = dir != (uploadPtr ? PUT : GET);
 
-    // todo: should we be more accurate than just fingerprint?
-    if (different || (transferSP->wasTerminated && transferSP->mError != API_EKEY
-                                                && transferSP->mError != API_EBLOCKED)) // A blocked file causes transfer termination. Avoid retrying the transfer unless unmatched: the node could have been replaced remotely (new version)
+    const auto different =
+        transferDirectionNeedsToChange || transferSP->fingerprint() != fingerprint;
+
+    const auto transferTerminatedAndIsRetryable = transferSP->wasTerminated &&
+                                                  transferSP->mError != API_EKEY &&
+                                                  transferSP->mError != API_EBLOCKED;
+
+    if (!different && !transferTerminatedAndIsRetryable)
+        return true;
+
+    if (uploadPtr && !mUploadThrottling.handleAbortUpload(*uploadPtr,
+                                                          transferDirectionNeedsToChange,
+                                                          fingerprint,
+                                                          sync->syncs.maxUploadsBeforeThrottle(),
+                                                          transferSP->getLocalname()))
     {
-        if (uploadPtr && uploadPtr->putnodesStarted)
-        {
-            return false;
-        }
-
-        LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname();
-        if (dir != (uploadPtr ? PUT : GET))
-        {
-            LOG_debug << sync->syncname << "Because transfer direction needs to change";
-        }
-        else
-        {
-            LOG_debug << sync->syncname << "Due to fingerprint change, was:" << transferSP->fingerprintDebugString() << " now:" << fingerprint.fingerprintDebugString();
-        }
-        resetTransfer(nullptr);
+        return !uploadPtr->putnodesStarted;
     }
+
+    LOG_debug << sync->syncname << "Cancelling superceded transfer of "
+              << transferSP->getLocalname() << ". Reason: "
+              << (transferDirectionNeedsToChange ?
+                      "Transfer direction needs to change." :
+                      (transferSP->wasTerminated ?
+                           "Terminated after failing." :
+                           "Fingerprint change. Was: " + transferSP->fingerprintDebugString() +
+                               ", now: " + fingerprint.fingerprintDebugString()));
+
+    resetTransfer(nullptr);
     return true;
 }
 

@@ -3658,6 +3658,19 @@ class MegaApiImpl : public MegaApp
                                  const char* newLocalSyncRootPath,
                                  MegaRequestListener* listener);
 
+        void setSyncUploadThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                             MegaRequestListener* const listener);
+
+        void setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                             MegaRequestListener* const listener);
+
+        void getSyncUploadThrottleValues(MegaRequestListener* const listener);
+
+        void getSyncUploadThrottleLimits(const bool upperLimits,
+                                         MegaRequestListener* const listener);
+
+        void checkSyncUploadsThrottled(MegaRequestListener* const listener);
+
         AddressedStallFilter mAddressedStallFilter;
 
 #endif // ENABLE_SYNC

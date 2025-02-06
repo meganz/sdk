@@ -50,6 +50,8 @@
 #include <mega/fuse/common/client_adapter.h>
 #include <mega/fuse/common/service.h>
 
+#include <optional>
+
 namespace mega {
 
 class Logger;
@@ -1259,6 +1261,53 @@ public:
                         const char* const newLocalRootPath,
                         std::function<void(error, SyncError)>&& completion);
 
+    /**
+     * @brief Sets the upload throttling configurable value throttleUpdateRate.
+     *
+     * @see Syncs::setThrottleUpdateRate()
+     */
+    void setSyncUploadThrottleUpdateRate(std::chrono::seconds throttleUpdateRate,
+                                         std::function<void(const error)>&& completion);
+
+    /**
+     * @brief Sets the upload throttling configurable value maxUploadsBeforeThrottle.
+     *
+     * @see Syncs::setMaxUploadsBeforeThrottle()
+     */
+    void setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                         std::function<void(const error)>&& completion);
+
+    /**
+     * @brief Retrieves the upload throttling configurable values.
+     */
+    void syncUploadThrottleValues(
+        std::function<void(const std::chrono::seconds /* updateRateInSeconds */,
+                           const unsigned /* maxUploadsBeforeThrottle */)>&& completion);
+
+    /**
+     * @brief Retrieves the lower and upper upload throttling configurable values.
+     */
+    void syncUploadThrottleValuesLimits(std::function<void(ThrottleValueLimits&&)>&& completion);
+
+    /**
+     * @brief Checks whether there are delayed uploads pending to be processed.
+     */
+    void checkSyncUploadsThrottled(std::function<void(const bool)>&& completion);
+
+    /**
+     * @brief Sets the IUploadThrottlingManager for Syncs.
+     *
+     * The Syncs object already constructs a IUploadThrottlingManager type object by default.
+     * However, this method allows to change the object if needed.
+     *
+     * @param uploadThrottlingManager The shared_ptr to the IUploadThrottlingManager type object.
+     * @param completion The completion function to be called after the operations
+     * finishes.
+     */
+    void setSyncUploadThrottlingManager(
+        std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
+        std::function<void(const error)>&& completion);
+
 public:
 
 #endif  // ENABLE_SYNC
@@ -2179,9 +2228,13 @@ public:
 
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once
-    bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot);
-    bool treatAsIfFileDataEqual(const FileFingerprint& fp1, const string& filenameExtensionLowercaseNoDot1,
-                                const FileFingerprint& fp2, const string& filenameExtensionLowercaseNoDot2);
+    bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint,
+                                const LocalPath& file2,
+                                const std::string& filenameExtensionLowercaseNoDot) const;
+    bool treatAsIfFileDataEqual(const FileFingerprint& fp1,
+                                const std::string& filenameExtensionLowercaseNoDot1,
+                                const FileFingerprint& fp2,
+                                const std::string& filenameExtensionLowercaseNoDot2) const;
 
 #ifdef ENABLE_SYNC
 

@@ -32,6 +32,8 @@
 #include "mega/megaclient.h"
 #include "mega/scoped_helpers.h"
 #include "mega/sync.h"
+#include "mega/syncinternals/syncinternals_logging.h"
+#include "mega/syncinternals/syncuploadthrottlingmanager.h"
 #include "mega/transfer.h"
 
 namespace mega {
@@ -44,14 +46,9 @@ const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
 const unsigned Sync::MAX_CLOUD_DEPTH = 64;
 
-const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{100}; // 100 ms
-const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{10000}; // 10 secs
-const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED{20000}; // 20 secs
-const std::chrono::milliseconds Syncs::TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED{1000}; // 1 sec
-
-#define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
-#define SYNC_verbose_timed if (syncs.mDetailedSyncLogging) SYNCS_verbose_timed
-#define SYNCS_verbose_timed LOG_verbose_timed(Syncs::MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED, Syncs::TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED)
+using namespace std::chrono_literals;
+const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{100ms};
+const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{10s};
 
 bool PerSyncStats::operator==(const PerSyncStats& other)
 {
@@ -2885,7 +2882,10 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row,
     {
         assert(upload->putnodesFailed);
 
-        SYNC_verbose << syncname << "Upload from here failed, reset for reevaluation" << logTriplet(row, fullPath);
+        SYNC_verbose << syncname << "Upload from here failed, reset for reevaluation"
+                     << logTriplet(row, fullPath);
+
+        row.syncNode->bypassThrottlingNextTime(syncs.maxUploadsBeforeThrottle());
     }
     else
     {
@@ -2928,7 +2928,12 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row,
         // connect up the original cloud-sync-fs triplet, so that we can detect any
         // further moves that happened in the meantime.
 
-        SYNC_verbose << syncname << "Upload from here completed, considering this file synced to original: " << toHandle(upload->sourceFsid) << logTriplet(row, fullPath);
+        row.syncNode->increaseUploadCounter();
+        SYNC_verbose << syncname
+                     << "Upload from here completed, considering this file synced to original: "
+                     << toHandle(upload->sourceFsid)
+                     << " [Num uploads: " << row.syncNode->uploadCounter() << "]"
+                     << logTriplet(row, fullPath);
         row.syncNode->setSyncedFsid(upload->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, row.syncNode->cloneShortname());
         row.syncNode->syncedFingerprint = *upload;
         row.syncNode->setSyncedNodeHandle(upload->putnodesResultHandle);
@@ -4540,17 +4545,24 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
     }
 }
 
-Syncs::Syncs(MegaClient& mc)
-  : waiter(new WAIT_CLASS)
-  , mClient(mc)
-  , fsaccess(std::make_unique<FSACCESS_CLASS>())
-  , mSyncFlags(new SyncFlags)
-  , mScanService(new ScanService())
+Syncs::Syncs(MegaClient& mc):
+    waiter(new WAIT_CLASS),
+    mClient(mc),
+    fsaccess(std::make_unique<FSACCESS_CLASS>()),
+    mSyncFlags(new SyncFlags),
+    mScanService(new ScanService()),
+    mThrottlingManager(std::make_shared<UploadThrottlingManager>())
 {
+    assert(mThrottlingManager && "Throttling manager should be valid in the Syncs constructor!");
+
     fsaccess->initFilesystemNotificationSystem();
 
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
-    syncThread = std::thread([this]() { syncLoop(); });
+    syncThread = std::thread(
+        [this]()
+        {
+            syncLoop();
+        });
 }
 
 Syncs::~Syncs()
@@ -10238,11 +10250,27 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                     fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
                     row.fsNode->fsid, row.fsNode->localname, inshare);
 
-                NodeHandle displaceHandle = row.cloudNode ? row.cloudNode->handle : NodeHandle();
-                row.syncNode->queueClientUpload(upload, UseLocalVersioningFlag, nodeName == ".megaignore", displaceHandle);  // we'll take care of versioning ourselves ( we take over the putnodes step below)
+                const NodeHandle displaceHandle =
+                    row.cloudNode ? row.cloudNode->handle : NodeHandle();
+                const bool uploadSentToClientQueue = row.syncNode->queueClientUpload(
+                    upload,
+                    UseLocalVersioningFlag,
+                    nodeName == ".megaignore",
+                    displaceHandle); // we'll take care of versioning ourselves ( we take over the
+                                     // putnodes step below)
 
-                LOG_debug << syncname << "Sync - sending file " << fullPath.localPath;
-
+                if (uploadSentToClientQueue)
+                {
+                    LOG_debug << syncname << "Sync - sending file " << fullPath.localPath;
+                }
+                else
+                {
+                    LOG_debug << syncname
+                              << "[UploadThrottle] Sync - file exceeded the limit of uploads "
+                                 "without throttling ("
+                              << syncs.maxUploadsBeforeThrottle() << ")"
+                              << ". Added to delayed queue: " << fullPath.localPath;
+                }
             }
             else
             {
@@ -10327,9 +10355,26 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             if (syncs.deferPutnodeCompletion(fullPath.localPath))
                 return false;
 
-            SYNC_verbose << syncname << "Putnodes complete. Detaching upload in resolve_upsync." << logTriplet(row, fullPath);
-            row.syncNode->resetTransfer(nullptr);
+            assert(!existingUpload->putnodesFailed ||
+                   existingUpload->putnodesResultHandle.isUndef());
+            if (existingUpload->putnodesFailed)
+            {
+                SYNC_verbose << syncname
+                             << "Upload from here failed, reset for reevaluation in resolve_upsync."
+                             << logTriplet(row, fullPath);
 
+                row.syncNode->bypassThrottlingNextTime(syncs.maxUploadsBeforeThrottle());
+            }
+            else
+            {
+                row.syncNode->increaseUploadCounter();
+                SYNC_verbose
+                    << syncname
+                    << "Putnodes complete. Detaching upload in resolve_upsync. [Num uploads: "
+                    << row.syncNode->uploadCounter() << "]" << logTriplet(row, fullPath);
+            }
+
+            row.syncNode->resetTransfer(nullptr);
             return false; // revisit in case of further changes
         }
         else if (existingUpload->putnodesStarted)
@@ -10340,7 +10385,17 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
         {
             if (!pflsc.alreadyUploadingCount)
             {
-                SYNC_verbose << syncname << "Upload already in progress" << logTriplet(row, fullPath);
+                if (existingUpload->wasStarted)
+                {
+                    SYNC_verbose << syncname << "Upload already in progress"
+                                 << logTriplet(row, fullPath);
+                }
+                else
+                {
+                    SYNC_verbose_timed << syncname
+                                       << "Upload already waiting in the throttling queue"
+                                       << logTriplet(row, fullPath);
+                }
             }
             pflsc.alreadyUploadingCount += 1;
         }
@@ -13052,6 +13107,9 @@ void Syncs::syncLoop()
             ++completedPassCount;
         }
 
+        // Process throttling queue
+        processDelayedUploads();
+
         lastLoopEarlyExit = earlyExit;
     }
 }
@@ -13815,6 +13873,199 @@ bool Sync::PerFolderLogSummaryCounts::report(string& s)
         s += " alreadyDownloading:" + std::to_string(alreadyDownloadingCount);
     }
     return !s.empty();
+}
+
+// Syncs Upload Throttling
+
+void Syncs::processDelayedUploads()
+{
+    assertThrottlingManagerIsValid();
+
+    const auto queueUploadToClient = [this](DelayedSyncUpload&& delayedSyncUpload)
+    {
+        if (!delayedSyncUpload.mWeakUpload.lock())
+        {
+            LOG_warn << "[UploadThrottle] Upload is no longer valid";
+            return;
+        }
+
+        queueClient(
+            [delayedSyncUpload = std::move(delayedSyncUpload)](MegaClient& mc,
+                                                               TransferDbCommitter& committer)
+            {
+                if (auto upload =
+                        delayedSyncUpload.mWeakUpload.lock()) // Check again if upload is valid
+                {
+                    LOG_debug << "[UploadThrottle] Sync - Sending delayed file "
+                              << upload->getLocalname();
+                    clientUpload(mc,
+                                 committer,
+                                 upload,
+                                 delayedSyncUpload.mVersioningOption,
+                                 delayedSyncUpload.mQueueFirst,
+                                 delayedSyncUpload.mOvHandleIfShortcut);
+                }
+                else
+                {
+                    LOG_warn << "[UploadThrottle] Upload no longer valid inside queueClient";
+                }
+            });
+    };
+
+    mThrottlingManager->processDelayedUploads(queueUploadToClient);
+}
+
+void Syncs::addToDelayedUploads(DelayedSyncUpload&& delayedUpload)
+{
+    assertThrottlingManagerIsValid();
+    mThrottlingManager->addToDelayedUploads(std::move(delayedUpload));
+}
+
+std::chrono::seconds Syncs::uploadCounterInactivityExpirationTime() const
+{
+    assertThrottlingManagerIsValid();
+    return mThrottlingManager->uploadCounterInactivityExpirationTime();
+}
+
+std::chrono::seconds Syncs::throttleUpdateRate() const
+{
+    assertThrottlingManagerIsValid();
+    return mThrottlingManager->throttleUpdateRate();
+}
+
+unsigned Syncs::maxUploadsBeforeThrottle() const
+{
+    assertThrottlingManagerIsValid();
+    return mThrottlingManager->maxUploadsBeforeThrottle();
+}
+
+void Syncs::setThrottleUpdateRate(const std::chrono::seconds throttleUpdateRate,
+                                  std::function<void(const error)>&& completion)
+{
+    assert(!onSyncThread());
+
+    queueSync(
+        [this,
+         throttleUpdateRate,
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completion), FromAnyThread::yes)]() mutable
+        {
+            assertThrottlingManagerIsValid();
+            const error result =
+                mThrottlingManager->setThrottleUpdateRate(throttleUpdateRate) ? API_OK : API_EARGS;
+            completionForClientWrapped(result);
+        },
+        "setThrottleUpdateRate");
+}
+
+void Syncs::setMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                        std::function<void(const error)>&& completion)
+{
+    assert(!onSyncThread());
+
+    queueSync(
+        [this,
+         maxUploadsBeforeThrottle,
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completion), FromAnyThread::yes)]() mutable
+        {
+            assertThrottlingManagerIsValid();
+            const error result =
+                mThrottlingManager->setMaxUploadsBeforeThrottle(maxUploadsBeforeThrottle) ?
+                    API_OK :
+                    API_EARGS;
+            completionForClientWrapped(result);
+        },
+        "setMaxUploadsBeforeThrottle");
+}
+
+void Syncs::uploadThrottleValues(
+    std::function<void(const std::chrono::seconds, const unsigned)>&& completion)
+{
+    assert(!onSyncThread());
+
+    queueSync(
+        [this,
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completion), FromAnyThread::yes)]() mutable
+        {
+            assertThrottlingManagerIsValid();
+
+            const auto updateRateInSecondsLimit = mThrottlingManager->throttleUpdateRate();
+            const auto maxUploadsBeforeThrottleLimit =
+                mThrottlingManager->maxUploadsBeforeThrottle();
+
+            completionForClientWrapped(updateRateInSecondsLimit, maxUploadsBeforeThrottleLimit);
+        },
+        "uploadThrottleValues");
+}
+
+void Syncs::uploadThrottleValuesLimits(std::function<void(ThrottleValueLimits&&)>&& completion)
+{
+    assert(!onSyncThread());
+
+    queueSync(
+        [this,
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completion), FromAnyThread::yes)]() mutable
+        {
+            assertThrottlingManagerIsValid();
+
+            completionForClientWrapped(mThrottlingManager->throttleValueLimits());
+        },
+        "uploadThrottleValuesLimits");
+}
+
+void Syncs::checkSyncUploadsThrottled(std::function<void(const bool)>&& completion)
+{
+    assert(!onSyncThread());
+
+    queueSync(
+        [this,
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completion), FromAnyThread::yes)]() mutable
+        {
+            assertThrottlingManagerIsValid();
+
+            completionForClientWrapped(mThrottlingManager->anyDelayedUploads());
+        },
+        "checkSyncUploadsThrottled");
+}
+
+void Syncs::setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
+                                 std::function<void(const error)>&& completion)
+{
+    assert(!onSyncThread());
+
+    queueSync(
+        [this,
+         uploadThrottlingManager = std::move(uploadThrottlingManager),
+         completionForClientWrapped =
+             wrapToRunInClientThread(std::move(completion), FromAnyThread::yes)]() mutable
+        {
+            if (!uploadThrottlingManager)
+            {
+                completionForClientWrapped(API_EARGS);
+            }
+
+            LOG_debug << "[Syncs::setThrottlingManager] Setting a new Throttling Manager. All "
+                         "previous stored values will be lost";
+            mThrottlingManager = std::move(uploadThrottlingManager);
+            completionForClientWrapped(API_OK);
+        },
+        "setThrottlingManager");
+}
+
+void Syncs::assertThrottlingManagerIsValid() const
+{
+    assert(onSyncThread());
+
+    if (mThrottlingManager)
+        return;
+
+    LOG_err << "Syncs upload throttling manager is not valid and it should! It is expected to be "
+               "initialized from Syncs constructor";
+    assert(false && "Syncs upload throttling manager should always be valid!!!");
 }
 
 } // namespace

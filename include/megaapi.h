@@ -4620,7 +4620,11 @@ class MegaRequest
             TYPE_ANSWER_SURVEY = 199,
             TYPE_CHANGE_SYNC_ROOT = 200,
             TYPE_GET_MY_IP = 201,
-            TOTAL_OF_REQUEST_TYPES = 202,
+            TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES = 202,
+            TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES = 203,
+            TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS = 204,
+            TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS = 205,
+            TOTAL_OF_REQUEST_TYPES = 206,
         };
 
         virtual ~MegaRequest();
@@ -17606,6 +17610,117 @@ class MegaApi
         void changeSyncLocalRoot(const MegaHandle syncBackupId,
                                  const char* newLocalSyncRootPath,
                                  MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Set the throttle update rate for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the throttle update rate in seconds.
+         * MegaError:
+         * - MegaError::API_OK if the update rate was updated correctly.
+         * - MegaError::API_EARGS if the update rate is below the minimum or above the maximum.
+         *
+         * @param updateRateInSeconds The update rate for the throttling queue in seconds.
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void setSyncUploadThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                             MegaRequestListener* const listener);
+
+        /**
+         * @brief Set the max number of sync uploads per file before applying throttling logic.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTotalBytes - Returns the max number of uploads before throttle.
+         * MegaError:
+         * - MegaError::API_OK if the new max number of uploads before throttle was set correctly.
+         * - MegaError::API_EARGS if the max uploads before throttle value is below the minimum or
+         * above the maximum.
+         *
+         * @param maxUploadsBeforeThrottle The number of uploads that are allowed to go unthrottled.
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                             MegaRequestListener* const listener);
+
+        /**
+         * @brief Get the configurable throttle values for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the throttle update rate in seconds.
+         * - MegaRequest::getTotalBytes - Returns the max number of uploads before throttle.
+         *
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void getSyncUploadThrottleValues(MegaRequestListener* const listener);
+
+        /**
+         * @brief Get the lower limits of configurable throttle for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the minimum allowed for throttle update rate in
+         * seconds.
+         * - MegaRequest::getTotalBytes - Returns the minimum allowed for max number of uploads
+         * before throttle.
+         * - MegaRequest::getFlag - Returns false (this is set to false/0 for lower limits).
+         *
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void getSyncUploadThrottleLowerLimits(MegaRequestListener* const listener);
+
+        /**
+         * @brief Get the upper limits of configurable throttle values for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the maximum allowed for throttle update rate in
+         * seconds.
+         * - MegaRequest::getTotalBytes - Returns the maximum allowed for max number of uploads
+         * before throttle.
+         * - MegaRequest::getFlag - Returns true (this is set to true/1 for upper limits).
+         *
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void getSyncUploadThrottleUpperLimits(MegaRequestListener* const listener);
+
+        /**
+         * @brief Check if there are delayed/throttled uploads pending to be processed.
+         * When delayed/throttled uploads are pending, those files are not fully synchronized. In
+         * that case, the sync state would be Syncing.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns true if there are delayed uploads waiting for
+         * processing, false otherwise.
+         *
+         * @param listener A MegaRequestListener to track this request.
+         *
+         * @warning It is not guaranteed that the delayed uploads pending to be processed are valid.
+         * They could be invalid if the files have been removed, or if the upload transfer has been
+         * reset for other reasons. This is not checked until they are processed after the
+         * throttlingUpdateRate time. The caller should consider this method as an extra check: if
+         * the sync is in Syncing state, there are no stall issues nor MegaTransfers being processed
+         * nor other situations explaining the Syncing state, it could be expected that there are
+         * delayed uploads pending to be processed. Note that, if the delayed uploads are not valid
+         * anymore (for example, because the underlying files have been removed), even when this
+         * method could return true, the sync shouldn't be in Syncing state.
+         */
+        void checkSyncUploadsThrottled(MegaRequestListener* const listener);
 
 #endif // ENABLE_SYNC
 

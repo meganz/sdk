@@ -17070,6 +17070,42 @@ void MegaClient::changeSyncRoot(const handle backupId,
     syncs.changeSyncRemoteRoot(backupId, std::move(newRootNode), std::move(completion));
 }
 
+void MegaClient::setSyncUploadThrottleUpdateRate(const std::chrono::seconds updateRateInSeconds,
+                                                 std::function<void(const error)>&& completion)
+{
+    syncs.setThrottleUpdateRate(updateRateInSeconds, std::move(completion));
+}
+
+void MegaClient::setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                                 std::function<void(const error)>&& completion)
+{
+    syncs.setMaxUploadsBeforeThrottle(maxUploadsBeforeThrottle, std::move(completion));
+}
+
+void MegaClient::syncUploadThrottleValues(
+    std::function<void(const std::chrono::seconds, const unsigned)>&& completion)
+{
+    syncs.uploadThrottleValues(std::move(completion));
+}
+
+void MegaClient::syncUploadThrottleValuesLimits(
+    std::function<void(ThrottleValueLimits&&)>&& completion)
+{
+    syncs.uploadThrottleValuesLimits(std::move(completion));
+}
+
+void MegaClient::checkSyncUploadsThrottled(std::function<void(const bool)>&& completion)
+{
+    syncs.checkSyncUploadsThrottled(std::move(completion));
+}
+
+void MegaClient::setSyncUploadThrottlingManager(
+    std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
+    std::function<void(const error)>&& completion)
+{
+    syncs.setThrottlingManager(std::move(uploadThrottlingManager), std::move(completion));
+}
+
 void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);
@@ -18164,7 +18200,9 @@ bool MegaClient::nodeIsOtherType(const Node* n) const
     return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_OTHERS);
 }
 
-bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot)
+bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1,
+                                        const LocalPath& file2,
+                                        const std::string& filenameExtensionLowercaseNoDot) const
 {
     // if equal, upload or download could be skipped
     if (filenameExtensionLowercaseNoDot.empty()) return false;
@@ -18189,8 +18227,10 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const Loca
     return false;
 }
 
-bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1, const string& filenameExtensionLowercaseNoDot1,
-                                        const FileFingerprint& fp2, const string& filenameExtensionLowercaseNoDot2)
+bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1,
+                                        const std::string& filenameExtensionLowercaseNoDot1,
+                                        const FileFingerprint& fp2,
+                                        const std::string& filenameExtensionLowercaseNoDot2) const
 {
     // if equal, upload or download could be skipped or combined
     assert(filenameExtensionLowercaseNoDot1.empty() || filenameExtensionLowercaseNoDot1[0] != '.');

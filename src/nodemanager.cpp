@@ -776,13 +776,13 @@ sharedNode_vector NodeManager::getNodesWithLinks()
     return getNodesWithSharesOrLink_internal(ShareType_t::LINK);
 }
 
-sharedNode_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
+sharedNode_vector NodeManager::getNodesByFingerprint(const FileFingerprint& fingerprint)
 {
     LockGuard g(mMutex);
     return getNodesByFingerprint_internal(fingerprint);
 }
 
-sharedNode_vector NodeManager::getNodesByFingerprint_internal(FileFingerprint &fingerprint)
+sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerprint& fingerprint)
 {
     assert(mMutex.owns_lock());
 
@@ -798,7 +798,7 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(FileFingerprint &f
     auto p = mFingerPrints.equal_range(&fingerprint);
     for (auto it = p.first; it != p.second; ++it)
     {
-        Node* node = static_cast<Node*>(*it);
+        const auto node = static_cast<const Node*>(*it);
         fpLoaded.emplace(node->nodeHandle());
         std::shared_ptr<Node> sharedNode = node->mNodePosition->second.getNodeInRam();
         assert(sharedNode && "Node loaded at fingerprint map should have a node in RAM ");
@@ -893,7 +893,7 @@ std::shared_ptr<Node> NodeManager::getNodeByFingerprint_internal(FileFingerprint
     auto it = mFingerPrints.find(&fingerprint);
     if (it != mFingerPrints.end())
     {
-        Node *n = static_cast<Node*>(*it);
+        const auto n = static_cast<const Node*>(*it);
         assert(n);
         return n->mNodePosition->second.getNodeInRam();
     }

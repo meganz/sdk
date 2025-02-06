@@ -23,11 +23,13 @@
 #ifndef MEGA_NODE_H
 #define MEGA_NODE_H 1
 
-#include "filefingerprint.h"
-#include "file.h"
 #include "attrmap.h"
-#include "syncfilter.h"
 #include "backofftimer.h"
+#include "file.h"
+#include "filefingerprint.h"
+#include "syncfilter.h"
+#include "syncinternals/syncuploadthrottlingfile.h"
+
 #include <bitset>
 
 namespace mega {
@@ -128,7 +130,7 @@ struct NodeCounter
     NodeCounter() = default;
 };
 
-typedef std::multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
+typedef std::multiset<const FileFingerprint*, FileFingerprintCmp> fingerprint_set;
 typedef fingerprint_set::iterator FingerprintPosition;
 
 
@@ -1002,12 +1004,65 @@ struct MEGA_API LocalNode
 
     // Each LocalNode can be either uploading or downloading a file.
     // These functions manage that
-    void queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst, NodeHandle ovHandleIfShortcut);
+
+    /**
+     * @brief Queues an upload task for processing, with throttling support.
+     *
+     * This method resets the transferSP shared pointer to the new SyncUpload_inClient, checks
+     * throttling conditions, and queues the upload for processing. If throttling is required, the
+     * upload is added to a global delayed queue owned by Syncs. Otherwise, the upload is sent to
+     * the client to be processed immediately.
+     *
+     * @param upload Shared pointer to the upload task being processed.
+     * @param vo Versioning option for the upload.
+     * @param queueFirst Flag indicating if this upload should be prioritized. This is meant for the
+     * queue client, not for the delayed queue. In case the upload is added to the delayed queue,
+     * this param will be taken into account when sending it to the client.
+     * @param ovHandleIfShortcut The origin version handle (source cloudNode) used if we find a
+     * target node to clone.
+     * @return True if the upload was queued for immediate processing, false if it was added to the
+     * throttling delayed queue.
+     */
+    bool queueClientUpload(shared_ptr<SyncUpload_inClient> upload,
+                           const VersioningOption vo,
+                           const bool queueFirst,
+                           const NodeHandle ovHandleIfShortcut);
     void queueClientDownload(shared_ptr<SyncDownload_inClient> upload, bool queueFirst);
     void resetTransfer(shared_ptr<SyncTransfer_inClient> p);
     void checkTransferCompleted(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     void updateTransferLocalname();
-    bool transferResetUnlessMatched(direction_t, const FileFingerprint& fingerprint);
+
+    /**
+     * @brief Determines whether a transfer associated with the local node should be reset,
+     *        based on transfer direction, fingerprint match and transfer state.
+     *
+     * This method checks if the current transfer matches the provided direction and fingerprint.
+     * If not, the transfer is reset. Transfers that have been terminated (e.g., due to errors)
+     * are only retried if they are retryable and unmatched. In case they are terminated with
+     * specific errors (not retryable) the transfer must not be retried unless unmatched: the node
+     * could have been replaced remotely (new version).
+     *
+     * @param dir The transfer direction (PUT for uploads or GET for downloads).
+     * @param fingerprint The fingerprint of the file to match against the current transfer.
+     *
+     * @return This method returns false only if there is a failure or fingerprint mismatch but
+     * putnodes was started, to reevaluate the row (trigger a new upload). For all the other
+     * scenarios, it returns true.
+     *
+     * @details
+     * - If there is no associated transfer (`!transferSP`), the method returns true.
+     * - Checks if the current transfer's direction matches the given direction (`dir`) and
+     *   if the fingerprint matches the provided fingerprint. If both match, the transfer
+     *   remains active unless it was terminated and retryable.
+     * - For upload transfers, additional throttling checks are performed using
+     *   UploadThrottlingFile::handleAbortUpload(). If the upload must not be canceled,
+     *   the method returns false.
+     *
+     * @todo Improve accuracy of the matching criteria, considering additional factors beyond
+     * fingerprints.
+     */
+    bool transferResetUnlessMatched(const direction_t, const FileFingerprint& fingerprint);
+
     shared_ptr<SyncTransfer_inClient> transferSP;
 
     /**
@@ -1146,6 +1201,46 @@ private:
 public:
     WatchHandle mWatchHandle;
 #endif // USE_INOTIFY
+
+private:
+    /**
+     * @brief Member containing the state and operations for UploadThrottlingFile.
+     */
+    UploadThrottlingFile mUploadThrottling;
+
+public:
+    /**
+     * @brief Sets the mUploadThrottling flag to bypass throttling.
+     *
+     * @param maxUploadsBeforeThrottle Maximum number of allowed uploads before the next upload must
+     * be throttled.
+     *
+     * @see UploadThrottlingFile
+     */
+    void bypassThrottlingNextTime(const unsigned maxUploadsBeforeThrottle)
+    {
+        mUploadThrottling.bypassThrottlingNextTime(maxUploadsBeforeThrottle);
+    }
+
+    /**
+     * @brief Increases the upload counter by 1.
+     *
+     * @see UploadThrottlingFile
+     */
+    void increaseUploadCounter()
+    {
+        mUploadThrottling.increaseUploadCounter();
+    }
+
+    /**
+     * @brief Gets the upload counter.
+     *
+     * @see UploadThrottlingFile
+     */
+    unsigned uploadCounter() const
+    {
+        return mUploadThrottling.uploadCounter();
+    }
 };
 
 bool isDoNotSyncFileName(const string& name);

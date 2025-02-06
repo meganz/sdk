@@ -149,6 +149,16 @@ private:
 class MockTransferListener: public ::mega::MegaListener
 {
 public:
+    MockTransferListener(::mega::MegaApi* megaApi = nullptr):
+        mMegaApi{megaApi}
+    {}
+
+    ~MockTransferListener()
+    {
+        if (mMegaApi)
+            mMegaApi->removeListener(this);
+    }
+
     MOCK_METHOD(void,
                 onTransferFinish,
                 (::mega::MegaApi * api, ::mega::MegaTransfer* transfer, ::mega::MegaError* error),
@@ -165,6 +175,9 @@ public:
                 onTransferTemporaryError,
                 (::mega::MegaApi * api, ::mega::MegaTransfer* transfer, ::mega::MegaError* error),
                 (override));
+
+private:
+    ::mega::MegaApi* mMegaApi{nullptr};
 };
 
 class MockMegaTransferListener: public ::mega::MegaTransferListener, public SynchronizationHelper
