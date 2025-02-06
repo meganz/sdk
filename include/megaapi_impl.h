@@ -555,24 +555,44 @@ class MegaNodePrivate : public MegaNode, public Cacheable
     class PNDataPrivate : public MegaNode::PasswordNodeData
     {
     public:
-        PNDataPrivate(const char* p, const char* n, const char* url, const char* un)
-            : mPwd {p ? std::make_unique<std::string>(p) : nullptr},
-              mNotes {n ? std::make_unique<std::string>(n) : nullptr},
-              mURL {url ? std::make_unique<std::string>(url) : nullptr},
-              mUserName {un ? std::make_unique<std::string>(un) : nullptr}
-            {}
+        PNDataPrivate(const char* p, const char* n, const char* url, const char* un):
+            mPwd{charPtrToOpt(p)},
+            mNotes{charPtrToOpt(n)},
+            mURL{charPtrToOpt(url)},
+            mUserName{charPtrToOpt(un)}
+        {}
 
-        virtual void setPassword(const char* pwd) override { mPwd.reset(); if (pwd) mPwd = std::make_unique<std::string>(pwd); }
-        virtual void setNotes(const char* n)      override { mNotes.reset(); if (n) mNotes = std::make_unique<std::string>(n); }
-        virtual void setUrl(const char* u)        override { mURL.reset(); if (u) mURL = std::make_unique<std::string>(u); }
-        virtual void setUserName(const char* un)  override { mUserName.reset(); if (un) mUserName = std::make_unique<std::string>(un); }
+        virtual void setPassword(const char* pwd) override
+        {
+            mPwd = charPtrToOpt(pwd);
+        }
+
+        virtual void setNotes(const char* n) override
+        {
+            mNotes = charPtrToOpt(n);
+        }
+
+        virtual void setUrl(const char* u) override
+        {
+            mURL = charPtrToOpt(u);
+        }
+
+        virtual void setUserName(const char* un) override
+        {
+            mUserName = charPtrToOpt(un);
+        }
 
         virtual const char* password() const override { return mPwd ? mPwd->c_str() : nullptr; }
         virtual const char* notes() const    override { return mNotes ? mNotes->c_str(): nullptr; }
         virtual const char* url() const      override { return mURL ? mURL->c_str() : nullptr; }
         virtual const char* userName() const override { return mUserName ? mUserName->c_str() : nullptr; }
     private:
-        std::unique_ptr<std::string> mPwd, mNotes, mURL, mUserName;
+        std::optional<std::string> mPwd, mNotes, mURL, mUserName;
+
+        static std::optional<std::string> charPtrToOpt(const char* s)
+        {
+            return s ? std::optional{s} : std::nullopt;
+        }
     };
 
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
