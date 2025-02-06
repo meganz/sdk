@@ -397,15 +397,13 @@ public:
         NiceMock<MockRequestListener> mockReqListener{api};
         mockReqListener.setErrorExpectations(expectedError,
                                              _,
-                                             MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES);
+                                             MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES);
 
         megaApi[0]->setSyncUploadThrottleUpdateRate(
             static_cast<unsigned>(throttleUpdateRate.count()),
             &mockReqListener);
 
         ASSERT_TRUE(mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT));
-
-
     }
 
     /**
