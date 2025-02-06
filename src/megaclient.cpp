@@ -2463,6 +2463,13 @@ void MegaClient::exec()
                         if ((!pendingcs->mChunked && pendingcs->in != "-3" && pendingcs->in != "-4")
                             || (pendingcs->mChunked && (reqs.chunkedProgress() || (pendingcs->in != "-3" && pendingcs->in != "-4"))))
                         {
+                            // Have we been telling the application about request progress?
+                            if (std::exchange(mRequestProgressNotified, false))
+                            {
+                                // Let the application know that the request has completed.
+                                app->reqstat_progress(-1);
+                            }
+
                             if ((!pendingcs->mChunked && *pendingcs->in.c_str() == '[')
                                 || (pendingcs->mChunked && (reqs.chunkedProgress() || *pendingcs->in.c_str() == '[' || pendingcs->in.empty())))
                             {
@@ -2650,6 +2657,12 @@ void MegaClient::exec()
                                 csretrying = false;
 
                                 reqs.servererror(std::to_string(API_ESSL), this);
+
+                                if (std::exchange(mRequestProgressNotified, false))
+                                {
+                                    app->reqstat_progress(-1);
+                                }
+
                                 break;
                             }
                         }
@@ -2719,6 +2732,15 @@ void MegaClient::exec()
                         // Currently only fetchnodes requests can take advantage of chunked processing
                         // However VPN client shouldn't need it, because it'll receive a minimal response
                         pendingcs->mChunked = !isClientType(ClientType::VPN);
+                    }
+
+                    // Remember whether we've told the app about request progress.
+                    mRequestProgressNotified = mReqStatEnabled && mRequestProgress;
+
+                    // Immediately notify application of request progress.
+                    if (mRequestProgressNotified)
+                    {
+                        app->reqstat_progress(*mRequestProgress);
                     }
 
                     pendingcs->mHashcashToken = std::move(mReqHashcashToken);
@@ -3238,7 +3260,7 @@ void MegaClient::exec()
             }
         }
 
-        if (!mReqStatCS && mReqStatEnabled && sid.size() && btreqstat.armed())
+        if (!mReqStatCS && sid.size() && btreqstat.armed())
         {
             LOG_debug << clientname << "Sending reqstat request";
             mReqStatCS.reset(new HttpReq());
@@ -3399,7 +3421,7 @@ int MegaClient::preparewait()
             btworkinglock.update(&nds);
         }
 
-        if (!mReqStatCS && mReqStatEnabled && sid.size())
+        if (!mReqStatCS && sid.size())
         {
             btreqstat.update(&nds);
         }
@@ -4615,6 +4637,15 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     // when all pending requests are "abandoned."
     mFuseClientAdapter.deinitialize();
 
+    // Make sure the application hides any progress bars thay may have been visible.
+    if (std::exchange(mRequestProgressNotified, false))
+    {
+        app->reqstat_progress(-1);
+    }
+
+    // Clear cached request progress.
+    mRequestProgress.reset();
+
     sctable.reset();
     mNodeManager.setTable(nullptr);
     pendingsccommit = false;
@@ -5452,7 +5483,9 @@ size_t MegaClient::procreqstat()
     if (!numUsers)
     {
         LOG_debug << "reqstat: No operation in progress";
-        app->reqstat_progress(-1);
+
+        // Clear cached request progress.
+        mRequestProgress.reset();
 
         // resetting cs backoff here, because the account should be unlocked
         // and there should be connectivity with MEGA servers
@@ -5526,7 +5559,17 @@ size_t MegaClient::procreqstat()
     oss << " [" << curr << "/" << end << "]";
     LOG_debug << oss.str();
 
-    app->reqstat_progress(static_cast<int>(1000u * curr / end));
+    // Update cached request progress.
+    mRequestProgress = static_cast<int>(1000u * curr / end);
+
+    // Remember whether we've told the app about request progress.
+    mRequestProgressNotified = mReqStatEnabled && (pendingcs || csretrying);
+
+    // Notify application if necessary.
+    if (mRequestProgressNotified)
+    {
+        app->reqstat_progress(*mRequestProgress);
+    }
 
     return pos;
 }
