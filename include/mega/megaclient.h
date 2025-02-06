@@ -778,6 +778,35 @@ public:
     static void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1);
 
     error addTagToNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
+    static std::vector<std::string> getNodeTags(const std::string& delimitedTags);
+    std::vector<std::string> getNodeTags(std::shared_ptr<Node> node);
+
+    /*
+     * @brief
+     * Get all node tags below a specified node.
+     *
+     * @param cancelToken
+     * A token that can be used to terminate the query's execution prematurely.
+     *
+     * @param handle
+     * A handle specifying which node we want to list tags below.
+     *
+     * If undefined, the query will list tags below all root nodes.
+     *
+     * @param pattern
+     * An optional pattern that can be used to filter which tags we list.
+     *
+     * @returns
+     * std::nullopt on failure.
+     * std::set<std::string> on success.
+     */
+    auto getNodeTagsBelow(CancelToken cancelToken,
+                          NodeHandle handle,
+                          const std::string& pattern = {}) -> std::optional<std::set<std::string>>;
+
+    auto getNodeTagsBelow(NodeHandle handle, const std::string& pattern = {})
+        -> std::optional<std::set<std::string>>;
+
     error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
 
@@ -943,6 +972,7 @@ public:
     // queue a user attribute removal
     void delua(const char* an);
 
+#endif
     // send dev command for testing
     void senddevcommand(const char* command,
                         const char* email,
@@ -950,7 +980,6 @@ public:
                         int bs = 0,
                         int us = 0,
                         const char* abs_c = nullptr);
-#endif
 
     // delete or block an existing contact
     error removecontact(const char*, visibility_t = HIDDEN, CommandRemoveContact::Completion completion = nullptr);
@@ -1081,12 +1110,10 @@ public:
      * bypass itself during the validation. Pass `UNDEF` if you don't want to skip any sync during
      * the validation.
      *
-     * @return A `std::tuple` containing:
+     * @return A SyncErrorInfo, i.e., a `std::tuple` containing:
      * - `error`: An error code indicating the result of the check.
      * - `SyncError`: A detailed sync error code providing more context.
      * - `SyncWarning`: A sync warning code returned by `FileSystemAccess::issyncsupported`.
-     * - `std::unique_ptr<FileAccess>`: An object representing the opened local folder.
-     * - `bool`: Set to `true` if the local path is valid and it belongs to a network filesystem.
      *
      * The possible returned error combinations are:
      *   - `API_OK`:
@@ -1104,19 +1131,15 @@ public:
      *      + `LOCAL_PATH_UNAVAILABLE` if the local path cannot be accessed.
      * - `API_EACCESS`:
      *      + `INVALID_LOCAL_TYPE` if the path is not a directory.
-     *
-     * @note If erro is not API_OK, the third and fourth return values are set to nullptr and false
-     * respectively.
      */
-    std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
-        isValidLocalSyncRoot(const LocalPath& rootPath, const handle backupIdToExclude) const;
+    SyncErrorInfo isValidLocalSyncRoot(const LocalPath& rootPath,
+                                       const handle backupIdToExclude) const;
 
     /**
-     * @brief Validates a SyncConfig and prepares it for synchronization.
+     * @brief Check if a SyncConfig could be used to create a sync
      *
      * This function performs a series of checks to determine whether the provided `SyncConfig` is
-     * valid and can be used to initiate synchronization. It updates the `syncConfig`'s `mError`,
-     * `mWarning`, and `mEnabled` fields based on the validation results.
+     * valid and can be used to initiate synchronization.
      *
      * The validation includes:
      * - Ensuring the remote node exists and is suitable for syncing. This includes checks for
@@ -1126,18 +1149,13 @@ public:
      * - Checking for account-related issues such as over-storage, expiration, or blockage.
      * - Handling specific conditions for backups, external drives, and periodic scanning modes.
      *
-     * @param[in,out] syncConfig The `SyncConfig` to validate. May be modified with error or warning
+     * @param syncConfig The `SyncConfig` to validate. May be modified with error or warning
      * details.
-     * @param[out] rootpath The local path corresponding to the sync root if validation is
-     * successful.
-     * @param[out] openedLocalFolder A unique pointer to a `FileAccess` object representing the
-     * opened local folder.
-     * @param[out] inshare Set to `true` if the remote node is within an inbound shared folder.
-     * @param[out] isnetwork Set to `true` if the local path is on a network filesystem.
      *
-     * @return
-     * - `API_OK` if the `SyncConfig` is valid and synchronization can proceed.
-     * - An error code otherwise, with details provided in `syncConfig`'s `mError` field.
+     * @return A SyncErrorInfo, i.e., a `std::tuple` containing:
+     * - `error`: An error code indicating the result of the check.
+     * - `SyncError`: A detailed sync error code providing more context.
+     * - `SyncWarning`: A sync warning code returned by `FileSystemAccess::issyncsupported`.
      *
      * Possible error codes include:
      * - `API_ENOENT`: Remote node does not exist.
@@ -1151,16 +1169,10 @@ public:
      * - `API_EINTERNAL`: Internal error requiring account reload or restart.
      *
      * @note
-     * - The function sets `syncConfig.mEnabled` to `false` if validation fails.
-     * - The `syncConfig.mError` field provides detailed error information.
      * - Symbolic links and mount points are considered during validation to prevent syncing
      * unsupported paths.
      */
-    error checkSyncConfig(SyncConfig& syncConfig,
-                          LocalPath& rootpath,
-                          std::unique_ptr<FileAccess>& openedLocalFolder,
-                          bool& inshare,
-                          bool& isnetwork);
+    SyncErrorInfo checkSyncConfig(const SyncConfig& syncConfig);
 
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
@@ -2942,6 +2954,33 @@ public:
     error createPasswordNodes(const ValidPasswordData& data,
                               std::shared_ptr<Node> nParent,
                               int rTag);
+
+    /**
+     * @brief Import password nodes from a file
+     *
+     * @param filePath Path to the file with the entries to import
+     * @param source Specifies the source of the input file (e.g. `FileSource::GOOGLE_PASSWORD`)
+     * @param parentHandle The handle of the parent node that will contain the imported entries
+     * @param rTag tag parameter for putnodes call
+     * @return std::pair with
+     * - error: An error code indicating that the whole import operation failed.
+     *   + API_EARGS:
+     *      * The given parent handle doesn't map to a node
+     *      * Invalid file format for the given source
+     *      * No valid entries in the file
+     *   + API_EREAD:
+     *      * The input file cannot be opened
+     *   + API_EACCESS:
+     *      * Problem loading the file once opened, e.g. invalid header
+     *   + Errors returned by `MegaClient::createPasswordNodes`
+     * - BadPasswordData: A vector of pairs<string, PasswordEntryError> with the lines that were not
+     *   successfully parsed (first) and an error code (second) to specify the reason.
+     */
+    std::pair<error, MegaClient::BadPasswordData>
+        importPasswordsFromFile(const std::string& filePath,
+                                const pwm::import::FileSource source,
+                                const NodeHandle parentHandle,
+                                const int rTag);
 
     /**
      * @brief Ensures the given data can be used to create a new password node.

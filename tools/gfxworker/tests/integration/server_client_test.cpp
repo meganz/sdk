@@ -1,21 +1,20 @@
 #include "executable_dir.h"
-
-#include "mega/logging.h"
-#include "server.h"
-#include "processor.h"
-
 #include "mega/gfx.h"
 #include "mega/gfx/worker/client.h"
+#include "mega/logging.h"
 #include "mega/utils.h"
+#include "processor.h"
+#include "sdk_test_data_provider.h"
+#include "server.h"
 
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <cstdlib>
 #include <memory>
 #include <system_error>
 #include <thread>
-#include <chrono>
 #include <vector>
-#include <cstdlib>
 
 using mega::gfx::Server;
 using mega::gfx::RequestProcessor;
@@ -34,7 +33,7 @@ using namespace std::chrono_literals;
 using mega::gfx::SocketUtils;
 #endif
 
-class ServerClientTest : public testing::Test
+class ServerClientTest: public SdkTestDataProvider, public testing::Test
 {
 protected:
     void SetUp() override
@@ -73,15 +72,13 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
     };
 
     // one png
-    std::vector<std::string> images;
-    LocalPath jpgImage = LocalPath::fromAbsolutePath(ExecutableDir::get());
-    jpgImage.appendWithSeparator(LocalPath::fromRelativePath("logo.png"), false);
+    std::string testImage{"logo.png"};
+    fs::path testImageLocalPath = fs::path{ExecutableDir::get()} / testImage;
 
-    EXPECT_TRUE(
-        GfxClient(
-            std::make_unique<GfxCommunicationsClient>(mEndpointName)
-        ).runGfxTask(jpgImage.toPath(false), dimensions, images)
-    );
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + testImage, testImageLocalPath));
+    std::vector<std::string> images;
+    EXPECT_TRUE(GfxClient(std::make_unique<GfxCommunicationsClient>(mEndpointName))
+                    .runGfxTask(testImageLocalPath.string(), dimensions, images));
     EXPECT_EQ(images.size(), 2);
     EXPECT_GT(images[0].size(), 4500); // Use > as the size is different between MacOS and other platforms
     EXPECT_GT(images[1].size(), 800);  // Use > as the above

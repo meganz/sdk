@@ -25,6 +25,7 @@ target_sources(test_unit
     Logging_test.cpp
     MediaProperties_test.cpp
     MegaApi_test.cpp
+    NodesMatchedByFsid_test.cpp
     name_collision_test.cpp
     PayCrypter_test.cpp
     PendingContactRequest_test.cpp
@@ -43,6 +44,7 @@ target_sources(test_unit
     utils_test.cpp
     pwm_file_parser_test.cpp
     pwm_import_validation.cpp
+    LRUCache_test.cpp
 )
 
 target_sources_conditional(test_unit

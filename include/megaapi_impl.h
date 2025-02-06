@@ -33,7 +33,7 @@
 #include "mega/command.h"
 
 #define CRON_USE_LOCAL_TIME 1
-#include "mega/mega_ccronexpr.h"
+#include <ccronexpr.h>
 
 #ifdef HAVE_LIBUV
 #include "uv.h"
@@ -3384,7 +3384,10 @@ class MegaApiImpl : public MegaApp
                        const char* newTag,
                        const char* oldTag,
                        MegaRequestListener* listener = NULL);
-        MegaStringList* getAllNodeTags(const char* searchString, CancelToken cancelToken);
+
+        MegaStringList* getAllNodeTagsBelow(MegaHandle handle,
+                                            const std::string& pattern,
+                                            CancelToken cancelToken);
 
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -4413,8 +4416,8 @@ public:
         void removecontact_result(error) override;
 #ifdef DEBUG
         void delua_result(error) override;
-        void senddevcommand_result(int) override;
 #endif
+        void senddevcommand_result(int) override;
 
         void getuseremail_result(string *, error) override;
 

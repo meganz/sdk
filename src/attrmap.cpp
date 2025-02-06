@@ -46,6 +46,19 @@ bool AttrMap::getBool(const char* name) const {
     return value;
 }
 
+std::optional<std::string> AttrMap::getString(std::string_view name) const
+{
+    // Try and locate the specified attribute.
+    auto i = map.find(string2nameid(name.data()));
+
+    // Couldn't find the attribute.
+    if (i == map.end())
+        return std::nullopt;
+
+    // Return attribute value to caller.
+    return std::optional<std::string>(std::in_place, i->second);
+}
+
 int AttrMap::nameid2string(nameid id, char* buf)
 {
     char* ptr = buf;
@@ -76,40 +89,7 @@ nameid AttrMap::string2nameid(const char* n)
         return 0;
     }
 
-    size_t len = strlen(n);
-    if (len > 8)
-    {
-        return 0;
-    }
-
-    uint64_t a[8] = {0};
-    for (size_t i = 0; i < len; ++i)
-    {
-        a[i] = static_cast<uint64_t>(n[i]);
-    }
-
-    switch (len)
-    {
-        case 1:
-            return static_cast<nameid>(*a);
-        case 2:
-            return MAKENAMEID2(a[0], a[1]);
-        case 3:
-            return MAKENAMEID3(a[0], a[1], a[2]);
-        case 4:
-            return MAKENAMEID4(a[0], a[1], a[2], a[3]);
-        case 5:
-            return MAKENAMEID5(a[0], a[1], a[2], a[3], a[4]);
-        case 6:
-            return MAKENAMEID6(a[0], a[1], a[2], a[3], a[4], a[5]);
-        case 7:
-            return MAKENAMEID7(a[0], a[1], a[2], a[3], a[4], a[5], a[6]);
-        case 8:
-            return MAKENAMEID8(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
-        default:
-            break;
-    }
-    return 0;
+    return makeNameid(n);
 }
 
 // generate binary serialize of attr_map name-value pairs

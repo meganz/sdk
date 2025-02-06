@@ -36,6 +36,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/share.cpp \
     sdk/src/sharenodekeys.cpp \
     sdk/src/sync.cpp \
+    sdk/src/syncinternals.cpp \
     sdk/src/transfer.cpp \
     sdk/src/transferslot.cpp \
     sdk/src/transferstats.cpp \
@@ -52,6 +53,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/posix/net.cpp  \
     sdk/src/posix/fs.cpp  \
     sdk/src/posix/waiter.cpp \
+    sdk/src/android/androidFileSystem.cpp \
     sdk/src/mega_utf8proc.cpp \
     sdk/src/gfx.cpp \
     sdk/src/gfx/external.cpp \
@@ -61,7 +63,6 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/mega_zxcvbn.cpp \
     sdk/src/mediafileattribute.cpp \
     sdk/src/mega_evt_tls.cpp \
-    sdk/src/mega_ccronexpr.cpp\
     sdk/src/raid.cpp \
     sdk/src/raidproxy.cpp \
     sdk/src/testhooks.cpp \
@@ -102,6 +103,7 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/share.h \
         sdk/include/mega/sharenodekeys.h \
         sdk/include/mega/sync.h \
+        sdk/include/mega/syncinternals.h \
         sdk/include/mega/transfer.h \
         sdk/include/mega/transferslot.h \
         sdk/include/mega/transferstats.h \
@@ -121,6 +123,7 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/posix/megasys.h  \
         sdk/include/mega/posix/megafs.h  \
         sdk/include/mega/posix/megawaiter.h \
+        sdk/include/mega/android/androidFileSystem.h \
         sdk/include/mega/config-android.h \
         sdk/include/mega/mega_glob.h \
         sdk/include/mega/gfx/external.h \
@@ -274,6 +277,14 @@ CPP_SOURCES += \
     sdk/src/fuse/common/task_queue.cpp \
     sdk/src/fuse/common/transaction.cpp \
     sdk/src/fuse/common/utility.cpp
+
+# third party layer headers
+HEADERS += \
+    sdk/third_party/ccronexpr/ccronexpr.h
+
+# third party layer sources
+CPP_SOURCES += \
+    sdk/third_party/ccronexpr/ccronexpr.cpp
 
 # FUSE (Dummy headers.)
 HEADERS += \

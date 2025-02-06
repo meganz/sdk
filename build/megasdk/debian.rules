@@ -8,6 +8,9 @@ export PATH := $(shell [ -f /opt/cmake.tar.gz ] && echo "`pwd`/cmake_inst/bin:${
 
 MEGA_BUILD_ID := $(shell cat MEGA_BUILD_ID || echo "1")
 
+QTINSTALL := $(shell cat /etc/issue | grep "Ubuntu 20.04" >/dev/null && echo "-DCMAKE_PREFIX_PATH=/opt/mega" || echo "")
+QTDEFINES := $(shell [ -f /opt/mega/bin/qmake ] && echo "${QTINSTALL}" || echo "" )
+
 build: build-stamp
 build-stamp:
 	sed -i -E "0,/megasdk \(([0-9.]*)[^\)]*\)/s//megasdk \(\1-$(MEGA_BUILD_ID).1)/" debian.changelog || :
@@ -24,7 +27,7 @@ build-stamp:
 	fi
 
 	cmake --version
-	$(EXPORT_VCPKG_FORCE_SYSTEM_BINARIES) cmake $(VCPKG_ROOT) -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -S $(CURDIR) -B $(CURDIR)/build_dir
+	$(EXPORT_VCPKG_FORCE_SYSTEM_BINARIES) cmake $(VCPKG_ROOT) -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON $(QTDEFINES) -S $(CURDIR) -B $(CURDIR)/build_dir
 	cmake --build $(CURDIR)/build_dir -j$(NJOBS)
 	cmake --install $(CURDIR)/build_dir --prefix $(CURDIR)/install_dir
 	
@@ -37,7 +40,7 @@ clean:
 
 install: build
 	dh_auto_install --destdir=debian/megasdk -- INSTALL_ROOT=$(CURDIR)/debian/megasdk
-	dh_install install_dir/* /
+#	dh_install install_dir/* /
 	
 # Build architecture-independent files here.
 binary-indep: build install

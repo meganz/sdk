@@ -25,6 +25,10 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
     %else
         BuildRequires: pkg-config
     %endif
+    %if 0%{?suse_version} > 1400
+        BuildRequires: libqt5-qtbase-devel, libqt5-linguist-devel, libqt5-qtsvg-devel, libqt5-qtx11extras-devel, libqt5-qtdeclarative-devel
+        Requires: libQt5Core5 libqt5-qtquickcontrols libqt5-qtquickcontrols2
+    %endif
 %endif
 %if 0%{?fedora}
     BuildRequires: pkgconf-pkg-config
@@ -49,6 +53,10 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
     # allowing for rpaths (taken as invalid, as if they were not absolute paths when they are)
     %if 0%{?fedora_version} >= 35
         %define __brp_check_rpaths QA_RPATHS=0x0002 /usr/lib/rpm/check-rpaths
+    %endif
+    %if 0%{?fedora_version} >= 36
+        BuildRequires: qt5-qtbase-devel qt5-qttools-devel, qt5-qtsvg-devel, qt5-qtx11extras-devel, qt5-qtdeclarative-devel
+        Requires: qt5-qtbase >= 5.6, qt5-qtsvg, qt5-qtdeclarative, qqc2-desktop-style, qt5-qtquickcontrols, qt5-qtquickcontrols2
     %endif
 %endif
 
@@ -86,7 +94,7 @@ fi
 %endif
 
 cmake --version
-cmake ${vcpkg_root} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -S . -B %{_builddir}/build_dir
+cmake ${vcpkg_root} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -S . -B %{_builddir}/build_dir
 
 %build
 
@@ -126,12 +134,7 @@ pwd
 
 
 %files
-/cmake/sdklibConfig.cmake
-/cmake/sdklibTargets-relwithdebinfo.cmake
-/cmake/sdklibTargets.cmake
-/include/megaapi.h
-/lib64/libSDKlib.a
-/pkgconfig/sdklib.pc
+
 
 %defattr(-,root,root)
 

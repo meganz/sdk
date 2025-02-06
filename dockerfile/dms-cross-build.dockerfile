@@ -67,12 +67,15 @@ CMD ["sh", "-c", "\
     su - me -w 'PLATFORM' -c ' \
     /mega/dms-toolchain.sh ${PLATFORM} && \
     cmake -B buildDMS -S sdk \
-        -DVCPKG_ROOT=/mega/vcpkg \
-        -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DENABLE_LOG_PERFORMANCE=ON \
         -DENABLE_SDKLIB_EXAMPLES=OFF \
         -DENABLE_SDKLIB_TESTS=OFF \
+        -DENABLE_SDKLIB_WERROR=OFF \
+        -DUSE_LIBUV=ON \
         -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=/mega/${PLATFORM}.toolchain.cmake \
         -DVCPKG_OVERLAY_TRIPLETS=/mega \
+        -DVCPKG_ROOT=/mega/vcpkg \
         -DVCPKG_TARGET_TRIPLET=${PLATFORM} && \
     cmake --build buildDMS' && \
     exec /bin/bash"]

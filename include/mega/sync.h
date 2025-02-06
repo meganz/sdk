@@ -32,6 +32,7 @@
 
 #ifdef ENABLE_SYNC
 #include "node.h"
+#include "syncinternals.h"
 
 namespace mega {
 
@@ -118,7 +119,7 @@ public:
      * @brief In case this is an external backup, returns true if this is a backup sync and the
      * given path belongs to the external drive. Always true for non-external backups.
      */
-    bool isGoodPathForExternalBackup(const LocalPath& path)
+    bool isGoodPathForExternalBackup(const LocalPath& path) const
     {
         return !isExternal() || (isBackup() && mExternalDrivePath.isContainingPathOf(path));
     }
@@ -690,7 +691,18 @@ public:
     // How deep is this sync's cloud root?
     unsigned mCurrentRootDepth = 0;
 
-    Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname, SyncError& e);
+    /**
+     * @brief Sync constructor
+     *
+     * @param[in,out] us the `UnifiedSync` object in which the new Sync will be stored. It is used
+     * to read the configuration and instantiate the Sync accordingly. Also, non-const references to
+     * some of its members (e.g. `syncs`) are also saved in the object. Additionally, some members
+     * of the config (owned by the `UnifiedSync`) are also modified inside this constructor.
+     * @param[in] logname A prefix to include in the logging messages involving this object.
+     * @param[out] e An output error code. If the object is constructed successfully, NO_SYNC_ERROR
+     */
+    Sync(UnifiedSync& us, const std::string& logname, SyncError& e);
+
     ~Sync();
 
     /**
@@ -1503,13 +1515,69 @@ public:
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
     fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(const fsfp_t& fsfp, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp,
-                                         std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
-    LocalNode* findLocalNodeByScannedFsid(const fsfp_t& fsfp, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp,
-                                         std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
 
-    void setSyncedFsidReused(const fsfp_t& fsfp, mega::handle fsid);
-    void setScannedFsidReused(const fsfp_t& fsfp, mega::handle fsid);
+    /**
+     * @brief Finds a LocalNode by its synced FSID.
+     *
+     * Searches for a LocalNode in the map of synced FSIDs.
+     * This is used to detect moves, while avoiding mismatches caused by FSID reuse.
+     *
+     * @param fsid The FSID of the node to be searched on the localnode map.
+     * @param targetNodeAttributes The necessary node attributes of the node looking for another
+     * node matching by FSID.
+     * @param originalPathForLogging The original path being processed for context in logs.
+     * @param extraCheck An optional callable for additional filtering of LocalNodes.
+     * @param onFingerprintMismatchDuringPutnodes Optional operation for a LocalNode that
+     * has been excluded due to fingerprint mismatch, but the source node has a putnodes operation
+     * ongoing for an upload which matches fingerprint with the target node.
+     * The param is not const intentionally, in case it needs to be considered as a potential
+     * source node, taking into account that there is a fingerprint match for the ongoing upload.
+     *
+     * @return A pair with:
+     *         bool - indicating whether an unknown exclusion was encountered. This may occur during
+     * eg. the first pass of the tree after loading from Suspended state and the corresponding node
+     * is later in the tree. The caller should decide whether to pospone the logic if an unknown
+     * exclusion was found for some node.
+     *         LocalNode* - pointer to the matching LocalNode, or nullptr if no match is found.
+     *
+     * @see findLocalNodeByFsid()
+     */
+    std::pair<bool, LocalNode*> findLocalNodeBySyncedFsid(
+        const handle fsid,
+        const NodeMatchByFSIDAttributes& targetNodeAttributes,
+        const LocalPath& originalPathForLogging,
+        std::function<bool(const LocalNode&)> extraCheck = nullptr,
+        std::function<void(LocalNode*)> onFingerprintMismatchDuringPutnodes = nullptr) const;
+
+    /**
+     * @brief Finds a LocalNode by its scanned FSID.
+     *
+     * Searches for a LocalNode in the map of scanned FSIDs. This is used to detect
+     * moves and avoid mismatches caused by FSID reuse.
+     *
+     * @param fsid The FSID of the node to be searched on the localnode map.
+     * @param targetNodeAttributes The necessary node attributes of the node looking for another
+     * node matching by FSID.
+     * @param originalPathForLogging The original path being processed for context in logs.
+     * @param extraCheck An optional callable for additional filtering of LocalNodes.
+     *
+     * @return A pair with:
+     *         bool - indicating whether an unknown exclusion was encountered. This may occur during
+     * eg. the first pass of the tree after loading from Suspended state and the corresponding node
+     * is later in the tree. The caller should decide whether to pospone the logic if an unknown
+     * exclusion was found for some node.
+     *         LocalNode* - pointer to the matching LocalNode, or nullptr if no match is found.
+     *
+     * @see findLocalNodeByFsid()
+     */
+    std::pair<bool, LocalNode*> findLocalNodeByScannedFsid(
+        const handle fsid,
+        const NodeMatchByFSIDAttributes& targetNodeAttributes,
+        const LocalPath& originalPathForLogging,
+        std::function<bool(const LocalNode&)> extraCheck = nullptr) const;
+
+    void setSyncedFsidReused(const fsfp_t& fsfp, const handle fsid);
+    void setScannedFsidReused(const fsfp_t& fsfp, const handle fsid);
 
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
@@ -1732,10 +1800,23 @@ private:
     bool checkSyncsScanningWasComplete_inThread(); // Iterate through syncs, calling Sync::checkScanningWasComplete(). Returns false if any sync returns false.
     void unsetSyncsScanningWasComplete_inThread(); // Unset scanningWasComplete flag for every sync.
 
-    // actually start the sync (on sync thread)
-    void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
-        bool inshare, bool isNetwork, const LocalPath& rootpath,
-        std::function<void(error, SyncError, handle)> completion, const string& logname);
+    /**
+     * @brief Instantiates the Sync object and stores it in the given unified sync
+     *
+     * @param[in,out] us The UnifiedSync with the configuration needed to create the sync (mConfig).
+     * It will be modified to store the new sync and to modify its state depending on the results.
+     * @param completion A function to be called once the process finishes with or without errors.
+     * The parameter passed to the callable are:
+     * - `error`: An error code indicating the result of the initiation.
+     * - `SyncError`: A detailed sync error code providing more context.
+     * - `handle`: the backup id of the sync being initiated
+     * @param logname The name to be passed to the Sync constructor. That will be stored in the
+     * `Sync::syncname` member and used as prefix in the logged messages.
+     */
+    void startSync_inThread(UnifiedSync& us,
+                            std::function<void(error, SyncError, handle)> completion,
+                            const string& logname);
+
     void prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
     void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
@@ -1778,6 +1859,14 @@ private:
             WhichCloudVersion,
             handle* owningUser = nullptr,
             vector<pair<handle, int>>* sdsBackups = nullptr);
+
+    /**
+     * @brief Check if the given cloud node is an in-share
+     *
+     * @param cn The cloud node to check
+     * @return true if the node is found and it is an inshare
+     */
+    bool isCloudNodeInShare(const CloudNode& cn);
 
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 
@@ -2147,7 +2236,6 @@ public:
         paths.clear();
     }
 };
-
 
 } // namespace
 

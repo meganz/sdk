@@ -24,12 +24,6 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/modules)
 
 set(VCPKG_ROOT "" CACHE PATH "If set, it will build and use the VCPKG packages defined in the manifest file")
 
-# Set up CMAKE_SYSTEM_NAME for cross compiling
-if (VCPKG_ROOT)
-    include(set_cmake_system_name)
-    set_cmake_system_name()
-endif()
-
 ## Configurable options ##
 include(sdklib_options)
 
@@ -37,8 +31,8 @@ include(sdklib_options)
 if(NOT PROJECT_NAME)
     message(STATUS "[SDKlib] is a top-level project. Install target is enabled by default.")
     set(SDKLIB_STANDALONE 1)
-    if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
-        message(STATUS "Examples and tests will not be enabled by default.")
+    if (CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
+        message(STATUS "Examples and tests will not be enabled by default for ${CMAKE_SYSTEM_NAME} builds")
         option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" OFF)
         option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" OFF)
     else()
@@ -46,11 +40,7 @@ if(NOT PROJECT_NAME)
         option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" ON)
         option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" ON)
     endif()
-    if (WIN32)
-        option(ENABLE_SDKLIB_WERROR "Enable warnings as errors" ON)
-    else()
-        option(ENABLE_SDKLIB_WERROR "Enable warnings as errors when building in debug mode." OFF)
-    endif()
+    option(ENABLE_SDKLIB_WERROR "Enable warnings as errors" ON)
 else()
     message(STATUS "[SDKlib] is building under project [${PROJECT_NAME}] Install target, examples and tests will not be enabled by default.")
     set(SDKLIB_STANDALONE 0)
@@ -178,3 +168,4 @@ endif()
 ## Load FUSE support.
 include(src/fuse/CMakeLists.txt)
 
+add_subdirectory(third_party)

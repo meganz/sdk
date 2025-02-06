@@ -1,5 +1,7 @@
 macro(load_sdklib_libraries)
 
+    target_link_libraries(SDKlib PUBLIC ccronexpr)
+
     if(VCPKG_ROOT)
         find_package(cryptopp CONFIG REQUIRED)
         target_link_libraries(SDKlib PUBLIC cryptopp::cryptopp) # TODO: Private for SDK core
@@ -71,12 +73,6 @@ macro(load_sdklib_libraries)
         find_package(ICU COMPONENTS uc data REQUIRED)
         target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
 
-        if(USE_C_ARES)
-            find_package(c-ares REQUIRED)
-            target_link_libraries(SDKlib PRIVATE c-ares::cares)
-            set(MEGA_USE_C_ARES 1)
-        endif()
-
         if(USE_READLINE)
             find_package(Readline-unix REQUIRED)
             target_link_libraries(SDKlib PRIVATE Readline::Readline)
@@ -142,12 +138,6 @@ macro(load_sdklib_libraries)
             pkg_check_modules(pdfium REQUIRED IMPORTED_TARGET pdfium)
             target_link_libraries(SDKlib PRIVATE PkgConfig::pdfium)
             set(HAVE_PDFIUM 1)
-        endif()
-
-        if(USE_C_ARES)
-            pkg_check_modules(cares REQUIRED IMPORTED_TARGET libcares)
-            target_link_libraries(SDKlib PRIVATE PkgConfig::cares)
-            set(MEGA_USE_C_ARES 1)
         endif()
 
         if(USE_READLINE)

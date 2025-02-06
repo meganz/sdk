@@ -909,18 +909,10 @@ const char* MegaNodePrivate::getDescription()
 
 MegaStringList* MegaNodePrivate::getTags()
 {
-    const char* str = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS);
-    std::string tags = str ? str : "";
-    const auto tokens = splitString<std::multiset<std::string, NaturalSortingComparator>>(
-        tags,
-        MegaClient::TAG_DELIMITER);
-    MegaStringListPrivate* stringList = new MegaStringListPrivate();
-    for (const auto& token: tokens)
-    {
-        stringList->add(token.c_str());
-    }
+    if (auto delimitedTags = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS))
+        return new MegaStringListPrivate(MegaClient::getNodeTags(delimitedTags));
 
-    return stringList;
+    return new MegaStringListPrivate();
 }
 
 int64_t MegaNodePrivate::getSize()
@@ -3736,18 +3728,33 @@ void MegaTransferPrivate::setPath(const char* newPath)
     if (!path)
         return;
 
-    for (int i = int(strlen(newPath) - 1); i >= 0; i--)
+    LocalPath localPath;
+    if (LocalPath::isURIPath(path))
     {
-        if (newPath[i] == LocalPath::localPathSeparator_utf8)
+        localPath = LocalPath::fromAbsolutePath(path);
+        std::string name = localPath.leafName().platformEncoded();
+        if (name.size())
         {
-            setFileName(&(newPath[i + 1]));
-            char* parentFolderPath = MegaApi::strdup(newPath);
-            parentFolderPath[i + 1] = '\0';
-            setParentPath(parentFolderPath);
-            delete[] parentFolderPath;
+            setFileName(name.c_str());
             return;
         }
     }
+    else
+    {
+        for (int i = int(strlen(newPath) - 1); i >= 0; i--)
+        {
+            if (newPath[i] == LocalPath::localPathSeparator_utf8)
+            {
+                setFileName(&(newPath[i + 1]));
+                char* parentFolderPath = MegaApi::strdup(newPath);
+                parentFolderPath[i + 1] = '\0';
+                setParentPath(parentFolderPath);
+                delete[] parentFolderPath;
+                return;
+            }
+        }
+    }
+
     setFileName(newPath);
 }
 
@@ -8600,18 +8607,31 @@ void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* 
     CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
 }
 
-MegaStringList* MegaApiImpl::getAllNodeTags(const char* searchString, CancelToken cancelToken)
+MegaStringList* MegaApiImpl::getAllNodeTagsBelow(MegaHandle handle,
+                                                 const std::string& pattern,
+                                                 CancelToken cancelToken)
 {
-    SdkMutexGuard g(sdkMutex);
-    std::set<std::string> allDifferentTags =
-        client->mNodeManager.getAllNodeTags(searchString, cancelToken);
-    std::vector<std::string> result(allDifferentTags.begin(), allDifferentTags.end());
-    const auto compF = [](const std::string& a, const std::string& b) -> bool
-    {
-        return naturalsorting_compare(a.c_str(), b.c_str()) < 0;
-    };
-    std::sort(std::begin(result), std::end(result), compF);
-    return new MegaStringListPrivate(std::move(result));
+    // Try and retrieve all tags below this account's root nodes.
+    auto tags = ([&]() {
+        // Make sure we have exclusive access to the client.
+        SdkMutexGuard guard(sdkMutex);
+
+        // Ask the client for the list of tags.
+        return client->getNodeTagsBelow(std::move(cancelToken),
+                                        NodeHandle().set6byte(handle),
+                                        pattern);
+    })();
+
+    // Couldn't get a list of tags.
+    if (!tags)
+        return new MegaStringListPrivate();
+
+    // Make sure the tags are in sorted order.
+    std::vector<std::string> sorted(tags->begin(), tags->end());
+    std::sort(sorted.begin(), sorted.end(), NaturalSortingComparator());
+
+    // Return sorted list of tags to the caller.
+    return new MegaStringListPrivate(std::move(sorted));
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
@@ -12327,94 +12347,94 @@ bool MegaApiImpl::getLanguageCode(const char *languageCode, string *code)
         switch (id)
         {
             // Regular language codes
-            case MAKENAMEID2('a', 'r'):
-            case MAKENAMEID2('b', 'g'):
-            case MAKENAMEID2('d', 'e'):
-            case MAKENAMEID2('e', 'n'):
-            case MAKENAMEID2('e', 's'):
-            case MAKENAMEID2('f', 'a'):
-            case MAKENAMEID2('f', 'i'):
-            case MAKENAMEID2('f', 'r'):
-            case MAKENAMEID2('h', 'e'):
-            case MAKENAMEID2('h', 'u'):
-            case MAKENAMEID2('i', 'd'):
-            case MAKENAMEID2('i', 't'):
-            case MAKENAMEID2('n', 'l'):
-            case MAKENAMEID2('p', 'l'):
-            case MAKENAMEID2('r', 'o'):
-            case MAKENAMEID2('r', 'u'):
-            case MAKENAMEID2('s', 'k'):
-            case MAKENAMEID2('s', 'l'):
-            case MAKENAMEID2('s', 'r'):
-            case MAKENAMEID2('t', 'h'):
-            case MAKENAMEID2('t', 'l'):
-            case MAKENAMEID2('t', 'r'):
-            case MAKENAMEID2('u', 'k'):
-            case MAKENAMEID2('v', 'i'):
+            case makeNameid("ar"):
+            case makeNameid("bg"):
+            case makeNameid("de"):
+            case makeNameid("en"):
+            case makeNameid("es"):
+            case makeNameid("fa"):
+            case makeNameid("fi"):
+            case makeNameid("fr"):
+            case makeNameid("he"):
+            case makeNameid("hu"):
+            case makeNameid("id"):
+            case makeNameid("it"):
+            case makeNameid("nl"):
+            case makeNameid("pl"):
+            case makeNameid("ro"):
+            case makeNameid("ru"):
+            case makeNameid("sk"):
+            case makeNameid("sl"):
+            case makeNameid("sr"):
+            case makeNameid("th"):
+            case makeNameid("tl"):
+            case makeNameid("tr"):
+            case makeNameid("uk"):
+            case makeNameid("vi"):
 
             // Not used on apps
-            case MAKENAMEID2('c', 'z'):
-            case MAKENAMEID2('j', 'p'):
-            case MAKENAMEID2('k', 'r'):
-            case MAKENAMEID2('b', 'r'):
-            case MAKENAMEID2('s', 'e'):
-            case MAKENAMEID2('c', 'n'):
-            case MAKENAMEID2('c', 't'):
+            case makeNameid("cz"):
+            case makeNameid("jp"):
+            case makeNameid("kr"):
+            case makeNameid("br"):
+            case makeNameid("se"):
+            case makeNameid("cn"):
+            case makeNameid("ct"):
                 *code = s;
                 break;
 
             // Conversions
-            case MAKENAMEID2('c', 's'):
+            case makeNameid("cs"):
                 *code = "cz";
                 break;
 
-            case MAKENAMEID2('j', 'a'):
+            case makeNameid("ja"):
                 *code = "jp";
                 break;
 
-            case MAKENAMEID2('k', 'o'):
+            case makeNameid("ko"):
                 *code = "kr";
                 break;
 
-            case MAKENAMEID2('p', 't'):
-            case MAKENAMEID5('p', 't', '_', 'b', 'r'):
-            case MAKENAMEID5('p', 't', '-', 'b', 'r'):
-            case MAKENAMEID5('p', 't', '_', 'p', 't'):
-            case MAKENAMEID5('p', 't', '-', 'p', 't'):
+            case makeNameid("pt"):
+            case makeNameid("pt_br"):
+            case makeNameid("pt-br"):
+            case makeNameid("pt_pt"):
+            case makeNameid("pt-pt"):
                 *code = "br";
                 break;
 
-            case MAKENAMEID2('s', 'v'):
+            case makeNameid("sv"):
                 *code = "se";
                 break;
 
-            case MAKENAMEID2('z', 'h'):
-            case MAKENAMEID5('z', 'h', '_', 'c', 'n'):
-            case MAKENAMEID5('z', 'h', '-', 'c', 'n'):
-            case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 's'):
-            case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 's'):
+            case makeNameid("zh"):
+            case makeNameid("zh_cn"):
+            case makeNameid("zh-cn"):
+            case makeNameid("zh_hans"):
+            case makeNameid("zh-hans"):
                 *code = "cn";
                 break;
 
-            case MAKENAMEID5('z', 'h', '_', 't', 'w'):
-            case MAKENAMEID5('z', 'h', '-', 't', 'w'):
-            case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 't'):
-            case MAKENAMEID7('z', 'h', '-', 'h', 'a', 'n', 't'):
+            case makeNameid("zh_tw"):
+            case makeNameid("zh-tw"):
+            case makeNameid("zh_hant"):
+            case makeNameid("zh-hant"):
                 *code = "ct";
                 break;
 
-            case MAKENAMEID2('i', 'n'):
+            case makeNameid("in"):
                 *code = "id";
                 break;
 
-            case MAKENAMEID2('i', 'w'):
+            case makeNameid("iw"):
                 *code = "he";
                 break;
 
             // Not supported in the web
-            case MAKENAMEID2('e', 'e'):
-            case MAKENAMEID2('h', 'r'):
-            case MAKENAMEID2('k', 'a'):
+            case makeNameid("ee"):
+            case makeNameid("hr"):
+            case makeNameid("ka"):
                 break;
 
             default:
@@ -14485,16 +14505,19 @@ void MegaApiImpl::putnodes_result(const Error& inputErr,
 
     if (request->getType() == MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE)
     {
-        std::vector<handle> nodeHandles;
-        std::transform(nn.begin(),
-                       nn.end(),
-                       std::back_inserter(nodeHandles),
-                       [](const NewNode& newNode)
-                       {
-                           assert(newNode.mAddedHandle != UNDEF);
-                           return newNode.mAddedHandle;
-                       });
-        request->setMegaHandleList(nodeHandles);
+        if (e == API_OK)
+        {
+            std::vector<handle> nodeHandles;
+            std::transform(nn.begin(),
+                           nn.end(),
+                           std::back_inserter(nodeHandles),
+                           [](const NewNode& newNode)
+                           {
+                               assert(newNode.mAddedHandle != UNDEF);
+                               return newNode.mAddedHandle;
+                           });
+            request->setMegaHandleList(nodeHandles);
+        }
         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
         return;
     }
@@ -16083,6 +16106,7 @@ void MegaApiImpl::delua_result(error e)
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
+#endif
 
 void MegaApiImpl::senddevcommand_result(int value)
 {
@@ -16100,7 +16124,6 @@ void MegaApiImpl::senddevcommand_result(int value)
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
-#endif
 
 void MegaApiImpl::getuseremail_result(string *email, error e)
 {
@@ -23756,19 +23779,20 @@ void MegaApiImpl::sendDevCommand(const char* command, const char* email, long lo
                 return API_EARGS;
             }
 
-    #ifdef DEBUG
             const char* email = request->getEmail();
             long long q = request->getTotalBytes();
             int bs = request->getAccess();
             int us = request->getNumDetails();
 
+            bool isSalSubcmd = !strcmp(command, "sal");
             bool isOdqSubcmd = !strcmp(command, "aodq");
             bool isTqSubcmd = !strcmp(command, "tq");
             bool isBsSubcmd = !strcmp(command, "bs");
             bool isUsSubcmd = !strcmp(command, "us");
             bool isFrSubcmd = !strcmp(command, "fr");   // force reload via -6 on sc channel
 
-            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd && !isFrSubcmd)
+            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd && !isFrSubcmd &&
+                !isSalSubcmd)
             {
                 return API_EARGS;
             }
@@ -23796,11 +23820,7 @@ void MegaApiImpl::sendDevCommand(const char* command, const char* email, long lo
             }
             client->senddevcommand(command, email, q, bs, us);
             return API_OK;
-    #else
-            return API_EACCESS;
-    #endif
         };
-
 
     requestQueue.push(request);
     waiter->notify();
@@ -27225,10 +27245,13 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
 
 bool MegaApiImpl::isPasswordNodeFolder(MegaHandle h) const
 {
-    if(h == UNDEF) return false;
+    if (h == UNDEF)
+        return false;
 
-    SdkMutexGuard g {sdkMutex};
-    return client->nodebyhandle(h)->isPasswordNodeFolder();
+    SdkMutexGuard g{sdkMutex};
+    const auto n = client->nodebyhandle(h);
+    assert(n && "Node not found by handle");
+    return n && n->isPasswordNodeFolder();
 }
 
 void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
@@ -27317,6 +27340,28 @@ void MegaApiImpl::updatePasswordNode(MegaHandle h, const MegaNode::PasswordNodeD
     waiter->notify();
 }
 
+/**
+ * @brief Helper function specifically introduced to guarantee equivalence between internal and
+ * public enums. If a new entry is added on PasswordEntryError this will trigger a compilation
+ * warning.
+ */
+static constexpr int toPublicErrorCode(const PasswordEntryError e)
+{
+    switch (e)
+    {
+        case PasswordEntryError::OK:
+            return 0;
+        case PasswordEntryError::PARSE_ERROR:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_PARSER;
+        case PasswordEntryError::MISSING_PASSWORD:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD;
+        case PasswordEntryError::MISSING_NAME:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSINGNAME;
+    }
+    assert(false);
+    return -1; // We should never get here
+}
+
 void MegaApiImpl::importPasswordsFromFile(const char* filePath,
                                           const int fileSource,
                                           MegaHandle parent,
@@ -27332,72 +27377,27 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
     request->performRequest = [this, request]() -> error
     {
         using namespace pwm::import;
-        NodeHandle parentHandle = NodeHandle{}.set6byte(request->getParentHandle());
+        const NodeHandle parentHandle = NodeHandle{}.set6byte(request->getParentHandle());
         if (parentHandle.isUndef() || !request->getFile() ||
             request->getParamType() != MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE)
         {
             LOG_err << "Import password: invalid parameters";
             return API_EARGS;
         }
-
-        std::string filePath{request->getFile()};
-        auto source = static_cast<FileSource>(request->getParamType());
-        std::shared_ptr<Node> parent = client->nodeByHandle(parentHandle);
-        if (!parent || !parent->isPasswordNodeFolder())
-        {
-            LOG_err << "Import password: parent node doesn't exist";
-            return API_EARGS;
-        }
-
-        PassFileParseResult parserResult = readPasswordImportFile(filePath, source);
-        switch (parserResult.mErrCode)
-        {
-            case PassFileParseResult::ErrCode::OK:
-                break;
-            case PassFileParseResult::ErrCode::MISSING_COLUMN:
-            case PassFileParseResult::ErrCode::NO_VALID_ENTRIES:
-                LOG_err << "Import password: invalid file format";
-                return API_EARGS;
-            case PassFileParseResult::ErrCode::FILE_NOT_FOUND:
-            case PassFileParseResult::ErrCode::CANT_OPEN_FILE:
-                LOG_err << "Import password: file can't be opened or doesn't exist";
-                return API_EREAD;
-            case PassFileParseResult::ErrCode::INVALID_HEADER:
-                LOG_err << "Import password: Invalid header";
-                return API_EACCESS;
-        }
-
-        sharedNode_list children = client->getChildren(parent.get());
-        std::vector<std::string> childrenNames;
-        std::transform(children.begin(),
-                       children.end(),
-                       std::back_inserter(childrenNames),
-                       [](const std::shared_ptr<Node>& child) -> std::string
-                       {
-                           return child->displayname();
-                       });
-        ncoll::NameCollisionSolver solver{std::move(childrenNames)};
-
-        const auto [badEntries, goodEntries] =
-            MegaClient::validatePasswordEntries(std::move(parserResult.mResults), solver);
-
-        if (goodEntries.empty())
-        {
-            LOG_err << "Import password: none entry is valid";
-            return API_EARGS;
-        }
-
+        const std::string filePath{request->getFile()};
+        const auto source = static_cast<FileSource>(request->getParamType());
+        const auto [error, badEntries] =
+            client->importPasswordsFromFile(filePath, source, parentHandle, request->getTag());
         MegaStringIntegerMapPrivate stringIntegerMap;
         std::for_each(badEntries.begin(),
                       badEntries.end(),
                       [&stringIntegerMap](const std::pair<std::string, PasswordEntryError>& arg)
                       {
-                          stringIntegerMap.set(arg.first, static_cast<int64_t>(arg.second));
+                          stringIntegerMap.set(arg.first, toPublicErrorCode(arg.second));
                       });
 
         request->setMegaStringIntegerMap(&stringIntegerMap);
-
-        return client->createPasswordNodes(std::move(goodEntries), parent, request->getTag());
+        return error;
     };
 
     requestQueue.push(request);
@@ -27471,8 +27471,8 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
 
         handle tmpNodeHandle{1};
         handle tmpParentNodeHandle{UNDEF};
-        MegaNodeTree* nodeTree = request->getMegaNodeTree()->copy();
-        for (auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)}; tmpNodeTree;
+        std::unique_ptr<MegaNodeTree> nodeTree(request->getMegaNodeTree()->copy());
+        for (auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree.get())}; tmpNodeTree;
              tmpNodeTree = dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild()))
         {
             if ((tmpNodeTree->getNodeTreeChild() && tmpNodeTree->getCompleteUploadData()) ||
@@ -27503,7 +27503,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                         assert(!treeToCopy.empty()); // never empty because other error should have been reported in that case
                         tmpNodeTree->setNodeHandle(treeToCopy[0].ovhandle.as8byte());
                         request->setNodeHandle(tmpNodeTree->getNodeHandle());
-                        request->setMegaNodeTree(nodeTree);
+                        request->setMegaNodeTree(nodeTree.release());
                         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
                         return API_OK;
                     }
@@ -27546,7 +27546,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                         {
                             tmpNodeTree->setNodeHandle(ovn->nodeHandle().as8byte());
                             request->setNodeHandle(tmpNodeTree->getNodeHandle());
-                            request->setMegaNodeTree(nodeTree);
+                            request->setMegaNodeTree(nodeTree.release());
                             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
                             return API_OK;
                         }
@@ -27615,12 +27615,13 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
             }
         }
 
-        auto result{[this, request, nodeTree](const Error& error,
-                                              targettype_t,
-                                              vector<NewNode>& newNodes,
-                                              bool,
-                                              int,
-                                              const map<string, string>& fileHandles)
+        auto result{[this, request, nodeTree = nodeTree.release()](
+                        const Error& error,
+                        targettype_t,
+                        vector<NewNode>& newNodes,
+                        bool,
+                        int,
+                        const map<string, string>& fileHandles)
                     {
                         size_t i{};
                         auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
@@ -28468,7 +28469,7 @@ char *MegaAccountDetailsPrivate::getSubscriptionMethod()
         return MegaApi::strdup(details.subscriptions.front().paymentMethod.c_str());
     }
 
-    return new char{'\0'};
+    return new char[1]{'\0'};
 }
 
 int MegaAccountDetailsPrivate::getSubscriptionMethodId()
@@ -28490,7 +28491,7 @@ char *MegaAccountDetailsPrivate::getSubscriptionCycle()
         return MegaApi::strdup(details.subscriptions.front().cycle.c_str());
     }
 
-    return new char{'\0'};
+    return new char[1]{'\0'};
 }
 
 long long MegaAccountDetailsPrivate::getStorageMax()
@@ -30095,7 +30096,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
 
     LocalPath localname;
     nodetype_t dirEntryType;
-    while (da->dnext(localPath, localname, false, &dirEntryType))
+    LocalPath childPath = localPath;
+    while (da->dnext(childPath, localname, false, &dirEntryType))
     {
         if (isStoppedOrCancelled("MegaFolderUploadController::scanFolder"))
         {
@@ -30105,19 +30107,23 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
         megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_SCAN, foldercount, 0, filecount, &localPath, &localname);
 
         auto restoreLen = makeScopedSizeRestorer(localPath);
-        localPath.appendWithSeparator(localname, false);
+        if (!childPath.isURI())
+        {
+            childPath.appendWithSeparator(localname, false);
+        }
+
         if (dirEntryType == FILENODE)
         {
             // Do the fingerprinting for uploads on the scan thread, so we don't lock the main mutex for so long
             FileFingerprint fp;
             auto fa = fsaccess->newfileaccess();
-            if (fa->fopen(localPath, true, false, FSLogging::logOnError))
+            if (fa->fopen(childPath, true, false, FSLogging::logOnError))
             {
                 fp.genfingerprint(fa.get());
             }
 
             // if we couldn't get the fingerprint, !isvalid and we'll fail the transfer
-            tree.files.emplace_back(localPath, fp);
+            tree.files.emplace_back(childPath, fp);
 
             filecount += 1;
         }
@@ -30126,7 +30132,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             // generate new subtree
             unique_ptr<Tree> newTreeNode(new Tree);
             newTreeNode->folderName = localname.toName(*fsaccess);
-            newTreeNode->fsType = fsaccess->getlocalfstype(localPath);
+            newTreeNode->fsType = fsaccess->getlocalfstype(childPath);
 
             // generate fresh random key and node attributes
             MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, newTreeNode->folderName, rng, tmpnodecipher, false);
@@ -30135,7 +30141,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             newTreeNode->newnode.nodehandle = nextUploadId();
             newTreeNode->newnode.parenthandle = tree.newnode.nodehandle;
 
-            scanFolder_result sr = scanFolder(*newTreeNode, localPath, foldercount, filecount);
+            scanFolder_result sr = scanFolder(*newTreeNode, childPath, foldercount, filecount);
             if (sr != scanFolder_succeeded)
             {
                 recursive--;
@@ -30145,6 +30151,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
 
             foldercount += 1;
         }
+
+        childPath = localPath;
     }
     recursive--;
     return scanFolder_succeeded;
@@ -35044,7 +35052,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         uv_write_t *req = new uv_write_t();
         req->data = httpctx;
 
-        if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
+        if (uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
             delete req;
             httpctx->finished = true;

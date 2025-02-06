@@ -23,6 +23,7 @@
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
 #include "mega.h"
+#include "sdk_test_data_provider.h"
 #include "test.h"
 
 #include <atomic>
@@ -432,8 +433,14 @@ private:
 using MegaApiTestPointer = std::unique_ptr<MegaApiTest, MegaApiTestDeleter>;
 
 // Fixture class with common code for most of tests
-class SdkTest : public SdkTestBase, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
-
+class SdkTest:
+    public SdkTestBase,
+    public SdkTestDataProvider,
+    public MegaListener,
+    public MegaRequestListener,
+    MegaTransferListener,
+    MegaLogger
+{
 public:
     struct PerApi
     {
@@ -622,7 +629,7 @@ protected:
     void testRecents(const std::string& title, bool useSensitiveExclusion);
 
 #ifdef ENABLE_CHAT
-    void delSchedMeetings();
+    void cancelSchedMeetings();
 #endif
 
     void syncTestEnsureMyBackupsRemoteFolderExists(unsigned apiIdx);
@@ -944,7 +951,6 @@ public:
 #ifdef ENABLE_CHAT
     void createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
     void updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
-    void deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
 #endif
 
     string createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false, bool megaHosted = false);
@@ -995,24 +1001,6 @@ public:
         megaApi[apiIndex]->setMaxConnections(args..., &rt);
         return rt.waitForResult();
     }
-    /**
-     * @brief Download a file from a URL using cURL
-     *
-     * @param url The URL of the File
-     * @param dstPath The destination file path to write
-     * @return True if the file is downloaded successfully, otherwise false
-     */
-    bool getFileFromURL(const std::string& url, const fs::path& dstPath);
-
-    /**
-     * @brief Download a file from the Artifactory
-     *
-     * @param relativeUrl The relative URL to the base URL
-                          "https://artifactory.developers.mega.co.nz:443/artifactory/sdk/"
-     * @param dstPath The destination file path to write
-     * @return True if the file is downloaded successfully, otherwise false
-     */
-    bool getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath);
 
     /* MegaVpnCredentials */
     template<typename... requestArgs>
@@ -1068,6 +1056,27 @@ public:
     }
 
     /* MegaVpnCredentials END */
+
+    auto getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>;
+
+    auto getAccountDetails(MegaApi& api) -> std::tuple<std::unique_ptr<MegaAccountDetails>, int>;
+
+    auto getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>;
+
+    auto makeScopedAccountLevelRestorer(MegaApi& api);
+
+    template<typename... requestArgs>
+    int setAccountLevel(MegaApi& api, requestArgs... args)
+    {
+        // So we can wait for the client's result.
+        RequestTracker tracker(&api);
+
+        // Try and set the user's account level.
+        api.sendSetAccountLevelDevCommand(args..., &tracker);
+
+        // Return client's result to caller.
+        return tracker.waitForResult();
+    }
 
     template<typename... Arguments>
     int setThumbnail(MegaApi& client, Arguments... arguments)

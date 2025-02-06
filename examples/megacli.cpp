@@ -2775,7 +2775,7 @@ public:
                     done = true;
                     break;
 
-                case 'g':
+                case makeNameid("g"):
                     if (json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
                     {
                         for (;;)
@@ -4757,6 +4757,118 @@ static void exec_thumbnail(autocomplete::ACState& state)
 
 MegaCLILogger gLogger;
 
+void exec_tag_add_remove(autocomplete::ACState& state)
+{
+    // Convenience.
+    using TagCommandCallback = CommandSetAttr::Completion;
+
+    using TagCommand =
+        error (MegaClient::*)(std::shared_ptr<Node>, const std::string&, TagCommandCallback&&);
+
+    // Assume we're adding a new tag.
+    TagCommand command = &MegaClient::addTagToNode;
+
+    // We're actually removing an existing tag.
+    if (state.words[1].s == "remove")
+        command = &MegaClient::removeTagFromNode;
+
+    // Called when the tag's been added or removed.
+    auto callback = [command = state.words[1].s](NodeHandle, Error result)
+    {
+        conlock(std::cout) << "Tag " << command << " result: " << result << std::endl;
+    }; // callback
+
+    // Locate the node specified by the user.
+    auto node = nodebypath(state.words[2].s.c_str());
+
+    // Couldn't find the node.
+    if (!node)
+        return callback(NodeHandle(), API_ENOENT);
+
+    // Try and add (or remove) the specified tag.
+    auto result =
+        (client->*command)(std::move(node), state.words[3].s, TagCommandCallback(callback));
+
+    // Client eagerly detected an error.
+    if (result != API_OK)
+        callback(NodeHandle(), result);
+}
+
+template<typename T>
+static void listTags(const T& tags)
+{
+    auto iterator = std::ostream_iterator<std::string>(std::cout, "\n");
+
+    std::copy(tags.begin(), tags.end(), iterator);
+}
+
+void exec_tag_list_all(autocomplete::ACState&)
+{
+    // Retrieve all tags in this account.
+    auto tags = client->getNodeTagsBelow(NodeHandle());
+
+    // No tags.
+    if (!tags)
+        return;
+
+    // Convenience.
+    using NaturalStringMultiSet = std::multiset<std::string, NaturalSortingComparator>;
+
+    // List tags in natural order.
+    listTags(NaturalStringMultiSet(tags->begin(), tags->end()));
+}
+
+void exec_tag_list_at(autocomplete::ACState& state)
+{
+    // Locate the node specified by the user.
+    auto node = nodebypath(state.words[3].s.c_str());
+
+    // Couldn't find the specified node.
+    if (!node)
+    {
+        conlock(std::cout) << "Couldn't find a node at " << state.words[3].s << std::endl;
+        return;
+    }
+
+    // List the node's tags.
+    listTags(client->getNodeTags(std::move(node)));
+}
+
+void exec_tag_list_below(autocomplete::ACState& state)
+{
+    // Assume the user wants to list all tags below the roots.
+    NodeHandle handle;
+
+    // User wants to list all tags below a particular node.
+    if (state.words.size() > 2)
+    {
+        // Try and locate the node speciifed by the user.
+        auto node = nodebypath(state.words[3].s.c_str());
+
+        // Couldn't find the specified node.
+        if (!node)
+        {
+            conlock(std::cout) << "Couldn't find a node at " << state.words[3].s << std::endl;
+            return;
+        }
+
+        // Capture the node's handle.
+        handle = node->nodeHandle();
+    }
+
+    // Retrieve tags.
+    auto tags = client->getNodeTagsBelow(handle);
+
+    // No tags.
+    if (!tags)
+        return;
+
+    using NaturalStringMultiSet = std::multiset<std::string, NaturalSortingComparator>;
+
+    // List tags in natural order.
+    listTags(NaturalStringMultiSet(tags->begin(), tags->end()));
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -5282,6 +5394,24 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("thumbnail"), localFSFile("destinationPath"), localFSFile("sourcePath")));
 
     p->Add(exec_getmyip, text("getmyip"));
+
+    p->Add(exec_tag_add_remove,
+           sequence(text("tag"),
+                    either(text("add"), text("remove")),
+                    remoteFSPath(client, &cwd, "node-path"),
+                    param("tag")));
+
+    p->Add(exec_tag_list_all, sequence(text("tag"), text("list"), text("all")));
+
+    p->Add(
+        exec_tag_list_at,
+        sequence(text("tag"), text("list"), text("at"), remoteFSPath(client, &cwd, "node-path")));
+
+    p->Add(exec_tag_list_below,
+           sequence(text("tag"),
+                    text("list"),
+                    text("below"),
+                    opt(remoteFSPath(client, &cwd, "node-path"))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -7248,7 +7378,7 @@ void exec_putua(autocomplete::ACState& s)
             byte* value = new byte[static_cast<size_t>(len)];
             int valuelen = Base64::atob(s.words[3].s.data(), value, len);
             client->putua(attrtype, value, static_cast<unsigned>(valuelen));
-            delete [] value;
+            delete[] value;
             return;
         }
         else if (s.words[2].s == "load")
@@ -7258,7 +7388,7 @@ void exec_putua(autocomplete::ACState& s)
 
             if (loadfile(localpath, &data))
             {
-                client->putua(attrtype, (const byte*) data.data(), unsigned(data.size()));
+                client->putua(attrtype, (const byte*)data.data(), unsigned(data.size()));
             }
             else
             {
@@ -7270,14 +7400,17 @@ void exec_putua(autocomplete::ACState& s)
     }
     else if (s.words.size() == 5)
     {
-        if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
+        if (s.words[2].s == "map") // putua <attrtype> map <attrKey> <attrValue>
         {
             // received <attrKey> will be B64 encoded
             // received <attrValue> will have the real text value
-            if (attrtype == ATTR_DEVICE_NAMES       // TLV: { B64enc DeviceId hash, device name } or { ext:B64enc DriveId, drive name }
-                    || attrtype == ATTR_ALIAS)      // TLV: { B64enc User handle, alias }
+            if (User::scope(attrtype) == ATTR_SCOPE_PRIVATE_ENCRYPTED)
             {
                 putua_map(s.words[3].s, Base64::btoa(s.words[4].s), attrtype);
+            }
+            else
+            {
+                cout << "Attribute not private, cannot be set as a map" << endl;
             }
         }
     }
@@ -9765,19 +9898,19 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         {
             JSON::unescape(t);
 
-            if (name == 'n')
+            if (name == makeNameid("n"))
             {
                 LocalPath::utf8_normalize(t);
             }
         }
 
-        attr_map::iterator it = attrs.map.find('n');
+        attr_map::iterator it = attrs.map.find(makeNameid("n"));
         if (it != attrs.map.end())
         {
             std::shared_ptr<Node> ovn = client->childnodebyname(n.get(), it->second.c_str(), true);
             if (ovn)
             {
-                attr_map::iterator it2 = attrs.map.find('c');
+                attr_map::iterator it2 = attrs.map.find(makeNameid("c"));
                 if (it2 != attrs.map.end())
                 {
                     FileFingerprint ffp;
@@ -11034,7 +11167,6 @@ int main(int argc, char* argv[])
     _CrtDumpMemoryLeaks();
 #endif
 }
-
 
 void DemoAppFolder::login_result(error e)
 {
@@ -13269,40 +13401,21 @@ void exec_importpasswordsfromgooglefile(autocomplete::ACState& s)
         return;
     }
 
-    std::shared_ptr<Node> parent = client->mNodeManager.getNodeByHandle(parentHandle);
-    if (!parent || !parent->isPasswordNodeFolder())
-    {
-        cout << "Invalid parent" << endl;
-        return;
-    }
-
     using namespace pwm::import;
-    PassFileParseResult parserResult =
-        readPasswordImportFile(localname.platformEncoded(), FileSource::GOOGLE_PASSWORD);
-    if (parserResult.mErrCode != PassFileParseResult::ErrCode::OK)
-    {
-        cout << "Error importing file: " << parserResult.mErrMsg << endl;
-        return;
-    }
+    const auto [err, badEntries] = client->importPasswordsFromFile(localname.platformEncoded(),
+                                                                   FileSource::GOOGLE_PASSWORD,
+                                                                   parentHandle,
+                                                                   0);
+    if (err != API_OK)
+        cout << "Error importing file. Code " << err;
 
-    sharedNode_list children = client->getChildren(parent.get());
-    std::vector<std::string> childrenNames;
-    std::transform(children.begin(),
-                   children.end(),
-                   std::back_inserter(childrenNames),
-                   [](const std::shared_ptr<Node>& child) -> std::string
-                   {
-                       return child->displayname();
-                   });
-    ncoll::NameCollisionSolver solver{std::move(childrenNames)};
-
-    const auto [badEntries, goodEntries] =
-        MegaClient::validatePasswordEntries(std::move(parserResult.mResults), solver);
-
-    std::cout << "Imported passwords: " << goodEntries.size()
-              << "  Row with Error: " << badEntries.size() << endl;
-
-    client->createPasswordNodes(std::move(goodEntries), parent, 0);
+    std::for_each(begin(badEntries),
+                  end(badEntries),
+                  [](const auto& badEntry)
+                  {
+                      cout << "Error (" << toString(badEntry.second)
+                           << " ) importing line: " << badEntry.first;
+                  });
 
     if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
     {

@@ -22,6 +22,8 @@
 #ifndef MEGAUTILS_H
 #define MEGAUTILS_H
 
+#include <cstdint>
+#include <map>
 #include <megaapi.h>
 #include <memory>
 #include <string>
@@ -38,6 +40,11 @@ std::vector<std::string> toNamesVector(const MegaNodeList& nodes);
  * @brief Aux function to get a vector with the strings in a given MegaStringList
  */
 std::vector<std::string> stringListToVector(const MegaStringList& l);
+
+/**
+ * @brief Aux function to get a map<string, int> from a given MegaStringIntegerMap
+ */
+std::map<std::string, int64_t> stringIntegerMapToMap(const MegaStringIntegerMap& m);
 
 /**
  * @brief Aux function to get a vector with vector of strings in a given MegaRecentActionBucketList

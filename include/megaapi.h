@@ -10448,6 +10448,7 @@ class MegaApi
         {
             IMPORTED_PASSWORD_ERROR_PARSER = 1,
             IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2,
+            IMPORTED_PASSWORD_ERROR_MISSINGNAME = 3,
         };
 
         enum
@@ -11462,6 +11463,35 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void sendBusinessStatusDevCommand(int businessStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, set account status (for testing purposes)
+         *
+         * Modifies the status of a user's account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("sal")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the
+         * logged-in account
+         * - MegaRequest::getNumDetails - Returns the account level.
+         * - MegaRequest::getTotalBytes - Returns the quota length in months.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email
+         * account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid.
+         *
+         * @param accountLevel Desired account level.
+         * @param quotaLengthInMonths Length of quota in months.
+         * @param email Optional email of the target email's account. If null, it will use the
+         * logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendSetAccountLevelDevCommand(int accountLevel,
+                                           int quotaLengthInMonths,
+                                           const char* email = nullptr,
+                                           MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Send dev API command, Set user status for own accounts (for testing purposes)
@@ -12695,7 +12725,8 @@ class MegaApi
          * ancestor, or if the node is the Password Manager Base folder itself.
          *
          * @param node MegaHandle of the node to check if it is a Password Node Folder
-         * @return true if this node is a Password Node Folder
+         * @return true if this node is a Password Node Folder, false otherwise.
+         * In case node doesn't exists this method will also returns false.
          */
         virtual bool isPasswordNodeFolder(MegaHandle node) const;
 
@@ -12763,6 +12794,7 @@ class MegaApi
          *    Possible error codes are:
          *       IMPORTED_PASSWORD_ERROR_PARSER = 1
          *       IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2
+         *       IMPORTED_PASSWORD_ERROR_MISSINGNAME = 3
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS:
@@ -14340,7 +14372,7 @@ class MegaApi
         /**
          * @brief Retrieve all unique node tags present across all nodes in the account
          *
-         * @note If the searchString contains invalid characters, such as ',', an empty list will be
+         * @note If the pattern contains invalid characters, such as ',', an empty list will be
          * returned.
          *
          * @note This function allows to cancel the processing at any time by passing a
@@ -14348,14 +14380,62 @@ class MegaApi
          *
          * You take ownership of the returned value.
          *
-         * @param searchString Optional parameter to filter the tags based on a specific search
+         * @param pattern Optional parameter to filter the tags based on a specific search
          * string. If set to nullptr, all node tags will be retrieved.
+         *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          *
          * @return All the unique node tags that match the search criteria.
          */
-        MegaStringList* getAllNodeTags(const char* searchString = nullptr,
+        MegaStringList* getAllNodeTags(const char* pattern = nullptr,
                                        MegaCancelToken* cancelToken = nullptr);
+
+        /**
+         * @brief
+         * Retrieve all unique node tags present at or below the specified node.
+         *
+         * @param node
+         * The node we want to search for tags below.
+         *
+         * @param pattern
+         * An optional pattern to be used to filter which tags we retrieve.
+         *
+         * All tags will be retrieved if no pattern is specified.
+         *
+         * @param cancelToken
+         * A token that can be used to cancel the query.
+         *
+         * @return
+         * A string list containing all unique tags found at or below node.
+         */
+        MegaStringList* getAllNodeTagsBelow(const MegaNode* node,
+                                            const char* pattern = nullptr,
+                                            MegaCancelToken* cancelToken = nullptr);
+
+        /**
+         * @brief
+         * Retrieve all unique node tags present at or below the specified node.
+         *
+         * @param handle
+         * A handle specifying the node we want to search for tags below.
+         *
+         * When UNDEF, we will search for tags below each of this account's
+         * root nodes.
+         *
+         * @param pattern
+         * An optional pattern to be used to filter which tags we retrieve.
+         *
+         * All tags will be retrieved if no pattern is specified.
+         *
+         * @param cancelToken
+         * A token that can be used to cancel the query.
+         *
+         * @return
+         * A string list containing all unique tags found at or below node.
+         */
+        MegaStringList* getAllNodeTagsBelow(MegaHandle handle,
+                                            const char* pattern = nullptr,
+                                            MegaCancelToken* cancelToken = nullptr);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
@@ -20946,7 +21026,12 @@ class MegaApi
          * @param chatid MegaHandle that identifies a chat room
          * @param schedId MegaHandle that identifies a scheduled meeting
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is deprecated. Please don't use it in new code.
+         * Use createOrUpdateScheduledMeeting and set cancelled flag `True` at MegaScheduledMeeting.
+         * Note: You can use MegaScheduledMeeting::createInstance with cancelled param `True
          */
+        MEGA_DEPRECATED
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
 
         /**

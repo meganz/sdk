@@ -43,12 +43,12 @@ pipeline {
             steps{
                 //Build SDK for arm64
                 sh "echo Building SDK for iOS arm64"
-                sh "cmake -DVCPKG_TARGET_TRIPLET=arm64-ios -DENABLE_SDKLIB_WERROR=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_ARM64}"
+                sh "cmake -DVCPKG_TARGET_TRIPLET=arm64-ios -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_ARM64}"
                 sh "cmake --build ${WORKSPACE}/${BUILD_DIR_ARM64} -j2"
 
                 //Build SDK for x64
                 sh "echo \"Building SDK iOS x64 (crosscompiling)\""
-                sh "cmake -DVCPKG_TARGET_TRIPLET=x64-ios -DENABLE_SDKLIB_WERROR=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DENABLE_SDKLIB_EXAMPLES=OFF -DENABLE_SDKLIB_TESTS=OFF -DENABLE_ISOLATED_GFX=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_X64}"
+                sh "cmake -DVCPKG_TARGET_TRIPLET=x64-ios -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DENABLE_SDKLIB_EXAMPLES=OFF -DENABLE_SDKLIB_TESTS=OFF -DENABLE_ISOLATED_GFX=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_X64}"
                 sh "cmake --build ${WORKSPACE}/${BUILD_DIR_X64} -j2"
             }
         }
@@ -63,7 +63,7 @@ pipeline {
                     message = """
                         *iOS* <${BUILD_URL}|Build result>: '${messageStatus}'.
                         SDK branch: `${SDK_BRANCH}`
-                        SDK_commit: `${sdk_commit}`
+                        SDK commit: `${sdk_commit}`
                     """.stripIndent()
                     
                     withCredentials([string(credentialsId: 'slack_webhook_sdk_report', variable: 'SLACK_WEBHOOK_URL')]) {

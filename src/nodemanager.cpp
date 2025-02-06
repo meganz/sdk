@@ -681,37 +681,31 @@ uint64_t NodeManager::getNodeCount_internal()
     return count;
 }
 
-std::set<std::string> NodeManager::getAllNodeTags(const char* searchString, CancelToken cancelFlag)
+auto NodeManager::getNodeTagsBelow(CancelToken cancelToken,
+                                   NodeHandle handle,
+                                   const std::string& pattern)
+    -> std::optional<std::set<std::string>>
 {
-    LockGuard g(mMutex);
-    return getAllNodeTags_internal(searchString, cancelFlag);
-}
+    // Make sure we have exclusive access to the database.
+    LockGuard guard(mMutex);
 
-std::set<std::string> NodeManager::getAllNodeTags_internal(const char* searchString,
-                                                           CancelToken cancelFlag)
-{
-    assert(mMutex.owns_lock());
-    // validation
+    // Convenience.
+    static const auto warning = [](const char* message)
+    {
+        LOG_warn << "getNodeTagsBelow: " << message;
+        return std::nullopt;
+    }; // warning
+
+    // Make sure the database is sane and that some nodes exist.
     if (!mTable || mNodes.empty())
-    {
-        LOG_warn
-            << "getAllNodeTags_internal: The database is not opened or there are no nodes loaded";
-        assert(mTable && !mNodes.empty());
-        return {};
-    }
-    const std::string auxSearchString = searchString ? searchString : "";
-    // ',' cannot be in the string
-    if (auxSearchString.find(MegaClient::TAG_DELIMITER) != std::string::npos)
-    {
-        LOG_warn << "getAllNodeTags_internal: The search string (" << auxSearchString
-                 << ") contains an invalid character (,)";
-        return {};
-    }
-    std::set<std::string> result;
-    if (!mTable->getAllNodeTags(auxSearchString, result, cancelFlag))
-        return {};
+        return warning("The database hasn't been opened or there are no nodes present");
 
-    return result;
+    // Make sure the caller isn't trying to filter by multiple tags simultaneously.
+    if (pattern.find(MegaClient::TAG_DELIMITER) != std::string::npos)
+        return warning("You can't filter by multiple tags at the same time");
+
+    // Try and retrieve the tags below the specified node.
+    return mTable->getNodeTagsBelow(std::move(cancelToken), handle, pattern);
 }
 
 sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)

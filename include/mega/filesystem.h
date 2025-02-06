@@ -90,7 +90,10 @@ public:
 
     operator bool() const;
 
-    bool operator!() const;
+    bool operator!() const
+    {
+        return !operator bool();
+    }
 
     fsfp_t& operator=(const fsfp_t& rhs) = default;
 
@@ -100,7 +103,10 @@ public:
 
     bool operator<(const fsfp_t& rhs) const;
 
-    bool operator!=(const fsfp_t& rhs) const;
+    bool operator!=(const fsfp_t& rhs) const
+    {
+        return !operator==(rhs);
+    }
 
     bool equivalent(const fsfp_t& rhs) const;
 
@@ -159,6 +165,52 @@ struct MEGA_API FSNode;
 
 extern CodeCounter::ScopeStats g_compareUtfTimings;
 
+/**
+ * @brief Abstract base class providing platform-dependent URI handling
+ *
+ * Each platform should implement this interface to determine whether a given string
+ * is recognized as a URI and to retrieve a representative name from that URI.
+ */
+class MEGA_API PlatformURIHelper
+{
+public:
+    virtual ~PlatformURIHelper(){};
+    // Returns true if string is an URI
+    virtual bool isURI(const std::string& path) = 0;
+    // Returns the name of file/directory pointed by the URI
+    virtual std::string getName(const std::string& path) = 0;
+};
+
+/**
+ * @brief Provides an interface to handle URIs as an identifier for files and directories.
+ *
+ * The URIHandler class offers static methods to detect if a given string is a URI and to extract a
+ * name from that URI. This functionality should be implemented by a platform specific
+ * implementation PlatformURIHelper
+ */
+class MEGA_API URIHandler
+{
+public:
+    // Check if a path is recognized as a URI
+    static bool isURI(const std::string& path);
+
+    // Retrieve the name for a given path or URI
+    static std::string getName(const std::string& path);
+
+    // platformHelper should be kept alive during all program execution and ownership isn't taken
+    static void setPlatformHelper(PlatformURIHelper* platformHelper);
+
+private:
+    static PlatformURIHelper* mPlatformHelper;
+};
+
+enum class PathType
+{
+    ABSOLUTE_PATH,
+    RELATIVE_PATH,
+    URI_PATH,
+};
+
 class MEGA_API LocalPath
 {
 #ifdef WIN32
@@ -173,7 +225,7 @@ class MEGA_API LocalPath
     // Track whether this LocalPath is from the root of a filesystem (ie, an absolute path)
     // It makes a big difference for windows, where we must prepend \\?\ prefix
     // to be able to access long paths, paths ending with space or `.`, etc
-    bool isFromRoot = false;
+    PathType mPathType{PathType::RELATIVE_PATH};
 
     // only functions that need to call the OS or 3rdParty libraries - normal code should have no access (or accessor) to localpath
     friend struct ResizeTraits<LocalPath>;
@@ -232,7 +284,15 @@ public:
     const static char localPathSeparator_utf8 = '/';
 #endif
 
-    bool isAbsolute() const { return isFromRoot; };
+    bool isAbsolute() const
+    {
+        return mPathType == PathType::ABSOLUTE_PATH;
+    }
+
+    bool isURI() const
+    {
+        return mPathType == PathType::URI_PATH;
+    }
 
     // UTF-8 normalization
     static void utf8_normalize(string *);
@@ -315,6 +375,8 @@ public:
     // Create a Localpath from a utf8 string where no character conversions or escaping is necessary.
     static LocalPath fromAbsolutePath(const string& path);
     static LocalPath fromRelativePath(const string& path);
+    static LocalPath fromURIPath(const std::string& path);
+    static bool isURIPath(const std::string& path);
 
     // Create a LocalPath from a utf8 string, making any character conversions (escaping) necessary
     // for characters that are disallowed on that filesystem.  fsaccess is used to do the conversion.
@@ -359,12 +421,12 @@ public:
 
     bool extension(std::string& extension) const
     {
-        return extensionOf(localpath, extension);
+        return extensionOf(leafName().rawValue(), extension);
     }
 
     std::string extension() const
     {
-        return extensionOf(localpath);
+        return extensionOf(leafName().rawValue());
     }
 
     // Check if this path is "related" to another.

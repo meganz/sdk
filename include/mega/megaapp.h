@@ -201,10 +201,10 @@ struct MEGA_API MegaApp
     virtual void getua_result(unique_ptr<string_map>, attr_t) {}
 #ifdef DEBUG
     virtual void delua_result(error) { }
+#endif
 
     // result of send dev subcommand's command
-    virtual void senddevcommand_result(int) { }
-#endif
+    virtual void senddevcommand_result(int) {}
 
     virtual void getuseremail_result(string *, error) { }
 

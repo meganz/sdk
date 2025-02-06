@@ -69,7 +69,9 @@ namespace mega {
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 
 namespace mega {
@@ -283,7 +285,13 @@ enum class PasswordEntryError : uint8_t
     OK = 0,
     PARSE_ERROR,
     MISSING_PASSWORD,
+    MISSING_NAME,
 };
+
+/**
+ * @brief Get a string representation from a PasswordEntryError
+ */
+std::string_view toString(const PasswordEntryError err);
 
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit
 // in a 64-bit int
@@ -561,6 +569,8 @@ enum SyncWarning {
     LOCAL_IS_HGFS = 2,                      // Found HGFS (not a failure per se)
 };
 
+// Joins an error code (`error`) with more detailed error/warning codes specific for Syncs
+using SyncErrorInfo = std::tuple<error, SyncError, SyncWarning>;
 
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
                SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
@@ -1506,5 +1516,98 @@ using detail::CheckableMutex;
 #define IOS_OR_POSIX(i, p) p
 
 #endif // ! USE_IOS
+
+/**
+ * @brief A simple LRU cache implementation.
+ *
+ * @tparam Key
+ * @tparam Value
+ */
+template<typename Key, typename Value>
+class LRUCache
+{
+public:
+    LRUCache(std::size_t capacity):
+        mCapacity(capacity)
+    {}
+
+    /**
+     * @brief Inserts or updates a value associated with the given key.
+     *
+     * - If the key already exists, its position is moved to the front of the list (most recently
+     * used).
+     * - If the key does not exist and the cache is at full capacity, the least recently used
+     * element (at the back) is removed.
+     *
+     * @param key   The key to insert or update.
+     * @param value The value to associate with the key.
+     */
+    void put(const Key& key, const Value& value)
+    {
+        if (auto it = mMap.find(key); it != mMap.end())
+        {
+            // Update value
+            it->second->second = value;
+            mList.splice(mList.begin(), mList, it->second);
+            return;
+        }
+
+        // Remove las element
+        if (mList.size() == mCapacity)
+        {
+            if (mCapacity == 0)
+                return;
+
+            auto last = mList.end();
+            --last; // point to the last element
+            mMap.erase(last->first);
+            mList.pop_back();
+        }
+
+        mList.emplace_front(key, value);
+        mMap[key] = mList.begin();
+    }
+
+    /**
+     * @brief Retrieves the value associated with the given key, if it exists.
+     *
+     * - If the key is found, move the corresponding element to the front (most recently used).
+     * - If the key is not found, return std::nullopt.
+     *
+     * @param key The key to search for in the cache.
+     * @return std::optional<Value> The value if found, or std::nullopt if not.
+     */
+    std::optional<Value> get(const Key& key)
+    {
+        const auto it = mMap.find(key);
+        if (it == mMap.end())
+        {
+            return std::nullopt;
+        }
+
+        mList.splice(mList.begin(), mList, it->second);
+
+        return it->second->second;
+    }
+
+    /**
+     * @brief Returns the current number of elements in the cache.
+     */
+    std::size_t size() const
+    {
+        return mList.size();
+    }
+
+private:
+    // The front of the list is the most recently used element.
+    // The back of the list is the least recently used element.
+    std::list<std::pair<Key, Value>> mList;
+
+    // An unordered_map that maps a Key to an iterator pointing
+    // to the element in the list. This allows O(1) average-time lookups.
+    std::unordered_map<Key, typename std::list<std::pair<Key, Value>>::iterator> mMap;
+
+    std::size_t mCapacity{1};
+};
 
 #endif

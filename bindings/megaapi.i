@@ -5,10 +5,6 @@
 #define ENABLE_CHAT
 #include "megaapi.h"
 
-#if defined(__ANDROID__)
-#include <ares.h>
-#endif
-
 #ifdef ENABLE_WEBRTC
 #include "webrtc/modules/utility/include/jvm_android.h"
 #include "webrtc/rtc_base/logging.h"
@@ -33,6 +29,9 @@ jmethodID startVideoCaptureMID = NULL;
 jmethodID stopVideoCaptureMID = NULL;
 jmethodID deviceListMID = NULL;
 jobject surfaceTextureHelper = NULL;
+jclass fileWrapper = NULL;
+jclass integerClass = NULL;
+
 
 extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 {
@@ -110,6 +109,27 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
         jenv->ExceptionClear();
     }
 #endif
+
+    jclass localfileWrapper = jenv->FindClass("mega/privacy/android/data/filewrapper/FileWrapper");
+    if (!localfileWrapper)
+    {
+        jenv->ExceptionDescribe();
+        jenv->ExceptionClear();
+    }
+
+    fileWrapper = (jclass)jenv->NewGlobalRef(localfileWrapper);
+    jenv->DeleteLocalRef(localfileWrapper);
+
+    jclass localIntegerClass = jenv->FindClass("java/lang/Integer");
+    if (!localIntegerClass)
+    {
+        jenv->ExceptionDescribe();
+        jenv->ExceptionClear();
+    }
+
+    integerClass = (jclass)jenv->NewGlobalRef(localIntegerClass);
+    jenv->DeleteLocalRef(localIntegerClass);
+
 
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
     ares_library_init_jvm(jvm);

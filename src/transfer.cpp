@@ -1581,10 +1581,10 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
 
         msg += "We will replace that part by [conn " + std::to_string(mUnusedConn.getNum()) + "]";
         LOG_debug << msg;
-        assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)));
-        assert(resetConnection(mUnusedConn.getNum()));
-        assert(mUnusedConn.setUnused(connectionNum, reason));
-        assert(resetConnection(mUnusedConn.getNum()));
+        mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum));
+        resetConnection(mUnusedConn.getNum());
+        mUnusedConn.setUnused(connectionNum, reason);
+        resetConnection(mUnusedConn.getNum());
     }
 }
 

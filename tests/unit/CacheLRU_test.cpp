@@ -1,6 +1,6 @@
 /**
  * @file CacheLRU_test.cpp
- * @brief Unitary test for cache LRU
+ * @brief Unitary test for NodeManger cache LRU
  *
  * (c) 2013-2023 by Mega Limited, Auckland, New Zealand
  *

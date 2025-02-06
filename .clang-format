@@ -1,19 +1,17 @@
 # clang-format 14 style configuration
-
+---
 # Common settings
 ColumnLimit: 100
 IndentWidth: 4
 TabWidth: 4
 UseCRLF: false
 UseTab: Never
-
 ---
 # C++
-
 #BasedOnStyle:
 AccessModifierOffset: -4
 AlignAfterOpenBracket: Align
-AlignArrayOfStructures: Left
+AlignArrayOfStructures: None
 AlignConsecutiveAssignments: None
 AlignConsecutiveBitFields: None
 AlignConsecutiveDeclarations: None
@@ -89,7 +87,7 @@ IncludeCategories:
     Priority: 3
     CaseSensitive: true
   # 3rd-party libraries
-  - Regex: '<(.+/|Q.+)'
+  - Regex: '<(.+/|Q.+|ccronexpr.+)'
     Priority: 2
   # Everything else
   - Regex: '.*'
@@ -125,7 +123,7 @@ NamespaceIndentation: None
 #ObjCSpaceAfterProperty:
 #ObjCSpaceBeforeProtocolList:
 
-PPIndentWidth: 0
+PPIndentWidth: -1
 PackConstructorInitializers: Never
 #PenaltyBreakAssignment:
 #PenaltyBreakBeforeFirstCallParameter:
@@ -183,7 +181,8 @@ Standard: Auto
 #TypenameMacros:
 
 #WhitespaceSensitiveMacros:
-...
 ---
-Language: ObjC
+# Objective-C
 DisableFormat: true
+Language: ObjC
+...

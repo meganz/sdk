@@ -162,7 +162,6 @@
     <ClCompile Include="..\..\src\mediafileattribute.cpp" />
     <ClCompile Include="..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\src\mega_utf8proc.cpp" />
-    <ClCompile Include="..\..\src\mega_ccronexpr.cpp" />
     <ClCompile Include="..\..\src\mega_evt_tls.cpp" />
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\src\raid.cpp" />
@@ -190,6 +189,7 @@
     <ClCompile Include="..\..\src\db\sqlite.cpp" />
     <ClCompile Include="3rdparty\libs\sqlite3.c" />
     <ClCompile Include="..\..\src\sync.cpp" />
+    <ClCompile Include="..\..\src\syncinternals.cpp" />
     <ClCompile Include="..\..\src\heartbeats.cpp" />
     <ClCompile Include="..\..\src\transfer.cpp" />
     <ClCompile Include="..\..\src\transferslot.cpp" />
@@ -226,7 +226,6 @@
     <ClInclude Include="..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\include\mega\mega_utf8proc.h" />
-    <ClInclude Include="..\..\include\mega\mega_ccronexpr.h" />
     <ClInclude Include="..\..\include\mega\mega_evt_tls.h" />
     <ClInclude Include="..\..\include\mega\mega_evt_queue.h" />
     <ClInclude Include="..\..\include\mega\posix\meganet.h" />
@@ -249,6 +248,7 @@
     <ClInclude Include="..\..\include\mega\crypto\sodium.h" />
     <ClInclude Include="..\..\include\mega\db\sqlite.h" />
     <ClInclude Include="..\..\include\mega\sync.h" />
+    <ClInclude Include="..\..\include\mega\syncinternals.h" />
     <ClInclude Include="..\..\include\mega\heartbeats.h" />
     <ClInclude Include="..\..\include\mega\thread.h" />
     <ClInclude Include="..\..\include\mega\transfer.h" />

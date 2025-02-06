@@ -4929,16 +4929,16 @@ bool MegaClient::procsc()
         {
             switch (jsonsc.getnameid())
             {
-                case 'w':
+                case makeNameid("w"):
                     jsonsc.storeobject(&scnotifyurl);
                     break;
 
-                case MAKENAMEID2('i', 'r'):
+                case makeNameid("ir"):
                     // when spoonfeeding is in action, there may still be more actionpackets to be delivered.
                     insca_notlast = jsonsc.getint() == 1;
                     break;
 
-                case MAKENAMEID2('s', 'n'):
+                case makeNameid("sn"):
                     // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
                     scsn.setScsn(&jsonsc);
                     // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
@@ -5165,7 +5165,7 @@ bool MegaClient::procsc()
 
                     return true;
 
-                case 'a':
+                case makeNameid("a"):
                     if (jsonsc.enterarray())
                     {
                         LOG_debug << "Processing action packets for " << string(sessionid, sizeof(sessionid));
@@ -5201,7 +5201,7 @@ bool MegaClient::procsc()
             if (jsonsc.enterobject())
             {
                 // the "a" attribute is guaranteed to be the first in the object
-                if (jsonsc.getnameid() == 'a')
+                if (jsonsc.getnameid() == makeNameid("a"))
                 {
                     if (!statecurrent)
                     {
@@ -5229,7 +5229,7 @@ bool MegaClient::procsc()
                                 sc_updatenode();
                                 break;
 
-                            case 't':
+                            case makeNameid("t"):
                             {
                                 bool isMoveOperation = false;
                                 // node addition
@@ -5248,8 +5248,8 @@ bool MegaClient::procsc()
                                 lastAPDeletedNode = sc_deltree();
                                 break;
 
-                            case 's':
-                            case MAKENAMEID2('s', '2'):
+                            case makeNameid("s"):
+                            case makeNameid("s2"):
                                 // share addition/update/revocation
                                 if (sc_shares())
                                 {
@@ -5265,24 +5265,24 @@ bool MegaClient::procsc()
                                 sc_contacts();
                                 break;
 
-                            case 'k':
+                            case makeNameid("k"):
                                 // crypto key request
                                 sc_keys();
                                 break;
 
-                            case MAKENAMEID2('f', 'a'):
+                            case makeNameid("fa"):
                                 // file attribute update
                                 sc_fileattr();
                                 break;
 
-                            case MAKENAMEID2('u', 'a'):
+                            case makeNameid("ua"):
                                 // user attribute update
                                 sc_userattr();
                                 break;
 
                             case name_id::psts:
                             case name_id::psts_v2:
-                            case MAKENAMEID3('f', 't', 'r'):
+                            case makeNameid("ftr"):
                                 if (sc_upgrade(name))
                                 {
                                     app->account_updated();
@@ -5299,7 +5299,7 @@ bool MegaClient::procsc()
                                 sc_ipc();
                                 break;
 
-                            case MAKENAMEID3('o', 'p', 'c'):
+                            case makeNameid("opc"):
                                 // outgoing pending contact request (from us)
                                 sc_opc();
                                 break;
@@ -5314,33 +5314,33 @@ bool MegaClient::procsc()
                                 sc_upc(false);
                                 break;
 
-                            case MAKENAMEID2('p','h'):
+                            case makeNameid("ph"):
                                 // public links handles
                                 sc_ph();
                                 break;
 
-                            case MAKENAMEID2('s','e'):
+                            case makeNameid("se"):
                                 // set email
                                 sc_se();
                                 break;
 #ifdef ENABLE_CHAT
-                            case MAKENAMEID4('m', 'c', 'p', 'c'):
+                            case makeNameid("mcpc"):
                             {
                                 readingPublicChat = true;
                             } // fall-through
-                            case MAKENAMEID3('m', 'c', 'c'):
+                            case makeNameid("mcc"):
                                 // chat creation / peer's invitation / peer's removal
                                 sc_chatupdate(readingPublicChat);
                                 break;
 
-                            case MAKENAMEID5('m', 'c', 'f', 'p', 'c'):      // fall-through
-                            case MAKENAMEID4('m', 'c', 'f', 'c'):
+                            case makeNameid("mcfpc"): // fall-through
+                            case makeNameid("mcfc"):
                                 // chat flags update
                                 sc_chatflags();
                                 break;
 
-                            case MAKENAMEID5('m', 'c', 'p', 'n', 'a'):      // fall-through
-                            case MAKENAMEID4('m', 'c', 'n', 'a'):
+                            case makeNameid("mcpna"): // fall-through
+                            case makeNameid("mcna"):
                                 // granted / revoked access to a node
                                 sc_chatnode();
                                 break;
@@ -5355,59 +5355,59 @@ bool MegaClient::procsc()
                                 sc_delscheduledmeeting();
                                 break;
 #endif
-                            case MAKENAMEID3('u', 'a', 'c'):
+                            case makeNameid("uac"):
                                 sc_uac();
                                 break;
 
-                            case MAKENAMEID2('l', 'a'):
+                            case makeNameid("la"):
                                 // last acknowledged
                                 sc_la();
                                 break;
 
-                            case MAKENAMEID2('u', 'b'):
+                            case makeNameid("ub"):
                                 // business account update
                                 sc_ub();
                                 break;
 
-                            case MAKENAMEID4('s', 'q', 'a', 'c'):
+                            case makeNameid("sqac"):
                                 // storage quota allowance changed
                                 sc_sqac();
                                 break;
 
-                            case MAKENAMEID3('a', 's', 'p'):
+                            case makeNameid("asp"):
                                 // new/update of a Set
                                 sc_asp();
                                 break;
 
-                            case MAKENAMEID3('a', 's', 's'):
+                            case makeNameid("ass"):
                                 sc_ass();
                                 break;
 
-                            case MAKENAMEID3('a', 's', 'r'):
+                            case makeNameid("asr"):
                                 // removal of a Set
                                 sc_asr();
                                 break;
 
-                            case MAKENAMEID3('a', 'e', 'p'):
+                            case makeNameid("aep"):
                                 // new/update of a Set Element
                                 sc_aep();
                                 break;
 
-                            case MAKENAMEID3('a', 'e', 'r'):
+                            case makeNameid("aer"):
                                 // removal of a Set Element
                                 sc_aer();
                                 break;
-                            case MAKENAMEID2('p', 'k'):
+                            case makeNameid("pk"):
                                 // pending keys
                                 sc_pk();
                                 break;
 
-                            case MAKENAMEID3('u', 'e', 'c'):
+                            case makeNameid("uec"):
                                 // User Email Confirm (uec)
                                 sc_uec();
                                 break;
 
-                            case MAKENAMEID3('c', 'c', 'e'):
+                            case makeNameid("cce"):
                                 // credit card for this user is potentially expiring soon or new card is registered
                                 sc_cce();
                                 break;
@@ -6171,15 +6171,15 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
     {
         switch (jsonsc.getnameid())
         {
-        case 'a':   // action referred by the packet
+        case makeNameid("a"): // action referred by the packet
             cmd = jsonsc.getnameid();
             break;
 
-        case 'i':   // id of the client who made the action triggering this packet
+        case makeNameid("i"): // id of the client who made the action triggering this packet
             jsonsc.storeobject();
             break;
 
-        case MAKENAMEID2('s', 't'): // sequence tag
+        case makeNameid("st"): // sequence tag
         {
             string tag;
             jsonsc.storeobject(&tag);
@@ -6189,7 +6189,7 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
         default:
             // if we reach any other tag, then 'st' is not present.
 
-            if (cmd == 't' && lastAPDeletedNode && dynamic_cast<CommandMoveNode*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
+            if (cmd == makeNameid("t") && lastAPDeletedNode && dynamic_cast<CommandMoveNode*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
             {
                 // special case for actionpackets from the move command - the 'd'+'t' sequence has the tag on 'd' but not 't'.
                 // However we must process the 't' as part of the move, and only call the command completion after.
@@ -6218,7 +6218,7 @@ void MegaClient::sc_updatenode()
     {
         switch (jsonsc.getnameid())
         {
-            case 'n':
+            case makeNameid("n"):
                 h = jsonsc.gethandle();
                 break;
 
@@ -6226,11 +6226,11 @@ void MegaClient::sc_updatenode()
                 u = jsonsc.gethandle(USERHANDLE);
                 break;
 
-            case MAKENAMEID2('a', 't'):
+            case makeNameid("at"):
                 a = jsonsc.getvalue();
                 break;
 
-            case MAKENAMEID2('t', 's'):
+            case makeNameid("ts"):
                 ts = jsonsc.getint();
                 break;
 
@@ -6382,7 +6382,7 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
         {
             switch (jsonsc.getnameid())
             {
-                case 'f':
+                case makeNameid("f"):
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                     {
                         putnodesCmd->emptyResponse = !memcmp(j->pos, "[]", 2);
@@ -6401,7 +6401,7 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                     }
                     break;
 
-                case MAKENAMEID2('f', '2'):
+                case makeNameid("f2"):
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                     {
                         // new nodes can appear in copied version lists too
@@ -6446,7 +6446,7 @@ handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHa
     {
         switch (jsonsc.getnameid())
         {
-            case 't':
+            case makeNameid("t"):
                 readtree(&jsonsc, priorActionpacketDeletedNode, firstHandleMatchesDelete);
                 break;
 
@@ -6454,7 +6454,7 @@ handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHa
                 readusers(&jsonsc, true);
                 break;
 
-            case MAKENAMEID2('o', 'u'):
+            case makeNameid("ou"):
                 originatingUser = jsonsc.gethandle(USERHANDLE);
                 break;
 
@@ -6497,19 +6497,19 @@ bool MegaClient::sc_shares()
     {
         switch (jsonsc.getnameid())
         {
-            case 'p':  // Pending contact request handle for an s2 packet
+            case makeNameid("p"): // Pending contact request handle for an s2 packet
                 p = jsonsc.gethandle(PCRHANDLE);
                 break;
 
-            case MAKENAMEID2('o', 'p'):
+            case makeNameid("op"):
                 upgrade_pending_to_full = true;
                 break;
 
-            case 'n':   // share node
+            case makeNameid("n"): // share node
                 h = jsonsc.gethandle();
                 break;
 
-            case 'o':   // owner user
+            case makeNameid("o"): // owner user
                 oh = jsonsc.gethandle(USERHANDLE);
                 break;
 
@@ -6517,31 +6517,31 @@ bool MegaClient::sc_shares()
                 uh = jsonsc.is(EXPORTEDLINK) ? 0 : jsonsc.gethandle(USERHANDLE);
                 break;
 
-            case MAKENAMEID2('o', 'u'):
+            case makeNameid("ou"):
                 ou = jsonsc.gethandle(USERHANDLE);
                 break;
 
-            case MAKENAMEID2('o', 'k'):  // owner key
+            case makeNameid("ok"): // owner key
                 ok = jsonsc.getvalue();
                 break;
 
-            case MAKENAMEID3('o', 'k', 'd'):
+            case makeNameid("okd"):
                 okremoved = (jsonsc.getint() == 1); // owner key removed
                 break;
 
-            case MAKENAMEID2('h', 'a'):  // outgoing share signature
+            case makeNameid("ha"): // outgoing share signature
                 have_ha = Base64::atob(jsonsc.getvalue(), ha, sizeof ha) == sizeof ha;
                 break;
 
-            case 'r':   // share access level
+            case makeNameid("r"): // share access level
                 r = (accesslevel_t)jsonsc.getint();
                 break;
 
-            case MAKENAMEID2('t', 's'):  // share timestamp
+            case makeNameid("ts"): // share timestamp
                 ts = jsonsc.getint();
                 break;
 
-            case 'k':   // share key
+            case makeNameid("k"): // share key
                 sk = jsonsc.getvalue();
                 break;
 
@@ -6703,15 +6703,15 @@ bool MegaClient::sc_upgrade(nameid paymentType)
     {
         switch (jsonsc.getnameid())
         {
-            case MAKENAMEID2('i', 't'):
+            case makeNameid("it"):
                 itemclass = int(jsonsc.getint()); // itemclass,  0=Pro, 1=Business, 2=Feature
                 break;
 
-            case 'p':
+            case makeNameid("p"):
                 proNumber = int(jsonsc.getint()); // Account level
                 break;
 
-            case 'r':
+            case makeNameid("r"):
                 jsonsc.storeobject(&result);
                 if (result == "s")
                 {
@@ -6721,8 +6721,8 @@ bool MegaClient::sc_upgrade(nameid paymentType)
 
             case EOO:
                 // No User Alert for 'ftr' and features
-                if (paymentType != MAKENAMEID3('f', 't', 'r') &&
-                    (itemclass == 0 || itemclass == 1) && statecurrent)
+                if (paymentType != makeNameid("ftr") && (itemclass == 0 || itemclass == 1) &&
+                    statecurrent)
                 {
                     useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId(), paymentType));
                 }
@@ -6745,7 +6745,7 @@ void MegaClient::sc_paymentreminder()
     {
         switch (jsonsc.getnameid())
         {
-        case MAKENAMEID2('t', 's'):
+        case makeNameid("ts"):
             expiryts = int(jsonsc.getint()); // timestamp
             break;
 
@@ -6780,7 +6780,7 @@ void MegaClient::sc_contacts()
                 readusers(&jsonsc, true);
                 break;
 
-            case MAKENAMEID2('o', 'u'):
+            case makeNameid("ou"):
                 ou = jsonsc.gethandle(MegaClient::USERHANDLE);
                 break;
 
@@ -6809,18 +6809,18 @@ void MegaClient::sc_keys()
     {
         switch (jsonsc.getnameid())
         {
-            case MAKENAMEID2('s', 'r'):
+            case makeNameid("sr"):
                 procsr(&jsonsc);
                 break;
 
-            case 'h':
+            case makeNameid("h"):
                 if (!ISUNDEF(h = jsonsc.gethandle()) && (n = nodebyhandle(h)) && n->sharekey)
                 {
                     kshares.push_back(n);   // n->inshare is checked in cr_response
                 }
                 break;
 
-            case 'n':
+            case makeNameid("n"):
                 if (jsonsc.enterarray())
                 {
                     while (!ISUNDEF(h = jsonsc.gethandle()) && (n = nodebyhandle(h)))
@@ -6832,7 +6832,7 @@ void MegaClient::sc_keys()
                 }
                 break;
 
-            case MAKENAMEID2('c', 'r'):
+            case makeNameid("cr"):
                 proccr(&jsonsc);
                 break;
 
@@ -6859,11 +6859,11 @@ void MegaClient::sc_fileattr()
     {
         switch (jsonsc.getnameid())
         {
-            case MAKENAMEID2('f', 'a'):
+            case makeNameid("fa"):
                 fa = jsonsc.getvalue();
                 break;
 
-            case 'n':
+            case makeNameid("n"):
                 handle h;
                 if (!ISUNDEF(h = jsonsc.gethandle()))
                 {
@@ -6908,7 +6908,7 @@ void MegaClient::sc_userattr()
                 uh = jsonsc.gethandle(USERHANDLE);
                 break;
 
-            case MAKENAMEID2('u', 'a'):
+            case makeNameid("ua"):
                 if (jsonsc.enterarray())
                 {
                     while (jsonsc.storeobject(&ua))
@@ -6919,7 +6919,7 @@ void MegaClient::sc_userattr()
                 }
                 break;
 
-            case 'v':
+            case makeNameid("v"):
                 if (jsonsc.enterarray())
                 {
                     while (jsonsc.storeobject(&uav))
@@ -7104,28 +7104,28 @@ void MegaClient::sc_ipc()
     {
         switch (jsonsc.getnameid())
         {
-            case 'm':
+            case makeNameid("m"):
                 m = jsonsc.getvalue();
                 break;
-            case MAKENAMEID2('t', 's'):
+            case makeNameid("ts"):
                 ts = jsonsc.getint();
                 break;
-            case MAKENAMEID3('u', 't', 's'):
+            case makeNameid("uts"):
                 uts = jsonsc.getint();
                 break;
-            case MAKENAMEID3('r', 't', 's'):
+            case makeNameid("rts"):
                 rts = jsonsc.getint();
                 break;
-            case MAKENAMEID3('d', 't', 's'):
+            case makeNameid("dts"):
                 dts = jsonsc.getint();
                 break;
-            case MAKENAMEID3('m', 's', 'g'):
+            case makeNameid("msg"):
                 msg = jsonsc.getvalue();
                 break;
-            case MAKENAMEID3('c', 'l', 'v'):
+            case makeNameid("clv"):
                 clv = jsonsc.getint();
                 break;
-            case 'p':
+            case makeNameid("p"):
                 p = jsonsc.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
@@ -7221,28 +7221,28 @@ void MegaClient::sc_opc()
     {
         switch (jsonsc.getnameid())
         {
-            case 'e':
+            case makeNameid("e"):
                 e = jsonsc.getvalue();
                 break;
-            case 'm':
+            case makeNameid("m"):
                 m = jsonsc.getvalue();
                 break;
-            case MAKENAMEID2('t', 's'):
+            case makeNameid("ts"):
                 ts = jsonsc.getint();
                 break;
-            case MAKENAMEID3('u', 't', 's'):
+            case makeNameid("uts"):
                 uts = jsonsc.getint();
                 break;
-            case MAKENAMEID3('r', 't', 's'):
+            case makeNameid("rts"):
                 rts = jsonsc.getint();
                 break;
-            case MAKENAMEID3('d', 't', 's'):
+            case makeNameid("dts"):
                 dts = jsonsc.getint();
                 break;
-            case MAKENAMEID3('m', 's', 'g'):
+            case makeNameid("msg"):
                 msg = jsonsc.getvalue();
                 break;
-            case 'p':
+            case makeNameid("p"):
                 p = jsonsc.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
@@ -7315,19 +7315,19 @@ void MegaClient::sc_upc(bool incoming)
     {
         switch (jsonsc.getnameid())
         {
-            case 'm':
+            case makeNameid("m"):
                 m = jsonsc.getvalue();
                 break;
-            case MAKENAMEID3('u', 't', 's'):
+            case makeNameid("uts"):
                 uts = jsonsc.getint();
                 break;
-            case 's':
+            case makeNameid("s"):
                 s = int(jsonsc.getint());
                 break;
-            case 'p':
+            case makeNameid("p"):
                 p = jsonsc.gethandle(MegaClient::PCRHANDLE);
                 break;
-            case MAKENAMEID2('o', 'u'):
+            case makeNameid("ou"):
                 ou = jsonsc.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
@@ -7423,35 +7423,35 @@ void MegaClient::sc_ph()
     {
         switch (jsonsc.getnameid())
         {
-        case 'h':
+        case makeNameid("h"):
             h = jsonsc.gethandle(MegaClient::NODEHANDLE);
             break;
-        case MAKENAMEID2('p','h'):
+        case makeNameid("ph"):
             ph = jsonsc.gethandle(MegaClient::NODEHANDLE);
             break;
-        case 'w':
+        case makeNameid("w"):
             static_cast<void>(jsonsc.storeobject(&authKey));
             break;
         case name_id::d:
             deleted = (jsonsc.getint() == 1);
             break;
-        case 'n':
+        case makeNameid("n"):
             created = (jsonsc.getint() == 1);
             break;
         case name_id::u:
             updated = (jsonsc.getint() == 1);
             break;
-        case MAKENAMEID4('d', 'o', 'w', 'n'):
+        case makeNameid("down"):
             {
                 int down = int(jsonsc.getint());
                 takendown = (down == 1);
                 reinstated = (down == 0);
             }
             break;
-        case MAKENAMEID3('e', 't', 's'):
+        case makeNameid("ets"):
             ets = jsonsc.getint();
             break;
-        case MAKENAMEID2('t', 's'):
+        case makeNameid("ts"):
             cts = jsonsc.getint();
             break;
         case EOO:
@@ -7525,13 +7525,13 @@ void MegaClient::sc_se()
     {
         switch (jsonsc.getnameid())
         {
-        case 'e':
+        case makeNameid("e"):
             jsonsc.storeobject(&email);
             break;
         case name_id::u:
             uh = jsonsc.gethandle(USERHANDLE);
             break;
-        case 's':
+        case makeNameid("s"):
             status = int(jsonsc.getint());
             break;
         case EOO:
@@ -7609,7 +7609,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     {
         switch (jsonsc.getnameid())
         {
-            case MAKENAMEID2('i','d'):
+            case makeNameid("id"):
                 chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
                 break;
 
@@ -7617,54 +7617,54 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 userpriv = readuserpriv(&jsonsc);
                 break;
 
-            case MAKENAMEID2('c','s'):
+            case makeNameid("cs"):
                 shard = int(jsonsc.getint());
                 break;
 
-            case 'n':   // the new user, for notification purposes (not used)
+            case makeNameid("n"): // the new user, for notification purposes (not used)
                 upnotif = readuserpriv(&jsonsc);
                 break;
 
-            case 'g':
+            case makeNameid("g"):
                 group = jsonsc.getbool();
                 break;
 
-            case MAKENAMEID2('o','u'):
+            case makeNameid("ou"):
                 ou = jsonsc.gethandle(MegaClient::USERHANDLE);
                 break;
 
-            case MAKENAMEID2('c','t'):
+            case makeNameid("ct"):
                 jsonsc.storeobject(&title);
                 break;
 
-            case MAKENAMEID2('t', 's'):  // actual creation timestamp
+            case makeNameid("ts"): // actual creation timestamp
                 ts = jsonsc.getint();
                 break;
 
-            case 'm':
+            case makeNameid("m"):
                 assert(readingPublicChat);
                 publicchat = jsonsc.getbool();
                 break;
 
-            case MAKENAMEID2('c','k'):
+            case makeNameid("ck"):
                 assert(readingPublicChat);
                 jsonsc.storeobject(&unifiedkey);
                 break;
 
-            case MAKENAMEID2('m', 'r'):
+            case makeNameid("mr"):
                 assert(readingPublicChat);
                 meeting = jsonsc.getbool();
                 break;
 
-            case 'w': // waiting room
+            case makeNameid("w"): // waiting room
                 waitingRoom = jsonsc.getbool();
                 break;
 
-            case MAKENAMEID2('s','r'): // speak request
+            case makeNameid("sr"): // speak request
                 speakRequest = jsonsc.getbool();
                 break;
 
-            case MAKENAMEID2('o','i'): // open invite
+            case makeNameid("oi"): // open invite
                 openInvite = jsonsc.getbool();
                 break;
 
@@ -7817,21 +7817,21 @@ void MegaClient::sc_chatnode()
     {
         switch (jsonsc.getnameid())
         {
-            case 'g':
+            case makeNameid("g") :
                 // access granted
                 g = jsonsc.getbool();
                 break;
 
-            case 'r':
+            case makeNameid("r"):
                 // access revoked
                 r = jsonsc.getbool();
                 break;
 
-            case MAKENAMEID2('i','d'):
+            case makeNameid("id"):
                 chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
                 break;
 
-            case 'n':
+            case makeNameid("n"):
                 h = jsonsc.gethandle(MegaClient::NODEHANDLE);
                 break;
 
@@ -7898,11 +7898,11 @@ void MegaClient::sc_chatflags()
     {
         switch (jsonsc.getnameid())
         {
-            case MAKENAMEID2('i','d'):
+            case makeNameid("id"):
                 chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
                 break;
 
-            case 'f':
+            case makeNameid("f"):
                 flags = byte(jsonsc.getint());
                 break;
 
@@ -7948,11 +7948,11 @@ void MegaClient::sc_delscheduledmeeting()
     {
         switch (jsonsc.getnameid())
         {
-            case MAKENAMEID2('i','d'):
+            case makeNameid("id"):
                 schedId = jsonsc.gethandle(MegaClient::CHATHANDLE);
                 break;
 
-            case MAKENAMEID2('o', 'u'):
+            case makeNameid("ou"):
                 ou = jsonsc.gethandle(MegaClient::USERHANDLE);
                 break;
 
@@ -8104,7 +8104,7 @@ void MegaClient::sc_uac()
     {
         switch (jsonsc.getnameid())
         {
-            case 'm':
+            case makeNameid("m"):
                 jsonsc.storeobject(&email);
                 break;
 
@@ -8138,7 +8138,7 @@ void MegaClient::sc_uec()
     {
         switch (jsonsc.getnameid())
         {
-            case 'm':
+            case makeNameid("m"):
                 jsonsc.storeobject(&email);
                 break;
 
@@ -8179,7 +8179,7 @@ void MegaClient::sc_sqac()
     {
         switch (jsonsc.getnameid())
         {
-            case MAKENAMEID2('g','b'):
+            case makeNameid("gb"):
                 gb = jsonsc.getint(); // should there be a notification about this?
                 break;
 
@@ -8335,11 +8335,11 @@ void MegaClient::sc_ub()
     {
         switch (jsonsc.getnameid())
         {
-            case 's':
+            case makeNameid("s"):
                 status = BizStatus(jsonsc.getint());
                 break;
 
-            case 'm':
+            case makeNameid("m"):
                 mode = BizMode(jsonsc.getint());
                 break;
 
@@ -8806,7 +8806,7 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
     {
         switch (jsonsc.getnameid())
         {
-            case 'n':
+            case makeNameid("n"):
                 handle h;
 
                 if (!ISUNDEF((h = jsonsc.gethandle())))
@@ -8815,7 +8815,7 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                 }
                 break;
 
-            case MAKENAMEID2('o', 'u'):
+            case makeNameid("ou"):
                 originatingUser = jsonsc.gethandle(USERHANDLE);
                 break;
 
@@ -8927,6 +8927,49 @@ error MegaClient::addTagToNode(std::shared_ptr<Node> node,
     setattr(node, std::move(map.map), std::move(c), false);
 
     return API_OK;
+}
+
+std::vector<std::string> MegaClient::getNodeTags(const std::string& delimitedTags)
+{
+    // Translate list of delimited tags into a vector.
+    auto tags = splitString<std::vector<std::string>>(delimitedTags, TAG_DELIMITER);
+
+    // Make sure tags are in ascending natural order.
+    std::sort(tags.begin(), tags.end(), NaturalSortingComparator());
+
+    // Return tags to caller.
+    return tags;
+}
+
+std::vector<std::string> MegaClient::getNodeTags(std::shared_ptr<Node> node)
+{
+    // No node? No tags.
+    if (!node)
+        return {};
+
+    // Get our hands on the node's delimited list of tags.
+    auto delimitedTags = node->attrs.getString(NODE_ATTRIBUTE_TAGS);
+
+    // Node's list of delimited tags is empty or missing.
+    if (!delimitedTags || delimitedTags->empty())
+        return {};
+
+    // Translate delimited list of tags into a vector.
+    return getNodeTags(*delimitedTags);
+}
+
+auto MegaClient::getNodeTagsBelow(CancelToken cancelToken,
+                                  NodeHandle handle,
+                                  const std::string& pattern)
+    -> std::optional<std::set<std::string>>
+{
+    return mNodeManager.getNodeTagsBelow(std::move(cancelToken), handle, pattern);
+}
+
+auto MegaClient::getNodeTagsBelow(NodeHandle handle, const std::string& pattern)
+    -> std::optional<std::set<std::string>>
+{
+    return getNodeTagsBelow(CancelToken(), handle, pattern);
 }
 
 error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
@@ -9071,11 +9114,11 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     AttrMap attrs;
     shared_ptr<Node> previousNode = childnodebyname(parentNode, utf8Name, true);
     honorPreviousVersionAttrs(previousNode.get(), attrs);
-    attrs.map['n'] = utf8Name;
+    attrs.map[makeNameid("n")] = utf8Name;
     attrs.map[name_id::c] = megafingerprint;
     if (fingerprintOriginal)
     {
-        attrs.map[MAKENAMEID2('c', '0')] = fingerprintOriginal;
+        attrs.map[makeNameid("c0")] = fingerprintOriginal;
     }
 
     // add custom node attributes
@@ -9884,7 +9927,7 @@ int MegaClient::readnode(JSON* j,
         {
             switch (name)
             {
-                case 'h':   // new node: handle
+                case makeNameid("h"): // new node: handle
                     h = j->gethandle();
                     if (priorActionpacketDeletedNode && firstHandleMatchesDelete)
                     {
@@ -9893,7 +9936,7 @@ int MegaClient::readnode(JSON* j,
                     }
                     break;
 
-                case 'p':   // parent node
+                case makeNameid("p"): // parent node
                     ph = j->gethandle();
                     break;
 
@@ -9901,48 +9944,48 @@ int MegaClient::readnode(JSON* j,
                     u = j->gethandle(USERHANDLE);
                     break;
 
-                case 't':   // type
+                case makeNameid("t"): // type
                     t = (nodetype_t)j->getint();
                     break;
 
-                case 'a':   // attributes
+                case makeNameid("a"): // attributes
                     a = j->getvalue();
                     break;
 
-                case 'k':   // key(s)
+                case makeNameid("k"): // key(s)
                     nodeKey = j->getvalue();
                     break;
 
-                case 's':   // file size
+                case makeNameid("s"): // file size
                     s = j->getint();
                     break;
 
-                case 'i':   // related source NewNode index
+                case makeNameid("i"): // related source NewNode index
                     nni = int(j->getint());
                     break;
 
-                case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                case makeNameid("ts"): // actual creation timestamp
                     ts = j->getint();
                     break;
 
-                case MAKENAMEID2('f', 'a'):  // file attributes
+                case makeNameid("fa"): // file attributes
                     fa = j->getvalue();
                     break;
 
                     // inbound share attributes
-                case 'r':   // share access level
+                case makeNameid("r"): // share access level
                     rl = (accesslevel_t)j->getint();
                     break;
 
-                case MAKENAMEID2('s', 'k'):  // share key
+                case makeNameid("sk"): // share key
                     sk = j->getvalue();
                     break;
 
-                case MAKENAMEID2('s', 'u'):  // sharing user
+                case makeNameid("su"): // sharing user
                     su = j->gethandle(USERHANDLE);
                     break;
 
-                case MAKENAMEID3('s', 't', 's'):  // share timestamp
+                case makeNameid("sts"): // share timestamp
                     sts = j->getint();
                     break;
 
@@ -10224,15 +10267,15 @@ void MegaClient::readokelement(JSON* j)
     {
         switch (j->getnameid())
         {
-            case 'h':
+            case makeNameid("h"):
                 h = j->gethandle();
                 break;
 
-            case MAKENAMEID2('h', 'a'):      // share authentication tag
+            case makeNameid("ha"): // share authentication tag
                 have_ha = Base64::atob(j->getvalue(), ha, sizeof ha) == sizeof ha;
                 break;
 
-            case 'k':           // share key(s)
+            case makeNameid("k"): // share key(s)
                 shareKey = j->getvalue();
                 break;
 
@@ -10315,11 +10358,11 @@ void MegaClient::readoutshareelement(JSON* j)
     {
         switch (j->getnameid())
         {
-            case 'h':
+            case makeNameid("h"):
                 h = j->gethandle();
                 break;
 
-            case 'p':
+            case makeNameid("p"):
                 p = j->gethandle(PCRHANDLE);
                 break;
 
@@ -10327,11 +10370,11 @@ void MegaClient::readoutshareelement(JSON* j)
                 uh = j->is(EXPORTEDLINK) ? 0 : j->gethandle(USERHANDLE);
                 break;
 
-            case 'r':           // access
+            case makeNameid("r"): // access
                 r = (accesslevel_t)j->getint();
                 break;
 
-            case MAKENAMEID2('t', 's'):      // timestamp
+            case makeNameid("ts"): // timestamp
                 ts = j->getint();
                 break;
 
@@ -10383,19 +10426,19 @@ void MegaClient::readipc(JSON *j)
             while (!done)
             {
                 switch (j->getnameid()) {
-                    case 'm':
+                    case makeNameid("m"):
                         m = j->getvalue();
                         break;
-                    case MAKENAMEID2('t', 's'):
+                    case makeNameid("ts"):
                         ts = j->getint();
                         break;
-                    case MAKENAMEID3('u', 't', 's'):
+                    case makeNameid("uts"):
                         uts = j->getint();
                         break;
-                    case MAKENAMEID3('m', 's', 'g'):
+                    case makeNameid("msg"):
                         msg = j->getvalue();
                         break;
-                    case 'p':
+                    case makeNameid("p"):
                         p = j->gethandle(MegaClient::PCRHANDLE);
                         break;
                     case EOO:
@@ -10464,22 +10507,22 @@ void MegaClient::readopc(JSON *j)
             {
                 switch (j->getnameid())
                 {
-                    case 'e':
+                    case makeNameid("e"):
                         e = j->getvalue();
                         break;
-                    case 'm':
+                    case makeNameid("m"):
                         m = j->getvalue();
                         break;
-                    case MAKENAMEID2('t', 's'):
+                    case makeNameid("ts"):
                         ts = j->getint();
                         break;
-                    case MAKENAMEID3('u', 't', 's'):
+                    case makeNameid("uts"):
                         uts = j->getint();
                         break;
-                    case MAKENAMEID3('m', 's', 'g'):
+                    case makeNameid("msg"):
                         msg = j->getvalue();
                         break;
-                    case 'p':
+                    case makeNameid("p"):
                         p = j->gethandle(MegaClient::PCRHANDLE);
                         break;
                     case EOO:
@@ -10538,31 +10581,31 @@ error MegaClient::readmiscflags(JSON *json)
         switch (json->getnameid())
         {
         // mcs:1 --> MegaChat enabled
-        case MAKENAMEID3('a', 'c', 'h'):
+        case makeNameid("ach"):
             achievements_enabled = bool(json->getint());    //  Mega Achievements enabled
             break;
-        case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
+        case makeNameid("mfae"): // multi-factor authentication enabled
             gmfa_enabled = bool(json->getint());
             break;
-        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler (only available when logged in)
+        case makeNameid("ssrs"): // server-side rubish-bin scheduler (only available when logged in)
             ssrs_enabled = bool(json->getint());
             break;
-        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled (only available when logged in)
+        case makeNameid("aplvp"): // apple VOIP push enabled (only available when logged in)
             aplvp_enabled = bool(json->getint());
             break;
-        case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
+        case makeNameid("smsve"): // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
             mSmsVerificationState = static_cast<SmsVerificationState>(json->getint());
             break;
-        case MAKENAMEID4('n', 'l', 'f', 'e'):   // new link format enabled
+        case makeNameid("nlfe"): // new link format enabled
             mNewLinkFormat = static_cast<bool>(json->getint());
             break;
-        case MAKENAMEID4('c', 's', 'p', 'e'):   // cookie banner enabled
+        case makeNameid("cspe"): // cookie banner enabled
             mCookieBannerEnabled = bool(json->getint());
             break;
-//        case MAKENAMEID2('p', 'f'): // is this account able to subscribe a pro flexi plan?
+//        case makeNameid("pf"): // is this account able to subscribe a pro flexi plan?
 //            json->getint();
 //            break;
-        case MAKENAMEID3('j', 'i', 'd'):   // JourneyID value (16-char hex value)
+        case makeNameid("jid"): // JourneyID value (16-char hex value)
             {
                 string jid;
                 if (!json->storeobject(&jid))
@@ -10672,22 +10715,22 @@ int MegaClient::procphelement(JSON *j)
             {
                 switch (j->getnameid())
                 {
-                    case 'h':
+                    case makeNameid("h"):
                         h = j->gethandle(MegaClient::NODEHANDLE);
                         break;
-                    case MAKENAMEID2('p','h'):
+                    case makeNameid("ph"):
                         ph = j->gethandle(MegaClient::NODEHANDLE);
                         break;
-                    case 'w':
+                    case makeNameid("w"):
                         j->storeobject(&authKey);
                         break;
-                    case MAKENAMEID3('e', 't', 's'):
+                    case makeNameid("ets"):
                         ets = j->getint();
                         break;
-                    case MAKENAMEID2('t', 's'):
+                    case makeNameid("ts"):
                         cts = j->getint();
                         break;
-                    case MAKENAMEID4('d','o','w','n'):
+                    case makeNameid("down"):
                         takendown = (j->getint() == 1);
                         break;
                     case EOO:
@@ -10798,15 +10841,15 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
                     v = (visibility_t)j->getint();
                     break;
 
-                case 'm':   // email
+                case makeNameid("m"): // email
                     m = j->getvalue();
                     break;
 
-                case MAKENAMEID2('t', 's'):
+                case makeNameid("ts"):
                     ts = j->getint();
                     break;
 
-                case 'b':
+                case makeNameid("b"):
                 {
                     if (j->enterobject())
                     {
@@ -10815,7 +10858,7 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
                         {
                             switch (businessName)
                             {
-                                case 'm':
+                                case makeNameid("m"):
                                     bizMode = static_cast<BizMode>(j->getint());
                                     break;
                                 default:
@@ -10831,19 +10874,19 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
                     break;
                 }
 
-                case MAKENAMEID4('p', 'u', 'b', 'k'):
+                case makeNameid("pubk"):
                     j->storebinary(&publicKey);
                     break;
 
-                case MAKENAMEID8('+', 'p', 'u', 'E', 'd', '2', '5', '5'):
+                case makeNameid("+puEd255"):
                     j->storebinary(&puEd255);
                     break;
 
-                case MAKENAMEID8('+', 'p', 'u', 'C', 'u', '2', '5', '5'):
+                case makeNameid("+puCu255"):
                     j->storebinary(&puCu255);
                     break;
 
-                case MAKENAMEID8('+', 's', 'i', 'g', 'P', 'u', 'b', 'k'):
+                case makeNameid("+sigPubk"):
                     j->storebinary(&sigPubk);
                     break;
 
@@ -13013,6 +13056,7 @@ void MegaClient::delua(const char *an)
         reqs.add(new CommandDelUA(this, an));
     }
 }
+#endif
 
 void MegaClient::senddevcommand(const char* command,
                                 const char* email,
@@ -13023,7 +13067,6 @@ void MegaClient::senddevcommand(const char* command,
 {
     reqs.add(new CommandSendDevCommand(this, command, email, q, bs, us, abs_c));
 }
-#endif
 
 void MegaClient::transfercacheadd(Transfer *transfer, TransferDbCommitter* committer)
 {
@@ -13116,11 +13159,11 @@ void MegaClient::proccr(JSON* j)
         {
             switch (j->getnameid())
             {
-                case MAKENAMEID3('s', 'n', 'k'):
+                case makeNameid("snk"):
                     procsnk(j);
                     break;
 
-                case MAKENAMEID3('s', 'u', 'k'):
+                case makeNameid("suk"):
                     procsuk(j);
                     break;
 
@@ -13270,7 +13313,7 @@ void MegaClient::procmcf(JSON *j)
             bool readingPublicChats = false;
             switch(j->getnameid())
             {
-                case MAKENAMEID2('p', 'c'):   // list of public and/or formerly public chatrooms
+                case makeNameid("pc"): // list of public and/or formerly public chatrooms
                 {
                     readingPublicChats = true;
                 }   // fall-through
@@ -13301,15 +13344,15 @@ void MegaClient::procmcf(JSON *j)
                         {
                             switch (j->getnameid())
                             {
-                            case MAKENAMEID2('i','d'):
+                            case makeNameid("id"):
                                 chatid = j->gethandle(MegaClient::CHATHANDLE);
                                 break;
 
-                            case 'p':
+                            case makeNameid("p"):
                                 priv = (privilege_t) j->getint();
                                 break;
 
-                            case MAKENAMEID2('c','s'):
+                            case makeNameid("cs"):
                                 shard = int(j->getint());
                                 break;
 
@@ -13318,42 +13361,42 @@ void MegaClient::procmcf(JSON *j)
                                 userpriv = readuserpriv(j);
                                 break;
 
-                            case 'g':
+                            case makeNameid("g"):
                                 group = j->getbool();
                                 break;
 
-                            case MAKENAMEID2('c','t'):
+                            case makeNameid("ct"):
                                 j->storeobject(&title);
                                 break;
 
-                            case MAKENAMEID2('c', 'k'):  // store unified key for public chats
+                            case makeNameid("ck"): // store unified key for public chats
                                 assert(readingPublicChats);
                                 j->storeobject(&unifiedKey);
                                 break;
 
-                            case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                            case makeNameid("ts"): // actual creation timestamp
                                 ts = j->getint();
                                 break;
 
-                            case 'm':   // operation mode: 1 -> public chat; 0 -> private chat
+                            case makeNameid("m"): // operation mode: 1 -> public chat; 0 -> private chat
                                 assert(readingPublicChats);
                                 publicchat = j->getbool();
                                 break;
 
-                           case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
+                           case makeNameid("mr"): // meeting room: 1; no meeting room: 0
                                 meeting = j->getbool();
                                 assert(readingPublicChats || !meeting); // public chats can be meetings or not. Private chats cannot be meetings
                                 break;
 
-                            case 'w':   // waiting room
+                            case makeNameid("w"): // waiting room
                                 waitingRoom = static_cast<int>(j->getint());
                                 break;
 
-                            case MAKENAMEID2('s','r'): // speak request
+                            case makeNameid("sr"): // speak request
                                 speakRequest = static_cast<int>(j->getint());
                                 break;
 
-                            case MAKENAMEID2('o','i'): // open invite
+                            case makeNameid("oi"): // open invite
                                 openInvite = static_cast<int>(j->getint());
                                 break;
 
@@ -13450,11 +13493,11 @@ void MegaClient::procmcf(JSON *j)
                     break;
                 }
 
-                case MAKENAMEID3('p', 'c', 'f'):    // list of flags for public and/or formerly public chatrooms
+                case makeNameid("pcf"): // list of flags for public and/or formerly public chatrooms
                 {
                     readingPublicChats = true;
                 }   // fall-through
-                case MAKENAMEID2('c', 'f'):
+                case makeNameid("cf"):
                 {
                     j->enterarray();
 
@@ -13469,11 +13512,11 @@ void MegaClient::procmcf(JSON *j)
                             switch (j->getnameid())
                             {
 
-                            case MAKENAMEID2('i','d'):
+                            case makeNameid("id"):
                                 chatid = j->gethandle(MegaClient::CHATHANDLE);
                                 break;
 
-                            case 'f':
+                            case makeNameid("f"):
                                 flags = byte(j->getint());
                                 break;
 
@@ -13548,11 +13591,11 @@ void MegaClient::procmcna(JSON *j)
             {
                 switch (j->getnameid())
                 {
-                case MAKENAMEID2('i','d'):
+                case makeNameid("id"):
                     chatid = j->gethandle(MegaClient::CHATHANDLE);
                     break;
 
-                case 'n':
+                case makeNameid("n"):
                     h = j->gethandle(MegaClient::NODEHANDLE);
                     break;
 
@@ -16742,12 +16785,11 @@ std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& new
     return {API_OK, NO_SYNC_ERROR};
 }
 
-std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
-    MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
-                                     const handle backupIdToExclude) const
+SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
+                                               const handle backupIdToExclude) const
 {
     if (!localPath.isAbsolute())
-        return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING, nullptr, false};
+        return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
 
     const auto rootPathWithoutEndingSeparator = std::invoke(
         [&localPath]() -> LocalPath
@@ -16760,7 +16802,7 @@ std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
     if (!mFuseService.syncable(rootPathWithoutEndingSeparator))
     {
         LOG_warn << "Trying to sync in a FUSE mount: " << rootPathWithoutEndingSeparator;
-        return {API_EFAILED, LOCAL_PATH_MOUNTED, NO_SYNC_WARNING, nullptr, false};
+        return {API_EFAILED, LOCAL_PATH_MOUNTED, NO_SYNC_WARNING};
     }
 
     bool isnetwork = false;
@@ -16769,7 +16811,7 @@ std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
     if (!fsaccess->issyncsupported(rootPathWithoutEndingSeparator, isnetwork, auxSErr, syncWarning))
     {
         LOG_warn << "Unsupported filesystem";
-        return {API_EFAILED, UNSUPPORTED_FILE_SYSTEM, syncWarning, nullptr, false};
+        return {API_EFAILED, UNSUPPORTED_FILE_SYSTEM, syncWarning};
     }
 
     std::unique_ptr openedLocalFolder = fsaccess->newfileaccess();
@@ -16782,93 +16824,59 @@ std::tuple<error, SyncError, SyncWarning, std::unique_ptr<FileAccess>, bool>
     {
         LOG_warn << "Cannot open rootpath for sync: " << rootPathWithoutEndingSeparator;
         if (openedLocalFolder->retry)
-            return {API_ETEMPUNAVAIL,
-                    LOCAL_PATH_TEMPORARY_UNAVAILABLE,
-                    syncWarning,
-                    nullptr,
-                    false};
-        return {API_ENOENT, LOCAL_PATH_UNAVAILABLE, syncWarning, nullptr, false};
+            return {API_ETEMPUNAVAIL, LOCAL_PATH_TEMPORARY_UNAVAILABLE, syncWarning};
+        return {API_ENOENT, LOCAL_PATH_UNAVAILABLE, syncWarning};
     }
 
     if (openedLocalFolder->type != FOLDERNODE)
     {
         LOG_warn << "Cannot sync non-folder";
-        return {API_EACCESS, INVALID_LOCAL_TYPE, syncWarning, nullptr, false};
+        return {API_EACCESS, INVALID_LOCAL_TYPE, syncWarning};
     }
 
     if (const auto [e, syncError] = isLocalPathSyncable(localPath, backupIdToExclude); e != API_OK)
     {
         LOG_warn << "Local path not syncable: " << localPath;
-        return {e, syncError, syncWarning, nullptr, false};
+        return {e, syncError, syncWarning};
     }
-    return {API_OK, NO_SYNC_ERROR, syncWarning, std::move(openedLocalFolder), isnetwork};
+    return {API_OK, NO_SYNC_ERROR, syncWarning};
 }
 
-error MegaClient::checkSyncConfig(SyncConfig& syncConfig,
-                                  LocalPath& rootpath,
-                                  std::unique_ptr<FileAccess>& openedLocalFolder,
-                                  bool& inshare,
-                                  bool& isnetwork)
+SyncErrorInfo MegaClient::checkSyncConfig(const SyncConfig& syncConfig)
 {
-    // Checking for conditions where we would not even add the sync config
-    // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
-
-    syncConfig.mEnabled = true;
-    syncConfig.mError = NO_SYNC_ERROR;
-    syncConfig.mWarning = NO_SYNC_WARNING;
-
     // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
     // until the account is reloaded (or the app restarts)
     if (accountShouldBeReloadedOrRestarted())
     {
         LOG_warn << "Cannot re-enable sync until account's reload (unserialize errors)";
-        syncConfig.mError = FAILURE_ACCESSING_PERSISTENT_STORAGE;
-        syncConfig.mEnabled = false;
-        return API_EINTERNAL;
+        return {API_EINTERNAL, FAILURE_ACCESSING_PERSISTENT_STORAGE, NO_SYNC_WARNING};
     }
 
     std::shared_ptr<Node> remotenode = nodeByHandle(syncConfig.mRemoteNode);
-    inshare = false;
     if (!remotenode)
     {
-        LOG_warn << "Sync root does not exist in the cloud: "
-                 << syncConfig.getLocalPath()
-                 << ": "
+        LOG_warn << "Sync root does not exist in the cloud: " << syncConfig.getLocalPath() << ": "
                  << LOG_NODEHANDLE(syncConfig.mRemoteNode);
-
-        syncConfig.mError = REMOTE_NODE_NOT_FOUND;
-        syncConfig.mEnabled = false;
-        return API_ENOENT;
+        return {API_ENOENT, REMOTE_NODE_NOT_FOUND, NO_SYNC_WARNING};
     }
 
     if (const auto [e, syncError] = isnodesyncable(remotenode); e)
     {
         LOG_debug << "Node is not syncable for sync add";
-        syncConfig.mError = syncError;
-        syncConfig.mEnabled = false;
-        return e;
+        return {e, syncError, NO_SYNC_WARNING};
     }
 
-    // Has the user requested the sync operate in periodic scanning mode?
-    if (syncConfig.mChangeDetectionMethod == CDM_PERIODIC_SCANNING)
+    // Has the user requested the sync operate in periodic scanning mode with an invalid interval?
+    if (syncConfig.mChangeDetectionMethod == CDM_PERIODIC_SCANNING && !syncConfig.mScanIntervalSec)
     {
-        // Have they specfied a valid scan interval?
-        if (!syncConfig.mScanIntervalSec)
-        {
-            LOG_debug << "No scan interval for periodic sync add";
-
-            syncConfig.mEnabled = false;
-            syncConfig.mError = INVALID_SCAN_INTERVAL;
-
-            return API_EARGS;
-        }
+        LOG_debug << "No scan interval for periodic sync add";
+        return {API_EARGS, INVALID_SCAN_INTERVAL, NO_SYNC_WARNING};
     }
 
-    if (syncs.mBackupRestrictionsEnabled && syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != mNodeManager.getRootNodeVault())
+    if (syncs.mBackupRestrictionsEnabled && syncConfig.isBackup() &&
+        remotenode->firstancestor()->nodeHandle() != mNodeManager.getRootNodeVault())
     {
-        syncConfig.mError = INVALID_REMOTE_TYPE;
-        syncConfig.mEnabled = false;
-        return API_EARGS;
+        return {API_EARGS, INVALID_REMOTE_TYPE, NO_SYNC_WARNING};
     }
 
     if (syncConfig.isExternal())
@@ -16876,68 +16884,47 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig,
         if (!syncConfig.isBackup())
         {
             LOG_warn << "Only Backups can be external";
-            return API_EARGS;
+            return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
         }
         if (!syncConfig.isGoodPathForExternalBackup(syncConfig.mLocalPath))
         {
             LOG_warn << "Drive path inconsistent for sync local path";
-            syncConfig.mEnabled = false;
-            syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
-            return API_EARGS;
+            return {API_EARGS, BACKUP_SOURCE_NOT_BELOW_DRIVE, NO_SYNC_WARNING};
         }
     }
 
-    auto [err, sErr, sWarn, openedLocalFolderAux, isnetworkAux] =
+    const auto [err, sErr, sWarn] =
         isValidLocalSyncRoot(syncConfig.getLocalPath(), syncConfig.mBackupId);
-    isnetwork = isnetworkAux;
-    openedLocalFolder = std::move(openedLocalFolderAux);
-    syncConfig.mWarning = sWarn;
     if (err != API_OK)
-    {
-        syncConfig.mError = sErr;
-        syncConfig.mEnabled = sErr != NO_SYNC_ERROR;
-        return err;
-    }
+        return {err, sErr, sWarn};
 
-    rootpath = syncConfig.getLocalPath();
-    rootpath.trimNonDriveTrailingSeparator();
-
-    //check we are not in any blocking situation
+    // check we are not in any blocking situation
     using CType = CacheableStatus::Type;
-    bool overStorage = mCachedStatus.lookup(CType::STATUS_STORAGE, STORAGE_UNKNOWN) >= STORAGE_RED;
-    bool businessExpired = mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) == BIZ_STATUS_EXPIRED;
-    bool blocked = mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1;
 
     // the order is important here: a user needs to resolve blocked in order to resolve storage
-    if (overStorage)
+    if (const bool overStorage =
+            mCachedStatus.lookup(CType::STATUS_STORAGE, STORAGE_UNKNOWN) >= STORAGE_RED;
+        overStorage)
     {
         LOG_debug << "Overstorage for sync add";
-        syncConfig.mError = STORAGE_OVERQUOTA;
-        syncConfig.mEnabled = false;
-        return API_EFAILED;
+        return {API_EFAILED, STORAGE_OVERQUOTA, sWarn};
     }
-    else if (businessExpired)
+    else if (const bool businessExpired =
+                 mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) ==
+                 BIZ_STATUS_EXPIRED;
+             businessExpired)
     {
         LOG_debug << "Account expired for sync add";
-        syncConfig.mError = ACCOUNT_EXPIRED;
-        syncConfig.mEnabled = false;
-        return API_EFAILED;
+        return {API_EFAILED, ACCOUNT_EXPIRED, sWarn};
     }
-    else if (blocked)
+    else if (const bool blocked = mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1; blocked)
     {
         LOG_debug << "Account blocked for sync add";
-        syncConfig.mError = ACCOUNT_BLOCKED;
-        syncConfig.mEnabled = false;
-        return API_EFAILED;
+        return {API_EFAILED, ACCOUNT_BLOCKED, sWarn};
     }
 
     // This only matters if there were no errors
-    inshare = remotenode->matchesOrHasAncestorMatching(
-        [](const Node& node) -> bool
-        {
-            return node.inshare != nullptr;
-        });
-    return API_OK;
+    return {API_OK, NO_SYNC_ERROR, NO_SYNC_WARNING};
 }
 
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
@@ -16991,8 +16978,7 @@ void MegaClient::changeSyncRoot(const handle backupId,
     if (noNode)
     {
         auto newRootPath = LocalPath::fromAbsolutePath(newLocalRootPath);
-        if (const auto [err, syncErr, syncWarn, fa, isnet] =
-                isValidLocalSyncRoot(newRootPath, UNDEF);
+        if (const auto [err, syncErr, syncWarn] = isValidLocalSyncRoot(newRootPath, UNDEF);
             err != API_OK)
         {
             LOG_err << "changeSyncRoot: Invalid new local root. Error: "
@@ -17027,10 +17013,8 @@ void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncErro
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
     assert(config.mLocalPath.isAbsolute());
 
-    LocalPath rootpath;
-    std::unique_ptr<FileAccess> openedLocalFolder;
-    bool inshare, isnetwork;
-    error e = checkSyncConfig(config, rootpath, openedLocalFolder, inshare, isnetwork);
+    error e;
+    std::tie(e, config.mError, config.mWarning) = checkSyncConfig(config);
 
     if (e)
     {
@@ -18442,7 +18426,7 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
                         uh = j->gethandle(MegaClient::USERHANDLE);
                         break;
 
-                    case 'p':
+                    case makeNameid("p"):
                         priv = (privilege_t) j->getint();
                         break;
 
@@ -18590,17 +18574,17 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
         {
             switch (auxJson->getnameid())
             {
-                case MAKENAMEID3('c', 'i', 'd'): // chatid
+                case makeNameid("cid"): // chatid
                 {
                     chatid = auxJson->gethandle(MegaClient::CHATHANDLE);
                     break;
                 }
-                case MAKENAMEID2('i', 'd'):  // scheduled meeting id
+                case makeNameid("id"): // scheduled meeting id
                 {
                     schedId = auxJson->gethandle(MegaClient::CHATHANDLE);
                     break;
                 }
-                case MAKENAMEID1('p'):  // parent callid
+                case makeNameid("p"): // parent callid
                 {
                     parentSchedId = auxJson->gethandle(MegaClient::CHATHANDLE);
                     break;
@@ -18610,28 +18594,28 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     organizerUserId = auxJson->gethandle(MegaClient::CHATHANDLE);
                     break;
                 }
-                case MAKENAMEID2('o', 'u'): // originating user
+                case makeNameid("ou"): // originating user
                 {
                     assert(ou);
                     originatingUser = auxJson->gethandle(MegaClient::USERHANDLE);
                     break;
                 }
-                case MAKENAMEID2('t', 'z'): // timezone
+                case makeNameid("tz"): // timezone
                 {
                     auxJson->storeobject(&timezone);
                     break;
                 }
-                case MAKENAMEID1('s'): // start date time
+                case makeNameid("s"): // start date time
                 {
                     startDateTime = auxJson->getint();
                     break;
                 }
-                case MAKENAMEID1('e'): // end date time
+                case makeNameid("e"): // end date time
                 {
                     endDateTime = auxJson->getint();
                     break;
                 }
-                case MAKENAMEID1('t'):  // title
+                case makeNameid("t"): // title
                 {
                     auxJson->storeobject(&title);
                     break;
@@ -18641,12 +18625,12 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     auxJson->storeobject(&description);
                     break;
                 }
-                case MAKENAMEID2('a', 't'): // attributes
+                case makeNameid("at"): // attributes
                 {
                     auxJson->storeobject(&attributes);
                     break;
                 }
-                case MAKENAMEID1('o'): // override
+                case makeNameid("o"): // override
                 {
                     overrides = auxJson->getint();
                     break;
@@ -18656,12 +18640,12 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     cancelled = static_cast<int>(auxJson->getint());
                     break;
                 }
-                case MAKENAMEID1('f'): // flags
+                case makeNameid("f"): // flags
                 {
                     flags.reset(new ScheduledFlags(static_cast<unsigned long>(auxJson->getint())));
                     break;
                 }
-                case MAKENAMEID1('r'): // scheduled meeting rules
+                case makeNameid("r"): // scheduled meeting rules
                 {
                     if (auxJson->enterobject())
                     {
@@ -18677,12 +18661,12 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                         {
                             switch (auxJson->getnameid())
                             {
-                                case MAKENAMEID1('f'):
+                                case makeNameid("f"):
                                 {
                                     auxJson->storeobject(&freq);
                                     break;
                                 }
-                                case MAKENAMEID1('i'):
+                                case makeNameid("i"):
                                 {
                                     interval = static_cast<int>(auxJson->getint());
                                     break;
@@ -18692,7 +18676,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     until = auxJson->getint();
                                     break;
                                 }
-                                case MAKENAMEID2('w', 'd'):
+                                case makeNameid("wd"):
                                 {
                                     if (auxJson->enterarray())
                                     {
@@ -18704,7 +18688,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     }
                                     break;
                                 }
-                                case MAKENAMEID2('m', 'd'):
+                                case makeNameid("md"):
                                 {
                                     if (auxJson->enterarray())
                                     {
@@ -18716,7 +18700,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     }
                                     break;
                                 }
-                                case MAKENAMEID3('m', 'w', 'd'):
+                                case makeNameid("mwd"):
                                 {
                                     if (auxJson->enterarray())
                                     {
@@ -18772,7 +18756,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     }
                     break;
                 }
-                case MAKENAMEID2('c', 's'):
+                case makeNameid("cs"):
                 {
                     assert(cs);
                     if (auxJson->enterobject())
@@ -18787,14 +18771,15 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     }
                     break;
                 }
-                case MAKENAMEID3('c', 'm', 'd'):
+                case makeNameid("cmd"):
                 {
                     assert(childMeetingsDeleted);
                     if (auxJson->enterarray() && childMeetingsDeleted)
                     {
                         while(auxJson->ishandle(MegaClient::CHATHANDLE))
                         {
-                            childMeetingsDeleted->insert(auxJson->gethandle());
+                            childMeetingsDeleted->insert(
+                                auxJson->gethandle(MegaClient::CHATHANDLE));
                         }
                         auxJson->leavearray();
                     }
@@ -18933,7 +18918,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     {
         switch(j->getnameid())
         {
-            case MAKENAMEID1('t'):
+            case makeNameid("t"):
             {
                 Changeset::StrChangeset tCs;
                 auto err = getOldNewStrValues(tCs, "Title");
@@ -18966,7 +18951,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 }
                 break;
 
-            case MAKENAMEID2('t', 'z'):
+            case makeNameid("tz"):
             {
                 Changeset::StrChangeset tzCs;
                 auto err = getOldNewStrValues(tzCs, "TimeZone");
@@ -18985,7 +18970,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             }
             break;
 
-            case MAKENAMEID1('s'):
+            case makeNameid("s"):
             {
                 Changeset::TsChangeset sdCs;
                 auto err = getOldNewTsValues(sdCs, "StartDateTime");
@@ -19004,7 +18989,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             }
             break;
 
-            case MAKENAMEID1('e'):
+            case makeNameid("e"):
             {
                 Changeset::TsChangeset edCs;
                 auto err = getOldNewTsValues(edCs, "EndDateTime");
@@ -19023,7 +19008,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             }
             break;
 
-            case MAKENAMEID1('r'):
+            case makeNameid("r"):
                 /* - empty rules field           => scheduled meeting doesn't have rules
                  * - rules array with 1 element  => rules not modified
                  * - rules array with 2 elements => rules modified [old value, new value]
@@ -19648,7 +19633,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
     {
         switch (j.getnameid())
         {
-        case MAKENAMEID1('s'):
+        case makeNameid("s"):
         {
             // reuse this in "aft" (fetch-Set command) and "aesp" (in gettree/fetchnodes/"f" command):
             // "aft" will return a single Set for "s", while "aesp" will return an array of Sets
@@ -19665,14 +19650,14 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
             break;
         }
 
-        case MAKENAMEID1('e'):
+        case makeNameid("e"):
         {
             error e = readElements(j, newElements);
             if (e != API_OK) return e;
             break;
         }
 
-        case MAKENAMEID1('n'):
+        case makeNameid("n"):
         {
             nodeData.reset(new std::map<handle, SetElement::NodeMetadata>());
             error e = readAllNodeMetadata(j, *nodeData);
@@ -19680,7 +19665,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
             break;
         }
 
-        case MAKENAMEID1('p'):
+        case makeNameid("p"):
         {
             // precondition: sets which ph is coming are already read and in memory
             if (!newSets.empty())
@@ -19951,7 +19936,7 @@ error MegaClient::readSet(JSON& j, Set& s)
     {
         switch (j.getnameid())
         {
-        case MAKENAMEID2('i', 'd'):
+        case makeNameid("id"):
             s.setId(j.gethandle(MegaClient::SETHANDLE));
             break;
 
@@ -19961,7 +19946,7 @@ error MegaClient::readSet(JSON& j, Set& s)
             break;
         }
 
-        case MAKENAMEID2('a', 't'):
+        case makeNameid("at"):
         {
             string attrs;
             j.copystring(&attrs, j.getvalue()); // B64 encoded
@@ -19977,7 +19962,7 @@ error MegaClient::readSet(JSON& j, Set& s)
             s.setUser(j.gethandle(MegaClient::USERHANDLE));
             break;
 
-        case MAKENAMEID1('k'): // used to encrypt attrs; encrypted itself with owner's key
+        case makeNameid("k"): // used to encrypt attrs; encrypted itself with owner's key
         {
             string setKey;
             j.copystring(&setKey, j.getvalue()); // B64 encoded
@@ -19985,15 +19970,15 @@ error MegaClient::readSet(JSON& j, Set& s)
             break;
         }
 
-        case MAKENAMEID2('t', 's'):
+        case makeNameid("ts"):
             s.setTs(j.getint());
             break;
 
-        case MAKENAMEID3('c', 't', 's'):
+        case makeNameid("cts"):
             s.setCTs(j.getint());
             break;
 
-        case MAKENAMEID1('t'):
+        case makeNameid("t"):
             s.setType(static_cast<Set::SetType>(j.getint()));
             break;
 
@@ -20044,19 +20029,19 @@ error MegaClient::readElement(JSON& j, SetElement& el)
     {
         switch (j.getnameid())
         {
-        case MAKENAMEID2('i', 'd'):
+        case makeNameid("id"):
             el.setId(j.gethandle(MegaClient::SETELEMENTHANDLE));
             break;
 
-        case MAKENAMEID1('s'):
+        case makeNameid("s"):
             el.setSet(j.gethandle(MegaClient::SETHANDLE));
             break;
 
-        case MAKENAMEID1('h'):
+        case makeNameid("h"):
             el.setNode(j.gethandle(MegaClient::NODEHANDLE));
             break;
 
-        case MAKENAMEID2('a', 't'):
+        case makeNameid("at"):
         {
             string elementAttrs;
             j.copystring(&elementAttrs, j.getvalue());
@@ -20068,15 +20053,15 @@ error MegaClient::readElement(JSON& j, SetElement& el)
             break;
         }
 
-        case MAKENAMEID1('o'):
+        case makeNameid("o"):
             el.setOrder(j.getint());
             break;
 
-        case MAKENAMEID2('t', 's'):
+        case makeNameid("ts"):
             el.setTs(j.getint());
             break;
 
-        case MAKENAMEID1('k'):
+        case makeNameid("k"):
         {
             string elementKey;
             j.copystring(&elementKey, j.getvalue());
@@ -20133,7 +20118,7 @@ error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
     {
         switch (j.getnameid())
         {
-        case MAKENAMEID1('h'):
+        case makeNameid("h"):
             eln.h = j.gethandle(MegaClient::NODEHANDLE);
             break;
 
@@ -20141,11 +20126,11 @@ error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
             eln.u = j.gethandle(MegaClient::USERHANDLE);
             break;
 
-        case MAKENAMEID1('s'):
+        case makeNameid("s"):
             eln.s = j.getint();
             break;
 
-        case MAKENAMEID2('a', 't'):
+        case makeNameid("at"):
             if (!j.storeobject(&eln.at))
             {
                 LOG_err << "Sets: Failed to read node attributes";
@@ -20154,7 +20139,7 @@ error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
             }
             break;
 
-        case MAKENAMEID2('f', 'a'):
+        case makeNameid("fa"):
             if (!j.storeobject(&eln.fa))
             {
                 LOG_err << "Sets: Failed to read file attributes";
@@ -20163,7 +20148,7 @@ error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
             }
             break;
 
-        case MAKENAMEID2('t', 's'):
+        case makeNameid("ts"):
             eln.ts = j.getint();
             break;
 
@@ -20201,14 +20186,14 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta,
     {
         switch (attrJson.getnameid())
         {
-            case name_id::c:
+        case name_id::c:
             if (!attrJson.storeobject(&nodeMeta.fingerprint))
             {
                 LOG_err << "Reading node fingerprint failed. Node Handle = " << toNodeHandle(nodeMeta.h);
             }
             break;
 
-        case 'n':
+        case makeNameid("n"):
             if (!attrJson.storeobject(&nodeMeta.filename))
             {
                 LOG_err << "Reading node filename failed. Node Handle = " << toNodeHandle(nodeMeta.h);
@@ -20463,7 +20448,7 @@ void MegaClient::sc_asr()
     {
         switch (jsonsc.getnameid())
         {
-        case MAKENAMEID2('i', 'd'):
+        case makeNameid("id"):
             {
             setId = jsonsc.gethandle(MegaClient::SETHANDLE);
             break;
@@ -20527,11 +20512,11 @@ void MegaClient::sc_aer()
     {
         switch (jsonsc.getnameid())
         {
-        case MAKENAMEID2('i', 'd'):
+        case makeNameid("id"):
             elemId = jsonsc.gethandle(MegaClient::SETELEMENTHANDLE);
             break;
 
-        case MAKENAMEID1('s'):
+        case makeNameid("s"):
             setId = jsonsc.gethandle(MegaClient::SETHANDLE);
             break;
 
@@ -20559,7 +20544,7 @@ error MegaClient::readExportedSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRem
     {
         switch (jsonsc.getnameid())
         {
-        case MAKENAMEID1('s'):
+        case makeNameid("s"):
             s.setId(j.gethandle(MegaClient::SETHANDLE));
             break;
 
@@ -20567,11 +20552,11 @@ error MegaClient::readExportedSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRem
             s.setPublicId(j.gethandle(MegaClient::PUBLICSETHANDLE)); // overwrite if existed
             break;
 
-        case MAKENAMEID2('t', 's'):
+        case makeNameid("ts"):
             s.setTs(j.getint());
             break;
 
-        case MAKENAMEID1('r'):
+        case makeNameid("r"):
             exportRemoved.first = j.getint() == 1;
             s.setPublicId(UNDEF);
             break;
@@ -20609,7 +20594,7 @@ error MegaClient::readSetPublicHandle(JSON& j, map<handle, Set>& sets)
     {
         switch (j.getnameid())
         {
-        case MAKENAMEID1('s'):
+        case makeNameid("s"):
             item = j.gethandle(MegaClient::SETHANDLE);
             break;
 
@@ -20617,7 +20602,7 @@ error MegaClient::readSetPublicHandle(JSON& j, map<handle, Set>& sets)
             itemPH = j.gethandle(MegaClient::PUBLICSETHANDLE);
             break;
 
-        case MAKENAMEID2('t', 's'):
+        case makeNameid("ts"):
             ts = j.getint();
             break;
 
@@ -21295,6 +21280,65 @@ error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_pt
     return API_OK;
 }
 
+static std::vector<std::string> getNodesNames(const sharedNode_list& nodes)
+{
+    std::vector<std::string> nodesNames;
+    std::for_each(nodes.begin(),
+                  nodes.end(),
+                  [&nodesNames](const auto& node)
+                  {
+                      if (!node)
+                      {
+                          assert(false && "null nodes are not expected here");
+                          return;
+                      }
+                      nodesNames.emplace_back(node->displayname());
+                  });
+    return nodesNames;
+}
+
+std::pair<error, MegaClient::BadPasswordData>
+    MegaClient::importPasswordsFromFile(const std::string& filePath,
+                                        const pwm::import::FileSource source,
+                                        const NodeHandle parentHandle,
+                                        const int rTag)
+{
+    using namespace pwm::import;
+    const auto logReturnErr = [](const error err,
+                                 const char* errMsg) -> std::pair<error, BadPasswordData>
+    {
+        LOG_err << "importPasswordsFromFile: " << errMsg;
+        return {err, {}};
+    };
+    std::shared_ptr<Node> parent = nodeByHandle(parentHandle);
+    if (!parent || !parent->isPasswordNodeFolder())
+        return logReturnErr(API_EARGS, "parent node doesn't exist");
+
+    PassFileParseResult parserResult = readPasswordImportFile(filePath, source);
+    switch (parserResult.mErrCode)
+    {
+        case PassFileParseResult::ErrCode::OK:
+            break;
+        case PassFileParseResult::ErrCode::MISSING_COLUMN:
+        case PassFileParseResult::ErrCode::NO_VALID_ENTRIES:
+            return logReturnErr(API_EARGS, "invalid file format");
+        case PassFileParseResult::ErrCode::FILE_NOT_FOUND:
+        case PassFileParseResult::ErrCode::CANT_OPEN_FILE:
+            return logReturnErr(API_EREAD, "file can't be opened or doesn't exist");
+        case PassFileParseResult::ErrCode::INVALID_HEADER:
+            return logReturnErr(API_EACCESS, "invalid header");
+    }
+
+    ncoll::NameCollisionSolver collisionSolver{getNodesNames(getChildren(parent.get()))};
+    const auto [badEntries, goodEntries] =
+        MegaClient::validatePasswordEntries(std::move(parserResult.mResults), collisionSolver);
+
+    if (goodEntries.empty())
+        return logReturnErr(API_EARGS, "none entry is valid");
+
+    return {createPasswordNodes(std::move(goodEntries), parent, rTag), badEntries};
+}
+
 PasswordEntryError MegaClient::validatePasswordData(const AttrMap& data)
 {
     if (const bool pwdPresent = (data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
@@ -21317,6 +21361,11 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
         if (entry.mErrCode != pwm::import::PassEntryParseResult::ErrCode::OK)
         {
             bad[std::move(entry.mOriginalContent)] = PasswordEntryError::PARSE_ERROR;
+            continue;
+        }
+        if (entry.mName.empty())
+        {
+            bad[std::move(entry.mOriginalContent)] = PasswordEntryError::MISSING_NAME;
             continue;
         }
 

@@ -114,7 +114,7 @@ auto LocalPath::asPlatformEncoded(bool skipPrefix) const -> string_type
 
 bool LocalPath::isRootPath() const
 {
-    if (!isFromRoot)
+    if (!isAbsolute())
         return false;
 
     static const std::wstring prefix = L"\\\\?\\";
@@ -1261,7 +1261,7 @@ bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& 
         }
     }
 
-    absolutepathArg.isFromRoot = true;
+    absolutepathArg.mPathType = PathType::ABSOLUTE_PATH;
     return true;
 }
 
@@ -2174,7 +2174,7 @@ bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*follows
           || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
         {
             nameArg.localpath.assign(ffd.cFileName, wcslen(ffd.cFileName));
-            nameArg.isFromRoot = false;
+            nameArg.mPathType = PathType::RELATIVE_PATH;
 
             if (!globbase.empty())
             {

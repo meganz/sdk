@@ -1,7 +1,9 @@
 #ifndef MEGA_NAME_ID_H
 #define MEGA_NAME_ID_H
 
+#include <cassert>
 #include <cstdint>
+#include <string_view>
 
 namespace mega
 {
@@ -9,7 +11,44 @@ namespace mega
 // numeric representation of string (up to 8 chars)
 using nameid = uint64_t;
 
+constexpr nameid makeNameid(std::string_view name)
+{
+    // name must have at most size 8
+    assert(name.size() <= 8);
+
+    nameid id = 0;
+    for (size_t n = 0; n < name.size(); ++n)
+    {
+        id = (id << 8) + static_cast<nameid>(name[n]);
+    }
+    return id;
+}
+
+namespace name_id
+{
+static constexpr nameid ipc = makeNameid("ipc");
+static constexpr nameid c = makeNameid("c");
+static constexpr nameid upci = makeNameid("upci");
+static constexpr nameid upco = makeNameid("upco");
+static constexpr nameid share = makeNameid("share");
+static constexpr nameid dshare = makeNameid("dshare");
+static constexpr nameid put = makeNameid("put");
+static constexpr nameid d = makeNameid("d");
+static constexpr nameid u = makeNameid("u");
+static constexpr nameid psts = makeNameid("psts");
+static constexpr nameid psts_v2 = makeNameid("psts_v2");
+static constexpr nameid pses = makeNameid("pses");
+static constexpr nameid ph = makeNameid("ph");
+#ifdef ENABLE_CHAT
+static constexpr nameid mcsmp = makeNameid("mcsmp");
+static constexpr nameid mcsmr = makeNameid("mcsmr");
+#endif
+} // namespace name_id
+
 // convert 1...8 character ID to int64 integer (endian agnostic)
+//
+// @deprecated: Symbols below have been deprecated. Use the more generic functinality above to
+// obtain nameid-s
 #define MAKENAMEID1(a) (nameid)(a)
 #define MAKENAMEID2(a, b) (nameid)(((a) << 8) + (b))
 #define MAKENAMEID3(a, b, c) (nameid)(((a) << 16) + ((b) << 8) + (c))
@@ -24,27 +63,6 @@ using nameid = uint64_t;
 #define MAKENAMEID8(a, b, c, d, e, f, g, h) \
 (nameid)((((nameid)a) << 56) + (((nameid)b) << 48) + (((nameid)c) << 40) + (((nameid)d) << 32) + \
          ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
-
-namespace name_id
-{
-static constexpr nameid ipc = MAKENAMEID3('i', 'p', 'c');
-static constexpr nameid c = 'c';
-static constexpr nameid upci = MAKENAMEID4('u', 'p', 'c', 'i');
-static constexpr nameid upco = MAKENAMEID4('u', 'p', 'c', 'o');
-static constexpr nameid share = MAKENAMEID5('s', 'h', 'a', 'r', 'e');
-static constexpr nameid dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');
-static constexpr nameid put = MAKENAMEID3('p', 'u', 't');
-static constexpr nameid d = 'd';
-static constexpr nameid u = 'u';
-static constexpr nameid psts = MAKENAMEID4('p', 's', 't', 's');
-static constexpr nameid psts_v2 = MAKENAMEID7('p', 's', 't', 's', '_', 'v', '2');
-static constexpr nameid pses = MAKENAMEID4('p', 's', 'e', 's');
-static constexpr nameid ph = MAKENAMEID2('p', 'h');
-#ifdef ENABLE_CHAT
-static constexpr nameid mcsmp = MAKENAMEID5('m', 'c', 's', 'm', 'p');
-static constexpr nameid mcsmr = MAKENAMEID5('m', 'c', 's', 'm', 'r');
-#endif
-} // namespace name_id
 
 } // namespace mega
 

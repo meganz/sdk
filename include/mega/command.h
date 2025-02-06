@@ -458,21 +458,21 @@ public:
 
     bool procresult(Result, JSON&) override;
 };
+#endif
 
 class MEGA_API CommandSendDevCommand : public Command
 {
 public:
-    bool procresult(Result, JSON&) override;
+    bool procresult(Result result, JSON& json) override;
 
-    CommandSendDevCommand(MegaClient*,
+    CommandSendDevCommand(MegaClient* client,
                           const char* command,
                           const char* email = NULL,
-                          long long = 0,
-                          int = 0,
-                          int = 0,
-                          const char* = nullptr);
+                          long long q = 0,
+                          int bs = 0,
+                          int us = 0,
+                          const char* cp = nullptr);
 };
-#endif
 
 class MEGA_API CommandGetUserEmail : public Command
 {
@@ -812,6 +812,10 @@ public:
 
 protected:
     void parseUserAttribute(JSON& json, std::string& value, std::string &version, bool asciiToBinary = true);
+    bool updatePrivateEncryptedUserAttribute(User* u,
+                                             const std::string& value,
+                                             const std::string& version,
+                                             mega::attr_t at);
     std::function<void(string*, string*, string*, error)> mCompletion;
 };
 

@@ -40,7 +40,7 @@ pipeline {
                 BUILD_DIR = "build_dir"
                 BUILD_DIR_X64 = "build_dir_x64"
                 QTPATH = "${env.HOME}/Qt-build/5.15.13/5.15.13"
-                COMMON_CMAKE_OPTIONS = "-DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_SDKLIB_WERROR=ON -DUSE_LIBUV=ON -DVCPKG_ROOT=${VCPKGPATH}"
+                COMMON_CMAKE_OPTIONS = "-DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DENABLE_QT_BINDINGS=ON -DUSE_LIBUV=ON -DVCPKG_ROOT=${VCPKGPATH}"
             }
             steps{
                 //Build SDK for arm64
@@ -67,7 +67,7 @@ pipeline {
                     message = """
                         *MacOS* <${BUILD_URL}|Build result>: '${messageStatus}'.
                         SDK branch: `${SDK_BRANCH}`
-                        SDK_commit: `${sdk_commit}`
+                        SDK commit: `${sdk_commit}`
                     """.stripIndent()
                     
                     withCredentials([string(credentialsId: 'slack_webhook_sdk_report', variable: 'SLACK_WEBHOOK_URL')]) {

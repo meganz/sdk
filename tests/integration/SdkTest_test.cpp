@@ -50,10 +50,10 @@ static const string APP_KEY     = "8QxzVRxD";
 static const string PUBLICFILE  = "file.txt";
 static const string UPFILE      = "file1.txt";
 static const string DOWNFILE    = "file2.txt";
-static const string EMPTYFILE   = "empty-file.txt";
-static const string AVATARSRC   = "logo.png";
-static const string AVATARDST   = "deleteme.png";
+static const string EMPTYFILE = "empty-file.txt";
 static const string IMAGEFILE   = "logo.png";
+static const string& AVATARSRC = IMAGEFILE;
+static const string AVATARDST = "deleteme.png";
 static const string IMAGEFILE_C = "logo.encrypted.png";
 static const string THUMBNAIL   = "logo_thumbnail.png";
 static const string PREVIEW     = "logo_preview.png";
@@ -217,26 +217,6 @@ namespace
         }
         fs << name;
         return true;
-    }
-
-    // cURL Callback function to write downloaded data to a stream
-    // See https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
-    // See https://github.com/curl/curl/pull/9874 returning CURL_WRITEFUNC_ERROR
-    //     is better than 0 on errors.
-    size_t writeData(void *ptr, size_t size, size_t nmemb, std::ofstream *stream)
-    {
-        if (stream->write((char*)ptr, static_cast<std::streamsize>(size * nmemb)))
-        {
-            return size * nmemb;
-        }
-        else
-        {
-            #ifdef CURL_WRITEFUNC_ERROR
-                return CURL_WRITEFUNC_ERROR;
-            #else
-                return 0;
-            #endif
-        }
     }
 
     //
@@ -416,7 +396,7 @@ void SdkTest::Cleanup()
     deleteFile(AVATARDST);
 
 #ifdef ENABLE_CHAT
-    delSchedMeetings();
+    cancelSchedMeetings();
 #endif
 
 #ifdef ENABLE_SYNC
@@ -1920,48 +1900,6 @@ void SdkTest::updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid
     megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), nullptr/*chatTitle*/, tracker.get());
     tracker->waitForResult();
 }
-
-void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
-{
-    const auto isValidChat = [](const MegaTextChat* chat) -> bool
-    {
-        if (!chat) { return false; }
-
-        return chat->isGroup()
-            && chat->getOwnPrivilege() == MegaTextChatPeerList::PRIV_MODERATOR
-            && chat->getScheduledMeetingList()
-            && chat->getScheduledMeetingList()->size();
-    };
-
-    const MegaTextChat* chat = nullptr;
-    auto it = mApi[apiIndex].chats.find(chatid);
-    if (chatid == UNDEF
-        || it == mApi[apiIndex].chats.end()
-        || !isValidChat(it->second.get()))
-    {
-        for (auto &auxit: mApi[apiIndex].chats)
-        {
-            if (isValidChat(auxit.second.get()))
-            {
-                chat = auxit.second.get();
-                break;
-            }
-        }
-    }
-    else
-    {
-        chat = it->second.get();
-    }
-
-    ASSERT_NE(chat, nullptr) << "Invalid chat";
-    const auto schedList = chat->getScheduledMeetingList();
-    ASSERT_TRUE(schedList && schedList->size()) << "Chat doesn't have scheduled meetings";
-    const MegaScheduledMeeting* aux = chat->getScheduledMeetingList()->at(0);
-    ASSERT_NE(aux, nullptr) << "Invalid scheduled meetings";
-    std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
-    megaApi[apiIndex]->removeScheduledMeeting(aux->chatid(), aux->schedId(), tracker.get());
-    tracker->waitForResult();
-}
 #endif
 
 void SdkTest::shareFolder(MegaNode* n, const char* email, int action, unsigned apiIndex)
@@ -2198,59 +2136,115 @@ void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
                                                         FILENODEKEYLENGTH);
 }
 
-bool SdkTest::getFileFromURL(const std::string& url, const fs::path& dstPath)
+auto SdkTest::getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
 {
-    auto curlCleaner = [](CURL* curl) {
-        curl_easy_cleanup(curl);
-    };
+    // Try and retrieve the user's account details.
+    auto details = getAccountDetails(api);
 
-    // Initialize libcurl
-    std::unique_ptr<CURL, decltype(curlCleaner)> curl{curl_easy_init(), curlCleaner};
-    if (!curl)
+    // Couldn't get account details.
+    if (std::get<1>(details) != API_OK)
     {
-        LOG_err << "Failed to initialize libcurl";
-        return false;
+        return std::make_tuple(0, 0, std::get<1>(details));
     }
 
-    // Open file to save downloaded data
-    std::ofstream ofs(dstPath, std::ios::binary | std::ios::out);
-    if (!ofs) {
-        LOG_err << "Error opening file for writing:" << dstPath.u8string();
-        return false;
-    }
+    // Latch the user's plan.
+    auto plan = std::get<0>(details)->getProLevel();
 
-    // Download
-    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, writeData);
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &ofs);
-    CURLcode res = curl_easy_perform(curl.get());
-    if (res != CURLE_OK) {
-        LOG_err <<  "curl_easy_perform() failed: " << curl_easy_strerror(res);
-        return false;
-    }
-
-    // Close file
-    ofs.close();
-    if (!ofs)
+    // User has a free account: No need to get features or months.
+    if (plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
     {
-        LOG_verbose << "Error closing file:" << dstPath.u8string();
-        return false;
+        return std::make_tuple(0, plan, API_OK);
     }
 
-    LOG_verbose << "File " << dstPath.u8string() << " downloaded successfully";
-    return true;
+    // Try and get pricing information.
+    auto pricing = getPricing(api);
+
+    // Couldn't get pricing information.
+    if (std::get<1>(pricing) != API_OK)
+    {
+        return std::make_tuple(0, 0, std::get<1>(pricing));
+    }
+
+    // Convenience.
+    auto& priceDetails = *std::get<0>(pricing);
+
+    // Locate the user's plan.
+    for (auto i = 0, j = priceDetails.getNumProducts(); i < j; ++i)
+    {
+        // Found the user's plan.
+        if (plan == priceDetails.getProLevel(i))
+        {
+            // Return plan and its length.
+            return std::make_tuple(priceDetails.getMonths(i), plan, API_OK);
+        }
+    }
+
+    // Couldn't locate the user's plan.
+    return std::make_tuple(0, 0, API_ENOENT);
 }
 
-bool SdkTest::getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath)
+auto SdkTest::getAccountDetails(MegaApi& api)
+    -> std::tuple<std::unique_ptr<MegaAccountDetails>, int>
 {
-    static const std::string baseUrl{"https://artifactory.developers.mega.co.nz:443/artifactory/sdk"};
+    // So we can wait for the client's result.
+    RequestTracker tracker(&api);
 
-    // Join base URL and relatvie URL
-    bool startedWithBackSlash = !relativeUrl.empty() && relativeUrl[0] == '/';
-    std::string seperator = startedWithBackSlash ? "" : "/";
-    const auto absoluateUrl = baseUrl + seperator + relativeUrl;
+    // Ask client for account details.
+    api.getAccountDetails(&tracker);
 
-    return getFileFromURL(absoluateUrl, dstPath);
+    // Wait for client to report a result.
+    auto result = tracker.waitForResult();
+    auto details = makeUniqueFrom(tracker.request->getMegaAccountDetails());
+
+    // Return result to caller.
+    return std::make_tuple(std::move(details), result);
+}
+
+auto SdkTest::getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>
+{
+    // So we can wait for the client's result.
+    RequestTracker tracker(&api);
+
+    // Ask client for plan pricing information,
+    api.getPricing(&tracker);
+
+    // Wait for client to report a result.
+    auto result = tracker.waitForResult();
+    auto pricing = makeUniqueFrom(tracker.request->getPricing());
+
+    // Return result to caller.
+    return std::make_tuple(std::move(pricing), result);
+}
+
+auto SdkTest::makeScopedAccountLevelRestorer(MegaApi& api)
+{
+    // Assume we can't retrieve the account level.
+    std::function<void()> destructor = []() {};
+
+    auto months = 0;
+    auto plan = 0;
+    auto result = 0;
+
+    // Try and retrieve the user's current account level.
+    std::tie(months, plan, result) = getAccountLevel(api);
+
+    // Leave a trail if we couldn't get the account level.
+    EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+
+    // We were able to retrieve the account level.
+    if (result == API_OK)
+    {
+        // Build a destructor that will restore the user's account level.
+        destructor = [&api, months, plan, this]()
+        {
+            // Try and restore the user's account level.
+            auto result = setAccountLevel(api, plan, months, nullptr);
+            EXPECT_EQ(result, API_OK) << "Couldn't restore account level: " << result;
+        };
+    }
+
+    // Return destructor to caller.
+    return makeScopedDestructor(std::move(destructor));
 }
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
@@ -3309,7 +3303,7 @@ TEST_F(SdkTest, SdkTestContacts)
     LOG_info << "___TEST Contacts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    sdk_test::copyFileFromTestData(AVATARSRC);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + AVATARSRC, AVATARSRC));
 
     // --- Check my email and the email of the contact ---
 
@@ -3694,37 +3688,61 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
 }
 
 #ifdef ENABLE_CHAT
-void SdkTest::delSchedMeetings()
+void SdkTest::cancelSchedMeetings()
 {
-    std::vector<std::unique_ptr<RequestTracker>> delSchedTrackers;
+    std::vector<std::unique_ptr<RequestTracker>> smTrackers;
     for (size_t i = 0; i < mApi.size(); ++i)
     {
-        for (const auto& it: mApi[i].chats)
+        for (const auto& c: mApi[i].chats)
         {
-            if (!it.second->getScheduledMeetingList()
-                || !it.second->getScheduledMeetingList()->size())
+            if (!c.second->getScheduledMeetingList() ||
+                !c.second->getScheduledMeetingList()->size())
             {
                 continue;
             }
 
-            if (it.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
+            if (c.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
             {
-                LOG_info << "Could not remove scheduled meetings for chat (due to insufficient permissions)"
-                         << Base64Str<MegaClient::CHATHANDLE>(it.second->getHandle());
+                LOG_info << "Could not cancel scheduled meetings for chat (due to insufficient "
+                            "permissions)"
+                         << Base64Str<MegaClient::CHATHANDLE>(c.second->getHandle());
                 continue;
             }
 
-            const auto schedList = it.second->getScheduledMeetingList();
+            const auto schedList = c.second->getScheduledMeetingList();
             for (unsigned long j = 0; j < schedList->size(); ++j)
             {
-                delSchedTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(megaApi[i].get())));
-                megaApi[i]->removeScheduledMeeting(it.second->getHandle(), schedList->at(j)->schedId(), delSchedTrackers.back().get());
+                if (const MegaScheduledMeeting* aux = schedList->at(j); aux && !aux->cancelled())
+                {
+                    std::unique_ptr<MegaScheduledMeeting> sm(
+                        MegaScheduledMeeting::createInstance(aux->chatid(),
+                                                             aux->schedId(),
+                                                             aux->parentSchedId(),
+                                                             aux->organizerUserid(),
+                                                             true /*cancelled*/,
+                                                             aux->timezone(),
+                                                             aux->startDateTime(),
+                                                             aux->endDateTime(),
+                                                             aux->title(),
+                                                             aux->description(),
+                                                             aux->attributes(),
+                                                             MEGA_INVALID_TIMESTAMP /*overrides*/,
+                                                             aux->flags(),
+                                                             aux->rules()));
+
+                    smTrackers.push_back(
+                        std::unique_ptr<RequestTracker>(new RequestTracker(megaApi[i].get())));
+                    megaApi[i]->createOrUpdateScheduledMeeting(sm.get(),
+                                                               c.second->getTitle(),
+                                                               smTrackers.back().get());
+                }
             }
         }
     }
 
     // wait for requests to complete:
-    for (auto& d : delSchedTrackers) d->waitForResult();
+    for (auto& d: smTrackers)
+        d->waitForResult();
 }
 #endif
 
@@ -8148,7 +8166,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
     LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
 
     // SCENARIO 1: Upload image file and check thumbnail and preview
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
@@ -8195,7 +8213,7 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
 
     unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
@@ -8591,7 +8609,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     LOG_info << "___TEST SDKSensitive___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
@@ -10325,7 +10343,8 @@ TEST_F(SdkTest, FetchAds)
     tr = asyncQueryAds(0, MegaApi::ADS_DEFAULT, INVALID_HANDLE);
     ASSERT_EQ(API_OK, tr->waitForResult()) << "Query Ads request failed when it wasn't expected";
     const int showAd = tr->request->getNumDetails();
-
+    LOG_debug << "Account 0 " << megaApi[0]->getMyUserHandle() << " (" << megaApi[0]->getMyEmail()
+              << ") Show Ads (QueryAds, 0- Should show Ads, 1-Should not show ads): " << showAd;
     if (showAd == 0)
     {
         // Show Ads
@@ -10357,7 +10376,8 @@ TEST_F(SdkTest, FetchAds)
     LOG_debug << "Account 0 " << megaApi[0]->getMyUserHandle() << " (" << megaApi[0]->getMyEmail()
               << ") ab_adse: " << ab_adse->getGroup() << " ab_adsi: " << ab_adsi->getGroup();
     const bool isUserAllowedToFetchAds = ab_adse->getGroup() > 0u || ab_adsi->getGroup() > 0u;
-    if (isUserAllowedToFetchAds)
+    // Check if ads are enable for the account by default or through AB test/feature flags.
+    if (isUserAllowedToFetchAds || (showAd == 0))
     {
         ASSERT_EQ(API_OK, tr->waitForResult())
             << "Fetch Ads request failed when it wasn't expected";
@@ -11647,7 +11667,7 @@ TEST_F(SdkTest, SyncImage)
     WaitMillisec(waitForSyncsMs);
 
     LOG_verbose << "SyncImage :  Adding the image file and checking if it is synced: " << filePath.u8string();
-    sdk_test::copyFileFromTestData(fileNameStr, filePath.u8string());
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + fileNameStr, filePath));
     auto remoteFile = "/" + string(remoteBaseNode->getName()) + "/" + fileNameStr;
     std::unique_ptr<MegaNode> remoteNode;
     WaitFor([this, &remoteNode, &remoteFile]() -> bool
@@ -12172,27 +12192,23 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
     LOG_info << "___TEST Audio File Thumbnail___";
 
     static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
-
-    LocalPath mp3LP;
-
-    mp3LP = LocalPath::fromAbsolutePath(sdk_test::getTestDataDir().string());
-    mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
-
-    const std::string& mp3 = mp3LP.toPath(false);
-
-    ASSERT_TRUE(fileexists(mp3)) << mp3 << " file does not exist";
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + AUDIO_FILENAME, AUDIO_FILENAME));
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
 
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, nullptr, mp3.c_str(),
-                                                       rootnode.get(),
-                                                       nullptr /*fileName*/,
-                                                       ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                                       nullptr /*appData*/,
-                                                       false   /*isSourceTemporary*/,
-                                                       false   /*startFirst*/,
-                                                       nullptr /*cancelToken*/)) << "Cannot upload test file " << mp3;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            nullptr,
+                            AUDIO_FILENAME.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload test file " << AUDIO_FILENAME;
     std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(AUDIO_FILENAME.c_str(), rootnode.get()));
     ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
 }
@@ -14258,7 +14274,6 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
  *      DeletedShare
  *      ContactChange  --  contact deleted
  *      NewScheduledMeeting
- *      DeletedScheduledMeeting
  *      UpdatedScheduledMeeting
  *
  * Not generated:
@@ -14538,33 +14553,8 @@ TEST_F(SdkTest, SdkUserAlerts)
     }
     ASSERT_EQ(count, 1) << "UpdateScheduledMeeting";
     ASSERT_EQ(A1dtls.chatid, chatid) << "Scheduled meeting could not be updated, unexpected chatid";
-    ASSERT_NE(A1dtls.schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
-    bkpAlerts.emplace_back(a->copy());
-
-    // DeleteScheduledMeeting
-    //--------------------------------------------
-    // reset User Alerts for B1
-    B1dtls.userAlertsUpdated = false;
-    B1dtls.userAlertList.reset();
-    A1dtls.schedId = UNDEF;
-    A1dtls.requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING] = false;
-    deleteScheduledMeeting(0, chatid);
-    ASSERT_NE(chatid, UNDEF) << "Invalid chat";
-    waitForResponse(&A1dtls.requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING], maxTimeout);
-
-    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
-        << "Alert about scheduled meeting removal not received by B1 after " << maxTimeout << " seconds";
-    ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting removed";
-
-    count = 0;
-    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
-    {
-        a = B1dtls.userAlertList->get(i);
-        if (a->isRemoved()) continue;
-        count++;
-    }
-    ASSERT_EQ(count, 1) << "DeleteScheduledMeeting";
-    ASSERT_NE(A1dtls.schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";  // Should this mention "deleted" rather than "updated"?
+    ASSERT_NE(A1dtls.schedId, UNDEF)
+        << "Scheduled meeting could not be updated, invalid scheduled meeting id";
     bkpAlerts.emplace_back(a->copy());
 #endif
 
@@ -17027,8 +17017,8 @@ public:
         ASSERT_THAT(mUser, ::testing::NotNull());
 
         // Set avatar
-        const auto srcAvatarPath{sdk_test::getTestDataDir()/AVATARSRC};
-        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, srcAvatarPath.string().c_str()));
+        ASSERT_TRUE(getFileFromArtifactory("test-data/" + AVATARSRC, AVATARSRC));
+        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, AVATARSRC.c_str()));
     }
 
     void TearDown() override
@@ -17413,7 +17403,7 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     const unsigned int apiIndex{0};
 
     // File upload
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
     const auto fileSize{getFilesize(IMAGEFILE)};
 
     std::string fingerprint;
@@ -17589,7 +17579,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // File upload
-    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
     const auto fileSize{getFilesize(IMAGEFILE)};
 
     std::string fingerprint;
@@ -19807,6 +19797,55 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
             &listener);
         ASSERT_EQ(listener.waitForResult(), API_OK);
     }
+}
+
+TEST_F(SdkTest, SdkTestSetAccountLevel)
+{
+    // Make sure we can transition between account levels.
+    auto check = [this](MegaApi& api, int months, int plan)
+    {
+        // Try and set the account level.
+        auto result = setAccountLevel(api, plan, months, nullptr);
+
+        EXPECT_EQ(result, API_OK) << "Couldn't set account level: " << result;
+
+        // Make sure the account level actually changed.
+        if (result == API_OK)
+        {
+            auto m = 0;
+            auto p = 0;
+
+            // Try and retrieve the account level.
+            std::tie(m, p, result) = getAccountLevel(api);
+
+            EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+
+            // Make sure the account level actually changed.
+            EXPECT_EQ(m, months);
+            EXPECT_EQ(p, plan);
+        }
+
+        return result;
+    }; // check
+
+    // Get an account for us to play with.
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Convenience.
+    constexpr auto FREE = MegaAccountDetails::ACCOUNT_TYPE_FREE;
+    constexpr auto PRO = MegaAccountDetails::ACCOUNT_TYPE_PROI;
+
+    // Convenience.
+    auto& api = *megaApi[0];
+
+    // Make sure any modifications we make are reversed.
+    auto restorer = makeScopedAccountLevelRestorer(api);
+
+    // Make sure we can change to a free plan.
+    EXPECT_EQ(check(api, 0, FREE), API_OK);
+
+    // Make sure we can change to a pro plan.
+    EXPECT_EQ(check(api, 1, PRO), API_OK);
 }
 
 TEST_F(SdkTest, FailsWhenThumbnailIsTooLarge)

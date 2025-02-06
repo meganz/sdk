@@ -155,11 +155,11 @@ bool CommandPutFA::procresult(Result r, JSON& json)
         {
             switch (json.getnameid())
             {
-                case 'p':
+                case makeNameid("p"):
                     p = json.getvalue();
                     break;
 
-                case MAKENAMEID2('i', 'p'):
+                case makeNameid("ip"):
                     loadIpsFromJson(ips, json);
                     break;
 
@@ -255,11 +255,11 @@ bool CommandGetFA::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'p':
+            case makeNameid("p"):
                 p = json.getvalue();
                 break;
 
-            case MAKENAMEID2('i', 'p'):
+            case makeNameid("ip"):
                 loadIpsFromJson(ips, json);
                 break;
 
@@ -472,12 +472,12 @@ bool CommandPutFile::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'p':
+            case makeNameid("p"):
                 tempurls.push_back("");
                 json.storeobject(canceled ? NULL : &tempurls.back());
                 break;
 
-            case MAKENAMEID2('i', 'p'):
+            case makeNameid("ip"):
                 loadIpsFromJson(tempips, json);
                 break;
             case EOO:
@@ -558,10 +558,10 @@ bool CommandGetPutUrl::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'p':
+            case makeNameid("p"):
                 json.storeobject(canceled ? nullptr : &url);
                 break;
-            case MAKENAMEID2('i', 'p'):
+            case makeNameid("ip"):
                 loadIpsFromJson(ips, json);
                 break;
             case EOO:
@@ -644,7 +644,7 @@ bool CommandDirectRead::procresult(Result r, JSON& json)
         {
             switch (json.getnameid())
             {
-                case 'g':
+                case makeNameid("g"):
                     if (json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
                     {
                         for (;;)
@@ -680,22 +680,22 @@ bool CommandDirectRead::procresult(Result r, JSON& json)
                     }
                     break;
 
-                case 's':
+                case makeNameid("s"):
                     if (drn)
                     {
                         drn->size = json.getint();
                     }
                     break;
 
-                case 'd':
+                case makeNameid("d"):
                     e = API_EBLOCKED;
                     break;
 
-                case 'e':
+                case makeNameid("e"):
                     e = (error)json.getint();
                     break;
 
-                case MAKENAMEID2('t', 'l'):
+                case makeNameid("tl"):
                     tl = dstime(json.getint());
                     break;
 
@@ -823,7 +823,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'g':
+            case makeNameid("g"):
                 if (json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
                 {
                     for (;;)
@@ -848,31 +848,31 @@ bool CommandGetFile::procresult(Result r, JSON& json)
                 e.setErrorCode(API_OK);
                 break;
 
-            case MAKENAMEID2('i', 'p'):
+            case makeNameid("ip"):
                 loadIpsFromJson(tempips, json);
                 break;
 
-            case 's':
+            case makeNameid("s"):
                 s = json.getint();
                 break;
 
-            case MAKENAMEID2('a', 't'):
+            case makeNameid("at"):
                 at = json.getvalue();
                 break;
 
-            case MAKENAMEID2('f', 'a'):
+            case makeNameid("fa"):
                 json.storeobject(&fileattrstring);
                 break;
 
-            case 'e':
+            case makeNameid("e"):
                 e = (error)json.getint();
                 break;
 
-            case MAKENAMEID2('t', 'l'):
+            case makeNameid("tl"):
                 tl = dstime(json.getint());
                 break;
 
-            case MAKENAMEID2('f', 'h'):
+            case makeNameid("fh"):
             {
                 json.storeobject(&fileHandle);
                 break;
@@ -921,7 +921,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
                 {
                     switch (attrJson.getnameid())
                     {
-                        case 'c':
+                        case makeNameid("c"):
                             if (!attrJson.storeobject(&filefingerprint))
                             {
                                 callFailedCompletion(API_EINTERNAL);
@@ -929,7 +929,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
                             }
                             break;
 
-                        case 'n':
+                        case makeNameid("n"):
                             if (!attrJson.storeobject(&filenamestring))
                             {
                                 callFailedCompletion(API_EINTERNAL);
@@ -1340,7 +1340,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'e':
+            case makeNameid("e"):
             {
                 // This element is a sparse array indicating the nodes that failed, and the
                 // corresponding error codes.
@@ -1420,7 +1420,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                 break;
             }
 
-            case MAKENAMEID2('f', 'h'): // ["drEyXKKB:C6-OsdmLX2U","<nodehandle>:<fileid>"]
+            case makeNameid("fh"): // ["drEyXKKB:C6-OsdmLX2U","<nodehandle>:<fileid>"]
                 if (!json.enterarray())
                 {
                     performAppCallback(API_EINTERNAL, nn, false, fileHandles);
@@ -1585,7 +1585,7 @@ bool CommandDelNode::procresult(Result r, JSON& json)
         {
             switch (json.getnameid())
             {
-                case 'r':
+                case makeNameid("r"):
                     if (json.enterarray())
                     {
                         if(json.isnumeric())
@@ -1732,10 +1732,10 @@ bool CommandPrelogin::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'v':
+            case makeNameid("v"):
                 v = int(json.getint());
                 break;
-            case 's':
+            case makeNameid("s"):
                 json.storeobject(&salt);
                 break;
             case EOO:
@@ -1856,39 +1856,39 @@ bool CommandLogin::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'k':
+            case makeNameid("k"):
                 len_k = json.storebinary(hash, sizeof hash);
                 break;
 
-            case 'u':
+            case makeNameid("u"):
                 me = json.gethandle(MegaClient::USERHANDLE);
                 break;
 
-            case MAKENAMEID3('s', 'e', 'k'):
+            case makeNameid("sek"):
                 len_sek = json.storebinary(sek, sizeof sek);
                 break;
 
-            case MAKENAMEID4('t', 's', 'i', 'd'):
+            case makeNameid("tsid"):
                 len_tsid = json.storebinary(sidbuf, sizeof sidbuf);
                 break;
 
-            case MAKENAMEID4('c', 's', 'i', 'd'):
+            case makeNameid("csid"):
                 len_csid = json.storebinary(sidbuf, sizeof sidbuf);
                 break;
 
-            case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):
+            case makeNameid("privk"):
                 len_privk = json.storebinary(privkbuf, sizeof privkbuf);
                 break;
 
-            case MAKENAMEID2('f', 'a'):
+            case makeNameid("fa"):
                 fa = json.getbool();
                 break;
 
-            case MAKENAMEID3('a', 'c', 'h'):
+            case makeNameid("ach"):
                 ach = json.getbool();
                 break;
 
-            case MAKENAMEID2('s', 'n'):
+            case makeNameid("sn"):
                 if (!json.getint())
                 {
                     // local state cache continuity rejected: read state from
@@ -2142,11 +2142,11 @@ bool CommandSetShare::procuserresult(MegaClient* ownClient, JSON& json)
         {
             switch (json.getnameid())
             {
-                case 'u':
+                case makeNameid("u"):
                     uh = json.gethandle(MegaClient::USERHANDLE);
                     break;
 
-                case 'm':
+                case makeNameid("m"):
                     m = json.getvalue();
                     break;
 
@@ -2182,9 +2182,9 @@ bool CommandSetShare::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID2('o', 'k'):  // an owner key response will only
-                                         // occur if the same share was created
-                                         // with a different key
+            case makeNameid("ok"): // an owner key response will only
+                                   // occur if the same share was created
+                                   // with a different key
             {
                 // if the API has a different key, the only legit scenario is that
                 // such owner key is invalid (ie. "AAAAA..."), set by a client with
@@ -2193,7 +2193,7 @@ bool CommandSetShare::procresult(Result r, JSON& json)
                 return true;
             }
 
-            case 'u':   // user/handle confirmation
+            case makeNameid("u"): // user/handle confirmation
                 if (json.enterarray())
                 {
                     while (procuserresult(client, json))
@@ -2202,7 +2202,7 @@ bool CommandSetShare::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case 'r':
+            case makeNameid("r"):
                 if (json.enterarray())
                 {
                     while (json.isnumeric())
@@ -2216,15 +2216,15 @@ bool CommandSetShare::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID3('s', 'n', 'k'):
+            case makeNameid("snk"):
                 client->procsnk(&json);
                 break;
 
-            case MAKENAMEID3('s', 'u', 'k'):
+            case makeNameid("suk"):
                 client->procsuk(&json);
                 break;
 
-            case MAKENAMEID2('c', 'r'):
+            case makeNameid("cr"):
                 client->proccr(&json);
                 break;
 
@@ -2448,22 +2448,22 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'p':
+            case makeNameid("p"):
                 p = json.gethandle(MegaClient::PCRHANDLE);
                 break;
-            case 'm':
+            case makeNameid("m"):
                 m = json.getvalue();
                 break;
-            case 'e':
+            case makeNameid("e"):
                 eValue = json.getvalue();
                 break;
-            case MAKENAMEID3('m', 's', 'g'):
+            case makeNameid("msg"):
                 msg = json.getvalue();
                 break;
-            case MAKENAMEID2('t', 's'):
+            case makeNameid("ts"):
                 ts = json.getint();
                 break;
-            case MAKENAMEID3('u', 't', 's'):
+            case makeNameid("uts"):
                 uts = json.getint();
                 break;
             case EOO:
@@ -2592,7 +2592,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
 
             switch (json.getnameid())
             {
-                case MAKENAMEID1('l'):  // currency localization
+                case makeNameid("l"): // currency localization
                 {
                     if (!json.enterobject())
                     {
@@ -2610,20 +2610,20 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
 
                         switch(json.getnameid())
                         {
-                            case MAKENAMEID1('c'):  // currency, ie. EUR
+                            case makeNameid("c"): // currency, ie. EUR
                                 buf = json.getvalue();
                                 JSON::copystring(&currencyData->currencyName, buf);
                                 currency = currencyData->currencyName;
                                 break;
-                            case MAKENAMEID2('c', 's'): // currency symbol, ie. €
+                            case makeNameid("cs"): // currency symbol, ie. €
                                 buf = json.getvalue();
                                 JSON::copystring(&currencyData->currencySymbol, buf);
                                 break;
-                            case MAKENAMEID2('l', 'c'):  // local currency, ie. NZD
+                            case makeNameid("lc"): // local currency, ie. NZD
                                 buf = json.getvalue();
                                 JSON::copystring(&currencyData->localCurrencyName, buf);
                                 break;
-                            case MAKENAMEID3('l', 'c', 's'):    // local currency symbol, ie. $
+                            case makeNameid("lcs"): // local currency symbol, ie. $
                                 buf = json.getvalue();
                                 JSON::copystring(&currencyData->localCurrencySymbol, buf);
                                 break;
@@ -2651,37 +2651,38 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     }
                     break;
                 }
-                case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan; 2 -> for Feature plan
+                case makeNameid("it"): // 0 -> for all Pro level plans; 1 -> for Business plan;
+                                       // 2 -> for Feature plan
                     type = static_cast<int>(json.getint());
                     break;
-//                case MAKENAMEID2('i', 'b'): // for "it":1 (business plans), 0 -> Pro Flexi; 1 -> Business plan
+//                case makeNameid("ib"): // for "it":1 (business plans), 0 -> Pro Flexi; 1 -> Business plan
 //                    {
 //                        bool isProFlexi = json.getbool();
 //                    }
 //                    break;
-                case MAKENAMEID2('i', 'd'):
+                case makeNameid("id"):
                     product = json.gethandle(8);
                     break;
-                case MAKENAMEID2('a', 'l'):
+                case makeNameid("al"):
                     prolevel = static_cast<int>(json.getint());
                     break;
-                case 's':
+                case makeNameid("s"):
                     gbstorage = static_cast<int>(json.getint());
                     break;
-                case 't':
+                case makeNameid("t"):
                     gbtransfer = static_cast<int>(json.getint());
                     break;
-                case 'm':
+                case makeNameid("m"):
                     months = static_cast<int>(json.getint());
                     break;
-                case 'p':   // price (in cents)
+                case makeNameid("p"): // price (in cents)
                     amount = static_cast<unsigned>(json.getint());
                     break;
-                case 'd':
+                case makeNameid("d"):
                     buf = json.getvalue();
                     JSON::copystring(&description, buf);
                     break;
-                case 'f': // e.g. "f": { "vpn": 1 }
+                case makeNameid("f"): // e.g. "f": { "vpn": 1 }
                 {
                     if (!json.enterobject())
                     {
@@ -2702,21 +2703,21 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     }
                     break;
                 }
-                case MAKENAMEID3('i', 'o', 's'):
+                case makeNameid("ios"):
                     buf = json.getvalue();
                     JSON::copystring(&ios_id, buf);
                     break;
-                case MAKENAMEID6('g', 'o', 'o', 'g', 'l', 'e'):
+                case makeNameid("google"):
                     buf = json.getvalue();
                     JSON::copystring(&android_id, buf);
                     break;
-                case MAKENAMEID3('m', 'b', 'p'):    // monthly price (in cents)
+                case makeNameid("mbp"): // monthly price (in cents)
                     amountMonth = static_cast<unsigned>(json.getint());
                     break;
-                case MAKENAMEID2('l', 'p'): // local price (in cents)
+                case makeNameid("lp"): // local price (in cents)
                     localPrice = static_cast<unsigned>(json.getint());
                     break;
-                case MAKENAMEID2('b', 'd'): // BusinessPlan
+                case makeNameid("bd"): // BusinessPlan
                 {
                     if (!json.enterobject())
                     {
@@ -2732,7 +2733,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     {
                         switch (json.getnameid())
                         {
-                            case MAKENAMEID2('b', 'a'): // base (-1 means unlimited storage or transfer)
+                            case makeNameid("ba"): // base (-1 means unlimited storage or transfer)
                             {
                                 if (!json.enterobject())
                                 {
@@ -2746,10 +2747,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                 {
                                     switch (json.getnameid())
                                     {
-                                        case 's':
+                                        case makeNameid("s"):
                                             bizPlan->gbStoragePerUser = static_cast<int>(json.getint());
                                             break;
-                                        case 't':
+                                        case makeNameid("t"):
                                             bizPlan->gbTransferPerUser = static_cast<int>(json.getint());
                                             break;
                                         case EOO:
@@ -2768,7 +2769,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                 json.leaveobject();
                                 break;
                             }
-                            case MAKENAMEID2('u', 's'):   // price per user
+                            case makeNameid("us"): // price per user
                             {
                                 if (!json.enterobject())
                                 {
@@ -2782,10 +2783,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                 {
                                     switch (json.getnameid())
                                     {
-                                        case 'p':
+                                        case makeNameid("p"):
                                             bizPlan->pricePerUser = static_cast<unsigned>(json.getint());
                                             break;
-                                        case MAKENAMEID2('l', 'p'):
+                                        case makeNameid("lp"):
                                             bizPlan->localPricePerUser = static_cast<unsigned>(json.getint());
                                             break;
                                         case EOO:
@@ -2804,7 +2805,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                 json.leaveobject();
                                 break;
                             }
-                            case MAKENAMEID3('s', 't', 'o'):   // storage block
+                            case makeNameid("sto"): // storage block
                             {
                                 if (!json.enterobject())
                                 {
@@ -2818,13 +2819,13 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                 {
                                     switch (json.getnameid())
                                     {
-                                        case 's':
+                                        case makeNameid("s"):
                                             bizPlan->gbPerStorage = static_cast<int>(json.getint());
                                             break;
-                                        case 'p':
+                                        case makeNameid("p"):
                                             bizPlan->pricePerStorage = static_cast<unsigned>(json.getint());
                                             break;
-                                        case MAKENAMEID2('l', 'p'):
+                                        case makeNameid("lp"):
                                             bizPlan->localPricePerStorage = static_cast<unsigned>(json.getint());
                                             break;
                                         case EOO:
@@ -2843,7 +2844,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                 json.leaveobject();
                                 break;
                             }
-                            case MAKENAMEID4('t', 'r', 'n', 's'):   // transfer block
+                            case makeNameid("trns"): // transfer block
                             {
                                 if (!json.enterobject())
                                 {
@@ -2857,13 +2858,13 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                 {
                                     switch (json.getnameid())
                                     {
-                                        case 't':
+                                        case makeNameid("t"):
                                             bizPlan->gbPerTransfer = static_cast<int>(json.getint());
                                             break;
-                                        case 'p':
+                                        case makeNameid("p"):
                                             bizPlan->pricePerTransfer = static_cast<unsigned>(json.getint());
                                             break;
-                                        case MAKENAMEID2('l', 'p'):
+                                        case makeNameid("lp"):
                                             bizPlan->localPricePerTransfer = static_cast<unsigned>(json.getint());
                                             break;
                                         case EOO:
@@ -2882,7 +2883,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                 json.leaveobject();
                                 break;
                             }
-                            case MAKENAMEID4('m', 'i', 'n', 'u'):   // minimum number of user required to purchase
+                            case makeNameid("minu"): // minimum number of user required to purchase
                                 bizPlan->minUsers = json.getuint32();
                                 break;
                             case EOO:
@@ -2901,10 +2902,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     json.leaveobject();
                     break;
                 }
-                case MAKENAMEID2('t', 'c'):
+                case makeNameid("tc"):
                     testCategory = json.getuint32();
                     break;
-                case MAKENAMEID5('t', 'r', 'i', 'a', 'l'):
+                case makeNameid("trial"):
                 {
                     if (!json.enterobject())
                     {
@@ -3097,7 +3098,7 @@ bool CommandPurchaseCheckout::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID3('r', 'e', 's'):
+            case makeNameid("res"):
                 if (json.isnumeric())
                 {
                     e = (error)json.getint();
@@ -3113,7 +3114,7 @@ bool CommandPurchaseCheckout::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID4('c', 'o', 'd', 'e'):
+            case makeNameid("code"):
                 if (json.isnumeric())
                 {
                     e = (error)json.getint();
@@ -3644,7 +3645,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
         {
             switch (json.getnameid())
             {
-                case MAKENAMEID2('a','v'):
+                case makeNameid("av"):
                 {
                     if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
@@ -3654,7 +3655,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     buf.assign(ptr, static_cast<size_t>(end - ptr));
                     break;
                 }
-                case 'v':
+                case makeNameid("v"):
                 {
                     if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
@@ -3708,16 +3709,18 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             // decrypt the data
                             std::unique_ptr<string_map> records{
                                 tlv::containerToRecords(value, client->key)};
-                            if (!records)
+                            if (records || (value.empty() && !version.empty()))
+                            {
+                                u->setAttribute(at, value, version);
+                                mCompletionTLV(std::move(records), at);
+                            }
+                            else
                             {
                                 LOG_err << "Cannot extract TLV records for private attribute "
                                         << User::attr2string(at);
                                 mCompletionErr(API_EINTERNAL);
-                                return false;
+                                return true;
                             }
-
-                            u->setAttribute(at, value, version);
-                            mCompletionTLV(std::move(records), at);
 
                             break;
                         }
@@ -3791,7 +3794,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         {
                             LOG_err << "Unknown received attribute: " << User::attr2string(at);
                             mCompletionErr(API_EINTERNAL);
-                            return false;
+                            return true;
                         }
 
                     }   // switch (scope)
@@ -3866,6 +3869,8 @@ bool CommandDelUA::procresult(Result r, JSON& json)
     return true;
 }
 
+#endif // #ifdef DEBUG
+
 CommandSendDevCommand::CommandSendDevCommand(MegaClient* client,
                                              const char* command,
                                              const char* email,
@@ -3901,6 +3906,15 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient* client,
         if (cp) arg("c", cp);
         arg("g", us);
     }
+    else if (strcmp(command, "sal") == 0)
+    {
+        // Account level.
+        arg("al", us);
+
+        // Quota length in months.
+        arg("m", q);
+    }
+
     tag = client->reqtag;
 }
 
@@ -3909,8 +3923,6 @@ bool CommandSendDevCommand::procresult(Result r, JSON&)
     client->app->senddevcommand_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
-
-#endif  // #ifdef DEBUG
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {
@@ -4056,11 +4068,11 @@ bool CommandPubKeyRequest::procresult(Result r, JSON& json)
         {
             switch (json.getnameid())
             {
-                case 'u':
+                case makeNameid("u"):
                     uh = json.gethandle(MegaClient::USERHANDLE);
                     break;
 
-                case MAKENAMEID4('p', 'u', 'b', 'k'):
+                case makeNameid("pubk"):
                     len_pubk = json.storebinary(pubkbuf, sizeof pubkbuf);
                     break;
 
@@ -4140,6 +4152,31 @@ CommandGetUserData::CommandGetUserData(
             this->client->app->userdata_result(name, pubk, privk, e);
         };
 
+}
+
+bool CommandGetUserData::updatePrivateEncryptedUserAttribute(User* u,
+                                                             const std::string& value,
+                                                             const std::string& version,
+                                                             mega::attr_t at)
+{
+    // Empty private encrypted attribute with empty version means removal; non-empty version
+    // indicates it was explicitly emptied.
+    if (!version.empty())
+    {
+        if (value.empty() || tlv::containerToRecords(value, client->key)) // validation
+        {
+            return u->updateAttributeIfDifferentVersion(at, value, version);
+        }
+        else
+        {
+            LOG_err << "Cannot extract TLV records for " << at;
+        }
+    }
+    else
+    {
+        u->removeAttribute(at);
+    }
+    return false;
 }
 
 bool CommandGetUserData::procresult(Result r, JSON& json)
@@ -4248,37 +4285,37 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
         string attributeName = json.getnameWithoutAdvance();
         switch (json.getnameid())
         {
-        case MAKENAMEID3('a', 'a', 'v'):    // account authentication version
+        case makeNameid("aav"): // account authentication version
             v = (int)json.getint();
             break;
 
-        case MAKENAMEID3('a', 'a', 's'):    // account authentication salt
+        case makeNameid("aas"): // account authentication salt
             json.storeobject(&salt);
             break;
 
-        case MAKENAMEID4('n', 'a', 'm', 'e'):
+        case makeNameid("name"):
             json.storeobject(&name);
             break;
 
-        case 'k':   // master key
+        case makeNameid("k"): // master key
             k.resize(SymmCipher::KEYLENGTH);
             json.storebinary((byte *)k.data(), int(k.size()));
             break;
 
-        case MAKENAMEID5('s', 'i', 'n', 'c', 'e'):
+        case makeNameid("since"):
             since = json.getint();
             break;
 
-        case MAKENAMEID4('p', 'u', 'b', 'k'):   // RSA public key
+        case makeNameid("pubk"): // RSA public key
             json.storeobject(&pubk);
             len_pubk = Base64::atob(pubk.c_str(), pubkbuf, sizeof pubkbuf);
             break;
 
-        case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):  // RSA private key (encrypted to MK)
+        case makeNameid("privk"): // RSA private key (encrypted to MK)
             len_privk = json.storebinary(privkbuf, sizeof privkbuf);
             break;
 
-        case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
+        case makeNameid("flags"):
             if (json.enterobject())
             {
                 if (client->readmiscflags(&json) != API_OK)
@@ -4290,114 +4327,114 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             }
             break;
 
-        case MAKENAMEID2('n', 'a'):
+        case makeNameid("na"):
             client->accountIsNew = bool(json.getint());
             break;
 
-        case 'u':
+        case makeNameid("u"):
 #ifndef NDEBUG
             me =
 #endif
                  json.gethandle(MegaClient::USERHANDLE);
             break;
 
-        case MAKENAMEID8('l', 'a', 's', 't', 'n', 'a', 'm', 'e'):
+        case makeNameid("lastname"):
             parseUserAttribute(json, lastname, versionLastname);
             break;
 
-        case MAKENAMEID6('^', '!', 'l', 'a', 'n', 'g'):
+        case makeNameid("^!lang"):
             parseUserAttribute(json, language, versionLanguage);
             break;
 
-        case MAKENAMEID8('b', 'i', 'r', 't', 'h', 'd', 'a', 'y'):
+        case makeNameid("birthday"):
             parseUserAttribute(json, birthday, versionBirthday);
             break;
 
-        case MAKENAMEID7('c', 'o', 'u', 'n', 't', 'r', 'y'):
+        case makeNameid("country"):
             parseUserAttribute(json, country, versionCountry);
             break;
 
-        case MAKENAMEID4('^', '!', 'p', 's'):
+        case makeNameid("^!ps"):
             parseUserAttribute(json, pushSetting, versionPushSetting);
             break;
 
-        case MAKENAMEID5('^', '!', 'p', 'r', 'd'):
+        case makeNameid("^!prd"):
             parseUserAttribute(json, pwdReminderDialog, versionPwdReminderDialog);
             break;
 
-        case MAKENAMEID4('^', 'c', 'l', 'v'):
+        case makeNameid("^clv"):
             parseUserAttribute(json, contactLinkVerification, versionContactLinkVerification);
             break;
 
-        case MAKENAMEID4('^', '!', 'd', 'v'):
+        case makeNameid("^!dv"):
             parseUserAttribute(json, disableVersions, versionDisableVersions);
             break;
 
-        case MAKENAMEID7('^', '!', 'n', 'o', 'k', 'i', 't'):
+        case makeNameid("^!nokit"):
             parseUserAttribute(json, noCallKit, versionNoCallKit);
             break;
 
-        case MAKENAMEID4('*', '!', 'c', 'f'):
+        case makeNameid("*!cf"):
             parseUserAttribute(json, chatFolder, versionChatFolder);
             break;
 
-        case MAKENAMEID5('*', '!', 'c', 'a', 'm'):
+        case makeNameid("*!cam"):
             parseUserAttribute(json, cameraUploadFolder, versionCameraUploadFolder);
             break;
 
-        case MAKENAMEID8('*', '!', '>', 'a', 'l', 'i', 'a', 's'):
+        case makeNameid("*!>alias"):
             parseUserAttribute(json, aliases, versionAliases);
             break;
 
-        case MAKENAMEID5('e', 'm', 'a', 'i', 'l'):
+        case makeNameid("email"):
             json.storeobject(&email);
             break;
 
-        case MAKENAMEID5('*', '~', 'u', 's', 'k'):
+        case makeNameid("*~usk"):
             parseUserAttribute(json, unshareableKey, versionUnshareableKey, false);
             break;
 
-        case MAKENAMEID4('*', '!', 'd', 'n'):
+        case makeNameid("*!dn"):
             parseUserAttribute(json, deviceNames, versionDeviceNames);
             break;
 
-        case MAKENAMEID5('^', '!', 'b', 'a', 'k'):
+        case makeNameid("^!bak"):
             parseUserAttribute(json, myBackupsFolder, versionMyBackupsFolder);
             break;
 
-        case MAKENAMEID8('*', '!', 'a', 'P', 'r', 'e', 'f', 's'):
+        case makeNameid("*!aPrefs"):
             parseUserAttribute(json, appPrefs, versionAppPrefs);
             break;
 
-        case MAKENAMEID8('*', '!', 'c', 'c', 'P', 'r', 'e', 'f'):
+        case makeNameid("*!ccPref"):
             parseUserAttribute(json, ccPrefs, versionCcPrefs);
             break;
 
 #ifdef ENABLE_SYNC
-        case MAKENAMEID6('*', '~', 'j', 's', 'c', 'd'):
+        case makeNameid("*~jscd"):
             parseUserAttribute(json, jsonSyncConfigData, jsonSyncConfigDataVersion);
             break;
 #endif
-        case MAKENAMEID6('^', '!', 'k', 'e', 'y', 's'):
+        case makeNameid("^!keys"):
             parseUserAttribute(json, keys, keysVersion);
             break;
-        case MAKENAMEID8('*', 'k', 'e', 'y', 'r', 'i', 'n', 'g'):
+        case makeNameid("*keyring"):
             parseUserAttribute(json, keyring, versionKeyring);
             break;
-        case MAKENAMEID8('+', 'p', 'u', 'E', 'd', '2', '5', '5'):
+        case makeNameid("+puEd255"):
             parseUserAttribute(json, pubEd255, versionPubEd255);
             break;
-        case MAKENAMEID8('+', 'p', 'u', 'C', 'u', '2', '5', '5'):
+        case makeNameid("+puCu255"):
             parseUserAttribute(json, pubCu255, versionPubCu255);
             break;
-        case MAKENAMEID8('+', 's', 'i', 'g', 'P', 'u', 'b', 'k'):
+        case makeNameid("+sigPubk"):
             parseUserAttribute(json, sigPubk, versionSigPubk);
             break;
 
-        case MAKENAMEID2('p', 'f'):  // Pro Flexi plan (similar to business)
+        case makeNameid("pf"): // Pro Flexi plan (similar to business)
             client->setProFlexi(true);
             [[fallthrough]];
-        case 'b':   // business account's info
+        case makeNameid("b"): // business account's info
             assert(!b);
             b = true;
             if (json.enterobject())
@@ -4407,16 +4444,16 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     switch (json.getnameid())
                     {
-                        case 's':   // status
+                        case makeNameid("s"): // status
                             // -1: expired, 1: active, 2: grace-period
                             s = BizStatus(json.getint32());
                             break;
 
-                        case 'm':   // mode
+                        case makeNameid("m"): // mode
                             m = BizMode(json.getint32());
                             break;
 
-                        case MAKENAMEID2('m', 'u'):
+                        case makeNameid("mu"):
                             if (json.enterarray())
                             {
                                 for (;;)
@@ -4435,7 +4472,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                             }
                             break;
 
-                        case MAKENAMEID3('s', 't', 's'):    // status timestamps
+                        case makeNameid("sts"): // status timestamps
                             // ie. "sts":[{"s":-1,"ts":1566182227},{"s":1,"ts":1563590227}]
                             json.enterarray();
                             while (json.enterobject())
@@ -4448,11 +4485,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                 {
                                     switch (json.getnameid())
                                     {
-                                        case 's':
+                                        case makeNameid("s"):
                                            status = BizStatus(json.getint());
                                            break;
 
-                                        case MAKENAMEID2('t', 's'):
+                                        case makeNameid("ts"):
                                            ts = json.getint();
                                            break;
 
@@ -4498,7 +4535,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             }
             break;
 
-        case MAKENAMEID4('s', 'm', 's', 'v'):   // SMS verified phone number
+        case makeNameid("smsv"): // SMS verified phone number
             if (!json.storeobject(&smsv))
             {
                 LOG_err << "Invalid verified phone number (smsv)";
@@ -4506,7 +4543,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             }
             break;
 
-        case MAKENAMEID4('u', 's', 'p', 'w'):   // user paywall data
+        case makeNameid("uspw"): // user paywall data
         {
             uspw = true;
 
@@ -4517,11 +4554,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     switch (json.getnameid())
                     {
-                        case MAKENAMEID2('d', 'l'): // deadline timestamp
+                        case makeNameid("dl"): // deadline timestamp
                             deadlineTs = json.getint();
                             break;
 
-                        case MAKENAMEID3('w', 't', 's'):    // warning timestamps
+                        case makeNameid("wts"): // warning timestamps
                             // ie. "wts":[1591803600,1591813600,1591823600
 
                             if (json.enterarray())
@@ -4553,32 +4590,32 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         }
 
-        case MAKENAMEID5('^', '!', 'c', 's', 'p'):
+        case makeNameid("^!csp"):
             parseUserAttribute(json, cookieSettings, versionCookieSettings);
             break;
 
-//        case MAKENAMEID1('p'):  // plan: 101 for Pro Flexi
+//        case makeNameid("p"):  // plan: 101 for Pro Flexi
 //            {
 //                int proPlan = json.getint32();
 //            }
 //            break;
-        case MAKENAMEID8('^', '!', 'w', 'e', 'l', 'd', 'l', 'g'):
+        case makeNameid("^!weldlg"):
         {
             parseUserAttribute(json, visibleWelcomeDialog, versionVisibleWelcomeDialog);
             break;
         }
 
-        case MAKENAMEID5('^', '!', 't', 'o', 's'):
+        case makeNameid("^!tos"):
         {
             parseUserAttribute(json, visibleTermsOfService, versionVisibleTermsOfService);
             break;
         }
 
-        case MAKENAMEID4('p', 'w', 'm', 'h'):
+        case makeNameid("pwmh"):
             parseUserAttribute(json, pwmh, pwmhVersion);
             break;
 
-        case MAKENAMEID6('n', 'o', 't', 'i', 'f', 's'):
+        case makeNameid("notifs"):
         {
             if (json.enterarray())
             {
@@ -4591,25 +4628,25 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         }
 
-        case MAKENAMEID8('^', '!', 't', 'n', 'o', 't', 'i', 'f'):
+        case makeNameid("^!tnotif"):
         {
             parseUserAttribute(json, enabledTestNotifications, versionEnabledTestNotifications);
             break;
         }
 
-        case MAKENAMEID8('^', '!', 'l', 'n', 'o', 't', 'i', 'f'):
+        case makeNameid("^!lnotif"):
         {
             parseUserAttribute(json, lastReadNotification, versionLastReadNotification);
             break;
         }
 
-        case MAKENAMEID8('^', '!', 'l', 'b', 'a', 'n', 'n', 'r'):
+        case makeNameid("^!lbannr"):
         {
             parseUserAttribute(json, lastActionedBanner, versionLastActionedBanner);
             break;
         }
 
-        case MAKENAMEID6('^', '!', 't', 's', 'u', 'r'):
+        case makeNameid("^!tsur"):
         {
             parseUserAttribute(json, enabledTestSurveys, versionEnabledTestSurveys);
             break;
@@ -4810,76 +4847,38 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     u->removeAttribute(ATTR_NO_CALLKIT);
                 }
 
-                if (chatFolder.size())
-                {
-                    if (tlv::containerToRecords(chatFolder, client->key)) // validation
-                    {
-                        changes |= u->updateAttributeIfDifferentVersion(ATTR_MY_CHAT_FILES_FOLDER,
-                                                                        chatFolder,
-                                                                        versionChatFolder);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
-                    }
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_MY_CHAT_FILES_FOLDER);
-                }
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               deviceNames,
+                                                               versionDeviceNames,
+                                                               ATTR_DEVICE_NAMES);
 
-                if (cameraUploadFolder.size())
-                {
-                    if (tlv::containerToRecords(cameraUploadFolder,
-                                                client->key)) // validation
-                    {
-                        changes |= u->updateAttributeIfDifferentVersion(ATTR_CAMERA_UPLOADS_FOLDER,
-                                                                        cameraUploadFolder,
-                                                                        versionCameraUploadFolder);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_CAMERA_UPLOADS_FOLDER";
-                    }
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_CAMERA_UPLOADS_FOLDER);
-                }
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               chatFolder,
+                                                               versionChatFolder,
+                                                               ATTR_MY_CHAT_FILES_FOLDER);
 
-                if (!myBackupsFolder.empty())
-                {
-                    changes |= u->updateAttributeIfDifferentVersion(ATTR_MY_BACKUPS_FOLDER,
-                                                                    myBackupsFolder,
-                                                                    versionMyBackupsFolder);
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_MY_BACKUPS_FOLDER);
-                }
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               cameraUploadFolder,
+                                                               versionCameraUploadFolder,
+                                                               ATTR_CAMERA_UPLOADS_FOLDER);
 
-                if (!appPrefs.empty())
-                {
-                    changes |= u->updateAttributeIfDifferentVersion(ATTR_APPS_PREFS,
-                                                                    appPrefs,
-                                                                    versionAppPrefs);
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_APPS_PREFS);
-                }
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               appPrefs,
+                                                               versionAppPrefs,
+                                                               ATTR_APPS_PREFS);
 
-                if (!ccPrefs.empty())
-                {
-                    changes |= u->updateAttributeIfDifferentVersion(ATTR_CC_PREFS,
-                                                                    ccPrefs,
-                                                                    versionCcPrefs);
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_CC_PREFS);
-                }
+                changes |=
+                    updatePrivateEncryptedUserAttribute(u, ccPrefs, versionCcPrefs, ATTR_CC_PREFS);
 
+#ifdef ENABLE_SYNC
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               jsonSyncConfigData,
+                                                               jsonSyncConfigDataVersion,
+                                                               ATTR_JSON_SYNC_CONFIG_DATA);
+#endif // ENABLE_SYNC
+
+                // `ug` response excludes alias if empty, even with a version. Use `uga` to
+                // differentiate between removal and explicit emptying.
                 if (aliases.size())
                 {
                     if (tlv::containerToRecords(aliases, client->key)) // validation
@@ -4893,9 +4892,16 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_ALIAS";
                     }
                 }
+
+                if (!myBackupsFolder.empty())
+                {
+                    changes |= u->updateAttributeIfDifferentVersion(ATTR_MY_BACKUPS_FOLDER,
+                                                                    myBackupsFolder,
+                                                                    versionMyBackupsFolder);
+                }
                 else
                 {
-                    u->removeAttribute(ATTR_ALIAS);
+                    u->removeAttribute(ATTR_MY_BACKUPS_FOLDER);
                 }
 
                 if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
@@ -4922,24 +4928,6 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_err << "Unshareable key wrong length";
-                }
-
-                if (deviceNames.size())
-                {
-                    if (tlv::containerToRecords(deviceNames, client->key)) // validation
-                    {
-                        changes |= u->updateAttributeIfDifferentVersion(ATTR_DEVICE_NAMES,
-                                                                        deviceNames,
-                                                                        versionDeviceNames);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
-                    }
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_DEVICE_NAMES);
                 }
 
                 if (!cookieSettings.empty())
@@ -4999,20 +4987,6 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     u->removeAttribute(ATTR_ENABLE_TEST_SURVEYS);
                 }
-
-#ifdef ENABLE_SYNC
-                if (!jsonSyncConfigData.empty())
-                {
-                    // Tell the rest of the SDK that the attribute's changed.
-                    changes |= u->updateAttributeIfDifferentVersion(ATTR_JSON_SYNC_CONFIG_DATA,
-                                                                    jsonSyncConfigData,
-                                                                    jsonSyncConfigDataVersion);
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_JSON_SYNC_CONFIG_DATA);
-                }
-#endif // ENABLE_SYNC
 
                 if (keys.size())
                 {
@@ -5261,12 +5235,12 @@ void CommandGetUserData::parseUserAttribute(JSON& json, std::string &value, std:
     {
         switch (infoJson.getnameid())
         {
-            case MAKENAMEID2('a','v'):  // value
+            case makeNameid("av"): // value
             {
                 infoJson.storeobject(&buf);
                 break;
             }
-            case 'v':   // version
+            case makeNameid("v"): // version
             {
                 infoJson.storeobject(&version);
                 break;
@@ -5411,7 +5385,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID2('b', 't'):
+            case makeNameid("bt"):
             // "Base time age", this is number of seconds since the start of the current quota buckets
                 // age of transfer
                 // window start
@@ -5422,7 +5396,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID3('t', 'a', 'h'):
+            case makeNameid("tah"):
             // The free IP-based quota buckets, 6 entries for 6 hours
                 if (json.enterarray())
                 {
@@ -5437,22 +5411,22 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID3('t', 'a', 'r'):
+            case makeNameid("tar"):
             // IP transfer reserved
                 details->transfer_reserved = json.getint();
                 break;
 
-            case MAKENAMEID3('r', 'u', 'a'):
+            case makeNameid("rua"):
             // Actor reserved quota
                 details->transfer_own_reserved += json.getint();
                 break;
 
-            case MAKENAMEID3('r', 'u', 'o'):
+            case makeNameid("ruo"):
             // Owner reserved quota
                 details->transfer_srv_reserved += json.getint();
                 break;
 
-            case MAKENAMEID5('c', 's', 't', 'r', 'g'):
+            case makeNameid("cstrg"):
             // Your total account storage usage
                 details->storage_used = json.getint();
 #ifndef NDEBUG
@@ -5460,7 +5434,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
 #endif
                 break;
 
-            case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
+            case makeNameid("cstrgn"):
             // Storage breakdown of root nodes and shares for your account
             // [bytes, numFiles, numFolders, versionedBytes, numVersionedFiles]
                 if (json.enterobject())
@@ -5500,7 +5474,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID5('m', 's', 't', 'r', 'g'):
+            case makeNameid("mstrg"):
             // maximum storage allowance
                 details->storage_max = json.getint();
 #ifndef NDEBUG
@@ -5508,47 +5482,47 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
 #endif
                 break;
 
-            case MAKENAMEID6('c', 'a', 'x', 'f', 'e', 'r'):
+            case makeNameid("caxfer"):
             // PRO transfer quota consumed by yourself
                 details->transfer_own_used += json.getint();
                 break;
 
-            case MAKENAMEID3('t', 'u', 'o'):
+            case makeNameid("tuo"):
             // Transfer usage by the owner on quotad which hasn't yet been committed back to the API DB. Supplements caxfer
                 details->transfer_own_used += json.getint();
                 break;
 
-            case MAKENAMEID6('c', 's', 'x', 'f', 'e', 'r'):
+            case makeNameid("csxfer"):
             // PRO transfer quota served to others
                 details->transfer_srv_used += json.getint();
                 break;
 
-            case MAKENAMEID3('t', 'u', 'a'):
+            case makeNameid("tua"):
             // Transfer usage served to other users which hasn't yet been committed back to the API DB. Supplements csxfer
                 details->transfer_srv_used += json.getint();
                 break;
 
-            case MAKENAMEID5('m', 'x', 'f', 'e', 'r'):
+            case makeNameid("mxfer"):
             // maximum transfer allowance
                 details->transfer_max = json.getint();
                 break;
 
-            case MAKENAMEID8('s', 'r', 'v', 'r', 'a', 't', 'i', 'o'):
+            case makeNameid("srvratio"):
             // The ratio of your PRO transfer quota that is able to be served to others
                 details->srv_ratio = json.getfloat();
                 break;
 
-            case MAKENAMEID3('r', 't', 't'):
+            case makeNameid("rtt"):
                 details->transfer_hist_valid = !json.getint();
                 break;
 
-            case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
+            case makeNameid("suntil"):
                 // Expiration time of the latest PRO plan.
                 // This expiration time could be higher than the currently active PRO plan
                 details->pro_until = json.getint();
                 break;
 
-            case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):
+            case makeNameid("balance"):
             // Balance of your account
                 if (json.enterarray())
                 {
@@ -5573,12 +5547,12 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID4('u', 's', 'l', 'w'):
+            case makeNameid("uslw"):
             // The percentage (in 1000s) indicating the limit at which you are 'nearly' over. Currently 98% for PRO, 90% for free.
                 uslw = int(json.getint());
                 break;
 
-            case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
+            case makeNameid("features"):
                 if (!json.enterarray())
                 {
                     LOG_err << "Failed to parse GetUserQuota response, enter `features` object";
@@ -5604,7 +5578,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID4('s', 'u', 'b', 's'):
+            case makeNameid("subs"):
             {
                 if (!readSubscriptions(&json))
                 {
@@ -5615,7 +5589,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
             }
             break;
 
-            case MAKENAMEID5('p', 'l', 'a', 'n', 's'):
+            case makeNameid("plans"):
             {
                 if (!readPlans(&json))
                 {
@@ -5699,7 +5673,7 @@ bool CommandGetUserQuota::readSubscriptions(JSON* j)
         {
             switch (j->getnameid())
             {
-                case MAKENAMEID2('i', 'd'):
+                case makeNameid("id"):
                     // Encrypted subscription ID
                     if (!j->storeobject(&sub.id))
                     {
@@ -5707,7 +5681,7 @@ bool CommandGetUserQuota::readSubscriptions(JSON* j)
                     }
                     break;
 
-                case MAKENAMEID4('t', 'y', 'p', 'e'):
+                case makeNameid("type"):
                     // 'S' for active payment provider, 'R' otherwise
                     {
                         const char* ptr;
@@ -5718,7 +5692,7 @@ bool CommandGetUserQuota::readSubscriptions(JSON* j)
                     }
                     break;
 
-                case MAKENAMEID5('c', 'y', 'c', 'l', 'e'):
+                case makeNameid("cycle"):
                     // Subscription billing period
                     if (!j->storeobject(&sub.cycle))
                     {
@@ -5726,7 +5700,7 @@ bool CommandGetUserQuota::readSubscriptions(JSON* j)
                     }
                     break;
 
-                case MAKENAMEID2('g', 'w'):
+                case makeNameid("gw"):
                     // Payment provider name
                     if (!j->storeobject(&sub.paymentMethod))
                     {
@@ -5734,22 +5708,22 @@ bool CommandGetUserQuota::readSubscriptions(JSON* j)
                     }
                     break;
 
-                case MAKENAMEID4('g', 'w', 'i', 'd'):
+                case makeNameid("gwid"):
                     // Payment provider ID
                     sub.paymentMethodId = j->getint32();
                     break;
 
-                case MAKENAMEID4('n', 'e', 'x', 't'):
+                case makeNameid("next"):
                     // Renewal time
                     sub.renew = j->getint();
                     break;
 
-                case MAKENAMEID2('a', 'l'):
+                case makeNameid("al"):
                     // Account level
                     sub.level = j->getint32();
                     break;
 
-                case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
+                case makeNameid("features"):
                     // List of features the subscription grants
                     {
                         if (!j->enterobject())
@@ -5773,7 +5747,7 @@ bool CommandGetUserQuota::readSubscriptions(JSON* j)
                     }
                     break;
 
-                case MAKENAMEID8('i', 's', '_', 't', 'r', 'i', 'a', 'l'):
+                case makeNameid("is_trial"):
                     // Is an active trial
                     sub.isTrial = j->getbool();
                     break;
@@ -5813,12 +5787,12 @@ bool CommandGetUserQuota::readPlans(JSON* j)
         {
             switch (j->getnameid())
             {
-                case MAKENAMEID2('a', 'l'):
+                case makeNameid("al"):
                     // Account level
                     plan.level = j->getint32();
                     break;
 
-                case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
+                case makeNameid("features"):
                     // List of features the plan grants
                     {
                         if (!j->enterobject())
@@ -5842,26 +5816,26 @@ bool CommandGetUserQuota::readPlans(JSON* j)
                     }
                     break;
 
-                case MAKENAMEID7('e', 'x', 'p', 'i', 'r', 'e', 's'):
+                case makeNameid("expires"):
                     // The time the plan expires
                     plan.expiration = j->getint();
                     break;
 
-                case MAKENAMEID4('t', 'y', 'p', 'e'):
+                case makeNameid("type"):
                     // Why the plan was granted: payment, achievement, etc.
                     // Not included for Bussiness/Pro Flexi
                     plan.type = j->getint32();
                     break;
 
                 // Encrypted subscription ID
-                case MAKENAMEID5('s', 'u', 'b', 'i', 'd'):
+                case makeNameid("subid"):
                     if (!j->storeobject(&plan.subscriptionId))
                     {
                         return false;
                     }
                     break;
 
-                case MAKENAMEID8('i', 's', '_', 't', 'r', 'i', 'a', 'l'):
+                case makeNameid("is_trial"):
                     // Is an active trial
                     plan.isTrial = j->getbool();
                     break;
@@ -6177,11 +6151,11 @@ bool CommandSetPH::procresult(Result r, JSON& json)
         {
             switch (json.getnameid())
             {
-            case 'w':
+            case makeNameid("w"):
                 json.storeobject(&authKey);
                 break;
 
-            case MAKENAMEID2('p', 'h'):
+            case makeNameid("ph"):
                 ph = json.gethandle();
                 break;
 
@@ -6262,15 +6236,15 @@ bool CommandGetPH::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 's':
+            case makeNameid("s"):
                 s = json.getint();
                 break;
 
-            case MAKENAMEID2('a', 't'):
+            case makeNameid("at"):
                 json.storeobject(&a);
                 break;
 
-            case MAKENAMEID2('f', 'a'):
+            case makeNameid("fa"):
                 json.storeobject(&fa);
                 break;
 
@@ -6482,11 +6456,11 @@ bool CommandResumeEphemeralSession::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'k':
+            case makeNameid("k"):
                 havek = json.storebinary(keybuf, sizeof keybuf) == sizeof keybuf;
                 break;
 
-            case MAKENAMEID4('t', 's', 'i', 'd'):
+            case makeNameid("tsid"):
                 havecsid = json.storebinary(sidbuf, sizeof sidbuf) == sizeof sidbuf;
                 break;
 
@@ -7080,7 +7054,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'f':
+            case makeNameid("f"):
                 // nodes
                 if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true, nullptr, nullptr))
                 {
@@ -7091,7 +7065,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID2('f', '2'):
+            case makeNameid("f2"):
                 // old versions
                 if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true, nullptr, nullptr))
                 {
@@ -7102,19 +7076,19 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID3('o', 'k', '0'):
+            case makeNameid("ok0"):
                 // outgoing sharekeys
                 client->readok(&json);
                 break;
 
-            case 's':
+            case makeNameid("s"):
                 // Fall through
-            case MAKENAMEID2('p', 's'):
+            case makeNameid("ps"):
                 // outgoing or pending shares
                 client->readoutshares(&json);
                 break;
 
-            case 'u':
+            case makeNameid("u"):
                 // users/contacts
                 if (!client->readusers(&json, false))
                 {
@@ -7125,17 +7099,17 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID2('c', 'r'):
+            case makeNameid("cr"):
                 // crypto key request
                 client->proccr(&json);
                 break;
 
-            case MAKENAMEID2('s', 'r'):
+            case makeNameid("sr"):
                 // sharekey distribution request
                 client->procsr(&json);
                 break;
 
-            case MAKENAMEID2('s', 'n'):
+            case makeNameid("sn"):
                 // sequence number
                 if (!client->scsn.setScsn(&json))
                 {
@@ -7146,7 +7120,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID2('s', 't'):
+            case makeNameid("st"):
                 {
                     string st;
                     if (!json.storeobject(&st)) return false;
@@ -7155,39 +7129,39 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID3('i', 'p', 'c'):
+            case makeNameid("ipc"):
                 // Incoming pending contact
                 client->readipc(&json);
                 break;
 
-            case MAKENAMEID3('o', 'p', 'c'):
+            case makeNameid("opc"):
                 // Outgoing pending contact
                 client->readopc(&json);
                 break;
 
-            case MAKENAMEID2('p', 'h'):
+            case makeNameid("ph"):
                 // Public links handles
                 client->procph(&json);
                 break;
 
-            case MAKENAMEID4('a', 'e', 's', 'p'):
+            case makeNameid("aesp"):
                 // Sets and Elements
                 client->procaesp(json); // continue even if it failed, it's not critical
                 break;
 
 #ifdef ENABLE_CHAT
-            case MAKENAMEID3('m', 'c', 'f'):
+            case makeNameid("mcf"):
                 // List of chatrooms
                 client->procmcf(&json);
                 break;
 
-            case MAKENAMEID5('m', 'c', 'p', 'n', 'a'):   // fall-through
-            case MAKENAMEID4('m', 'c', 'n', 'a'):
+            case makeNameid("mcpna"): // fall-through
+            case makeNameid("mcna"):
                 // nodes shared in chatrooms
                 client->procmcna(&json);
                 break;
 
-            case MAKENAMEID4('m', 'c', 's', 'm'):
+            case makeNameid("mcsm"):
                 // scheduled meetings
                 client->procmcsm(&json);
                 break;
@@ -7419,7 +7393,7 @@ bool CommandCopySession::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID4('c', 's', 'i', 'd'):
+            case makeNameid("csid"):
                 len_csid = json.storebinary(sidbuf, sizeof sidbuf);
                 break;
 
@@ -7938,11 +7912,11 @@ bool CommandGetVersion::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'c':
+            case makeNameid("c"):
                 versioncode = int(json.getint());
                 break;
 
-            case 's':
+            case makeNameid("s"):
                 json.storeobject(&versionstring);
                 break;
 
@@ -7986,12 +7960,12 @@ bool CommandGetLocalSSLCertificate::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 't':
+            case makeNameid("t"):
             {
                 ts = json.getint();
                 break;
             }
-            case 'd':
+            case makeNameid("d"):
             {
                 string data;
                 json.enterarray();
@@ -8146,23 +8120,23 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
         {
             switch (json.getnameid())
             {
-                case MAKENAMEID2('i','d'):
+                case makeNameid("id"):
                     chatid = json.gethandle(MegaClient::CHATHANDLE);
                     break;
 
-                case MAKENAMEID2('c','s'):
+                case makeNameid("cs"):
                     shard = int(json.getint());
                     break;
 
-                case 'g':
+                case makeNameid("g"):
                     group = json.getbool();
                     break;
 
-                case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                case makeNameid("ts"): // actual creation timestamp
                     ts = json.getint();
                     break;
 
-                case MAKENAMEID2('s', 'm'):
+                case makeNameid("sm"):
                 {
                     addSchedMeeting = !json.isnumeric();
                     if (addSchedMeeting)
@@ -8802,11 +8776,11 @@ bool CommandRichLink::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID5('e', 'r', 'r', 'o', 'r'):
+            case makeNameid("error"):
                 errCode = int(json.getint());
                 break;
 
-            case MAKENAMEID6('r', 'e', 's', 'u', 'l', 't'):
+            case makeNameid("result"):
                 json.storeobject(&metadata);
                 break;
 
@@ -8930,51 +8904,51 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
         {
             switch (json.getnameid())
             {
-                case MAKENAMEID2('i','d'): // chatid
+                case makeNameid("id"): // chatid
                     chatid = json.gethandle(MegaClient::CHATHANDLE);
                     break;
 
-                case MAKENAMEID2('c','s'): // shard
+                case makeNameid("cs"): // shard
                     shard = int(json.getint());
                     break;
 
-                case MAKENAMEID2('c','t'):  // chat-title
+                case makeNameid("ct"): // chat-title
                     json.storeobject(&ct);
                     break;
 
-                case MAKENAMEID3('u','r','l'): // chaturl
+                case makeNameid("url"): // chaturl
                     json.storeobject(&url);
                     break;
 
-                case MAKENAMEID3('n','c','m'): // number of members in the chat
+                case makeNameid("ncm"): // number of members in the chat
                     numPeers = int(json.getint());
                     break;
 
-                case MAKENAMEID2('t', 's'): // chat creation timestamp
+                case makeNameid("ts"): // chat creation timestamp
                     ts = json.getint();
                     break;
 
-                case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'): //callId if there is an active call (just if mr == 1)
+                case makeNameid("callId"): // callId if there is an active call (just if mr == 1)
                     callid = json.gethandle(MegaClient::CHATHANDLE);
                     break;
 
-                case MAKENAMEID2('m', 'r'): // meeting room
+                case makeNameid("mr"): // meeting room
                     meetingRoom = json.getbool();
                     break;
 
-                case MAKENAMEID1('w'): // waiting room
+                case makeNameid("w"): // waiting room
                     waitingRoom = json.getbool();
                     break;
 
-                case MAKENAMEID2('s','r'):
+                case makeNameid("sr"):
                     speakRequest = json.getbool();
                     break;
 
-                case MAKENAMEID2('o','i'):
+                case makeNameid("oi"):
                     openInvite = json.getbool();
                     break;
 
-                case MAKENAMEID2('s', 'm'): // scheduled meetings
+                case makeNameid("sm"): // scheduled meetings
                 {
                     if (json.enterarray())
                     {
@@ -9107,11 +9081,11 @@ bool CommandGetMegaAchievements::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 's':
+            case makeNameid("s"):
                 details->permanent_size = json.getint();
                 break;
 
-            case 'u':
+            case makeNameid("u"):
                 if (json.enterobject())
                 {
                     for (;;)
@@ -9158,7 +9132,7 @@ bool CommandGetMegaAchievements::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case 'a':
+            case makeNameid("a"):
                 if (json.enterarray())
                 {
                     while (json.enterobject())
@@ -9174,19 +9148,19 @@ bool CommandGetMegaAchievements::procresult(Result r, JSON& json)
                         {
                             switch (json.getnameid())
                             {
-                            case 'a':
+                            case makeNameid("a"):
                                 award.achievement_class = achievement_class_id(json.getint());
                                 break;
-                            case 'r':
+                            case makeNameid("r"):
                                 award.award_id = int(json.getint());
                                 break;
-                            case MAKENAMEID2('t', 's'):
+                            case makeNameid("ts"):
                                 award.ts = json.getint();
                                 break;
-                            case 'e':
+                            case makeNameid("e"):
                                 award.expire = json.getint();
                                 break;
-                            case 'm':
+                            case makeNameid("m"):
                                 if (json.enterarray())
                                 {
                                     string email;
@@ -9223,7 +9197,7 @@ bool CommandGetMegaAchievements::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case 'r':
+            case makeNameid("r"):
                 if (json.enterobject())
                 {
                     for (;;)
@@ -9310,11 +9284,11 @@ bool CommandGetWelcomePDF::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID2('p', 'h'):
+            case makeNameid("ph"):
                 ph = json.gethandle(MegaClient::NODEHANDLE);
                 break;
 
-            case 'k':
+            case makeNameid("k"):
                 len_key = json.storebinary(keybuf, sizeof keybuf);
                 break;
 
@@ -9434,19 +9408,19 @@ bool CommandContactLinkQuery::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case 'h':
+            case makeNameid("h"):
                 h = json.gethandle(MegaClient::USERHANDLE);
                 break;
-            case 'e':
+            case makeNameid("e"):
                 json.storeobject(&email);
                 break;
-            case MAKENAMEID2('f', 'n'):
+            case makeNameid("fn"):
                 json.storeobject(&firstname);
                 break;
-            case MAKENAMEID2('l', 'n'):
+            case makeNameid("ln"):
                 json.storeobject(&lastname);
                 break;
-            case MAKENAMEID2('+', 'a'):
+            case makeNameid("+a"):
                 json.storeobject(&avatar);
                 break;
             case EOO:
@@ -9608,31 +9582,31 @@ bool CommandGetPSA::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID2('i', 'd'):
+            case makeNameid("id"):
                 id = int(json.getint());
                 break;
-            case 't':
+            case makeNameid("t"):
                 json.storeobject(&temp);
                 Base64::atob(temp, title);
                 break;
-            case 'd':
+            case makeNameid("d"):
                 json.storeobject(&temp);
                 Base64::atob(temp, text);
                 break;
-            case MAKENAMEID3('i', 'm', 'g'):
+            case makeNameid("img"):
                 json.storeobject(&imagename);
                 break;
-            case 'l':
+            case makeNameid("l"):
                 json.storeobject(&buttonlink);
                 break;
-            case MAKENAMEID3('u', 'r', 'l'):
+            case makeNameid("url"):
                 json.storeobject(&url);
                 break;
-            case 'b':
+            case makeNameid("b"):
                 json.storeobject(&temp);
                 Base64::atob(temp, buttontext);
                 break;
-            case MAKENAMEID3('d', 's', 'p'):
+            case makeNameid("dsp"):
                 json.storeobject(&imagepath);
                 break;
             case EOO:
@@ -9680,7 +9654,7 @@ bool CommandFetchTimeZone::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID7('c', 'h', 'o', 'i', 'c', 'e', 's'):
+            case makeNameid("choices"):
                 if (json.enterobject())
                 {
                     while (json.storeobject(&currenttz))
@@ -9699,7 +9673,7 @@ bool CommandFetchTimeZone::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case MAKENAMEID7('d', 'e', 'f', 'a', 'u', 'l', 't'):
+            case makeNameid("default"):
                 if (json.isnumeric())
                 {
                     json.getint();
@@ -9866,12 +9840,12 @@ bool CommandGetCountryCallingCodes::procresult(Result r, JSON& json)
         {
             switch (json.getnameid())
             {
-                case MAKENAMEID2('c', 'c'):
+                case makeNameid("cc"):
                 {
                     json.storeobject(&countryCode);
                     break;
                 }
-                case MAKENAMEID1('l'):
+                case makeNameid("l"):
                 {
                     if (json.enterarray())
                     {
@@ -9954,19 +9928,19 @@ bool CommandFolderLinkInfo::procresult(Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-        case MAKENAMEID5('a','t','t','r','s'):
+        case makeNameid("attrs"):
             json.storeobject(&attr);
             break;
 
-        case MAKENAMEID2('p','h'):
+        case makeNameid("ph"):
             parentHandle = json.gethandle(MegaClient::NODEHANDLE);
             break;
 
-        case 'u':
+        case makeNameid("u"):
             owner = json.gethandle(MegaClient::USERHANDLE);
             break;
 
-        case 's':
+        case makeNameid("s"):
             if (json.enterarray())
             {
                 currentSize = json.getint();
@@ -9978,7 +9952,7 @@ bool CommandFolderLinkInfo::procresult(Result r, JSON& json)
             }
             break;
 
-        case 'k':
+        case makeNameid("k"):
             json.storeobject(&key);
             break;
 
@@ -10203,62 +10177,82 @@ bool CommandBackupSyncFetch::procresult(Result r, JSON& json)
                 if (nid == EOO) break;
                 switch (nid)
                 {
-                case MAKENAMEID2('i', 'd'):     d.backupId = json.gethandle(sizeof(handle)); break;
-                case MAKENAMEID1('t'):          d.backupType = static_cast<BackupType>(json.getint32()); break;
-                case MAKENAMEID1('h'):          d.rootNode = json.gethandle(MegaClient::NODEHANDLE); break;
-                case MAKENAMEID1('l'):          json.storeobject(&d.localFolder);
-                                                d.localFolder = client->decypherTLVTextWithMasterKey("lf", d.localFolder);
-                                                break;
-                case MAKENAMEID1('d'):          json.storeobject(&d.deviceId); break;
-                case MAKENAMEID3('d', 'u', 'a'):json.storeobject(&d.deviceUserAgent); break;
-                case MAKENAMEID1('s'):          d.syncState = json.getint32(); break;
-                case MAKENAMEID2('s', 's'):     d.syncSubstate = json.getint32(); break;
-                case MAKENAMEID1('e'):          json.storeobject(&d.extra);
-                                                d.backupName = client->decypherTLVTextWithMasterKey("bn", d.extra);
-                                                break;
-                case MAKENAMEID2('h', 'b'):
-                {
-
-                    if (json.enterobject())
+                    case makeNameid("id"):
+                        d.backupId = json.gethandle(sizeof(handle));
+                        break;
+                    case makeNameid("t"):
+                        d.backupType = static_cast<BackupType>(json.getint32());
+                        break;
+                    case makeNameid("h"):
+                        d.rootNode = json.gethandle(MegaClient::NODEHANDLE);
+                        break;
+                    case makeNameid("l"):
+                        json.storeobject(&d.localFolder);
+                        d.localFolder = client->decypherTLVTextWithMasterKey("lf", d.localFolder);
+                        break;
+                    case makeNameid("d"):
+                        json.storeobject(&d.deviceId);
+                        break;
+                    case makeNameid("dua"):
+                        json.storeobject(&d.deviceUserAgent);
+                        break;
+                    case makeNameid("s"):
+                        d.syncState = json.getint32();
+                        break;
+                    case makeNameid("ss"):
+                        d.syncSubstate = json.getint32();
+                        break;
+                    case makeNameid("e"):
+                        json.storeobject(&d.extra);
+                        d.backupName = client->decypherTLVTextWithMasterKey("bn", d.extra);
+                        break;
+                    case makeNameid("hb"):
                     {
-                        for (;;)
+                        if (json.enterobject())
                         {
-                            nid = json.getnameid();
-                            if (nid == EOO) break;
-                            switch (nid)
+                            for (;;)
                             {
-                                case MAKENAMEID2('t', 's'):
-                                    d.hbTimestamp = json.getuint64();
+                                nid = json.getnameid();
+                                if (nid == EOO)
                                     break;
-                                case MAKENAMEID1('s'):
-                                    d.hbStatus = json.getint32();
-                                    break;
-                                case MAKENAMEID1('p'):
-                                    d.hbProgress = json.getint32();
-                                    break;
-                                case MAKENAMEID2('q', 'u'):
-                                    d.uploads = json.getint32();
-                                    break;
-                                case MAKENAMEID2('q', 'd'):
-                                    d.downloads = json.getint32();
-                                    break;
-                                case MAKENAMEID3('l', 't', 's'):
-                                    d.lastActivityTs = json.getuint64();
-                                    break;
-                                case MAKENAMEID2('l', 'h'):
-                                    d.lastSyncedNodeHandle = json.gethandle(MegaClient::NODEHANDLE);
-                                    break;
-                                default:
-                                    if (!skipUnknownField())
-                                        return false;
+                                switch (nid)
+                                {
+                                    case makeNameid("ts"):
+                                        d.hbTimestamp = json.getuint64();
+                                        break;
+                                    case makeNameid("s"):
+                                        d.hbStatus = json.getint32();
+                                        break;
+                                    case makeNameid("p"):
+                                        d.hbProgress = json.getint32();
+                                        break;
+                                    case makeNameid("qu"):
+                                        d.uploads = json.getint32();
+                                        break;
+                                    case makeNameid("qd"):
+                                        d.downloads = json.getint32();
+                                        break;
+                                    case makeNameid("lts"):
+                                        d.lastActivityTs = json.getuint64();
+                                        break;
+                                    case makeNameid("lh"):
+                                        d.lastSyncedNodeHandle =
+                                            json.gethandle(MegaClient::NODEHANDLE);
+                                        break;
+                                    default:
+                                        if (!skipUnknownField())
+                                            return false;
+                                }
                             }
+                            if (cantLeaveObject())
+                                return false;
                         }
-                        if (cantLeaveObject()) return false;
                     }
-                }
-                break;
+                    break;
 
-                default: if (!skipUnknownField()) return false;
+                    default:
+                        if (!skipUnknownField())
+                            return false;
                 }
             }
             if (cantLeaveObject()) return false;
@@ -10311,33 +10305,33 @@ bool CommandGetBanners::procresult(Result r, JSON& json)
         {
             switch (json.getnameid())
             {
-            case MAKENAMEID2('i', 'd'):
+            case makeNameid("id"):
                 id = json.getint32();
                 break;
 
-            case MAKENAMEID1('t'):
+            case makeNameid("t"):
                 json.storeobject(&title);
                 title = Base64::atob(title);
                 break;
 
-            case MAKENAMEID1('d'):
+            case makeNameid("d"):
                 json.storeobject(&description);
                 description = Base64::atob(description);
                 break;
 
-            case MAKENAMEID3('i', 'm', 'g'):
+            case makeNameid("img"):
                 json.storeobject(&img);
                 break;
 
-            case MAKENAMEID1('l'):
+            case makeNameid("l"):
                 json.storeobject(&url);
                 break;
 
-            case MAKENAMEID4('b', 'i', 'm', 'g'):
+            case makeNameid("bimg"):
                 json.storeobject(&bimg);
                 break;
 
-            case MAKENAMEID3('d', 's', 'p'):
+            case makeNameid("dsp"):
                 json.storeobject(&dsp);
                 break;
 
@@ -10399,50 +10393,50 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
     {
         switch (json.getnameid())
         {
-        case MAKENAMEID2('i', 'd'):
+        case makeNameid("id"):
             id = json.gethandle(MegaClient::SETHANDLE);
             break;
 
-        case MAKENAMEID1('u'):
+        case makeNameid("u"):
             {
                 const auto buf = json.gethandle(MegaClient::USERHANDLE);
                 if (u) *u = buf;
             }
             break;
 
-        case MAKENAMEID1('s'):
+        case makeNameid("s"):
             {
                 const auto buf = json.gethandle(MegaClient::SETHANDLE);
                 if (s) *s = buf;
             }
             break;
 
-        case MAKENAMEID2('t', 's'):
+        case makeNameid("ts"):
             ts = json.getint();
             break;
 
-        case MAKENAMEID3('c', 't', 's'):
+        case makeNameid("cts"):
             {
                 const auto buf = json.getint();
                 if (cts) *cts = buf;
             }
             break;
 
-        case MAKENAMEID1('o'):
+        case makeNameid("o"):
             {
                 const auto buf = json.getint();
                 if (o) *o = buf;
             }
             break;
 
-        case MAKENAMEID2('p', 'h'):
+        case makeNameid("ph"):
             {
                 const auto buf = json.gethandle(MegaClient::PUBLICSETHANDLE);
                 if (ph) *ph = buf;
             }
             break;
 
-        case MAKENAMEID1('t'):
+        case makeNameid("t"):
             {
                 const auto setType = static_cast<uint8_t>(json.getint());
                 if (t) *t = setType;
@@ -10487,14 +10481,14 @@ bool CommandSE::procExtendedError(JSON& json, int64_t& errCode, handle& eid) con
     {
         switch (json.getnameid())
         {
-        case MAKENAMEID3('e', 'r', 'r'):
+        case makeNameid("err"):
         {
             isErr = true;
             errCode = json.getint();
             break;
         }
 
-        case MAKENAMEID3('e', 'i', 'd'):
+        case makeNameid("eid"):
         {
             eid = json.gethandle(MegaClient::SETELEMENTHANDLE);
             break;
@@ -11042,11 +11036,11 @@ bool CommandMeetingStart::procresult(Command::Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'):
+            case makeNameid("callId"):
                 callid = json.gethandle(MegaClient::CHATHANDLE);
                 break;
 
-            case MAKENAMEID3('s', 'f', 'u'):
+            case makeNameid("sfu"):
                 json.storeobject(&sfuUrl);
                 break;
 
@@ -11097,7 +11091,7 @@ bool CommandMeetingJoin::procresult(Command::Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID3('u', 'r', 'l'):
+            case makeNameid("url"):
                 json.storeobject(&sfuUrl);
                 break;
 
@@ -11197,7 +11191,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID3('c', 'm', 'd'):
+            case makeNameid("cmd"):
             {
                 if (json.enterarray())
                 {
@@ -11214,7 +11208,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
                 }
                 break;
             }
-            case MAKENAMEID2('i', 'd'):
+            case makeNameid("id"):
                 schedId = json.gethandle(MegaClient::CHATHANDLE);
                 mScheduledMeeting->setSchedId(schedId);
                 break;
@@ -11425,11 +11419,11 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
             {
                 switch (json.getnameid())
                 {
-                    case MAKENAMEID2('i', 'd'):
+                    case makeNameid("id"):
                         json.storeobject(&id);
                         break;
 
-                    case MAKENAMEID3('s', 'r', 'c'):
+                    case makeNameid("src"):
                         json.storeobject(&iu);
                         break;
 
@@ -11558,7 +11552,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
         {
             switch (json.getnameid())
             {
-                case MAKENAMEID1('c'): // Clusters list
+                case makeNameid("c"): // Clusters list
                     if (!json.enterobject()) // Enter clusters object
                     {
                         return false;
@@ -11573,7 +11567,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                         return false;
                     }
                     break;
-                case MAKENAMEID2('c', 'c'): // Country code
+                case makeNameid("cc"): // Country code
                 {
                     string countryCode;
                     json.storeobject(&countryCode);
@@ -11583,7 +11577,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                     }
                 }
                 break;
-                case MAKENAMEID2('c', 'n'): // Country name
+                case makeNameid("cn"): // Country name
                 {
                     string countryName;
                     json.storeobject(&countryName);
@@ -11593,7 +11587,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                     }
                 }
                 break;
-                case MAKENAMEID2('r', 'n'): // Region name (optional)
+                case makeNameid("rn"): // Region name (optional)
                 {
                     string regionName;
                     json.storeobject(&regionName);
@@ -11603,7 +11597,7 @@ bool CommandGetVpnRegions::parseRegions(JSON& json, vector<VpnRegion>* vpnRegion
                     }
                 }
                 break;
-                case MAKENAMEID2('t', 'n'): // Town name (optional)
+                case makeNameid("tn"): // Town name (optional)
                 {
                     string townName;
                     json.storeobject(&townName);
@@ -11673,7 +11667,7 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
         {
             switch (json.getnameid())
             {
-                case 'h':
+                case makeNameid("h"):
                     if (!json.storeobject(pBuffer))
                         return false;
                     if (host)
@@ -11683,7 +11677,7 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
                     }
                     break;
 
-                case MAKENAMEID3('d', 'n', 's'):
+                case makeNameid("dns"):
                     if (!json.enterarray())
                         return false;
 
@@ -12062,19 +12056,19 @@ bool CommandFetchCreditCard::procresult(Command::Result r, JSON& json)
             string name = json.getnameWithoutAdvance();
             switch (json.getnameid())
             {
-            case MAKENAMEID2('g', 'w'):
+            case makeNameid("gw"):
                 creditCardInfo[name] = std::to_string(json.getint());
                 break;
 
-            case MAKENAMEID5('b', 'r', 'a', 'n', 'd'):
+            case makeNameid("brand"):
                 creditCardInfo[name] = json.getname();
                 break;
 
-            case MAKENAMEID5('l', 'a', 's', 't', '4'):
+            case makeNameid("last4"):
                 creditCardInfo[name] = json.getname();
                 break;
 
-            case MAKENAMEID8('e', 'x', 'p', '_', 'y', 'e', 'a', 'r'):
+            case makeNameid("exp_year"):
                 creditCardInfo[name] = std::to_string(json.getint());
                 break;
 
@@ -12150,17 +12144,17 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
         // not interested in already-known "k" (user:key), "t", "at", "u", "ts"
         switch (json.getnameid())
         {
-        case 'h':
+        case makeNameid("h"):
             folderHandle.set6byte(json.gethandle(MegaClient::NODEHANDLE));
             break;
-        case 'k':
+        case makeNameid("k"):
             json.storeobject(&key);
             break;
-        case 'a':
+        case makeNameid("a"):
             attrString = std::make_unique<std::string>();
             json.storeobject(attrString.get());
             break;
-        case 't':
+        case makeNameid("t"):
         {
             t = json.getint();
             break;
@@ -12261,45 +12255,45 @@ bool CommandGetNotifications::procresult(Result r, JSON& json)
         {
             switch (nid)
             {
-            case MAKENAMEID2('i', 'd'):
+            case makeNameid("id"):
                 notification.id = json.getint();
                 break;
 
-            case 't':
+            case makeNameid("t"):
                 json.storeobject(&notification.title);
                 notification.title = Base64::atob(notification.title);
                 break;
 
-            case 'd':
+            case makeNameid("d"):
                 json.storeobject(&notification.description);
                 notification.description = Base64::atob(notification.description);
                 break;
 
-            case MAKENAMEID3('i', 'm', 'g'):
+            case makeNameid("img"):
                 json.storeobject(&notification.imageName);
                 break;
 
-            case MAKENAMEID4('i', 'c', 'o', 'n'):
+            case makeNameid("icon"):
                 json.storeobject(&notification.iconName);
                 break;
 
-            case MAKENAMEID3('d', 's', 'p'):
+            case makeNameid("dsp"):
                 json.storeobject(&notification.imagePath);
                 break;
 
-            case 's':
+            case makeNameid("s"):
                 notification.start = json.getint();
                 break;
 
-            case 'e':
+            case makeNameid("e"):
                 notification.end = json.getint();
                 break;
 
-            case MAKENAMEID2('s', 'b'):
+            case makeNameid("sb"):
                 notification.showBanner = json.getbool();
                 break;
 
-            case MAKENAMEID4('c', 't', 'a', '1'):
+            case makeNameid("cta1"):
             {
                 if (!readCallToAction(json, notification.callToAction1))
                 {
@@ -12310,7 +12304,7 @@ bool CommandGetNotifications::procresult(Result r, JSON& json)
                 break;
             }
 
-            case MAKENAMEID4('c', 't', 'a', '2'):
+            case makeNameid("cta2"):
             {
                 if (!readCallToAction(json, notification.callToAction2))
                 {
@@ -12321,7 +12315,7 @@ bool CommandGetNotifications::procresult(Result r, JSON& json)
                 break;
             }
 
-            case 'm':
+            case makeNameid("m"):
                 if (!readRenderModes(json, notification.renderModes))
                 {
                     LOG_err << "Unable to read 'm' in 'gnotif' response";
@@ -12364,12 +12358,12 @@ bool CommandGetNotifications::readCallToAction(JSON& json, map<string, string>& 
     {
         switch (nid)
         {
-        case MAKENAMEID4('l', 'i', 'n', 'k'):
+        case makeNameid("link"):
         {
             json.storeobject(&action["link"]);
             break;
         }
-        case MAKENAMEID4('t', 'e', 'x', 't'):
+        case makeNameid("text"):
         {
             string& t = action["text"];
             json.storeobject(&t);
@@ -12491,24 +12485,24 @@ bool CommandGetSurvey::parseSurvey(JSON& json, Survey& survey)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID1('s'):
+            case makeNameid("s"):
                 if ((survey.h = json.gethandle(MegaClient::SURVEYHANDLE)) == UNDEF)
                     return false;
                 break;
 
-            case MAKENAMEID1('m'):
+            case makeNameid("m"):
                 if (auto value = json.getint32(); value < 0)
                     return false;
                 else
                     survey.maxResponse = static_cast<unsigned int>(value);
                 break;
 
-            case MAKENAMEID1('i'):
+            case makeNameid("i"):
                 if (!json.storeobject(&survey.image))
                     return false;
                 break;
 
-            case MAKENAMEID1('c'):
+            case makeNameid("c"):
                 if (!json.storeobject(&survey.content))
                     return false;
                 break;
@@ -12615,10 +12609,10 @@ bool CommandGetMyIP::procresult(Command::Result r, JSON& json)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID2('c', 'c'): // Country code
+            case makeNameid("cc"): // Country code
                 json.storeobject(&countryCode);
                 break;
-            case MAKENAMEID2('i', 'p'): // My public IP address
+            case makeNameid("ip"): // My public IP address
                 json.storeobject(&ipAddress);
                 break;
             default:
