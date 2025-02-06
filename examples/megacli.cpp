@@ -12688,7 +12688,15 @@ void exec_searchbyname(autocomplete::ACState &s)
         }
 
         NodeSearchFilter filter;
-        filter.byAncestors({nodeHandle.as8byte(), UNDEF, UNDEF});
+        if (nodeHandle.isUndef())
+        {
+            filter.byAncestors({client->mNodeManager.getRootNodeFiles().as8byte(), UNDEF, UNDEF});
+        }
+        else
+        {
+            filter.byAncestors({nodeHandle.as8byte(), UNDEF, UNDEF});
+        }
+
         filter.byName(s.words[1].s);
         filter.bySensitivity(noSensitive ? NodeSearchFilter::BoolFilter::onlyTrue :
                                            NodeSearchFilter::BoolFilter::disabled);
