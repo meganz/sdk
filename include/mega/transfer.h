@@ -494,15 +494,7 @@ public:
      *   @see DirectReadSlot::detectAndManageSlowRaidedConns() and
      * DirectReadSlot::onLowSpeedRaidedTransfer()
      */
-    static constexpr unsigned MAX_CONN_SWITCHES_BELOW_SPEED_THRESHOLD = 6;
-
-    /**
-     *   @brief Max times we can detect same raided part (connection) slower than threshold before
-     * retrying entire transfer.
-     *
-     *   @see DirectReadSlot::detectAndManageSlowRaidedConns()
-     */
-    static constexpr unsigned MAX_CONN_BELOW_SPEED_THRESHOLD_DETECTED = 2;
+    static constexpr unsigned MAX_CONN_SWITCHES_BELOW_SPEED_THRESHOLD = 1;
 
     /**
     *   @brief Requests are sent in batch, and no connection is allowed to request the next chunk until the other connections have finished fetching their current one.
@@ -528,11 +520,11 @@ public:
     static constexpr m_off_t SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[2] { 4, 5 };
 
     /**
-     * @brief Max different failed raided parts of a DirectRead allowed
+     * @brief Max simultaneus slow raided parts of a DirectRead allowed
      *
-     * @see DirectReadSlot::retryOnError
+     * @see DirectReadSlot::watchOverDirectReadPerformance
      */
-    static constexpr int MAX_DIFFERENT_FAILED_RAIDED_CONNS = 1;
+    static constexpr int MAX_SIMULTANEOUS_FAILED_RAIDED_CONNS = 1;
 
     /**
      * @brief Backoff between retries when mNumConnSwitchesSlowestPart has reached limit
@@ -574,53 +566,6 @@ public:
      *         - The index of the slowest connection (or invalid index if no slow conns exist).
      */
     std::pair<std::set<size_t>, size_t> searchSlowConnsUnderThreshold();
-
-    /**
-     * @brief increments counter of slow speed detection for all indexes in slowConns param
-     * @param set of indexes to be incremented it's counter of slow speed detection
-     * @return true if counter of slow speed detection has reached
-     * MAX_CONN_BELOW_SPEED_THRESHOLD_DETECTED for any connection index
-     * (DEF_CONN_INDEX_NON_RAIDED_TRANSFER index in case of non-raided transfer), otherwise false
-     */
-    bool incrementConnDetectedBelowSpeedThreshold(std::set<size_t> slowConns);
-
-    /**
-     * @brief Detects and manages slow-performing RAIDED parts in a streaming transfer.
-     *
-     * This method identifies slow connections in a RAID streaming transfer by evaluating
-     * their throughput against a minimum threshold. Depending on the situation, it
-     * follows these actions:
-     * - If multiple connections are slow, the entire transfer is retried.
-     * - If a single slow connection cannot be replaced due to limitations or errors,
-     *   the entire transfer is retried.
-     * - If a single slow connection can be replaced, it switches to the unused connection.
-     * - If no slow connections are detected, return appropriate values to inform the caller about
-     * it.
-     *
-     * @return A pair of booleans:
-     *         - The first value indicates whether any slow connection was detected.
-     *         - The second value indicates whether the entire transfer will be retried
-     */
-    std::pair<bool, bool> detectAndManageSlowConnsUnderThreshold();
-
-    /**
-     * @brief returns the index of slowest connection index (DEF_CONN_INDEX_NON_RAIDED_TRANSFER in
-     * case of non-raided transfers)
-     * @return the index of slowest connection index (DEF_CONN_INDEX_NON_RAIDED_TRANSFER in case of
-     * non-raided transfers) or an invalid index in case of no slowest connection found
-     */
-    size_t searchSlowestConnectionIndex() const;
-
-    /**
-     * @brief Manages low mean speed for direct read transfer
-     *
-     * The function finds the slowest connection (if any), and replaces it by unused connection if
-     * posible, Otherwise entire transfer is retried.
-     *
-     * @note This function is called from watchOverDirectReadPerformance that monitors the speed of
-     * transfer
-     */
-    bool onLowMeanSpeedRaidedTransfer();
 
     /**
     *   @brief Main i/o loop (process every HTTP req from req vector).

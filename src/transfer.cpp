@@ -1580,7 +1580,6 @@ unsigned DirectReadSlot::getMinSpeedPerConnBytesPerSec() const
 {
     const unsigned numParts = isRaidedTransfer() ? EFFECTIVE_RAIDPARTS : 1;
     const int minstrate = mDr->drn->client->minstreamingrate; // (0 == no limit, -1 == use default)
-
     if (minstrate < 0)
     {
         return (MIN_BYTES_PER_SECOND / numParts);
@@ -1684,9 +1683,10 @@ void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
 std::pair<std::set<size_t>, size_t> DirectReadSlot::searchSlowConnsUnderThreshold()
 {
     const unsigned minSpeedPerConnBytesPerSec = getMinSpeedPerConnBytesPerSec();
-    if (!minSpeedPerConnBytesPerSec)
+    if (!minSpeedPerConnBytesPerSec || !isRaidedTransfer())
     {
-        // minstreamingrate == 0, so no StreamingMinimumRate has been set
+        // if minstreamingrate == 0, no StreamingMinimumRate has been set
+        // if non raided transfer there's just 1 connection
         return {{}, mReqs.size()};
     }
 
@@ -1719,165 +1719,6 @@ std::pair<std::set<size_t>, size_t> DirectReadSlot::searchSlowConnsUnderThreshol
     }
 
     return {slowConns, slowestConnectionIndex};
-}
-
-bool DirectReadSlot::incrementConnDetectedBelowSpeedThreshold(std::set<size_t> slowConns)
-{
-    bool maxSlowConnDetected{false};
-    for (auto& idx: slowConns)
-    {
-        if (idx >= mReqs.size())
-        {
-            assert(false);
-            continue;
-        }
-        if (++mNumConnDetectedBelowSpeedThreshold[idx] >= MAX_CONN_BELOW_SPEED_THRESHOLD_DETECTED)
-        {
-            maxSlowConnDetected = true;
-        }
-    }
-    return maxSlowConnDetected;
-}
-
-std::pair<bool, bool> DirectReadSlot::detectAndManageSlowConnsUnderThreshold()
-{
-    if (!isRaidedTransfer())
-    {
-        // if non raided transfer, and transfer mean speed is below minstreamingrate,
-        // it should have been detected at watchOverDirectReadPerformance, so at this point it means
-        // that transfer mean speed is fine
-        return {false /*slowConnsDetected*/, false /*entireTransferRetried*/};
-    }
-
-    const auto [slowConns, slowestConnectionIndex] = searchSlowConnsUnderThreshold();
-    if (slowConns.empty())
-    {
-        // no slow connections detected
-        return {false /*slowConnsDetected*/, false /*entireTransferRetried*/};
-    }
-
-    std::string msg = "DirectReadSlot: detectAndManageSlowConnsUnderThreshold. Slow connection/s "
-                      "have been detected.";
-    if (const auto isInvalidIdx = slowestConnectionIndex >= mReqs.size(); isInvalidIdx)
-    {
-        LOG_err << msg << " Invalid slowest connection index found. Retrying entire transfer";
-        retryEntireTransfer(API_EAGAIN);
-        assert(false); // if slowConns is not empty, searchSlowConnsUnderThreshold should never
-                       // return an invalid slowestConnectionIndex
-        return {true /*slowConnsDetected*/, true /*entireTransferRetried*/};
-    }
-
-    bool maxTimesSlowConnDetected = incrementConnDetectedBelowSpeedThreshold(slowConns);
-    if (unusedConnectionCanBeReused() &&
-        !maxUnusedConnSwitchesReached(UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD))
-    {
-        // even if mNumConnDetectedBelowSpeedThreshold reached the limit (maxTimesSlowConnDetected),
-        // we should try to replace slowest conn by unused one (if posible)
-        replaceConnectionByUnused(slowestConnectionIndex,
-                                  UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD,
-                                  UnusedConn::UN_NOT_ERR);
-        return {true /*slowConnsDetected*/, false /*entireTransferRetried*/};
-    }
-    else if (maxTimesSlowConnDetected)
-    {
-        LOG_debug << msg
-                  << "Cannot perform any raided part replacement. Retrying entire transfer [this = "
-                  << this << "]";
-        retryEntireTransfer(API_EAGAIN);
-        return {true /*slowConnsDetected*/, true /*entireTransferRetried*/};
-    }
-
-    LOG_debug << msg
-              << ", skip for this time, as we haven't reached max slow mean speed detections";
-    return {true /*slowConnsDetected*/, false /*entireTransferRetried*/};
-}
-
-size_t DirectReadSlot::searchSlowestConnectionIndex() const
-{
-    if (!isRaidedTransfer())
-    {
-        return DEF_CONN_INDEX_NON_RAIDED_TRANSFER;
-    }
-
-    size_t slowestConnectionIndex = mReqs.size(); // init to `invalid` conn num
-    m_off_t slowestThroughput = 0; // init slowest throughput
-    for (size_t i = 0; i < mReqs.size(); ++i)
-    {
-        if (!mReqs[i] || i == mUnusedConn.getNum())
-        {
-            continue;
-        }
-
-        if (isMinComparableThroughputForThisConnection(i))
-        {
-            const auto invalidIdx = slowestConnectionIndex == mReqs.size();
-            const m_off_t currentThroughput = getThroughput(i);
-            if (invalidIdx || currentThroughput < slowestThroughput)
-            {
-                slowestConnectionIndex = i;
-                slowestThroughput = currentThroughput;
-            }
-        }
-    }
-    return slowestConnectionIndex;
-}
-
-bool DirectReadSlot::onLowMeanSpeedRaidedTransfer()
-{
-    std::string msg =
-        "DirectReadSlot::onLowSpeedRaidedTransfer -> Transfer mean speed too low for streaming";
-
-    if (!mDr->appdata)
-    {
-        LOG_err << msg << ". Transfer is already deleted. Skipping retry [this = " << this << "]";
-        mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
-        return false;
-    }
-
-    size_t slowestConnectionIndex = searchSlowestConnectionIndex();
-    if (const auto isInvalidIdx = slowestConnectionIndex >= mReqs.size(); isInvalidIdx)
-    {
-        msg += ". Retrying entire transfer" +
-               std::string(isRaidedTransfer() ? "(non raided transfer)" :
-                                                ", as we couldn't perform any part replacement");
-        LOG_warn << msg << "[this = " << this << "]";
-        retryEntireTransfer(API_EAGAIN);
-        return true;
-    }
-
-    bool maxTimesSlowConnDetected =
-        incrementConnDetectedBelowSpeedThreshold({slowestConnectionIndex});
-    if (!isRaidedTransfer())
-    {
-        LOG_debug << msg << ". Retrying entire transfer [this = " << this << "]";
-        retryEntireTransfer(API_EAGAIN);
-        return true;
-    }
-    else
-    {
-        // even if mNumConnDetectedBelowSpeedThreshold reached the limit, we should try to replace
-        // slowest conn by unused one (if posible)
-        if (unusedConnectionCanBeReused() &&
-            !maxUnusedConnSwitchesReached(UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD))
-        {
-            replaceConnectionByUnused(slowestConnectionIndex,
-                                      UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD,
-                                      UnusedConn::UN_NOT_ERR);
-            return false;
-        }
-        else if (maxTimesSlowConnDetected)
-        {
-            LOG_debug << msg
-                      << ".  Cannot perform any raided part replacement. Retrying entire transfer "
-                         "[this = "
-                      << this << "]";
-            retryEntireTransfer(API_EAGAIN);
-            return true;
-        }
-    }
-    LOG_debug << msg << ", skip for this time as we haven't reached max slow mean speed detections";
-    assert(!maxTimesSlowConnDetected);
-    return false;
 }
 
 bool DirectReadSlot::exitDueReqsOnFlight() const
@@ -2131,24 +1972,64 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         return false;
     }
 
-    auto [minspeed, transferMeanspeed] = getMinAndMeanSpeed(dsSinceLastWatch);
-    if (minspeed)
+    auto onAcceptableDirectReadPerformance = [this]() -> bool
     {
-        if (transferMeanspeed < minspeed)
-        {
-            return onLowMeanSpeedRaidedTransfer();
-        }
-        else if (auto [slowConnsDetected, entireTransferRetried] =
-                     detectAndManageSlowConnsUnderThreshold();
-                 slowConnsDetected)
-        {
-            return entireTransferRetried;
-        }
+        mDr->drn->partiallen = 0;
+        mDr->drn->partialstarttime = Waiter::ds;
+        return false;
+    };
+
+    const auto [minTransferspeed, transferMeanspeed] = getMinAndMeanSpeed(dsSinceLastWatch);
+    if (!minTransferspeed)
+    {
+        // no limits set by client, so no performance check is required
+        return onAcceptableDirectReadPerformance();
     }
 
-    mDr->drn->partiallen = 0;
-    mDr->drn->partialstarttime = Waiter::ds;
-    return false;
+    const auto [slowConns, slowestConnectionIndex] = searchSlowConnsUnderThreshold();
+    if (slowConns.empty())
+    {
+        assert(getMinSpeedPerConnBytesPerSec() &&
+               "if non minstrate set we should have already exit");
+        if (transferMeanspeed >= minTransferspeed)
+        {
+            return onAcceptableDirectReadPerformance();
+        }
+
+        if (!mDr->appdata)
+        {
+            // It's better for this check to be here instead of above: this way we can know
+            // if the transfer speed is to low, even if the transfer is already deleted at
+            // this point.
+            LOG_err << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming, "
+                       "but transfer is already deleted. Skipping retry"
+                    << " [this = " << this << "]";
+            mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+            return false;
+        }
+        retryEntireTransfer(API_EAGAIN);
+        return true;
+    }
+    else if (slowConns.size() == MAX_SIMULTANEOUS_FAILED_RAIDED_CONNS)
+    {
+        if (auto unusedConnNotReusable =
+                !unusedConnectionCanBeReused() ||
+                maxUnusedConnSwitchesReached(UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD);
+            unusedConnNotReusable)
+        {
+            retryEntireTransfer(API_EAGAIN);
+            return true;
+        }
+
+        replaceConnectionByUnused(slowestConnectionIndex,
+                                  UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD,
+                                  UnusedConn::UN_NOT_ERR);
+        return false;
+    }
+
+    // too many slow connections detected
+    retryEntireTransfer(API_EAGAIN);
+    return true;
 }
 
 bool DirectReadSlot::doio()
