@@ -138,7 +138,7 @@ void removeAllMetadata(FIBITMAP* dib)
 }
 
 // Create EXIF data with Orientation tag
-std::vector<uint8_t> createOrientationOnlyExifRawData(int orientation)
+std::vector<uint8_t> createOrientationOnlyExifRawData(uint16_t orientation)
 {
     // Minimal EXIF structure
     return std::vector<uint8_t>{
@@ -183,6 +183,8 @@ std::vector<uint8_t> createOrientationOnlyExifRawData(int orientation)
 
 using FITAGPtr = std::unique_ptr<FITAG, decltype(&FreeImage_DeleteTag)>;
 
+//
+// Returns a copy of the tag otherwise nullptr if the key doesn't exist
 FITAGPtr getTagCopy(FREE_IMAGE_MDMODEL model, FIBITMAP* dib, const char* key)
 {
     FITAG* searchedTag = nullptr;
@@ -190,6 +192,8 @@ FITAGPtr getTagCopy(FREE_IMAGE_MDMODEL model, FIBITMAP* dib, const char* key)
     return mega::makeUniqueFrom(FreeImage_CloneTag(searchedTag), FreeImage_DeleteTag);
 }
 
+//
+// Returns a tag otherwise nullptr on errors
 FITAGPtr createTag(const char* key, const std::vector<uint8_t>& data)
 {
     auto tagPtr = mega::makeUniqueFrom(FreeImage_CreateTag(), FreeImage_DeleteTag);
