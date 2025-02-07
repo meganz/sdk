@@ -1337,3 +1337,23 @@ public:
      */
     std::string getFilePrefix() const;
 };
+
+/**
+ * @brief
+ * Create a directory with a given name under a specified parent.
+ *
+ * @param client
+ * The client who should create the directory.
+ *
+ * @param parent
+ * The directory where our new directory will live.
+ *
+ * @param name
+ * The name of the directory we are creating.
+ *
+ * @return
+ * An Error if the directory couldn't be created.
+ * An std::unique_ptr<MegaNode> if the directory was created.
+ */
+auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string& name)
+    -> Expected<std::unique_ptr<MegaNode>>;

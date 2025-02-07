@@ -2270,6 +2270,38 @@ auto SdkTest::makeScopedAccountLevelRestorer(MegaApi& api)
     return makeScopedDestructor(std::move(destructor));
 }
 
+auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string& name)
+    -> Expected<std::unique_ptr<MegaNode>>
+{
+    using sdk_test::waitFor;
+
+    RequestTracker tracker(&client);
+
+    client.createFolder(name.c_str(), const_cast<MegaNode*>(&parent), &tracker);
+
+    if (auto result = tracker.waitForResult(); result != API_OK)
+    {
+        return result;
+    }
+
+    MegaNode* directory = nullptr;
+    MegaHandle directoryHandle = tracker.request->getNodeHandle();
+
+    waitFor(
+        [&]()
+        {
+            return (directory = client.getNodeByHandle(directoryHandle)) != nullptr;
+        },
+        std::chrono::milliseconds(defaultTimeoutMs));
+
+    if (!directory)
+    {
+        return LOCAL_ETIMEOUT;
+    }
+
+    return makeUniqueFrom(directory);
+}
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 /**
  * @brief TEST_F SdkTestCreateEphmeralPlusPlusAccount

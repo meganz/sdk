@@ -417,37 +417,6 @@ auto SdkTestNodeTagsCommon::copyNode(MegaApi& client,
     return CopyNodeResult(NodeTag, std::move(node));
 }
 
-auto SdkTestNodeTagsCommon::createDirectory(MegaApi& client,
-                                            const MegaNode& parent,
-                                            const std::string& name) -> CreateDirectoryResult
-{
-    RequestTracker tracker(&client);
-
-    client.createFolder(name.c_str(), const_cast<MegaNode*>(&parent), &tracker);
-
-    if (auto result = tracker.waitForResult(); result != API_OK)
-    {
-        return CreateDirectoryResult(ErrorTag, result);
-    }
-
-    MegaNode* directory = nullptr;
-    MegaHandle directoryHandle = tracker.request->getNodeHandle();
-
-    WaitFor(
-        [&]()
-        {
-            return (directory = client.getNodeByHandle(directoryHandle)) != nullptr;
-        },
-        DefaultTimeoutMs);
-
-    if (!directory)
-    {
-        return CreateDirectoryResult(ErrorTag, LOCAL_ETIMEOUT);
-    }
-
-    return CreateDirectoryResult(NodeTag, makeUniqueFrom(directory));
-}
-
 auto SdkTestNodeTagsCommon::createFile(MegaApi& client,
                                        const MegaNode& parent,
                                        const std::string& name) -> UploadFileResult
