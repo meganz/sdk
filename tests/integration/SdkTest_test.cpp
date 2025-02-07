@@ -19927,3 +19927,43 @@ TEST_F(SdkTestShares, TestPublicFolderLinkLogin)
     // Cleanup
     ASSERT_NO_FATAL_FAILURE(logout(mGuestIndex, false, 20));
 }
+
+TEST_F(SdkTest, ExportNodeWithExpiryDate)
+{
+    // Get an account for us to play with.
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Convenience.
+    auto& client = *megaApi[0];
+
+    // Make sure any plan changed are reversed.
+    auto restorer = makeScopedAccountLevelRestorer(client);
+
+    // Make sure the backend thinks we have a free account.
+    EXPECT_EQ(setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr), API_OK);
+
+    // Get our hands on this account's root node.
+    auto root = makeUniqueFrom(client.getRootNode());
+    ASSERT_NE(root, nullptr);
+
+    // Create a directory for us to try and export.
+    auto node = createDirectory(client, *root, "d");
+    ASSERT_EQ(result(node), API_OK);
+
+    // Get tomorrow's time stamp.
+    auto tomorrow = ([]() {
+        auto now = std::chrono::system_clock::now();
+        auto tomorrow = now + std::chrono::hours(24);
+        return std::chrono::system_clock::to_time_t(tomorrow);
+    })();
+
+    // Trying to export a node with an expiry date should fail.
+    EXPECT_EQ(result(exportNode(client, *value(node), tomorrow)), API_EACCESS);
+
+    // Unless, of course, the account is a *pro account* :)
+    ASSERT_EQ(setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_PROI, 1, nullptr), API_OK);
+
+    // Exporting a node with an expiry date should now succeed.
+    auto link = exportNode(client, *value(node), tomorrow);
+    ASSERT_EQ(result(link), API_OK);
+}
