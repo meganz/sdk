@@ -361,6 +361,26 @@ public:
     size_t getNum() const;
 
     /**
+     * @brief Sets previous Unused index
+     */
+    void setPrevUnused(const size_t prev)
+    {
+        mPrevUnused = prev;
+    }
+
+    /**
+     * @brief Gets the number of the previous unused connection if any or RAIDPARTS if it has never
+     * been replaced.
+     *
+     * @return The number of the previous unused connection if any or RAIDPARTS if it has never been
+     * replaced.
+     */
+    size_t getPrevUnused() const
+    {
+        return mPrevUnused;
+    }
+
+    /**
      * @brief Checks if mReason is not an error reason
      * @return true if the reason is not an error reason, otherwise returns false.
      */
@@ -396,6 +416,8 @@ public:
 private:
     UnusedReason mReason{UN_NOT_ERR};
     size_t mNum{};
+    size_t mPrevUnused{
+        RAIDPARTS}; // Index to store previous unused part when it has been replaced by another one
 };
 
 /**
@@ -831,6 +853,14 @@ private:
     *   @see HttpReq
     */
     std::vector<std::unique_ptr<HttpReq>> mReqs;
+
+    /**
+     * @brief map connection index to Position Range.
+     *
+     * For every active connection, we store current position range in case we need to reuse for
+     * another connection. (i.e when unused connection has been hot swapped)
+     */
+    std::map<size_t, std::pair<m_off_t, m_off_t>> mPosRangeReqs;
 
     /**
      *   @brief Vector of pairs of <Bytes downloaded> and <Total milliseconds> for throughput

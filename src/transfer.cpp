@@ -1492,6 +1492,7 @@ bool UnusedConn::setUnused(const size_t num, const UnusedReason reason)
 void UnusedConn::clear()
 {
     mNum = 0;
+    mPrevUnused = RAIDPARTS;
     mReason = UN_NOT_ERR;
 }
 
@@ -1676,6 +1677,7 @@ bool DirectReadSlot::isRaidedTransfer() const
 
 void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
 {
+    mPosRangeReqs.clear();
     mUnusedConn.clear();
     mDr->drn->retry(e, timeleft);
 }
@@ -1777,6 +1779,7 @@ void DirectReadSlot::replaceConnectionByUnused(
     increaseUnusedConnSwitches(replamecementReason);
     mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum));
     resetConnection(mUnusedConn.getNum());
+    mUnusedConn.setPrevUnused(connectionNum);
     mUnusedConn.setUnused(connectionNum, unusedReason);
     resetConnection(mUnusedConn.getNum());
 }
@@ -2058,6 +2061,7 @@ bool DirectReadSlot::doio()
         mSlowDetectionBackoff = std::chrono::steady_clock::now();
     }
 
+    const size_t prevUnusedConnIdx = mUnusedConn.getPrevUnused();
     for (unsigned int connectionNum = static_cast<unsigned int>(mReqs.size()); connectionNum--;)
     {
         std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
@@ -2205,7 +2209,38 @@ bool DirectReadSlot::doio()
                         << mUnusedConn.getNum() << " [this = " << this << "]";
                 }
                 bool newBufferSupplied = false, pauseForRaid = false;
-                std::pair<m_off_t, m_off_t> posrange = mDr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
+                std::pair<m_off_t, m_off_t> posrange;
+                if (isRaid && prevUnusedConnIdx != RAIDPARTS && connectionNum == prevUnusedConnIdx)
+                {
+                    if (auto it = mPosRangeReqs.find(prevUnusedConnIdx); it != mPosRangeReqs.end())
+                    {
+                        // We have performed a hot swap of a raided part by unused one, so we don't
+                        // need to call nextNPosForConnection again, as it would give us a wrong
+                        // value and could make replaced request fail. We must reuse range pos
+                        // values of connection that was replaced by unused one
+                        LOG_debug << "DirectReadSlot::doio: Reusing previous range for "
+                                     "replaced connection";
+                        posrange = it->second;
+                        mUnusedConn.setPrevUnused(
+                            RAIDPARTS); // clear PrevUnused as we have already reused pos range
+                        newBufferSupplied = true;
+                    }
+                    else
+                    {
+                        LOG_err << "DirectReadSlot::doio: Retrying DirectRead Transfer due "
+                                   "an unexpected error";
+                        assert(false);
+                        retryEntireTransfer(API_EREAD);
+                        return true;
+                    }
+                }
+                else
+                {
+                    posrange = mDr->drbuf.nextNPosForConnection(connectionNum,
+                                                                newBufferSupplied,
+                                                                pauseForRaid);
+                    mPosRangeReqs[connectionNum] = posrange;
+                }
 
                 if (newBufferSupplied)
                 {
@@ -2260,6 +2295,12 @@ bool DirectReadSlot::doio()
 
                         if (static_cast<size_t>(connectionNum) == mUnusedConn.getNum())
                         {
+                            if (prevUnusedConnIdx != RAIDPARTS)
+                            {
+                                // this could happen in case we have replaced (hot swap) a raided
+                                // part by unused one. in that case just ignore that connectionNum
+                                continue;
+                            }
                             LOG_err << "DirectReadSlot [conn " << connectionNum
                                     << "] We are processing unused connection";
                             assert(false);
@@ -2516,6 +2557,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     LOG_verbose << "[DirectReadSlot::DirectReadSlot] Num requests: " << numReqs
                 << " [this = " << this << "]";
     mThroughput.resize(mReqs.size());
+    mPosRangeReqs.clear();
     mUnusedConn.clear();
     auto auxUnused = isRaidedTransfer() ? mDr->drbuf.getUnusedRaidConnection() : mReqs.size();
     mUnusedConn.setUnused(auxUnused, UnusedConn::UN_NOT_ERR);
@@ -2526,6 +2568,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
         mDr->drbuf.setUnusedRaidConnection(0);
         mUnusedConn.setUnused(0, UnusedConn::UN_NOT_ERR);
     }
+    mUnusedConn.setPrevUnused(RAIDPARTS);
     mNumConnDetectedBelowSpeedThreshold.clear();
     mNumConnSwitchesSlowestPart = 0;
     mNumConnSwitchesBelowSpeedThreshold = 0;
