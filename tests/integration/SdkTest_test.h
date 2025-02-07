@@ -432,6 +432,44 @@ private:
     std::string mEndpointName;
 };
 
+// Poor man's expected.
+template<typename T>
+using Expected = std::variant<Error, T>;
+
+template<typename T>
+struct IsExpected: std::false_type
+{}; // IsExpected<T>
+
+template<typename T>
+struct IsExpected<Expected<T>>: std::true_type
+{}; // IsExpected<Expected<T>>
+
+template<typename T>
+static constexpr auto IsExpectedV = IsExpected<T>::value;
+
+template<typename T>
+using RemoveCVRef = std::remove_cv<std::remove_reference_t<T>>;
+
+template<typename T>
+using RemoveCVRefT = typename RemoveCVRef<T>::type;
+
+template<typename T>
+Error result(const Expected<T>& expected)
+{
+    if (auto* result = std::get_if<0>(&expected))
+        return *result;
+
+    return API_OK;
+}
+
+template<typename T, typename = std::enable_if_t<IsExpectedV<RemoveCVRefT<T>>>>
+decltype(auto) value(T&& expected)
+{
+    assert(result(expected) == API_OK);
+
+    return std::get<1>(std::forward<T>(expected));
+}
+
 using MegaApiTestPointer = std::unique_ptr<MegaApiTest, MegaApiTestDeleter>;
 
 // Fixture class with common code for most of tests

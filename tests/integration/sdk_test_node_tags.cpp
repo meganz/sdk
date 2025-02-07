@@ -8,55 +8,12 @@
 namespace mega
 {
 
-template<typename T>
-struct ExpectedValueType;
-
-template<typename T>
-struct ExpectedValueType<std::variant<Error, T>>
-{
-    using type = T;
-}; // ExpectedValueType<std::variant<Error, T>>
-
-template<typename T>
-struct IsExpected: std::false_type
-{}; // IsExpected<T>
-
-template<typename T>
-struct IsExpected<std::variant<Error, T>>: std::true_type
-{}; // IsExpected<std::variant<Error, T>>
-
-template<typename T>
-static constexpr auto IsExpectedV = IsExpected<T>::value;
-
-template<typename T>
-using RemoveCVRef = std::remove_cv<std::remove_reference_t<T>>;
-
-template<typename T>
-using RemoveCVRefT = typename RemoveCVRef<T>::type;
-
 static bool contains(const MegaStringList& list, const std::string& value);
 
 static std::vector<std::string> nodeNames(const std::vector<MegaNodePtr>& nodes);
 
-template<typename T>
-Error result(const std::variant<Error, T>& expected)
-{
-    if (auto* result = std::get_if<0>(&expected))
-        return *result;
-
-    return API_OK;
-}
-
 static std::vector<MegaNodePtr> toVector(const MegaNodeList& list);
 static std::vector<std::string> toVector(const MegaStringList& list);
-
-template<typename T, typename = std::enable_if_t<IsExpectedV<RemoveCVRefT<T>>>>
-decltype(auto) value(T&& expected)
-{
-    assert(result(expected) == API_OK);
-
-    return std::get<1>(std::forward<T>(expected));
-}
 
 static constexpr auto DefaultTimeoutMs = 30 * 1000;
 static constexpr auto ErrorTag = std::in_place_type<Error>;
