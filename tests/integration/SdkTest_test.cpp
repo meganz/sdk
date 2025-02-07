@@ -8435,7 +8435,7 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
         randomRunsBytes += end - start;
 
         LOG_info << "beginning stream test, " << start << " to " << end << "(len " << end - start << ") " << (nonraid ? " non-raid " : " RAID ") << (!nonraid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
-
+        megaApi[0]->setStreamingMinimumRate(0);
         CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0].get(),
                                                                        start,
                                                                        end,
@@ -8601,7 +8601,9 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                                                 int cd429,
                                                 int cd503,
                                                 m_off_t nFailedReqs,
-                                                unsigned int transfer_timeout_in_seconds)
+                                                const int streamingMinimumRateBps = 0,
+                                                const long long downloadLimitBps = -1,
+                                                unsigned int transfer_timeout_in_seconds = 180)
     {
         ASSERT_TRUE(DebugTestHook::resetForTests())
             << "SDK test hooks are not enabled in release mode";
@@ -8613,6 +8615,8 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
             ::mega::DebugTestHook::onHookNumberOfConnections;
 #endif
 
+        megaApi[0]->setStreamingMinimumRate(streamingMinimumRateBps);
+        megaApi[0]->setMaxDownloadSpeed(downloadLimitBps);
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         DebugTestHook::countdownTo404 = cd404;
         DebugTestHook::countdownTo403 = cd403;
@@ -8647,6 +8651,8 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    -1 /*cd429*/,
                    -1 /*cd503*/,
                    0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
     LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure (403). No transfer "
@@ -8656,6 +8662,8 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    -1 /*cd429*/,
                    -1 /*cd503*/,
                    0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
     LOG_debug << "#### Test3: Streaming Download forcing 2 Raided Parts Failures(403 | 503)."
@@ -8665,6 +8673,42 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    -1 /*cd429*/,
                    2 /*cd503*/,
                    1 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test4: Streaming Download limiting min streaming rate and max download "
+                 "speed, no forced errors. No transfer retry ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   30000 /*streamingMinimumRateBps*/,
+                   300000 /*downloadLimitBps*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test5: Streaming Download limiting min streaming rate and max download "
+                 "speed, forcing 1 Raided Part Failure (429). No transfer retry ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   2 /*cd429*/,
+                   -1 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   30000 /*streamingMinimumRateBps*/,
+                   300000 /*downloadLimitBps*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test6: Streaming Download limiting min streaming rate and max download "
+                 "speed, forcing 2 Raided Parts Failures (403 | 503). Transfer will be retried "
+                 "(onTransferTemporaryError received) ####";
+    startStreaming(-1 /*cd404*/,
+                   2 /*cd403*/,
+                   -1 /*cd429*/,
+                   2 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   30000 /*streamingMinimumRateBps*/,
+                   300000 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
     LOG_info
