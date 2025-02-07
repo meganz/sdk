@@ -2317,6 +2317,37 @@ auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_
     return tracker.request->getLink();
 }
 
+auto importNode(MegaApi& client, const std::string& link, const MegaNode& parent)
+    -> Expected<std::unique_ptr<MegaNode>>
+{
+    using sdk_test::waitFor;
+
+    RequestTracker tracker(&client);
+
+    client.importFileLink(link.c_str(), const_cast<MegaNode*>(&parent), &tracker);
+
+    if (auto result = tracker.waitForResult(); result != API_OK)
+    {
+        return result;
+    }
+
+    MegaNode* node = nullptr;
+
+    waitFor(
+        [&]() -> bool
+        {
+            return (node = client.getNodeByHandle(tracker.request->getNodeHandle())) != nullptr;
+        },
+        std::chrono::milliseconds(defaultTimeoutMs));
+
+    if (!node)
+    {
+        return LOCAL_ETIMEOUT;
+    }
+
+    return makeUniqueFrom(node);
+}
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 /**
  * @brief TEST_F SdkTestCreateEphmeralPlusPlusAccount

@@ -1378,3 +1378,22 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
 auto exportNode(MegaApi& client,
                 const MegaNode& node,
                 std::optional<std::int64_t> expirationDate = std::nullopt) -> Expected<std::string>;
+
+/**
+ * Import a node into this account via public link.
+ *
+ * @param client
+ * The client who is importing the node.
+ *
+ * @param link
+ * The public link of the node we want to import.
+ *
+ * @param parent
+ * Where the node should be imported.
+ *
+ * @return
+ * An Error if the node could not be imported.
+ * An std::unique_ptr<MegaNode> if the node was imported.
+ */
+auto importNode(MegaApi& client, const std::string& link, const MegaNode& parent)
+    -> Expected<std::unique_ptr<MegaNode>>;
