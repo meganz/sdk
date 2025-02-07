@@ -38,7 +38,7 @@ pipeline {
                 axes {
                     axis {
                         name 'ARCHITECTURE'
-                        values 'x64', 'x86', 'arm64'
+                        values 'x64', 'Win32', 'ARM64'
                     }
                 }
                 stages {
@@ -49,11 +49,18 @@ pipeline {
                                 def QTPATH = "C:\\Qt\\Qt5.15.13\\5.15.13"
                                 def VCPKGPATH  = "${WORKSPACE}\\..\\..\\vcpkg"
                                 def CMAKE_FLAGS = "-DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -S '${WORKSPACE}' -B '${BUILD_DIR}'"
+                                def CMAKE_PLATFORM = "-DCMAKE_GENERATOR_PLATFORM=${ARCHITECTURE}"
 
-                                // x64 and x86 have QT bindings. arm64 does not.
-                                def CMAKE_QT_FLAGS = ARCHITECTURE in ['x64', 'x86'] ? "-DCMAKE_PREFIX_PATH='${QTPATH}\\${ARCHITECTURE}' -DENABLE_QT_BINDINGS=ON" : ""
-                                // x86 is called Win32 here
-                                def CMAKE_PLATFORM = ARCHITECTURE == 'x86' ? "-DCMAKE_GENERATOR_PLATFORM=Win32" : "-DCMAKE_GENERATOR_PLATFORM=${ARCHITECTURE}"
+                                // x64 and Win32 have QT bindings. arm64 does not.
+                                // Win32 is called x86 here
+                                def CMAKE_QT_FLAGS = ""
+                                switch (ARCHITECTURE) {
+                                    case 'Win32':
+                                        CMAKE_QT_FLAGS = "-DCMAKE_PREFIX_PATH='${QTPATH}\\x86' -DENABLE_QT_BINDINGS=ON"
+                                        break
+                                    case 'x64':
+                                        CMAKE_QT_FLAGS = "-DCMAKE_PREFIX_PATH='${QTPATH}\\x64' -DENABLE_QT_BINDINGS=ON"
+                                }
 
                                 sh "rm -vrf '${BUILD_DIR}'; mkdir -v '${BUILD_DIR}'"
                                 sh "cmake ${CMAKE_PLATFORM} ${CMAKE_QT_FLAGS} ${CMAKE_FLAGS}"
