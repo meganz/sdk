@@ -1357,3 +1357,24 @@ public:
  */
 auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string& name)
     -> Expected<std::unique_ptr<MegaNode>>;
+
+/**
+ * @brief
+ * Export the specified node.
+ *
+ * @param client
+ * The client that should export the node.
+ *
+ * @param node
+ * The node we want to export.
+ *
+ * @param expirationDate
+ * When should the node's resulting public link expire?
+ *
+ * @return
+ * A string (the node's public link) if the node could be exported
+ * An error if the node couldn't be exported.
+ */
+auto exportNode(MegaApi& client,
+                const MegaNode& node,
+                std::optional<std::int64_t> expirationDate = std::nullopt) -> Expected<std::string>;

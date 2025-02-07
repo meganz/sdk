@@ -2302,6 +2302,21 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
     return makeUniqueFrom(directory);
 }
 
+auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_t> expirationDate)
+    -> Expected<std::string>
+{
+    RequestTracker tracker(&client);
+
+    client.exportNode(const_cast<MegaNode*>(&node), expirationDate.value_or(-1), &tracker);
+
+    if (auto result = tracker.waitForResult(); result != API_OK)
+    {
+        return result;
+    }
+
+    return tracker.request->getLink();
+}
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 /**
  * @brief TEST_F SdkTestCreateEphmeralPlusPlusAccount
