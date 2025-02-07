@@ -51,6 +51,16 @@ extern "C" {
 namespace
 {
 
+struct FIBITMAPDeleter
+{
+    void operator()(FIBITMAP* dib) const
+    {
+        FreeImage_Unload(dib);
+    }
+};
+
+using FIBITMAPPtr = std::unique_ptr<FIBITMAP, FIBITMAPDeleter>;
+
 // Rescale the image and convert it to standard FIT_BITMAP
 // @ return nullptr if it fails, otherwise the pointer to the new rescaled image
 FIBITMAP* rescale(FIBITMAP* dib, int width, int height)
@@ -246,11 +256,30 @@ void keepOrientationMetadataOnly(FIBITMAP* dib)
 // Save the standard bitmap image in webp format.
 std::string saveToMemory(FIBITMAP* dib)
 {
-    if (!dib)
+    FIBITMAP* dibToSave = dib;
+
+    if (!dibToSave)
         return {};
 
-    assert(FreeImage_GetImageType(dib) == FIT_BITMAP);
+    assert(FreeImage_GetImageType(dibToSave) == FIT_BITMAP);
 
+    // Only 24 bits and 36 bits are supported by FreeImage in WebP format
+    // Convert if required and update dibToSave
+    FIBITMAPPtr converted{};
+    if (unsigned bits = FreeImage_GetBPP(dibToSave); bits < 24)
+    {
+        converted.reset(FreeImage_ConvertTo24Bits(dibToSave));
+
+        if (!converted)
+        {
+            LOG_err << "FreeImage ConvertTo24Bits error";
+            return {}; // Error
+        }
+        else
+            dibToSave = converted.get();
+    }
+
+    // Allocate Memory and Save
     auto hmem = ::mega::makeUniqueFrom(FreeImage_OpenMemory(),
                                        [](FIMEMORY* p)
                                        {
@@ -259,9 +288,10 @@ std::string saveToMemory(FIBITMAP* dib)
     if (!hmem)
         return {};
 
-    if (!FreeImage_SaveToMemory(FIF_WEBP, dib, hmem.get(), 75))
+    if (!FreeImage_SaveToMemory(FIF_WEBP, dibToSave, hmem.get(), 75))
         return {};
 
+    // To string and return
     BYTE* tdata;
     DWORD tlen;
     FreeImage_AcquireMemory(hmem.get(), &tdata, &tlen);
