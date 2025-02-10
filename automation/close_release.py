@@ -91,4 +91,5 @@ release.create_release_in_public_repo(args["release_version"])
 release.mark_version_as_released()
 
 # STEP 7: Confluence: Rotate the first name to the end of the list of release captains
-release.move_release_captain_last(args["confluence_page_id"])
+# Disabled, we roteate the release captain once a month now
+# release.move_release_captain_last(args["confluence_page_id"])
