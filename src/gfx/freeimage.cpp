@@ -963,7 +963,8 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut)
     dib = tdib;
 
     // copy part
-    if (!(tdib = FreeImage_Copy(dib, px, py, px + rw, py + rh)))
+    tdib = FreeImage_Copy(dib, px, py, px + rw, py + rh);
+    if (!tdib)
     {
         return false;
     }
