@@ -971,7 +971,10 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut)
     dib = tdib;
 
     // Remove all but keep Orientation meta data for display and smaller size
-    keepOrientationMetadataOnly(dib);
+    // Process metadata only for once, as this function can be called a few times in a
+    // sequence for different dimensions images, all images have the same orientation
+    if (!std::exchange(mMetaDataIsProcessed, true))
+        keepOrientationMetadataOnly(dib);
 
     *imageOut = saveToMemory(dib);
 
