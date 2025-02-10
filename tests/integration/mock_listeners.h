@@ -143,9 +143,10 @@ public:
 
 private:
     ::mega::MegaApi* mMegaApi{nullptr};
-    void defaultOnRequestFinish(::mega::MegaApi*, ::mega::MegaRequest*, ::mega::MegaError*)
+
+    void defaultOnRequestFinish(::mega::MegaApi*, ::mega::MegaRequest*, ::mega::MegaError* err)
     {
-        markAsFinished();
+        markAsFinished(err->getErrorCode() == ::mega::API_OK);
     }
 };
 
@@ -242,7 +243,7 @@ private:
 
     void defaultOnTransferFinish(::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* err)
     {
-        markAsFinished(err->getErrorCode() == mega::API_OK);
+        markAsFinished(err->getErrorCode() == ::mega::API_OK);
     }
 };
 
