@@ -110,26 +110,34 @@ public:
      * @param reqTypeMatcher A matcher for the value returned by MegaRequest::getType. It
      * will match any type by default.
      */
-    void setErrorExpectations(const testing::Matcher<int> reqErrorMatcher,
-                              const testing::Matcher<int> syncErrorMatcher = testing::_,
-                              const testing::Matcher<int> reqTypeMatcher = testing::_)
+    void setErrorExpectations(
+        const testing::Matcher<int> reqErrorMatcher,
+        const testing::Matcher<int> syncErrorMatcher = testing::_,
+        const testing::Matcher<int> reqTypeMatcher = testing::_,
+        std::function<void(const ::mega::MegaRequest&)>&& captureValues = nullptr)
     {
         // We override the default
         using namespace testing;
         EXPECT_CALL(*this, onRequestFinish)
             .Times(1)
             .WillOnce(
-                [reqErrorMatcher, syncErrorMatcher, reqTypeMatcher, this](::mega::MegaApi*,
-                                                                          ::mega::MegaRequest* req,
-                                                                          ::mega::MegaError* err)
+                [reqErrorMatcher,
+                 syncErrorMatcher,
+                 reqTypeMatcher,
+                 capture = std::move(captureValues),
+                 this](::mega::MegaApi*, ::mega::MegaRequest* req, ::mega::MegaError* err)
                 {
-                    const bool matchesType =
-                        sdk_test::checkAndExpectThat(req->getType(), reqTypeMatcher);
-                    const bool matchesError =
-                        sdk_test::checkAndExpectThat(err->getErrorCode(), reqErrorMatcher);
-                    const bool matchesSyncError =
-                        sdk_test::checkAndExpectThat(err->getSyncError(), syncErrorMatcher);
-                    markAsFinished(matchesType && matchesError && matchesSyncError);
+                    EXPECT_TRUE(req) << "Null MegaRequest";
+                    EXPECT_TRUE(err) << "Null MegaError";
+                    if (!req || !err)
+                        return markAsFinished(false);
+
+                    bool ok = sdk_test::checkAndExpectThat(req->getType(), reqTypeMatcher);
+                    ok = ok && sdk_test::checkAndExpectThat(err->getErrorCode(), reqErrorMatcher);
+                    ok = ok && sdk_test::checkAndExpectThat(err->getSyncError(), syncErrorMatcher);
+                    if (ok && capture)
+                        capture(*req);
+                    markAsFinished(ok);
                 });
     }
 

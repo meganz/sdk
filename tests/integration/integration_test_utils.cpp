@@ -273,4 +273,24 @@ std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi, LocalTempFile&& file, Meg
 {
     return uploadFile(megaApi, file.getPath(), parentNode);
 }
+
+handle createPasswordNode(MegaApi* megaApi,
+                          const std::string& name,
+                          const MegaNode::PasswordNodeData* data,
+                          const handle parentNodeHandle)
+{
+    NiceMock<MockRequestListener> rl;
+    handle newPwdNodeHandle{UNDEF};
+    rl.setErrorExpectations(API_OK,
+                            _,
+                            MegaRequest::TYPE_CREATE_PASSWORD_NODE,
+                            [&newPwdNodeHandle](const MegaRequest& req)
+                            {
+                                newPwdNodeHandle = req.getNodeHandle();
+                            });
+    megaApi->createPasswordNode(name.c_str(), data, parentNodeHandle, &rl);
+    EXPECT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT))
+        << "Password node not properly generated. Name: " << name;
+    return newPwdNodeHandle;
+}
 }
