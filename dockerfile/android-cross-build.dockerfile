@@ -61,16 +61,12 @@ CMD ["sh", "-c", "\
     arch=${ARCH} && \
     case ${arch} in \
       arm) \
-        export VCPKG_TRIPLET='arm-android-mega' && \
         export ANDROID_ARCH='armeabi-v7a';; \
       arm64) \
-        export VCPKG_TRIPLET='arm64-android-mega' && \
         export ANDROID_ARCH='arm64-v8a';; \
       x86) \
-        export VCPKG_TRIPLET='x86-android-mega' && \
         export ANDROID_ARCH='x86';; \
       x64) \
-        export VCPKG_TRIPLET='x64-android-mega' && \
         export ANDROID_ARCH='x86_64';; \
       *) \
         echo 'Unsupported architecture: ${arch}' && exit 1;; \
@@ -79,7 +75,6 @@ CMD ["sh", "-c", "\
     cmake -B buildAndroid -S sdk \
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DVCPKG_TARGET_TRIPLET=${VCPKG_TRIPLET} \
         -DCMAKE_SYSTEM_NAME=Android \
         -DCMAKE_ANDROID_API=26 \
         -DCMAKE_ANDROID_ARCH_ABI=${ANDROID_ARCH} \
