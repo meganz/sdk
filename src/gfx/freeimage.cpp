@@ -130,23 +130,6 @@ FIBITMAP* rescale(FIBITMAP* dib, int width, int height)
     return standardBitmap;
 }
 
-// Remove all metadata
-void removeAllMetadata(FIBITMAP* dib)
-{
-    FreeImage_SetMetadata(FIMD_COMMENTS, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_EXIF_MAIN, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_EXIF_EXIF, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_EXIF_GPS, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_EXIF_MAKERNOTE, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_EXIF_INTEROP, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_IPTC, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_XMP, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_GEOTIFF, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_ANIMATION, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_CUSTOM, dib, nullptr, nullptr);
-    FreeImage_SetMetadata(FIMD_EXIF_RAW, dib, nullptr, nullptr);
-}
-
 // Create EXIF data with Orientation tag
 std::vector<uint8_t> createOrientationOnlyExifRawData(uint16_t orientation)
 {
@@ -191,16 +174,14 @@ std::vector<uint8_t> createOrientationOnlyExifRawData(uint16_t orientation)
         0x00};
 }
 
-using FITAGPtr = std::unique_ptr<FITAG, decltype(&FreeImage_DeleteTag)>;
-
-//
-// Returns a copy of the tag otherwise nullptr if the key doesn't exist
-FITAGPtr getTagCopy(FREE_IMAGE_MDMODEL model, FIBITMAP* dib, const char* key)
+FITAG* getTag(FREE_IMAGE_MDMODEL model, FIBITMAP* dib, const char* key)
 {
     FITAG* searchedTag = nullptr;
     FreeImage_GetMetadata(model, dib, key, &searchedTag);
-    return mega::makeUniqueFrom(FreeImage_CloneTag(searchedTag), FreeImage_DeleteTag);
+    return searchedTag;
 }
+
+using FITAGPtr = std::unique_ptr<FITAG, decltype(&FreeImage_DeleteTag)>;
 
 //
 // Returns a tag otherwise nullptr on errors
@@ -218,22 +199,34 @@ FITAGPtr createTag(const char* key, const std::vector<uint8_t>& data)
     return tagPtr;
 };
 
-// Remove all metadata but keep orientation
+// Remove all metadata except FIMD_EXIF_MAIN as we read orientation from here
+// Write orientation to FIMD_EXIF_RAW as FreeImage write this (not FIMD_EXIF_MAIN)
+// as EXIF on webp format
 void keepOrientationMetadataOnly(FIBITMAP* dib)
 {
     if (!dib)
         return;
 
-    // Get orientation copy
-    const auto orientationPtr = getTagCopy(FIMD_EXIF_MAIN, dib, "Orientation");
+    // Remove meta
+    FreeImage_SetMetadata(FIMD_COMMENTS, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_EXIF, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_GPS, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_MAKERNOTE, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_INTEROP, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_IPTC, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_XMP, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_GEOTIFF, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_ANIMATION, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_CUSTOM, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_RAW, dib, nullptr, nullptr);
 
-    // Remove all meta
-    removeAllMetadata(dib);
+    // Get orientation from FIMD_EXIF_MAIN
+    FITAG* orientationPtr = getTag(FIMD_EXIF_MAIN, dib, "Orientation");
 
     // Add orientation only exif to ExifRaw tag as FreeImage lib only add this tag to webp's Exif
-    if (orientationPtr && (FIDT_SHORT == FreeImage_GetTagType(orientationPtr.get())))
+    if (orientationPtr && (FIDT_SHORT == FreeImage_GetTagType(orientationPtr)))
     {
-        const uint16_t value = *((const uint16_t*)FreeImage_GetTagValue(orientationPtr.get()));
+        const uint16_t value = *((const uint16_t*)FreeImage_GetTagValue(orientationPtr));
         const auto exifRawData = createOrientationOnlyExifRawData(value);
         const auto tagPtr = createTag("ExifRaw", exifRawData);
         if (!tagPtr)
@@ -971,11 +964,7 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut)
     FreeImage_Unload(dib);
     dib = tdib;
 
-    // Remove all but keep Orientation meta data for display and smaller size
-    // Process metadata only for once, as this function can be called a few times in a
-    // sequence for different dimensions images, all images have the same orientation
-    if (!std::exchange(mMetaDataIsProcessed, true))
-        keepOrientationMetadataOnly(dib);
+    keepOrientationMetadataOnly(dib);
 
     *imageOut = saveToMemory(dib);
 

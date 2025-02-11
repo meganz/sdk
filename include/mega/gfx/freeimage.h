@@ -91,10 +91,6 @@ protected:
 #ifdef USE_MEDIAINFO
     bool readbitmapMediaInfo(const LocalPath& imagePath);
 #endif
-
-private:
-    // Whether EXIF meta data has been processed
-    bool mMetaDataIsProcessed{false};
 };
 } // namespace
 
