@@ -240,9 +240,6 @@ void QTMegaListener::customEvent(QEvent *e)
         case QTMegaEvent::OnAccountUpdate:
             if(listener) listener->onAccountUpdate(event->getMegaApi());
             break;
-        case QTMegaEvent::OnReloadNeeded:
-            if(listener) listener->onReloadNeeded(event->getMegaApi());
-            break;
         case QTMegaEvent::OnEvent:
             if(listener) listener->onEvent(event->getMegaApi(), event->getEvent());
             break;
