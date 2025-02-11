@@ -25,6 +25,12 @@ protected:
     static constexpr const char* GOOD_THUMBNAIL = "logo_thumbnail.png";
 
     static constexpr const char* GOOD_PREVIEW   = "logo_preview.png";
+
+    static constexpr const char* TRANSPARENCY_IMAGE = "transparency.png";
+
+    static constexpr const char* TRANSPARENCY_THUMBNAIL = "transparency_thumbnail.webp";
+
+    static constexpr const char* TRANSPARENCY_PREVIEW = "transparency_preview.webp";
 };
 
 void SdkTestIsolatedGfx::SetUp()
@@ -101,4 +107,47 @@ TEST_F(SdkTestIsolatedGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
 
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
+}
+
+TEST_F(SdkTestIsolatedGfx, SupportTransparency)
+{
+    LOG_info << "___TEST SupportTransparency";
+
+    // Helper
+    auto isTransparency = [](const fs::path& image, FREE_IMAGE_FORMAT fif)
+    {
+        const auto filepath = image.c_str();
+
+        const auto dib =
+            ::mega::makeUniqueFrom(FreeImage_Load(fif, filepath, 0), &FreeImage_Unload);
+        if (!dib)
+        {
+            LOG_err << "Failed to load image\n";
+            return false;
+        }
+
+        return FreeImage_IsTransparent(dib.get()) == TRUE;
+    };
+
+    // Download test data
+    ASSERT_TRUE(
+        getFileFromArtifactory(std::string{"test-data/"} + TRANSPARENCY_IMAGE, TRANSPARENCY_IMAGE));
+
+    // Thumbnail and preview
+    MegaApi* api = megaApi[0].get();
+    ASSERT_TRUE(api->createThumbnail(TRANSPARENCY_IMAGE, TRANSPARENCY_THUMBNAIL))
+        << "create thumbnail should succeed";
+    ASSERT_TRUE(api->createPreview(TRANSPARENCY_IMAGE, TRANSPARENCY_PREVIEW))
+        << "create preview should succeed";
+
+    // Use this to ensure FreeImage library is initialized for once
+    [[maybe_unused]] const auto a =
+        ::mega::makeUniqueFrom(MegaGfxProvider::createInternalInstance());
+
+    // Check all are transparency images
+    ASSERT_TRUE(isTransparency(fs::path{TRANSPARENCY_IMAGE}, FIF_PNG));
+    ASSERT_TRUE(isTransparency(fs::path{TRANSPARENCY_THUMBNAIL}, FIF_WEBP));
+    ASSERT_TRUE(isTransparency(fs::path{TRANSPARENCY_PREVIEW}, FIF_WEBP));
+
+    LOG_info << "___TEST SupportTransparency end___";
 }
