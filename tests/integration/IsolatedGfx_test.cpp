@@ -122,7 +122,7 @@ TEST_F(SdkTestIsolatedGfx, SupportTransparency)
             ::mega::makeUniqueFrom(FreeImage_Load(fif, filepath, 0), &FreeImage_Unload);
         if (!dib)
         {
-            LOG_err << "Failed to load image\n";
+            LOG_err << "Failed to load image";
             return false;
         }
 
