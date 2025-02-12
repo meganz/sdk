@@ -644,6 +644,23 @@ struct StandardClient : public MegaApp
 
     string ensureDir(const fs::path& p);
 
+    /**
+     * @brief Sets the minimum permissible configurable values for upload throttling.
+     *
+     * Default upload throttling values can be unsuitable for tests.
+     * This method sets them as follows:
+     * throttleUpdateRate -> to the lowest value allowed (current: 1min)
+     * maxUploadsBeforeThrottle -> to the maximum value allowed (current: 5)
+     *
+     * If any of the operations fails, the result is logged with a warn, but there are no asserts.
+     * The reasons are: 1) This method is meant to be called within the StandardClient constructor,
+     * and we avoid propagating ASSERT_NO_FATAL_FAILURE all along the code. 2) The specific code for
+     * setting these values for the UploadThrottlingManager is already exercised in its own test
+     * suite. 3) Just a few tests will fall into the upload throttling logic, so for most test it
+     * doesn't really matter if this method fails for some very unexpected reason.
+     */
+    void setMinimumUploadThrottleSettings();
+
     StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder = fs::path());
     ~StandardClient();
     void localLogout();

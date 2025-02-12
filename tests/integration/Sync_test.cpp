@@ -25,6 +25,7 @@
 #include "gmock/gmock.h"
 #include "gtest_common.h"
 #include "mega/scoped_helpers.h"
+#include "mega/syncinternals/syncuploadthrottlingmanager.h"
 #include "mega/tlv.h"
 #include "mega/user_attribute.h"
 #include "test.h"
@@ -1325,6 +1326,57 @@ string StandardClient::ensureDir(const fs::path& p)
     return result;
 }
 
+void StandardClient::setMinimumUploadThrottleSettings()
+{
+    const auto uploadThrottlingManager = std::make_shared<UploadThrottlingManager>();
+    const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
+
+    const auto throttleUpdateRate = throttleValueLimits.throttleUpdateRateLowerLimit;
+    if (!uploadThrottlingManager->setThrottleUpdateRate(throttleUpdateRate))
+    {
+        LOG_warn << "[StandardClient::setMinimumUploadThrottleSettings] Operation to set the "
+                    "upload throttle update rate to "
+                 << throttleUpdateRate.count() << " secs has failed";
+        return;
+    }
+
+    const auto maxUploadsBeforeThrottle = throttleValueLimits.maxUploadsBeforeThrottleUpperLimit;
+    if (!uploadThrottlingManager->setMaxUploadsBeforeThrottle(maxUploadsBeforeThrottle))
+    {
+        LOG_warn << "[StandardClient::setMinimumUploadThrottleSettings] Operation to set the max "
+                    "uploads before throttle to "
+                 << maxUploadsBeforeThrottle << " has failed";
+        return;
+    }
+
+    LOG_debug << "[StandardClient::setMinimumUploadThrottleSettings] throttleUpdateRate: "
+              << throttleUpdateRate.count()
+              << " secs, maxUploadsBeforeThrottle: " << maxUploadsBeforeThrottle;
+
+    std::promise<error> setThrottlingManagerPromise;
+    client.setSyncUploadThrottlingManager(uploadThrottlingManager,
+                                          [&setThrottlingManagerPromise](const error e)
+                                          {
+                                              setThrottlingManagerPromise.set_value(e);
+                                          });
+
+    auto setThrottlingManagerFuture = setThrottlingManagerPromise.get_future();
+    if (setThrottlingManagerFuture.wait_for(DEFAULTWAIT) != std::future_status::ready)
+    {
+        LOG_warn << "[StandardClient::setMinimumUploadThrottleSettings] Operation to update the "
+                    "upload throttling manager with "
+                    "minimum values has timed out!";
+        return;
+    }
+
+    if (const auto result = setThrottlingManagerFuture.get(); result != API_OK)
+    {
+        LOG_warn << "[StandardClient::setThrottleUpdateRateToLowestValue] Operation to update "
+                    "the upload throttling manager failed with "
+                 << result;
+    }
+}
+
 StandardClient::StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder)
     :
       waiter(new WAIT_CLASS),
@@ -1372,6 +1424,8 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
     // SyncTests want to skip backup restrictions, so they are not
     // restricted to the path "Vault/My backups/<device>/<backup>"
     client.syncs.mBackupRestrictionsEnabled = false;
+
+    setMinimumUploadThrottleSettings();
 }
 
 StandardClient::~StandardClient()
