@@ -62,8 +62,5 @@ http://libsodium.org
 - libcURL (used for HTTP / HTTPS communications)
 https://curl.haxx.se/libcurl/
 
-- c-ares (used for DNS)
-https://c-ares.haxx.se/
-
 - libuv (used for the local HTTP proxy server)
 http://libuv.org/

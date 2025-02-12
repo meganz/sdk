@@ -22016,15 +22016,6 @@ error MegaApiImpl::performRequest_retryPendingConnections(MegaRequestPrivate* re
                 {
                     servers = dnsservers;
                 }
-#ifndef __MINGW32__
-#ifdef MEGA_USE_C_ARES
-                if (servers.size())
-                {
-                    LOG_debug << "Using DNS servers " << servers;
-                    httpio->setdnsservers(servers.c_str());
-                }
-#endif
-#endif
             }
 
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));

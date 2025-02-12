@@ -4,17 +4,6 @@
 #### Dependencies of the MEGA C++ SDK
 Here is a brief description of all of them:
 
-#### c-ares:
-Copyright 1998 by the Massachusetts Institute of Technology.
-
-c-ares is a C library for asynchronous DNS requests (including name resolves)
-
-http://c-ares.haxx.se/
-
-License: MIT license
-
-http://c-ares.haxx.se/license.html
-
 #### libcurl
 Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
 
