@@ -12,32 +12,49 @@ static bool contains(const MegaStringList& list, const std::string& value);
 
 static std::vector<std::string> nodeNames(const std::vector<MegaNodePtr>& nodes);
 
+template<typename... Parameters, typename Predicate>
+static auto satisfies(Predicate&& predicate, Parameters&&... arguments)
+    -> std::enable_if_t<std::conjunction_v<std::is_invocable_r<bool, Predicate, Parameters>...>,
+                        bool>
+{
+    return (... && std::invoke(predicate, std::forward<Parameters>(arguments)));
+}
+
 static std::vector<MegaNodePtr> toVector(const MegaNodeList& list);
 static std::vector<std::string> toVector(const MegaStringList& list);
+
+template<typename... Parameters, typename Predicate>
+static auto waitUntilSatisfied(Predicate&& predicate,
+                               std::chrono::steady_clock::time_point until,
+                               Parameters&&... arguments)
+    -> decltype(satisfies(predicate, arguments...))
+{
+    auto result = satisfies(predicate, arguments...);
+
+    while (!result && std::chrono::steady_clock::now() < until)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(128));
+        result = satisfies(predicate, arguments...);
+    }
+
+    return result;
+}
+
+template<typename... Parameters, typename Period, typename Predicate, typename Rep>
+static auto waitUntilSatisfied(Predicate&& predicate,
+                               std::chrono::duration<Rep, Period> period,
+                               Parameters&&... arguments)
+    -> decltype(satisfies(predicate, arguments...))
+{
+    return waitUntilSatisfied(std::forward<Predicate>(predicate),
+                              std::chrono::steady_clock::now() + period,
+                              std::forward<Parameters>(arguments)...);
+}
 
 static constexpr auto DefaultTimeoutMs = 30 * 1000;
 static constexpr auto ErrorTag = std::in_place_type<Error>;
 static constexpr auto NodeTag = std::in_place_type<std::unique_ptr<MegaNode>>;
 static constexpr auto StringVectorTag = std::in_place_type<std::vector<std::string>>;
-
-TEST_F(SdkTestNodeTagsBasic, add_tag_fails_when_read_only)
-{
-    auto root = rootNode(*client1);
-    ASSERT_NE(root, nullptr);
-
-    // Make sure client1 has something to share with client0.
-    auto d = createDirectory(*client1, *root, "d");
-    ASSERT_EQ(result(d), API_OK);
-
-    // Make sure client0 and client1 are friends.
-    EXPECT_EQ(befriend(*client0, *client1), API_OK);
-
-    // client1 should share d with client0.
-    EXPECT_EQ(share(*client1, *value(d), *client0, MegaShare::ACCESS_READ), API_OK);
-
-    // client0 shouldn't be able to add a new tag to client0's directory.
-    EXPECT_EQ(addTag(*client0, *value(d), "d"), API_EACCESS);
-}
 
 TEST_F(SdkTestNodeTagsBasic, add_tag_fails_when_tag_contains_separator)
 {
@@ -94,6 +111,85 @@ TEST_F(SdkTestNodeTagsBasic, existing_tags_copied_to_new_file_version)
     ASSERT_EQ(result(newFileTags), API_OK);
 
     EXPECT_EQ(value(fileTags), value(newFileTags));
+}
+
+TEST_F(SdkTestNodeTagsBasic, manipulate_tags_on_inshare)
+{
+    // Get our hands on the root node.
+    auto root = rootNode(*client0);
+    ASSERT_NE(root, nullptr);
+
+    // Add a directory for us to share.
+    auto directory = createDirectory(*client0, *root, "d");
+    ASSERT_EQ(result(directory), API_OK);
+
+    // Make sure client0 is friend with client1 and client2.
+    ASSERT_EQ(befriend(*client0, *client1), API_OK);
+    ASSERT_EQ(befriend(*client0, *client2), API_OK);
+
+    // Convenience.
+    constexpr auto RO = MegaShare::ACCESS_READ;
+    constexpr auto RW = MegaShare::ACCESS_FULL;
+
+    // client1 should have full access to d.
+    ASSERT_EQ(share(*client0, *value(directory), *client1, RW), API_OK);
+
+    // client2 should have read-only access to d.
+    ASSERT_EQ(share(*client0, *value(directory), *client2, RO), API_OK);
+
+    // Convenience.
+    auto hasTag = [this](const MegaNode& node, const std::string& tag)
+    {
+        return [handle = node.getHandle(), tag, this](const MegaApi& client)
+        {
+            return SdkTestNodeTagsCommon::hasTag(client, handle, tag);
+        };
+    }; // hasTag
+
+    // clients with read-only access should not be able to add a tag.
+    EXPECT_EQ(addTag(*client2, *value(directory), "a"), API_EACCESS);
+
+    // clients with full access to share should be able to add a tag.
+    EXPECT_EQ(addTag(*client1, *value(directory), "b"), API_OK);
+
+    // And that tag should be visible to all clients.
+    EXPECT_TRUE(waitUntilSatisfied(hasTag(*value(directory), "b"),
+                                   std::chrono::milliseconds(DefaultTimeoutMs),
+                                   *client0,
+                                   *client1,
+                                   *client2));
+
+    // clients with read-only access shouldn't be able to update tags.
+    EXPECT_EQ(renameTag(*client2, *value(directory), "b", "c"), API_EACCESS);
+
+    // But clients with full access, should.
+    EXPECT_EQ(renameTag(*client1, *value(directory), "b", "c"), API_OK);
+
+    // And all clients should see the change.
+    EXPECT_TRUE(waitUntilSatisfied(std::not_fn(hasTag(*value(directory), "b")),
+                                   std::chrono::milliseconds(DefaultTimeoutMs),
+                                   *client0,
+                                   *client1,
+                                   *client2));
+
+    EXPECT_TRUE(waitUntilSatisfied(hasTag(*value(directory), "c"),
+                                   std::chrono::milliseconds(DefaultTimeoutMs),
+                                   *client0,
+                                   *client1,
+                                   *client2));
+
+    // clients with read-only access shouldn't be able to remove a tag.
+    EXPECT_EQ(removeTag(*client2, *value(directory), "c"), API_EACCESS);
+
+    // But clients with full-access should.
+    EXPECT_EQ(removeTag(*client1, *value(directory), "c"), API_OK);
+
+    // And once again, all clients should see the change.
+    EXPECT_TRUE(waitUntilSatisfied(std::not_fn(hasTag(*value(directory), "c")),
+                                   std::chrono::milliseconds(DefaultTimeoutMs),
+                                   *client0,
+                                   *client1,
+                                   *client2));
 }
 
 TEST_F(SdkTestNodeTagsBasic, remove_tag_fails_when_tag_doesnt_exist)
@@ -336,13 +432,15 @@ auto SdkTestNodeTagsCommon::SetUp() -> void
 {
     SdkTest::SetUp();
 
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
 
     client0 = megaApi[0].get();
     client1 = megaApi[1].get();
+    client2 = megaApi[2].get();
 
     ASSERT_EQ(fileVersioning(*client0, true), API_OK);
     ASSERT_EQ(fileVersioning(*client1, true), API_OK);
+    ASSERT_EQ(fileVersioning(*client2, true), API_OK);
 
     // Makes sharing a lot more convenient.
     client1->setManualVerificationFlag(false);
@@ -460,6 +558,19 @@ auto SdkTestNodeTagsCommon::getTags(MegaApi& client, const std::string& path) ->
         return AllTagsResult(ErrorTag, API_EINTERNAL);
 
     return AllTagsResult(StringVectorTag, toVector(*tags));
+}
+
+auto SdkTestNodeTagsCommon::hasTag(const MegaApi& client, MegaHandle handle, const std::string& tag)
+    -> bool
+{
+    auto node = nodeByHandle(client, handle);
+
+    if (!node)
+        return false;
+
+    auto tags = makeUniqueFrom(node->getTags());
+
+    return contains(*tags, tag);
 }
 
 auto SdkTestNodeTagsCommon::moveNode(MegaApi& client,
