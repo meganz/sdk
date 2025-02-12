@@ -44,6 +44,7 @@ SOFTWARE.
 #include <sstream>
 #include <string>
 #include <vector>
+#include <bitset>
 
 /* Copyright 2017 https://github.com/mandreyel
  *
@@ -4831,11 +4832,11 @@ namespace csv {
         STATIC_ASSERT(quote_escape_flag(ParseFlags::DELIMITER, true) == ParseFlags::NOT_SPECIAL);
         STATIC_ASSERT(quote_escape_flag(ParseFlags::NEWLINE, true) == ParseFlags::NOT_SPECIAL);
 
-        /** An array which maps ASCII chars to a parsing flag */
-        using ParseFlagMap = std::array<ParseFlags, 256>;
+        /** An array which maps UTF-8 chars to a parsing flag */
+        using ParseFlagMap = std::array<ParseFlags, std::numeric_limits<unsigned char>::max() + 1>;
 
-        /** An array which maps ASCII chars to a flag indicating if it is whitespace */
-        using WhitespaceMap = std::array<bool, 256>;
+        /** An array which maps UTF-8 chars to a flag indicating if it is whitespace */
+        using WhitespaceMap = std::bitset<std::numeric_limits<unsigned char>::max() + 1>;
     }
 
     /** Integer indicating a requested column wasn't found. */
@@ -5856,24 +5857,28 @@ inline std::ostream& operator << (std::ostream& os, csv::CSVField const& value) 
 
 namespace csv {
     namespace internals {
+
+        /** Helper constexpr function to initialize arrays with default values
+         */
+        template<typename T, typename Out>
+        HEDLEY_CONST CONSTEXPR_17 Out container_to_default(T&& value)
+        {
+            Out a{};
+            for (size_t i = 0; i < a.size(); ++i)
+                a[i] = value;
+            return a;
+        }
+
         /** Create a vector v where each index i corresponds to the
          *  ASCII number for a character and, v[i + 128] labels it according to
          *  the CSVReader::ParseFlags enum
          */
         HEDLEY_CONST CONSTEXPR_17 ParseFlagMap make_parse_flags(char delimiter) {
-            std::array<ParseFlags, 256> ret = {};
-            for (int i = -128; i < 128; i++) {
-                const int arr_idx = i + 128;
-                char ch = char(i);
-
-                if (ch == delimiter)
-                    ret[arr_idx] = ParseFlags::DELIMITER;
-                else if (ch == '\r' || ch == '\n')
-                    ret[arr_idx] = ParseFlags::NEWLINE;
-                else
-                    ret[arr_idx] = ParseFlags::NOT_SPECIAL;
-            }
-
+            ParseFlagMap ret = container_to_default<ParseFlagMap::value_type, ParseFlagMap>(
+                ParseFlags::NOT_SPECIAL);
+            ret[static_cast<unsigned char>(delimiter)] = ParseFlags::DELIMITER;
+            ret[static_cast<unsigned char>('\r')] = ParseFlags::NEWLINE;
+            ret[static_cast<unsigned char>('\n')] = ParseFlags::NEWLINE;
             return ret;
         }
 
@@ -5882,8 +5887,8 @@ namespace csv {
          *  the CSVReader::ParseFlags enum
          */
         HEDLEY_CONST CONSTEXPR_17 ParseFlagMap make_parse_flags(char delimiter, char quote_char) {
-            std::array<ParseFlags, 256> ret = make_parse_flags(delimiter);
-            ret[(size_t)quote_char + 128] = ParseFlags::QUOTE;
+            ParseFlagMap ret = make_parse_flags(delimiter);
+            ret[static_cast<unsigned char>(quote_char)] = ParseFlags::QUOTE;
             return ret;
         }
 
@@ -5892,19 +5897,10 @@ namespace csv {
          *  c is a whitespace character
          */
         HEDLEY_CONST CONSTEXPR_17 WhitespaceMap make_ws_flags(const char* ws_chars, size_t n_chars) {
-            std::array<bool, 256> ret = {};
-            for (int i = -128; i < 128; i++) {
-                const int arr_idx = i + 128;
-                char ch = char(i);
-                ret[arr_idx] = false;
-
-                for (size_t j = 0; j < n_chars; j++) {
-                    if (ws_chars[j] == ch) {
-                        ret[arr_idx] = true;
-                    }
-                }
+            WhitespaceMap ret = container_to_default<bool, WhitespaceMap>(false);
+            for (size_t i = 0; i < n_chars; ++i) {
+                ret[static_cast<unsigned char>(ws_chars[i])] = true;
             }
-
             return ret;
         }
 
@@ -6044,7 +6040,7 @@ namespace csv {
             void end_feed();
 
             CONSTEXPR_17 ParseFlags parse_flag(const char ch) const noexcept {
-                return _parse_flags.data()[ch + 128];
+                return _parse_flags.data()[static_cast<unsigned char>(ch)];
             }
 
             CONSTEXPR_17 ParseFlags compound_parse_flag(const char ch) const noexcept {
@@ -6108,7 +6104,7 @@ namespace csv {
             RowCollection* _records = nullptr;
 
             CONSTEXPR_17 bool ws_flag(const char ch) const noexcept {
-                return _ws_flags.data()[ch + 128];
+                return _ws_flags[static_cast<unsigned char>(ch)];
             }
 
             size_t& current_row_start() {
@@ -7771,7 +7767,7 @@ namespace csv {
             if (value.empty()) {
                 bool prev_ch_quote = false;
                 for (size_t i = 0; i < field.length; i++) {
-                    if (this->data->parse_flags[field_str[i] + 128] == ParseFlags::QUOTE) {
+                    if (this->data->parse_flags[static_cast<unsigned char>(field_str[i])] == ParseFlags::QUOTE) {
                         if (prev_ch_quote) {
                             prev_ch_quote = false;
                             continue;
