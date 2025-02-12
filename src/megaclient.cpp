@@ -7047,6 +7047,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:
                                     case ATTR_DEVICE_NAMES:
                                     case ATTR_JSON_SYNC_CONFIG_DATA:
+                                    case ATTR_SYNC_DESIRED_STATE:
                                     {
                                         if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) &&
                                             mKeyManager.generation())

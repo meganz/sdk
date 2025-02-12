@@ -4319,6 +4319,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionVisibleTermsOfService;
     string pwmh, pwmhVersion;
     vector<uint32_t> notifs;
+    std::string sds, sdsVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4705,6 +4706,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
         case makeNameid("^!tsur"):
         {
             parseUserAttribute(json, enabledTestSurveys, versionEnabledTestSurveys);
+            break;
+        }
+
+        case makeNameid("*!sds"):
+        {
+            parseUserAttribute(json, sds, sdsVersion);
             break;
         }
 
@@ -5133,6 +5140,19 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     u->removeAttribute(ATTR_PWM_BASE);
+                }
+
+                if (!sds.empty() || !sdsVersion.empty())
+                {
+                    changes |= updatePrivateEncryptedUserAttribute(u,
+                                                                   sds,
+                                                                   sdsVersion,
+                                                                   ATTR_SYNC_DESIRED_STATE);
+                    std::unique_ptr<string_map> records{tlv::containerToRecords(sds, client->key)};
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_SYNC_DESIRED_STATE);
                 }
 
                 if (changes)
