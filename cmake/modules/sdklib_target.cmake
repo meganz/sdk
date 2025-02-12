@@ -86,6 +86,7 @@ set(SDKLIB_HEADERS
     include/mega/name_id.h
     include/mega/pwm_file_parser.h
     include/mega/tlv.h
+    include/mega/dns_lookup_pseudomessage.h
     include/mega/udp_socket.h
     include/mega/user_attribute.h
     include/mega/user_attribute_definition.h
@@ -159,6 +160,7 @@ set(SDKLIB_SOURCES
     src/name_collision.cpp
     src/pwm_file_parser.cpp
     src/tlv.cpp
+    src/dns_lookup_pseudomessage.cpp
     src/udp_socket.cpp
     src/user_attribute.cpp
     src/user_attribute_definition.cpp
