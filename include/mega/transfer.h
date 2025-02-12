@@ -546,14 +546,14 @@ public:
      *
      * @see DirectReadSlot::watchOverDirectReadPerformance
      */
-    static constexpr int MAX_SIMULTANEOUS_FAILED_RAIDED_CONNS = 1;
+    static constexpr unsigned MAX_SIMULTANEOUS_FAILED_RAIDED_CONNS = 1;
 
     /**
      * @brief Backoff between retries when mNumConnSwitchesSlowestPart has reached limit
      *
      * @see DirectReadSlot::searchAndDisconnectSlowestConnection
      */
-    static constexpr std::chrono::seconds SLOW_DETECTION_BACKOFF = 300s;
+    static constexpr std::chrono::seconds CONNECTION_SWITCHES_LIMIT_RESET_TIME = 300s;
 
     /* ===================*\
      *      Methods       *
@@ -574,7 +574,7 @@ public:
      * @param err The error code that caused the failure
      * @param timeleft The time after which the transfer is retried
      */
-    void retryEntireTransfer(const Error& e, dstime timeleft = 0);
+    void retryEntireTransfer(const Error& e, const dstime timeleft = 0);
 
     /**
      * @brief Identifies slow connections under minimum threshold and determines the slowest one.
@@ -891,7 +891,7 @@ private:
      *
      * @see DirectReadSlot::searchAndDisconnectSlowestConnection
      */
-    std::chrono::steady_clock::time_point mSlowDetectionBackoff;
+    std::chrono::steady_clock::time_point mConnectionSwitchesLimitLastReset;
 
     /**
      *   @brief Unused connection due to slowness.

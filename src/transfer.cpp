@@ -1623,7 +1623,7 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
         return;
     }
 
-    assert(mReqs.size() <= RAIDPARTS);
+    assert(mReqs.size() == RAIDPARTS);
     std::string msg =
         "DirectReadSlot::retryOnError [Raided] [conn " + std::to_string(connectionNum) + "]: ";
     if (connectionNum >= mReqs.size())
@@ -1634,7 +1634,7 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
         return;
     }
 
-    if (std::unique_ptr<HttpReq>& failedReq = mReqs[connectionNum]; !failedReq)
+    if (const auto& failedReq = mReqs[connectionNum]; !failedReq)
     {
         LOG_err << msg + "invalid connectionNum (not found)";
         assert(false && "DirectReadSlot::retryOnError: Cannot get Http req");
@@ -1661,9 +1661,9 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
 
     if (!unusedConnectionCanBeReused())
     {
-        msg += "we cannot replace failed part by unused one, as it's also failed. Retrying "
-               "entire transfer";
-        LOG_debug << msg;
+        LOG_debug << msg
+                  << "we cannot replace failed part by unused one, as it's also failed. Retrying "
+                     "entire transfer";
         retryEntireTransfer(API_EREAD);
         return;
     }
@@ -1675,7 +1675,7 @@ bool DirectReadSlot::isRaidedTransfer() const
     return mDr->drbuf.isRaid();
 }
 
-void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
+void DirectReadSlot::retryEntireTransfer(const Error& e, const dstime timeleft)
 {
     mPosRangeReqs.clear();
     mUnusedConn.clear();
@@ -1684,7 +1684,7 @@ void DirectReadSlot::retryEntireTransfer(const Error& e, dstime timeleft)
 
 std::pair<std::set<size_t>, size_t> DirectReadSlot::searchSlowConnsUnderThreshold()
 {
-    const unsigned minSpeedPerConnBytesPerSec = getMinSpeedPerConnBytesPerSec();
+    const auto minSpeedPerConnBytesPerSec = getMinSpeedPerConnBytesPerSec();
     if (!minSpeedPerConnBytesPerSec || !isRaidedTransfer())
     {
         // if minstreamingrate == 0, no StreamingMinimumRate has been set
@@ -1989,33 +1989,38 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         return onAcceptableDirectReadPerformance();
     }
 
+    if (!mDr->appdata)
+    {
+        // It's better for this check to be here instead of above: this way we can know
+        // if the transfer speed is too low, even if the transfer is already deleted at
+        // this point.
+        LOG_err << "DirectReadSlot: Watchdog -> Transfer is already deleted."
+                << (transferMeanspeed >= minTransferspeed ?
+                        " Transfer speed too low for streaming, Skipping retry" :
+                        "")
+                << " [this = " << this << "]";
+        mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+        delete mDr;
+        return false;
+    }
+
     const auto [slowConns, slowestConnectionIndex] = searchSlowConnsUnderThreshold();
     if (slowConns.empty())
     {
         assert(getMinSpeedPerConnBytesPerSec() &&
                "if non minstrate set we should have already exit");
+
         if (transferMeanspeed >= minTransferspeed)
         {
             return onAcceptableDirectReadPerformance();
         }
 
-        if (!mDr->appdata)
-        {
-            // It's better for this check to be here instead of above: this way we can know
-            // if the transfer speed is to low, even if the transfer is already deleted at
-            // this point.
-            LOG_err << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming, "
-                       "but transfer is already deleted. Skipping retry"
-                    << " [this = " << this << "]";
-            mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
-            return false;
-        }
         retryEntireTransfer(API_EAGAIN);
         return true;
     }
     else if (slowConns.size() == MAX_SIMULTANEOUS_FAILED_RAIDED_CONNS)
     {
-        if (auto unusedConnNotReusable =
+        if (const auto unusedConnNotReusable =
                 !unusedConnectionCanBeReused() ||
                 maxUnusedConnSwitchesReached(UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD);
             unusedConnNotReusable)
@@ -2037,7 +2042,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
 
 bool DirectReadSlot::doio()
 {
-    bool isRaid = isRaidedTransfer();
+    const auto isRaid = isRaidedTransfer();
     unsigned minSpeedPerConnBytesPerSec = getMinSpeedPerConnBytesPerSec();
     if (!minSpeedPerConnBytesPerSec)
     {
@@ -2051,17 +2056,16 @@ bool DirectReadSlot::doio()
                                      ~(static_cast<unsigned>(RAIDSECTOR) - 1);
     }
 
-    auto now = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::seconds>(now - mSlowDetectionBackoff).count() >
-        SLOW_DETECTION_BACKOFF.count())
+    if (const auto now = std::chrono::steady_clock::now();
+        (now - mConnectionSwitchesLimitLastReset) > CONNECTION_SWITCHES_LIMIT_RESET_TIME)
     {
         mNumConnSwitchesSlowestPart = 0;
         mNumConnSwitchesBelowSpeedThreshold = 0;
         mNumConnDetectedBelowSpeedThreshold.clear();
-        mSlowDetectionBackoff = std::chrono::steady_clock::now();
+        mConnectionSwitchesLimitLastReset = now;
     }
 
-    const size_t prevUnusedConnIdx = mUnusedConn.getPrevUnused();
+    const auto prevUnusedConnIdx = mUnusedConn.getPrevUnused();
     for (unsigned int connectionNum = static_cast<unsigned int>(mReqs.size()); connectionNum--;)
     {
         std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
@@ -2212,12 +2216,14 @@ bool DirectReadSlot::doio()
                 std::pair<m_off_t, m_off_t> posrange;
                 if (isRaid && prevUnusedConnIdx != RAIDPARTS && connectionNum == prevUnusedConnIdx)
                 {
-                    if (auto it = mPosRangeReqs.find(prevUnusedConnIdx); it != mPosRangeReqs.end())
+                    if (const auto it = mPosRangeReqs.find(prevUnusedConnIdx);
+                        it != mPosRangeReqs.end())
                     {
-                        // We have performed a hot swap of a raided part by unused one, so we don't
-                        // need to call nextNPosForConnection again, as it would give us a wrong
-                        // value and could make replaced request fail. We must reuse range pos
-                        // values of connection that was replaced by unused one
+                        // We have performed a hot swap of a raided part by unused one, so can't
+                        // call nextNPosForConnection again, as it would give us a wrong
+                        // range and the new request for the replaced connection would fail. We must
+                        // reuse the same range values of the connection that was replaced by this
+                        // one (the unused one).
                         LOG_debug << "DirectReadSlot::doio: Reusing previous range for "
                                      "replaced connection";
                         posrange = it->second;
@@ -2227,9 +2233,11 @@ bool DirectReadSlot::doio()
                     }
                     else
                     {
-                        LOG_err << "DirectReadSlot::doio: Retrying DirectRead Transfer due "
-                                   "an unexpected error";
-                        assert(false);
+                        LOG_err << "DirectReadSlot::doio: Retrying DirectRead Transfer due to "
+                                   "an unexpected error: no range values were found for the "
+                                   "previous unused connection";
+                        assert(false &&
+                               "range values for previous unused connection were not found!");
                         retryEntireTransfer(API_EREAD);
                         return true;
                     }
@@ -2299,6 +2307,7 @@ bool DirectReadSlot::doio()
                             {
                                 // this could happen in case we have replaced (hot swap) a raided
                                 // part by unused one. in that case just ignore that connectionNum
+                                assert(mUnusedConn.getPrevUnused() == RAIDPARTS); // Updated value
                                 continue;
                             }
                             LOG_err << "DirectReadSlot [conn " << connectionNum
@@ -2546,7 +2555,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     mSpeed = mMeanSpeed = 0;
 
     assert(mReqs.empty());
-    size_t numReqs = isRaidedTransfer() ? mDr->drbuf.tempUrlVector().size() : 1;
+    const auto numReqs = isRaidedTransfer() ? mDr->drbuf.tempUrlVector().size() : 1;
     assert(isRaidedTransfer() ? (numReqs == RAIDPARTS) : 1);
     for (size_t i = numReqs; i--; )
     {
@@ -2559,7 +2568,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     mThroughput.resize(mReqs.size());
     mPosRangeReqs.clear();
     mUnusedConn.clear();
-    auto auxUnused = isRaidedTransfer() ? mDr->drbuf.getUnusedRaidConnection() : mReqs.size();
+    const auto auxUnused = isRaidedTransfer() ? mDr->drbuf.getUnusedRaidConnection() : mReqs.size();
     mUnusedConn.setUnused(auxUnused, UnusedConn::UN_NOT_ERR);
     if (isRaidedTransfer() && mUnusedConn.getNum() == RAIDPARTS)
     {
@@ -2587,7 +2596,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     }
     mMinComparableThroughput = DirectReadSlot::DEFAULT_MIN_COMPARABLE_THROUGHPUT;
     mSlotStartTime = std::chrono::steady_clock::now();
-    mSlowDetectionBackoff = std::chrono::steady_clock::now();
+    mConnectionSwitchesLimitLastReset = std::chrono::steady_clock::now();
 }
 
 DirectReadSlot::~DirectReadSlot()

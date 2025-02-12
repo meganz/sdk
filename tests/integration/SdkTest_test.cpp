@@ -8655,10 +8655,10 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
-    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure (403). No transfer "
+    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure (404). No transfer "
                  "retry ####";
-    startStreaming(-1 /*cd404*/,
-                   2 /*cd403*/,
+    startStreaming(2 /*cd404*/,
+                   -1 /*cd403*/,
                    -1 /*cd429*/,
                    -1 /*cd503*/,
                    0 /*nFailedReqs*/,
