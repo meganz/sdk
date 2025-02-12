@@ -37,7 +37,7 @@ WinOverlapped::WinOverlapped()
 
 WinOverlapped::~WinOverlapped()
 {
-    if (!mOverlapped.hEvent)
+    if (mOverlapped.hEvent)
     {
         CloseHandle(mOverlapped.hEvent);
     }
