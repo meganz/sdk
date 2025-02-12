@@ -1757,31 +1757,34 @@ bool DirectReadSlot::unusedConnectionCanBeReused()
 }
 
 void DirectReadSlot::replaceConnectionByUnused(
-    const size_t connectionNum,
+    const size_t newUnusedConnection,
     const UnusedConn::ConnReplacementReason replamecementReason,
     const UnusedConn::UnusedReason unusedReason)
 {
     if (!isRaidedTransfer() || !unusedConnectionCanBeReused() ||
-        maxUnusedConnSwitchesReached(replamecementReason) || connectionNum >= mReqs.size() ||
-        !mReqs[connectionNum])
+        maxUnusedConnSwitchesReached(replamecementReason) || newUnusedConnection >= mReqs.size() ||
+        !mReqs[newUnusedConnection])
     {
-        LOG_err << "DirectReadSlot::replaceConnectionByUnused [conn " << connectionNum << "]: "
-                << " Cannot replace unused connection by " << connectionNum;
+        LOG_err << "DirectReadSlot::replaceConnectionByUnused [conn " << newUnusedConnection
+                << "]: "
+                << " Cannot replace unused connection by " << newUnusedConnection;
         assert(false);
         return;
     }
 
-    LOG_debug << "DirectReadSlot::replaceConnectionByUnused: Replace conn [" << connectionNum << "]"
-              << " by unused conn [" << mUnusedConn.getNum() << "]"
+    const auto prevUnusedConnection = mUnusedConn.getNum();
+    LOG_debug << "DirectReadSlot::replaceConnectionByUnused: Replace conn [" << newUnusedConnection
+              << "]"
+              << " by unused conn [" << prevUnusedConnection << "]"
               << ". Replamecement reason [" << replamecementReason << "], unused reason ["
               << unusedReason << "] [this = " << this << "]";
 
     increaseUnusedConnSwitches(replamecementReason);
-    mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum));
-    resetConnection(mUnusedConn.getNum());
-    mUnusedConn.setPrevUnused(connectionNum);
-    mUnusedConn.setUnused(connectionNum, unusedReason);
-    resetConnection(mUnusedConn.getNum());
+    mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(newUnusedConnection));
+    resetConnection(prevUnusedConnection);
+    mUnusedConn.setPrevUnused(prevUnusedConnection);
+    mUnusedConn.setUnused(newUnusedConnection, unusedReason);
+    resetConnection(newUnusedConnection);
 }
 
 std::pair<size_t, size_t>
@@ -1967,6 +1970,40 @@ std::pair<int, m_off_t> DirectReadSlot::getMinAndMeanSpeed(const dstime dsSinceL
     return {minspeed, meanspeed};
 }
 
+std::tuple<bool, bool, std::optional<std::pair<m_off_t, m_off_t>>>
+    DirectReadSlot::getConnectionPosRange(const unsigned int connectionNum)
+{
+    bool newBufferSupplied = false, pauseForRaid = false;
+    std::pair<m_off_t, m_off_t> posrange;
+
+    if (!isRaidedTransfer() || connectionNum != mUnusedConn.getPrevUnused())
+    {
+        posrange = mDr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
+        mPosRangeReqs[connectionNum] = posrange;
+        return {newBufferSupplied, pauseForRaid, posrange};
+    }
+
+    mUnusedConn.setPrevUnused(RAIDPARTS); // clear PrevUnused
+    const auto it = mPosRangeReqs.find(mUnusedConn.getNum());
+    if (it == mPosRangeReqs.end())
+    {
+        assert(false && "range values for previous unused connection were not found!");
+        return {newBufferSupplied, pauseForRaid, std::nullopt};
+    }
+
+    // We have performed a hot swap of a raided part by unused one, so we can't
+    // call nextNPosForConnection again, as it could give us a wrong
+    // range, and the new request for the replaced connection could fail.
+    //
+    // get posRange of current unused conn, that is the last conn that failed (so it was replaced by
+    // prevUnusedConnIdx)
+    LOG_debug << "DirectReadSlot::doio: Reusing previous range for "
+                 "replaced connection";
+    posrange = it->second;
+    newBufferSupplied = true;
+    return {newBufferSupplied, pauseForRaid, posrange};
+}
+
 bool DirectReadSlot::watchOverDirectReadPerformance()
 {
     auto dsSinceLastWatch = Waiter::ds - mDr->drn->partialstarttime;
@@ -2065,7 +2102,6 @@ bool DirectReadSlot::doio()
         mConnectionSwitchesLimitLastReset = now;
     }
 
-    const auto prevUnusedConnIdx = mUnusedConn.getPrevUnused();
     for (unsigned int connectionNum = static_cast<unsigned int>(mReqs.size()); connectionNum--;)
     {
         std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
@@ -2212,42 +2248,17 @@ bool DirectReadSlot::doio()
                         << "] Continue DirectReadSlot loop after disconnecting slow connection "
                         << mUnusedConn.getNum() << " [this = " << this << "]";
                 }
-                bool newBufferSupplied = false, pauseForRaid = false;
-                std::pair<m_off_t, m_off_t> posrange;
-                if (isRaid && prevUnusedConnIdx != RAIDPARTS && connectionNum == prevUnusedConnIdx)
+
+                const auto prevUnusedConnIdx = mUnusedConn.getPrevUnused();
+                auto [newBufferSupplied, pauseForRaid, posrange] =
+                    getConnectionPosRange(connectionNum);
+                if (!posrange)
                 {
-                    if (const auto it = mPosRangeReqs.find(prevUnusedConnIdx);
-                        it != mPosRangeReqs.end())
-                    {
-                        // We have performed a hot swap of a raided part by unused one, so can't
-                        // call nextNPosForConnection again, as it would give us a wrong
-                        // range and the new request for the replaced connection would fail. We must
-                        // reuse the same range values of the connection that was replaced by this
-                        // one (the unused one).
-                        LOG_debug << "DirectReadSlot::doio: Reusing previous range for "
-                                     "replaced connection";
-                        posrange = it->second;
-                        mUnusedConn.setPrevUnused(
-                            RAIDPARTS); // clear PrevUnused as we have already reused pos range
-                        newBufferSupplied = true;
-                    }
-                    else
-                    {
-                        LOG_err << "DirectReadSlot::doio: Retrying DirectRead Transfer due to "
-                                   "an unexpected error: no range values were found for the "
-                                   "previous unused connection";
-                        assert(false &&
-                               "range values for previous unused connection were not found!");
-                        retryEntireTransfer(API_EREAD);
-                        return true;
-                    }
-                }
-                else
-                {
-                    posrange = mDr->drbuf.nextNPosForConnection(connectionNum,
-                                                                newBufferSupplied,
-                                                                pauseForRaid);
-                    mPosRangeReqs[connectionNum] = posrange;
+                    LOG_err << "DirectReadSlot::doio: Retrying DirectRead Transfer due to "
+                               "an unexpected error: no range values were found for the "
+                               "previous unused connection";
+                    retryEntireTransfer(API_EREAD);
+                    return true;
                 }
 
                 if (newBufferSupplied)
@@ -2267,7 +2278,7 @@ bool DirectReadSlot::doio()
                 }
                 else if (!pauseForRaid)
                 {
-                    if (posrange.first >= posrange.second)
+                    if (posrange->first >= posrange->second)
                     {
                         if (req)
                         {
@@ -2325,20 +2336,29 @@ bool DirectReadSlot::doio()
                             // Chunk size limit for non-raid: MAX_DELIVERY_CHUNK.
                             // If the whole chunk is requested (file size), with the same request all the time,
                             // the throughput could be too low for long periods of time, depending on the actual TCP congestion algorithm.
-                            posrange.second = std::min(posrange.second, posrange.first + DirectReadSlot::MAX_DELIVERY_CHUNK);
+                            posrange->second =
+                                std::min(posrange->second,
+                                         posrange->first + DirectReadSlot::MAX_DELIVERY_CHUNK);
                         }
 
                         char buf[128];
-                        snprintf(buf, sizeof(buf), "/%" PRIu64 "-", posrange.first);
+                        snprintf(buf, sizeof(buf), "/%" PRIu64 "-", posrange->first);
                         if (mDr->count)
                         {
-                            snprintf(strchr(buf, 0), sizeof(buf) - strlen(buf), "%" PRIu64, posrange.second - 1);
+                            snprintf(strchr(buf, 0),
+                                     sizeof(buf) - strlen(buf),
+                                     "%" PRIu64,
+                                     posrange->second - 1);
                         }
 
-                        req->pos = posrange.first;
+                        req->pos = posrange->first;
                         req->posturl = adjustURLPort(mDr->drbuf.tempURL(connectionNum));
                         req->posturl.append(buf);
-                        LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Request chunk of size " << (posrange.second - posrange.first) << " (request status = " << req->status.load() << ")" << " [this = " << this << "]";
+                        LOG_debug << "DirectReadSlot [conn " << connectionNum
+                                  << "] Request chunk of size "
+                                  << (posrange->second - posrange->first)
+                                  << " (request status = " << req->status.load() << ")"
+                                  << " [this = " << this << "]";
                         LOG_debug << req->getLogName() << "POST URL: " << req->posturl;
 
                         mThroughput[connectionNum].first = 0;
@@ -2350,7 +2370,7 @@ bool DirectReadSlot::doio()
                                     << ")"
                                     << " [this = " << this << "]";
 
-                        mDr->drbuf.transferPos(connectionNum) = posrange.second;
+                        mDr->drbuf.transferPos(connectionNum) = posrange->second;
                         increaseReqsInflight();
                     }
                 }

@@ -686,7 +686,7 @@ public:
     /**
      * @brief Replace connectionNum by unused connection
      *
-     * @param connectionNum The connection number to be replaced by unused one
+     * @param newUnusedConnection The connection number to be replaced by unused one
      * @param reason Reason of replacement
      * - UnusedConn::CONN_SPEED_SLOWEST_PART: replaced part is the slowest one
      * - UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD: replaced part is the slowest one AND
@@ -696,7 +696,7 @@ public:
      *
      * @param unusedReason reason to be set at new unused connection. See UnusedReason enum
      */
-    void replaceConnectionByUnused(const size_t connectionNum,
+    void replaceConnectionByUnused(const size_t newUnusedConnection,
                                    const UnusedConn::ConnReplacementReason replamecementReason,
                                    const UnusedConn::UnusedReason unusedReason);
 
@@ -784,6 +784,22 @@ public:
      * @return a pair of [transfer min speed, transfer mean speed]
      */
     std::pair<int, m_off_t> getMinAndMeanSpeed(const dstime dsSinceLastWatch);
+
+    /**
+     * @brief Retrieves the position range for a specific connection in a streaming transfer.
+     *
+     * This function determines the position range to be used for the given connection, considering
+     * whether the transfer is in RAID mode and if the connection has been previously reused.
+     *
+     * @param connectionNum The index of the connection for which the position range is requested.
+     * @return A tuple containing:
+     *   - `bool`: Indicates whether a new buffer was supplied.
+     *   - `bool`: Indicates whether the connection should pause for RAID.
+     *   - `std::optional<std::pair<m_off_t, m_off_t>>`: The position range for the connection, or
+     * `std::nullopt` if the range could not be retrieved.
+     */
+    std::tuple<bool, bool, std::optional<std::pair<m_off_t, m_off_t>>>
+        getConnectionPosRange(const unsigned int connectionNum);
 
     /**
     *   @brief Calculate speed and mean speed for DirectRead aggregated operations.
