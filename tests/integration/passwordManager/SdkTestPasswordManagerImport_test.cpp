@@ -7,7 +7,7 @@
 #include "megaapi.h"
 #include "megautils.h"
 #include "sdk_test_utils.h"
-#include "SdkTest_test.h"
+#include "SdkTestPasswordManager.h"
 
 #include <gmock/gmock.h>
 
@@ -16,34 +16,15 @@
  * @brief Fixture for test suite to test password manager import functionality
  *
  */
-class SdkTestPasswordManagerImport: public SdkTest
+class SdkTestPasswordManagerImport: public SdkTestPasswordManager
 {
 public:
     static constexpr auto MAX_TIMEOUT{3min};
 
-    void SetUp() override
-    {
-        SdkTest::SetUp();
-        ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1, true, MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
-        ASSERT_NO_FATAL_FAILURE(initPasswordManagerBase());
-    }
-
     void TearDown() override
     {
         purgeTree(0, mPwmBaseNode.get(), false);
-        SdkTest::TearDown();
-    }
-
-    const std::unique_ptr<MegaNode>& getPWMBaseNode() const
-    {
-        return mPwmBaseNode;
-    }
-
-    handle getPWMBaseNodeHandle() const
-    {
-        if (!mPwmBaseNode)
-            return UNDEF;
-        return mPwmBaseNode->getHandle();
+        SdkTestPasswordManager::TearDown();
     }
 
     using BadEntries = std::map<std::string, int64_t>;
@@ -83,7 +64,7 @@ public:
 
         megaApi[0]->importPasswordsFromFile(filePath.u8string().c_str(),
                                             MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE,
-                                            getPWMBaseNodeHandle(),
+                                            getBaseHandle(),
                                             &rl);
         rl.waitForFinishOrTimeout(MAX_TIMEOUT);
         return result;
@@ -103,7 +84,7 @@ public:
      */
     std::vector<std::string> getImportedPassNodesNames() const
     {
-        std::unique_ptr<MegaNodeList> list{megaApi[0]->getChildren(getPWMBaseNode().get())};
+        std::unique_ptr<MegaNodeList> list{megaApi[0]->getChildren(getBaseNode().get())};
         if (!list)
             return {};
         return toNamesVector(*list);

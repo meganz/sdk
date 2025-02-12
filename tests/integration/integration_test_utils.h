@@ -172,6 +172,11 @@ std::unique_ptr<::mega::MegaNode> uploadFile(::mega::MegaApi* megaApi,
 std::unique_ptr<::mega::MegaNode> uploadFile(::mega::MegaApi* megaApi,
                                              LocalTempFile&& file,
                                              ::mega::MegaNode* parentNode = nullptr);
+
+::mega::handle createPasswordNode(::mega::MegaApi* megaApi,
+                                  const std::string& name,
+                                  const ::mega::MegaNode::PasswordNodeData* data,
+                                  const ::mega::handle parentNodeHandle);
 }
 
 #endif // INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_

@@ -16,8 +16,6 @@ target_sources(test_integration
     SdkTestNodesSetUp_test.cpp
     SdkTestSyncNodesOperations_test.cpp
     SdkTestFilter_test.cpp
-    SdkTestPasswordManager_test.cpp
-    SdkTestPasswordManagerImport_test.cpp
     SdkTestCreateAccount_test.cpp
     SdkTestTransferStats_test.cpp
     sdk_test_user_attributes.cpp
@@ -32,6 +30,13 @@ target_sources(test_integration
     SdkTestTransferMaxSpeeds_test.cpp
     sdk_test_node_tags.cpp
     sdk_test_node_tags.h
+
+    passwordManager/SdkTestPasswordManager.cpp
+    passwordManager/SdkTestPasswordManager.h
+    passwordManager/SdkTestPasswordManagerBaseNode_test.cpp
+    passwordManager/SdkTestPasswordManagerImport_test.cpp
+    passwordManager/SdkTestPasswordManagerPassFolderCRUD_test.cpp
+    passwordManager/SdkTestPasswordManagerPassNodeCRUD_test.cpp
 )
 
 target_sources_conditional(test_integration
@@ -48,6 +53,11 @@ target_link_libraries(test_integration
     PRIVATE
     MEGA::test_tools
     MEGA::test_common
+)
+
+target_include_directories(test_integration
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # Adjust compilation flags for warnings and errors
