@@ -919,7 +919,7 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
 {
     shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
 
-    // step 4: handle result of setattr()
+    // step 4: handle result of setattr()/putua()
     auto setAttrCompletion = [bkpId, finalCompletion](NodeHandle, Error setAttrErr)
     {
         if (setAttrErr != API_OK)
@@ -953,16 +953,62 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
             return;
         }
 
-        vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
-        sdsBkps.emplace_back(bkpId, newState);
-        const string sdsValue = Node::toSdsString(sdsBkps);
-        attr_map sdsAttrMap(Node::sdsId(), sdsValue);
-
-        auto e = setattr(bkpRootNode, std::move(sdsAttrMap), setAttrCompletion, true);
-        if (e != API_OK)
+        // SDS values for full-syncs (account root node) are set in the *!sds attribute
+        // instead of as an attribute of the backup/sync root node.
+        if (mNodeManager.getRootNodeFiles().eq(*bkpRoot))
         {
-            LOG_err << "Update backup/sync: failed to set the 'sds' node attribute in client";
-            finalCompletion(e);
+            auto updateSDSUserAttr =
+                [this, bkpId, newState, setAttrCompletion](unique_ptr<string_map> currentSds,
+                                                           attr_t)
+            {
+                const string b64BkupId = toHandle(bkpId);
+                const string state = std::to_string(newState);
+                (*currentSds)[b64BkupId] = state;
+
+                putua(ATTR_SYNC_DESIRED_STATE,
+                      std::move(*currentSds),
+                      0,
+                      UNDEF,
+                      0,
+                      0,
+                      [setAttrCompletion](Error e)
+                      {
+                          setAttrCompletion({}, e);
+                      });
+            };
+
+            getua(
+                ownuser(),
+                ATTR_SYNC_DESIRED_STATE,
+                0,
+                [setAttrCompletion, updateSDSUserAttr](Error e)
+                {
+                    if (e == API_ENOENT)
+                    {
+                        // Empty map if the attribute does not exist.
+                        updateSDSUserAttr(std::make_unique<string_map>(), ATTR_SYNC_DESIRED_STATE);
+                    }
+                    else
+                    {
+                        setAttrCompletion({}, e);
+                    }
+                },
+                nullptr,
+                updateSDSUserAttr);
+        }
+        else
+        {
+            vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
+            sdsBkps.emplace_back(bkpId, newState);
+            const string sdsValue = Node::toSdsString(sdsBkps);
+            attr_map sdsAttrMap(Node::sdsId(), sdsValue);
+
+            auto e = setattr(bkpRootNode, std::move(sdsAttrMap), setAttrCompletion, true);
+            if (e != API_OK)
+            {
+                LOG_err << "Update backup/sync: failed to set the 'sds' node attribute in client";
+                finalCompletion(e);
+            }
         }
     };
 
@@ -1072,16 +1118,61 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
             return;
         }
 
-        vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
-        sdsBkps.emplace_back(std::make_pair(bkpId, CommandBackupPut::DELETED));
-        const string& sdsValue = Node::toSdsString(sdsBkps);
-        attr_map sdsAttrMap(Node::sdsId(), sdsValue);
-
-        auto e = setattr(bkpRootNode, std::move(sdsAttrMap), moveOrDeleteBackup, true);
-        if (e != API_OK)
+        // SDS values for full-syncs (account root node) are set in the *!sds attribute
+        // instead of as an attribute of the backup/sync root node.
+        if (mNodeManager.getRootNodeFiles().eq(*bkpRoot))
         {
-            LOG_err << "Remove backup/sync: failed to set the 'sds' node attribute";
-            finalCompletion(e);
+            auto updateSDSUserAttr =
+                [this, bkpId, moveOrDeleteBackup](unique_ptr<string_map> currentSds, attr_t)
+            {
+                const string b64BkupId = toHandle(bkpId);
+                const string state = std::to_string(CommandBackupPut::DELETED);
+                (*currentSds)[b64BkupId] = state;
+
+                putua(ATTR_SYNC_DESIRED_STATE,
+                      std::move(*currentSds),
+                      0,
+                      UNDEF,
+                      0,
+                      0,
+                      [moveOrDeleteBackup](Error e)
+                      {
+                          moveOrDeleteBackup({}, e);
+                      });
+            };
+
+            getua(
+                ownuser(),
+                ATTR_SYNC_DESIRED_STATE,
+                0,
+                [moveOrDeleteBackup, updateSDSUserAttr](Error e)
+                {
+                    if (e == API_ENOENT)
+                    {
+                        // Empty map if the attribute does not exist.
+                        updateSDSUserAttr(std::make_unique<string_map>(), ATTR_SYNC_DESIRED_STATE);
+                    }
+                    else
+                    {
+                        moveOrDeleteBackup({}, e);
+                    }
+                },
+                nullptr,
+                updateSDSUserAttr);
+        }
+        else
+        {
+            vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
+            sdsBkps.emplace_back(std::make_pair(bkpId, CommandBackupPut::DELETED));
+            const string& sdsValue = Node::toSdsString(sdsBkps);
+            attr_map sdsAttrMap(Node::sdsId(), sdsValue);
+
+            auto e = setattr(bkpRootNode, std::move(sdsAttrMap), moveOrDeleteBackup, true);
+            if (e != API_OK)
+            {
+                LOG_err << "Remove backup/sync: failed to set the 'sds' node attribute";
+                finalCompletion(e);
+            }
         }
     };
 
