@@ -59,6 +59,14 @@ std::optional<std::string> AttrMap::getString(std::string_view name) const
     return std::optional<std::string>(std::in_place, i->second);
 }
 
+const char* AttrMap::read(const char* const k) const
+{
+    const auto name = AttrMap::string2nameid(k);
+    if (map.contains(name))
+        return map.at(name).c_str();
+    return nullptr;
+}
+
 int AttrMap::nameid2string(nameid id, char* buf)
 {
     char* ptr = buf;

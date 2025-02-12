@@ -2966,6 +2966,16 @@ std::string_view toString(const PasswordEntryError err)
             return "Missing password";
         case PasswordEntryError::MISSING_NAME:
             return "Missing name";
+        case PasswordEntryError::MISSING_TOTP_SHARED_SECRET:
+            return "Missing totp shared secret";
+        case PasswordEntryError::INVALID_TOTP_SHARED_SECRET:
+            return "Invalid totp shared secret";
+        case PasswordEntryError::INVALID_TOTP_NDIGITS:
+            return "Invalid totp ndigits";
+        case PasswordEntryError::INVALID_TOTP_EXPT:
+            return "Invalid totp expt";
+        case PasswordEntryError::INVALID_TOTP_ALG:
+            return "Invalid totp alg";
     }
     assert(false);
     return "Unknown error";

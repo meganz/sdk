@@ -22,15 +22,15 @@
 #ifndef MEGAAPI_IMPL_H
 #define MEGAAPI_IMPL_H
 
-#include <atomic>
-#include <memory>
-
 #include "mega.h"
+#include "mega/command.h"
 #include "mega/gfx/external.h"
+#include "mega/heartbeats.h"
+#include "mega/totp.h"
 #include "megaapi.h"
 
-#include "mega/heartbeats.h"
-#include "mega/command.h"
+#include <atomic>
+#include <memory>
 
 #define CRON_USE_LOCAL_TIME 1
 #include <ccronexpr.h>
@@ -549,50 +549,306 @@ protected:
                                       bool folderExists);
 };
 
+namespace totp
+{
+constexpr std::optional<HashAlgorithm> getHashAlgorithm(const int alg)
+{
+    using td = mega::MegaNode::PasswordNodeData::TotpData;
+    switch (alg)
+    {
+        case td::HASH_ALGO_SHA1:
+            return HashAlgorithm::SHA1;
+        case td::HASH_ALGO_SHA256:
+            return HashAlgorithm::SHA256;
+        case td::HASH_ALGO_SHA512:
+            return HashAlgorithm::SHA512;
+        default:
+            return std::nullopt;
+    }
+}
+
+constexpr int getHashAlgorithmPublicId(const std::optional<HashAlgorithm> alg)
+{
+    using td = mega::MegaNode::PasswordNodeData::TotpData;
+    if (!alg)
+    {
+        return td::TOTPNULLOPT;
+    }
+    switch (*alg)
+    {
+        case HashAlgorithm::SHA1:
+            return td::HASH_ALGO_SHA1;
+        case HashAlgorithm::SHA256:
+            return td::HASH_ALGO_SHA256;
+        case HashAlgorithm::SHA512:
+            return td::HASH_ALGO_SHA512;
+    }
+
+    return td::TOTPNULLOPT;
+}
+
+constexpr std::string_view hashAlgorithmPubToStrView(const int alg)
+{
+    if (const auto optAlg = getHashAlgorithm(alg); optAlg)
+        return totp::hashAlgorithmToStrView(*optAlg);
+    return "";
+}
+
+constexpr int charToPubhashAlgorithm(const std::string_view alg)
+{
+    if (const auto optAlg = charTohashAlgorithm(alg))
+        return getHashAlgorithmPublicId(*optAlg);
+
+    return MegaNode::PasswordNodeData::TotpData::TOTPNULLOPT;
+}
+}
+
 class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
     class PNDataPrivate : public MegaNode::PasswordNodeData
     {
     public:
-        PNDataPrivate(const char* p, const char* n, const char* url, const char* un):
-            mPwd{charPtrToOpt(p)},
-            mNotes{charPtrToOpt(n)},
-            mURL{charPtrToOpt(url)},
-            mUserName{charPtrToOpt(un)}
+        class TotpDataPrivate: public TotpData
+        {
+        public:
+            class ValidationPrivate: public Validation
+            {
+            public:
+                bool sharedSecretExist() const override
+                {
+                    return mSharedSecretExists;
+                }
+
+                bool sharedSecretValid() const override
+                {
+                    return !mValidationErrors[totp::INVALID_TOTP_SHARED_SECRET];
+                }
+
+                bool algorithmValid() const override
+                {
+                    return !mValidationErrors[totp::INVALID_TOTP_ALG];
+                }
+
+                bool expirationTimeValid() const override
+                {
+                    return !mValidationErrors[totp::INVALID_TOTP_EXPT];
+                }
+
+                bool nDigitsValid() const override
+                {
+                    return !mValidationErrors[totp::INVALID_TOTP_NDIGITS];
+                }
+
+                bool isValidForCreate() const override
+                {
+                    return mSharedSecretExists && isValidForUpdate();
+                }
+
+                bool isValidForUpdate() const override
+                {
+                    return mValidationErrors.none();
+                }
+
+                ValidationPrivate(std::optional<std::string_view> sharedSecret,
+                                  std::optional<std::chrono::seconds> expirationTimeSecs,
+                                  std::optional<unsigned> hashAlgorithm,
+                                  std::optional<unsigned> ndigits):
+                    mSharedSecretExists(sharedSecret.has_value())
+                {
+                    const auto alg = hashAlgorithm ? std::optional{totp::hashAlgorithmPubToStrView(
+                                                         static_cast<int>(*hashAlgorithm))} :
+                                                     std::nullopt;
+                    mValidationErrors =
+                        totp::validateFields(sharedSecret, ndigits, expirationTimeSecs, alg);
+                }
+
+            protected:
+                bool mSharedSecretExists{false};
+                totp::TotpValidationErrors mValidationErrors{};
+            };
+
+            static TotpDataPrivate* createRemovalInstance()
+            {
+                TotpDataPrivate* data = new TotpDataPrivate();
+                data->mRemove = true;
+                return data;
+            }
+
+            TotpDataPrivate(const TotpData& totpData):
+                mSharedSecret{charPtrToStrOpt(totpData.sharedSecret())},
+                mExpirationTimeSecs(
+                    convertIfPositive<std::chrono::seconds>(totpData.expirationTime())),
+                mHashAlgorithm{convertIfPositive<unsigned>(totpData.hashAlgorithm())},
+                mNdigits(convertIfPositive<unsigned>(totpData.nDigits())),
+                mRemove(totpData.markedToRemove())
+            {}
+
+            TotpDataPrivate(const char* sharedSecret,
+                            const int expirationTimeSecs,
+                            const int hashAlgorithm,
+                            const int ndigits):
+                mSharedSecret{charPtrToStrOpt(sharedSecret)},
+                mExpirationTimeSecs(convertIfPositive<std::chrono::seconds>(expirationTimeSecs)),
+                mHashAlgorithm{convertIfPositive<unsigned>(hashAlgorithm)},
+                mNdigits(convertIfPositive<unsigned>(ndigits))
+            {}
+
+            bool markedToRemove() const override
+            {
+                return mRemove;
+            }
+
+            const char* sharedSecret() const override
+            {
+                return mSharedSecret ? mSharedSecret->c_str() : nullptr;
+            }
+
+            int expirationTime() const override
+            {
+                return mExpirationTimeSecs ? static_cast<int>(mExpirationTimeSecs->count()) :
+                                             TOTPNULLOPT;
+            }
+
+            int hashAlgorithm() const override
+            {
+                return mHashAlgorithm ? static_cast<int>(*mHashAlgorithm) : TOTPNULLOPT;
+            }
+
+            int nDigits() const override
+            {
+                return mNdigits ? static_cast<int>(*mNdigits) : TOTPNULLOPT;
+            }
+
+            void setSharedSecret(const char* sharedSecret) override
+            {
+                mSharedSecret = charPtrToStrOpt(sharedSecret);
+            }
+
+            void setExpirationTime(const int expirationTimeSecs) override
+            {
+                mExpirationTimeSecs = convertIfPositive<std::chrono::seconds>(expirationTimeSecs);
+            }
+
+            void setHashAlgorithm(const int algorithm) override
+            {
+                mHashAlgorithm = convertIfPositive<unsigned>(algorithm);
+            }
+
+            void setNdigits(const int n) override
+            {
+                mNdigits = convertIfPositive<unsigned>(n);
+            }
+
+            static TotpDataPrivate fromMap(const AttrMap& m)
+            {
+                const char* shse = nullptr;
+                if (const auto itShse =
+                        m.map.find(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE));
+                    itShse != m.map.end())
+                {
+                    shse = itShse->second.c_str();
+                }
+
+                int expt = TOTPNULLOPT;
+                if (const auto itExpt =
+                        m.map.find(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT));
+                    itExpt != m.map.end())
+                {
+                    expt = std::stoi(itExpt->second);
+                }
+
+                int alg = TOTPNULLOPT;
+                if (const auto itAlg =
+                        m.map.find(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH));
+                    itAlg != m.map.end())
+                {
+                    alg = totp::charToPubhashAlgorithm(itAlg->second);
+                }
+
+                int nDigits = TOTPNULLOPT;
+                if (const auto itNDigits = m.map.find(
+                        AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS));
+                    itNDigits != m.map.end())
+                {
+                    nDigits = std::stoi(itNDigits->second);
+                }
+
+                return TotpDataPrivate(shse, expt, alg, nDigits);
+            }
+
+            TotpData* copy() const override
+            {
+                return new TotpDataPrivate(*this);
+            }
+
+            Validation* getValidation() const override
+            {
+                return new ValidationPrivate(mSharedSecret,
+                                             mExpirationTimeSecs,
+                                             mHashAlgorithm,
+                                             mNdigits);
+            }
+
+        protected:
+            TotpDataPrivate() = default;
+            std::optional<std::string> mSharedSecret;
+            std::optional<std::chrono::seconds> mExpirationTimeSecs;
+            std::optional<unsigned> mHashAlgorithm;
+            std::optional<unsigned> mNdigits;
+            bool mRemove = false;
+        };
+
+        PNDataPrivate(const char* p,
+                      const char* n,
+                      const char* url,
+                      const char* un,
+                      const TotpData* totpData):
+            mPwd{charPtrToStrOpt(p)},
+            mNotes{charPtrToStrOpt(n)},
+            mURL{charPtrToStrOpt(url)},
+            mUserName{charPtrToStrOpt(un)},
+            mTotpData{totpData ? std::optional<TotpDataPrivate>{*totpData} : std::nullopt}
         {}
+
+        void setTotpData(const TotpData* totpData) override
+        {
+            mTotpData = totpData ? std::optional<TotpDataPrivate>{*totpData} : std::nullopt;
+        }
+
+        const TotpData* totpData() const override
+        {
+            return getPtr(mTotpData);
+        }
 
         virtual void setPassword(const char* pwd) override
         {
-            mPwd = charPtrToOpt(pwd);
+            mPwd = charPtrToStrOpt(pwd);
         }
 
         virtual void setNotes(const char* n) override
         {
-            mNotes = charPtrToOpt(n);
+            mNotes = charPtrToStrOpt(n);
         }
 
         virtual void setUrl(const char* u) override
         {
-            mURL = charPtrToOpt(u);
+            mURL = charPtrToStrOpt(u);
         }
 
         virtual void setUserName(const char* un) override
         {
-            mUserName = charPtrToOpt(un);
+            mUserName = charPtrToStrOpt(un);
         }
 
         virtual const char* password() const override { return mPwd ? mPwd->c_str() : nullptr; }
         virtual const char* notes() const    override { return mNotes ? mNotes->c_str(): nullptr; }
         virtual const char* url() const      override { return mURL ? mURL->c_str() : nullptr; }
         virtual const char* userName() const override { return mUserName ? mUserName->c_str() : nullptr; }
+
     private:
         std::optional<std::string> mPwd, mNotes, mURL, mUserName;
-
-        static std::optional<std::string> charPtrToOpt(const char* s)
-        {
-            return s ? std::optional{s} : std::nullopt;
-        }
+        std::optional<TotpDataPrivate> mTotpData;
     };
 
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,

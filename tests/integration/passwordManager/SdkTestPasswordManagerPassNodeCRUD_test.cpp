@@ -77,13 +77,21 @@ public:
     std::unique_ptr<MegaNode::PasswordNodeData> predefinedPwdData() const
     {
         return std::unique_ptr<MegaNode::PasswordNodeData>{
-            MegaNode::PasswordNodeData::createInstance("12},\" '34", "notes", "url", "userName")};
+            MegaNode::PasswordNodeData::createInstance("12},\" '34",
+                                                       "notes",
+                                                       "url",
+                                                       "userName",
+                                                       nullptr)};
     }
 
     std::unique_ptr<MegaNode::PasswordNodeData> emptyPwdData() const
     {
         return std::unique_ptr<MegaNode::PasswordNodeData>{
-            MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, nullptr, nullptr)};
+            MegaNode::PasswordNodeData::createInstance(nullptr,
+                                                       nullptr,
+                                                       nullptr,
+                                                       nullptr,
+                                                       nullptr)};
     }
 
     void updatePwdNode(const handle nh, const MegaNode::PasswordNodeData* data)

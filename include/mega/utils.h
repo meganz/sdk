@@ -1604,6 +1604,37 @@ inline Range range(const unsigned end)
     return range(0, end);
 }
 
+/**
+ * @brief Returns std::nullopt if opt is negative, std::optional<T>{opt} otherwise
+ */
+template<typename T>
+constexpr std::optional<T> convertIfPositive(const int opt)
+{
+    return opt < 0 ? std::nullopt : std::optional<T>{opt};
+}
+
+inline std::optional<std::string> charPtrToStrOpt(const char* s)
+{
+    return s ? std::optional{s} : std::nullopt;
+}
+
+inline std::optional<std::string_view> charPtrToStrViewOpt(const char* s)
+{
+    return s ? std::optional{s} : std::nullopt;
+}
+
+template<typename T>
+T* getPtr(std::optional<T>& opt) noexcept
+{
+    return opt.has_value() ? std::addressof(opt.value()) : nullptr;
+}
+
+template<typename T>
+const T* getPtr(const std::optional<T>& opt) noexcept
+{
+    return opt.has_value() ? std::addressof(opt.value()) : nullptr;
+}
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H
