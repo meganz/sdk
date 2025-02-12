@@ -1334,7 +1334,7 @@ void StandardClient::setMinimumUploadThrottleSettings()
     const auto throttleUpdateRate = throttleValueLimits.throttleUpdateRateLowerLimit;
     if (!uploadThrottlingManager->setThrottleUpdateRate(throttleUpdateRate))
     {
-        LOG_warn << "[StandardClient::setThrottleUpdateRateToLowestValue] Operation to set the "
+        LOG_warn << "[StandardClient::setMinimumUploadThrottleSettings] Operation to set the "
                     "upload throttle update rate to "
                  << throttleUpdateRate.count() << " secs has failed";
         return;
@@ -1343,13 +1343,13 @@ void StandardClient::setMinimumUploadThrottleSettings()
     const auto maxUploadsBeforeThrottle = throttleValueLimits.maxUploadsBeforeThrottleUpperLimit;
     if (!uploadThrottlingManager->setMaxUploadsBeforeThrottle(maxUploadsBeforeThrottle))
     {
-        LOG_warn << "[StandardClient::setThrottleUpdateRateToLowestValue] Operation to set the max "
+        LOG_warn << "[StandardClient::setMinimumUploadThrottleSettings] Operation to set the max "
                     "uploads before throttle to "
                  << maxUploadsBeforeThrottle << " has failed";
         return;
     }
 
-    LOG_debug << "[StandardClient::setThrottleUpdateRateToLowestValue] throttleUpdateRate: "
+    LOG_debug << "[StandardClient::setMinimumUploadThrottleSettings] throttleUpdateRate: "
               << throttleUpdateRate.count()
               << " secs, maxUploadsBeforeThrottle: " << maxUploadsBeforeThrottle;
 
@@ -1363,7 +1363,7 @@ void StandardClient::setMinimumUploadThrottleSettings()
     auto setThrottlingManagerFuture = setThrottlingManagerPromise.get_future();
     if (setThrottlingManagerFuture.wait_for(DEFAULTWAIT) != std::future_status::ready)
     {
-        LOG_warn << "[StandardClient::setThrottleUpdateRateToLowestValue] Operation to update the "
+        LOG_warn << "[StandardClient::setMinimumUploadThrottleSettings] Operation to update the "
                     "upload throttling manager with "
                     "minimum values has timed out!";
         return;
