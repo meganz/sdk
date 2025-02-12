@@ -4,6 +4,20 @@
 namespace
 {
 
+bool isTransparency(const fs::path& image, FREE_IMAGE_FORMAT fif)
+{
+    const auto filepath = image.c_str();
+
+    const auto dib = ::mega::makeUniqueFrom(FreeImage_Load(fif, filepath, 0), &FreeImage_Unload);
+    if (!dib)
+    {
+        LOG_err << "Failed to load image";
+        return false;
+    }
+
+    return FreeImage_IsTransparent(dib.get()) == TRUE;
+}
+
 // Get meta data tag count and orientation value from FIMD_EXIF_MAIN
 // -1 if there are errors
 std::pair<int, uint16_t> getMetadataCountAndOrientationValue(const fs::path& image,
@@ -161,22 +175,6 @@ TEST_F(SdkTestIsolatedGfx, GfxProcessingContinueSuccessfullyAfterCrash)
 TEST_F(SdkTestIsolatedGfx, SupportTransparency)
 {
     LOG_info << "___TEST SupportTransparency";
-
-    // Helper
-    auto isTransparency = [](const fs::path& image, FREE_IMAGE_FORMAT fif)
-    {
-        const auto filepath = image.c_str();
-
-        const auto dib =
-            ::mega::makeUniqueFrom(FreeImage_Load(fif, filepath, 0), &FreeImage_Unload);
-        if (!dib)
-        {
-            LOG_err << "Failed to load image";
-            return false;
-        }
-
-        return FreeImage_IsTransparent(dib.get()) == TRUE;
-    };
 
     // Download test data
     ASSERT_TRUE(
