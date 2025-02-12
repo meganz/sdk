@@ -1,6 +1,49 @@
 #include "SdkTest_test.h"
 #include "sdk_test_utils.h"
 
+namespace
+{
+
+// Get meta data tag count and orientation value from FIMD_EXIF_MAIN
+// -1 if there are errors
+std::pair<int, uint16_t> getMetadataCountAndOrientationValue(const fs::path& image,
+                                                             FREE_IMAGE_FORMAT fif)
+{
+    const auto filepath = image.c_str();
+
+    const auto dib = ::mega::makeUniqueFrom(FreeImage_Load(fif, filepath, 0), &FreeImage_Unload);
+    if (!dib)
+    {
+        LOG_err << "Failed to load image";
+        return {-1, -1};
+    }
+
+    unsigned count = FreeImage_GetMetadataCount(FIMD_EXIF_MAIN, dib.get());
+    if (count == 0)
+    {
+        LOG_err << "There is no EXIF";
+        return {0, -1};
+    }
+
+    FITAG* searchedTag = nullptr;
+    if (!FreeImage_GetMetadata(FIMD_EXIF_MAIN, dib.get(), "Orientation", &searchedTag))
+    {
+        LOG_err << "Fail to get EXIF orientation";
+        return {count, -1};
+    }
+
+    if (FIDT_SHORT != FreeImage_GetTagType(searchedTag))
+    {
+        LOG_err << "Error EXIF orientation data type";
+        return {count, -1};
+    }
+
+    auto orientation = *((const uint16_t*)FreeImage_GetTagValue(searchedTag));
+    return {count, orientation};
+};
+
+}
+
 class SdkTestIsolatedGfx : public SdkTest
 {
 protected:
@@ -31,6 +74,12 @@ protected:
     static constexpr const char* TRANSPARENCY_THUMBNAIL = "transparency_thumbnail.webp";
 
     static constexpr const char* TRANSPARENCY_PREVIEW = "transparency_preview.webp";
+
+    static constexpr const char* ORIENTATION_IMAGE = "orientation.jpg";
+
+    static constexpr const char* ORIENTATION_THUMBNAIL = "orientation_thumbnail.webp";
+
+    static constexpr const char* ORIENTATION_PREVIEW = "orientation_preview.webp";
 };
 
 void SdkTestIsolatedGfx::SetUp()
@@ -150,4 +199,49 @@ TEST_F(SdkTestIsolatedGfx, SupportTransparency)
     ASSERT_TRUE(isTransparency(fs::path{TRANSPARENCY_PREVIEW}, FIF_WEBP));
 
     LOG_info << "___TEST SupportTransparency end___";
+}
+
+TEST_F(SdkTestIsolatedGfx, OnlyMetaDataOrientationIsKept)
+{
+    LOG_info << "___TEST OnlyMetaDataOrientationIsKept";
+
+    // Download test data
+    ASSERT_TRUE(
+        getFileFromArtifactory(std::string{"test-data/"} + ORIENTATION_IMAGE, ORIENTATION_IMAGE));
+
+    // Thumbnail and preview
+    MegaApi* api = megaApi[0].get();
+    ASSERT_TRUE(api->createThumbnail(ORIENTATION_IMAGE, ORIENTATION_THUMBNAIL))
+        << "create thumbnail should succeed";
+    ASSERT_TRUE(api->createPreview(ORIENTATION_IMAGE, ORIENTATION_PREVIEW))
+        << "create preview should succeed";
+
+    // Use this to ensure FreeImage library is initialized for once
+    [[maybe_unused]] const auto a =
+        ::mega::makeUniqueFrom(MegaGfxProvider::createInternalInstance());
+
+    // The original image has more than one EXIF data and orientation is 6
+    {
+        const auto [count, orientation] =
+            getMetadataCountAndOrientationValue(fs::path{ORIENTATION_IMAGE}, FIF_JPEG);
+        ASSERT_GT(count, 1);
+        ASSERT_EQ(orientation, 6);
+    }
+
+    // The thumbnail and preview has one EXIF data and orientation is 6
+    {
+        const auto [count, orientation] =
+            getMetadataCountAndOrientationValue(fs::path{ORIENTATION_THUMBNAIL}, FIF_WEBP);
+        ASSERT_EQ(count, 1);
+        ASSERT_EQ(orientation, 6);
+    }
+
+    {
+        const auto [count, orientation] =
+            getMetadataCountAndOrientationValue(fs::path{ORIENTATION_PREVIEW}, FIF_WEBP);
+        ASSERT_EQ(count, 1);
+        ASSERT_EQ(orientation, 6);
+    }
+
+    LOG_info << "___TEST OnlyMetaDataOrientationIsKept end___";
 }
