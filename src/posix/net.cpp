@@ -2136,6 +2136,23 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 #endif
 }
 
+std::unique_ptr<Proxy> CurlHttpIO::getproxy() const
+{
+    // No prior proxy configuration.
+    if (proxyurl.empty())
+        return nullptr;
+
+    auto proxy = std::make_unique<Proxy>();
+
+    // Copy proxy configuration.
+    proxy->setCredentials(proxyusername, proxypassword);
+    proxy->setProxyURL(proxyurl);
+    proxy->setProxyType(proxytype);
+
+    // Return (possibly invalid) proxy configuration.
+    return proxy;
+}
+
 void CurlHttpIO::setproxy(Proxy* proxy)
 {
     // clear the previous proxy IP

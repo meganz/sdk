@@ -217,6 +217,8 @@ public:
 
     void setuseragent(string*) override;
     void setproxy(Proxy*);
+    std::unique_ptr<Proxy> getproxy() const;
+
 #ifdef MEGA_USE_C_ARES
     void setdnsservers(const char*);
 #endif
