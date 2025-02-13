@@ -62,6 +62,8 @@ public:
 
     auto getTags(MegaApi& client, const std::string& path) -> AllTagsResult;
 
+    auto hasTag(const MegaApi& client, MegaHandle handle, const std::string& tag) -> bool;
+
     auto moveNode(MegaApi& client, const MegaNode& source, const MegaNode& target) -> Error;
 
     auto nodeByHandle(const MegaApi& client, MegaHandle handle) -> MegaNodePtr;
@@ -94,6 +96,7 @@ public:
 
     MegaApi* client0 = nullptr;
     MegaApi* client1 = nullptr;
+    MegaApi* client2 = nullptr;
 }; // SdkTestNodeTagsCommon
 
 class SdkTestNodeTagsBasic: public SdkTestNodeTagsCommon
