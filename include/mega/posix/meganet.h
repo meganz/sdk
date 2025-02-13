@@ -99,6 +99,7 @@ protected:
     string proxyscheme;
     string proxyhost;
     int proxyport;
+    int proxytype;
     string proxyip;
     string proxyusername;
     string proxypassword;

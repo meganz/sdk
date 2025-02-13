@@ -384,6 +384,7 @@ CurlHttpIO::CurlHttpIO()
     ipv6deactivationtime = Waiter::ds;
     waiter = NULL;
     proxyport = 0;
+    proxytype = Proxy::NONE;
 }
 
 bool CurlHttpIO::ipv6available()
@@ -2158,6 +2159,7 @@ void CurlHttpIO::setproxy(Proxy* proxy)
     proxyurl = proxy->getProxyURL();
     proxyusername = proxy->getUsername();
     proxypassword = proxy->getPassword();
+    proxytype = proxy->getProxyType();
 
     LOG_debug << "Setting proxy: " << proxyurl;
 
