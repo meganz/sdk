@@ -46,27 +46,27 @@ void Proxy::setCredentials(const string& newUsername, const string& newPassword)
     password = newPassword;
 }
 
-int Proxy::getProxyType()
+int Proxy::getProxyType() const
 {
     return proxyType;
 }
 
-string Proxy::getProxyURL()
+string Proxy::getProxyURL() const
 {
     return this->proxyURL;
 }
 
-bool Proxy::credentialsNeeded()
+bool Proxy::credentialsNeeded() const
 {
     return (username.size() != 0);
 }
 
-string Proxy::getUsername()
+string Proxy::getUsername() const
 {
     return username;
 }
 
-string Proxy::getPassword()
+string Proxy::getPassword() const
 {
     return password;
 }

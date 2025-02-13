@@ -45,11 +45,11 @@ public:
     void setProxyType(int newType);
     void setProxyURL(const std::string& newURL);
     void setCredentials(const std::string& newUsername, const std::string& newPassword);
-    int getProxyType();
-    std::string getProxyURL();
-    bool credentialsNeeded();
-    std::string getUsername();
-    std::string getPassword();
+    int getProxyType() const;
+    std::string getProxyURL() const;
+    bool credentialsNeeded() const;
+    std::string getUsername() const;
+    std::string getPassword() const;
 
 protected:
     int proxyType;
