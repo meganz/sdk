@@ -24163,13 +24163,12 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
     request->setProxy(localProxySettings);
 
     request->performRequest = [this, request]()
-        {
-            Proxy *proxy = request->getProxy();
-            httpio->setproxy(proxy);
-            delete proxy;
-            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-            return API_OK;
-        };
+    {
+        auto proxy = makeUniqueFrom(request->getProxy());
+        httpio->setproxy(*proxy);
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();

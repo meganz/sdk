@@ -185,7 +185,7 @@ Proxy *HttpIO::getautoproxy()
                 }
             }
 
-            proxy->setProxyURL(&proxyURL);
+            proxy->setProxyURL(proxyURL);
         }
         else if (ieProxyConfig.lpszAutoConfigUrl || ieProxyConfig.fAutoDetect == TRUE)
         {
@@ -223,7 +223,7 @@ Proxy *HttpIO::getautoproxy()
                     string proxyURL;
                     proxy->setProxyType(Proxy::CUSTOM);
                     proxyURL.assign((const char*)proxyInfo.lpszProxy, wcslen(proxyInfo.lpszProxy) * sizeof(wchar_t));
-                    proxy->setProxyURL(&proxyURL);
+                    proxy->setProxyURL(proxyURL);
                 }
             }
             WinHttpCloseHandle(hSession);
@@ -340,7 +340,7 @@ m_off_t HttpIO::getmaxuploadspeed()
     return 0;
 }
 
-void HttpIO::setproxy(Proxy*) {}
+void HttpIO::setproxy(const Proxy&) {}
 
 std::unique_ptr<Proxy> HttpIO::getproxy() const
 {

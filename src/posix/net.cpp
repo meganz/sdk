@@ -2153,12 +2153,12 @@ std::unique_ptr<Proxy> CurlHttpIO::getproxy() const
     return proxy;
 }
 
-void CurlHttpIO::setproxy(Proxy* proxy)
+void CurlHttpIO::setproxy(const Proxy& proxy)
 {
     // clear the previous proxy IP
     proxyip.clear();
 
-    if (proxy->getProxyType() != Proxy::CUSTOM || !proxy->getProxyURL().size())
+    if (proxy.getProxyType() != Proxy::CUSTOM || !proxy.getProxyURL().size())
     {
         // automatic proxy is not supported
         // invalidate inflight proxy changes
@@ -2173,10 +2173,10 @@ void CurlHttpIO::setproxy(Proxy* proxy)
         return;
     }
 
-    proxyurl = proxy->getProxyURL();
-    proxyusername = proxy->getUsername();
-    proxypassword = proxy->getPassword();
-    proxytype = proxy->getProxyType();
+    proxyurl = proxy.getProxyURL();
+    proxyusername = proxy.getUsername();
+    proxypassword = proxy.getPassword();
+    proxytype = proxy.getProxyType();
 
     LOG_debug << "Setting proxy: " << proxyurl;
 
