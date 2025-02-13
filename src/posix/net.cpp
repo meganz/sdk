@@ -1761,6 +1761,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
 void CurlHttpIO::request_proxy_ip()
 {
+#ifdef MEGA_USE_C_ARES
     if (!proxyhost.size())
     {
         return;
@@ -1773,9 +1774,8 @@ void CurlHttpIO::request_proxy_ip()
     httpctx->httpio = this;
     httpctx->hostname = proxyhost;
 
-#ifndef MEGA_USE_C_ARES
     send_request(httpctx);
-#else
+
     httpctx->ares_pending = 1;
 
     if (ipv6proxyenabled)
@@ -1787,6 +1787,11 @@ void CurlHttpIO::request_proxy_ip()
 
     NET_debug << "Resolving IPv4 address for proxy: " << proxyhost;
     ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, httpctx);
+#else
+    // No need to resolve the proxy's IP: cURL will resolve it for us.
+    std::ostringstream ostream;
+    ostream << proxyhost << ":" << proxyport;
+    proxyip = ostream.str();
 #endif
 }
 
