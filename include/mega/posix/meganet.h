@@ -216,8 +216,8 @@ public:
     void addevents(Waiter*, int) override;
 
     void setuseragent(string*) override;
-    void setproxy(Proxy*);
-    std::unique_ptr<Proxy> getproxy() const;
+    void setproxy(Proxy*) override;
+    std::unique_ptr<Proxy> getproxy() const override;
 
 #ifdef MEGA_USE_C_ARES
     void setdnsservers(const char*);

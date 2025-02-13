@@ -330,6 +330,9 @@ struct MEGA_API HttpIO : public EventTrigger
 
     HttpIO();
     virtual ~HttpIO() { }
+
+    virtual void setproxy(Proxy*);
+    virtual std::unique_ptr<Proxy> getproxy() const;
 };
 
 // outgoing HTTP request
