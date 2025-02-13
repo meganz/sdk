@@ -10601,8 +10601,11 @@ void MegaClient::readopc(JSON *j)
 
 error MegaClient::readmiscflags(JSON *json)
 {
-    bool journeyIdFound = false;
-    while (1)
+    // Clear flags to ensure they are regenerated when changing account types.
+    mABTestFlags.clear();
+    mFeatureFlags.clear();
+
+    for (bool journeyIdFound = false;;)
     {
         string fieldName = json->getnameWithoutAdvance();
         switch (json->getnameid())
