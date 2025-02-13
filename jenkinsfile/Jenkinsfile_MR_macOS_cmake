@@ -92,7 +92,7 @@ pipeline {
                         BUILD_DIR = "build_dir"
                         BUILD_DIR_X64 = "build_dir_x64"
                         MEGAQTPATH = "${env.HOME}/Qt-build/5.15.16/5.15.16"
-                        COMMON_CMAKE_OPTIONS = "-DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_CHAT=ON -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS}"
+                        COMMON_CMAKE_OPTIONS = "-DENABLE_QT_BINDINGS=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_CHAT=ON -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS}"
                     }
                     steps{
                         dir(mac_sources_workspace){
@@ -105,7 +105,7 @@ pipeline {
                             //Build SDK for x64
                             sh "echo \"Building SDK for x64 (crosscompiling)\""
                             sh "rm -rf ${BUILD_DIR_X64}; mkdir ${BUILD_DIR_X64}"
-                            sh "cmake -DCMAKE_PREFIX_PATH=${MEGAQTPATH}/x64 ${COMMON_CMAKE_OPTIONS} -DCMAKE_OSX_ARCHITECTURES=x86_64 -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR_X64}"
+                            sh "cmake -DCMAKE_PREFIX_PATH=${MEGAQTPATH}/x86_64  ${COMMON_CMAKE_OPTIONS} -DCMAKE_OSX_ARCHITECTURES=x86_64 -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR_X64}"
                             sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR_X64} -j3"
                         }
                     }
