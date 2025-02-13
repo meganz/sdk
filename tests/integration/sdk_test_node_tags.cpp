@@ -56,7 +56,7 @@ static constexpr auto ErrorTag = std::in_place_type<Error>;
 static constexpr auto NodeTag = std::in_place_type<std::unique_ptr<MegaNode>>;
 static constexpr auto StringVectorTag = std::in_place_type<std::vector<std::string>>;
 
-TEST_F(SdkTestNodeTagsBasic, add_tag_fails_when_tag_contains_separator)
+TEST_F(SdkTestNodeTagsBasic, AddTagFailsWhenTagContainsSeparator)
 {
     auto file = nodeByPath(*client0, "/d0/f0");
     ASSERT_NE(file, nullptr);
@@ -64,7 +64,7 @@ TEST_F(SdkTestNodeTagsBasic, add_tag_fails_when_tag_contains_separator)
     EXPECT_EQ(addTag(*client0, *file, "f0,f1"), API_EARGS);
 }
 
-TEST_F(SdkTestNodeTagsBasic, add_tag_fails_when_tag_exists)
+TEST_F(SdkTestNodeTagsBasic, AddTagFailsWhenTagExists)
 {
     auto file = nodeByPath(*client0, "/d0/f0");
     ASSERT_NE(file, nullptr);
@@ -73,7 +73,7 @@ TEST_F(SdkTestNodeTagsBasic, add_tag_fails_when_tag_exists)
     EXPECT_EQ(addTag(*client0, *file, "F0"), API_EEXIST);
 }
 
-TEST_F(SdkTestNodeTagsBasic, add_tag_succeeds_when_tag_contains_wildcard)
+TEST_F(SdkTestNodeTagsBasic, AddTagSucceedsWhenTagContainsWildcard)
 {
     auto file = nodeByPath(*client0, "/d0/f0");
     ASSERT_NE(file, nullptr);
@@ -81,7 +81,7 @@ TEST_F(SdkTestNodeTagsBasic, add_tag_succeeds_when_tag_contains_wildcard)
     EXPECT_EQ(addTag(*client0, *file, "f*0?"), API_OK);
 }
 
-TEST_F(SdkTestNodeTagsBasic, add_tag_succeeds)
+TEST_F(SdkTestNodeTagsBasic, AddTagSucceeds)
 {
     auto directory = nodeByPath(*client0, "/d0");
     ASSERT_NE(directory, nullptr);
@@ -90,7 +90,7 @@ TEST_F(SdkTestNodeTagsBasic, add_tag_succeeds)
     EXPECT_EQ(addTag(*client0, *directory, "café"), API_OK);
 }
 
-TEST_F(SdkTestNodeTagsBasic, existing_tags_copied_to_new_file_version)
+TEST_F(SdkTestNodeTagsBasic, ExistingTagsCopiedToNewFileVersion)
 {
     auto file = nodeByPath(*client0, "/d0/f0");
     ASSERT_NE(file, nullptr);
@@ -113,7 +113,7 @@ TEST_F(SdkTestNodeTagsBasic, existing_tags_copied_to_new_file_version)
     EXPECT_EQ(value(fileTags), value(newFileTags));
 }
 
-TEST_F(SdkTestNodeTagsBasic, manipulate_tags_on_inshare)
+TEST_F(SdkTestNodeTagsBasic, ManipulateTagsOnInshare)
 {
     // Get our hands on the root node.
     auto root = rootNode(*client0);
@@ -192,7 +192,7 @@ TEST_F(SdkTestNodeTagsBasic, manipulate_tags_on_inshare)
                                    *client2));
 }
 
-TEST_F(SdkTestNodeTagsBasic, remove_tag_fails_when_tag_doesnt_exist)
+TEST_F(SdkTestNodeTagsBasic, RemoveTagFailsWhenTagDoesntExist)
 {
     auto directory = nodeByPath(*client0, "/d0");
     ASSERT_NE(directory, nullptr);
@@ -200,7 +200,7 @@ TEST_F(SdkTestNodeTagsBasic, remove_tag_fails_when_tag_doesnt_exist)
     EXPECT_EQ(removeTag(*client0, *directory, "d0"), API_ENOENT);
 }
 
-TEST_F(SdkTestNodeTagsBasic, remove_tag_succeeds)
+TEST_F(SdkTestNodeTagsBasic, RemoveTagSucceeds)
 {
     auto file = nodeByPath(*client0, "/d0/f0");
     ASSERT_NE(file, nullptr);
@@ -209,7 +209,7 @@ TEST_F(SdkTestNodeTagsBasic, remove_tag_succeeds)
     EXPECT_EQ(removeTag(*client0, *file, "F0"), API_OK);
 }
 
-TEST_F(SdkTestNodeTagsBasic, rename_tag_fails_when_new_tag_exists)
+TEST_F(SdkTestNodeTagsBasic, RenameTagFailsWhenNewTagExists)
 {
     auto file = nodeByPath(*client0, "/d0/f0");
     ASSERT_NE(file, nullptr);
@@ -219,7 +219,7 @@ TEST_F(SdkTestNodeTagsBasic, rename_tag_fails_when_new_tag_exists)
     EXPECT_EQ(renameTag(*client0, *file, "CAFÉ", "TUPÉE"), API_EEXIST);
 }
 
-TEST_F(SdkTestNodeTagsBasic, rename_tag_fails_when_tag_doesnt_exist)
+TEST_F(SdkTestNodeTagsBasic, RenameTagFailsWhenTagDoesntExist)
 {
     auto directory = nodeByPath(*client0, "/d0");
     ASSERT_NE(directory, nullptr);
@@ -227,7 +227,7 @@ TEST_F(SdkTestNodeTagsBasic, rename_tag_fails_when_tag_doesnt_exist)
     EXPECT_EQ(renameTag(*client0, *directory, "bogus", "insane"), API_ENOENT);
 }
 
-TEST_F(SdkTestNodeTagsBasic, rename_tag_succeeds)
+TEST_F(SdkTestNodeTagsBasic, RenameTagSucceeds)
 {
     auto directory = nodeByPath(*client0, "/d0");
     ASSERT_NE(directory, nullptr);
@@ -236,7 +236,7 @@ TEST_F(SdkTestNodeTagsBasic, rename_tag_succeeds)
     EXPECT_EQ(renameTag(*client0, *directory, "D0", "d1"), API_OK);
 }
 
-TEST_F(SdkTestNodeTagsSearch, all_tags_succeeds)
+TEST_F(SdkTestNodeTagsSearch, AllTagsSucceeds)
 {
     using testing::UnorderedElementsAre;
 
@@ -273,7 +273,7 @@ TEST_F(SdkTestNodeTagsSearch, all_tags_succeeds)
         UnorderedElementsAre("xf0", "xf1", "xf2", "yf0", "yf1", "yf2", "zf0", "zf1", "zf2"));
 }
 
-TEST_F(SdkTestNodeTagsSearch, find_nodes_by_directory_succeeds)
+TEST_F(SdkTestNodeTagsSearch, FindNodesByDirectorySucceeds)
 {
     using testing::UnorderedElementsAre;
 
@@ -291,7 +291,7 @@ TEST_F(SdkTestNodeTagsSearch, find_nodes_by_directory_succeeds)
     EXPECT_THAT(nodeNames(value(nodes)), UnorderedElementsAre("yf", "z", "zf"));
 }
 
-TEST_F(SdkTestNodeTagsSearch, find_nodes_by_wildcard_succeeds)
+TEST_F(SdkTestNodeTagsSearch, FindNodesByWildcardSucceeds)
 {
     using testing::UnorderedElementsAre;
 
@@ -306,7 +306,7 @@ TEST_F(SdkTestNodeTagsSearch, find_nodes_by_wildcard_succeeds)
     EXPECT_THAT(nodeNames(value(nodes)), UnorderedElementsAre("xf", "yf", "zf"));
 }
 
-TEST_F(SdkTestNodeTagsSearch, find_node_by_tag_succeeds_when_no_matches)
+TEST_F(SdkTestNodeTagsSearch, FindNodeByTagSucceedsWhenNoMatches)
 {
     auto filter = makeUniqueFrom(MegaSearchFilter::createInstance());
     ASSERT_NE(filter, nullptr);
@@ -318,7 +318,7 @@ TEST_F(SdkTestNodeTagsSearch, find_node_by_tag_succeeds_when_no_matches)
     ASSERT_TRUE(value(nodes).empty());
 }
 
-TEST_F(SdkTestNodeTagsSearch, find_node_by_tag_succeeds_when_wildcard)
+TEST_F(SdkTestNodeTagsSearch, FindNodeByTagSucceedsWhenWildcard)
 {
     auto filter = makeUniqueFrom(MegaSearchFilter::createInstance());
     ASSERT_NE(filter, nullptr);
@@ -330,7 +330,7 @@ TEST_F(SdkTestNodeTagsSearch, find_node_by_tag_succeeds_when_wildcard)
     ASSERT_TRUE(value(nodes).empty());
 }
 
-TEST_F(SdkTestNodeTagsSearch, find_node_by_tag_succeeds)
+TEST_F(SdkTestNodeTagsSearch, FindNodeByTagSucceeds)
 {
     auto filter = makeUniqueFrom(MegaSearchFilter::createInstance());
     ASSERT_NE(filter, nullptr);
@@ -356,7 +356,7 @@ TEST_F(SdkTestNodeTagsSearch, find_node_by_tag_succeeds)
     EXPECT_NO_FATAL_FAILURE(find("zf2", "zf"));
 }
 
-TEST_F(SdkTestNodeTagsSearch, tags_below_naturally_sorted_succeeds)
+TEST_F(SdkTestNodeTagsSearch, TagsBelowNaturallySortedSucceeds)
 {
     using testing::ElementsAre;
 
@@ -394,7 +394,7 @@ TEST_F(SdkTestNodeTagsSearch, tags_below_naturally_sorted_succeeds)
                             "nf345"));
 }
 
-TEST_F(SdkTestNodeTagsSearch, tags_below_succeeds)
+TEST_F(SdkTestNodeTagsSearch, TagsBelowSucceeds)
 {
     using testing::ElementsAre;
 
