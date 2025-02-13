@@ -35,15 +35,15 @@ void Proxy::setProxyType(int newType)
     proxyType = newType;
 }
 
-void Proxy::setProxyURL(string* newURL)
+void Proxy::setProxyURL(const string& newURL)
 {
-    proxyURL = *newURL;
+    proxyURL = newURL;
 }
 
-void Proxy::setCredentials(string* newUsername, string* newPassword)
+void Proxy::setCredentials(const string& newUsername, const string& newPassword)
 {
-    username = *newUsername;
-    password = *newPassword;
+    username = newUsername;
+    password = newPassword;
 }
 
 int Proxy::getProxyType()

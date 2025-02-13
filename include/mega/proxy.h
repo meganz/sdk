@@ -33,8 +33,8 @@ public:
 
     Proxy();
     void setProxyType(int newType);
-    void setProxyURL(std::string* newURL);
-    void setCredentials(std::string* newUsername, std::string* newPassword);
+    void setProxyURL(const std::string& newURL);
+    void setCredentials(const std::string& newUsername, const std::string& newPassword);
     int getProxyType();
     std::string getProxyURL();
     bool credentialsNeeded();

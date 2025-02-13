@@ -24128,7 +24128,7 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
     LocalPath::path2local(&url, &localurl);
 #endif
 
-    localProxySettings->setProxyURL(&localurl);
+    localProxySettings->setProxyURL(localurl);
 
     if (proxySettings->credentialsNeeded())
     {
@@ -24156,7 +24156,7 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
         LocalPath::path2local(&password, &localpassword);
 #endif
 
-        localProxySettings->setCredentials(&localusername, &localpassword);
+        localProxySettings->setCredentials(localusername, localpassword);
     }
 
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PROXY, listener);
