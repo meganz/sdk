@@ -71,4 +71,27 @@ string Proxy::getPassword()
     return password;
 }
 
+int proxyTypeFromString(const std::string& type)
+{
+#define ENTRY(name) {#name, Proxy::name},
+    static const std::map<std::string, int> types = {DEFINE_PROXY_TYPES(ENTRY)}; // types
+#undef ENTRY
+
+    if (auto i = types.find(type); i != types.end())
+        return i->second;
+
+    return NONE;
+}
+
+const std::string* proxyTypeToString(int type)
+{
+#define ENTRY(name) {Proxy::name, #name},
+    static const std::map<int, std::string> strings = {DEFINE_PROXY_TYPES(ENTRY)}; // strings
+#undef ENTRY
+
+    if (auto i = strings.find(type); i != strings.end())
+        return &i->second;
+
+    return nullptr;
+}
 }

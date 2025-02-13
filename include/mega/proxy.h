@@ -26,10 +26,20 @@
 #include <string>
 
 namespace mega {
+
+#define DEFINE_PROXY_TYPES(expander) expander(NONE) expander(AUTO) expander(CUSTOM)
+
 struct MEGA_API Proxy
 {
 public:
-    enum ProxyType {NONE = 0, AUTO = 1, CUSTOM = 2};
+#define IDENTITY(name) name,
+
+    enum ProxyType
+    {
+        DEFINE_PROXY_TYPES(IDENTITY)
+    };
+
+#undef IDENTITY
 
     Proxy();
     void setProxyType(int newType);
@@ -47,6 +57,11 @@ protected:
     std::string username;
     std::string password;
 };
+
+int proxyTypeFromString(const std::string& type);
+
+const std::string* proxyTypeToString(int type);
+
 } // namespace
 
 #endif // PROXY_H
