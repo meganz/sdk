@@ -4582,11 +4582,6 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     {
         removeCaches();
     }
-    else if (loggedIntoFolder())
-    {
-        mCachedStatus.addOrUpdate(CacheableStatus::STATUS_ROOT_FOLDER_LINK_HANDLE,
-                                  static_cast<int64_t>(mNodeManager.getRootNodeFiles().as8byte()));
-    }
 
     // Deinitialize the FUSE Client Adapter.
     //
@@ -10178,6 +10173,9 @@ int MegaClient::readnode(JSON* j,
                     if (mNodeManager.getRootNodeFiles().isUndef())
                     {
                         mNodeManager.setRootNodeFiles(NodeHandle().set6byte(h));
+                        mCachedStatus.addOrUpdate(
+                            CacheableStatus::STATUS_ROOT_FOLDER_LINK_HANDLE,
+                            static_cast<int64_t>(mNodeManager.getRootNodeFiles().as8byte()));
 
                         if (loggedIntoWritableFolder())
                         {
