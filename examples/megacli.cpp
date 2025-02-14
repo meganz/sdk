@@ -4945,6 +4945,10 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("nodedescription"),
                     remoteFSPath(client, &cwd),
                     opt(either(flag("-remove"), sequence(flag("-set"), param("description"))))));
+    p->Add(exec_nodelabel,
+           sequence(text("nodelabel"),
+                    remoteFSPath(client, &cwd),
+                    opt(either(flag("-remove"), sequence(flag("-set"), param("label"))))));
     p->Add(exec_nodesensitive,
            sequence(text("nodesensitive"), remoteFSPath(client, &cwd), opt(flag("-remove"))));
     p->Add(exec_nodeTag,
@@ -6893,7 +6897,7 @@ void exec_mfae(autocomplete::ACState&)
 
 void exec_login(autocomplete::ACState& s)
 {
-    //bool fresh = s.extractflag("-fresh");
+    bool fresh = s.extractflag("-fresh");
     if (client->loggedin() == NOTLOGGEDIN)
     {
         if (s.words.size() > 1)
@@ -6930,7 +6934,15 @@ void exec_login(autocomplete::ACState& s)
                 if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
                 {
                     const char *authKey = s.words.size() == 3 ? s.words[2].s.c_str() : nullptr;
-                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), authKey));
+                    bool tryToResumeFolderLinkFromCache = true;
+                    if (fresh)
+                    {
+                        tryToResumeFolderLinkFromCache = false;
+                    }
+                    return client->app->login_result(
+                        client->folderaccess(s.words[1].s.c_str(),
+                                             authKey,
+                                             tryToResumeFolderLinkFromCache));
                 }
                 else
                 {
@@ -13255,6 +13267,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         if (!nParent)
         {
             cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
+            return;
         }
 
         auto name = s.words[3].s.c_str();
@@ -13397,24 +13410,27 @@ void exec_importpasswordsfromgooglefile(autocomplete::ACState& s)
 
     if (parentHandle.isUndef())
     {
-        cout << "Parent handle is undef" << endl;
+        std::cout << "Parent handle is undef\n";
         return;
     }
 
     using namespace pwm::import;
-    const auto [err, badEntries] = client->importPasswordsFromFile(localname.platformEncoded(),
-                                                                   FileSource::GOOGLE_PASSWORD,
-                                                                   parentHandle,
-                                                                   0);
+    const auto [err, badEntries, nGoodEntries] =
+        client->importPasswordsFromFile(localname.platformEncoded(),
+                                        FileSource::GOOGLE_PASSWORD,
+                                        parentHandle,
+                                        0);
     if (err != API_OK)
-        cout << "Error importing file. Code " << err;
+        std::cout << "Error importing file. Code " << err << "\n";
+    else
+        std::cout << "Successfully imported " << nGoodEntries << " entries\n";
 
     std::for_each(begin(badEntries),
                   end(badEntries),
                   [](const auto& badEntry)
                   {
-                      cout << "Error (" << toString(badEntry.second)
-                           << " ) importing line: " << badEntry.first;
+                      std::cout << "Error (" << toString(badEntry.second)
+                                << " ) importing line: " << badEntry.first;
                   });
 
     if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
@@ -13473,6 +13489,58 @@ void exec_nodedescription(autocomplete::ACState& s)
     else
     {
         cout << "Description not set\n";
+    }
+}
+
+void exec_nodelabel(autocomplete::ACState& s)
+{
+    std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str());
+    if (!n)
+    {
+        cout << s.words[1].s << ": No such file or directory" << endl;
+        return;
+    }
+
+    const bool removeLabel = s.extractflag("-remove");
+    const bool setLabel = s.extractflag("-set");
+    const auto labelNameId = AttrMap::string2nameid(MegaClient::NODE_ATTR_LABEL);
+
+    auto modifyLabel = [labelNameId](const std::string& label, std::shared_ptr<Node> n)
+    {
+        AttrMap attrMap;
+        attrMap.map[labelNameId] = label;
+        error e = client->setattr(
+            n,
+            std::move(attrMap.map),
+            [](NodeHandle h, Error e)
+            {
+                if (e == API_OK)
+                    cout << "Label modified correctly" << endl;
+                else
+                    cout << "Error modifying label: " << e << "  Node: " << h << endl;
+            },
+            false);
+        if (e != API_OK)
+        {
+            cout << "Error modifying label: " << e << endl;
+        }
+    };
+
+    if (removeLabel)
+    {
+        modifyLabel("", n);
+    }
+    else if (setLabel)
+    {
+        modifyLabel(s.words[2].s, n);
+    }
+    else if (auto it = n->attrs.map.find(labelNameId); it != n->attrs.map.end())
+    {
+        cout << "Label: " << it->second << endl;
+    }
+    else
+    {
+        cout << "Label not set\n";
     }
 }
 

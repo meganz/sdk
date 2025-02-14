@@ -3368,7 +3368,15 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
         const char* ptr;
         const char* end;
 
-        if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
+        ptr = json.getvalue();
+        if (!ptr)
+        {
+            mCompletion(API_EINTERNAL);
+            return false;
+        }
+
+        end = strchr(ptr, '"');
+        if (!end)
         {
             mCompletion(API_EINTERNAL);
             return false;
@@ -3376,7 +3384,15 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
         attr_t attributeType =
             User::string2attr(string(ptr, static_cast<size_t>(end - ptr)).c_str());
 
-        if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
+        ptr = json.getvalue();
+        if (!ptr)
+        {
+            mCompletion(API_EINTERNAL);
+            return false;
+        }
+
+        end = strchr(ptr, '"');
+        if (!end)
         {
             mCompletion(API_EINTERNAL);
             return false;
@@ -3474,7 +3490,15 @@ bool CommandPutUA::procresult(Result r, JSON& json)
         const char* ptr;
         const char* end;
 
-        if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
+        ptr = json.getvalue();
+        if (!ptr)
+        {
+            mCompletion(API_EINTERNAL);
+            return false;
+        }
+
+        end = strchr(ptr, '"');
+        if (!end)
         {
             mCompletion(API_EINTERNAL);
             return false;
@@ -3482,7 +3506,15 @@ bool CommandPutUA::procresult(Result r, JSON& json)
         attr_t attributeType =
             User::string2attr(string(ptr, static_cast<size_t>(end - ptr)).c_str());
 
-        if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
+        ptr = json.getvalue();
+        if (!ptr)
+        {
+            mCompletion(API_EINTERNAL);
+            return false;
+        }
+
+        end = strchr(ptr, '"');
+        if (!end)
         {
             mCompletion(API_EINTERNAL);
             return false;
@@ -3647,7 +3679,15 @@ bool CommandGetUA::procresult(Result r, JSON& json)
             {
                 case makeNameid("av"):
                 {
-                    if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
+                    ptr = json.getvalue();
+                    if (!ptr)
+                    {
+                        mCompletionErr(API_EINTERNAL);
+                        return false;
+                    }
+
+                    end = strchr(ptr, '"');
+                    if (!end)
                     {
                         mCompletionErr(API_EINTERNAL);
                         return false;
@@ -3657,7 +3697,15 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                 }
                 case makeNameid("v"):
                 {
-                    if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
+                    ptr = json.getvalue();
+                    if (!ptr)
+                    {
+                        mCompletionErr(API_EINTERNAL);
+                        return false;
+                    }
+
+                    end = strchr(ptr, '"');
+                    if (!end)
                     {
                         mCompletionErr(API_EINTERNAL);
                         return false;
@@ -3845,7 +3893,15 @@ bool CommandDelUA::procresult(Result r, JSON& json)
     {
         const char* ptr;
         const char* end;
-        if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
+        ptr = json.getvalue();
+        if (!ptr)
+        {
+            client->app->delua_result(API_EINTERNAL);
+            return false;
+        }
+
+        end = strchr(ptr, '"');
+        if (!end)
         {
             client->app->delua_result(API_EINTERNAL);
             return false;
@@ -5531,7 +5587,9 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
 
                     while (json.enterarray())
                     {
-                        if ((amount = json.getvalue()) && (cur = json.getvalue()))
+                        amount = json.getvalue();
+                        cur = json.getvalue();
+                        if (amount && cur)
                         {
                             size_t t = details->balances.size();
                             details->balances.resize(t + 1);
@@ -5685,7 +5743,8 @@ bool CommandGetUserQuota::readSubscriptions(JSON* j)
                     // 'S' for active payment provider, 'R' otherwise
                     {
                         const char* ptr;
-                        if ((ptr = j->getvalue()))
+                        ptr = j->getvalue();
+                        if (ptr)
                         {
                             sub.type = *ptr;
                         }
@@ -7631,10 +7690,15 @@ bool CommandQueryRecoveryLink::procresult(Result r, JSON& json)
 
     int type = static_cast<int>(json.getint());
 
-    if ( !json.storeobject(&email)  ||
-         !json.storeobject(&ip)     ||
-         ((ts = json.getint()) == -1) ||
-         !(uh = json.gethandle(MegaClient::USERHANDLE)) )
+    if (!json.storeobject(&email) || !json.storeobject(&ip))
+    {
+        client->app->queryrecoverylink_result(API_EINTERNAL);
+        return false;
+    }
+
+    ts = json.getint();
+    uh = json.gethandle(MegaClient::USERHANDLE);
+    if (ts == -1 || !uh)
     {
         client->app->queryrecoverylink_result(API_EINTERNAL);
         return false;

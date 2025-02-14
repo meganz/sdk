@@ -31,6 +31,7 @@
 #include <future>
 #include <iostream>
 #include <memory>
+#include <type_traits>
 
 #ifndef WIN32
 #define DOTSLASH "./"
@@ -48,6 +49,7 @@ using ::testing::Test;
 static const unsigned int pollingT      = 500000;   // (microseconds) to check if response from server is received
 static const unsigned int maxTimeout    = 600;      // Maximum time (seconds) to wait for response from server
 static const unsigned int defaultTimeout = 60;      // Normal time for most operations (seconds) to wait for response from server
+static const unsigned int defaultTimeoutMs = defaultTimeout * 1000;
 static const unsigned int waitForSyncsMs = 4000;    // Time to wait after a sync has been created and before adding new files to it
 
 /**
@@ -939,7 +941,7 @@ public:
 
     void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
     void inviteContact(unsigned apiIndex, const string &email, const string& message, const int action);
-    void replyContact(MegaContactRequest *cr, int action);
+    void replyContact(MegaContactRequest* cr, int action, const unsigned apiIndex = 1);
     int removeContact(unsigned apiIndex, string email);
     void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout, int accountIndex = 1);
 
@@ -1087,4 +1089,213 @@ public:
 
         return tracker.waitForResult();
     }
+
+    // Checks if a function is a valid invitation list accessor function.
+    template<typename Function>
+    static constexpr auto IsInvitationListAccessorV =
+        std::is_invocable_r_v<const MegaContactRequestList*, Function, const MegaApi*>;
+
+    // Checks if a function is a valid invitation predicate function.
+    template<typename Predicate>
+    static constexpr auto IsInvitationPredicateV =
+        std::is_invocable_r_v<bool, Predicate, const MegaContactRequest&>;
+
+    /**
+     * Accept the specified contact invitation.
+     *
+     * @param client
+     * The client that should accept the contact request.
+     *
+     * @param invitation
+     * The invitation the client should accept.
+     *
+     * @return
+     * API_OK if client could accept the invitation.
+     */
+    Error acceptInvitation(MegaApi& client, const MegaContactRequest& invitation);
+
+    /*
+     * Establish a friendship between two clients.
+     *
+     * @return
+     * API_OK if the friendship could be established.
+     */
+    Error befriend(MegaApi& client0, MegaApi& client1);
+
+    /**
+     * Search a list of invitations for an invitation satisfying some predicate.
+     *
+     * @param invitations
+     * The list of invitations to search.
+     *
+     * @param invitationOK
+     * The predicate an invitation must satisfy to be returned.
+     *
+     * @return
+     * The first invitation satisfying predicate, if any.
+     */
+    template<typename InvitationPredicate>
+    auto findInvitation(const MegaContactRequestList& invitations, InvitationPredicate invitationOK)
+        -> std::enable_if_t<IsInvitationPredicateV<InvitationPredicate>,
+                            std::unique_ptr<MegaContactRequest>>
+    {
+        // Try and find an invitation satisfying our predicate.
+        for (auto i = 0, j = invitations.size(); i < j; ++i)
+        {
+            // Found a suitable invitation!
+            if (auto* invitation = invitations.get(i); std::invoke(invitationOK, *invitation))
+            {
+                return makeUniqueFrom(invitation->copy());
+            }
+        }
+
+        // Couldn't find a suitable invitation.
+        return nullptr;
+    }
+
+    /**
+     * Search a list of invitations for an invitation satisfying some predicate.
+     *
+     * @param getInvitations
+     * An accessor specifying which invitation list we want to search.
+     *
+     * @param invitationOK
+     * The predicate an invitation must satisfy to be returned.
+     *
+     * @return
+     * The first invitation satisfying predicate, if any.
+     */
+    template<typename InvitationListAccessor, typename InvitationPredicate>
+    auto findInvitation(MegaApi& client,
+                        InvitationListAccessor getInvitations,
+                        InvitationPredicate invitationOK)
+        -> std::enable_if_t<IsInvitationListAccessorV<InvitationListAccessor> &&
+                                IsInvitationPredicateV<InvitationPredicate>,
+                            std::unique_ptr<MegaContactRequest>>
+    {
+        // Get invitation list.
+        auto* invitations = std::invoke(getInvitations, &client);
+
+        // No invitations.
+        if (!invitations || invitations->size() == 0)
+        {
+            return nullptr;
+        }
+
+        // Try and find an invitation satisfying our predicate.
+        return findInvitation(*invitations, std::move(invitationOK));
+    }
+
+    /**
+     * Check if email is a contact.
+     *
+     * @param client
+     * The client (user) whose contacts we will search.
+     *
+     * @param email
+     * The contact we are searching for.
+     */
+    auto hasContact(MegaApi& client, const std::string& email) -> std::unique_ptr<MegaUser>;
+
+    /**
+     * Check if a client has received a contact invite from some user.
+     *
+     * @apram client
+     * The client that should've received an invitation.
+     *
+     * @param email
+     * The user that should've sent us the invitation.
+     *
+     * @return
+     * A matching invitation, if found.
+     */
+    auto hasReceivedInvitationFrom(MegaApi& client, const std::string& email)
+        -> std::unique_ptr<MegaContactRequest>;
+
+    /*
+     * Check if this client has sent a contact invite to some user.
+     *
+     * @param client
+     * The client that should've sent the invitation.
+     *
+     * @param email
+     * The user that we've sent the invitation to.
+     *
+     * @return
+     * A matching invitation, if found.
+     */
+    auto hasSentInvitationTo(MegaApi& client, const std::string& email)
+        -> std::unique_ptr<MegaContactRequest>;
+
+    /**
+     * Remove a contact.
+     *
+     * @param client
+     * The client that wants to remove this contact.
+     *
+     * @param email
+     * The contact we want to remove.
+     *
+     * @returns
+     * API_OK if the contact was removed.
+     */
+    Error removeContact(MegaApi& client, const std::string& email);
+
+    /**
+     * Break a contact relationship between two clients.
+     *
+     * @return
+     * API_ENOENT if no contact relationship exists.
+     * API_OK if the contact relationship was successfully broken.
+     */
+    Error removeContact(MegaApi& client0, MegaApi& client1);
+
+    /**
+     * Send a contact invitation from one user to another.
+     *
+     * @param client
+     * The client that should send the invitation.
+     *
+     * @param email
+     * The user that we are inviting to be a contact.
+     *
+     * @return
+     * API_OK if the invitation was sent successfully.
+     */
+    Error sendInvitationTo(MegaApi& client, const std::string& email);
+
+    /**
+     * Send a contact invitation from one client to another.
+     *
+     * @param client0
+     * The client that will be sending the invitation.
+     *
+     * @param client1
+     * The client that will be receiving the invitation.
+     *
+     * @return
+     * {invitation, API_OK} on success.
+     * {nullptr, ?} on failure.
+     */
+    using SendInvitationToResult = std::pair<std::unique_ptr<MegaContactRequest>, Error>;
+
+    auto sendInvitationTo(MegaApi& client0, MegaApi& client1) -> SendInvitationToResult;
+
+    /**
+     * @brief Returns the current tests suite and case name.
+     * @example calling this inside `TEST_F(SdkTest, Foo)` returns `std::pair {"SdkTest", "Foo"}`
+     */
+    std::pair<std::string, std::string> getTestSuiteAndName() const;
+
+    /**
+     * @brief Returns an identifier of the current test. It can be used to prefix log messages.
+     * @example calling this inside `TEST_F(SdkTest, Foo)` returns `"SdkTest.Foo : "`
+     */
+    std::string getLogPrefix() const;
+
+    /**
+     * @brief Gets a file name prefix unique for the test case
+     * @example calling this inside `TEST_F(SdkTest, Foo)` returns `"SdkTest_Foo_"`
+     */
+    std::string getFilePrefix() const;
 };

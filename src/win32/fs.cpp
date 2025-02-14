@@ -841,9 +841,11 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
 
     mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
 
-    if (!write && (fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
+    if (!write)
     {
-        fsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
+        fsidvalid = GetFileInformationByHandle(hFile, &bhfi) != FALSE;
+        if (fsidvalid)
+            fsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
     }
 
     if (type == FOLDERNODE)
@@ -977,8 +979,12 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     // we are only interested in the path's last component
     wchar_t* ptr;
 
-    if ((ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L'\\')) ||
-        (ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L':')))
+    ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L'\\');
+    if (!ptr)
+    {
+        ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L':');
+    }
+    if (ptr)
     {
         sname.erase(0, ptr - sname.data() + 1);
     }
@@ -2154,7 +2160,8 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
         }
     }
 
-    if (!(ffdvalid = hFind != INVALID_HANDLE_VALUE))
+    ffdvalid = hFind != INVALID_HANDLE_VALUE;
+    if (!ffdvalid)
     {
         return false;
     }
@@ -2199,7 +2206,8 @@ bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*follows
             }
         }
 
-        if (!(ffdvalid = FindNextFileW(hFind, &ffd) != 0))
+        ffdvalid = FindNextFileW(hFind, &ffd) != FALSE;
+        if (!ffdvalid)
         {
             return false;
         }

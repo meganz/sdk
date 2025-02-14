@@ -42,12 +42,17 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
     if (u && u->pubk.isvalid())
     {
         byte buf[AsymmCipher::MAXKEYLENGTH];
-        int t;
+        int t = 0;
 
         // re-encrypt all node keys to the user's public key
         for (size_t i = nn.size(); i--;)
         {
-            if (!(t = u->pubk.encrypt(client->rng, (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
+            t = u->pubk.encrypt(client->rng,
+                                (const byte*)nn[i].nodekey.data(),
+                                nn[i].nodekey.size(),
+                                buf,
+                                sizeof buf);
+            if (!t)
             {
                 if (completion)
                     completion(API_EINTERNAL, USER_HANDLE, nn, false, tag, {});

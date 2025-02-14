@@ -2523,12 +2523,12 @@ class MegaContactRequestListPrivate : public MegaContactRequestList
         MegaContactRequestListPrivate();
         MegaContactRequestListPrivate(PendingContactRequest ** newlist, int size);
         ~MegaContactRequestListPrivate() override;
-        MegaContactRequestList *copy() override;
-        MegaContactRequest* get(int i) override;
-        int size() override;
+        MegaContactRequestList* copy() const override;
+        const MegaContactRequest* get(int i) const override;
+        int size() const override;
 
     protected:
-        MegaContactRequestListPrivate(MegaContactRequestListPrivate *requestList);
+        MegaContactRequestListPrivate(const MegaContactRequestListPrivate* requestList);
         MegaContactRequest** list;
         int s;
 };
@@ -3328,7 +3328,10 @@ class MegaApiImpl : public MegaApp
         void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
-        void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);
+        void loginToFolder(const char* megaFolderLink,
+                           const char* authKey = nullptr,
+                           bool tryToResumeFolderLinkFromCache = false,
+                           MegaRequestListener* listener = nullptr);
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
         void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
@@ -3419,7 +3422,9 @@ class MegaApiImpl : public MegaApp
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
         void inviteContact(const char* email, const char* message, int action, MegaHandle contactLink, MegaRequestListener* listener = NULL);
-        void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
+        void replyContactRequest(const MegaContactRequest* request,
+                                 int action,
+                                 MegaRequestListener* listener = NULL);
         void respondContactRequest();
 
         void removeContact(MegaUser *user, MegaRequestListener* listener=NULL);
@@ -3653,6 +3658,19 @@ class MegaApiImpl : public MegaApp
                                  const char* newLocalSyncRootPath,
                                  MegaRequestListener* listener);
 
+        void setSyncUploadThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                             MegaRequestListener* const listener);
+
+        void setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                             MegaRequestListener* const listener);
+
+        void getSyncUploadThrottleValues(MegaRequestListener* const listener);
+
+        void getSyncUploadThrottleLimits(const bool upperLimits,
+                                         MegaRequestListener* const listener);
+
+        void checkSyncUploadsThrottled(MegaRequestListener* const listener);
+
         AddressedStallFilter mAddressedStallFilter;
 
 #endif // ENABLE_SYNC
@@ -3729,8 +3747,8 @@ public:
         bool isPrivateNode(MegaHandle h);
         bool isForeignNode(MegaHandle h);
         MegaNodeList *getPublicLinks(int order);
-        MegaContactRequestList *getIncomingContactRequests();
-        MegaContactRequestList *getOutgoingContactRequests();
+        MegaContactRequestList* getIncomingContactRequests() const;
+        MegaContactRequestList* getOutgoingContactRequests() const;
 
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);

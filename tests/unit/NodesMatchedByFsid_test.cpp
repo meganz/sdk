@@ -6,7 +6,7 @@
 #ifdef ENABLE_SYNC
 
 #include <gtest/gtest.h>
-#include <mega/syncinternals.h>
+#include <mega/syncinternals/syncinternals.h>
 
 using namespace mega;
 

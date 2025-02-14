@@ -32,7 +32,8 @@
 
 #ifdef ENABLE_SYNC
 #include "node.h"
-#include "syncinternals.h"
+#include "syncinternals/syncinternals.h"
+#include "syncinternals/synciuploadthrottlingmanager.h"
 
 namespace mega {
 
@@ -482,13 +483,16 @@ public:
 
     // Remember which Nodes we created from upload,
     // until the corresponding LocalNodes are updated.
-    void addExpectedUpload(NodeHandle parentHandle, const string& name, weak_ptr<SyncUpload_inClient>);
-    void removeExpectedUpload(NodeHandle parentHandle, const string& name);
-    shared_ptr<SyncUpload_inClient> isNodeAnExpectedUpload(NodeHandle parentHandle, const string& name);
+    void addExpectedUpload(NodeHandle parentHandle,
+                           const string& name,
+                           weak_ptr<SyncUpload_inClient>);
+    virtual void removeExpectedUpload(NodeHandle parentHandle, const string& name);
+    shared_ptr<SyncUpload_inClient> isNodeAnExpectedUpload(NodeHandle parentHandle,
+                                                           const string& name);
 
-    void transferBegin(direction_t direction, m_off_t numBytes);
-    void transferComplete(direction_t direction, m_off_t numBytes);
-    void transferFailed(direction_t direction, m_off_t numBytes);
+    virtual void transferBegin(direction_t direction, m_off_t numBytes);
+    virtual void transferComplete(direction_t direction, m_off_t numBytes);
+    virtual void transferFailed(direction_t direction, m_off_t numBytes);
 
     // Return a snapshot of this sync's current transfer counts.
     SyncTransferCounts transferCounts() const;
@@ -501,9 +505,23 @@ public:
     LocalPath syncTmpFolder() const;
     void setSyncTmpFolder(const LocalPath&);
 
-    SyncThreadsafeState(handle backupId, MegaClient* client, bool canChangeVault) : mClient(client), mBackupId(backupId), mCanChangeVault(canChangeVault)  {}
-    handle backupId() const { return mBackupId; }
-    MegaClient* client() const { return mClient; }
+    SyncThreadsafeState(handle backupId, MegaClient* client, bool canChangeVault):
+        mClient(client),
+        mBackupId(backupId),
+        mCanChangeVault(canChangeVault)
+    {}
+
+    virtual ~SyncThreadsafeState(){};
+
+    handle backupId() const
+    {
+        return mBackupId;
+    }
+
+    MegaClient* client() const
+    {
+        return mClient;
+    }
 };
 
 class MEGA_API Sync
@@ -1758,8 +1776,6 @@ public:
     std::chrono::steady_clock::time_point lastSyncStallsCount{std::chrono::steady_clock::now()};
     static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
     static const std::chrono::milliseconds MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
-    static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_VERBOSE_TIMED; // 5 secs
-    static const std::chrono::milliseconds TIME_WINDOW_FOR_SYNC_VERBOSE_TIMED; // 1 sec
 
     // Lock-free count of syncs currently active.
     std::atomic<unsigned> mNumSyncsActive{0u};
@@ -2075,6 +2091,13 @@ private:
     std::atomic<bool> mUploadsPaused {false};
     std::atomic<bool> mTransferPauseFlagsChanged {false};
 
+    /**
+     * @brief Shared pointer to IUploadThrottlingManager, in charge of everything related to upload
+     * throttling.
+     * @see IUploadThrottlingManager.
+     */
+    std::shared_ptr<IUploadThrottlingManager> mThrottlingManager;
+
     // Responsible for tracking when to send sync/backup heartbeats
     unique_ptr<BackupMonitor> mHeartBeatMonitor;
 
@@ -2176,6 +2199,133 @@ public:
         // Let the caller know if any syncs match our predicate.
         return notifier.get_future().get();
     }
+
+    // Syncs Upload Throttling
+
+    /**
+     * @brief Processes the delayed uploads.
+     * Expected to be called on the sync thread.
+     *
+     * When a delayed upload is processed after the required throttling time, it is enqueued as a
+     * regular upload to be processed in the client.
+     *
+     * @see IUploadThrottlingManager::processDelayedUploads()
+     * @see queueClient()
+     */
+    void processDelayedUploads();
+
+    /**
+     * @see IUploadThrottlingManager::addToDelayedUploads()
+     * Expected to be called on the sync thread.
+     */
+    void addToDelayedUploads(DelayedSyncUpload&& delayedUpload);
+
+    /**
+     * @see IUploadThrottlingManager::uploadCounterInactivityExpirationTime()
+     * Expected to be called on the sync thread.
+     */
+    std::chrono::seconds uploadCounterInactivityExpirationTime() const;
+
+    /**
+     * @see IUploadThrottlingManager::throttleUpdateRate()
+     * Expected to be called on the sync thread.
+     */
+    std::chrono::seconds throttleUpdateRate() const;
+
+    /**
+     * @see IUploadThrottlingManager::maxUploadsBeforeThrottle()
+     * Expected to be called on the sync thread.
+     */
+    unsigned maxUploadsBeforeThrottle() const;
+
+    /**
+     * @brief Sets the throttleUpdateRate configurable value for upload throttling.
+     *
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
+     *
+     * @param completion The completion function to be called after the operations finishes.
+     * Error values:
+     * - API_OK: Value was updated correctly.
+     * - API_EARGS: Value was below or above throttleUpdateRate lower/upper limits.
+     */
+    void setThrottleUpdateRate(std::chrono::seconds throttleUpdateRate,
+                               std::function<void(const error)>&& completion);
+
+    /**
+     * @brief Sets the maxUploadsBeforeThrottle configurable value for upload throttling.
+     *
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
+     *
+     * @param completion The completion function to be called after the operations finishes.
+     * Error values:
+     * - API_OK: Value was updated correctly.
+     * - API_EARGS: Value was below or above maxUploadsBeforeThrottle lower/upper limits.
+     */
+    void setMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                     std::function<void(const error)>&& completion);
+
+    /**
+     * @brief Retrieves the upload throttling configurable values: throttleUpdateRate and
+     * maxUploadsBeforeThrottle.
+     *
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
+     *
+     * @param completion The completion function to be called after the operations finishes.
+     * @return a pair with throttleUpdateRate, maxUploadsBeforeThrottle.
+     */
+    void uploadThrottleValues(
+        std::function<void(const std::chrono::seconds /* throttleUpdateRate */,
+                           const unsigned /* maxUploadsBeforeThrottle */)>&& completion);
+
+    /**
+     * @brief Retrieves the lower/upper limits for the upload throttling configurable values.
+     *
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
+     *
+     * @param completion The completion function to be called after the operations finishes.
+     */
+    void uploadThrottleValuesLimits(std::function<void(ThrottleValueLimits&&)>&& completion);
+
+    /**
+     * @brief Checks whether or not there are delayed/throttled uploads waiting for processing.
+     *
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
+     *
+     * @param completion The completion function to be called after the operations finishes.
+     */
+    void checkSyncUploadsThrottled(std::function<void(const bool)>&& completion);
+
+    /**
+     * @brief Sets the throttling manager object.
+     *
+     * Method to be executed out of the sync thread. The logic is enqueued to be later called within
+     * the sync thread.
+     *
+     * @param uploadThrottlingManager A valid shared_ptr to IUploadThrottlingManager.
+     * @param completion The completion function to be called after the operations finishes.
+     * Error values:
+     * - API_OK: New IUploadThrottlingManager was set correctly.
+     * - API_EARGS: uploadThrottlingManager is not a valid pointer.
+     */
+    void setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
+                              std::function<void(const error)>&& completion);
+
+private:
+    /**
+     * @brief Checks the throttling manager validity.
+     *
+     * The throttling manager is always expected to be valid since the constructor.
+     * The method writes a log error and also performs an assert in case of the throttling manager
+     * being nullptr.
+     *
+     * This method is expected to be called on the sync thread. It also asserts that.
+     */
+    void assertThrottlingManagerIsValid() const;
 };
 
 class OverlayIconCachedPaths

@@ -1708,6 +1708,125 @@ void MegaApiImpl::changeSyncLocalRoot(const MegaHandle syncBackupId,
     waiter->notify();
 }
 
+void MegaApiImpl::setSyncUploadThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                                  MegaRequestListener* const listener)
+{
+    MegaRequestPrivate* const request =
+        new MegaRequestPrivate(MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES, listener);
+
+    request->setNumber(updateRateInSeconds);
+    request->performRequest = [this, request]()
+    {
+        const auto updateRateInSeconds = static_cast<unsigned>(request->getNumber());
+        client->setSyncUploadThrottleUpdateRate(
+            std::chrono::seconds(updateRateInSeconds),
+            [this, request](const error errorSetUpdateRate)
+            {
+                fireOnRequestFinish(request,
+                                    std::make_unique<MegaErrorPrivate>(errorSetUpdateRate));
+            });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                                  MegaRequestListener* const listener)
+{
+    MegaRequestPrivate* const request =
+        new MegaRequestPrivate(MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES, listener);
+
+    request->setTotalBytes(maxUploadsBeforeThrottle);
+    request->performRequest = [this, request]()
+    {
+        const auto maxUploadsBeforeThrottle = static_cast<unsigned>(request->getTotalBytes());
+        client->setSyncMaxUploadsBeforeThrottle(
+            maxUploadsBeforeThrottle,
+            [this, request](const error errorSetMaxUploadsBeforeThrottle)
+            {
+                fireOnRequestFinish(
+                    request,
+                    std::make_unique<MegaErrorPrivate>(errorSetMaxUploadsBeforeThrottle));
+            });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getSyncUploadThrottleValues(MegaRequestListener* const listener)
+{
+    MegaRequestPrivate* const request =
+        new MegaRequestPrivate(MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES, listener);
+
+    request->performRequest = [this, request]()
+    {
+        client->syncUploadThrottleValues(
+            [this, request](const std::chrono::seconds updateRateInSeconds,
+                            const unsigned maxUploadsBeforeThrottle)
+            {
+                request->setNumber(updateRateInSeconds.count());
+                request->setTotalBytes(maxUploadsBeforeThrottle);
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+            });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getSyncUploadThrottleLimits(const bool upperLimits,
+                                              MegaRequestListener* const listener)
+{
+    MegaRequestPrivate* const request =
+        new MegaRequestPrivate(MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS, listener);
+
+    request->setFlag(upperLimits);
+    request->performRequest = [this, request]()
+    {
+        client->syncUploadThrottleValuesLimits(
+            [this, request](ThrottleValueLimits&& throttleValueLimits)
+            {
+                const auto getUpperLimits = request->getFlag();
+                request->setNumber(getUpperLimits ?
+                                       throttleValueLimits.throttleUpdateRateUpperLimit.count() :
+                                       throttleValueLimits.throttleUpdateRateLowerLimit.count());
+                request->setTotalBytes(getUpperLimits ?
+                                           throttleValueLimits.maxUploadsBeforeThrottleUpperLimit :
+                                           throttleValueLimits.maxUploadsBeforeThrottleLowerLimit);
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+            });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::checkSyncUploadsThrottled(MegaRequestListener* const listener)
+{
+    MegaRequestPrivate* const request =
+        new MegaRequestPrivate(MegaRequest::TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS, listener);
+
+    request->performRequest = [this, request]()
+    {
+        client->checkSyncUploadsThrottled(
+            [this, request](const bool throttledElements)
+            {
+                request->setFlag(throttledElements);
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+            });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaSyncStallPrivate::MegaSyncStallPrivate(const SyncStallEntry& e)
 :info(e)
 {}
@@ -5061,6 +5180,12 @@ const char *MegaRequestPrivate::getRequestString() const
             return "TYPE_CHANGE_SYNC_ROOT";
         case TYPE_GET_MY_IP:
             return "TYPE_GET_MY_IP";
+        case TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES:
+            return "TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES";
+        case TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES:
+            return "TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES";
+        case TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS:
+            return "TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS";
     }
     return "UNKNOWN";
 }
@@ -6028,12 +6153,12 @@ MegaContactRequestListPrivate::~MegaContactRequestListPrivate()
     delete [] list;
 }
 
-MegaContactRequestList *MegaContactRequestListPrivate::copy()
+MegaContactRequestList* MegaContactRequestListPrivate::copy() const
 {
     return new MegaContactRequestListPrivate(this);
 }
 
-MegaContactRequest *MegaContactRequestListPrivate::get(int i)
+const MegaContactRequest* MegaContactRequestListPrivate::get(int i) const
 {
     if(!list || (i < 0) || (i >= s))
         return NULL;
@@ -6041,12 +6166,13 @@ MegaContactRequest *MegaContactRequestListPrivate::get(int i)
     return list[i];
 }
 
-int MegaContactRequestListPrivate::size()
+int MegaContactRequestListPrivate::size() const
 {
     return s;
 }
 
-MegaContactRequestListPrivate::MegaContactRequestListPrivate(MegaContactRequestListPrivate *requestList)
+MegaContactRequestListPrivate::MegaContactRequestListPrivate(
+    const MegaContactRequestListPrivate* requestList)
 {
     s = requestList->size();
     if (!s)
@@ -7899,12 +8025,16 @@ void MegaApiImpl::share(MegaNode* node, MegaUser *user, int access, MegaRequestL
     return share(node, user ? user->getEmail() : NULL, access, listener);
 }
 
-void MegaApiImpl::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
+void MegaApiImpl::loginToFolder(const char* megaFolderLink,
+                                const char* authKey,
+                                bool tryToResumeFolderLinkFromCache,
+                                MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setLink(megaFolderLink);
     request->setPassword(authKey);
     request->setEmail("FOLDER");
+    request->setFlag(tryToResumeFolderLinkFromCache);
 
     request->performRequest = [this, request]()
     {
@@ -11971,7 +12101,7 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
     return new MegaNodeListPrivate(vNodes);
 }
 
-MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
+MegaContactRequestList* MegaApiImpl::getIncomingContactRequests() const
 {
     SdkMutexGuard g(sdkMutex);
     vector<PendingContactRequest*> vContactRequests;
@@ -11986,7 +12116,7 @@ MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
     return new MegaContactRequestListPrivate(vContactRequests.data(), int(vContactRequests.size()));
 }
 
-MegaContactRequestList *MegaApiImpl::getOutgoingContactRequests()
+MegaContactRequestList* MegaApiImpl::getOutgoingContactRequests() const
 {
     SdkMutexGuard g(sdkMutex);
     vector<PendingContactRequest*> vContactRequests;
@@ -13337,7 +13467,8 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
         }
 
         const char* code;
-        if ((code = strstr(request->getLink(), MegaClient::verifyLinkPrefix())))
+        code = strstr(request->getLink(), MegaClient::verifyLinkPrefix());
+        if (code)
         {
             code += strlen(MegaClient::verifyLinkPrefix());
 
@@ -13387,7 +13518,8 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
 
     const char *link = request->getLink();
     const char* code;
-    if ((code = strstr(link, MegaClient::recoverLinkPrefix())))
+    code = strstr(link, MegaClient::recoverLinkPrefix());
+    if (code)
     {
         code += strlen(MegaClient::recoverLinkPrefix());
     }
@@ -13867,8 +13999,11 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 {
     MegaRequestPrivate* request = NULL;
     auto it = requestMap.find(client->restag);
-    if (it == requestMap.end() || !(request = it->second)
-            || request->getType() != MegaRequest::TYPE_PUBLIC_LINK_INFORMATION) return;
+    if (it == requestMap.end())
+        return;
+    request = it->second;
+    if (!request || request->getType() != MegaRequest::TYPE_PUBLIC_LINK_INFORMATION)
+        return;
 
     if (e == API_OK)
     {
@@ -15165,7 +15300,8 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
             {
                 error err;
                 byte pwkey[SymmCipher::KEYLENGTH];
-                if ((err = client->pw_key(password, pwkey)))
+                err = client->pw_key(password, pwkey);
+                if (err)
                 {
                     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(err));
                     return;
@@ -15200,7 +15336,8 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         const char* code;
         const char *mk64;
 
-        if ((code = strstr(link, MegaClient::recoverLinkPrefix())))
+        code = strstr(link, MegaClient::recoverLinkPrefix());
+        if (code)
         {
             code += strlen(MegaClient::recoverLinkPrefix());
         }
@@ -15388,9 +15525,12 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 {
     MegaRequestPrivate* request = NULL;
     auto it = requestMap.find(client->restag);
-    if (it == requestMap.end() || !(request = it->second)
-            || ( request->getType() != MegaRequest::TYPE_IMPORT_LINK
-                 && request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)) return;
+    if (it == requestMap.end())
+        return;
+    request = it->second;
+    if (!request || (request->getType() != MegaRequest::TYPE_IMPORT_LINK &&
+                     request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))
+        return;
 
     if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
     {
@@ -19472,7 +19612,8 @@ void MegaApiImpl::sendPendingRequests()
 
         e = API_OK;
 
-        if (!(request = requestQueue.pop()))
+        request = requestQueue.pop();
+        if (!request)
         {
             break;
         }
@@ -19722,6 +19863,7 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             const char *password = request->getPassword();
             const char* megaFolderLink = request->getLink();
             const char* sessionKey = request->getSessionKey();
+            const bool tryToResumeFolderLinkFromCache{request->getFlag()};
 
             if (!megaFolderLink && (!(login && password)) && !sessionKey)
             {
@@ -19754,7 +19896,7 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             }
             else
             {
-                e = client->folderaccess(megaFolderLink, password);
+                e = client->folderaccess(megaFolderLink, password, tryToResumeFolderLinkFromCache);
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -20080,7 +20222,8 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
             }
 
             error e = API_OK;
-            if ((e = client->checkmove(node.get(), newParent.get())))
+            e = client->checkmove(node.get(), newParent.get());
+            if (e)
             {
                 // If it's not possible to move the node, try copy-delete,
                 // but only when it's not possible due to access rights
@@ -21922,7 +22065,9 @@ void MegaApiImpl::inviteContact(const char* email, const char* message, int acti
     waiter->notify();
 }
 
-void MegaApiImpl::replyContactRequest(MegaContactRequest* r, int action, MegaRequestListener* listener)
+void MegaApiImpl::replyContactRequest(const MegaContactRequest* r,
+                                      int action,
+                                      MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REPLY_CONTACT_REQUEST, listener);
     if (r)
@@ -22098,7 +22243,8 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
             const char* tptr;
 
             // is it a link to confirm the account? ie. https://mega.nz/#confirm<code_in_B64>
-            if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix())))
+            tptr = strstr(ptr, MegaClient::confirmLinkPrefix());
+            if (tptr)
             {
                 ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
 
@@ -22131,7 +22277,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
                 }
             }
             // is it a new singup link? ie. https://mega.nz/#newsignup<code_in_B64>
-            else if ((tptr = strstr(ptr, MegaClient::newsignupLinkPrefix())))
+            else if ((tptr = strstr(ptr, MegaClient::newsignupLinkPrefix())) != nullptr)
             {
                 ptr = tptr + strlen(MegaClient::newsignupLinkPrefix());
 
@@ -22187,7 +22333,9 @@ error MegaApiImpl::performRequest_confirmAccount(MegaRequestPrivate* request)
             const char* ptr = link;
             const char* tptr;
 
-            if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix()))) ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
+            tptr = strstr(ptr, MegaClient::confirmLinkPrefix());
+            if (tptr)
+                ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
 
             error e = API_OK;
             string code = Base64::atob(string(ptr));
@@ -22258,15 +22406,15 @@ void MegaApiImpl::queryRecoveryLink(const char* link, MegaRequestListener* liste
             const char *link = request->getLink();
 
             const char* code;
-            if (link && (code = strstr(link, MegaClient::recoverLinkPrefix())))
+            if (link && (code = strstr(link, MegaClient::recoverLinkPrefix())) != nullptr)
             {
                 code += strlen(MegaClient::recoverLinkPrefix());
             }
-            else if (link && (code = strstr(link, MegaClient::verifyLinkPrefix())))
+            else if (link && (code = strstr(link, MegaClient::verifyLinkPrefix())) != nullptr)
             {
                 code += strlen(MegaClient::verifyLinkPrefix());
             }
-            else if (link && (code = strstr(link, MegaClient::cancelLinkPrefix())))
+            else if (link && (code = strstr(link, MegaClient::cancelLinkPrefix())) != nullptr)
             {
                 code += strlen(MegaClient::cancelLinkPrefix());
             }
@@ -22294,17 +22442,19 @@ void MegaApiImpl::confirmResetPasswordLink(const char* link, const char* newPwd,
         {
             const char *link = request->getLink();
             const char *newPwd = request->getPassword();
-
-            const char* code;
-            if (newPwd && link && (code = strstr(link, MegaClient::recoverLinkPrefix())))
-            {
-                code += strlen(MegaClient::recoverLinkPrefix());
-            }
-            else
+            if (!newPwd || !link)
             {
                 return API_EARGS;
             }
 
+            const char* code;
+            code = strstr(link, MegaClient::recoverLinkPrefix());
+            if (!code)
+            {
+                return API_EARGS;
+            }
+
+            code += strlen(MegaClient::recoverLinkPrefix());
             // concatenate query + confirm requests
             client->queryrecoverylink(code);
             return API_OK;
@@ -22323,17 +22473,19 @@ void MegaApiImpl::checkRecoveryKey(const char* link, const char* recoveryKey, Me
     request->performRequest = [this, request]()
         {
             const char* link = request->getLink();
-
-            const char* code;
-            if (link && (code = strstr(link, MegaClient::recoverLinkPrefix())))
-            {
-                code += strlen(MegaClient::recoverLinkPrefix());
-            }
-            else
+            if (!link)
             {
                 return API_EARGS;
             }
 
+            const char* code;
+            code = strstr(link, MegaClient::recoverLinkPrefix());
+            if (!code)
+            {
+                return API_EARGS;
+            }
+
+            code += strlen(MegaClient::recoverLinkPrefix());
             // concatenate query + confirm requests
             client->getprivatekey(code);
             return API_OK;
@@ -22377,8 +22529,14 @@ void MegaApiImpl::confirmCancelAccount(const char* link, const char* pwd, MegaRe
                 return API_EACCESS;
             }
 
+            if (!pwd || !link)
+            {
+                return API_EARGS;
+            }
+
             const char* code;
-            if (!pwd || !link || !(code = strstr(link, MegaClient::cancelLinkPrefix())))
+            code = strstr(link, MegaClient::cancelLinkPrefix());
+            if (!code)
             {
                 return API_EARGS;
             }
@@ -22431,16 +22589,19 @@ void MegaApiImpl::confirmChangeEmail(const char* link, const char* pwd, MegaRequ
                 return API_EACCESS;
             }
 
-            const char* code;
-            if (pwd && link && (code = strstr(link, MegaClient::verifyLinkPrefix())))
-            {
-                code += strlen(MegaClient::verifyLinkPrefix());
-            }
-            else
+            if (!pwd || !link)
             {
                 return API_EARGS;
             }
 
+            const char* code;
+            code = strstr(link, MegaClient::verifyLinkPrefix());
+            if (!code)
+            {
+                return API_EARGS;
+            }
+
+            code += strlen(MegaClient::verifyLinkPrefix());
             // concatenates query + validate pwd + confirm
             client->queryrecoverylink(code);
             return API_OK;
@@ -23586,7 +23747,7 @@ void MegaApiImpl::creditCardCancelSubscriptions(const MegaCancelSubscriptionReas
 {
     MegaRequestPrivate* request =
         new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
-    request->setMegaCancelSubscriptionReasons(reasons->copy());
+    request->setMegaCancelSubscriptionReasons(reasons ? reasons->copy() : nullptr);
     request->setName(id);
     request->setNumDetails(canContact);
 
@@ -27386,8 +27547,9 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
         }
         const std::string filePath{request->getFile()};
         const auto source = static_cast<FileSource>(request->getParamType());
-        const auto [error, badEntries] =
+        const auto [error, badEntries, nGoodEntries] =
             client->importPasswordsFromFile(filePath, source, parentHandle, request->getTag());
+        // Populate request with bad entries
         MegaStringIntegerMapPrivate stringIntegerMap;
         std::for_each(badEntries.begin(),
                       badEntries.end(),
@@ -27395,8 +27557,13 @@ void MegaApiImpl::importPasswordsFromFile(const char* filePath,
                       {
                           stringIntegerMap.set(arg.first, toPublicErrorCode(arg.second));
                       });
-
         request->setMegaStringIntegerMap(&stringIntegerMap);
+        if (error == API_OK && nGoodEntries == 0)
+        {
+            // Special case: All entries are wrong, so there was no call to putnodes
+            request->setMegaHandleList(std::vector<handle>{});
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        }
         return error;
     };
 

@@ -17,6 +17,7 @@ test.com,https://test.com/,test3,"hello.12,34",
 test.com,https://test.com/,txema,hel\nlo.1234,""
 test2.com,https://test2.com/,test,hello.1234,
 ,https://nopassname.com/,test,hello.1234,
+HeLLO😍🤣🥰😉🥰😌🥰😋😘😌,https://m.facebook.com/,😌,123,😍HeLLO😌
 )"};
     const std::vector<std::vector<std::string_view>> expected{
         {"foo.com", "https://foo.com/", "tx", R"(hola""\"\".,,)", ""},
@@ -25,7 +26,11 @@ test2.com,https://test2.com/,test,hello.1234,
         {"test.com", "https://test.com/", "txema", "hel\\nlo.1234", ""},
         {"test2.com", "https://test2.com/", "test", "hello.1234", ""},
         {"", "https://nopassname.com/", "test", "hello.1234", ""},
-    };
+        {"HeLLO😍🤣🥰😉🥰😌🥰😋😘😌",
+         "https://m.facebook.com/",
+         "😌",
+         "123",
+         "😍HeLLO😌"}};
     const std::string fname = "test.csv";
     sdk_test::LocalTempFile f{fname, fileContents};
 

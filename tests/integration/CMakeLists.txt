@@ -5,6 +5,7 @@ target_sources(test_integration
     env_var_accounts.h
     SdkTest_test.h
     SdkTestNodesSetUp_test.h
+    SdkTestSyncNodesOperations_test.h
     test.h
     integration_test_utils.h
     mock_listeners.h
@@ -13,18 +14,24 @@ target_sources(test_integration
     main.cpp
     SdkTest_test.cpp
     SdkTestNodesSetUp_test.cpp
+    SdkTestSyncNodesOperations_test.cpp
     SdkTestFilter_test.cpp
     SdkTestPasswordManager_test.cpp
+    SdkTestPasswordManagerImport_test.cpp
     SdkTestCreateAccount_test.cpp
     SdkTestTransferStats_test.cpp
     sdk_test_user_attributes.cpp
-    SdkTestSyncNodeOperations_test.cpp
+    SdkTestSyncRootOperations_test.cpp
+    SdkTestSyncUploadThrottling_test.cpp
     SdkTestChangeLocalSyncRoot_test.cpp
     Sync_test.cpp
     one_question_survey_test.cpp
     share_test.cpp
     integration_test_utils.cpp
     DisableBackupSync_test.cpp
+    SdkTestTransferMaxSpeeds_test.cpp
+    sdk_test_node_tags.cpp
+    sdk_test_node_tags.h
 )
 
 target_sources_conditional(test_integration

@@ -349,6 +349,12 @@ public:
     static string toLowerUtf8(const string& text);
 
     // Platform-independent case-insensitive comparison.
+    static int icasecmp(const std::string& lhs, const std::string& rhs);
+    static int icasecmp(const char* lhs, const char* rhs);
+
+    static int icasecmp(const std::wstring& lhs, const std::wstring& rhs);
+    static int icasecmp(const wchar_t* lhs, const wchar_t* rhs);
+
     static int icasecmp(const std::string& lhs,
                         const std::string& rhs,
                         const size_t length);
@@ -1164,12 +1170,23 @@ struct IsStringType<std::wstring> : std::true_type { };
 
 // Retrieve a file's extension.
 template<typename StringType>
-auto extensionOf(const StringType& path, std::string& extension)
-  -> typename std::enable_if<IsStringType<StringType>::value, bool>::type;
+auto extensionOf(const StringType& path, std::string& extension) ->
+    typename std::enable_if<IsStringType<StringType>::value, bool>::type;
 
 template<typename StringType>
-auto extensionOf(const StringType& path)
-  -> typename std::enable_if<IsStringType<StringType>::value, std::string>::type;
+auto extensionOf(const StringType& path) ->
+    typename std::enable_if<IsStringType<StringType>::value, std::string>::type;
+
+/**
+ * @brief Remove the dot for a string beginning with '.'
+ */
+template<typename StringType>
+StringType removeDot(StringType&& s)
+{
+    if (!s.empty() && s.front() == '.')
+        s.erase(0, 1);
+    return s;
+}
 
 // Translate a character representing a hexadecimal digit to an integer.
 template<typename T>
@@ -1462,6 +1479,130 @@ struct overloaded: Ts...
 // explicit deduction guide (not needed as of C++20)
 template<class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
+
+/**
+ * @brief Represents a range of unsigned integers, providing an iterator-based interface for
+ * iteration.
+ *
+ * The Range class allows to create a range of unsigned integers, which can be used in
+ * for-each loops or other iteration contexts.
+ *
+ * The range is of type [start, end), i.e., "start" is inclusive, "end" is exclusive.
+ * 'start' should be smaller than 'end'. Otherwise the 'start' value will be truncated to the 'end'
+ * value, resulting in an empty Range.
+ */
+class Range
+{
+public:
+    Range(const unsigned start, const unsigned end):
+        mStart(start),
+        mEnd(end)
+    {
+        if (mStart > mEnd)
+        {
+            mStart = mEnd;
+        }
+    }
+
+    class Iterator
+    {
+    public:
+        using value_type = unsigned;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const unsigned*;
+        using reference = const unsigned&;
+        using iterator_category = std::input_iterator_tag;
+
+        explicit Iterator(const unsigned current):
+            mCurrent(current)
+        {}
+
+        unsigned operator*() const
+        {
+            return mCurrent;
+        }
+
+        Iterator& operator++()
+        {
+            ++mCurrent;
+            return *this;
+        }
+
+        bool operator!=(const Iterator& other) const
+        {
+            return mCurrent != other.mCurrent;
+        }
+
+    private:
+        unsigned mCurrent;
+    };
+
+    Iterator begin() const
+    {
+        return Iterator(mStart);
+    }
+
+    Iterator end() const
+    {
+        return Iterator(mEnd);
+    }
+
+    size_t size() const
+    {
+        return mEnd - mStart;
+    }
+
+    bool empty() const
+    {
+        return !size();
+    }
+
+private:
+    unsigned mStart;
+    unsigned mEnd;
+};
+
+/**
+ * @brief Generates a Range object from a starting value to an ending value.
+ *
+ * This function provides a convenient way to create a Range without directly constructing it.
+ *
+ * Example:
+ * @code
+ * for (const auto i : range(2, 6)) // Iterates over 2, 3, 4, 5
+ * {
+ *     std::cout << i << "\n";
+ * }
+ * @endcode
+ *
+ * @param start The starting value of the range (inclusive).
+ * @param end The ending value of the range (exclusive). Expected to be greater than 'start'.
+ * Otherwise the returned Range will start from 'end' (i.e., empty Range).
+ * @return A Range object representing the specified range.
+ */
+inline Range range(const unsigned start, const unsigned end)
+{
+    return Range(start, end);
+}
+
+/**
+ * @brief Overload of range() that generates a Range from 0 to the specified ending value.
+ *
+ * Example:
+ * @code
+ * for (const auto i : range(5)) // Iterates over 0, 1, 2, 3, 4
+ * {
+ *     std::cout << i << "\n";
+ * }
+ * @endcode
+ *
+ * @param end The ending value of the range (exclusive).
+ * @return A Range object representing the range from 0 to end.
+ */
+inline Range range(const unsigned end)
+{
+    return range(0, end);
+}
 
 } // namespace mega
 

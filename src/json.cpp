@@ -363,7 +363,8 @@ bool JSON::storebinary(string* dst)
     {
         const char* ptr;
 
-        if (!(ptr = strchr(pos + 1, '"')))
+        ptr = strchr(pos + 1, '"');
+        if (!ptr)
         {
             LOG_err << "Parse error (storebinary)";
             return false;
@@ -745,7 +746,8 @@ void JSON::copystring(string* s, const char* p)
     {
         const char* pp;
 
-        if ((pp = strchr(p, '"')))
+        pp = strchr(p, '"');
+        if (pp)
         {
             s->assign(p, static_cast<size_t>(pp - p));
         }
@@ -1439,7 +1441,8 @@ bool JSONSplitter::isStarting()
 int JSONSplitter::strEnd()
 {
     const char* ptr = mPos;
-    while ((ptr = strchr(ptr + 1, '"')))
+    ptr = strchr(ptr + 1, '"');
+    while (ptr)
     {
         const char *e = ptr;
         while (*(--e) == '\\')

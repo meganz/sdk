@@ -241,17 +241,24 @@ int MegaTransferList::size()
 
 MegaContactRequestList::~MegaContactRequestList() { }
 
-MegaContactRequestList *MegaContactRequestList::copy()
+MegaContactRequestList* MegaContactRequestList::copy() const
 {
     return NULL;
 }
 
-MegaContactRequest *MegaContactRequestList::get(int)
+MegaContactRequest* MegaContactRequestList::get(int index)
+{
+    auto self = static_cast<const MegaContactRequestList*>(this);
+
+    return const_cast<MegaContactRequest*>(self->get(index));
+}
+
+const MegaContactRequest* MegaContactRequestList::get(int) const
 {
     return NULL;
 }
 
-int MegaContactRequestList::size()
+int MegaContactRequestList::size() const
 {
     return 0;
 }
@@ -2695,14 +2702,22 @@ void MegaApi::share(MegaNode *node, const char* email, int access, MegaRequestLi
     pImpl->share(node, email, access, listener);
 }
 
-void MegaApi::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
+void MegaApi::loginToFolder(const char* megaFolderLink, MegaRequestListener* listener)
 {
-    pImpl->loginToFolder(megaFolderLink, authKey, listener);
+    pImpl->loginToFolder(megaFolderLink, nullptr, false, listener);
 }
 
-void MegaApi::loginToFolder(const char* megaFolderLink, MegaRequestListener *listener)
+void MegaApi::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
 {
-    pImpl->loginToFolder(megaFolderLink, nullptr, listener);
+    pImpl->loginToFolder(megaFolderLink, authKey, false, listener);
+}
+
+void MegaApi::loginToFolder(const char* megaFolderLink,
+                            const char* authKey,
+                            const bool tryToResumeFolderLinkFromCache,
+                            MegaRequestListener* listener)
+{
+    pImpl->loginToFolder(megaFolderLink, authKey, tryToResumeFolderLinkFromCache, listener);
 }
 
 void MegaApi::importFileLink(const char* megaFileLink, MegaNode *parent, MegaRequestListener *listener)
@@ -3494,7 +3509,9 @@ void MegaApi::inviteContact(const char *email, const char *message, int action, 
     pImpl->inviteContact(email, message, action, contactLink, listener);
 }
 
-void MegaApi::replyContactRequest(MegaContactRequest *r, int action, MegaRequestListener *listener)
+void MegaApi::replyContactRequest(const MegaContactRequest* r,
+                                  int action,
+                                  MegaRequestListener* listener)
 {
     pImpl->replyContactRequest(r, action, listener);
 }
@@ -3911,6 +3928,40 @@ void MegaApi::changeSyncLocalRoot(const MegaHandle syncBackupId,
     pImpl->changeSyncLocalRoot(syncBackupId, newLocalSyncRootPath, listener);
 }
 
+void MegaApi::setSyncUploadThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                              MegaRequestListener* const listener)
+{
+    pImpl->setSyncUploadThrottleUpdateRate(updateRateInSeconds, listener);
+}
+
+void MegaApi::setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                              MegaRequestListener* const listener)
+{
+    pImpl->setSyncMaxUploadsBeforeThrottle(maxUploadsBeforeThrottle, listener);
+}
+
+void MegaApi::getSyncUploadThrottleValues(MegaRequestListener* const listener)
+{
+    pImpl->getSyncUploadThrottleValues(listener);
+}
+
+void MegaApi::getSyncUploadThrottleLowerLimits(MegaRequestListener* const listener)
+{
+    const bool upperLimits = false;
+    pImpl->getSyncUploadThrottleLimits(upperLimits, listener);
+}
+
+void MegaApi::getSyncUploadThrottleUpperLimits(MegaRequestListener* const listener)
+{
+    const bool upperLimits = true;
+    pImpl->getSyncUploadThrottleLimits(upperLimits, listener);
+}
+
+void MegaApi::checkSyncUploadsThrottled(MegaRequestListener* const listener)
+{
+    pImpl->checkSyncUploadsThrottled(listener);
+}
+
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
     return pImpl->getSyncByBackupId(backupId);
@@ -4202,12 +4253,12 @@ MegaNodeList *MegaApi::getPublicLinks(int order)
     return pImpl->getPublicLinks(order);
 }
 
-MegaContactRequestList *MegaApi::getIncomingContactRequests()
+MegaContactRequestList* MegaApi::getIncomingContactRequests() const
 {
     return pImpl->getIncomingContactRequests();
 }
 
-MegaContactRequestList *MegaApi::getOutgoingContactRequests()
+MegaContactRequestList* MegaApi::getOutgoingContactRequests() const
 {
     return pImpl->getOutgoingContactRequests();
 }

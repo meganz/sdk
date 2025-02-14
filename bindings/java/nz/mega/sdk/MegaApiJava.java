@@ -8178,146 +8178,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the number of pending uploads
-     *
-     * @return Pending uploads
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     * provide more data and avoid race conditions. They could change or be removed in the current form.
-     */
-    @Deprecated
-    public int getNumPendingUploads() {
-        return megaApi.getNumPendingUploads();
-    }
-
-    /**
-     * Get the number of pending downloads
-     *
-     * @return Pending downloads
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     * provide more data and avoid race conditions. They could change or be removed in the current form.
-     */
-    @Deprecated
-    public int getNumPendingDownloads() {
-        return megaApi.getNumPendingDownloads();
-    }
-
-    /**
-     * Get the number of queued uploads since the last call to MegaApi::resetTotalUploads
-     *
-     * @return Number of queued uploads since the last call to MegaApi::resetTotalUploads
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     * provide more data and avoid race conditions. They could change or be removed in the current form.
-     */
-    @Deprecated
-    public int getTotalUploads() {
-        return megaApi.getTotalUploads();
-    }
-
-    /**
-     * Get the number of queued uploads since the last call to MegaApi::resetTotalDownloads
-     *
-     * @return Number of queued uploads since the last call to MegaApi::resetTotalDownloads
-     * @deprecated Function related to statistics will be reviewed in future updates. They
-     * could change or be removed in the current form.
-     */
-    @Deprecated
-    public int getTotalDownloads() {
-        return megaApi.getTotalDownloads();
-    }
-
-    /**
-     * Reset the number of total downloads
-     * This function resets the number returned by MegaApi::getTotalDownloads
-     *
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     * provide more data and avoid race conditions. They could change or be removed in the current form.
-     */
-    @Deprecated
-    public void resetTotalDownloads() {
-        megaApi.resetTotalDownloads();
-    }
-
-    /**
-     * Reset the number of total uploads
-     * This function resets the number returned by MegaApi::getTotalUploads
-     *
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     * provide more data and avoid race conditions. They could change or be removed in the current form.
-     */
-    @Deprecated
-    public void resetTotalUploads() {
-        megaApi.resetTotalUploads();
-    }
-
-    /**
-     * Get the total downloaded bytes
-     * <p>
-     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
-     * or just before a log in or a log out.
-     * <p>
-     * Only regular downloads are taken into account, not streaming nor folder transfers.
-     *
-     * @return Total downloaded bytes
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     * provide more data and avoid race conditions. They could change or be removed in the current form.
-     */
-    @Deprecated
-    public long getTotalDownloadedBytes() {
-        return megaApi.getTotalDownloadedBytes();
-    }
-
-    /**
-     * Get the total uploaded bytes
-     * <p>
-     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
-     * or just before a log in or a log out.
-     * <p>
-     * Only regular uploads are taken into account, not folder transfers.
-     *
-     * @return Total uploaded bytes
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     * provide more data and avoid race conditions. They could change or be removed in the current form.
-     */
-    @Deprecated
-    public long getTotalUploadedBytes() {
-        return megaApi.getTotalUploadedBytes();
-    }
-
-    /**
-     * Get the total bytes of started downloads
-     * <p>
-     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
-     * or just before a log in or a log out.
-     * <p>
-     * Only regular downloads are taken into account, not streaming nor folder transfers.
-     *
-     * @return Total bytes of started downloads
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     * provide more data and avoid race conditions. They could change or be removed in the current form.
-     */
-    @Deprecated
-    public long getTotalDownloadBytes() {
-        return megaApi.getTotalDownloadBytes();
-    }
-
-    /**
-     * Get the total bytes of started uploads
-     * <p>
-     * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
-     * or just before a log in or a log out.
-     * <p>
-     * Only regular uploads are taken into account, not folder transfers.
-     *
-     * @return Total bytes of started uploads
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     * provide more data and avoid race conditions. They could change or be removed in the current form.
-     */
-    @Deprecated
-    public long getTotalUploadBytes() {
-        return megaApi.getTotalUploadBytes();
-    }
-
-    /**
      * Get the total number of nodes in the account
      *
      * @return Total number of nodes in the account
@@ -9377,16 +9237,18 @@ public class MegaApiJava {
     }
 
     /**
-     * Returns the inbox node of the account.
+     * Returns the Vault node of the account
      * <p>
-     * If you haven't successfully called MegaApiJava.fetchNodes() before,
-     * this function returns null.
+     * You take the ownership of the returned value
+     * <p>
+     * If you haven't successfully called MegaApi::fetchNodes before,
+     * this function returns NULL
      *
-     * @return Inbox node of the account.
+     * @return Vault node of the account
      */
     @Nullable
-    public MegaNode getInboxNode() {
-        return megaApi.getInboxNode();
+    public MegaNode getVaultNode() {
+        return megaApi.getVaultNode();
     }
 
     /**
@@ -9423,13 +9285,13 @@ public class MegaApiJava {
     }
 
     /**
-     * Check if a node is in the Inbox tree
+     * Check if a node is in the Vault tree
      *
      * @param node Node to check
-     * @return True if the node is in the Inbox
+     * @return True if the node is in the Vault
      */
-    public boolean isInInbox(MegaNode node) {
-        return megaApi.isInInbox(node);
+    public boolean isInVault(MegaNode node) {
+        return megaApi.isInVault(node);
     }
 
     /**

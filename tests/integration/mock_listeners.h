@@ -69,10 +69,17 @@ private:
 class MockRequestListener: public ::mega::MegaRequestListener, public SynchronizationHelper
 {
 public:
-    MockRequestListener()
+    MockRequestListener(::mega::MegaApi* megaApi = nullptr):
+        mMegaApi{megaApi}
     {
         ON_CALL(*this, onRequestFinish)
             .WillByDefault(::testing::Invoke(this, &MockRequestListener::defaultOnRequestFinish));
+    }
+
+    ~MockRequestListener()
+    {
+        if (mMegaApi)
+            mMegaApi->removeRequestListener(this);
     }
 
     MOCK_METHOD(void,
@@ -127,6 +134,7 @@ public:
     }
 
 private:
+    ::mega::MegaApi* mMegaApi{nullptr};
     void defaultOnRequestFinish(::mega::MegaApi*, ::mega::MegaRequest*, ::mega::MegaError*)
     {
         markAsFinished();
@@ -141,6 +149,16 @@ private:
 class MockTransferListener: public ::mega::MegaListener
 {
 public:
+    MockTransferListener(::mega::MegaApi* megaApi = nullptr):
+        mMegaApi{megaApi}
+    {}
+
+    ~MockTransferListener()
+    {
+        if (mMegaApi)
+            mMegaApi->removeListener(this);
+    }
+
     MOCK_METHOD(void,
                 onTransferFinish,
                 (::mega::MegaApi * api, ::mega::MegaTransfer* transfer, ::mega::MegaError* error),
@@ -157,6 +175,67 @@ public:
                 onTransferTemporaryError,
                 (::mega::MegaApi * api, ::mega::MegaTransfer* transfer, ::mega::MegaError* error),
                 (override));
+
+private:
+    ::mega::MegaApi* mMegaApi{nullptr};
+};
+
+class MockMegaTransferListener: public ::mega::MegaTransferListener, public SynchronizationHelper
+{
+public:
+    MockMegaTransferListener(::mega::MegaApi* megaApi = nullptr):
+        mMegaApi{megaApi}
+    {
+        ON_CALL(*this, onTransferFinish)
+            .WillByDefault(
+                ::testing::Invoke(this, &MockMegaTransferListener::defaultOnTransferFinish));
+    }
+
+    ~MockMegaTransferListener()
+    {
+        if (mMegaApi)
+            mMegaApi->removeTransferListener(this);
+    }
+
+    MOCK_METHOD(void,
+                onTransferStart,
+                (::mega::MegaApi * api, ::mega::MegaTransfer* transfer),
+                (override));
+    MOCK_METHOD(void,
+                onTransferFinish,
+                (::mega::MegaApi * api, ::mega::MegaTransfer* transfer, ::mega::MegaError* error),
+                (override));
+    MOCK_METHOD(void,
+                onTransferUpdate,
+                (::mega::MegaApi * api, ::mega::MegaTransfer* transfer),
+                (override));
+    MOCK_METHOD(void,
+                onFolderTransferUpdate,
+                (::mega::MegaApi * api,
+                 ::mega::MegaTransfer* transfer,
+                 int stage,
+                 uint32_t foldercount,
+                 uint32_t createdfoldercount,
+                 uint32_t filecount,
+                 const char* currentFolder,
+                 const char* currentFileLeafname),
+                (override));
+    MOCK_METHOD(void,
+                onTransferTemporaryError,
+                (::mega::MegaApi * api, ::mega::MegaTransfer* transfer, ::mega::MegaError* error),
+                (override));
+    MOCK_METHOD(bool,
+                onTransferData,
+                (::mega::MegaApi * api, ::mega::MegaTransfer* transfer, char* buffer, size_t size),
+                (override));
+
+private:
+    ::mega::MegaApi* mMegaApi;
+
+    void defaultOnTransferFinish(::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* err)
+    {
+        markAsFinished(err->getErrorCode() == mega::API_OK);
+    }
 };
 
 #ifdef ENABLE_SYNC

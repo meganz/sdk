@@ -8,12 +8,17 @@
 
 #ifdef ENABLE_SYNC
 
-#include "node.h"
+#include "mega/db.h"
+#include "mega/node.h"
 
 #include <optional>
 
 namespace mega
 {
+
+/***************************\
+*  FIND LOCAL NODE BY FSID  *
+\***************************/
 
 /**
  * @brief Represents the result of a file system ID (FSID) node match operation.
@@ -415,6 +420,47 @@ fsid_localnode_map::const_iterator
  */
 std::pair<bool, LocalNode*> findLocalNodeByFsid(const fsid_localnode_map& fsidLocalnodeMap,
                                                 FindLocalNodeByFSIDPredicate&& predicate);
+
+/********************************\
+*  FIND NODE CANDIDATE TO CLONE  *
+\********************************/
+
+/**
+ * @brief Finds a suitable node that can be cloned rather than triggering a new upload.
+ *
+ * This method prepares the local file extension and constructs a predicate to evaluate
+ * candidate nodes based on their content and extension. It returns a pointer to a valid
+ * clone node if found, or nullptr if no suitable node exists.
+ *
+ * A valid node to be cloned is a matched node that also has a valid key (no zero-key issue).
+ *
+ * @param mc Reference to the MegaClient managing the synchronization.
+ * @param upload Const reference to the upload task being processed.
+ * @return Pointer to a valid clone node if found, or nullptr otherwise.
+ */
+Node* findCloneNodeCandidate(MegaClient& mc, const SyncUpload_inClient& upload);
+
+/****************\
+*  SYNC UPLOADS  *
+\****************/
+
+/**
+ * @brief Manages the upload process for a file, with support for node cloning.
+ *
+ * This method attempts to find a clone node that matches the local file's content and
+ * extension. If a valid node is found, it uses the node for cloning. Otherwise, it
+ * proceeds with a normal upload process.
+ *
+ * @param mc Reference to the MegaClient.
+ * @param committer Reference to the transfer database committer.
+ * For the other params, see LocalNode::queueClientUpload()
+ */
+void clientUpload(MegaClient& mc,
+                  TransferDbCommitter& committer,
+                  std::shared_ptr<SyncUpload_inClient> upload,
+                  const VersioningOption vo,
+                  const bool queueFirst,
+                  const NodeHandle ovHandleIfShortcut);
 
 } // namespace mega
 

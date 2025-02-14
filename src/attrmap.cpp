@@ -65,7 +65,8 @@ int AttrMap::nameid2string(nameid id, char* buf)
 
     for (int i = 64; (i -= 8) >= 0;)
     {
-        if ((*ptr = static_cast<char>( (id >> i) & 0xff)))
+        *ptr = static_cast<char>((id >> i) & 0xff);
+        if (*ptr)
         {
             ptr++;
         }
@@ -101,7 +102,8 @@ void AttrMap::serialize(string* d) const
 
     for (attr_map::const_iterator it = map.begin(); it != map.end(); it++)
     {
-        if ((l = (unsigned char)nameid2string(it->first, buf)))
+        l = (unsigned char)nameid2string(it->first, buf);
+        if (l)
         {
             d->append((char*)&l, sizeof l);
             d->append(buf, l);
@@ -121,7 +123,8 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
     unsigned short ll;
     nameid id;
 
-    while ((ptr < end) && (l = static_cast<unsigned char>(*ptr++)))
+    l = static_cast<unsigned char>(*ptr++);
+    while ((ptr < end) && l)
     {
         id = 0;
 
@@ -145,6 +148,7 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
 
         map[id].assign(ptr, ll);
         ptr += ll;
+        l = static_cast<unsigned char>(*ptr++);
     }
 
     return ptr;
@@ -193,7 +197,8 @@ void AttrMap::getjson(string* s) const
     {
         s->append(s->size() ? ",\"" : "\"");
 
-        if ((id = it->first))
+        id = it->first;
+        if (id)
         {
             // no JSON escaping here, as no escape characters are allowed in
             // attribute names

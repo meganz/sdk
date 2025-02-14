@@ -43,6 +43,7 @@
 
 #include <jni.h>
 extern JavaVM *MEGAjvm;
+extern jclass fileWrapper;
 #endif
 
 #if defined(__MACH__) && !(TARGET_OS_IPHONE)
@@ -2413,8 +2414,16 @@ std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymL
 #ifndef __ANDROID__
     return std::unique_ptr<FileAccess>{new PosixFileAccess{waiter, defaultfilepermissions, followSymLinks}};
 #else
-    return std::unique_ptr<FileAccess>{
-        new AndroidFileAccess{waiter, defaultfilepermissions, followSymLinks}};
+    if (fileWrapper != nullptr)
+    {
+        return std::unique_ptr<FileAccess>{
+            new AndroidFileAccess{waiter, defaultfilepermissions, followSymLinks}};
+    }
+    else
+    {
+        return std::unique_ptr<FileAccess>{
+            new PosixFileAccess{waiter, defaultfilepermissions, followSymLinks}};
+    }
 #endif
 }
 
@@ -2423,7 +2432,14 @@ unique_ptr<DirAccess>  PosixFileSystemAccess::newdiraccess()
 #ifndef __ANDROID__
     return unique_ptr<DirAccess>(new PosixDirAccess());
 #else
-    return unique_ptr<DirAccess>(new AndroidDirAccess());
+    if (fileWrapper != nullptr)
+    {
+        return unique_ptr<DirAccess>(new AndroidDirAccess());
+    }
+    else
+    {
+        return unique_ptr<DirAccess>(new PosixDirAccess());
+    }
 #endif
 }
 

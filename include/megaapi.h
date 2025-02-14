@@ -4044,8 +4044,20 @@ class MegaContactRequestList
     public:
         virtual ~MegaContactRequestList();
 
-        virtual MegaContactRequestList *copy();
+        virtual MegaContactRequestList* copy() const;
 
+        /**
+         * @brief Returns the MegaContactRequest at the position i in the MegaContactRequestList
+         *
+         * The MegaContactRequestList retains the ownership of the returned MegaContactRequest. It
+         * will be only valid until the MegaContactRequestList is deleted.
+         *
+         * If the index is >= the size of the list, this function returns NULL.
+         *
+         * @param i Position of the MegaContactRequest that we want to get for the list
+         * @return MegaContactRequest at the position i in the list
+         */
+        MegaContactRequest* get(int i);
 
         /**
          * @brief Returns the MegaContactRequest at the position i in the MegaContactRequestList
@@ -4058,13 +4070,13 @@ class MegaContactRequestList
          * @param i Position of the MegaContactRequest that we want to get for the list
          * @return MegaContactRequest at the position i in the list
          */
-        virtual MegaContactRequest* get(int i);
+        virtual const MegaContactRequest* get(int i) const;
 
         /**
          * @brief Returns the number of MegaContactRequest objects in the list
          * @return Number of MegaContactRequest objects in the list
          */
-        virtual int size();
+        virtual int size() const;
 };
 
 /**
@@ -4608,7 +4620,11 @@ class MegaRequest
             TYPE_ANSWER_SURVEY = 199,
             TYPE_CHANGE_SYNC_ROOT = 200,
             TYPE_GET_MY_IP = 201,
-            TOTAL_OF_REQUEST_TYPES = 202,
+            TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES = 202,
+            TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES = 203,
+            TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS = 204,
+            TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS = 205,
+            TOTAL_OF_REQUEST_TYPES = 206,
         };
 
         virtual ~MegaRequest();
@@ -11256,6 +11272,34 @@ class MegaApi
         void loginToFolder(const char* megaFolderLink, const char *authKey, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Log in to a public folder using a folder link
+         *
+         * After a successful login, you should call MegaApi::fetchNodes to get filesystem and
+         * start working with the folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Retuns the string "FOLDER"
+         * - MegaRequest::getLink - Returns the public link to the folder
+         * - MegaRequest::getPassword - Returns the auth link used for writting
+         * - MegaRequest::getFlag - Returns True if it will attempt to restore the folder link from
+         * the cache, or False if it will fetch the nodes instead.
+         *
+         * If the provided authKey is not valid, onRequestFinish will
+         * be called with the error code MegaError::API_EACCESS.
+         *
+         * @param megaFolderLink Public link to a folder in MEGA
+         * @param authKey Authentication key to write into the folder link
+         * @param tryToResumeFolderLinkFromCache If True and the folder link exists in the cache,
+         * attempt to restore it; otherwise, fetch the nodes.
+         * @param listener MegaRequestListener to track this request
+         */
+        void loginToFolder(const char* megaFolderLink,
+                           const char* authKey,
+                           bool tryToResumeFolderLinkFromCache,
+                           MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Log in to a MEGA account using a session key
          *
          * The associated request type with this request is MegaRequest::TYPE_LOGIN.
@@ -15705,7 +15749,9 @@ class MegaApi
          *
          * @param listener MegaRequestListener to track this request
          */
-        void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
+        void replyContactRequest(const MegaContactRequest* request,
+                                 int action,
+                                 MegaRequestListener* listener = NULL);
 
         /**
          * @brief Remove a contact to the MEGA account
@@ -17565,6 +17611,117 @@ class MegaApi
                                  const char* newLocalSyncRootPath,
                                  MegaRequestListener* listener = nullptr);
 
+        /**
+         * @brief Set the throttle update rate for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the throttle update rate in seconds.
+         * MegaError:
+         * - MegaError::API_OK if the update rate was updated correctly.
+         * - MegaError::API_EARGS if the update rate is below the minimum or above the maximum.
+         *
+         * @param updateRateInSeconds The update rate for the throttling queue in seconds.
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void setSyncUploadThrottleUpdateRate(const unsigned updateRateInSeconds,
+                                             MegaRequestListener* const listener);
+
+        /**
+         * @brief Set the max number of sync uploads per file before applying throttling logic.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTotalBytes - Returns the max number of uploads before throttle.
+         * MegaError:
+         * - MegaError::API_OK if the new max number of uploads before throttle was set correctly.
+         * - MegaError::API_EARGS if the max uploads before throttle value is below the minimum or
+         * above the maximum.
+         *
+         * @param maxUploadsBeforeThrottle The number of uploads that are allowed to go unthrottled.
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                             MegaRequestListener* const listener);
+
+        /**
+         * @brief Get the configurable throttle values for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the throttle update rate in seconds.
+         * - MegaRequest::getTotalBytes - Returns the max number of uploads before throttle.
+         *
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void getSyncUploadThrottleValues(MegaRequestListener* const listener);
+
+        /**
+         * @brief Get the lower limits of configurable throttle for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the minimum allowed for throttle update rate in
+         * seconds.
+         * - MegaRequest::getTotalBytes - Returns the minimum allowed for max number of uploads
+         * before throttle.
+         * - MegaRequest::getFlag - Returns false (this is set to false/0 for lower limits).
+         *
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void getSyncUploadThrottleLowerLimits(MegaRequestListener* const listener);
+
+        /**
+         * @brief Get the upper limits of configurable throttle values for sync-uploads.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the maximum allowed for throttle update rate in
+         * seconds.
+         * - MegaRequest::getTotalBytes - Returns the maximum allowed for max number of uploads
+         * before throttle.
+         * - MegaRequest::getFlag - Returns true (this is set to true/1 for upper limits).
+         *
+         * @param listener A MegaRequestListener to track this request.
+         */
+        void getSyncUploadThrottleUpperLimits(MegaRequestListener* const listener);
+
+        /**
+         * @brief Check if there are delayed/throttled uploads pending to be processed.
+         * When delayed/throttled uploads are pending, those files are not fully synchronized. In
+         * that case, the sync state would be Syncing.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns true if there are delayed uploads waiting for
+         * processing, false otherwise.
+         *
+         * @param listener A MegaRequestListener to track this request.
+         *
+         * @warning It is not guaranteed that the delayed uploads pending to be processed are valid.
+         * They could be invalid if the files have been removed, or if the upload transfer has been
+         * reset for other reasons. This is not checked until they are processed after the
+         * throttlingUpdateRate time. The caller should consider this method as an extra check: if
+         * the sync is in Syncing state, there are no stall issues nor MegaTransfers being processed
+         * nor other situations explaining the Syncing state, it could be expected that there are
+         * delayed uploads pending to be processed. Note that, if the delayed uploads are not valid
+         * anymore (for example, because the underlying files have been removed), even when this
+         * method could return true, the sync shouldn't be in Syncing state.
+         */
+        void checkSyncUploadsThrottled(MegaRequestListener* const listener);
+
 #endif // ENABLE_SYNC
 
         /**
@@ -18743,7 +18900,7 @@ class MegaApi
          *
          * @return List of MegaContactRequest objects
          */
-        MegaContactRequestList *getIncomingContactRequests();
+        MegaContactRequestList* getIncomingContactRequests() const;
 
         /**
          * @brief Get a list with all outgoing contact requests
@@ -18752,7 +18909,7 @@ class MegaApi
          *
          * @return List of MegaContactRequest objects
          */
-        MegaContactRequestList *getOutgoingContactRequests();
+        MegaContactRequestList* getOutgoingContactRequests() const;
 
         /**
          * @brief Get the access level of a MegaNode

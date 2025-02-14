@@ -1374,7 +1374,8 @@ bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos, FSL
 
     dst->resize(len + pad);
 
-    if ((r = sysread((byte*)dst->data(), len, pos)))
+    r = sysread((byte*)dst->data(), len, pos);
+    if (r)
     {
         memset((char*)dst->data() + len, 0, pad);
     }

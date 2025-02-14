@@ -1180,7 +1180,8 @@ bool HashSignature::checksignature(AsymmCipher* pubk, const byte* sig, unsigned 
 
     s.resize(h.size());
 
-    if (!(size = pubk->rawencrypt(sig, len, (byte*)s.data(), s.size())))
+    size = pubk->rawencrypt(sig, len, (byte*)s.data(), s.size());
+    if (!size)
     {
         return 0;
     }
@@ -1490,6 +1491,40 @@ std::string Utils::uint64ToHexString(uint64_t input)
     outputStream << std::hex << std::setfill('0') << std::setw(16) << input;
     std::string output = outputStream.str();
     return output;
+}
+
+int Utils::icasecmp(const std::string& lhs, const std::string& rhs)
+{
+    return icasecmp(lhs.c_str(), rhs.c_str());
+}
+
+int Utils::icasecmp(const char* lhs, const char* rhs)
+{
+    assert(lhs);
+    assert(rhs);
+
+#ifdef _WIN32
+    return _stricmp(lhs, rhs);
+#else // _WIN32
+    return strcasecmp(lhs, rhs);
+#endif // ! _WIN32
+}
+
+int Utils::icasecmp(const std::wstring& lhs, const std::wstring& rhs)
+{
+    return icasecmp(lhs.c_str(), rhs.c_str());
+}
+
+int Utils::icasecmp(const wchar_t* lhs, const wchar_t* rhs)
+{
+    assert(lhs);
+    assert(rhs);
+
+#ifdef _WIN32
+    return _wcsicmp(lhs, rhs);
+#else // _WIN32
+    return wcscasecmp(lhs, rhs);
+#endif // ! _WIN32
 }
 
 int Utils::icasecmp(const std::string& lhs,
@@ -3321,7 +3356,9 @@ int naturalsorting_compare(const char* i, const char* j)
         if (stringMode)
         {
             char char_i, char_j;
-            while ((char_i = *i) && (char_j = *j))
+            char_i = *i;
+            char_j = *j;
+            while (char_i && char_j)
             {
                 CharType iCharType = getCharType(static_cast<unsigned int>(*i));
                 CharType jCharType = getCharType(static_cast<unsigned int>(*j));
@@ -3350,6 +3387,8 @@ int naturalsorting_compare(const char* i, const char* j)
                 {
                     return iCharType < jCharType ? -1 : 1;
                 }
+                char_i = *i;
+                char_j = *j;
             }
         }
         else // we are comparing numbers on both strings
@@ -3401,7 +3440,8 @@ int naturalsorting_compare(const char* i, const char* j)
 
             auto length = static_cast<std::size_t>(std::min(i - m, j - n));
 
-            if ((difference = strncmp(m, n, length)))
+            difference = strncmp(m, n, length);
+            if (difference)
             {
                 return difference;
             }

@@ -89,7 +89,7 @@ static handle createSyncAux(MegaApi* megaApi,
         return UNDEF;
 
     using namespace testing;
-    NiceMock<MockRequestListener> rl;
+    NiceMock<MockRequestListener> rl{megaApi};
     const auto expectedErr = Pointee(Property(&MegaError::getErrorCode, API_OK));
     const auto& expectedReqType =
         Pointee(Property(&MegaRequest::getType, MegaRequest::TYPE_ADD_SYNC));
@@ -137,7 +137,7 @@ handle backupFolder(MegaApi* megaApi,
 
 bool removeSync(MegaApi* megaApi, const handle backupID)
 {
-    NiceMock<MockRequestListener> reqListener;
+    NiceMock<MockRequestListener> reqListener{megaApi};
     reqListener.setErrorExpectations(API_OK);
     megaApi->removeSync(backupID, &reqListener);
     return reqListener.waitForFinishOrTimeout(MAX_TIMEOUT);
@@ -147,7 +147,7 @@ bool setSyncRunState(MegaApi* megaApi,
                      const handle backupID,
                      const MegaSync::SyncRunningState state)
 {
-    NiceMock<MockRequestListener> reqListener;
+    NiceMock<MockRequestListener> reqListener{megaApi};
     reqListener.setErrorExpectations(API_OK);
     megaApi->setSyncRunState(backupID, state, &reqListener);
     return reqListener.waitForFinishOrTimeout(MAX_TIMEOUT);
@@ -173,7 +173,7 @@ std::vector<std::unique_ptr<MegaSyncStall>> getStalls(MegaApi* megaApi)
     if (megaApi == nullptr)
         return {};
 
-    NiceMock<MockRequestListener> reqList;
+    NiceMock<MockRequestListener> reqList{megaApi};
     const auto expectedErr = Pointee(Property(&MegaError::getErrorCode, API_OK));
     std::vector<std::unique_ptr<MegaSyncStall>> stalls;
     EXPECT_CALL(reqList, onRequestFinish(_, _, expectedErr))
@@ -208,7 +208,7 @@ std::optional<std::vector<std::string>> getCloudFirstChildrenNames(MegaApi* mega
 
 void getDeviceNames(MegaApi* megaApi, std::unique_ptr<MegaStringMap>& output)
 {
-    NiceMock<MockRequestListener> rl;
+    NiceMock<MockRequestListener> rl{megaApi};
     const auto expectedErr = Pointee(Property(&MegaError::getErrorCode, API_OK));
     EXPECT_CALL(rl, onRequestFinish(_, _, expectedErr))
         .WillOnce(
@@ -234,9 +234,43 @@ void ensureAccountDeviceName(MegaApi* megaApi)
     const std::string deviceName = "Jenkins " + getCurrentTimestamp(true);
     const std::string deviceId = megaApi->getDeviceId();
     devices->set(deviceId.c_str(), deviceName.c_str());
-    NiceMock<MockRequestListener> rl;
+    NiceMock<MockRequestListener> rl{megaApi};
     rl.setErrorExpectations(API_OK);
     megaApi->setUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, devices.get(), &rl);
     ASSERT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
+}
+
+std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
+                                     const std::filesystem::path& localPath,
+                                     MegaNode* parentNode)
+{
+    testing::NiceMock<MockMegaTransferListener> mtl{megaApi};
+    handle nodeHandle = UNDEF;
+    EXPECT_CALL(mtl, onTransferFinish)
+        .WillOnce(
+            [&mtl, &nodeHandle](MegaApi*, MegaTransfer* transfer, MegaError* error)
+            {
+                nodeHandle = transfer->getNodeHandle();
+                mtl.markAsFinished(error->getErrorCode() == API_OK);
+            });
+    megaApi->startUpload(localPath.u8string().c_str(),
+                         parentNode ? parentNode :
+                                      std::unique_ptr<MegaNode>{megaApi->getRootNode()}.get(),
+                         nullptr /*fileName*/,
+                         MegaApi::INVALID_CUSTOM_MOD_TIME,
+                         nullptr /*appData*/,
+                         false /*isSourceTemporary*/,
+                         false /*startFirst*/,
+                         nullptr /*cancelToken*/,
+                         &mtl);
+    EXPECT_TRUE(mtl.waitForFinishOrTimeout(MAX_TIMEOUT)) << "Error uploading file: " << localPath;
+    if (nodeHandle == UNDEF)
+        return nullptr;
+    return std::unique_ptr<MegaNode>(megaApi->getNodeByHandle(nodeHandle));
+}
+
+std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi, LocalTempFile&& file, MegaNode* parentNode)
+{
+    return uploadFile(megaApi, file.getPath(), parentNode);
 }
 }

@@ -3,15 +3,53 @@
 
 #include "stdfs.h"
 
+#include <fstream>
 #include <functional>
 #include <optional>
 #include <set>
 #include <thread>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
 namespace sdk_test
 {
+
+/**
+ * @brief Opens a file with the given mode, and writes either "size" zeros or the given "contents".
+ *
+ * @tparam T A type that indicates the data: either std::size_t or std::string_view.
+ * @param filePath Path to open
+ * @param openMode e.g. std::ios::binary or std::ios::binary | std::ios::app
+ * @param data The data to write. If T = std::size_t, we write that many zero bytes.
+ *             If T = std::string_view or std::string, we write those bytes.
+ */
+template<typename T>
+void writeFileContent(const fs::path& filePath, const std::ios::openmode openMode, const T& data)
+{
+    std::ofstream outFile(filePath, openMode);
+    if (!outFile.is_open())
+    {
+        const auto msg = "Cannot open file: " + filePath.string();
+        throw std::runtime_error(msg);
+    }
+
+    if constexpr (std::is_convertible_v<T, std::size_t>)
+    {
+        // data is a byte count -> write that many zeros
+        const std::vector<char> buffer(data, 0);
+        outFile.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    }
+    else if constexpr (std::is_same_v<T, std::string_view> || std::is_same_v<T, std::string>)
+    {
+        // data is a string -> write these contents
+        outFile.write(data.data(), static_cast<std::streamsize>(data.size()));
+    }
+    else
+    {
+        static_assert(!sizeof(T*), "writeFileContent used with invalid type");
+    }
+}
 
 /**
  * @brief Returns the path to the folder containing resources for the tests.
@@ -39,12 +77,22 @@ void copyFileFromTestData(fs::path filename, fs::path destination = ".");
 /**
  * @brief Creates a file of a given size. It throws if the file cannot be opened
  */
-void createFile(const fs::path& filePath, const unsigned int fileSizeBytes);
+void createFile(const fs::path& filePath, const size_t fileSizeBytes);
 
 /**
  * @brief Creates a file with the given contents. It throws if the file cannot be opened
  */
 void createFile(const fs::path& filePath, const std::string_view contents);
+
+/**
+ * @brief Appends data to a file with the given contents. It throws if the file cannot be opened
+ */
+void appendToFile(const fs::path& filePath, const size_t bytesToAppend);
+
+/**
+ * @brief Appends data to a file with the given contents. It throws if the file cannot be opened
+ */
+void appendToFile(const fs::path& filePath, const std::string_view contentsToAppend);
 
 /**
  * @class LocalTempFile
@@ -53,7 +101,7 @@ void createFile(const fs::path& filePath, const std::string_view contents);
 class LocalTempFile
 {
 public:
-    LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes);
+    LocalTempFile(const fs::path& _filePath, const size_t fileSizeBytes);
     LocalTempFile(const fs::path& _filePath, const std::string_view contents);
     ~LocalTempFile();
 
@@ -64,6 +112,22 @@ public:
     // Allow move operations
     LocalTempFile(LocalTempFile&&) noexcept = default;
     LocalTempFile& operator=(LocalTempFile&&) noexcept = default;
+
+    const fs::path& getPath() const
+    {
+        return mFilePath;
+    }
+
+    /*
+     * @brief Appends bytesToAppend of data to the file.
+     * @see appendToFile()
+     */
+    void appendData(const size_t bytesToAppend) const;
+    /*
+     * @brief Appends contents to the file.
+     * @see appendToFile()
+     */
+    void appendData(const std::string_view contentsToAppend) const;
 
 private:
     fs::path mFilePath;

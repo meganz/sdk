@@ -50,6 +50,8 @@
 #include <mega/fuse/common/client_adapter.h>
 #include <mega/fuse/common/service.h>
 
+#include <optional>
+
 namespace mega {
 
 class Logger;
@@ -697,7 +699,9 @@ public:
     void checkForResumeableSCDatabase();
 
     // set folder link: node, key. authKey is the authentication key to be able to write into the folder
-    error folderaccess(const char*folderlink, const char* authKey);
+    error folderaccess(const char* folderlink,
+                       const char* authKey,
+                       const bool tryToResumeFolderLinkFromCache = false);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
     void openfilelink(handle ph, const byte* fileKey);
@@ -764,6 +768,7 @@ public:
     static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
     static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
     static constexpr char NODE_ATTR_SEN[] = "sen";
+    static constexpr char NODE_ATTR_LABEL[] = "lbl";
     static constexpr char TAG_DELIMITER = NodeSearchFilter::TAG_DELIMITER;
     static constexpr uint32_t MAX_NUMBER_TAGS = 10;
     static constexpr uint32_t MAX_TAGS_SIZE = 3000;
@@ -1255,6 +1260,53 @@ public:
                         const handle newRemoteRootNodeHandle,
                         const char* const newLocalRootPath,
                         std::function<void(error, SyncError)>&& completion);
+
+    /**
+     * @brief Sets the upload throttling configurable value throttleUpdateRate.
+     *
+     * @see Syncs::setThrottleUpdateRate()
+     */
+    void setSyncUploadThrottleUpdateRate(std::chrono::seconds throttleUpdateRate,
+                                         std::function<void(const error)>&& completion);
+
+    /**
+     * @brief Sets the upload throttling configurable value maxUploadsBeforeThrottle.
+     *
+     * @see Syncs::setMaxUploadsBeforeThrottle()
+     */
+    void setSyncMaxUploadsBeforeThrottle(const unsigned maxUploadsBeforeThrottle,
+                                         std::function<void(const error)>&& completion);
+
+    /**
+     * @brief Retrieves the upload throttling configurable values.
+     */
+    void syncUploadThrottleValues(
+        std::function<void(const std::chrono::seconds /* updateRateInSeconds */,
+                           const unsigned /* maxUploadsBeforeThrottle */)>&& completion);
+
+    /**
+     * @brief Retrieves the lower and upper upload throttling configurable values.
+     */
+    void syncUploadThrottleValuesLimits(std::function<void(ThrottleValueLimits&&)>&& completion);
+
+    /**
+     * @brief Checks whether there are delayed uploads pending to be processed.
+     */
+    void checkSyncUploadsThrottled(std::function<void(const bool)>&& completion);
+
+    /**
+     * @brief Sets the IUploadThrottlingManager for Syncs.
+     *
+     * The Syncs object already constructs a IUploadThrottlingManager type object by default.
+     * However, this method allows to change the object if needed.
+     *
+     * @param uploadThrottlingManager The shared_ptr to the IUploadThrottlingManager type object.
+     * @param completion The completion function to be called after the operations
+     * finishes.
+     */
+    void setSyncUploadThrottlingManager(
+        std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
+        std::function<void(const error)>&& completion);
 
 public:
 
@@ -2176,9 +2228,13 @@ public:
 
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once
-    bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot);
-    bool treatAsIfFileDataEqual(const FileFingerprint& fp1, const string& filenameExtensionLowercaseNoDot1,
-                                const FileFingerprint& fp2, const string& filenameExtensionLowercaseNoDot2);
+    bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint,
+                                const LocalPath& file2,
+                                const std::string& filenameExtensionLowercaseNoDot) const;
+    bool treatAsIfFileDataEqual(const FileFingerprint& fp1,
+                                const std::string& filenameExtensionLowercaseNoDot1,
+                                const FileFingerprint& fp2,
+                                const std::string& filenameExtensionLowercaseNoDot2) const;
 
 #ifdef ENABLE_SYNC
 
@@ -2955,6 +3011,8 @@ public:
                               std::shared_ptr<Node> nParent,
                               int rTag);
 
+    using ImportPaswordResult = std::tuple<error, MegaClient::BadPasswordData, std::size_t>;
+
     /**
      * @brief Import password nodes from a file
      *
@@ -2962,7 +3020,7 @@ public:
      * @param source Specifies the source of the input file (e.g. `FileSource::GOOGLE_PASSWORD`)
      * @param parentHandle The handle of the parent node that will contain the imported entries
      * @param rTag tag parameter for putnodes call
-     * @return std::pair with
+     * @return std::tuple with
      * - error: An error code indicating that the whole import operation failed.
      *   + API_EARGS:
      *      * The given parent handle doesn't map to a node
@@ -2975,12 +3033,13 @@ public:
      *   + Errors returned by `MegaClient::createPasswordNodes`
      * - BadPasswordData: A vector of pairs<string, PasswordEntryError> with the lines that were not
      *   successfully parsed (first) and an error code (second) to specify the reason.
+     * - size_t: The number of successfully parsed entries that were sent to putnodes
+     *   @note This number can be 0, in that case, no call to putnodes will be done.
      */
-    std::pair<error, MegaClient::BadPasswordData>
-        importPasswordsFromFile(const std::string& filePath,
-                                const pwm::import::FileSource source,
-                                const NodeHandle parentHandle,
-                                const int rTag);
+    ImportPaswordResult importPasswordsFromFile(const std::string& filePath,
+                                                const pwm::import::FileSource source,
+                                                const NodeHandle parentHandle,
+                                                const int rTag);
 
     /**
      * @brief Ensures the given data can be used to create a new password node.

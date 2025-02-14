@@ -386,6 +386,29 @@ void SdkTest::TearDown()
     out() << "Teardown done, test exiting";
 }
 
+std::pair<std::string, std::string> SdkTest::getTestSuiteAndName() const
+{
+    const auto* testInfo = ::testing::UnitTest::GetInstance()->current_test_info();
+    if (testInfo == nullptr)
+    {
+        assert(testInfo && "This is expected to be called from a test");
+        return {};
+    }
+    return {testInfo->test_suite_name(), testInfo->name()};
+}
+
+std::string SdkTest::getLogPrefix() const
+{
+    const auto [suite, name] = getTestSuiteAndName();
+    return suite + "." + name + " : ";
+}
+
+std::string SdkTest::getFilePrefix() const
+{
+    const auto [suite, name] = getTestSuiteAndName();
+    return suite + "_" + name + "_";
+}
+
 void SdkTest::Cleanup()
 {
      out() << "Cleaning up accounts";
@@ -620,14 +643,14 @@ void SdkTest::Cleanup()
             std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
             for (int i = 0; i < crl->size(); i++)
             {
-                MegaContactRequest *cr = crl->get(i);
+                const MegaContactRequest* cr = crl->get(i);
                 synchronousInviteContact(nApi, cr->getTargetEmail(), "Test cleanup removing outgoing contact request", MegaContactRequest::INVITE_ACTION_DELETE);
             }
 
             crl.reset(megaApi[nApi]->getIncomingContactRequests());
             for (int i = 0; i < crl->size(); i++)
             {
-                MegaContactRequest *cr = crl->get(i);
+                const MegaContactRequest* cr = crl->get(i);
                 synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
             }
 
@@ -1699,10 +1722,10 @@ void SdkTest::inviteContact(const unsigned apiIndex, const string& email, const 
     ASSERT_EQ(API_OK, synchronousInviteContact(apiIndex, email.c_str(), message.c_str(), action)) << "Contact invitation failed";
 }
 
-void SdkTest::replyContact(MegaContactRequest *cr, int action)
+void SdkTest::replyContact(MegaContactRequest* cr, int action, const unsigned apiIndex)
 {
-    unsigned int apiIndex = 1;
-    ASSERT_EQ(API_OK, synchronousReplyContactRequest(apiIndex, cr, action)) << "Contact reply failed";
+    ASSERT_EQ(API_OK, synchronousReplyContactRequest(apiIndex, cr, action))
+        << "Contact reply failed";
 }
 
 int SdkTest::removeContact(unsigned apiIndex, string email)
@@ -18724,353 +18747,6 @@ TEST_F(SdkTest, SdkNodeDescription)
 }
 
 /**
- * @brief SdkNodeTag
- * Steps:
- *  - Create file and upload
- *  - Add tag1 -> API_OK
- *  - Add tag2 -> API_OK
- *  - Add tag3 -> API_OK
- *  - Add tag1 -> API_EEXIST
- *  - Add tag,tag -> API_EARGS
- *  - Remove tag2 -> API_OK
- *  - Remove tag2 -> API_ENOENT
- *  - Update tag1 to tagUpdated -> API_OK
- *  - Update tag2 to tagUpdated -> API_EEXIST
- *  - Update tag1 to tagUpdated2 -> API_ENOENT
- *  - Create another file inside a subdir
- *  - Add some tags to it
- *  - Get all different node tags
- *  - Update file to create a new version
- *  - Check new version retains the same tags
- */
-TEST_F(SdkTest, SdkNodeTag)
-{
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    LOG_info << "___TEST SdkNodeTag___";
-
-    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
-    ASSERT_TRUE(rootnodeA);
-
-    fs::path filename{"test.txt"};
-    sdk_test::LocalTempFile tempLocalFile1(filename, 0);
-    MegaHandle mh = 0;
-    ASSERT_EQ(MegaError::API_OK,
-              doStartUpload(0,
-                            &mh,
-                            filename.u8string().c_str(),
-                            rootnodeA.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/))
-        << "Cannot upload a test file";
-
-    auto checkTag = [](MegaNode* node, const std::string& tag)
-    {
-        std::unique_ptr<MegaStringList> tags(node->getTags());
-        for (int i = 0; i < tags->size(); i++)
-        {
-            if (tag == tags->get(i))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    };
-
-    auto addTag = [this, checkTag](MegaHandle nodeHandle, const std::string& tag) -> ErrorCodes
-    {
-        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
-        EXPECT_TRUE(node);
-        bool check = false;
-        mApi[0].mOnNodesUpdateCompletion =
-            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_TAGS, check);
-        RequestTracker trackerAddTag(megaApi[0].get());
-        megaApi[0]->addNodeTag(node.get(), tag.c_str(), &trackerAddTag);
-        ErrorCodes error = trackerAddTag.waitForResult();
-        if (error != API_OK)
-            return error;
-
-        EXPECT_TRUE(waitForResponse(&check))
-            << "Node hasn't updated tags after " << maxTimeout << " seconds";
-
-        node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
-        EXPECT_TRUE(node);
-        std::unique_ptr<MegaStringList> tags(node->getTags());
-
-        return checkTag(node.get(), tag) ? API_OK : API_ENOENT;
-    };
-
-    auto removeTag = [this, checkTag](MegaHandle nodeHandle, const std::string& tag) -> ErrorCodes
-    {
-        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
-        EXPECT_TRUE(node);
-        bool check = false;
-        mApi[0].mOnNodesUpdateCompletion =
-            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_TAGS, check);
-        RequestTracker trackerAddTag(megaApi[0].get());
-        megaApi[0]->removeNodeTag(node.get(), tag.c_str(), &trackerAddTag);
-        ErrorCodes error = trackerAddTag.waitForResult();
-        if (error != API_OK)
-            return error;
-
-        EXPECT_TRUE(waitForResponse(&check))
-            << "Node hasn't updated tags after " << maxTimeout << " seconds";
-
-        node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
-        EXPECT_TRUE(node);
-        std::unique_ptr<MegaStringList> tags(node->getTags());
-
-        return !checkTag(node.get(), tag) ? API_OK : API_EEXIST;
-    };
-
-    auto updateTag = [this, checkTag](MegaHandle nodeHandle, const std::string& tag, const std::string& oldTag) -> ErrorCodes
-    {
-        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
-        EXPECT_TRUE(node);
-        bool check = false;
-        mApi[0].mOnNodesUpdateCompletion =
-            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_TAGS, check);
-        RequestTracker trackerAddTag(megaApi[0].get());
-        megaApi[0]->updateNodeTag(node.get(), tag.c_str(), oldTag.c_str(), &trackerAddTag);
-        ErrorCodes error = trackerAddTag.waitForResult();
-        if (error != API_OK)
-            return error;
-
-        EXPECT_TRUE(waitForResponse(&check))
-            << "Node hasn't updated tags after " << maxTimeout << " seconds";
-
-        node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
-        EXPECT_TRUE(node);
-        std::unique_ptr<MegaStringList> tags(node->getTags());
-
-        return (checkTag(node.get(), tag) && !checkTag(node.get(), oldTag)) ? API_OK : API_EEXIST;
-    };
-
-    std::string tag1 = "tag1";
-    std::string tag2 = "tag2";
-    std::string tag3 = "tag3";
-    std::string tagUpdated = "tagUpdated";
-    std::string tagUpdated2 = "tagUpdated2";
-
-    ASSERT_EQ(addTag(mh, tag1), API_OK);
-    ASSERT_EQ(addTag(mh, tag2), API_OK);
-    ASSERT_EQ(addTag(mh, tag3), API_OK);
-    ASSERT_EQ(addTag(mh, tag1), API_EEXIST);
-    ASSERT_EQ(addTag(mh, "tag,tag"), API_EARGS);
-
-    //Search a tag in the middle of tags
-    std::unique_ptr<MegaSearchFilter> filter(MegaSearchFilter::createInstance());
-    filter->byTag(tag2.c_str());
-    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-
-    //Search a tag at beginning of the tags
-    filter->byTag(tag1.c_str());
-    nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-
-    //Search a tag at end of the tags
-    filter->byTag(tag3.c_str());
-    nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-
-    // Search matches any part of a tag.
-    std::string tagNoFind = "ta";
-    filter->byTag(tagNoFind.c_str());
-    nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-
-    // Wildcards are not permitted.
-    std::string tagNoFindWithWildCard = "t*g";
-    filter->byTag(tagNoFindWithWildCard.c_str());
-    nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
-
-    // Searching for multiple tags at the same time is not permitted.
-    std::string tagNoFindWithCombi = tag1 + "," + tag2;
-    filter->byTag(tagNoFindWithCombi.c_str());
-    nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
-
-    std::unique_ptr<MegaSearchFilter> filterChildren(MegaSearchFilter::createInstance());
-    filterChildren->byTag(tag2.c_str());
-    filterChildren->byLocationHandle(rootnodeA->getHandle());
-    nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
-    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-
-    filterChildren->byTag(tag1.c_str());
-    nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
-    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-
-    filterChildren->byTag(tag3.c_str());
-    nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
-    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-
-    ASSERT_EQ(removeTag(mh, tag2), API_OK);
-    ASSERT_EQ(removeTag(mh, tag2), API_ENOENT);
-
-    filter->byTag(tag2.c_str());
-    nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 0) << *nodeList;
-
-    ASSERT_EQ(updateTag(mh, tagUpdated, tag1), API_OK);
-
-    ASSERT_EQ(updateTag(mh, tagUpdated, tag3), API_EEXIST);  // New tag already exists
-    ASSERT_EQ(updateTag(mh, tagUpdated2, tag1), API_ENOENT); // Old tag doesn't exist
-
-    ASSERT_EQ(removeTag(mh, tagUpdated), API_OK);
-
-    // Search a tag with only one tag
-    filter->byTag(tag3.c_str());
-    nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-
-    std::string tag4 = "Ñaa";
-    std::string tag4Lowercase = "ñaa";
-    ASSERT_EQ(addTag(mh, tag4), API_OK);
-    filter->byTag(tag4Lowercase.c_str());
-    nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-
-    std::string tag4NoAccent = "naa";
-    filter->byTag(tag4NoAccent.c_str());
-    nodeList.reset(megaApi[0]->search(filter.get()));
-    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-
-    // Tags with an accent are considered different from those without.
-    std::string cafeWithoutAccent = "cafe";
-    std::string cafeWithAccent = "café";
-
-    ASSERT_EQ(addTag(mh, cafeWithoutAccent), API_OK);
-    ASSERT_EQ(addTag(mh, cafeWithAccent), API_OK);
-
-    // Make sure we can add distinct tags that sort equivalently.
-    std::string equivalentWithoutPrefix = "0123";
-    std::string equivalentWithPrefix = "00123";
-
-    ASSERT_EQ(addTag(mh, equivalentWithoutPrefix), API_OK);
-    ASSERT_EQ(addTag(mh, equivalentWithPrefix), API_OK);
-
-    // Tags are case insensitive.
-    ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
-
-    // To prepare for the following block, check natural sorting
-    const std::string tag11 = "tag11";
-    ASSERT_EQ(updateTag(mh, tag11, tag4), API_OK);
-
-    //// Create a new file in a subdir
-    LOG_debug << "[SdkTest::SdkNodeTag] Creating a subdir";
-    bool check = false;
-    mApi[0].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    auto folderHandle = createFolder(0, "dir1", rootnodeA.get());
-    ASSERT_NE(folderHandle, INVALID_HANDLE) << "Cannot create a directory in the cloud";
-    waitForResponse(&check);
-    std::unique_ptr<MegaNode> dirNode(megaApi[0]->getNodeByHandle(folderHandle));
-    resetOnNodeUpdateCompletionCBs();
-
-    LOG_debug << "[SdkTest::SdkNodeTag] Creating a file inside the subdir";
-    fs::path filename2{"test2.txt"};
-    sdk_test::LocalTempFile tempLocalFile2(filename2, 0);
-    MegaHandle mh2 = 0;
-    ASSERT_EQ(MegaError::API_OK,
-              doStartUpload(0,
-                            &mh2,
-                            filename2.u8string().c_str(),
-                            dirNode.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/))
-        << "Cannot upload a second test file";
-
-    LOG_debug << "[SdkTest::SdkNodeTag] Adding tags to the file";
-    std::string subdirtag14 = "subdirtag14";
-    std::string subdirtag4 = "subdirtag4";
-    std::string subdirtag20 = "subdirtag20";
-    ASSERT_EQ(addTag(mh2, subdirtag14), API_OK);
-    ASSERT_EQ(addTag(mh2, subdirtag4), API_OK);
-    ASSERT_EQ(addTag(mh2, subdirtag20), API_OK);
-
-    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags";
-    std::unique_ptr<MegaStringList> allTags(megaApi[0]->getAllNodeTags());
-    ASSERT_NE(allTags, nullptr);
-    auto allTagsV = stringListToVector(*allTags);
-    EXPECT_THAT(allTagsV,
-                testing::ElementsAreArray({equivalentWithPrefix,
-                                           equivalentWithoutPrefix,
-                                           cafeWithAccent,
-                                           cafeWithoutAccent,
-                                           subdirtag4,
-                                           subdirtag14,
-                                           subdirtag20,
-                                           tag3,
-                                           tag11}));
-
-    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with pattern matching";
-    allTags.reset(megaApi[0]->getAllNodeTags("ub*r"));
-    ASSERT_NE(allTags, nullptr);
-    allTagsV = stringListToVector(*allTags);
-    EXPECT_THAT(allTagsV, testing::ElementsAreArray({subdirtag4, subdirtag14, subdirtag20}));
-
-    LOG_debug << "[SdkTest::SdkNodeTag] Testing all tags with exact match";
-    allTags.reset(megaApi[0]->getAllNodeTags(tag11.c_str()));
-    ASSERT_NE(allTags, nullptr);
-    allTagsV = stringListToVector(*allTags);
-    EXPECT_THAT(allTagsV, testing::ElementsAreArray({tag11}));
-
-    LOG_debug << "[SdkTest::SdkNodeTag] Changing the contents of test.txt to force a new version";
-    sdk_test::LocalTempFile fNewVersion("testnewversion.txt", 1);
-    MegaHandle mhNew = INVALID_HANDLE;
-    ASSERT_EQ(MegaError::API_OK,
-              doStartUpload(0,
-                            &mhNew,
-                            "testnewversion.txt",
-                            rootnodeA.get(),
-                            filename.u8string().c_str(),
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/))
-        << "Cannot update the test file";
-    ASSERT_NE(mhNew, INVALID_HANDLE);
-
-    std::unique_ptr<MegaNode> oldNode(megaApi[0]->getNodeByHandle(mh));
-    ASSERT_NE(oldNode, nullptr);
-    std::unique_ptr<MegaStringList> oldTags(oldNode->getTags());
-    ASSERT_NE(oldTags, nullptr);
-
-    std::unique_ptr<MegaNode> newNode(megaApi[0]->getNodeByHandle(mhNew));
-    ASSERT_NE(newNode, nullptr);
-    std::unique_ptr<MegaStringList> newTags(newNode->getTags());
-    ASSERT_NE(newTags, nullptr);
-
-    // Check there are two versions for the file
-    unique_ptr<MegaNodeList> allVersions(megaApi[0]->getVersions(newNode.get()));
-    ASSERT_EQ(allVersions->size(), 2);
-
-    EXPECT_THAT(stringListToVector(*oldTags),
-                testing::UnorderedElementsAreArray(stringListToVector(*newTags)))
-        << "Tags are not maintained after file update";
-
-    LOG_debug << "[SdkTest::SdkNodeTag] Ensure tags from a node are naturally sorted";
-    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mh2));
-    ASSERT_NE(node, nullptr);
-    std::unique_ptr<MegaStringList> tags(node->getTags());
-    ASSERT_NE(tags, nullptr);
-    EXPECT_THAT(stringListToVector(*tags),
-                testing::ElementsAre(subdirtag4, subdirtag14, subdirtag20))
-        << "Tags for a single node are not returned in natural order";
-}
-
-/**
  * @brief Test returned value by MegaApi::getNumNodesAtCacheLRU
  * Steps:
  *  - Check intial number of nodes at LRU cache
@@ -19797,6 +19473,29 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
             &listener);
         ASSERT_EQ(listener.waitForResult(), API_OK);
     }
+
+    // Cancel all subscriptions using null reason list (no-op for free account)
+    {
+        RequestTracker listener{megaApi[0].get()};
+        megaApi[0]->creditCardCancelSubscriptions(
+            static_cast<MegaCancelSubscriptionReasonList*>(
+                nullptr), // passing 'nullptr' is ambiguous
+            nullptr, // id
+            MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+            &listener);
+        ASSERT_EQ(listener.waitForResult(), API_OK);
+    }
+
+    // Cancel all subscriptions using null char pointer (no-op for free account)
+    {
+        RequestTracker listener{megaApi[0].get()};
+        megaApi[0]->creditCardCancelSubscriptions(
+            static_cast<char*>(nullptr), // passing 'nullptr' is ambiguous
+            nullptr, // id
+            MegaApi::CREDIT_CARD_CANCEL_SUBSCRIPTIONS_CAN_CONTACT_NO,
+            &listener);
+        ASSERT_EQ(listener.waitForResult(), API_OK);
+    }
 }
 
 TEST_F(SdkTest, SdkTestSetAccountLevel)
@@ -19902,4 +19601,251 @@ TEST_F(SdkTest, FailsWhenThumbnailIsTooLarge)
     //
     // This should fail as thumbnails must be < 16MiB.
     ASSERT_EQ(setThumbnail(client, node.get(), "content"), API_EARGS);
+}
+
+Error SdkTest::acceptInvitation(MegaApi& client, const MegaContactRequest& invitation)
+{
+    // So we can wait for the invitation to be accepted.
+    RequestTracker tracker(&client);
+
+    // Tell the client to accept the invitation.
+    client.replyContactRequest(&invitation, MegaContactRequest::REPLY_ACTION_ACCEPT, &tracker);
+
+    // Couldn't accept the invitation.
+    if (auto result = tracker.waitForResult(); result != API_OK)
+    {
+        return result;
+    }
+
+    // Convenience.
+    const std::string sender = invitation.getSourceEmail();
+
+    // Wait for the new contact to be added.
+    auto added = WaitFor(
+        [&]()
+        {
+            return hasContact(client, sender) != nullptr;
+        },
+        defaultTimeoutMs);
+
+    // Let the caller know whether the invitation was accepted.
+    return added ? API_OK : LOCAL_ETIMEOUT;
+}
+
+Error SdkTest::befriend(MegaApi& client0, MegaApi& client1)
+{
+    // Users are already friends.
+    if (hasContact(client0, client1.getMyEmail()))
+        return API_OK;
+
+    // Send user1 an invitation.
+    auto [invitation, invitationSent] = sendInvitationTo(client0, client1);
+
+    // Couldn't send the invitation.
+    if (invitationSent != API_OK)
+        return invitationSent;
+
+    // Accept user0's invitation.
+    return acceptInvitation(client1, *invitation);
+}
+
+auto SdkTest::hasContact(MegaApi& client, const std::string& email) -> std::unique_ptr<MegaUser>
+{
+    // Convenience.
+    constexpr auto VISIBLE = MegaUser::VISIBILITY_VISIBLE;
+
+    // Check if email is a contact.
+    auto contact = makeUniqueFrom(client.getContact(email.c_str()));
+
+    // email's an active contact.
+    if (contact && contact->getVisibility() == VISIBLE)
+    {
+        return contact;
+    }
+
+    // email's not an active contact.
+    return nullptr;
+}
+
+auto SdkTest::hasReceivedInvitationFrom(MegaApi& client, const std::string& email)
+    -> std::unique_ptr<MegaContactRequest>
+{
+    // True if an invitation is an incoming invitation from email.
+    auto sentFrom = [&email](const auto& invitation)
+    {
+        return !invitation.isOutgoing() &&
+               Utils::icasecmp(invitation.getSourceEmail(), email.c_str()) == 0;
+    }; // sentFrom
+
+    // Try and find an incoming invitation from email.
+    return findInvitation(client, &MegaApi::getIncomingContactRequests, std::move(sentFrom));
+}
+
+auto SdkTest::hasSentInvitationTo(MegaApi& client, const std::string& email)
+    -> std::unique_ptr<MegaContactRequest>
+{
+    // True if an invitation is an incoming invitation from email.
+    auto sentTo = [&email](const auto& invitation)
+    {
+        return invitation.isOutgoing() &&
+               Utils::icasecmp(invitation.getTargetEmail(), email.c_str()) == 0;
+    }; // sentFrom
+
+    // Try and find an outgoing invitation to email.
+    return findInvitation(client, &MegaApi::getOutgoingContactRequests, std::move(sentTo));
+}
+
+Error SdkTest::removeContact(MegaApi& client, const std::string& email)
+{
+    // Do we even know this contact?
+    auto contact = hasContact(client, email);
+
+    // Don't know the contact.
+    if (!contact || contact->getVisibility() == MegaUser::VISIBILITY_HIDDEN)
+    {
+        return API_ENOENT;
+    }
+
+    RequestTracker tracker(&client);
+
+    // Try and remove the contact.
+    client.removeContact(contact.get(), &tracker);
+
+    // Let the caller know if the contact was removed.
+    return tracker.waitForResult();
+}
+
+Error SdkTest::removeContact(MegaApi& client0, MegaApi& client1)
+{
+    // Try and break the contact relationship.
+    auto result = removeContact(client0, client1.getMyEmail());
+
+    // Couldn't break the contact relationship.
+    if (result != API_OK)
+    {
+        return result;
+    }
+
+    // Wait for the contacts to be purged.
+    auto purged = WaitFor(
+        [&]()
+        {
+            return !hasContact(client0, client1.getMyEmail()) &&
+                   !hasContact(client1, client0.getMyEmail());
+        },
+        defaultTimeoutMs);
+
+    // Let the caller know if the relationship was broken.
+    return purged ? API_OK : LOCAL_ETIMEOUT;
+}
+
+Error SdkTest::sendInvitationTo(MegaApi& client, const std::string& email)
+{
+    // So we can wait for our request to complete.
+    RequestTracker tracker(&client);
+
+    // Ask the client to send the user an invitation.
+    client.inviteContact(email.c_str(), "", MegaContactRequest::INVITE_ACTION_ADD, &tracker);
+
+    // Let caller know whether the invitation was sent.
+    return tracker.waitForResult();
+}
+
+auto SdkTest::sendInvitationTo(MegaApi& client0, MegaApi& client1) -> SendInvitationToResult
+{
+    // Convenience.
+    const std::string email0 = client0.getMyEmail();
+    const std::string email1 = client1.getMyEmail();
+
+    // Couldn't send an invitation to client1.
+    if (auto result = sendInvitationTo(client0, email1); result != API_OK)
+    {
+        return std::make_pair(nullptr, result);
+    }
+
+    std::unique_ptr<MegaContactRequest> invitation;
+
+    // Wait for both clients to recieve the invitation.
+    WaitFor(
+        [&]()
+        {
+            return hasSentInvitationTo(client0, email1) &&
+                   (invitation = hasReceivedInvitationFrom(client1, email0));
+        },
+        defaultTimeoutMs);
+
+    // Invitation was never received.
+    if (!invitation)
+    {
+        return std::make_pair(nullptr, LOCAL_ETIMEOUT);
+    }
+
+    // Invitation was received.
+    return std::make_pair(std::move(invitation), API_OK);
+}
+
+/**
+ * @brief TEST_F TestPublicFolderLinkLogin
+ *
+ * Test setup:
+ *  - Create a folder (Sharee user)
+ *  - Create a public link for that folder (Sharee user)
+ *
+ * Test steps:
+ *  - Login using the folder link (Guest user)
+ *  - Expect fetch to be done with MODE_API
+ *  - Do local logout (Guest user)
+ *  - Login again using the folder link and tryToResumeFolderLinkFromCache as true(Guest user)
+ *  - Expect fetch to be done with MODE_DB
+ *  - Do local logout (Guest user)
+ *  - Login again using the folder link and tryToResumeFolderLinkFromCache as false (Guest user)
+ *  - Expect fetch to be done with MODE_API
+ *
+ */
+TEST_F(SdkTestShares, TestPublicFolderLinkLogin)
+{
+    // Test setup
+    ASSERT_NO_FATAL_FAILURE(createNodeTrees());
+
+    const MegaHandle hfolder = getHandle("/sharedfolder");
+    ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(mSharerIndex, true, true, true))
+        << "Cannot get account details";
+    std::string nodeLink;
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLink(hfolder, nodeLink));
+
+    // Test steps
+    bool tryToResumeFolderLinkFromCache = false;
+    auto loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex,
+                                                        nodeLink.c_str(),
+                                                        nullptr,
+                                                        tryToResumeFolderLinkFromCache);
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK)
+        << "Failed to login to folder " << nodeLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
+    EXPECT_EQ(megaApi[mGuestIndex]->getClient()->fnstats.mode, FetchNodesStats::MODE_API);
+    ASSERT_NO_FATAL_FAILURE(locallogout(mGuestIndex));
+
+    tryToResumeFolderLinkFromCache = true;
+    loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex,
+                                                   nodeLink.c_str(),
+                                                   nullptr,
+                                                   tryToResumeFolderLinkFromCache);
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK)
+        << "Failed to login to folder " << nodeLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
+    EXPECT_EQ(megaApi[mGuestIndex]->getClient()->fnstats.mode, FetchNodesStats::MODE_DB);
+    ASSERT_NO_FATAL_FAILURE(locallogout(mGuestIndex));
+
+    tryToResumeFolderLinkFromCache = false;
+    loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex,
+                                                   nodeLink.c_str(),
+                                                   nullptr,
+                                                   tryToResumeFolderLinkFromCache);
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK)
+        << "Failed to login to folder " << nodeLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
+    EXPECT_EQ(megaApi[mGuestIndex]->getClient()->fnstats.mode, FetchNodesStats::MODE_API);
+
+    // Cleanup
+    ASSERT_NO_FATAL_FAILURE(logout(mGuestIndex, false, 20));
 }

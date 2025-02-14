@@ -119,27 +119,6 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
         }
     }
 
-    /**
-     * This function is called when an inconsistency is detected in the local cache. 
-     * <p>
-     * You should call MegaApiJava.fetchNodes() when this callback is received.
-     *  
-     * @param api
-     *            API object connected to account.
-     * @see MegaGlobalListenerInterface#onReloadNeeded(MegaApiJava api)
-     * @see MegaGlobalListener#onReloadNeeded(MegaApi api)
-     */
-    @Override
-    public void onReloadNeeded(MegaApi api) {
-        if (listener != null) {
-            megaApi.runCallback(new Runnable() {
-                public void run() {
-                    listener.onReloadNeeded(megaApi);
-                }
-            });
-        }
-    }
-
     @Override
     public void onAccountUpdate(MegaApi api) {
         if (listener != null) {

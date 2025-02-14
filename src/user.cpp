@@ -195,7 +195,13 @@ User* User::unserialize(MegaClient* client, string* d)
         }
     }
 
-    if ((i >= 0) || !(u = client->finduser(uh, 1)))
+    if (i >= 0)
+    {
+        return NULL;
+    }
+
+    u = client->finduser(uh, 1);
+    if (!u)
     {
         return NULL;
     }
