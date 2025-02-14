@@ -82,10 +82,10 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeCreationDesc,
     MEGASortOrderTypeModificationAsc,
     MEGASortOrderTypeModificationDesc,
-    MEGASortOrderTypePhotoAsc = 11,
-    MEGASortOrderTypePhotoDesc,
-    MEGASortOrderTypeVideoAsc,
-    MEGASortOrderTypeVideoDesc,
+//    MEGASortOrderTypePhotoAsc = 11, (deprecated)
+//    MEGASortOrderTypePhotoDesc, (deprecated)
+//    MEGASortOrderTypeVideoAsc, (deprecated)
+//    MEGASortOrderTypeVideoDesc, (deprecated)
     MEGASortOrderTypeLinkCreationAsc,
     MEGASortOrderTypeLinkCreationDesc,
     MEGASortOrderTypeLabelAsc,
@@ -142,7 +142,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     // MEGAUserAttributeBackupNames             = 32, (deprecated) // private - byte array
     MEGAUserAttributeCookieSettings          = 33, // private - byte array
     MEGAUserAttributeJsonSyncConfigData      = 34, // private - byte array
-    MEGAUserAttributeDrivesName              = 35, // private - byte array
+    // MEGAUserAttributeDrivesName              = 35, (deprecated) // private - byte array
     MEGAUserAttributeNoCallKit               = 36, // private - byte array
     MEGAUserAttributeAppsPreferences         = 38, // private - byte array - versioned (apps preferences)
     MEGAUserAttributeContentConsumptionPreferences = 39, // private - byte array - versioned (content consumption preferences)
@@ -198,7 +198,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
     RetryServersBusy = 2,
     RetryApiLock = 3,
     RetryRateLimit = 4,
-    RetryLocalLock = 5,
+//    RetryLocalLock = 5, (deprecated)
     RetryUnknown = 6
 };
 
@@ -355,15 +355,6 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
 @property (readonly, nonatomic, nullable) MEGANode *rubbishNode;
 
 /**
- * @brief Inbox node of the account.
- *
- * If you haven't successfully called [MEGASdk fetchNodes] before,
- * this property is nil.
- *
- */
-@property (readonly, nonatomic, nullable) MEGANode *inboxNode;
-
-/**
  * @brief All active transfers.
  */
 @property (readonly, nonatomic) MEGATransferList *transfers;
@@ -406,43 +397,6 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  *
  */
 @property (readonly, nonatomic) Retry waiting;
-
-/*
- * @brief Get the total bytes of started downloads
- * @return Total bytes of started downloads
- *
- * The count starts with the creation of MegaApi and is reset with calls to [MEGASdk resetTotalDownloads]
- * or just before a log in or a log out.
- *
- * Function related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
- */
-@property (readonly, nonatomic) NSNumber *totalsDownloadBytes;
-
-/**
- * @brief Total downloaded bytes since the creation of the MEGASdk object.
- *
- */
-@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes;
-
-/**
- * Get the total bytes of started uploads
- * @return Total bytes of started uploads
- *
- * The count starts with the creation of MegaApi and is reset with calls to [MEGASdk resetTotalDownloads]
- * or just before a log in or a log out.
- *
- * Function related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
- *
- */
-@property (readonly, nonatomic) NSNumber *totalsUploadBytes;
-
-/**
- * @brief Total uploaded bytes since the creation of the MEGASdk object.
- *
- */
-@property (readonly, nonatomic) NSNumber *totalsUploadedBytes;
 
 /**
  * @brief The total number of nodes in the account
@@ -1735,41 +1689,6 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  *
  */
 - (void)cancelCreateAccount;
-
-/**
- * @brief Sends the confirmation email for a new account
- *
- * This function is useful to send the confirmation link again or to send it to a different
- * email address, in case the user mistyped the email at the registration form. It can only
- * be used after a successful call to [MEGASdk createAccount] or [MEGASdk resumeCreateAccount].
- *
- * The associated request type with this request is MEGARequestTypeSendSignupLink.
- *
- * @param email Email for the account
- * @param name Firstname of the user
- * @param password Password for the account
- * @param delegate MEGARequestDelegate to track this request
- *
- * @deprecated This method will be eventually removed. Please, use [MEGASdk resendSignupLinkWithEmail:name:delegate]
- */
-- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk resendSignupLinkWithEmail:name:delegate] instead of this function.")));
-
-/**
- * @brief Sends the confirmation email for a new account
- *
- * This function is useful to send the confirmation link again or to send it to a different
- * email address, in case the user mistyped the email at the registration form. It can only
- * be used after a successful call to [MEGASdk createAccount] or [MEGASdk resumeCreateAccount].
- *
- * The associated request type with this request is MEGARequestTypeSendSignupLink.
- *
- * @param email Email for the account
- * @param name Firstname of the user
- * @param password Password for the account
- *
- * @deprecated This method will be eventually removed. Please, use [MEGASdk resendSignupLinkWithEmail:name]
- */
-- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password __attribute__((deprecated("Use [MEGASdk resendSignupLinkWithEmail:name] instead of this function.")));
 
 /**
  * @brief Sends the confirmation email for a new account
@@ -6858,19 +6777,6 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
 - (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size;
 
 /**
- * @brief Reset the number of total downloads
- * This function resets the number returned by [MEGASdk totalDownloads]
- *
- */
-- (void)resetTotalDownloads;
-
-/**
- * @brief Reset the number of total uploads
- * This function resets the number returned by [MEGASdk totalUploads]
- */
-- (void)resetTotalUploads;
-
-/**
  * @brief Cancel a transfer.
  *
  * When a transfer is cancelled, it will finish and will provide the error code
@@ -7664,20 +7570,6 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
 - (nullable MEGAUser *)userFromInShareNode:(MEGANode *)node recurse:(BOOL)recurse;
 
 /**
- * @brief Check if a MEGANode is being shared.
- *
- * For nodes that are being shared, you can get a a list of MEGAShare
- * objects using [MEGASdk outSharesForNode:].
- *
- * @param node Node to check.
- * @return YES is the MEGANode is being shared, otherwise NO.
- *
- * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
- * Use [MEGANode isShared] instead.
- */
-- (BOOL)isSharedNode:(MEGANode *)node __attribute__((deprecated("This function is intended for debugging and internal purposes and will be probably removed in future updates. Use [MEGANode isShared] instead.")));
-
-/**
  * @brief Get a list with all active outbound sharings
  *
  * @param order Order for the returned list.
@@ -7781,18 +7673,6 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  * @return Base64-encoded fingerprint
  */
 - (nullable NSString *)fingerprintForFilePath:(NSString *)filePath modificationTime:(NSDate *)modificationTime;
-
-/**
- * @brief Get a Base64-encoded fingerprint for a node.
- *
- * If the node doesn't exist or doesn't have a fingerprint, this function returns nil.
- *
- * @param node Node for which we want to get the fingerprint.
- * @return Base64-encoded fingerprint for the file.
- *
- * @deprecated Use [MEGANode fingerprint] instead of this function
- */
-- (nullable NSString *)fingerprintForNode:(MEGANode *)node __attribute__((deprecated("Use [MEGANode fingerprint] instead of this function.")));
 
 /**
  * @brief Returns a node with the provided fingerprint.
@@ -8149,33 +8029,10 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  * The input string must be UTF8 encoded. The returned value will be UTF8 too.
  *
  * @param name Name to convert (UTF8)
- * @return Converted name (UTF8)
- */
-- (nullable NSString *)escapeFsIncompatible:(NSString *)name;
-
-/**
- * @brief Make a name suitable for a file name in the local filesystem
- *
- * This function escapes (%xx) forbidden characters in the local filesystem if needed.
- * You can revert this operation using [MEGASdk unescapeFsIncompatible:]
- *
- * The input string must be UTF8 encoded. The returned value will be UTF8 too.
- *
- * @param name Name to convert (UTF8)
  * @param destinationPath Destination file path
  * @return Converted name (UTF8)
  */
-- (nullable NSString *)escapeFsIncompatible:(NSString *)name destinationPath:(NSString *)destinationPath;
-
-/**
- * @brief Unescape a file name escaped with [MEGASdk escapeFsIncompatible:]
- *
- * The input string must be UTF8 encoded. The returned value will be UTF8 too.
- *
- * @param localName Escaped name to convert (UTF8)
- * @return Converted name (UTF8)
- */
-- (nullable NSString *)unescapeFsIncompatible:(NSString *)localName;
+- (nullable NSString *)escapeFsIncompatible:(NSString *)name destinationPath:(nullable NSString *)destinationPath;
 
 /**
  * @brief Unescape a file name escaped with [MEGASdk escapeFsIncompatible:]
@@ -9230,59 +9087,6 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest number] - Returns the event type
  * - [MEGARequest text] - Returns the event message
- *
- * @param eventType Event type
- * @param message Event message
- * @param delegate Delegate to track this request
- *
- * @warning This function is for internal usage of MEGA apps for debug purposes. This info
- * is sent to MEGA servers.
- *
- * @note Event types are restricted to the following ranges:
- *  - MEGAchat:  [99000, 99150)
- *  - Android:   [99200, 99300)
- *  - iOS:       [99300, 99400)
- *  - MEGA SDK:  [99400, 99500)
- *  - MEGAsync:  [99500, 99600)
- *  - Webclient: [99600, 99800]
- *
- * @deprecated This version of the function is deprecated. Please use [MEGASdk sendEvent:message:addJourneyId:viewId:delegate].
- */
-- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk sendEvent:message:addJourneyId:viewId:delegate] instead of this function.")));
-
-/**
-* @brief Send events to the stats server
-*
-* The associated request type with this request is MEGARequestTypeSendEvent
-* Valid data in the MEGARequest object received on callbacks:
-* - [MEGARequest number] - Returns the event type
-* - [MEGARequest text] - Returns the event message
-*
-* @param eventType Event type
-* @param message Event message
-*
-* @warning This function is for internal usage of MEGA apps for debug purposes. This info
-* is sent to MEGA servers.
-*
-* @note Event types are restricted to the following ranges:
-*  - MEGAchat:  [99000, 99150)
-*  - Android:   [99200, 99300)
-*  - iOS:       [99300, 99400)
-*  - MEGA SDK:  [99400, 99500)
-*  - MEGAsync:  [99500, 99600)
-*  - Webclient: [99600, 99800]
-*
-* @deprecated This version of the function is deprecated. Please use [MEGASdk sendEvent:message:addJourneyId:viewId].
-*/
-- (void)sendEvent:(NSInteger)eventType message:(NSString *)message __attribute__((deprecated("Use [MEGASdk sendEvent:message:addJourneyId:viewId] instead of this function.")));
-
-/**
- * @brief Send events to the stats server
- *
- * The associated request type with this request is MEGARequestTypeSendEvent
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest number] - Returns the event type
- * - [MEGARequest text] - Returns the event message
  * - [MEGARequest flag] - Returns the addJourneyId flag
  * - [MEGARequest sessionKey] - Returns the ViewID
  *
@@ -9545,23 +9349,6 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  * @return The device id associated with the Node of a Backup folder.
  */
 - (nullable NSString *)deviceId;
-
-/**
- * @brief Returns the name set for this device
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the request object received on callbacks:
- * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
- *
- * Valid data in the MEGARequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - name - Returns device name.
- *
- * @param delegate MEGARequestDelegate to track this request
- *
- * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
- */
-- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk getDeviceName:delegate] instead of this function.")));
 
 /**
  * @brief Returns the name previously set for a device
@@ -9887,20 +9674,6 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  * @param delegate MEGARequestDelegate to track this request.
  */
 - (void)checkVpnCredentialWithUserPubKey:(NSString *)userPubKey delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Gets the public IP address and country code.
- *
- * The associated request type with this request is MEGARequestTypeGetMyIP.
- *
- * Valid data in the MEGARequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest name] - Returns the country code.
- * - [MEGARequest text] - Returns the public IP address.
- *
- * @param delegate MEGARequestDelegate to track this request.
- */
-- (void)getMyIPWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Password Manager
 
