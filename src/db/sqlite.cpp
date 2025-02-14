@@ -1948,14 +1948,14 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
                 "WHERE (" + idAncestor1 + " != " + undefStr + " AND nodehandle = " + idAncestor1 + ") "
                 "OR (" + idAncestor2 + " != " + undefStr + " AND nodehandle = " + idAncestor2 + ") "
                 "OR (" + idAncestor3 + " != " + undefStr + " AND nodehandle = " + idAncestor3 + ") "
-                "OR (" + idIncShares + " != " + noShareStr + " AND nodehandle IN "
-                    "(SELECT nodehandle FROM nodes WHERE share & " + idIncShares + " != 0)))";
+                "OR (" + idIncShares + " != " + noShareStr + " AND type != " + filenodeStr + " AND share & " + idIncShares + " != 0))";
 
         static const std::string nodesOfShares =
             "nodesOfShares(" + columnsForNodeAndFilters + ") \n"
             "AS (SELECT " + columnsForNodeAndFilters + " \n"
                 "FROM nodes \n"
-                "WHERE " + idIncShares + " != " + noShareStr + " AND share & " + idIncShares + " != 0)";
+                "WHERE parenthandle NOT IN (SELECT nodehandle FROM ancestors) AND "
+                + idIncShares + " != " + noShareStr + " AND share & " + idIncShares + " != 0)";
 
         static const std::string nodesCTE =
             "nodesCTE(" + columnsForNodeAndFilters + ") \n"
@@ -1997,7 +1997,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
             nodesCTE + ", \n\n" +
             nodesAfterFilters + "\n\n" +
             "SELECT " + columnsForNodeAndOrderBy + " \n"
-            "FROM nodesAfterFilters \n"
+            "FROM nodesAfterFilters GROUP BY nodehandle\n" // Avoid duplicates after union of nodesOfShares and nodesCTE
             "ORDER BY \n" +
             OrderByClause::get(order) + " \n" +
             "LIMIT " + idPageSize + " OFFSET " + idPageOff;
