@@ -24128,7 +24128,7 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
     LocalPath::path2local(&url, &localurl);
 #endif
 
-    localProxySettings->setProxyURL(&localurl);
+    localProxySettings->setProxyURL(localurl);
 
     if (proxySettings->credentialsNeeded())
     {
@@ -24156,20 +24156,19 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
         LocalPath::path2local(&password, &localpassword);
 #endif
 
-        localProxySettings->setCredentials(&localusername, &localpassword);
+        localProxySettings->setCredentials(localusername, localpassword);
     }
 
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PROXY, listener);
     request->setProxy(localProxySettings);
 
     request->performRequest = [this, request]()
-        {
-            Proxy *proxy = request->getProxy();
-            httpio->setproxy(proxy);
-            delete proxy;
-            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-            return API_OK;
-        };
+    {
+        auto proxy = makeUniqueFrom(request->getProxy());
+        httpio->setproxy(*proxy);
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();

@@ -115,7 +115,7 @@ bool getProxyConfiguration(CFDictionaryRef dict, int proxyType, Proxy* proxy)
                     oss << (proxyType == HTTP_PROXY ? "http://" : "https://") << buffer << ":" << port;
                     string link = oss.str();
                     proxy->setProxyType(Proxy::CUSTOM);
-                    proxy->setProxyURL(&link);
+                    proxy->setProxyURL(link);
                     delete [] buffer;
                     return true;
                 }

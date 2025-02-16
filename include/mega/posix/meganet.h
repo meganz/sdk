@@ -99,6 +99,7 @@ protected:
     string proxyscheme;
     string proxyhost;
     int proxyport;
+    int proxytype;
     string proxyip;
     string proxyusername;
     string proxypassword;
@@ -215,7 +216,9 @@ public:
     void addevents(Waiter*, int) override;
 
     void setuseragent(string*) override;
-    void setproxy(Proxy*);
+    void setproxy(const Proxy&) override;
+    std::optional<Proxy> getproxy() const override;
+
 #ifdef MEGA_USE_C_ARES
     void setdnsservers(const char*);
 #endif

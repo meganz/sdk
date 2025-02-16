@@ -384,6 +384,7 @@ CurlHttpIO::CurlHttpIO()
     ipv6deactivationtime = Waiter::ds;
     waiter = NULL;
     proxyport = 0;
+    proxytype = Proxy::NONE;
 }
 
 bool CurlHttpIO::ipv6available()
@@ -1760,6 +1761,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
 void CurlHttpIO::request_proxy_ip()
 {
+#ifdef MEGA_USE_C_ARES
     if (!proxyhost.size())
     {
         return;
@@ -1772,9 +1774,8 @@ void CurlHttpIO::request_proxy_ip()
     httpctx->httpio = this;
     httpctx->hostname = proxyhost;
 
-#ifndef MEGA_USE_C_ARES
     send_request(httpctx);
-#else
+
     httpctx->ares_pending = 1;
 
     if (ipv6proxyenabled)
@@ -1786,6 +1787,11 @@ void CurlHttpIO::request_proxy_ip()
 
     NET_debug << "Resolving IPv4 address for proxy: " << proxyhost;
     ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, httpctx);
+#else
+    // No need to resolve the proxy's IP: cURL will resolve it for us.
+    std::ostringstream ostream;
+    ostream << proxyhost << ":" << proxyport;
+    proxyip = ostream.str();
 #endif
 }
 
@@ -2135,12 +2141,29 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 #endif
 }
 
-void CurlHttpIO::setproxy(Proxy* proxy)
+std::optional<Proxy> CurlHttpIO::getproxy() const
+{
+    // No prior proxy configuration.
+    if (proxyurl.empty())
+        return std::nullopt;
+
+    Proxy proxy;
+
+    // Copy proxy configuration.
+    proxy.setCredentials(proxyusername, proxypassword);
+    proxy.setProxyURL(proxyurl);
+    proxy.setProxyType(proxytype);
+
+    // Return (possibly invalid) proxy configuration.
+    return proxy;
+}
+
+void CurlHttpIO::setproxy(const Proxy& proxy)
 {
     // clear the previous proxy IP
     proxyip.clear();
 
-    if (proxy->getProxyType() != Proxy::CUSTOM || !proxy->getProxyURL().size())
+    if (proxy.getProxyType() != Proxy::CUSTOM || !proxy.getProxyURL().size())
     {
         // automatic proxy is not supported
         // invalidate inflight proxy changes
@@ -2155,9 +2178,10 @@ void CurlHttpIO::setproxy(Proxy* proxy)
         return;
     }
 
-    proxyurl = proxy->getProxyURL();
-    proxyusername = proxy->getUsername();
-    proxypassword = proxy->getPassword();
+    proxyurl = proxy.getProxyURL();
+    proxyusername = proxy.getUsername();
+    proxypassword = proxy.getPassword();
+    proxytype = proxy.getProxyType();
 
     LOG_debug << "Setting proxy: " << proxyurl;
 
