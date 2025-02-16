@@ -2141,18 +2141,18 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 #endif
 }
 
-std::unique_ptr<Proxy> CurlHttpIO::getproxy() const
+std::optional<Proxy> CurlHttpIO::getproxy() const
 {
     // No prior proxy configuration.
     if (proxyurl.empty())
-        return nullptr;
+        return std::nullopt;
 
-    auto proxy = std::make_unique<Proxy>();
+    Proxy proxy;
 
     // Copy proxy configuration.
-    proxy->setCredentials(proxyusername, proxypassword);
-    proxy->setProxyURL(proxyurl);
-    proxy->setProxyType(proxytype);
+    proxy.setCredentials(proxyusername, proxypassword);
+    proxy.setProxyURL(proxyurl);
+    proxy.setProxyType(proxytype);
 
     // Return (possibly invalid) proxy configuration.
     return proxy;

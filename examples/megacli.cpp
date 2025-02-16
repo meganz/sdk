@@ -4887,11 +4887,8 @@ void exec_proxyget(autocomplete::ACState&)
 
 void exec_proxyset(autocomplete::ACState& state)
 {
-    Proxy settings;
-
     // Try and retrieve current proxy settings.
-    if (auto current = client->httpio->getproxy(); current != nullptr)
-        settings = std::move(*current);
+    Proxy settings = client->httpio->getproxy().value_or(Proxy());
 
     // Update settings.
     settings.setCredentials(state.extractflagparam("-username").value_or(settings.getUsername()),

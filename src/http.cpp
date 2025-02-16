@@ -342,9 +342,9 @@ m_off_t HttpIO::getmaxuploadspeed()
 
 void HttpIO::setproxy(const Proxy&) {}
 
-std::unique_ptr<Proxy> HttpIO::getproxy() const
+std::optional<Proxy> HttpIO::getproxy() const
 {
-    return nullptr;
+    return std::nullopt;
 }
 
 void HttpReq::prepareMethod(HttpIO* clientHttpIo, const httpmethod_t reqMethod)
