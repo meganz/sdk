@@ -153,7 +153,7 @@ static inline NSData* dataForImage(CGImageRef image) {
 }
 #endif
 
-bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
+bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout, Hint) {
     jpegout->clear();
     
     bool isThumbnail = !rh;

@@ -277,8 +277,13 @@ std::vector<std::string> IGfxLocalProvider::generateImages(const LocalPath& loca
                 targetHeight = height();
             }
             // LOG_verbose << "resizebitmap w/h: " << targetWidth << "/" << targetHeight;
+
+            // For thumbnail, PNG is allowed images with transparency
+            const auto hint = (dimensions[i] == GfxProc::DIMENSIONS[GfxProc::THUMBNAIL]) ?
+                                  Hint::FORMAT_PNG :
+                                  Hint::NONE;
             string jpeg;
-            if (resizebitmap(targetWidth, targetHeight, &jpeg))
+            if (resizebitmap(targetWidth, targetHeight, &jpeg, hint))
             {
                 images[i] = std::move(jpeg);
             }

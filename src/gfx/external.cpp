@@ -51,7 +51,7 @@ bool GfxProviderExternal::readbitmap(const LocalPath& localname, int /*size*/)
     return true;
 }
 
-bool GfxProviderExternal::resizebitmap(int rw, int rh, string* jpegout)
+bool GfxProviderExternal::resizebitmap(int rw, int rh, string* jpegout, Hint)
 {
     if(!processor) return false;
 

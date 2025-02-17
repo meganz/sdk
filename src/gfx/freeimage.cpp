@@ -247,7 +247,7 @@ void keepOrientationMetadataOnly(FIBITMAP* dib)
 }
 
 // Save the standard bitmap image in webp format.
-std::string saveToMemory(FIBITMAP* dib)
+std::string saveToMemory(FIBITMAP* dib, bool pngIsAllowed)
 {
     FIBITMAP* dibToSave = dib;
 
@@ -273,15 +273,22 @@ std::string saveToMemory(FIBITMAP* dib)
     }
 
     // Allocate Memory and Save
-    auto hmem = ::mega::makeUniqueFrom(FreeImage_OpenMemory(),
-                                       [](FIMEMORY* p)
-                                       {
-                                           FreeImage_CloseMemory(p);
-                                       });
+    const auto hmem = ::mega::makeUniqueFrom(FreeImage_OpenMemory(),
+                                             [](FIMEMORY* p)
+                                             {
+                                                 FreeImage_CloseMemory(p);
+                                             });
     if (!hmem)
         return {};
 
-    if (!FreeImage_SaveToMemory(FIF_WEBP, dibToSave, hmem.get(), 75))
+    const auto [format, flag] = [](FIBITMAP* dib, bool pngIsAllowed)
+    {
+        return FreeImage_IsTransparent(dib) && pngIsAllowed ?
+                   std::make_pair(FIF_PNG, PNG_DEFAULT) :
+                   std::make_pair(FIF_JPEG, JPEG_BASELINE | JPEG_OPTIMIZE | 85);
+    }(dibToSave, pngIsAllowed);
+
+    if (!FreeImage_SaveToMemory(format, dibToSave, hmem.get(), flag))
         return {};
 
     // To string and return
@@ -932,7 +939,7 @@ bool GfxProviderFreeImage::readbitmap(const LocalPath& localname, int size)
     return true;
 }
 
-bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut)
+bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut, Hint hint)
 {
     int px, py;
 
@@ -966,7 +973,7 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut)
 
     keepOrientationMetadataOnly(dib);
 
-    *imageOut = saveToMemory(dib);
+    *imageOut = saveToMemory(dib, hint == Hint::FORMAT_PNG);
 
     return !imageOut->empty();
 }
