@@ -22,6 +22,7 @@
 #include "mega/gfx/freeimage.h"
 
 #include "mega.h"
+#include "mega/logging.h"
 #include "mega/scoped_helpers.h"
 
 #ifdef USE_FREEIMAGE
@@ -246,32 +247,67 @@ void keepOrientationMetadataOnly(FIBITMAP* dib)
     }
 }
 
-// Save the standard bitmap image in webp format.
-std::string saveToMemory(FIBITMAP* dib, bool pngIsAllowed)
+std::pair<FREE_IMAGE_FORMAT, int> decideSaveFormatFlag(FIBITMAP* dib, bool pngIsAllowed)
 {
-    FIBITMAP* dibToSave = dib;
+    return FreeImage_IsTransparent(dib) && pngIsAllowed ?
+               std::make_pair(FIF_PNG, PNG_DEFAULT) :
+               std::make_pair(FIF_JPEG, JPEG_BASELINE | JPEG_OPTIMIZE | 85);
+}
 
-    if (!dibToSave)
-        return {};
+/**
+ * @brief Prepares a standard bitmap image for saving to the target format.
+ *
+ * For JPEG target format, It performs the following steps:
+ *   1. Fills any transparent areas with black.
+ *   2. Converts the image to 24-bit format (required for JPEG).
+ *
+ * @param dib The original standard bitmap image to be processed.
+ * @param format The target format
+ *
+ * @return A pair containing:
+ *   - The converted image (nullptr if no conversion was needed).
+ *   - A boolean indicating if an error occurred:
+ *     - true: An error occurred during processing.
+ *     - false: No error occurred.
+ */
+std::pair<FIBITMAPPtr, bool> prepareImageForSave(FIBITMAP* dib, FREE_IMAGE_FORMAT format)
+{
+    assert(format == FIF_PNG || format == FIF_JPEG);
 
-    assert(FreeImage_GetImageType(dibToSave) == FIT_BITMAP);
+    // No preparation is needed for PNG
+    if (format != FIF_JPEG)
+        return {nullptr, false};
 
-    // Only 24 bits and 36 bits are supported by FreeImage in WebP format
-    // Convert if required and update dibToSave
+    // Prepare for JPEG
     FIBITMAPPtr converted{};
-    if (unsigned bits = FreeImage_GetBPP(dibToSave); bits < 24)
+    if (FreeImage_IsTransparent(dib))
     {
-        converted.reset(FreeImage_ConvertTo24Bits(dibToSave));
+        RGBQUAD black{0, 0, 0, 0};
+        converted.reset(FreeImage_Composite(dib, FALSE, &black));
+        if (!converted)
+        {
+            LOG_err << "FreeImage Composite error";
+            return {nullptr, true};
+        }
 
+        dib = converted.get();
+    }
+
+    if (FreeImage_GetBPP(dib) != 24)
+    {
+        converted.reset(FreeImage_ConvertTo24Bits(dib));
         if (!converted)
         {
             LOG_err << "FreeImage ConvertTo24Bits error";
-            return {}; // Error
+            return {nullptr, true};
         }
-        else
-            dibToSave = converted.get();
     }
 
+    return {std::move(converted), false};
+}
+
+std::string saveToMemory(FIBITMAP* dib, FREE_IMAGE_FORMAT format, int flag)
+{
     // Allocate Memory and Save
     const auto hmem = ::mega::makeUniqueFrom(FreeImage_OpenMemory(),
                                              [](FIMEMORY* p)
@@ -281,21 +317,36 @@ std::string saveToMemory(FIBITMAP* dib, bool pngIsAllowed)
     if (!hmem)
         return {};
 
-    const auto [format, flag] = [](FIBITMAP* dib, bool pngIsAllowed)
-    {
-        return FreeImage_IsTransparent(dib) && pngIsAllowed ?
-                   std::make_pair(FIF_PNG, PNG_DEFAULT) :
-                   std::make_pair(FIF_JPEG, JPEG_BASELINE | JPEG_OPTIMIZE | 85);
-    }(dibToSave, pngIsAllowed);
-
-    if (!FreeImage_SaveToMemory(format, dibToSave, hmem.get(), flag))
+    if (!FreeImage_SaveToMemory(format, dib, hmem.get(), flag))
         return {};
 
-    // To string and return
+    // To string
     BYTE* tdata;
     DWORD tlen;
     FreeImage_AcquireMemory(hmem.get(), &tdata, &tlen);
     return std::string{reinterpret_cast<char*>(tdata), tlen};
+}
+
+// Save the standard bitmap image in jpeg or png format.
+std::string saveToJpegOrPng(FIBITMAP* dib, bool pngIsAllowed)
+{
+    if (!dib)
+        return {};
+
+    assert(FreeImage_GetImageType(dib) == FIT_BITMAP);
+
+    const auto [format, flag] = decideSaveFormatFlag(dib, pngIsAllowed);
+
+    const auto [converted, hasError] = prepareImageForSave(dib, format);
+
+    if (hasError)
+        return {};
+
+    // Point to the converted image
+    if (converted)
+        dib = converted.get();
+
+    return saveToMemory(dib, format, flag);
 }
 }
 
@@ -973,7 +1024,7 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut, Hint h
 
     keepOrientationMetadataOnly(dib);
 
-    *imageOut = saveToMemory(dib, hint == Hint::FORMAT_PNG);
+    *imageOut = saveToJpegOrPng(dib, hint == Hint::FORMAT_PNG);
 
     return !imageOut->empty();
 }
