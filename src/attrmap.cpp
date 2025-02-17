@@ -46,25 +46,20 @@ bool AttrMap::getBool(const char* name) const {
     return value;
 }
 
-std::optional<std::string> AttrMap::getString(std::string_view name) const
+std::optional<std::string> AttrMap::getString(const std::string_view name) const
 {
-    // Try and locate the specified attribute.
-    auto i = map.find(string2nameid(name.data()));
-
-    // Couldn't find the attribute.
-    if (i == map.end())
-        return std::nullopt;
-
-    // Return attribute value to caller.
-    return std::optional<std::string>(std::in_place, i->second);
+    const auto id = AttrMap::string2nameid(name);
+    if (const auto it = map.find(id); it != std::end(map))
+        return std::optional<std::string>{std::in_place, it->second};
+    return std::nullopt;
 }
 
-const char* AttrMap::read(const char* const k) const
+std::optional<std::string_view> AttrMap::getStringView(const std::string_view k) const
 {
     const auto name = AttrMap::string2nameid(k);
-    if (map.contains(name))
-        return map.at(name).c_str();
-    return nullptr;
+    if (const auto it = map.find(name); it != std::end(map))
+        return it->second;
+    return std::nullopt;
 }
 
 int AttrMap::nameid2string(nameid id, char* buf)
@@ -289,6 +284,17 @@ void AttrMap::fromjson(const char* buf)
     {
         JSON::unescape(t);
     }
+}
+
+std::optional<AttrMap> AttrMap::getNestedJsonObject(const std::string_view name) const
+{
+    const auto id = AttrMap::string2nameid(name);
+    const auto it = map.find(id);
+    if (it == std::end(map))
+        return std::nullopt;
+    AttrMap result;
+    result.fromjson(it->second.c_str());
+    return result;
 }
 
 } // namespace

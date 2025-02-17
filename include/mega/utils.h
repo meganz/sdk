@@ -1467,21 +1467,17 @@ std::string numberToString(T number)
  * @tparam T The type of the number to be converted to. It must be an arithmetic type (e.g., int,
  * float, double).
  *
- * @param sv The string to be converter to a number
- * @return An optional value contained in std::optional<T>. Value will not be present if the
- * converstion fails.
+ * @param sv The string to be converted to a number
+ * @return The numeric value contained in a std::optional<T>. std::nullpopt if the conversion fails.
  */
 template<typename T>
 std::optional<T> stringToNumber(const std::string_view sv)
 {
     static_assert(std::is_arithmetic_v<T>, "invalid numeric type");
-
     T r;
-    const auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), r);
-    if (ec == std::errc())
+    if (std::from_chars(sv.data(), sv.data() + sv.size(), r).ec == std::errc())
         return r;
-    else
-        return std::nullopt;
+    return std::nullopt;
 }
 
 /**
@@ -1657,6 +1653,11 @@ template<typename T>
 const T* getPtr(const std::optional<T>& opt) noexcept
 {
     return opt.has_value() ? std::addressof(opt.value()) : nullptr;
+}
+
+inline const char* getConstCharPtr(const std::optional<std::string>& opt)
+{
+    return opt.has_value() ? opt->c_str() : nullptr;
 }
 
 } // namespace mega

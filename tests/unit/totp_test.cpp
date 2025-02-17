@@ -3,7 +3,9 @@
  * @brief Tests for the contents of totp.h file
  */
 
+#include "mega/logging.h"
 #include "mega/totp.h"
+#include "megaapi.h"
 
 #include <gtest/gtest.h>
 
@@ -94,4 +96,55 @@ TEST(GenerateTOTP, PreconditionsFailure)
               "")
         << "tEval lower than t0";
     EXPECT_EQ(generateTOTP("GEZDGN", -5s).first, "") << "Negative time delta";
+}
+
+using TotpData = MegaNode::PasswordNodeData::TotpData;
+using Validation = MegaNode::PasswordNodeData::TotpData::Validation;
+
+static std::pair<std::unique_ptr<TotpData>, std::unique_ptr<Validation>>
+    generateData(const char* shse, const int expT, const int alg, const int nd)
+{
+    std::unique_ptr<TotpData> data{TotpData::createInstance(shse, expT, alg, nd)};
+    std::unique_ptr<Validation> valid{data->getValidation()};
+    return {std::move(data), std::move(valid)};
+};
+
+TEST(GenerateTOTPFromTotpData, PreconditionsFailure)
+{
+    static constexpr std::string_view logPre{"GenerateTOTPFromTotpData.PreconditionsFailure: "};
+    {
+        LOG_debug << logPre << "Empty shared secret";
+        const auto [data, valid] = generateData("", -1, -1, -1);
+        EXPECT_TRUE(valid->sharedSecretExist());
+        EXPECT_FALSE(valid->sharedSecretValid());
+        // Validate defaults in first case
+        EXPECT_TRUE(valid->nDigitsValid());
+        EXPECT_TRUE(valid->expirationTimeValid());
+        EXPECT_TRUE(valid->algorithmValid());
+    }
+
+    {
+        LOG_debug << logPre << "Invalid shared secret";
+        const auto [data, valid] = generateData("GEZDGN==BVGY3TQOJQGEZDGNBVGY3TQOJQ", -1, -1, -1);
+        EXPECT_TRUE(valid->sharedSecretExist());
+        EXPECT_FALSE(valid->sharedSecretValid());
+    }
+
+    {
+        LOG_debug << logPre << "Invalid expiration time";
+        const auto [data, valid] = generateData("GEZDGN", 0, -1, -1);
+        EXPECT_FALSE(valid->expirationTimeValid());
+    }
+
+    {
+        LOG_debug << logPre << "Invalid hash algorithm";
+        const auto [data, valid] = generateData("GEZDGN", -1, 50, -1);
+        EXPECT_FALSE(valid->algorithmValid());
+    }
+
+    {
+        LOG_debug << logPre << "Invalid digits";
+        const auto [data, valid] = generateData("GEZDGN", -1, -1, 5);
+        EXPECT_FALSE(valid->nDigitsValid());
+    }
 }

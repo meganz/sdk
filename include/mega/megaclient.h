@@ -2221,6 +2221,9 @@ public:
 
     shared_ptr<Node> nodeByPath(const char* path, std::shared_ptr<Node> node = nullptr, nodetype_t type = TYPE_UNKNOWN);
 
+    using TotpTokenResult = std::pair<int, std::pair<std::string, unsigned>>;
+    TotpTokenResult generateTotpTokenFromNode(const handle h);
+
 #if ENABLE_SYNC
     std::shared_ptr<Node> nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */

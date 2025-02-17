@@ -3,6 +3,7 @@
  * @brief Test CRUD operation on password nodes (not folders)
  */
 
+#include "mega/totp.h"
 #include "mock_listeners.h"
 #include "SdkTestPasswordManager.h"
 
@@ -691,4 +692,60 @@ TEST(SdkTestPasswordManagerTotpValidation, ValidateTotpFields)
     EXPECT_TRUE(val->algorithmValid());
     EXPECT_TRUE(val->expirationTimeValid());
     EXPECT_TRUE(!val->nDigitsValid());
+}
+
+class SdkTestPasswordManagerGenerateTotpFromMegaApi: public SdkTestPasswordManagerPassNodeCRUD
+{};
+
+TEST_F(SdkTestPasswordManagerGenerateTotpFromMegaApi, Errors)
+{
+    static const auto logPre = getLogPrefix();
+    const auto pwdData = predefinedPwdData();
+    pwdData->setTotpData(nullptr);
+    const auto newPwdNodeHandle = createPasswordNode({}, pwdData.get());
+    ASSERT_NE(newPwdNodeHandle, UNDEF);
+    {
+        LOG_debug << logPre << "Undef handle";
+        const auto [e, tokenLife] = mApi->generateTotpTokenFromNode(UNDEF);
+        EXPECT_EQ(e, API_EARGS);
+    }
+    {
+        LOG_debug << logPre << "Unexisting node with the given handle";
+        const auto [e, tokenLife] = mApi->generateTotpTokenFromNode(newPwdNodeHandle + 1);
+        EXPECT_EQ(e, API_ENOENT);
+    }
+    {
+        LOG_debug << logPre << "Node with no totp data";
+        const auto [e, tokenLife] = mApi->generateTotpTokenFromNode(newPwdNodeHandle);
+        EXPECT_EQ(e, API_EKEY);
+    }
+}
+
+TEST_F(SdkTestPasswordManagerGenerateTotpFromMegaApi, Ok)
+{
+    const auto generateToken = [totpData = predefinedPwdTotpData()]()
+    {
+        return totp::generateTOTP(totpData->sharedSecret(),
+                                  static_cast<unsigned>(totpData->nDigits()),
+                                  std::chrono::seconds{totpData->expirationTime()},
+                                  totp::HashAlgorithm::SHA256);
+    };
+    const auto newPwdNodeHandle = createPasswordNode();
+    ASSERT_NE(newPwdNodeHandle, UNDEF);
+    auto tokenLifeValid = generateToken();
+    const auto [e, tokenLife] = mApi->generateTotpTokenFromNode(newPwdNodeHandle);
+    ASSERT_EQ(e, API_OK);
+
+    if (tokenLifeValid.first != tokenLife.token) // we could have run out of time, refresh
+    {
+        const auto oldLifetime = tokenLifeValid.second;
+        tokenLifeValid = generateToken();
+        // Preserve the lifetime to compare with the other one
+        tokenLifeValid.second = oldLifetime;
+    }
+    EXPECT_EQ(tokenLifeValid.first, tokenLife.token);
+    const auto timeDiff =
+        std::abs(tokenLifeValid.second.count() - tokenLife.remainingLifeTimeSeconds);
+    EXPECT_LE(timeDiff, 1)
+        << "There mustn't be more than 1s difference between totp token generation";
 }

@@ -3980,6 +3980,7 @@ class MegaApiImpl : public MegaApp
         MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
         MegaNode *getNodeByPathOfType(const char* path, MegaNode* n, int type);
         MegaNode *getNodeByHandle(handle handler);
+        MegaTotpTokenGenResult generateTotpTokenFromNode(const MegaHandle handle);
         MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();
         MegaUser* getContact(const char* uid);

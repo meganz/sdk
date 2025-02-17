@@ -2246,20 +2246,16 @@ MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData() const
         aux.fromjson(getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER));
 
         std::optional<PNDataPrivate::TotpDataPrivate> totp{};
-        if (const auto itTotp =
-                aux.map.find(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP));
-            itTotp != aux.map.end())
-        {
-            AttrMap auxTotp;
-            auxTotp.fromjson(itTotp->second.c_str());
-            totp = PNDataPrivate::TotpDataPrivate::fromMap(auxTotp);
-        }
+        if (const auto auxTotp = aux.getNestedJsonObject(MegaClient::PWM_ATTR_PASSWORD_TOTP);
+            auxTotp)
+            totp = PNDataPrivate::TotpDataPrivate::fromMap(*auxTotp);
 
-        return new PNDataPrivate{aux.read(MegaClient::PWM_ATTR_PASSWORD_PWD),
-                                 aux.read(MegaClient::PWM_ATTR_PASSWORD_NOTES),
-                                 aux.read(MegaClient::PWM_ATTR_PASSWORD_URL),
-                                 aux.read(MegaClient::PWM_ATTR_PASSWORD_USERNAME),
-                                 getPtr(totp)};
+        return new PNDataPrivate{
+            getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_PASSWORD_PWD)),
+            getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_PASSWORD_NOTES)),
+            getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_PASSWORD_URL)),
+            getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_PASSWORD_USERNAME)),
+            getPtr(totp)};
     }
 
     return nullptr;
@@ -18398,6 +18394,13 @@ MegaNode* MegaApiImpl::getNodeByHandle(handle handle)
     if(handle == UNDEF) return NULL;
     SdkMutexGuard g(sdkMutex);
     return MegaNodePrivate::fromNode(client->nodebyhandle(handle).get());
+}
+
+MegaTotpTokenGenResult MegaApiImpl::generateTotpTokenFromNode(const MegaHandle handle)
+{
+    SdkMutexGuard g(sdkMutex);
+    const auto result = client->generateTotpTokenFromNode(handle);
+    return {result.first, {result.second.first, result.second.second}};
 }
 
 MegaContactRequest *MegaApiImpl::getContactRequestByHandle(MegaHandle handle)

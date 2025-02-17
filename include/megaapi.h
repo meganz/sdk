@@ -35,6 +35,18 @@ namespace mega
 typedef uint64_t MegaHandle;
 typedef int64_t MegaTimeStamp; // unix timestamp
 
+struct MegaTotpTokenLifetime
+{
+    std::string token;
+    unsigned remainingLifeTimeSeconds;
+};
+
+struct MegaTotpTokenGenResult
+{
+    int errorCode;
+    MegaTotpTokenLifetime result;
+};
+
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
 #else
@@ -18030,6 +18042,28 @@ class MegaApi
          * @return MegaNode object with the handle, otherwise NULL
          */
         MegaNode *getNodeByHandle(MegaHandle h);
+
+        /**
+         * @brief Generate a TOTP token and its lifetime with the data stored in the node with the
+         * given handle.
+         *
+         * @note This performs a synchronous operation.
+         *
+         * @param handle The handle of the password node with the required totp data needed to
+         * compute the totp token and its lifetime.
+         * @return A MegaTotpTokenGenResult with:
+         * - `errorCode`: An error code that can be one of:
+         *   + API_EARGS: The input handle is `UNDEF`
+         *   + API_ENOENT: The input handle does not correspond to a password node
+         *   + API_EKEY: The input handle corresponds to a password node with no TOTP data
+         *   + API_EINTERNAL: The TOTP data stored in the password node is ill-formed and cannot be
+         *     used to generate valid tokens.
+         *   + API_OK: the generation succeeded and the result can be retrieved from `second`
+         * - `MegaTotpTokenLifetime`:
+         *   + `token`: The generated token
+         *   + `remainingLifeTimeSeconds`: The remaining time
+         */
+        MegaTotpTokenGenResult generateTotpTokenFromNode(MegaHandle handle);
 
         /**
          * @brief Get the MegaContactRequest that has a specific handle
