@@ -14068,6 +14068,45 @@ void Syncs::assertThrottlingManagerIsValid() const
     assert(false && "Syncs upload throttling manager should always be valid!!!");
 }
 
+void Syncs::setSdsBackupsFullSync(const std::unique_ptr<string_map>& sds)
+{
+    lock_guard<mutex> sdsGuard(mSdsBackupsFullSyncMutex);
+
+    mSdsBackupsFullSync.clear();
+
+    if (sds)
+    {
+        // Map the sds records from the user attribute to the mSdsBackupsFullSync variable format
+        for (const auto& [backupIdStr, backupStateStr]: *sds)
+        {
+            const handle backupId = stringToHandle(backupIdStr, MegaClient::BACKUPHANDLE);
+            if (ISUNDEF(backupId))
+            {
+                string msg = "Undefined backup ID in '*!sds' attr";
+                LOG_err << msg;
+                assert(false && msg.c_str());
+                continue;
+            }
+            const auto backupState = stringToNumber<int>(backupStateStr);
+            if (!backupState)
+            {
+                string msg = "Invalid backup state \"" + backupStateStr +
+                             "\" in '*!sds' attr value for backup ID " + backupIdStr;
+                LOG_err << msg;
+                assert(false && msg.c_str());
+                continue;
+            }
+            mSdsBackupsFullSync.emplace_back(backupId, *backupState);
+        }
+    }
+}
+
+Syncs::SyncsDesiredStates Syncs::getSdsBackupsFullSync() const
+{
+    lock_guard<mutex> sdsGuard(mSdsBackupsFullSyncMutex);
+    return mSdsBackupsFullSync;
+}
+
 } // namespace
 
 #endif

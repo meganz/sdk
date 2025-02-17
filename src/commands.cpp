@@ -3432,7 +3432,13 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
                 LOG_info << "Unshareable key successfully created";
                 client->unshareablekey.swap(av);
             }
-
+#ifdef ENABLE_SYNC
+            else if (attributeType == ATTR_SYNC_DESIRED_STATE)
+            {
+                const std::unique_ptr<string_map> records{tlv::containerToRecords(av, client->key)};
+                client->syncs.setSdsBackupsFullSync(records);
+            }
+#endif
             client->notifyuser(u);
             mCompletion(API_OK);
         }
@@ -3759,6 +3765,12 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                 tlv::containerToRecords(value, client->key)};
                             if (records || (value.empty() && !version.empty()))
                             {
+#ifdef ENABLE_SYNC
+                                if (at == ATTR_SYNC_DESIRED_STATE)
+                                {
+                                    client->syncs.setSdsBackupsFullSync(records);
+                                }
+#endif
                                 u->setAttribute(at, value, version);
                                 mCompletionTLV(std::move(records), at);
                             }
@@ -5148,7 +5160,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                                                    sds,
                                                                    sdsVersion,
                                                                    ATTR_SYNC_DESIRED_STATE);
-                    std::unique_ptr<string_map> records{tlv::containerToRecords(sds, client->key)};
+#ifdef ENABLE_SYNC
+                    const std::unique_ptr<string_map> records{
+                        tlv::containerToRecords(sds, client->key)};
+                    client->syncs.setSdsBackupsFullSync(records);
+#endif
                 }
                 else
                 {

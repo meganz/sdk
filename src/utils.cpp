@@ -89,6 +89,20 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
+handle stringToHandle(const std::string& b64String, const int handleSize)
+{
+    if (b64String.empty())
+        return UNDEF;
+
+    std::string binary;
+    if (Base64::atob(b64String, binary) != handleSize)
+    {
+        assert(false);
+        return UNDEF;
+    }
+    return *reinterpret_cast<handle*>(binary.data());
+}
+
 std::pair<bool, TypeOfLink> toTypeOfLink(nodetype_t type)
 {
     bool error = false;
