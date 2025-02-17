@@ -361,26 +361,6 @@ public:
     size_t getNum() const;
 
     /**
-     * @brief Sets previous Unused index
-     */
-    void setPrevUnused(const size_t prev)
-    {
-        mPrevUnused = prev;
-    }
-
-    /**
-     * @brief Gets the number of the previous unused connection if any or RAIDPARTS if it has never
-     * been replaced.
-     *
-     * @return The number of the previous unused connection if any or RAIDPARTS if it has never been
-     * replaced.
-     */
-    size_t getPrevUnused() const
-    {
-        return mPrevUnused;
-    }
-
-    /**
      * @brief Checks if mReason is not an error reason
      * @return true if the reason is not an error reason, otherwise returns false.
      */
@@ -416,8 +396,6 @@ public:
 private:
     UnusedReason mReason{UN_NOT_ERR};
     size_t mNum{};
-    size_t mPrevUnused{
-        RAIDPARTS}; // Index to store previous unused part when it has been replaced by another one
 };
 
 /**
@@ -786,22 +764,6 @@ public:
     std::pair<int, m_off_t> getMinAndMeanSpeed(const dstime dsSinceLastWatch);
 
     /**
-     * @brief Retrieves the position range for a specific connection in a streaming transfer.
-     *
-     * This function determines the position range to be used for the given connection, considering
-     * whether the transfer is in RAID mode and if the connection has been previously reused.
-     *
-     * @param connectionNum The index of the connection for which the position range is requested.
-     * @return A tuple containing:
-     *   - `bool`: Indicates whether a new buffer was supplied.
-     *   - `bool`: Indicates whether the connection should pause for RAID.
-     *   - `std::optional<std::pair<m_off_t, m_off_t>>`: The position range for the connection, or
-     * `std::nullopt` if the range could not be retrieved.
-     */
-    std::tuple<bool, bool, std::optional<std::pair<m_off_t, m_off_t>>>
-        getConnectionPosRange(const unsigned int connectionNum);
-
-    /**
     *   @brief Calculate speed and mean speed for DirectRead aggregated operations.
     *
     *   Controlling progress values are updated when an output piece is delivered to the client.
@@ -869,14 +831,6 @@ private:
     *   @see HttpReq
     */
     std::vector<std::unique_ptr<HttpReq>> mReqs;
-
-    /**
-     * @brief map connection index to Position Range.
-     *
-     * For every active connection, we store current position range in case we need to reuse for
-     * another connection. (i.e when unused connection has been hot swapped)
-     */
-    std::map<size_t, std::pair<m_off_t, m_off_t>> mPosRangeReqs;
 
     /**
      *   @brief Vector of pairs of <Bytes downloaded> and <Total milliseconds> for throughput
