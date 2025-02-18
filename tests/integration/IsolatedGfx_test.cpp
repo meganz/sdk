@@ -3,7 +3,6 @@
 
 namespace
 {
-
 bool isTransparency(const fs::path& image, FREE_IMAGE_FORMAT fif)
 {
     const auto filepath = image.c_str();
@@ -85,9 +84,9 @@ protected:
 
     static constexpr const char* TRANSPARENCY_IMAGE = "transparency.png";
 
-    static constexpr const char* TRANSPARENCY_THUMBNAIL = "transparency_thumbnail.webp";
+    static constexpr const char* TRANSPARENCY_THUMBNAIL = "transparency_thumbnail.png";
 
-    static constexpr const char* TRANSPARENCY_PREVIEW = "transparency_preview.webp";
+    static constexpr const char* TRANSPARENCY_PREVIEW = "transparency_preview.jpg";
 
     static constexpr const char* ORIENTATION_IMAGE = "orientation.jpg";
 
@@ -172,9 +171,9 @@ TEST_F(SdkTestIsolatedGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
 }
 
-TEST_F(SdkTestIsolatedGfx, SupportTransparency)
+TEST_F(SdkTestIsolatedGfx, ThumbnailSupportTransparency)
 {
-    LOG_info << "___TEST SupportTransparency";
+    LOG_info << "___TEST ThumbnailSupportTransparency";
 
     // Download test data
     ASSERT_TRUE(
@@ -193,10 +192,12 @@ TEST_F(SdkTestIsolatedGfx, SupportTransparency)
 
     // Check all are transparency images
     ASSERT_TRUE(isTransparency(fs::path{TRANSPARENCY_IMAGE}, FIF_PNG));
-    ASSERT_TRUE(isTransparency(fs::path{TRANSPARENCY_THUMBNAIL}, FIF_WEBP));
-    ASSERT_TRUE(isTransparency(fs::path{TRANSPARENCY_PREVIEW}, FIF_WEBP));
+    ASSERT_EQ(FreeImage_GetFileType(TRANSPARENCY_THUMBNAIL, 0), FIF_PNG);
+    ASSERT_TRUE(isTransparency(fs::path{TRANSPARENCY_THUMBNAIL}, FIF_PNG));
+    ASSERT_EQ(FreeImage_GetFileType(TRANSPARENCY_PREVIEW, 0), FIF_JPEG);
+    ASSERT_FALSE(isTransparency(fs::path{TRANSPARENCY_PREVIEW}, FIF_JPEG));
 
-    LOG_info << "___TEST SupportTransparency end___";
+    LOG_info << "___TEST ThumbnailSupportTransparency end___";
 }
 
 TEST_F(SdkTestIsolatedGfx, OnlyMetaDataOrientationIsKept)
