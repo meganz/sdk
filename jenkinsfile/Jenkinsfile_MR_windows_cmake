@@ -85,6 +85,9 @@ pipeline {
                         TMP       = "${windows_sources_workspace}\\tmp"
                         TEMP      = "${windows_sources_workspace}\\tmp"
                         TMPDIR    = "${windows_sources_workspace}\\tmp"
+                        MEGAQTPATH_X64 = "C:\\Qt\\Qt5.15.16\\5.15.16\\x64"
+                        MEGAQTPATH_X86 = "C:\\Qt\\Qt5.15.16\\5.15.16\\x86"
+                        CMAKE_COMMON = "-DSWIG_EXECUTABLE='C:\\swigwin-4.0.2\\swig.exe' -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DCMAKE_VERBOSE_MAKEFILE=ON"
                     }
                     options{
                         timeout(time: 150, unit: 'MINUTES')
@@ -95,11 +98,11 @@ pipeline {
                             sh "echo Building SDK x64"
                             sh "mkdir build_dir"
                             sh "mkdir tmp"
-                            sh "cmake -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_GENERATOR_PLATFORM=x64 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir\\\\"
+                            sh "cmake -DCMAKE_PREFIX_PATH='${MEGAQTPATH_X64}' -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' ${BUILD_OPTIONS} ${CMAKE_COMMON} -DCMAKE_GENERATOR_PLATFORM=x64 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir\\\\"
                             sh "cmake --build '${windows_sources_workspace}'\\\\build_dir\\\\ --config Debug -j 1"
                             sh "echo Building SDK x86"
                             sh "mkdir build_dir_x86"
-                            sh "cmake -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_GENERATOR_PLATFORM=Win32 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir_x86\\\\"
+                            sh "cmake -DCMAKE_PREFIX_PATH='${MEGAQTPATH_X86}' -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' ${BUILD_OPTIONS} ${CMAKE_COMMON} -DCMAKE_GENERATOR_PLATFORM=Win32 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir_x86\\\\"
                             sh "cmake --build '${windows_sources_workspace}'\\\\build_dir_x86\\\\ --config Debug -j 1"
                         }
                     }
