@@ -480,25 +480,25 @@ bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int s
         return false;
     }
 
-    if (fif == FIF_JPEG)
+    // Load flag
+    const auto flag = [fif, size]()
     {
-        // load JPEG (scale & EXIF-rotate)
-        dib = FreeImage_LoadX(fif,
-                              imagePath.localpath.c_str(),
-                              JPEG_EXIFROTATE | JPEG_FAST | (size << 16));
-        if (!dib)
+        switch (fif)
         {
-            return false;
+            case FIF_JPEG:
+                return JPEG_EXIFROTATE | JPEG_FAST | (size << 16);
+            case FIF_RAW:
+                return RAW_PREVIEW;
+            default:
+                return 0;
         }
-    }
-    else
+    }();
+
+    // Load
+    dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(), flag);
+    if (!dib)
     {
-        // load all other image types - for RAW formats, rely on embedded preview
-        dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(), (fif == FIF_RAW) ? RAW_PREVIEW : 0);
-        if (!dib)
-        {
-            return false;
-        }
+        return false;
     }
 
     w = static_cast<int>(FreeImage_GetWidth(dib));
