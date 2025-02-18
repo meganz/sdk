@@ -759,17 +759,12 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 sharedNode_vector MegaClient::getInShares()
 {
     sharedNode_vector nodes;
-    for (auto &it : users)
-    {
-        for (auto &share : it.second.sharing)
+
+    forEachIncomingShare(
+        [&nodes](std::shared_ptr<Node> node)
         {
-            std::shared_ptr<Node> n = nodebyhandle(share);
-            if (n && !n->parent)    // top-level inshare have parent==nullptr
-            {
-                nodes.push_back(n);
-            }
-        }
-    }
+            nodes.emplace_back(std::move(node));
+        });
 
     return nodes;
 }

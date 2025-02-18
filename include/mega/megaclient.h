@@ -2056,6 +2056,32 @@ public:
     // return the list of incoming shared folder (only top level, nested inshares are skipped)
     sharedNode_vector getInShares();
 
+    template<typename Function>
+    using IsIncomingShareIterator =
+        std::conjunction<std::is_invocable<Function, std::shared_ptr<Node>>,
+                         std::is_same<std::invoke_result_t<Function, std::shared_ptr<Node>>, void>>;
+
+    // Call function on each incoming share.
+    template<typename Function>
+    auto forEachIncomingShare(Function&& function)
+        -> std::enable_if_t<IsIncomingShareIterator<Function>::value, void>
+    {
+        // Iterate over each user.
+        for (const auto& user: users)
+        {
+            // And each node handle shared by that user.
+            for (const auto& handle: user.second.sharing)
+            {
+                // Get our hands on the incoming shared node.
+                if (auto node = nodebyhandle(handle); node && node->parent == nullptr)
+                {
+                    // Pass the node to our iterator function.
+                    std::invoke(function, std::move(node));
+                }
+            }
+        }
+    }
+
     // return the list of verified incoming shared folders (only top level, nested inshares are skipped)
     sharedNode_vector getVerifiedInShares();
 
