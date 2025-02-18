@@ -8694,7 +8694,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    -1 /*cd403*/,
                    2 /*cd429*/,
                    -1 /*cd503*/,
-                   1 /*nFailedReqs*/,
+                   0 /*nFailedReqs*/,
                    30000 /*streamingMinimumRateBps*/,
                    300000 /*downloadLimitBps*/,
                    180 /*timeout*/);
