@@ -686,8 +686,34 @@ auto NodeManager::getNodeTagsBelow(CancelToken cancelToken,
                                    const std::string& pattern)
     -> std::optional<std::set<std::string>>
 {
+    // Which handles we want to search below.
+    std::set<NodeHandle> handles;
+
     // Make sure we have exclusive access to the database.
     LockGuard guard(mMutex);
+
+    // Figure out which handles the user wants to search below.
+    if (handle.isUndef())
+    {
+        // User wants to search below incoming shares.
+        mClient.forEachIncomingShare(
+            [&handles](std::shared_ptr<Node> node)
+            {
+                // But only if they have full access permissions.
+                if (node->inshare->access == FULL)
+                    handles.emplace(node->nodeHandle());
+            });
+
+        // And below the usual roots.
+        handles.emplace(rootnodes.files);
+        handles.emplace(rootnodes.rubbish);
+        handles.emplace(rootnodes.vault);
+    }
+    else
+    {
+        // User wants to search below a particular node.
+        handles.emplace(handle);
+    }
 
     // Convenience.
     static const auto warning = [](const char* message)
@@ -704,8 +730,27 @@ auto NodeManager::getNodeTagsBelow(CancelToken cancelToken,
     if (pattern.find(MegaClient::TAG_DELIMITER) != std::string::npos)
         return warning("You can't filter by multiple tags at the same time");
 
-    // Try and retrieve the tags below the specified node.
-    return mTable->getNodeTagsBelow(std::move(cancelToken), handle, pattern);
+    std::optional<std::set<std::string>> accumulatedTags;
+
+    // Try and retrieve the tags below the specified nodes.
+    for (const auto& h: handles)
+    {
+        // Try and retrieve tags below this node.
+        auto tags = mTable->getNodeTagsBelow(cancelToken, h, pattern);
+
+        // Couldn't get tags.
+        if (!tags)
+            continue;
+
+        // Merge tags into accumulated result if possible.
+        if (accumulatedTags)
+            accumulatedTags->merge(*tags);
+        else
+            accumulatedTags = std::move(tags);
+    }
+
+    // Return accumulated tags to caller.
+    return accumulatedTags;
 }
 
 sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
