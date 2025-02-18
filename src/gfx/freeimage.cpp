@@ -25,6 +25,8 @@
 #include "mega/logging.h"
 #include "mega/scoped_helpers.h"
 
+#include <optional>
+
 #ifdef USE_FREEIMAGE
 
 #ifdef _WIN32
@@ -131,48 +133,13 @@ FIBITMAP* rescale(FIBITMAP* dib, int width, int height)
     return standardBitmap;
 }
 
-// Create EXIF data with Orientation tag
-std::vector<uint8_t> createOrientationOnlyExifRawData(uint16_t orientation)
+using FITAGPtr = std::unique_ptr<FITAG, decltype(&FreeImage_DeleteTag)>;
+
+FITAGPtr getTagClone(FREE_IMAGE_MDMODEL model, FIBITMAP* dib, const char* key)
 {
-    // Minimal EXIF structure
-    return std::vector<uint8_t>{
-        // EXIF Header "Exif\0\0"
-        0x45,
-        0x78,
-        0x69,
-        0x66,
-        0x00,
-        0x00,
-        // TIFF Header (little-endian)
-        0x49,
-        0x49,
-        0x2A,
-        0x00,
-        0x08,
-        0x00,
-        0x00,
-        0x00,
-        // Number of IFD entries (1 entry)
-        0x01,
-        0x00,
-        // Orientation tag (ID=0x0112, Type=SHORT, Count=1, Value=orientation)
-        0x12,
-        0x01,
-        0x03,
-        0x00,
-        0x01,
-        0x00,
-        0x00,
-        0x00,
-        static_cast<uint8_t>(orientation & 0xFF),
-        0x00,
-        0x00,
-        0x00,
-        // End of IFD (no next IFD)
-        0x00,
-        0x00,
-        0x00,
-        0x00};
+    FITAG* searchedTag = nullptr;
+    FreeImage_GetMetadata(model, dib, key, &searchedTag);
+    return ::mega::makeUniqueFrom(FreeImage_CloneTag(searchedTag), &FreeImage_DeleteTag);
 }
 
 FITAG* getTag(FREE_IMAGE_MDMODEL model, FIBITMAP* dib, const char* key)
@@ -182,34 +149,13 @@ FITAG* getTag(FREE_IMAGE_MDMODEL model, FIBITMAP* dib, const char* key)
     return searchedTag;
 }
 
-using FITAGPtr = std::unique_ptr<FITAG, decltype(&FreeImage_DeleteTag)>;
-
-//
-// Returns a tag otherwise nullptr on errors
-FITAGPtr createTag(const char* key, const std::vector<uint8_t>& data)
-{
-    auto tagPtr = mega::makeUniqueFrom(FreeImage_CreateTag(), FreeImage_DeleteTag);
-    if (tagPtr)
-    {
-        FreeImage_SetTagKey(tagPtr.get(), key);
-        FreeImage_SetTagLength(tagPtr.get(), static_cast<DWORD>(data.size()));
-        FreeImage_SetTagCount(tagPtr.get(), static_cast<DWORD>(data.size()));
-        FreeImage_SetTagType(tagPtr.get(), FIDT_BYTE);
-        FreeImage_SetTagValue(tagPtr.get(), data.data());
-    }
-    return tagPtr;
-};
-
-// Remove all metadata except FIMD_EXIF_MAIN as we read orientation from here
-// Write orientation to FIMD_EXIF_RAW as FreeImage write this (not FIMD_EXIF_MAIN)
-// as EXIF on webp format
-void keepOrientationMetadataOnly(FIBITMAP* dib)
+void removeAllMetadata(FIBITMAP* dib)
 {
     if (!dib)
         return;
 
-    // Remove meta
     FreeImage_SetMetadata(FIMD_COMMENTS, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_MAIN, dib, nullptr, nullptr);
     FreeImage_SetMetadata(FIMD_EXIF_EXIF, dib, nullptr, nullptr);
     FreeImage_SetMetadata(FIMD_EXIF_GPS, dib, nullptr, nullptr);
     FreeImage_SetMetadata(FIMD_EXIF_MAKERNOTE, dib, nullptr, nullptr);
@@ -220,31 +166,6 @@ void keepOrientationMetadataOnly(FIBITMAP* dib)
     FreeImage_SetMetadata(FIMD_ANIMATION, dib, nullptr, nullptr);
     FreeImage_SetMetadata(FIMD_CUSTOM, dib, nullptr, nullptr);
     FreeImage_SetMetadata(FIMD_EXIF_RAW, dib, nullptr, nullptr);
-
-    // Get orientation from FIMD_EXIF_MAIN
-    FITAG* orientationPtr = getTag(FIMD_EXIF_MAIN, dib, "Orientation");
-
-    // Add orientation only exif to ExifRaw tag as FreeImage lib only add this tag to webp's Exif
-    if (orientationPtr && (FIDT_SHORT == FreeImage_GetTagType(orientationPtr)))
-    {
-        const uint16_t value = *((const uint16_t*)FreeImage_GetTagValue(orientationPtr));
-        const auto exifRawData = createOrientationOnlyExifRawData(value);
-        const auto tagPtr = createTag("ExifRaw", exifRawData);
-        if (!tagPtr)
-        {
-            LOG_err << "FreeImage creates ExifRaw Error";
-            return;
-        }
-
-        const auto ret = FreeImage_SetMetadata(FIMD_EXIF_RAW,
-                                               dib,
-                                               FreeImage_GetTagKey(tagPtr.get()),
-                                               tagPtr.get());
-        if (!ret)
-        {
-            LOG_err << "FreeImage SetMetadata FIMD_EXIF_RAW Error";
-        }
-    }
 }
 
 std::pair<FREE_IMAGE_FORMAT, int> decideSaveFormatFlag(FIBITMAP* dib, bool pngIsAllowed)
@@ -347,6 +268,73 @@ std::string saveToJpegOrPng(FIBITMAP* dib, bool pngIsAllowed)
         dib = converted.get();
 
     return saveToMemory(dib, format, flag);
+}
+
+std::optional<WORD> getOrientation(FIBITMAP* dib)
+{
+    FITAG* tag = getTag(FIMD_EXIF_MAIN, dib, "Orientation");
+
+    // Invalid
+    if (!tag || (FreeImage_GetTagID(tag) != 0x112) || (FreeImage_GetTagType(tag) != FIDT_SHORT))
+    {
+        return std::nullopt;
+    }
+
+    return *((const WORD*)FreeImage_GetTagValue(tag));
+}
+
+//
+// It may rotate the image based on EXIF orientation tag. It may release the original image and
+// update the pointer to the new rotated image.
+//
+FIBITMAPPtr rotateOnExifOrientation(FIBITMAPPtr dib)
+{
+    const auto orientation = getOrientation(dib.get());
+    if (!orientation.has_value())
+        return dib;
+
+    // Helper: rotate, release the original, and update the pointer to the new rotated one
+    auto rotate = [](FIBITMAPPtr dib, double degree)
+    {
+        if (auto rotated = FreeImage_Rotate(dib.get(), degree); rotated)
+        {
+            dib.reset(rotated);
+        }
+        return dib;
+    };
+
+    switch (orientation.value())
+    {
+        case 1: // Normal
+            break;
+        case 2: // Mirror horizontal
+            FreeImage_FlipHorizontal(dib.get());
+            break;
+        case 3: // Rotate 180
+            dib = rotate(std::move(dib), 180);
+            break;
+        case 4: // Mirror vertical
+            FreeImage_FlipVertical(dib.get());
+            break;
+        case 5: // Mirror horizontal and rotate 270 CW
+            dib = rotate(std::move(dib), 90);
+            FreeImage_FlipVertical(dib.get());
+            break;
+        case 6: // Rotate 90 CW
+            dib = rotate(std::move(dib), -90);
+            break;
+        case 7: // Mirror horizontal and rotate 90 CW
+            dib = rotate(std::move(dib), -90);
+            FreeImage_FlipVertical(dib.get());
+            break;
+        case 8: // Rotate 270 CW
+            dib = rotate(std::move(dib), 90);
+            break;
+        default:
+            break;
+    }
+
+    return dib;
 }
 }
 
@@ -486,7 +474,7 @@ bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int s
         switch (fif)
         {
             case FIF_JPEG:
-                return JPEG_EXIFROTATE | JPEG_FAST | (size << 16);
+                return JPEG_FAST | (size << 16);
             case FIF_RAW:
                 return RAW_PREVIEW;
             default:
@@ -500,6 +488,12 @@ bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int s
     {
         return false;
     }
+
+    // Rotate first
+    dib = rotateOnExifOrientation(FIBITMAPPtr{dib}).release();
+
+    // Remove Metadata after
+    removeAllMetadata(dib);
 
     w = static_cast<int>(FreeImage_GetWidth(dib));
     h = static_cast<int>(FreeImage_GetHeight(dib));
@@ -1021,8 +1015,6 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut, Hint h
     }
     FreeImage_Unload(dib);
     dib = tdib;
-
-    keepOrientationMetadataOnly(dib);
 
     *imageOut = saveToJpegOrPng(dib, hint == Hint::FORMAT_PNG);
 
