@@ -5305,6 +5305,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_delvpncredential, sequence(text("delvpncredential"), param("slotID")));
     p->Add(exec_checkvpncredential, sequence(text("checkvpncredential"), param("userpublickey")));
     p->Add(exec_getnetworktestserver, text("getnetworktestserver"));
+    p->Add(exec_networktest, text("networktest"));
     /* MEGA VPN commands END */
 
     p->Add(exec_fetchcreditcardinfo, text("cci"));
@@ -13130,7 +13131,7 @@ void exec_checkvpncredential(autocomplete::ACState& s)
 void exec_getnetworktestserver(autocomplete::ACState&)
 {
     client->getNetworkConnectivityTestServerInfo(
-        [](const Error& e, NetworkConnectivityTest::ServerInfo&& info)
+        [](const Error& e, NetworkConnectivityTestServerInfo&& info)
         {
             if (e == API_OK)
             {
@@ -13148,6 +13149,50 @@ void exec_getnetworktestserver(autocomplete::ACState&)
             {
                 cout << "Error requesting network connectivity test server info: " << errorstring(e)
                      << " (" << e << ")" << endl;
+            }
+        });
+}
+
+static string NetworkConnectivityTestStatusToString(NetworkConnectivityTestMessageStatus status)
+{
+    switch (status)
+    {
+        case NetworkConnectivityTestMessageStatus::PASS:
+            return "Pass";
+        case NetworkConnectivityTestMessageStatus::FAIL:
+            return "Fail";
+        case NetworkConnectivityTestMessageStatus::NET_UNREACHABLE:
+            return "Network unreachable";
+        default:
+            return "Not run / Unknown";
+    }
+}
+
+void exec_networktest(autocomplete::ACState&)
+{
+    client->runNetworkConnectivityTest(
+        [](const Error& e, const NetworkConnectivityTestResults& results)
+        {
+            if (e == API_OK)
+            {
+                cout << "Network connectivity test:\n"
+                     << "\tIPv4 UDP: "
+                     << NetworkConnectivityTestStatusToString(results.ipv4.udpMessages) << '\n'
+                     << "\tIPv4 DNS: "
+                     << NetworkConnectivityTestStatusToString(results.ipv4.dnsLookupMessages)
+                     << '\n'
+                     << "\tIPv4 summary: " << results.ipv4.summary << '\n'
+                     << "\tIPv6 UDP: "
+                     << NetworkConnectivityTestStatusToString(results.ipv6.udpMessages) << '\n'
+                     << "\tIPv6 DNS: "
+                     << NetworkConnectivityTestStatusToString(results.ipv6.dnsLookupMessages)
+                     << '\n'
+                     << "\tIPv6 summary: " << results.ipv6.summary << endl;
+            }
+            else
+            {
+                cout << "Error running network connectivity test: " << errorstring(e) << " (" << e
+                     << ")" << endl;
             }
         });
 }
