@@ -4917,19 +4917,26 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getNodeHandle - Returns the handle of the node
      * - MegaRequest::getAccess - Returns true
+     * - MegaRequest::getNumber - Returns expire time
+     * - MegaRequest::getFlag - Returns true if writable
+     * - MegaRequest::getTransferTag - Returns if share key is shared with mega
      * <p>
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getLink - Public link
+     * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
+     * - MegaRequest::getPassword - Returns base64 encryption key used for share-key (only if
+     * writable=true and megaHosted=true)
      * <p>
-     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish
+     * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
      *
-     * @param node     MegaNode to get the public link
-     * @param listener MegaRequestListener to track this request
+     * @param node       MegaNode to get the public link
+     * @param expireTime Unix timestamp until the public link will be valid
+     * @param listener   MegaRequestListener to track this request
      */
-    public void exportNode(MegaNode node, MegaRequestListenerInterface listener) {
-        megaApi.exportNode(node, createDelegateRequestListener(listener));
+    public void exportNode(MegaNode node, int expireTime, MegaRequestListenerInterface listener) {
+        megaApi.exportNode(node, expireTime, false, false, createDelegateRequestListener(listener));
     }
 
     /**
@@ -4939,65 +4946,25 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getNodeHandle - Returns the handle of the node
      * - MegaRequest::getAccess - Returns true
+     * - MegaRequest::getNumber - Returns expire time
+     * - MegaRequest::getFlag - Returns true if writable
+     * - MegaRequest::getTransferTag - Returns if share key is shared with mega
      * <p>
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getLink - Public link
+     * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
+     * - MegaRequest::getPassword - Returns base64 encryption key used for share-key (only if
+     * writable=true and megaHosted=true)
      * <p>
-     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish
+     * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
      *
-     * @param node MegaNode to get the public link
+     * @param node     MegaNode to get the public link
+     * @param listener MegaRequestListener to track this request
      */
-    public void exportNode(MegaNode node) {
-        megaApi.exportNode(node);
-    }
-
-    /**
-     * Generate a temporary public link of a file/folder in MEGA
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_EXPORT
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getNodeHandle - Returns the handle of the node
-     * - MegaRequest::getAccess - Returns true
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getLink - Public link
-     * <p>
-     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
-     *
-     * @param node       MegaNode to get the public link
-     * @param expireTime Unix timestamp until the public link will be valid
-     * @param listener   MegaRequestListener to track this request
-     * @implNote A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
-     */
-    public void exportNode(MegaNode node, int expireTime, MegaRequestListenerInterface listener) {
-        megaApi.exportNode(node, expireTime, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Generate a temporary public link of a file/folder in MEGA
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_EXPORT
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getNodeHandle - Returns the handle of the node
-     * - MegaRequest::getAccess - Returns true
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getLink - Public link
-     * <p>
-     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
-     *
-     * @param node       MegaNode to get the public link
-     * @param expireTime Unix timestamp until the public link will be valid
-     * @implNote A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
-     */
-    public void exportNode(MegaNode node, int expireTime) {
-        megaApi.exportNode(node, expireTime);
+    public void exportNode(MegaNode node, MegaRequestListenerInterface listener) {
+        megaApi.exportNode(node, 0, false, false, createDelegateRequestListener(listener));
     }
 
     /**
