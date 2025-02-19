@@ -1928,6 +1928,7 @@ bool DirectReadSlot::decreaseReqsInflight()
             (mNumReqsInflight == (static_cast<unsigned>(mReqs.size()) - usedConnections())))
         {
             mNumReqsInflight = 0;
+            mUnusedConnIncrementedInFlightReqs = false;
         }
         if (mNumReqsInflight == 0)
         {
