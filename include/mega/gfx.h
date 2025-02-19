@@ -134,7 +134,8 @@ public: // read and store bitmap
 private:
     virtual bool readbitmap(const LocalPath&, int) = 0;
 
-    // Resize stored bitmap and store result as JPEG by default.
+    // Resize stored bitmap and store result as JPEG by default or PNG if the bitmap has
+    // transparency and the requested width and height is for the thumbnail.
     //
     // @param rw The requested width
     // @param rh The requested height

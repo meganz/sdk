@@ -153,8 +153,8 @@ static inline NSData* dataForImage(CGImageRef image) {
 }
 #endif
 
-bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout, Hint) {
-    jpegout->clear();
+bool GfxProviderCG::resizebitmap(int rw, int rh, string* imageOut, Hint) {
+    imageOut->clear();
     
     bool isThumbnail = !rh;
     
@@ -230,7 +230,7 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout, Hint) {
     
     dispatch_time_t waitTime = dispatch_time(DISPATCH_TIME_NOW, WAIT_60_SECONDS * NSEC_PER_SEC);
     dispatch_semaphore_wait(semaphore, waitTime);
-    jpegout->assign((char*) data.bytes, data.length);
+    imageOut->assign((char*) data.bytes, data.length);
     return data;
 }
 

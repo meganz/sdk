@@ -35,7 +35,7 @@ class GfxProviderExternal : public IGfxLocalProvider
     MegaGfxProcessor* processor{};
 
     bool readbitmap(const LocalPath&, int) override;
-    bool resizebitmap(int, int, std::string* result, Hint hint) override;
+    bool resizebitmap(int rw, int rh, std::string* imageOut, Hint hint) override;
     void freebitmap() override;
 
     const char* supportedformats() override;
