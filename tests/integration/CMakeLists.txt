@@ -30,6 +30,7 @@ target_sources(test_integration
     SdkTestTransferMaxSpeeds_test.cpp
     sdk_test_node_tags.cpp
     sdk_test_node_tags.h
+    sdk_test_network.cpp
 
     passwordManager/SdkTestPasswordManager.cpp
     passwordManager/SdkTestPasswordManager.h
