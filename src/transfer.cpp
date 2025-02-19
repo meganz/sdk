@@ -1805,6 +1805,7 @@ bool DirectReadSlot::replaceConnectionByUnused(
 std::pair<size_t, size_t>
     DirectReadSlot::searchSlowestAndFastestConns(const size_t connectionNum) const
 {
+    assert(isMinComparableThroughputForThisConnection(connectionNum));
     const size_t numReqs = mReqs.size();
     size_t slowestConnection = connectionNum;
     size_t fastestConnection = connectionNum;
@@ -2039,7 +2040,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         retryEntireTransfer(API_EAGAIN);
         return true;
     }
-    else if (slowConns.size() == MAX_SIMULTANEOUS_FAILED_RAIDED_CONNS)
+    else if (slowConns.size() == MAX_SIMULTANEOUS_SLOW_RAIDED_CONNS)
     {
         if (const auto unusedConnNotReusable =
                 !unusedConnectionCanBeReused() ||
@@ -2062,6 +2063,18 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
     return true;
 }
 
+void DirectReadSlot::resetConnSwitchesCountersIfTimeoutExpired()
+{
+    if (const auto now = std::chrono::steady_clock::now();
+        (now - mConnectionSwitchesLimitLastReset) > CONNECTION_SWITCHES_LIMIT_RESET_TIME)
+    {
+        mNumConnSwitchesSlowestPart = 0;
+        mNumConnSwitchesBelowSpeedThreshold = 0;
+        mNumConnDetectedBelowSpeedThreshold.clear();
+        mConnectionSwitchesLimitLastReset = now;
+    }
+}
+
 bool DirectReadSlot::doio()
 {
     const auto isRaid = isRaidedTransfer();
@@ -2078,14 +2091,7 @@ bool DirectReadSlot::doio()
                                      ~(static_cast<unsigned>(RAIDSECTOR) - 1);
     }
 
-    if (const auto now = std::chrono::steady_clock::now();
-        (now - mConnectionSwitchesLimitLastReset) > CONNECTION_SWITCHES_LIMIT_RESET_TIME)
-    {
-        mNumConnSwitchesSlowestPart = 0;
-        mNumConnSwitchesBelowSpeedThreshold = 0;
-        mNumConnDetectedBelowSpeedThreshold.clear();
-        mConnectionSwitchesLimitLastReset = now;
-    }
+    resetConnSwitchesCountersIfTimeoutExpired();
 
     for (unsigned int connectionNum = static_cast<unsigned int>(mReqs.size()); connectionNum--;)
     {
@@ -2563,8 +2569,8 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     unsigned auxUnused = static_cast<unsigned>(mReqs.size());
     if (isRaidedTransfer())
     {
-        unsigned un = mDr->drbuf.getUnusedRaidConnection();
-        auxUnused = un < numReqs ? un : 0;
+        const auto un = mDr->drbuf.getUnusedRaidConnection();
+        auxUnused = un < numReqs ? un : DEFAULT_UNUSED_CONN_INDEX;
     }
 
     LOG_verbose << "[DirectReadSlot::DirectReadSlot] Set initial unused raid connection to "

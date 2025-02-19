@@ -326,6 +326,8 @@ public:
      *
      * - TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD replaced part is the slowest one and transfer mean
      * speed is below minstreamingrate or replaced part speed is below min speed threshold
+     *
+     * - ON_RAIDED_ERROR replaced part has failed with a Http error
      */
     enum ConnReplacementReason
     {
@@ -361,8 +363,8 @@ public:
     size_t getNum() const;
 
     /**
-     * @brief Checks if mReason is not an error reason
-     * @return true if the reason is not an error reason, otherwise returns false.
+     * @brief Checks if unused connection can be reused (mReason is not an error reason)
+     * @return true if unused connection can be reused, otherwise returns false.
      */
     bool CanBeReused() const;
 
@@ -419,10 +421,9 @@ public:
     \* ===================*/
 
     /**
-     * @brief Default connection index used for non-raided transfers in ambit of slow connections
-     * detection
+     * @brief Default unused connection index
      */
-    static constexpr unsigned DEF_CONN_INDEX_NON_RAIDED_TRANSFER = 0;
+    static constexpr unsigned DEFAULT_UNUSED_CONN_INDEX = 0;
 
     /**
     *   @brief Time interval to recalculate speed and mean speed values.
@@ -480,16 +481,16 @@ public:
     static constexpr unsigned DEFAULT_MIN_COMPARABLE_THROUGHPUT = MAX_DELIVERY_CHUNK;
 
     /**
-     *   @brief Max times a DirectReadSlot is allowed to detect a slow connection respect the others
-     * and switch it to the unused one.
+     *   @brief Max times a DirectReadSlot is allowed to switch the unused connection by another
+     * connection detected as slow respect the others
      *
      *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
      */
     static constexpr unsigned MAX_CONN_SWITCHES_SLOWEST_PART = 6;
 
     /**
-     *   @brief Max times a DirectReadSlot is allowed to detect a slower connection than min
-     * threshold and switch it to the unused one.
+     *   @brief Max times a DirectReadSlot is allowed switch unused connection by another connection
+     * detected slower than min threshold
      *
      *   @see DirectReadSlot::detectAndManageSlowRaidedConns() and
      * DirectReadSlot::onLowSpeedRaidedTransfer()
@@ -524,12 +525,17 @@ public:
      *
      * @see DirectReadSlot::watchOverDirectReadPerformance
      */
-    static constexpr unsigned MAX_SIMULTANEOUS_FAILED_RAIDED_CONNS = 1;
+    static constexpr unsigned MAX_SIMULTANEOUS_SLOW_RAIDED_CONNS = 1;
 
     /**
-     * @brief Backoff between retries when mNumConnSwitchesSlowestPart has reached limit
+     * @brief Timeout to reset connection switches counters.
      *
-     * @see DirectReadSlot::searchAndDisconnectSlowestConnection
+     * During a streaming transfer we may perform RAIDED parts replacements due to different reasons
+     * (failed part, slow mean speed) this replacements can be done just a limited number of times.
+     * However for long streaming transfers, we need to reset those counters to discard punctual
+     * connectivity issues.
+     *
+     * @see DirectReadSlot::doio
      */
     static constexpr std::chrono::seconds CONNECTION_SWITCHES_LIMIT_RESET_TIME = 300s;
 
@@ -538,8 +544,8 @@ public:
     \* ===================*/
 
     /**
-     * @brief Returns true is transfer is raided, otherwise returns false
-     * @return true if is transfer is raided, otherwise returns false
+     * @brief Returns true if transfer is raided, otherwise returns false
+     * @return true if transfer is raided, otherwise returns false
      */
     bool isRaidedTransfer() const;
 
@@ -563,9 +569,15 @@ public:
      *
      * @return A pair containing:
      *         - A set of indices representing connections that are too slow.
-     *         - The index of the slowest connection (or invalid index if no slow conns exist).
+     *         - The index of the slowest connection (or invalid index if no slow conns exists).
      */
     std::pair<std::set<size_t>, size_t> searchSlowConnsUnderThreshold();
+
+    /**
+     * @brief Reset all connection switches counters if timeout
+     * (CONNECTION_SWITCHES_LIMIT_RESET_TIME) has expired
+     */
+    void resetConnSwitchesCountersIfTimeoutExpired();
 
     /**
     *   @brief Main i/o loop (process every HTTP req from req vector).
@@ -617,8 +629,7 @@ public:
      * taking into account whether it's a streaming RAID transfer, and the limits configured in the
      * client (check minstreamingrate).
      *
-     * @return The minimum allowed speed per connection in Bytes per second, or 1 if
-     * minstreamingrate is Zero.
+     * @return The minimum speed per connection in Bytes per second.
      */
     unsigned getMinSpeedPerConnBytesPerSec() const;
 
@@ -662,10 +673,13 @@ public:
     bool unusedConnectionCanBeReused();
 
     /**
-     * @brief Replace connectionNum by unused connection when there are requests in flight
-     * This method also decrements in flight reqs, if connection can be replaced by unused one
-     * This method also decrements in flight reqs again, just in case
+     * @brief Replace connectionNum by unused connection when there are requests in flight.
+     * - This method decrements in flight reqs, if connection can be replaced by unused one
+     * - This method also decrements in flight reqs again, just in case
      * mUnusedConnIncrementedInFlightReqs is true
+     *
+     * @note: this method internally calls DirectReadSlot::replaceConnectionByUnused to perform
+     * connection replacement
      *
      * @param newUnusedConnection The connection number to be replaced by unused one
      * @param reason Reason of replacement
@@ -880,10 +894,9 @@ private:
     std::chrono::steady_clock::time_point mSlotStartTime;
 
     /**
-     * @brief Backoff to be applied when the maximum of bad performance connections has been
-     * reached.
+     * @brief Timeout for reset all connection switches counters
      *
-     * @see DirectReadSlot::searchAndDisconnectSlowestConnection
+     * @see DirectReadSlot::resetConnSwitchesCountersIfTimeoutExpired
      */
     std::chrono::steady_clock::time_point mConnectionSwitchesLimitLastReset;
 
@@ -1029,6 +1042,10 @@ private:
 
     /**
      * @brief increases counter for unused connection switches given a replacement reason
+     *
+     * @note: in case we need to replace unused conn by failed raided part, we don't need to
+     * increase any switch counter, as any HTTP err is considered as permanent, which
+     * means that unused connection cannot be reused anymore. See unusedConnectionCanBeReused
      */
     void increaseUnusedConnSwitches(const UnusedConn::ConnReplacementReason reason)
     {
@@ -1041,10 +1058,6 @@ private:
                 ++mNumConnSwitchesBelowSpeedThreshold;
                 return;
             case UnusedConn::ON_RAIDED_ERROR:
-                // in case we need to replace unused conn by failed raided part we don't need to
-                // increase any switch counter as any HTTP err is considered as permanent, which
-                // means that unused connection cannot be reused anymore. See
-                // unusedConnectionCanBeReused
                 return;
         }
     }
