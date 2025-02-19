@@ -103,6 +103,7 @@ class MegaMountFlags;
 class MegaMountList;
 class MegaVpnRegionList;
 class MegaVpnCredentials;
+class MegaNetworkConnectivityTestResults;
 class MegaNodeTree;
 class MegaCompleteUploadData;
 class MegaNotificationList;
@@ -4872,7 +4873,8 @@ class MegaRequest
             TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES = 203,
             TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS = 204,
             TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS = 205,
-            TOTAL_OF_REQUEST_TYPES = 206,
+            TYPE_RUN_NETWORK_CONNECTIVITY_TEST = 206,
+            TOTAL_OF_REQUEST_TYPES = 207,
         };
 
         virtual ~MegaRequest();
@@ -5818,6 +5820,14 @@ class MegaRequest
          * @return MegaVpnCredentials* if there are any VPN credentials for the user, nullptr otherwise.
          */
         virtual MegaVpnCredentials* getMegaVpnCredentials() const;
+
+        /**
+         * @brief Returns the results of a network connectivity test.
+         *
+         * @return Valid pointer if this request was used for running a nework connectivity test,
+         * nullptr otherwise.
+         */
+        virtual MegaNetworkConnectivityTestResults* getMegaNetworkConnectivityTestResults() const;
 
         /**
          * @brief Get list of available notifications for Notification Center
@@ -24021,6 +24031,23 @@ class MegaApi
          */
         void getMyIp(MegaRequestListener* listener = nullptr);
 
+        /**
+         * @brief Run a network connectivity test.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_RUN_NETWORK_CONNECTIVITY_TEST.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaNetworkConnectivityTestResults - Returns the results of the test.
+         *
+         * If the network connectivity test server could not be retrieved the test will not run and
+         * the request will fail with MegaError::API_ESID.
+         *
+         * @param listener MegaRequestListener to track this request.
+         */
+        void runNetworkConnectivityTest(MegaRequestListener* listener = nullptr);
+
     protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
@@ -26036,6 +26063,64 @@ public:
      * @return MegaVpnCredentials* with the copied MegaVpnCredentials object.
      */
     virtual MegaVpnCredentials* copy() const = 0;
+};
+
+class MegaNetworkConnectivityTestResults
+{
+public:
+    virtual ~MegaNetworkConnectivityTestResults() = default;
+
+    /**
+     * @brief Possible test results.
+     */
+    enum // 1:1 with enum values from internal implementation
+    {
+        NETWORK_CONNECTIVITY_TEST_PASS = 0,
+        NETWORK_CONNECTIVITY_TEST_FAIL = 1,
+        NETWORK_CONNECTIVITY_TEST_NET_UNREACHABLE = 2,
+    };
+
+    /**
+     * @brief Get the result of testing UDP communication over IPv4
+     *
+     * @return The type of the flag. Possible values are any of the NETWORK_CONNECTIVITY_TEST_x
+     * values.
+     */
+    virtual int getIPv4UDP() const = 0;
+
+    /**
+     * @brief Get the result of testing DNS resolution over IPv4
+     *
+     * @return The type of the flag. Possible values are any of the NETWORK_CONNECTIVITY_TEST_x
+     * values.
+     */
+    virtual int getIPv4DNS() const = 0;
+
+    /**
+     * @brief Get the result of testing UDP communication over IPv6
+     *
+     * @return The type of the flag. Possible values are any of the NETWORK_CONNECTIVITY_TEST_x
+     * values.
+     */
+    virtual int getIPv6UDP() const = 0;
+
+    /**
+     * @brief Get the result of testing DNS resolution over IPv6
+     *
+     * @return The type of the flag. Possible values are any of the NETWORK_CONNECTIVITY_TEST_x
+     * values.
+     */
+    virtual int getIPv6DNS() const = 0;
+
+    /**
+     * @brief Copy this object.
+     *
+     * This copy is meant to be used from another scope which must survive the actual owner of this
+     * object. The caller takes the ownership of the new object.
+     *
+     * @return Pointer with the copied object.
+     */
+    virtual MegaNetworkConnectivityTestResults* copy() const = 0;
 };
 
 /**
