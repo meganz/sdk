@@ -20,7 +20,7 @@
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
-#include <winsock.h>
+#include <winsock2.h>
 #else
 #include <arpa/inet.h>
 #endif
@@ -31,7 +31,7 @@
 namespace mega
 {
 
-namespace dnsLookupPseudomessage
+namespace dns_lookup_pseudomessage
 {
 
 enum DnsType : uint16_t
@@ -60,15 +60,11 @@ static std::string get(uint64_t userId, uint16_t messageId, DnsType dnsType)
         0, // authority record count
         0}; // additional record count
 
-    // Convert user id to Hex representation
-    std::stringstream s;
-    s << std::hex << userId;
-    std::string hexId{s.str()};
-
     const std::array<uint16_t, 2> dnsOptions{htons(dnsType), // DNS type
                                              htons(1)}; // additional record count
 
     // Build message
+    std::string hexId{userIdToHex(userId)};
     std::stringstream m;
     m.write(reinterpret_cast<const char*>(header.data()),
             header.size() * sizeof(decltype(header)::value_type));
@@ -90,6 +86,13 @@ std::string getForIPv6(uint64_t userId, uint16_t messageId)
     return get(userId, messageId, DnsType::IPV6);
 }
 
-} // namespace dnsLookupPseudomessage
+} // namespace dns_lookup_pseudomessage
+
+std::string userIdToHex(uint64_t userId)
+{
+    std::stringstream s;
+    s << std::hex << userId;
+    return s.str();
+}
 
 } // namespace mega

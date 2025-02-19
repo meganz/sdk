@@ -24,11 +24,13 @@
 namespace mega
 {
 
-namespace dnsLookupPseudomessage
+namespace dns_lookup_pseudomessage
 {
 std::string getForIPv4(uint64_t userId, uint16_t messageId);
 std::string getForIPv6(uint64_t userId, uint16_t messageId);
 }
+
+std::string userIdToHex(uint64_t userId);
 
 } // namespace mega
 
