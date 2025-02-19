@@ -1,35 +1,47 @@
-#include "SdkTest_test.h"
 #include "sdk_test_utils.h"
+#include "SdkTest_test.h"
+
+#include <memory>
 
 namespace
 {
+
+using FIBITMAPPtr = std::unique_ptr<FIBITMAP, decltype(&FreeImage_Unload)>;
+
+FIBITMAPPtr load(const fs::path& image, FREE_IMAGE_FORMAT fif)
+{
+#ifdef _WIN32
+    return FIBITMAPPtr{FreeImage_LoadU(fif, image.c_str(), 0), &FreeImage_Unload};
+#else
+    return FIBITMAPPtr{FreeImage_Load(fif, image.c_str(), 0), &FreeImage_Unload};
+#endif
+}
+
 bool isTransparency(const fs::path& image, FREE_IMAGE_FORMAT fif)
 {
-    const auto filepath = image.c_str();
-
-    const auto dib = ::mega::makeUniqueFrom(FreeImage_Load(fif, filepath, 0), &FreeImage_Unload);
-    if (!dib)
+    if (const auto dib = load(image, fif); dib)
+    {
+        return FreeImage_IsTransparent(dib.get()) == TRUE;
+    }
+    else
     {
         LOG_err << "Failed to load image";
         return false;
     }
-
-    return FreeImage_IsTransparent(dib.get()) == TRUE;
 }
 
 // Get meta data tag count. -1 if there are errors
 int getMetadataCount(const fs::path& image, FREE_IMAGE_FORMAT fif)
 {
-    const auto filepath = image.c_str();
-
-    const auto dib = ::mega::makeUniqueFrom(FreeImage_Load(fif, filepath, 0), &FreeImage_Unload);
-    if (!dib)
+    if (const auto dib = load(image, fif); dib)
+    {
+        return static_cast<int>(FreeImage_GetMetadataCount(FIMD_EXIF_MAIN, dib.get()));
+    }
+    else
     {
         LOG_err << "Failed to load image";
         return -1;
     }
-
-    return static_cast<int>(FreeImage_GetMetadataCount(FIMD_EXIF_MAIN, dib.get()));
 };
 
 }
