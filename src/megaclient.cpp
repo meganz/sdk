@@ -21364,6 +21364,28 @@ void MegaClient::runNetworkConnectivityTest(
             testCompletion(API_OK, std::move(testResults));
         });
 }
+
+void MegaClient::sendNetworkConnectivityTestEvent(const NetworkConnectivityTestResults& results)
+{
+    string resultString;
+    if (results.ipv4.udpMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
+        results.ipv4.dnsLookupMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
+    {
+        resultString = results.ipv4.summary;
+    }
+    if (results.ipv6.udpMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
+        results.ipv6.dnsLookupMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
+    {
+        if (!resultString.empty())
+            resultString += ' ';
+        resultString += results.ipv6.summary;
+    }
+    if (!resultString.empty())
+    {
+        static constexpr int VPN_NETWORK_CONNECTIVITY_TEST_EVENT = 99495;
+        sendevent(VPN_NETWORK_CONNECTIVITY_TEST_EVENT, resultString.c_str());
+    }
+}
 /* Mega VPN methods END */
 
 void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion)

@@ -3030,6 +3030,7 @@ public:
 
     void runNetworkConnectivityTest(
         std::function<void(const Error&, NetworkConnectivityTestResults&&)>&& completion);
+    void sendNetworkConnectivityTestEvent(const NetworkConnectivityTestResults& results);
     /* Mega VPN methods END */
 
     void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
