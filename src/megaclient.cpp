@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
+#include "mega/network_connectivity_test.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
@@ -21328,6 +21329,41 @@ void MegaClient::getNetworkConnectivityTestServerInfo(
     reqs.add(new CommandGetNetworkConnectivityTestServerInfo(this, std::move(completion)));
 }
 
+void MegaClient::runNetworkConnectivityTest(
+    std::function<void(const Error&, NetworkConnectivityTestResults&&)>&& testCompletion)
+{
+    getNetworkConnectivityTestServerInfo(
+        [this,
+         testCompletion = std::move(testCompletion)](const Error& e,
+                                                     NetworkConnectivityTestServerInfo&& serverInfo)
+        {
+            if (e)
+            {
+                LOG_err
+                    << "Failed to retrieve Network Connectivity test server. Test will not run.";
+                testCompletion(e, {});
+                return;
+            }
+
+            NetworkConnectivityTest test;
+            if (!test.start(me, std::move(serverInfo)))
+            {
+                LOG_err << "Failed to start Network Connectivity test (already running?).";
+                testCompletion(API_EINTERNAL, {});
+                return;
+            }
+
+            auto testResults{test.getResults()};
+
+            // Log errors from socket communication
+            for (const auto& singleError: testResults.ipv4.socketErrors)
+                LOG_err << singleError;
+            for (const auto& singleError: testResults.ipv6.socketErrors)
+                LOG_err << singleError;
+
+            testCompletion(API_OK, std::move(testResults));
+        });
+}
 /* Mega VPN methods END */
 
 void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion)
