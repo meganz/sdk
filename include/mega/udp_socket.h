@@ -36,6 +36,7 @@ class UdpSocket final
 public:
     UdpSocket(const std::string& remoteIP, int remotePort);
     ~UdpSocket();
+    bool isIPv4() const;
 
     struct Communication
     {

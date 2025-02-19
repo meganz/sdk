@@ -88,6 +88,7 @@ set(SDKLIB_HEADERS
     include/mega/tlv.h
     include/mega/dns_lookup_pseudomessage.h
     include/mega/udp_socket.h
+    include/mega/udp_socket_tester.h
     include/mega/user_attribute.h
     include/mega/user_attribute_definition.h
     include/mega/user_attribute_manager.h
@@ -162,6 +163,7 @@ set(SDKLIB_SOURCES
     src/tlv.cpp
     src/dns_lookup_pseudomessage.cpp
     src/udp_socket.cpp
+    src/udp_socket_tester.cpp
     src/user_attribute.cpp
     src/user_attribute_definition.cpp
     src/user_attribute_manager.cpp

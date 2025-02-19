@@ -59,6 +59,11 @@ UdpSocket::~UdpSocket()
     }
 }
 
+bool UdpSocket::isIPv4() const
+{
+    return mInetType == AF_INET;
+}
+
 std::future<UdpSocket::Communication> UdpSocket::sendAsyncMessage(const std::string& message)
 {
     return std::async(std::launch::async,
