@@ -13130,8 +13130,7 @@ void exec_checkvpncredential(autocomplete::ACState& s)
 void exec_getnetworktestserver(autocomplete::ACState&)
 {
     client->getNetworkConnectivityTestServerInfo(
-        [](const Error& e,
-           CommandGetNetworkConnectivityTestServerInfo::NetworkConnectivityTestServerInfo&& info)
+        [](const Error& e, NetworkConnectivityTest::ServerInfo&& info)
         {
             if (e == API_OK)
             {

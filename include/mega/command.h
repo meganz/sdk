@@ -25,6 +25,7 @@
 #include "account.h"
 #include "http.h"
 #include "json.h"
+#include "network_connectivity_test_helpers.h"
 #include "node.h"
 #include "nodemanager.h"
 #include "textchat.h"
@@ -2108,13 +2109,6 @@ private:
 class MEGA_API CommandGetNetworkConnectivityTestServerInfo: public Command
 {
 public:
-    struct NetworkConnectivityTestServerInfo
-    {
-        string ipv4;
-        string ipv6;
-        vector<int> ports;
-    };
-
     using Completion = std::function<void(const Error&, NetworkConnectivityTestServerInfo&&)>;
     CommandGetNetworkConnectivityTestServerInfo(MegaClient*, Completion&&);
     bool procresult(Result, JSON&) override;
