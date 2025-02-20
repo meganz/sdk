@@ -961,6 +961,12 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
                 [this, bkpId, newState, setAttrCompletion](unique_ptr<string_map> currentSds,
                                                            attr_t)
             {
+                if (!currentSds)
+                {
+                    // Create an empty map when the attribute doesn't exist.
+                    // Could be empty value in the getua or a non existing attribute.
+                    currentSds = std::make_unique<string_map>();
+                }
                 const string b64BkupId = toHandle(bkpId);
                 const string state = std::to_string(newState);
                 (*currentSds)[b64BkupId] = state;
@@ -985,8 +991,8 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
                 {
                     if (e == API_ENOENT)
                     {
-                        // Empty map if the attribute does not exist.
-                        updateSDSUserAttr(std::make_unique<string_map>(), ATTR_SYNC_DESIRED_STATE);
+                        // updateSDSUserAttr will manage null pointers
+                        updateSDSUserAttr(std::unique_ptr<string_map>(), ATTR_SYNC_DESIRED_STATE);
                     }
                     else
                     {
@@ -1125,6 +1131,12 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
             auto updateSDSUserAttr =
                 [this, bkpId, moveOrDeleteBackup](unique_ptr<string_map> currentSds, attr_t)
             {
+                if (!currentSds)
+                {
+                    // Create an empty map when the attribute doesn't exist.
+                    // Could be empty value in the getua or a non existing attribute.
+                    currentSds = std::make_unique<string_map>();
+                }
                 const string b64BkupId = toHandle(bkpId);
                 const string state = std::to_string(CommandBackupPut::DELETED);
                 (*currentSds)[b64BkupId] = state;
@@ -1149,8 +1161,8 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
                 {
                     if (e == API_ENOENT)
                     {
-                        // Empty map if the attribute does not exist.
-                        updateSDSUserAttr(std::make_unique<string_map>(), ATTR_SYNC_DESIRED_STATE);
+                        // updateSDSUserAttr will manage null pointers
+                        updateSDSUserAttr(std::unique_ptr<string_map>(), ATTR_SYNC_DESIRED_STATE);
                     }
                     else
                     {
