@@ -75,6 +75,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/name_collision.cpp \
     sdk/src/pwm_file_parser.cpp \
     sdk/src/tlv.cpp \
+    sdk/src/totp.cpp \
     sdk/src/user_attribute.cpp \
     sdk/src/user_attribute_definition.cpp \
     sdk/src/user_attribute_manager.cpp
@@ -151,6 +152,7 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/name_collision.h \
         sdk/include/mega/pwm_file_parser.h \
         sdk/include/mega/tlv.h \
+        sdk/include/mega/totp.h \
         sdk/include/mega/user_attribute.h \
         sdk/include/mega/user_attribute_definition.h \
         sdk/include/mega/user_attribute_manager.h \

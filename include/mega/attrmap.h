@@ -59,6 +59,9 @@ struct MEGA_API AttrMap
 
     std::optional<std::string> getString(std::string_view name) const;
 
+    // Same as getString but without copying the string
+    const char* read(const char* const name) const;
+
     // compute rough storage size
     unsigned storagesize(int) const;
 

@@ -550,13 +550,252 @@ class MegaNode
         {
         public:
             /**
+             * @brief Represents data related to TOTP (Time-based One-Time Password) token
+             * generation.
+             *
+             * Example 1: Create a Password node with TOTP data.
+             * 1) Create an instance of PasswordNodeData::TotpData:
+             *
+             *    std::unique_ptr<TotpData> totpData{
+             *        TotpData::createInstance("abcd", 20, TotpData::HASH_ALGO_SHA256, 8)};
+             *
+             * 2) Create an instance of Password Node Data providing TOTP data created in previous
+             *    step:
+             *
+             *    std::unique_ptr<PasswordNodeData> pwdData {
+             *        PasswordNodeData::createInstance("12},\" '34",
+             *                                                   "notes",
+             *                                                   "url",
+             *                                                   "userName",
+             *                                                   totpData.get())};
+             *
+             * 3) Invoke MegaApi::createPasswordNode as usual providing pwdData created in previous
+             *    step
+             *
+             * Example 2: Update a TOTP field from an existing node:
+             * 1) Get the password data from the node:
+             *
+             *    std::unique_ptr<PasswordNodeData> pwdData{n->getPasswordData()};
+             *
+             * 2) Create a new instance of TotpData as in step 1) in previous example with the new
+             *    information or get a copy of the data stored in the `pwdData` and modify the field
+             *    as follows:
+             *
+             *    std::unique_ptr<PasswordNodeData::TotpData> tData {pwdData->totpData()->copy()};
+             *    tData->setSharedSecret("HQER2385");
+             *
+             * 3) Set this new TotpData to the pwdData:
+             *
+             *    pwdData->setTotpData(tData.get());
+             *
+             * 4) Finally, call updatePasswordNode with this pwdData.
+             *
+             * Example 3: Remove TOTP data from a password node:
+             * 1) Get the password data from the node as step 1) of example 2.
+             * 2) Create a special instance of TotpData to remove the data:
+             *
+             *    std::unique_ptr<TotpData> totpData{TotpData::createRemovalInstance()};
+             *
+             * 3) Set this totpData to the pwdData as in step 3) in example 2.
+             * 4) Finally, call updatePasswordNode with this pwdData.
+             */
+            class TotpData
+            {
+            public:
+                /**
+                 * @brief The Validation class represents the current validation status for a
+                 * TotpData instance
+                 */
+                class Validation
+                {
+                public:
+                    virtual ~Validation() = default;
+                    /**
+                     * @brief Returns `true` if shared secret exists, `false` otherwise
+                     */
+                    virtual bool sharedSecretExist() const = 0;
+
+                    /**
+                     * @brief Returns `true` if shared secret is valid, `false` otherwise
+                     */
+                    virtual bool sharedSecretValid() const = 0;
+
+                    /**
+                     * @brief Returns `true` if algorithm is valid, `false` otherwise
+                     */
+                    virtual bool algorithmValid() const = 0;
+
+                    /**
+                     * @brief Returns `true` if expiration time is valid, `false` otherwise
+                     */
+                    virtual bool expirationTimeValid() const = 0;
+
+                    /**
+                     * @brief Returns `true` if number of digits is valid, `false` otherwise
+                     */
+                    virtual bool nDigitsValid() const = 0;
+
+                    /**
+                     * @brief Returns `true` if TotpData instance is valid for initializing a new
+                     * totp data field in a password node, `false` otherwise
+                     * @note For initializing the totpData field in a password node, mandatory
+                     * fields such as the shared secret must be present in the TotpData instance.
+                     */
+                    virtual bool isValidForCreate() const = 0;
+
+                    /**
+                     * @brief Returns `true` if TotpData instance is valid just for updating
+                     * existing totp data on a password node, `false` otherwise
+                     */
+                    virtual bool isValidForUpdate() const = 0;
+
+                protected:
+                    Validation() = default;
+                };
+
+                enum
+                {
+                    HASH_ALGO_SHA1 = 0,
+                    HASH_ALGO_SHA256 = 1,
+                    HASH_ALGO_SHA512 = 2,
+                };
+
+                virtual ~TotpData() = default;
+
+                // Use this constant to leave a field untouched
+                static constexpr int TOTPNULLOPT = -1;
+
+                /**
+                 * @brief Creates a special instance of `TotpData` marked for removal.
+                 * This instance could be used to remove TOTP data from PasswordNodeData.
+                 *
+                 * @return A pointer to a `TotpData` instance marked for removal.
+                 * @note The caller takes the ownership of the returned pointer.
+                 */
+                static TotpData* createRemovalInstance();
+
+                /**
+                 * @brief Creates a new instance of `TotpData` with specified parameters.
+                 *
+                 * In an update operation, to leave values untouched, use nullptr for `sharedSecret`
+                 * and TOTPNULLOPT constant for the rest of the parameters. The latter can also be
+                 * used for a creation operation to initialize those integer values to their
+                 * defaults.
+                 *
+                 * @param sharedSecret The shared secret key for TOTP.
+                 * @param expirationTimeSecs The expiration time in seconds.
+                 * @param hashAlgorithm The hashing algorithm to use.
+                 * @param ndigits The number of digits in the generated TOTP code.
+                 * @return A pointer to a newly created `TotpData` instance.
+                 * @note The caller takes the ownership of the returned pointer.
+                 */
+                static TotpData* createInstance(const char* sharedSecret,
+                                                const int expirationTimeSecs,
+                                                const int hashAlgorithm,
+                                                const int ndigits);
+
+                /**
+                 * @brief Returns the shared secret key for TOTP
+                 *
+                 * @return the null-terminated string with shared secret key for TOTP if any,
+                 * nullptr/NULL otherwise
+                 */
+                virtual const char* sharedSecret() const = 0;
+
+                /**
+                 * @brief Returns the expiration time in seconds.
+                 *
+                 * @return the expiration time in seconds if any, TOTPNULLOPT otherwise.
+                 */
+                virtual int expirationTime() const = 0;
+
+                /**
+                 * @brief Returns the hashing algorithm to use.
+                 *
+                 * @return the hashing algorithm to use if any, TOTPNULLOPT otherwise.
+                 */
+                virtual int hashAlgorithm() const = 0;
+
+                /**
+                 * @brief Returns the number of digits in the generated TOTP code.
+                 *
+                 * @return true the number of digits in the generated TOTP code if any, TOTPNULLOPT
+                 * otherwise.
+                 */
+                virtual int nDigits() const = 0;
+
+                /**
+                 * @brief Check if TOTP data instance is marked to be removed
+                 *
+                 * @return true if TOTP data instance is marked to be removed, otherwise false
+                 */
+                virtual bool markedToRemove() const = 0;
+
+                /**
+                 * @brief Set shared secret attribute value.
+                 *
+                 * @param sharedSecret Value to set
+                 */
+                virtual void setSharedSecret(const char* sharedSecret) = 0;
+
+                /**
+                 * @brief Set expiration time attribute value.
+                 *
+                 * @param expirationTimeSecs time Value to set
+                 */
+                virtual void setExpirationTime(const int expirationTimeSecs) = 0;
+
+                /**
+                 * @brief Set Hash algorithm attribute value.
+                 *
+                 * @param algorithm Value to set
+                 */
+                virtual void setHashAlgorithm(const int algorithm) = 0;
+
+                /**
+                 * @brief Set Ndigits attribute value.
+                 *
+                 * @param n Value to set
+                 */
+                virtual void setNdigits(const int n) = 0;
+
+                /**
+                 * @brief Returns a copy of TOTP data.
+                 *
+                 * @return a pointer to the copy of TOTP data.
+                 */
+                virtual TotpData* copy() const = 0;
+
+                /**
+                 * @brief Returns a Validation instance that can be used to check any error detected
+                 * in the TotpData object
+                 *
+                 * @return A pointer to a newly created `Validation` instance.
+                 * @note The caller takes the ownership of the returned pointer.
+                 * @see Validation class for more details
+                 */
+                virtual Validation* getValidation() const = 0;
+
+            protected:
+                TotpData() = default;
+            };
+
+            /**
              * @brief Creates a new instance of PasswordNodeData
              * @return A pointer to the newly created object which will be owned by the caller
              */
             static PasswordNodeData* createInstance(const char* pwd,
                                                     const char* notes,
                                                     const char* url,
-                                                    const char* userName);
+                                                    const char* userName,
+                                                    const TotpData* totpData);
+
+            /**
+             * @brief Set TOTP data attribute value.
+             *
+             * @param totpData Value to set
+             */
+            virtual void setTotpData(const TotpData* totpData) = 0;
 
             /**
              * @brief Set password attribute value.
@@ -614,6 +853,15 @@ class MegaNode
              */
             virtual const char* userName() const = 0;
 
+            /**
+             * @brief Get TOTP data attribute value.
+             *
+             * The PasswordNodeData object retains the ownership of the TotpData.
+             * You can get a copy of TotpData by calling TotpData::copy
+             *
+             * @return TOTP data attribute
+             */
+            virtual const TotpData* totpData() const = 0;
             virtual ~PasswordNodeData() = default;
         protected:
             PasswordNodeData() = default;
@@ -10465,6 +10713,11 @@ class MegaApi
             IMPORTED_PASSWORD_ERROR_PARSER = 1,
             IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD = 2,
             IMPORTED_PASSWORD_ERROR_MISSINGNAME = 3,
+            IMPORTED_PASSWORD_ERROR_MISSING_TOTP_SHSE = 4,
+            IMPORTED_PASSWORD_ERROR_INVALID_TOTP_SHSE = 5,
+            IMPORTED_PASSWORD_ERROR_INVALID_TOTP_NDIGITS = 6,
+            IMPORTED_PASSWORD_ERROR_INVALID_TOTP_EXPTIME = 7,
+            IMPORTED_PASSWORD_ERROR_INVALID_TOTP_ALG = 8,
         };
 
         enum

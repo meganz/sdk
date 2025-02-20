@@ -25,7 +25,9 @@
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
+#include "mega/totp.h"
 #include "mega/user_attribute.h"
+#include "mega/utils.h"
 
 #include <cryptopp/hkdf.h> // required for derive key of master key
 #include <mega/fuse/common/normalized_path.h>
@@ -21270,6 +21272,11 @@ const char* const MegaClient::PWM_ATTR_PASSWORD_NOTES = "n";
 const char* const MegaClient::PWM_ATTR_PASSWORD_URL = "url";
 const char* const MegaClient::PWM_ATTR_PASSWORD_USERNAME = "u";
 const char* const MegaClient::PWM_ATTR_PASSWORD_PWD = "pwd";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP = "totp";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE = "shse";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT = "t";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH = "alg";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS = "nd";
 
 NodeHandle MegaClient::getPasswordManagerBase()
 {
@@ -21281,10 +21288,70 @@ NodeHandle MegaClient::getPasswordManagerBase()
                NodeHandle{};
 }
 
-void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const
+void MegaClient::ensureTotpDataIsFilled(AttrMap& data) const
+{
+    auto totpIt = data.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
+    if (totpIt == data.map.end())
+    {
+        return;
+    }
+
+    if (totpIt->second == REMOVAL_PWM_ATTR)
+    {
+        assert(false);
+        LOG_err << "Ill-formed Totp data";
+        data.map.erase(totpIt);
+        return;
+    }
+
+    AttrMap totpMap;
+    totpMap.fromjson(data.map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
+
+    assert(totpMap.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_SHSE)));
+
+    bool hasChanged{false};
+    if (const auto nDigitsIt =
+            (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_NDIGITS)));
+        nDigitsIt == totpMap.map.end())
+    {
+        hasChanged = true;
+        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_NDIGITS)] =
+            std::to_string(totp::DEF_NDIGITS);
+    }
+
+    if (const auto expTimeIt =
+            (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_EXPT)));
+        expTimeIt == totpMap.map.end())
+    {
+        hasChanged = true;
+        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_EXPT)] =
+            std::to_string(totp::DEF_EXP_TIME.count());
+    }
+
+    if (const auto algIt = (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH)));
+        algIt == totpMap.map.end())
+    {
+        hasChanged = true;
+        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH)] =
+            totp::hashAlgorithmToStrView(totp::DEF_ALG);
+    }
+
+    if (!hasChanged)
+    {
+        return;
+    }
+
+    LOG_info << "Adding missing fields to Totp attr map";
+    std::string attrJson;
+    totpMap.getjson(&attrJson);
+    data.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)] = attrJson;
+}
+
+void MegaClient::preparePasswordNodeData(attr_map& attrs, AttrMap& data) const
 {
     assert(!data.map.empty());
 
+    ensureTotpDataIsFilled(data);
     std::string jsonData;
     data.getjson(&jsonData);
     attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = std::move(jsonData);
@@ -21356,15 +21423,13 @@ error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_pt
             assert(false);
             continue;
         }
-        if (auto validCode = validatePasswordData(*dataAttrMap);
+        if (const auto validCode = validateNewPasswordNodeData(*dataAttrMap);
             validCode != PasswordEntryError::OK)
         {
             std::string errMsg = "Password Manager: Wrong parameters. Failed Password Node "
                                  "creation for entry with name \"" +
-                                 name + "\"";
-            if (validCode == PasswordEntryError::MISSING_PASSWORD)
-                errMsg += ": Missing mandatory password field";
-            LOG_err << errMsg;
+                                 name + "\": ";
+            LOG_err << errMsg << toString(validCode);
             return API_EARGS;
         }
         const auto addAttrs = [this, d = dataAttrMap.get()](AttrMap& attrs)
@@ -21443,12 +21508,66 @@ MegaClient::ImportPaswordResult
     return {createPasswordNodes(std::move(goodEntries), parent, rTag), badEntries, nGoodEntries};
 }
 
-PasswordEntryError MegaClient::validatePasswordData(const AttrMap& data)
+PasswordEntryError MegaClient::validateTotpDataFormat(const AttrMap& data)
+{
+    const auto shse = charPtrToStrViewOpt(data.read(PWM_ATTR_PASSWORD_TOTP_SHSE));
+
+    std::optional<unsigned> nDigitsNum;
+    if (const auto nDigits = data.read(PWM_ATTR_PASSWORD_TOTP_NDIGITS); nDigits)
+        nDigitsNum = static_cast<unsigned>(std::atoi(nDigits));
+
+    std::optional<std::chrono::seconds> expTime;
+    if (const auto expirationTime = data.read(PWM_ATTR_PASSWORD_TOTP_EXPT); expirationTime)
+        expTime = std::chrono::seconds(std::atoi(expirationTime));
+
+    const auto alg = charPtrToStrViewOpt(data.read(PWM_ATTR_PASSWORD_TOTP_HASH));
+
+    const auto errors = totp::validateFields(shse, nDigitsNum, expTime, alg);
+    if (errors.none())
+        return PasswordEntryError::OK;
+
+    if (errors[totp::INVALID_TOTP_SHARED_SECRET])
+        return PasswordEntryError::INVALID_TOTP_SHARED_SECRET;
+    if (errors[totp::INVALID_TOTP_NDIGITS])
+        return PasswordEntryError::INVALID_TOTP_NDIGITS;
+    if (errors[totp::INVALID_TOTP_EXPT])
+        return PasswordEntryError::INVALID_TOTP_EXPT;
+    if (errors[totp::INVALID_TOTP_ALG])
+        return PasswordEntryError::INVALID_TOTP_ALG;
+
+    static_assert(errors.size() == totp::INVALID_TOTP_ALG + 1, "Missing validation error ");
+    return PasswordEntryError::INVALID_TOTP_ALG;
+}
+
+PasswordEntryError MegaClient::validateNewNodeTotpData(const AttrMap& data)
+{
+    if (!data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_SHSE)))
+    {
+        return PasswordEntryError::MISSING_TOTP_SHARED_SECRET;
+    }
+
+    return validateTotpDataFormat(data);
+}
+
+PasswordEntryError MegaClient::validateNewPasswordNodeData(const AttrMap& data)
 {
     if (const bool pwdPresent = (data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
         !pwdPresent)
     {
         return PasswordEntryError::MISSING_PASSWORD;
+    }
+
+    if (const bool totpPresent =
+            (data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)));
+        totpPresent)
+    {
+        AttrMap totpMap;
+        totpMap.fromjson(data.map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
+
+        if (const auto res = validateNewNodeTotpData(totpMap); res != PasswordEntryError::OK)
+        {
+            return res;
+        }
     }
     return PasswordEntryError::OK;
 }
@@ -21484,7 +21603,7 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
         addField(std::move(entry.mPassword), PWM_ATTR_PASSWORD_PWD);
         addField(std::move(entry.mNote), PWM_ATTR_PASSWORD_NOTES);
 
-        if (auto validationError = validatePasswordData(*attrMap);
+        if (auto validationError = validateNewPasswordNodeData(*attrMap);
             validationError != PasswordEntryError::OK)
         {
             bad[entry.mOriginalContent] = validationError;
@@ -21512,9 +21631,54 @@ error MegaClient::updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> new
         return API_EARGS;
     }
 
+    const auto itNewDataTotp = newData->map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
+    AttrMap newTotpData;
+    const bool containsNewDataTotp = itNewDataTotp != newData->map.end();
+    const bool removeTotpData = containsNewDataTotp && itNewDataTotp->second == REMOVAL_PWM_ATTR;
+    if (containsNewDataTotp && !removeTotpData)
+    {
+        newTotpData.fromjson(itNewDataTotp->second.c_str());
+        if (validateTotpDataFormat(newTotpData) != PasswordEntryError::OK)
+        {
+            LOG_err << "Password Manager: invalid TotpData";
+            return API_EAPPKEY;
+        }
+    }
+
     AttrMap mergedData;
-    mergedData.fromjson(pwdNode->attrs.map[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)].c_str());
+    mergedData.fromjson(
+        pwdNode->attrs.map[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)].c_str());
+
+    const auto itMergedTotp = mergedData.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
+    AttrMap mergedTotpData;
+    if (itMergedTotp != mergedData.map.end())
+    {
+        mergedTotpData.fromjson(itMergedTotp->second.c_str());
+    }
+
+    mergedTotpData.applyUpdates(newTotpData.map);
+
     mergedData.applyUpdates(newData->map);
+    if (auto itNewMergedTotp = mergedData.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
+        itNewMergedTotp != mergedData.map.end())
+    {
+        if (removeTotpData)
+        {
+            mergedData.map.erase(itNewMergedTotp);
+        }
+        else
+        {
+            if (validateNewNodeTotpData(mergedTotpData) != PasswordEntryError::OK)
+            {
+                LOG_err << "Password Manager: invalid TotpData after merging updates";
+                return API_EAPPKEY;
+            }
+            std::string totpStr;
+            mergedTotpData.getjson(&totpStr);
+            itNewMergedTotp->second = totpStr;
+        }
+    }
+
     attr_map updates;
     preparePasswordNodeData(updates, mergedData);
 

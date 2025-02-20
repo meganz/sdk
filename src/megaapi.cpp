@@ -625,12 +625,30 @@ bool MegaNode::isPasswordNode() const
     return false;
 }
 
+MegaNode::PasswordNodeData::TotpData* MegaNode::PasswordNodeData::TotpData::createRemovalInstance()
+{
+    return MegaNodePrivate::PNDataPrivate::TotpDataPrivate::createRemovalInstance();
+}
+
+MegaNode::PasswordNodeData::TotpData*
+    MegaNode::PasswordNodeData::TotpData::createInstance(const char* sharedSecret,
+                                                         const int expirationTimeSecs,
+                                                         const int hashAlgorithm,
+                                                         const int ndigits)
+{
+    return new MegaNodePrivate::PNDataPrivate::TotpDataPrivate(sharedSecret,
+                                                               expirationTimeSecs,
+                                                               hashAlgorithm,
+                                                               ndigits);
+}
+
 MegaNode::PasswordNodeData* MegaNode::PasswordNodeData::createInstance(const char* pwd,
                                                                        const char* notes,
                                                                        const char* url,
-                                                                       const char* userName)
+                                                                       const char* userName,
+                                                                       const TotpData* totpData)
 {
-    return new MegaNodePrivate::PNDataPrivate(pwd, notes, url, userName);
+    return new MegaNodePrivate::PNDataPrivate(pwd, notes, url, userName, totpData);
 }
 
 MegaNode::PasswordNodeData* MegaNode::getPasswordData() const

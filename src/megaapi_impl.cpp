@@ -2248,18 +2248,22 @@ MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData() const
     {
         AttrMap aux;
         aux.fromjson(getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER));
-        const auto read = [&aux](const char* const k) -> const char*
+
+        std::optional<PNDataPrivate::TotpDataPrivate> totp{};
+        if (const auto itTotp =
+                aux.map.find(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP));
+            itTotp != aux.map.end())
         {
-            const auto name = AttrMap::string2nameid(k);
-            if (aux.map.contains(name)) return aux.map[name].c_str();
+            AttrMap auxTotp;
+            auxTotp.fromjson(itTotp->second.c_str());
+            totp = PNDataPrivate::TotpDataPrivate::fromMap(auxTotp);
+        }
 
-            return nullptr;
-        };
-
-        return new PNDataPrivate{read(MegaClient::PWM_ATTR_PASSWORD_PWD),
-                                 read(MegaClient::PWM_ATTR_PASSWORD_NOTES),
-                                 read(MegaClient::PWM_ATTR_PASSWORD_URL),
-                                 read(MegaClient::PWM_ATTR_PASSWORD_USERNAME)};
+        return new PNDataPrivate{aux.read(MegaClient::PWM_ATTR_PASSWORD_PWD),
+                                 aux.read(MegaClient::PWM_ATTR_PASSWORD_NOTES),
+                                 aux.read(MegaClient::PWM_ATTR_PASSWORD_URL),
+                                 aux.read(MegaClient::PWM_ATTR_PASSWORD_USERNAME),
+                                 getPtr(totp)};
     }
 
     return nullptr;
@@ -27414,6 +27418,35 @@ bool MegaApiImpl::isPasswordNodeFolder(MegaHandle h) const
     return n && n->isPasswordNodeFolder();
 }
 
+static std::string totpToJson(const MegaNode::PasswordNodeData::TotpData& totp)
+{
+    if (totp.markedToRemove())
+    {
+        return std::string{MegaClient::REMOVAL_PWM_ATTR};
+    }
+
+    AttrMap attrMap{};
+
+    if (const auto shse = totp.sharedSecret(); shse)
+        attrMap.map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE)] = shse;
+
+    if (const auto expirationTime = totp.expirationTime(); expirationTime >= 0)
+        attrMap.map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT)] =
+            std::to_string(expirationTime);
+
+    if (const auto hashAlgorithm = totp.hashAlgorithm(); hashAlgorithm >= 0)
+        attrMap.map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH)] =
+            totp::hashAlgorithmPubToStrView(hashAlgorithm);
+
+    if (const auto nDigits = totp.nDigits(); nDigits >= 0)
+        attrMap.map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS)] =
+            std::to_string(nDigits);
+
+    std::string result;
+    attrMap.getjson(&result);
+    return result;
+}
+
 void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
 {
     CommandCreatePasswordManagerBase::Completion cb = [this, request](Error e, std::unique_ptr<NewNode> nn) -> void
@@ -27447,6 +27480,9 @@ std::unique_ptr<AttrMap> MegaApiImpl::toPasswordNodeData(const MegaNode::Passwor
     auto un = data->userName();
     if (un) attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_USERNAME)] = un;
 
+    if (const auto totp = data->totpData(); totp)
+        attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP)] =
+            totpToJson(*totp);
     return attrMap;
 }
 
@@ -27459,6 +27495,12 @@ void MegaApiImpl::createPasswordNode(const char* name, const MegaNode::PasswordN
 
     request->performRequest = [this, request, pwData]() -> error
     {
+        if (pwData && pwData->totpData() && pwData->totpData()->markedToRemove())
+        {
+            LOG_err << "createPasswordNode: Invalid TotpData with remove arg set to `true`";
+            return API_EARGS;
+        }
+
         auto name = request->getName();
         auto parent = client->nodebyhandle(request->getParentHandle());
         auto data = toPasswordNodeData(pwData);
@@ -27517,6 +27559,16 @@ static constexpr int toPublicErrorCode(const PasswordEntryError e)
             return MegaApi::IMPORTED_PASSWORD_ERROR_MISSINGPASSWORD;
         case PasswordEntryError::MISSING_NAME:
             return MegaApi::IMPORTED_PASSWORD_ERROR_MISSINGNAME;
+        case PasswordEntryError::MISSING_TOTP_SHARED_SECRET:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_TOTP_SHSE;
+        case PasswordEntryError::INVALID_TOTP_SHARED_SECRET:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_SHSE;
+        case PasswordEntryError::INVALID_TOTP_NDIGITS:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_NDIGITS;
+        case PasswordEntryError::INVALID_TOTP_EXPT:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_EXPTIME;
+        case PasswordEntryError::INVALID_TOTP_ALG:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_ALG;
     }
     assert(false);
     return -1; // We should never get here

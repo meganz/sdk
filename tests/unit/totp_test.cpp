@@ -84,7 +84,13 @@ TEST(GenerateTOTP, PreconditionsFailure)
     EXPECT_EQ(generateTOTP("GEZDGN", 11).first, "") << "More digits than allowed";
     EXPECT_EQ(generateTOTP("GEZDGN", 6, -5s).first, "") << "Negative time step";
     EXPECT_EQ(generateTOTP("GEZDGN", 6, 0s).first, "") << "Zero time step";
-    EXPECT_EQ(generateTOTP("GEZDGN", 6, 30s, system_clock::now(), system_clock::now() - 5s).first,
+    EXPECT_EQ(generateTOTP("GEZDGN",
+                           6,
+                           30s,
+                           HashAlgorithm::SHA1,
+                           system_clock::now(),
+                           system_clock::now() - 5s)
+                  .first,
               "")
         << "tEval lower than t0";
     EXPECT_EQ(generateTOTP("GEZDGN", -5s).first, "") << "Negative time delta";
