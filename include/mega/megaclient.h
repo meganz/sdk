@@ -1553,6 +1553,23 @@ public:
     bool retryessl;
 
 private:
+    // The current request's status in millis.
+    //
+    // This member is maintained by procreqstat(...) whether request
+    // monitoring is enabled or not, the idea being that we want an
+    // application to be able to show a progress bar once any request
+    // starts, without any delay.
+    //
+    // When the SDK starts a request, it checks to see if this member is
+    // valid. If it is, it immediately notifies the application.
+    //
+    // If this member is not valid when a request is started, the SDK delays
+    // notifying the application until progress information is received.
+    std::optional<int> mRequestProgress;
+
+    // Tracks whether we've notified the application of request progress.
+    bool mRequestProgressNotified = false;
+
     // flag to start / stop the request status monitor
     bool mReqStatEnabled = false;
 public:
