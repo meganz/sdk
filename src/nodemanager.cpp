@@ -682,38 +682,12 @@ uint64_t NodeManager::getNodeCount_internal()
 }
 
 auto NodeManager::getNodeTagsBelow(CancelToken cancelToken,
-                                   NodeHandle handle,
+                                   const std::set<NodeHandle>& handles,
                                    const std::string& pattern)
     -> std::optional<std::set<std::string>>
 {
-    // Which handles we want to search below.
-    std::set<NodeHandle> handles;
-
     // Make sure we have exclusive access to the database.
     LockGuard guard(mMutex);
-
-    // Figure out which handles the user wants to search below.
-    if (handle.isUndef())
-    {
-        // User wants to search below incoming shares.
-        mClient.forEachIncomingShare(
-            [&handles](std::shared_ptr<Node> node)
-            {
-                // But only if they have full access permissions.
-                if (node->inshare->access == FULL)
-                    handles.emplace(node->nodeHandle());
-            });
-
-        // And below the usual roots.
-        handles.emplace(rootnodes.files);
-        handles.emplace(rootnodes.rubbish);
-        handles.emplace(rootnodes.vault);
-    }
-    else
-    {
-        // User wants to search below a particular node.
-        handles.emplace(handle);
-    }
 
     // Convenience.
     static const auto warning = [](const char* message)
@@ -733,10 +707,10 @@ auto NodeManager::getNodeTagsBelow(CancelToken cancelToken,
     std::optional<std::set<std::string>> accumulatedTags;
 
     // Try and retrieve the tags below the specified nodes.
-    for (const auto& h: handles)
+    for (const auto& handle: handles)
     {
         // Try and retrieve tags below this node.
-        auto tags = mTable->getNodeTagsBelow(cancelToken, h, pattern);
+        auto tags = mTable->getNodeTagsBelow(cancelToken, handle, pattern);
 
         // Couldn't get tags.
         if (!tags)

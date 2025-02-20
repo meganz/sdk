@@ -8984,7 +8984,30 @@ auto MegaClient::getNodeTagsBelow(CancelToken cancelToken,
                                   const std::string& pattern)
     -> std::optional<std::set<std::string>>
 {
-    return mNodeManager.getNodeTagsBelow(std::move(cancelToken), handle, pattern);
+    std::set<NodeHandle> handles;
+
+    if (handle.isUndef())
+    {
+        // Callers interested in all tags visible under the usual root nodes.
+        for (auto node: mNodeManager.getRootNodes())
+            handles.emplace(node->nodeHandle());
+
+        // As well as those visible below full-access incoming shares.
+        forEachIncomingShare(
+            [&handles](std::shared_ptr<Node> node)
+            {
+                if (node->inshare->access == FULL)
+                    handles.emplace(node->nodeHandle());
+            });
+    }
+    else
+    {
+        // Callers interested in tags visible under a particular node.
+        handles.emplace(handle);
+    }
+
+    // Get all tags visible at or below the specified node handles.
+    return mNodeManager.getNodeTagsBelow(std::move(cancelToken), handles, pattern);
 }
 
 auto MegaClient::getNodeTagsBelow(NodeHandle handle, const std::string& pattern)
