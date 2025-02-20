@@ -682,7 +682,7 @@ uint64_t NodeManager::getNodeCount_internal()
 }
 
 auto NodeManager::getNodeTagsBelow(CancelToken cancelToken,
-                                   NodeHandle handle,
+                                   const std::set<NodeHandle>& handles,
                                    const std::string& pattern)
     -> std::optional<std::set<std::string>>
 {
@@ -704,8 +704,27 @@ auto NodeManager::getNodeTagsBelow(CancelToken cancelToken,
     if (pattern.find(MegaClient::TAG_DELIMITER) != std::string::npos)
         return warning("You can't filter by multiple tags at the same time");
 
-    // Try and retrieve the tags below the specified node.
-    return mTable->getNodeTagsBelow(std::move(cancelToken), handle, pattern);
+    std::optional<std::set<std::string>> accumulatedTags;
+
+    // Try and retrieve the tags below the specified nodes.
+    for (const auto& handle: handles)
+    {
+        // Try and retrieve tags below this node.
+        auto tags = mTable->getNodeTagsBelow(cancelToken, handle, pattern);
+
+        // Couldn't get tags.
+        if (!tags)
+            continue;
+
+        // Merge tags into accumulated result if possible.
+        if (accumulatedTags)
+            accumulatedTags->merge(*tags);
+        else
+            accumulatedTags = std::move(tags);
+    }
+
+    // Return accumulated tags to caller.
+    return accumulatedTags;
 }
 
 sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
