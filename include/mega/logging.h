@@ -364,6 +364,11 @@ class SimpleLogger
         copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
     }
 
+    void logValue(const std::string_view value)
+    {
+        copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
+    }
+
     void logValue(const ::mega::Error& value)   // ::mega:: when building MEGAchat on windows, else ambiguity errors
     {
         logValue(error(value));
