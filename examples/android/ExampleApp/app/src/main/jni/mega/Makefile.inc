@@ -78,7 +78,11 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/totp.cpp \
     sdk/src/user_attribute.cpp \
     sdk/src/user_attribute_definition.cpp \
-    sdk/src/user_attribute_manager.cpp
+    sdk/src/user_attribute_manager.cpp \
+    sdk/src/dns_lookup_pseudomessage.cpp \
+    sdk/src/network_connectivity_test.cpp \
+    sdk/src/udp_socket_tester.cpp \
+    sdk/src/udp_socket.cpp
 
 C_SOURCES = sdk/src/mega_glob.c
 
@@ -156,7 +160,12 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/user_attribute.h \
         sdk/include/mega/user_attribute_definition.h \
         sdk/include/mega/user_attribute_manager.h \
-        sdk/include/mega/user_attribute_types.h
+        sdk/include/mega/user_attribute_types.h \
+        sdk/include/mega/dns_lookup_pseudomessage.h \
+        sdk/include/mega/network_connectivity_test_helpers.h \
+        sdk/include/mega/network_connectivity_test.h \
+        sdk/include/mega/udp_socket_tester.h \
+        sdk/include/mega/udp_socket.h
 
 # impl layer headers
 HEADERS += \
