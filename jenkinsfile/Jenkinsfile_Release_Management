@@ -7,13 +7,13 @@ pipeline {
     }
     parameters {
         choice(name: 'ACTION', choices: ['Create_Release', 'Create_Release_Candidate', 'Close_Release', 'Patch_Release'], description: 'Pick an action')
-        string(name: 'SLACK_THREAD_ANNOUNCE', defaultValue: '', description: 'Id of thread root message')
-        string(name: 'TARGET_APPS', defaultValue: '', description: 'e.g. Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1')
-        string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Optionally define a release version for Create Release. It must exist for Patch Release. Default is 1.0.0.')
-        string(name: 'TICKETS', defaultValue: '', description: 'Comma separated tickets (patch release or create rc)')
-        string(name: 'BRANCH_FOR_MR', defaultValue: '', description: 'Branch for MR (create release candidate)')
-        string(name: 'MR_DESCRIPTION', defaultValue: '', description: 'MR Description (create release candidate)')
-        password(name: 'GPG_PASSWORD', defaultValue: '', description: 'Enter the password')
+        string(name: 'SLACK_THREAD_ANNOUNCE', defaultValue: '', description: 'Id of thread root message (only required for creating new releases or RCs).')
+        string(name: 'TARGET_APPS', defaultValue: '', description: 'e.g. Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1 (only required for creating releases, not for closing)')
+        string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Define release version (ie. 8.5.0). Optional for Create Release, mandatory for other actions.')
+        string(name: 'TICKETS', defaultValue: '', description: 'Comma separated tickets. Required for Patch release or Create RC.')
+        string(name: 'BRANCH_FOR_MR', defaultValue: '', description: 'Fix branch for creating the MR to release branch. Optional for Create RC, useless for other actions.')
+        string(name: 'MR_DESCRIPTION', defaultValue: '', description: 'MR description for creating the MR to release branch. Optional for Create RC, useless for other actions.')
+        password(name: 'GPG_PASSWORD', defaultValue: '', description: 'Enter the password. Only required for creating new releases and patched releases.')
     }
     environment {
         //JIRA_SDK_CREDS = credentials('SDK_JIRA')
@@ -115,7 +115,7 @@ pipeline {
         stage ('Create Release Candidate'){
             when {
                 beforeAgent true
-                expression { params.ACTION == "Create_Release_CANDIDATE" }
+                expression { params.ACTION == "Create_Release_Candidate" }
             }
             agent {
                 docker {
