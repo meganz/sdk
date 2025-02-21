@@ -66,11 +66,11 @@ using FIBITMAPPtr = std::unique_ptr<FIBITMAP, FIBITMAPDeleter>;
 
 // Rescale the image and convert it to standard FIT_BITMAP
 // @ return nullptr if it fails, otherwise the pointer to the new rescaled image
-FIBITMAP* rescale(FIBITMAP* dib, int width, int height)
+FIBITMAPPtr rescale(FIBITMAP* dib, int width, int height)
 {
     const FREE_IMAGE_TYPE image_type = FreeImage_GetImageType(dib);
 
-    auto thumbnail = [image_type, dib, width, height]() -> FIBITMAP*
+    auto thumbnail = [image_type, dib, width, height]() -> FIBITMAPPtr
     {
         switch (image_type)
         {
@@ -81,7 +81,7 @@ FIBITMAP* rescale(FIBITMAP* dib, int width, int height)
             case FIT_FLOAT:
             case FIT_RGBF:
             case FIT_RGBAF:
-                return FreeImage_Rescale(dib, width, height, FILTER_BILINEAR);
+                return FIBITMAPPtr{FreeImage_Rescale(dib, width, height, FILTER_BILINEAR)};
             default:
                 // Other types are not supported by freeimage
                 return nullptr;
@@ -92,45 +92,26 @@ FIBITMAP* rescale(FIBITMAP* dib, int width, int height)
         return thumbnail;
 
     // Convert these non standard bitmap to a standard bitmap FIT_BITMAP
-    auto standardBitmap = [image_type, thumbnail]() -> FIBITMAP*
+    switch (image_type)
     {
-        FIBITMAP* bitmap = nullptr;
-        switch (image_type)
+        case FIT_UINT16:
+            return FIBITMAPPtr{FreeImage_ConvertTo8Bits(thumbnail.get())};
+        case FIT_RGB16:
+            return FIBITMAPPtr{FreeImage_ConvertTo24Bits(thumbnail.get())};
+        case FIT_RGBA16:
+            return FIBITMAPPtr{FreeImage_ConvertTo32Bits(thumbnail.get())};
+        case FIT_FLOAT:
+            return FIBITMAPPtr{FreeImage_ConvertToStandardType(thumbnail.get(), TRUE)};
+        case FIT_RGBF:
+            return FIBITMAPPtr{FreeImage_ToneMapping(thumbnail.get(), FITMO_DRAGO03)};
+        case FIT_RGBAF:
         {
-            case FIT_UINT16:
-                bitmap = FreeImage_ConvertTo8Bits(thumbnail);
-                break;
-            case FIT_RGB16:
-                bitmap = FreeImage_ConvertTo24Bits(thumbnail);
-                break;
-            case FIT_RGBA16:
-                bitmap = FreeImage_ConvertTo32Bits(thumbnail);
-                break;
-            case FIT_FLOAT:
-                bitmap = FreeImage_ConvertToStandardType(thumbnail, TRUE);
-                break;
-            case FIT_RGBF:
-                bitmap = FreeImage_ToneMapping(thumbnail, FITMO_DRAGO03);
-                break;
-            case FIT_RGBAF:
-            {
-                // no way to keep the transparency yet ...
-                FIBITMAP* rgbf = FreeImage_ConvertToRGBF(thumbnail);
-                bitmap = FreeImage_ToneMapping(rgbf, FITMO_DRAGO03);
-                FreeImage_Unload(rgbf);
-                break;
-            }
-            default:
-                // Nothing
-                break;
-        };
-        return bitmap;
-    }();
-
-    // Free original thumbnail
-    FreeImage_Unload(thumbnail);
-
-    return standardBitmap;
+            FIBITMAPPtr rgbf{FreeImage_ConvertToRGBF(thumbnail.get())};
+            return FIBITMAPPtr{FreeImage_ToneMapping(rgbf.get(), FITMO_DRAGO03)};
+        }
+        default:
+            return nullptr;
+    };
 }
 
 using FITAGPtr = std::unique_ptr<FITAG, decltype(&FreeImage_DeleteTag)>;
@@ -999,16 +980,18 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut, Hint h
     imageOut->clear();
 
     // Rescale
-    FIBITMAP* tdib = rescale(dib, w, h);
-    if (!tdib)
+    if (auto rescaled = rescale(dib, w, h); rescaled)
+    {
+        FreeImage_Unload(dib);
+        dib = rescaled.release();
+    }
+    else
     {
         return false;
     }
-    FreeImage_Unload(dib);
-    dib = tdib;
 
     // copy part
-    tdib = FreeImage_Copy(dib, px, py, px + rw, py + rh);
+    auto tdib = FreeImage_Copy(dib, px, py, px + rw, py + rh);
     if (!tdib)
     {
         return false;
