@@ -40,6 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property NSString * term;
 @property NSString * _Nullable searchDescription;
+@property NSString * _Nullable searchTag;
 @property MEGASearchFilterTimeFrame * _Nullable creationTimeFrame;
 @property MEGASearchFilterTimeFrame * _Nullable modificationTimeFrame;
 @property uint64_t parentNodeHandle;
@@ -125,6 +126,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString *)term
                  description:(NSString * _Nullable)description
+                         tag:(NSString * _Nullable)tag
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(MEGANodeType)nodeType
                     category:(MEGANodeFormatType)category
@@ -136,6 +138,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString *)term
                  description:(NSString * _Nullable)description
+                         tag:(NSString * _Nullable)tag
                     nodeType:(MEGANodeType)nodeType
                     category:(MEGANodeFormatType)category
              sensitiveFilter:(MEGASearchFilterSensitiveOption)sensitiveFilter
