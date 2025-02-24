@@ -712,10 +712,10 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
     {
         // get host name from each URL
         string host, dummyscheme;
-        int dummyport;
+        int dummyPort;
         const string& url = urls[i]; // this is "free" and helps with debugging
 
-        crackurl(&url, &dummyscheme, &host, &dummyport);
+        crackurl(&url, &dummyscheme, &host, &dummyPort);
 
         // add resolved host name to cache, or replace the previous one
         CurlDNSEntry& dnsEntry = dnscache[host];
@@ -1061,6 +1061,24 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         if (!httpio->dnsservers.empty())
         {
             curl_easy_setopt(curl, CURLOPT_DNS_SERVERS, httpio->dnsservers.c_str());
+        }
+
+        if (!httpio->proxyip.size() && httpctx->isCachedIp)
+        {
+            httpio->addDnsResolution(httpctx->mCurlDnsList,
+                                     httpctx->hostname,
+                                     httpctx->hostip,
+                                     httpctx->port);
+            curl_easy_setopt(curl, CURLOPT_RESOLVE, httpctx->mCurlDnsList.get());
+        }
+
+        if (DNS_CACHE_EXPIRES)
+        {
+            curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, DNS_CACHE_TIMEOUT_DS / 10);
+        }
+        else
+        {
+            curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, -1);
         }
 
         httpio->numconnections[httpctx->d]++;
@@ -2453,6 +2471,16 @@ bool CurlDNSEntry::isIPv4Expired()
 bool CurlDNSEntry::isIPv6Expired()
 {
     return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
+}
+
+void CurlHttpIO::addDnsResolution(
+    std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)>& dnsList,
+    const string& host,
+    const string& ip,
+    const int port)
+{
+    string curlListEntry = "+" + host + ":" + std::to_string(port) + ":" + ip;
+    dnsList.reset(curl_slist_append(dnsList.release(), curlListEntry.c_str()));
 }
 
 } // namespace

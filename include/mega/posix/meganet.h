@@ -210,6 +210,10 @@ public:
     m_off_t getmaxuploadspeed() override;
 
     bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips) override;
+    void addDnsResolution(std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)>& dnsList,
+                          const string& host,
+                          const string& ip,
+                          const int port);
 
     CurlHttpIO();
     ~CurlHttpIO();
@@ -246,6 +250,8 @@ struct MEGA_API CurlHttpContext
     string posturl;
     unsigned len;
     const char* data;
+    std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> mCurlDnsList{nullptr,
+                                                                             curl_slist_free_all};
 };
 
 struct MEGA_API CurlDNSEntry
