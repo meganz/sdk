@@ -4916,20 +4916,20 @@ void exec_udp_send_recv(autocomplete::ACState& state)
     UdpSocket socket(finalAddress, atoi(state.words[2].s.c_str()));
 
     auto sendError = socket.sendAsyncMessage(state.words[3].s).get();
-    if (sendError.first)
+    if (sendError.code)
     {
-        cout << "Failed to send (" << sendError.first << "): " << sendError.second << endl;
+        cout << "Failed to send (" << sendError.code << "): " << sendError.message << endl;
         return;
     }
 
     auto received = socket.receiveAsyncMessage(atoi(state.words[4].s.c_str())).get();
-    if (received.first)
+    if (received.code)
     {
-        cout << "Failed to receive (" << received.first << "): " << received.second << endl;
+        cout << "Failed to receive (" << received.code << "): " << received.message << endl;
     }
     else
     {
-        cout << "Received: " << received.second << endl;
+        cout << "Received: " << received.message << endl;
     }
 }
 

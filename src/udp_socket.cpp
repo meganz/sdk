@@ -59,7 +59,7 @@ UdpSocket::~UdpSocket()
     }
 }
 
-std::future<std::pair<int, std::string>> UdpSocket::sendAsyncMessage(const std::string& message)
+std::future<UdpSocket::Communication> UdpSocket::sendAsyncMessage(const std::string& message)
 {
     return std::async(std::launch::async,
                       [this, message]()
@@ -68,7 +68,7 @@ std::future<std::pair<int, std::string>> UdpSocket::sendAsyncMessage(const std::
                       });
 }
 
-std::pair<int, std::string> UdpSocket::sendSyncMessage(const std::string& message)
+UdpSocket::Communication UdpSocket::sendSyncMessage(const std::string& message)
 {
     if (!mSocket)
     {
@@ -91,7 +91,7 @@ std::pair<int, std::string> UdpSocket::sendSyncMessage(const std::string& messag
     return {};
 }
 
-std::future<std::pair<int, std::string>> UdpSocket::receiveAsyncMessage(int timeout)
+std::future<UdpSocket::Communication> UdpSocket::receiveAsyncMessage(int timeout)
 {
     return std::async(std::launch::async,
                       [this, timeout]()
@@ -100,7 +100,7 @@ std::future<std::pair<int, std::string>> UdpSocket::receiveAsyncMessage(int time
                       });
 }
 
-std::pair<int, std::string> UdpSocket::receiveSyncMessage(int timeout)
+UdpSocket::Communication UdpSocket::receiveSyncMessage(int timeout)
 {
     if (!mSocket)
     {
@@ -252,7 +252,7 @@ intmax_t UdpSocket::sendtoWrapper(const std::string& message)
                   addrSize);
 }
 
-std::pair<int, std::string> UdpSocket::getSocketError()
+UdpSocket::Communication UdpSocket::getSocketError()
 {
 #if defined(_WIN32)
     int errorCode = WSAGetLastError();

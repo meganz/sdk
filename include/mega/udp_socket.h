@@ -36,12 +36,19 @@ class UdpSocket final
 public:
     UdpSocket(const std::string& remoteIP, int remotePort);
     ~UdpSocket();
-    std::future<std::pair<int, std::string>> sendAsyncMessage(const std::string& message);
-    std::future<std::pair<int, std::string>> receiveAsyncMessage(int timeout);
+
+    struct Communication
+    {
+        int code{};
+        std::string message;
+    };
+
+    std::future<Communication> sendAsyncMessage(const std::string& message);
+    std::future<Communication> receiveAsyncMessage(int timeout);
 
 private:
-    std::pair<int, std::string> sendSyncMessage(const std::string& message);
-    std::pair<int, std::string> receiveSyncMessage(int timeout);
+    Communication sendSyncMessage(const std::string& message);
+    Communication receiveSyncMessage(int timeout);
     bool createRemoteAddress(const std::string& remoteIP, int remotePort);
     sockaddr* getSockaddr();
 
@@ -57,7 +64,7 @@ private:
     bool openBlockingSocket();
     intmax_t sendtoWrapper(const std::string& message);
     void closeSocket();
-    static std::pair<int, std::string> getSocketError();
+    static Communication getSocketError();
 };
 
 } // namespace mega
