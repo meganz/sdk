@@ -3951,6 +3951,7 @@ using namespace mega;
     megaFilter->byCategory((int)filter.category);
     megaFilter->bySensitivity((int)filter.sensitiveFilter);
     megaFilter->byFavourite((int)filter.favouriteFilter);
+    megaFilter->byTag(filter.searchTag.UTF8String);
 
     if (filter.didSetLocationType) {
         megaFilter->byLocation(filter.locationType);
