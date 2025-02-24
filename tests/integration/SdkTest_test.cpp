@@ -2307,7 +2307,11 @@ auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_
 {
     RequestTracker tracker(&client);
 
-    client.exportNode(const_cast<MegaNode*>(&node), expirationDate.value_or(-1), &tracker);
+    client.exportNode(const_cast<MegaNode*>(&node),
+                      expirationDate.value_or(-1),
+                      false,
+                      false,
+                      &tracker);
 
     if (auto result = tracker.waitForResult(); result != API_OK)
     {
