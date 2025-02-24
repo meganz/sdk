@@ -2555,9 +2555,12 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom2", "value23");
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value31");
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value32");
-    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value33");
-    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
+    RequestTracker requestTracker(megaApi[0].get());
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value33", &requestTracker);
+    // Wait for the last set node attribute request before performing the get.
+    ASSERT_EQ(API_OK, requestTracker.waitForResult());
 
+    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
     ASSERT_STREQ("value13", n1->getCustomAttr("custom1"));
     ASSERT_STREQ("value23", n1->getCustomAttr("custom2"));
     ASSERT_STREQ("value33", n1->getCustomAttr("custom3"));
