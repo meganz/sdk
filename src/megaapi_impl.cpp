@@ -4218,8 +4218,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->setParamType(request->getParamType());
     this->setText(request->getText());
     this->setNumber(request->getNumber());
-    std::unique_ptr<MegaNode> publicNode{request->getPublicMegaNode()};
-    this->setPublicNode(publicNode.get());
+    std::unique_ptr<MegaNode> publicNodeTmp{request->getPublicMegaNode()};
+    this->setPublicNode(publicNodeTmp.get());
     this->setFlag(request->getFlag());
     this->setTransferTag(request->getTransferTag());
     this->setTotalBytes(request->getTotalBytes());
