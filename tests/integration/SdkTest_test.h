@@ -1099,19 +1099,6 @@ public:
 
     auto makeScopedAccountLevelRestorer(MegaApi& api);
 
-    template<typename... requestArgs>
-    int setAccountLevel(MegaApi& api, requestArgs... args)
-    {
-        // So we can wait for the client's result.
-        RequestTracker tracker(&api);
-
-        // Try and set the user's account level.
-        api.sendSetAccountLevelDevCommand(args..., &tracker);
-
-        // Return client's result to caller.
-        return tracker.waitForResult();
-    }
-
     template<typename... Arguments>
     int setThumbnail(MegaApi& client, Arguments... arguments)
     {
@@ -1447,3 +1434,29 @@ auto getPricing(MegaApi& client) -> Expected<std::unique_ptr<MegaPricing>>;
  */
 auto importNode(MegaApi& client, const std::string& link, const MegaNode& parent)
     -> Expected<std::unique_ptr<MegaNode>>;
+
+/**
+ * @brief
+ * Set a client's account level.
+ *
+ * @param client
+ * The client whose account level we want to set.
+ *
+ * @param args
+ * Arguments suitable for MegaApi::sendSetAccountLevelDevCommand(...).
+ *
+ * @return
+ * API_OK on success.
+ */
+template<typename... requestArgs>
+Error setAccountLevel(MegaApi& client, requestArgs... args)
+{
+    // So we can wait for the client's result.
+    RequestTracker tracker(&client);
+
+    // Try and set the user's account level.
+    client.sendSetAccountLevelDevCommand(args..., &tracker);
+
+    // Return client's result to caller.
+    return tracker.waitForResult();
+}
