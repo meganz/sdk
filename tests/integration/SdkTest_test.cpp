@@ -7416,10 +7416,16 @@ TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferWithConnectionFailures)
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
-TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferBestCase)
+TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
 {
     LOG_info << "___TEST Cloudraid transfers best case___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+    auto restorer1 = elevateToPro(*megaApi[1]);
+    ASSERT_EQ(result(restorer1), API_OK);
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
