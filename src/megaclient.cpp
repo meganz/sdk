@@ -4582,11 +4582,6 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     {
         removeCaches();
     }
-    else if (loggedIntoFolder())
-    {
-        mCachedStatus.addOrUpdate(CacheableStatus::STATUS_ROOT_FOLDER_LINK_HANDLE,
-                                  static_cast<int64_t>(mNodeManager.getRootNodeFiles().as8byte()));
-    }
 
     // Deinitialize the FUSE Client Adapter.
     //
@@ -10178,6 +10173,9 @@ int MegaClient::readnode(JSON* j,
                     if (mNodeManager.getRootNodeFiles().isUndef())
                     {
                         mNodeManager.setRootNodeFiles(NodeHandle().set6byte(h));
+                        mCachedStatus.addOrUpdate(
+                            CacheableStatus::STATUS_ROOT_FOLDER_LINK_HANDLE,
+                            static_cast<int64_t>(mNodeManager.getRootNodeFiles().as8byte()));
 
                         if (loggedIntoWritableFolder())
                         {
@@ -10603,8 +10601,11 @@ void MegaClient::readopc(JSON *j)
 
 error MegaClient::readmiscflags(JSON *json)
 {
-    bool journeyIdFound = false;
-    while (1)
+    // Clear flags to ensure they are regenerated when changing account types.
+    mABTestFlags.clear();
+    mFeatureFlags.clear();
+
+    for (bool journeyIdFound = false;;)
     {
         string fieldName = json->getnameWithoutAdvance();
         switch (json->getnameid())

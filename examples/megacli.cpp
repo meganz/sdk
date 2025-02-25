@@ -4869,6 +4869,42 @@ void exec_tag_list_below(autocomplete::ACState& state)
     listTags(NaturalStringMultiSet(tags->begin(), tags->end()));
 }
 
+void exec_proxyget(autocomplete::ACState&)
+{
+    // Retrieve current proxy settings.
+    auto settings = client->httpio->getproxy();
+
+    // No settings to display.
+    if (!settings)
+        return std::cout << "No proxy configured" << std::endl, void();
+
+    // Display proxy settings.
+    std::cout << "Proxy URI: " << settings->getProxyURL() << "\n"
+              << "Proxy Username: " << settings->getUsername() << "\n"
+              << "Proxy Password: " << settings->getPassword() << "\n"
+              << "Proxy Type: " << *proxyTypeToString(settings->getProxyType()) << std::endl;
+}
+
+void exec_proxyset(autocomplete::ACState& state)
+{
+    // Try and retrieve current proxy settings.
+    Proxy settings = client->httpio->getproxy().value_or(Proxy());
+
+    // Update settings.
+    settings.setCredentials(state.extractflagparam("-username").value_or(settings.getUsername()),
+                            state.extractflagparam("-password").value_or(settings.getPassword()));
+
+    settings.setProxyURL(state.extractflagparam("-uri").value_or(settings.getProxyURL()));
+
+    auto oldType = proxyTypeToString(settings.getProxyType());
+    auto newType = proxyTypeFromString(state.extractflagparam("-type").value_or(*oldType));
+
+    settings.setProxyType(newType);
+
+    // Apply new settings.
+    client->httpio->setproxy(settings);
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -5416,6 +5452,16 @@ autocomplete::ACN autocompleteSyntax()
                     text("list"),
                     text("below"),
                     opt(remoteFSPath(client, &cwd, "node-path"))));
+
+    p->Add(exec_proxyget, sequence(text("proxy"), text("get")));
+
+    p->Add(exec_proxyset,
+           sequence(text("proxy"),
+                    text("set"),
+                    opt(sequence(flag("-uri"), param("uri"))),
+                    opt(sequence(flag("-user"), param("user"))),
+                    opt(sequence(flag("-password"), param("password"))),
+                    opt(sequence(flag("-type"), param("type")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -12692,7 +12738,15 @@ void exec_searchbyname(autocomplete::ACState &s)
         }
 
         NodeSearchFilter filter;
-        filter.byAncestors({nodeHandle.as8byte(), UNDEF, UNDEF});
+        if (nodeHandle.isUndef())
+        {
+            filter.byAncestors({client->mNodeManager.getRootNodeFiles().as8byte(), UNDEF, UNDEF});
+        }
+        else
+        {
+            filter.byAncestors({nodeHandle.as8byte(), UNDEF, UNDEF});
+        }
+
         filter.byName(s.words[1].s);
         filter.bySensitivity(noSensitive ? NodeSearchFilter::BoolFilter::onlyTrue :
                                            NodeSearchFilter::BoolFilter::disabled);

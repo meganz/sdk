@@ -111,8 +111,7 @@ bool ACState::extractflag(const string& flag)
         }
     }
     return false;
-}
-
+};
 bool ACState::extractflagparam(const string& flag, string& param)
 {
     for (auto it = words.begin(); it != words.end(); ++it)
@@ -130,6 +129,16 @@ bool ACState::extractflagparam(const string& flag, string& param)
         }
     }
     return false;
+}
+
+std::optional<std::string> ACState::extractflagparam(const std::string& flag)
+{
+    std::string value;
+
+    if (extractflagparam(flag, value))
+        return std::optional<std::string>(std::in_place, std::move(value));
+
+    return std::nullopt;
 }
 
 void ACState::addCompletion(const std::string& s, bool caseInsensitive, bool couldextend)

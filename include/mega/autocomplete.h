@@ -87,6 +87,9 @@ namespace autocomplete {
         bool extractflag(const string& flag);
         bool extractflagparam(const string& flag, string& param);
 
+        // More convenient than the above.
+        std::optional<std::string> extractflagparam(const std::string& flag);
+
         ACN selectedSyntax;
     };
 

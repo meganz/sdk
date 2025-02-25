@@ -26,7 +26,6 @@ public:
     // Convenience types.
     using AllTagsResult = std::variant<Error, std::vector<std::string>>;
     using CopyNodeResult = std::variant<Error, MegaNodePtr>;
-    using CreateDirectoryResult = std::variant<Error, MegaNodePtr>;
     using SearchResult = std::variant<Error, std::vector<MegaNodePtr>>;
     using UploadFileResult = std::variant<Error, MegaNodePtr>;
 
@@ -56,15 +55,14 @@ public:
                   const MegaNode& target,
                   const std::string& name) -> CopyNodeResult;
 
-    auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string& name)
-        -> CreateDirectoryResult;
-
     auto createFile(MegaApi& client, const MegaNode& parent, const std::string& name)
         -> UploadFileResult;
 
     auto fileVersioning(MegaApi& client, bool enabled) -> Error;
 
     auto getTags(MegaApi& client, const std::string& path) -> AllTagsResult;
+
+    auto hasTag(const MegaApi& client, MegaHandle handle, const std::string& tag) -> bool;
 
     auto moveNode(MegaApi& client, const MegaNode& source, const MegaNode& target) -> Error;
 
@@ -98,6 +96,7 @@ public:
 
     MegaApi* client0 = nullptr;
     MegaApi* client1 = nullptr;
+    MegaApi* client2 = nullptr;
 }; // SdkTestNodeTagsCommon
 
 class SdkTestNodeTagsBasic: public SdkTestNodeTagsCommon

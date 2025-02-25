@@ -2270,6 +2270,84 @@ auto SdkTest::makeScopedAccountLevelRestorer(MegaApi& api)
     return makeScopedDestructor(std::move(destructor));
 }
 
+auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string& name)
+    -> Expected<std::unique_ptr<MegaNode>>
+{
+    using sdk_test::waitFor;
+
+    RequestTracker tracker(&client);
+
+    client.createFolder(name.c_str(), const_cast<MegaNode*>(&parent), &tracker);
+
+    if (auto result = tracker.waitForResult(); result != API_OK)
+    {
+        return result;
+    }
+
+    MegaNode* directory = nullptr;
+    MegaHandle directoryHandle = tracker.request->getNodeHandle();
+
+    waitFor(
+        [&]()
+        {
+            return (directory = client.getNodeByHandle(directoryHandle)) != nullptr;
+        },
+        std::chrono::milliseconds(defaultTimeoutMs));
+
+    if (!directory)
+    {
+        return LOCAL_ETIMEOUT;
+    }
+
+    return makeUniqueFrom(directory);
+}
+
+auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_t> expirationDate)
+    -> Expected<std::string>
+{
+    RequestTracker tracker(&client);
+
+    client.exportNode(const_cast<MegaNode*>(&node), expirationDate.value_or(-1), &tracker);
+
+    if (auto result = tracker.waitForResult(); result != API_OK)
+    {
+        return result;
+    }
+
+    return tracker.request->getLink();
+}
+
+auto importNode(MegaApi& client, const std::string& link, const MegaNode& parent)
+    -> Expected<std::unique_ptr<MegaNode>>
+{
+    using sdk_test::waitFor;
+
+    RequestTracker tracker(&client);
+
+    client.importFileLink(link.c_str(), const_cast<MegaNode*>(&parent), &tracker);
+
+    if (auto result = tracker.waitForResult(); result != API_OK)
+    {
+        return result;
+    }
+
+    MegaNode* node = nullptr;
+
+    waitFor(
+        [&]() -> bool
+        {
+            return (node = client.getNodeByHandle(tracker.request->getNodeHandle())) != nullptr;
+        },
+        std::chrono::milliseconds(defaultTimeoutMs));
+
+    if (!node)
+    {
+        return LOCAL_ETIMEOUT;
+    }
+
+    return makeUniqueFrom(node);
+}
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 /**
  * @brief TEST_F SdkTestCreateEphmeralPlusPlusAccount
@@ -19848,4 +19926,44 @@ TEST_F(SdkTestShares, TestPublicFolderLinkLogin)
 
     // Cleanup
     ASSERT_NO_FATAL_FAILURE(logout(mGuestIndex, false, 20));
+}
+
+TEST_F(SdkTest, ExportNodeWithExpiryDate)
+{
+    // Get an account for us to play with.
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Convenience.
+    auto& client = *megaApi[0];
+
+    // Make sure any plan changed are reversed.
+    auto restorer = makeScopedAccountLevelRestorer(client);
+
+    // Make sure the backend thinks we have a free account.
+    EXPECT_EQ(setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr), API_OK);
+
+    // Get our hands on this account's root node.
+    auto root = makeUniqueFrom(client.getRootNode());
+    ASSERT_NE(root, nullptr);
+
+    // Create a directory for us to try and export.
+    auto node = createDirectory(client, *root, "d");
+    ASSERT_EQ(result(node), API_OK);
+
+    // Get tomorrow's time stamp.
+    auto tomorrow = ([]() {
+        auto now = std::chrono::system_clock::now();
+        auto tomorrow = now + std::chrono::hours(24);
+        return std::chrono::system_clock::to_time_t(tomorrow);
+    })();
+
+    // Trying to export a node with an expiry date should fail.
+    EXPECT_EQ(result(exportNode(client, *value(node), tomorrow)), API_EACCESS);
+
+    // Unless, of course, the account is a *pro account* :)
+    ASSERT_EQ(setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_PROI, 1, nullptr), API_OK);
+
+    // Exporting a node with an expiry date should now succeed.
+    auto link = exportNode(client, *value(node), tomorrow);
+    ASSERT_EQ(result(link), API_OK);
 }

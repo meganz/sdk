@@ -432,6 +432,44 @@ private:
     std::string mEndpointName;
 };
 
+// Poor man's expected.
+template<typename T>
+using Expected = std::variant<Error, T>;
+
+template<typename T>
+struct IsExpected: std::false_type
+{}; // IsExpected<T>
+
+template<typename T>
+struct IsExpected<Expected<T>>: std::true_type
+{}; // IsExpected<Expected<T>>
+
+template<typename T>
+static constexpr auto IsExpectedV = IsExpected<T>::value;
+
+template<typename T>
+using RemoveCVRef = std::remove_cv<std::remove_reference_t<T>>;
+
+template<typename T>
+using RemoveCVRefT = typename RemoveCVRef<T>::type;
+
+template<typename T>
+Error result(const Expected<T>& expected)
+{
+    if (auto* result = std::get_if<0>(&expected))
+        return *result;
+
+    return API_OK;
+}
+
+template<typename T, typename = std::enable_if_t<IsExpectedV<RemoveCVRefT<T>>>>
+decltype(auto) value(T&& expected)
+{
+    assert(result(expected) == API_OK);
+
+    return std::get<1>(std::forward<T>(expected));
+}
+
 using MegaApiTestPointer = std::unique_ptr<MegaApiTest, MegaApiTestDeleter>;
 
 // Fixture class with common code for most of tests
@@ -1299,3 +1337,63 @@ public:
      */
     std::string getFilePrefix() const;
 };
+
+/**
+ * @brief
+ * Create a directory with a given name under a specified parent.
+ *
+ * @param client
+ * The client who should create the directory.
+ *
+ * @param parent
+ * The directory where our new directory will live.
+ *
+ * @param name
+ * The name of the directory we are creating.
+ *
+ * @return
+ * An Error if the directory couldn't be created.
+ * An std::unique_ptr<MegaNode> if the directory was created.
+ */
+auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string& name)
+    -> Expected<std::unique_ptr<MegaNode>>;
+
+/**
+ * @brief
+ * Export the specified node.
+ *
+ * @param client
+ * The client that should export the node.
+ *
+ * @param node
+ * The node we want to export.
+ *
+ * @param expirationDate
+ * When should the node's resulting public link expire?
+ *
+ * @return
+ * A string (the node's public link) if the node could be exported
+ * An error if the node couldn't be exported.
+ */
+auto exportNode(MegaApi& client,
+                const MegaNode& node,
+                std::optional<std::int64_t> expirationDate = std::nullopt) -> Expected<std::string>;
+
+/**
+ * Import a node into this account via public link.
+ *
+ * @param client
+ * The client who is importing the node.
+ *
+ * @param link
+ * The public link of the node we want to import.
+ *
+ * @param parent
+ * Where the node should be imported.
+ *
+ * @return
+ * An Error if the node could not be imported.
+ * An std::unique_ptr<MegaNode> if the node was imported.
+ */
+auto importNode(MegaApi& client, const std::string& link, const MegaNode& parent)
+    -> Expected<std::unique_ptr<MegaNode>>;

@@ -24128,7 +24128,7 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
     LocalPath::path2local(&url, &localurl);
 #endif
 
-    localProxySettings->setProxyURL(&localurl);
+    localProxySettings->setProxyURL(localurl);
 
     if (proxySettings->credentialsNeeded())
     {
@@ -24156,20 +24156,19 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
         LocalPath::path2local(&password, &localpassword);
 #endif
 
-        localProxySettings->setCredentials(&localusername, &localpassword);
+        localProxySettings->setCredentials(localusername, localpassword);
     }
 
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PROXY, listener);
     request->setProxy(localProxySettings);
 
     request->performRequest = [this, request]()
-        {
-            Proxy *proxy = request->getProxy();
-            httpio->setproxy(proxy);
-            delete proxy;
-            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-            return API_OK;
-        };
+    {
+        auto proxy = makeUniqueFrom(request->getProxy());
+        httpio->setproxy(*proxy);
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -27782,7 +27781,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
             }
         }
 
-        auto result{[this, request, nodeTree = nodeTree.release()](
+        auto result{[this, request, nodeTree = std::shared_ptr<MegaNodeTree>(nodeTree.release())](
                         const Error& error,
                         targettype_t,
                         vector<NewNode>& newNodes,
@@ -27791,7 +27790,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                         const map<string, string>& fileHandles)
                     {
                         size_t i{};
-                        auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
+                        auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree.get())};
                         while (i < newNodes.size() && tmpNodeTree)
                         {
                             if (auto node{client->nodebyhandle(newNodes[i].mAddedHandle)})
@@ -27802,7 +27801,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                             tmpNodeTree =
                                 dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild());
                         }
-                        request->setMegaNodeTree(nodeTree);
+                        request->setMegaNodeTree(nodeTree->copy());
                         request->setMegaStringMap(fileHandles);
                         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(error));
                     }};
