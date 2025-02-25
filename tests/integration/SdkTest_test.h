@@ -1097,8 +1097,6 @@ public:
 
     /* MegaVpnCredentials END */
 
-    auto getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>;
-
     auto makeScopedAccountLevelRestorer(MegaApi& api);
 
     template<typename... requestArgs>
@@ -1387,6 +1385,36 @@ auto exportNode(MegaApi& client,
  * An error on failure.
  */
 auto getAccountDetails(MegaApi& client) -> Expected<std::unique_ptr<MegaAccountDetails>>;
+
+/**
+ * Describes a client's current account level.
+ */
+struct AccountLevel
+{
+    AccountLevel(int months, int plan):
+        months(months),
+        plan(plan)
+    {}
+
+    // How long the client's current pricing is active.
+    int months;
+
+    // The client's current pricing plan.
+    int plan;
+}; // AccountLevel
+
+/**
+ * @brief
+ * Retrieve a client's current account level.
+ *
+ * @param client
+ * The client whose account level we want to retrieve.
+ *
+ * @return
+ * An account level object instance on success.
+ * An error on failure.
+ */
+auto getAccountLevel(MegaApi& client) -> Expected<AccountLevel>;
 
 /**
  * @brief

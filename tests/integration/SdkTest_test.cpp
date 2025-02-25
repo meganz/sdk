@@ -2159,34 +2159,28 @@ void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
                                                         FILENODEKEYLENGTH);
 }
 
-auto SdkTest::getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
+auto getAccountLevel(MegaApi& client) -> Expected<AccountLevel>
 {
     // Try and retrieve the user's account details.
-    auto details = getAccountDetails(api);
+    auto details = getAccountDetails(client);
 
     // Couldn't get account details.
     if (auto result = ::result(details); result != API_OK)
-    {
-        return std::make_tuple(0, 0, result);
-    }
+        return result;
 
     // Latch the user's plan.
     auto plan = value(details)->getProLevel();
 
     // User has a free account: No need to get features or months.
     if (plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
-    {
-        return std::make_tuple(0, plan, API_OK);
-    }
+        return AccountLevel(0, plan);
 
     // Try and get pricing information.
-    auto pricing = getPricing(api);
+    auto pricing = getPricing(client);
 
     // Couldn't get pricing information.
     if (auto result = ::result(pricing); result != API_OK)
-    {
-        return std::make_tuple(0, 0, result);
-    }
+        return result;
 
     // Convenience.
     auto& priceDetails = *value(pricing);
@@ -2198,12 +2192,12 @@ auto SdkTest::getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
         if (plan == priceDetails.getProLevel(i))
         {
             // Return plan and its length.
-            return std::make_tuple(priceDetails.getMonths(i), plan, API_OK);
+            return AccountLevel(priceDetails.getMonths(i), plan);
         }
     }
 
     // Couldn't locate the user's plan.
-    return std::make_tuple(0, 0, API_ENOENT);
+    return API_ENOENT;
 }
 
 auto getAccountDetails(MegaApi& client) -> Expected<std::unique_ptr<MegaAccountDetails>>
@@ -2238,32 +2232,31 @@ auto getPricing(MegaApi& client) -> Expected<std::unique_ptr<MegaPricing>>
     return makeUniqueFrom(tracker.request->getPricing());
 }
 
-auto SdkTest::makeScopedAccountLevelRestorer(MegaApi& api)
+auto SdkTest::makeScopedAccountLevelRestorer(MegaApi& client)
 {
     // Assume we can't retrieve the account level.
     std::function<void()> destructor = []() {};
 
-    auto months = 0;
-    auto plan = 0;
-    auto result = 0;
-
     // Try and retrieve the user's current account level.
-    std::tie(months, plan, result) = getAccountLevel(api);
+    auto accountLevel = getAccountLevel(client);
 
-    // Leave a trail if we couldn't get the account level.
-    EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
-
-    // We were able to retrieve the account level.
-    if (result == API_OK)
+    // Couldn't retrieve account level.
+    if (auto result = ::result(accountLevel); result != API_OK)
     {
-        // Build a destructor that will restore the user's account level.
-        destructor = [&api, months, plan, this]()
-        {
-            // Try and restore the user's account level.
-            auto result = setAccountLevel(api, plan, months, nullptr);
-            EXPECT_EQ(result, API_OK) << "Couldn't restore account level: " << result;
-        };
+        // Leave a trail if we couldn't get the account level.
+        EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+
+        // Return destructor to caller.
+        return makeScopedDestructor(std::move(destructor));
     }
+
+    // Build a destructor that will restore the user's account level.
+    destructor = [&client, level = value(accountLevel), this]()
+    {
+        // Try and restore the user's account level.
+        auto result = setAccountLevel(client, level.plan, level.months, nullptr);
+        EXPECT_EQ(result, API_OK) << "Couldn't restore account level: " << result;
+    };
 
     // Return destructor to caller.
     return makeScopedDestructor(std::move(destructor));
@@ -19587,17 +19580,19 @@ TEST_F(SdkTest, SdkTestSetAccountLevel)
         // Make sure the account level actually changed.
         if (result == API_OK)
         {
-            auto m = 0;
-            auto p = 0;
+            // Try and get the client's account level.
+            auto level = getAccountLevel(api);
 
-            // Try and retrieve the account level.
-            std::tie(m, p, result) = getAccountLevel(api);
-
-            EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+            // Couldn't get account level.
+            if (result = ::result(level); result != API_OK)
+            {
+                EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+                return result;
+            }
 
             // Make sure the account level actually changed.
-            EXPECT_EQ(m, months);
-            EXPECT_EQ(p, plan);
+            EXPECT_EQ(value(level).months, months);
+            EXPECT_EQ(value(level).plan, plan);
         }
 
         return result;
