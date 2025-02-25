@@ -1351,6 +1351,19 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
 
 /**
  * @brief
+ * Elevate client to a pro pricing plan.
+ *
+ * @param client
+ * The client who we want to elevate to a pro pricing plan.
+ *
+ * @return
+ * An account level restorer on success.
+ * An error on failure.
+ */
+auto elevateToPro(MegaApi& client);
+
+/**
+ * @brief
  * Export the specified node.
  *
  * @param client

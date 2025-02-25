@@ -2294,6 +2294,26 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
     return makeUniqueFrom(directory);
 }
 
+auto elevateToPro(MegaApi& client)
+{
+    // Make sure client's plan alterations are temporary.
+    auto restorer = accountLevelRestorer(client);
+
+    // Convenience.
+    using Restorer = decltype(restorer);
+    using Expected = ::Expected<Restorer>;
+
+    // Try and elevate client to a pro pricing plan.
+    auto result = setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_PROI, 1, nullptr);
+
+    // Couldn't elevate client to a pro pricing plan.
+    if (result != API_OK)
+        return Expected(std::in_place_type<Error>, result);
+
+    // Return restorer to caller.
+    return Expected(std::in_place_type<Restorer>, std::move(restorer));
+}
+
 auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_t> expirationDate)
     -> Expected<std::string>
 {
