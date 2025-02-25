@@ -2232,7 +2232,7 @@ auto getPricing(MegaApi& client) -> Expected<std::unique_ptr<MegaPricing>>
     return makeUniqueFrom(tracker.request->getPricing());
 }
 
-auto SdkTest::makeScopedAccountLevelRestorer(MegaApi& client)
+auto accountLevelRestorer(MegaApi& client)
 {
     // Assume we can't retrieve the account level.
     std::function<void()> destructor = []() {};
@@ -2251,7 +2251,7 @@ auto SdkTest::makeScopedAccountLevelRestorer(MegaApi& client)
     }
 
     // Build a destructor that will restore the user's account level.
-    destructor = [&client, level = value(accountLevel), this]()
+    destructor = [&client, level = value(accountLevel)]()
     {
         // Try and restore the user's account level.
         auto result = setAccountLevel(client, level.plan, level.months, nullptr);
@@ -19609,7 +19609,7 @@ TEST_F(SdkTest, SdkTestSetAccountLevel)
     auto& api = *megaApi[0];
 
     // Make sure any modifications we make are reversed.
-    auto restorer = makeScopedAccountLevelRestorer(api);
+    auto restorer = accountLevelRestorer(api);
 
     // Make sure we can change to a free plan.
     EXPECT_EQ(check(api, 0, FREE), API_OK);
@@ -19930,7 +19930,7 @@ TEST_F(SdkTest, ExportNodeWithExpiryDate)
     auto& client = *megaApi[0];
 
     // Make sure any plan changed are reversed.
-    auto restorer = makeScopedAccountLevelRestorer(client);
+    auto restorer = accountLevelRestorer(client);
 
     // Make sure the backend thinks we have a free account.
     EXPECT_EQ(setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr), API_OK);

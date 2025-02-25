@@ -1097,8 +1097,6 @@ public:
 
     /* MegaVpnCredentials END */
 
-    auto makeScopedAccountLevelRestorer(MegaApi& api);
-
     template<typename... Arguments>
     int setThumbnail(MegaApi& client, Arguments... arguments)
     {
@@ -1318,6 +1316,18 @@ public:
      */
     std::string getFilePrefix() const;
 };
+
+/**
+ * @brief
+ * Return an object that will restore client's plan on destruction.
+ *
+ * @param client
+ * The client whose plan we want to restore.
+ *
+ * @return
+ * An object that will restore client's plan on destruction.
+ */
+auto accountLevelRestorer(MegaApi& client);
 
 /**
  * @brief
