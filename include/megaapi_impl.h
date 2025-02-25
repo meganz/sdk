@@ -1344,6 +1344,8 @@ public:
 
     MegaStringList* getDns() const override;
 
+    MegaStringList* getAdBlockingDns() const override;
+
 private:
     VpnCluster mCluster;
 };

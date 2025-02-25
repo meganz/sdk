@@ -1936,9 +1936,12 @@ public:
 class VpnCluster
 {
 public:
-    VpnCluster(std::string&& host, std::vector<std::string>&& dns):
+    VpnCluster(std::string&& host,
+               std::vector<std::string>&& dns,
+               std::vector<std::string>&& addBlockingDns):
         mHost{std::move(host)},
-        mDns{std::move(dns)}
+        mDns{std::move(dns)},
+        mAdBlockingDns{std::move(addBlockingDns)}
     {}
 
     const std::string& getHost() const
@@ -1951,9 +1954,15 @@ public:
         return mDns;
     }
 
+    const std::vector<std::string>& getAdBlockingDns() const
+    {
+        return mAdBlockingDns;
+    }
+
 private:
     std::string mHost; // "nz.vpn.mega.nz"
     std::vector<std::string> mDns; // {"8.8.8.8", "8.8.4.4", ...}
+    std::vector<std::string> mAdBlockingDns;
 };
 
 class VpnRegion

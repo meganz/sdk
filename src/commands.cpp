@@ -11726,6 +11726,8 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
         std::optional<string> host{vpnRegion ? std::make_optional<string>() : std::nullopt};
         std::optional<vector<string>> dns{vpnRegion ? std::make_optional<vector<string>>() :
                                                       std::nullopt};
+        std::optional<vector<string>> afdns{vpnRegion ? std::make_optional<vector<string>>() :
+                                                        std::nullopt};
 
         for (bool hasData = true; hasData;) // host, dns
         {
@@ -11758,6 +11760,23 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
                         return false;
                     break;
 
+                case makeNameid("afdns"):
+                    if (!json.enterarray())
+                        return false;
+
+                    while (json.storeobject(pBuffer))
+                    {
+                        if (afdns)
+                        {
+                            afdns->emplace_back(std::move(buffer));
+                            buffer.clear();
+                        }
+                    }
+
+                    if (!json.leavearray())
+                        return false;
+                    break;
+
                 case EOO:
                     hasData = false;
                     break;
@@ -11770,9 +11789,11 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
         if (!json.leaveobject())
             return false;
 
-        if (host && dns)
+        if (host && dns && afdns)
         {
-            vpnRegion->addCluster(clusterID, {std::move(host.value()), std::move(dns.value())});
+            vpnRegion->addCluster(
+                clusterID,
+                {std::move(host.value()), std::move(dns.value()), std::move(afdns.value())});
         }
     }
     return true;
