@@ -19592,7 +19592,7 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
 TEST_F(SdkTest, SdkTestSetAccountLevel)
 {
     // Make sure we can transition between account levels.
-    auto check = [this](MegaApi& api, int months, int plan)
+    auto check = [](MegaApi& api, int months, int plan)
     {
         // Try and set the account level.
         auto result = setAccountLevel(api, plan, months, nullptr);
