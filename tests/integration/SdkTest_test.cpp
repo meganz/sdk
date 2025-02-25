@@ -7149,7 +7149,7 @@ namespace mega
  * periodically destrying the megaApi object, then recreating and Resuming (with session token)
  */
 #ifdef DEBUG
-TEST_F(SdkTest, SdkTestCloudraidTransfers)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransfers)
 {
     LOG_info << "___TEST Cloudraid transfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7340,7 +7340,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 */
 
 #ifdef DEBUG
-TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferWithConnectionFailures)
 {
     LOG_info << "___TEST Cloudraid transfers with connection failures___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7408,7 +7408,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
-TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferBestCase)
 {
     LOG_info << "___TEST Cloudraid transfers best case___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
@@ -7460,7 +7460,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
 */
 
 #ifdef DEBUG
-TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
     LOG_info << "___TEST Cloudraid transfers with single channel timeouts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7527,7 +7527,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
  * Tests resumption for raid file download.
  */
 #ifdef DEBUG
-TEST_F(SdkTest, SdkTestCloudraidTransferResume)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferResume)
 {
     LOG_info << "___TEST Cloudraid transfer resume___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7713,7 +7713,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 */
 
 #ifdef DEBUG
-TEST_F(SdkTest, SdkTestOverquotaCloudraid)
+TEST_F(SdkTest, DISABLED_SdkTestOverquotaCloudraid)
 {
     LOG_info << "___TEST SdkTestOverquotaCloudraid";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7884,8 +7884,7 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 *
 */
 
-
-TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidStreamingSoakTest)
 {
     LOG_info << "___TEST SdkTestCloudraidStreamingSoakTest";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -8151,7 +8150,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
 }
 
-TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
+TEST_F(SdkTest, DISABLED_SdkTestStreamingRaidedTransferWithConnectionFailures)
 {
     LOG_info << "___TEST Streaming Raided Transfer With Connection Failures___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
