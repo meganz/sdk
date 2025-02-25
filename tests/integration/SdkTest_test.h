@@ -1099,8 +1099,6 @@ public:
 
     auto getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>;
 
-    auto getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>;
-
     auto makeScopedAccountLevelRestorer(MegaApi& api);
 
     template<typename... requestArgs>
@@ -1389,6 +1387,19 @@ auto exportNode(MegaApi& client,
  * An error on failure.
  */
 auto getAccountDetails(MegaApi& client) -> Expected<std::unique_ptr<MegaAccountDetails>>;
+
+/**
+ * @brief
+ * Retrieve available pricing plans.
+ *
+ * @param client
+ * The client who should request the available pricing plans.
+ *
+ * @return
+ * A pointer to a pricing object instance on success.
+ * An error on failure.
+ */
+auto getPricing(MegaApi& client) -> Expected<std::unique_ptr<MegaPricing>>;
 
 /**
  * Import a node into this account via public link.

@@ -2183,13 +2183,13 @@ auto SdkTest::getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
     auto pricing = getPricing(api);
 
     // Couldn't get pricing information.
-    if (std::get<1>(pricing) != API_OK)
+    if (auto result = ::result(pricing); result != API_OK)
     {
-        return std::make_tuple(0, 0, std::get<1>(pricing));
+        return std::make_tuple(0, 0, result);
     }
 
     // Convenience.
-    auto& priceDetails = *std::get<0>(pricing);
+    auto& priceDetails = *value(pricing);
 
     // Locate the user's plan.
     for (auto i = 0, j = priceDetails.getNumProducts(); i < j; ++i)
@@ -2222,20 +2222,20 @@ auto getAccountDetails(MegaApi& client) -> Expected<std::unique_ptr<MegaAccountD
     return makeUniqueFrom(tracker.request->getMegaAccountDetails());
 }
 
-auto SdkTest::getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>
+auto getPricing(MegaApi& client) -> Expected<std::unique_ptr<MegaPricing>>
 {
     // So we can wait for the client's result.
-    RequestTracker tracker(&api);
+    RequestTracker tracker(&client);
 
     // Ask client for plan pricing information,
-    api.getPricing(&tracker);
+    client.getPricing(&tracker);
 
-    // Wait for client to report a result.
-    auto result = tracker.waitForResult();
-    auto pricing = makeUniqueFrom(tracker.request->getPricing());
+    // Couldn't get pricing plans.
+    if (auto result = tracker.waitForResult(); result != API_OK)
+        return result;
 
-    // Return result to caller.
-    return std::make_tuple(std::move(pricing), result);
+    // Return pricing plans to caller.
+    return makeUniqueFrom(tracker.request->getPricing());
 }
 
 auto SdkTest::makeScopedAccountLevelRestorer(MegaApi& api)
