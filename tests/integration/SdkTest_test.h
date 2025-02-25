@@ -1327,7 +1327,7 @@ public:
  * @return
  * An object that will restore client's plan on destruction.
  */
-auto accountLevelRestorer(MegaApi& client);
+auto accountLevelRestorer(MegaApi& client) -> ScopedDestructor;
 
 /**
  * @brief
@@ -1360,7 +1360,7 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
  * An account level restorer on success.
  * An error on failure.
  */
-auto elevateToPro(MegaApi& client);
+auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>;
 
 /**
  * @brief

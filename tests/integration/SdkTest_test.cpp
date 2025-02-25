@@ -2232,7 +2232,7 @@ auto getPricing(MegaApi& client) -> Expected<std::unique_ptr<MegaPricing>>
     return makeUniqueFrom(tracker.request->getPricing());
 }
 
-auto accountLevelRestorer(MegaApi& client)
+auto accountLevelRestorer(MegaApi& client) -> ScopedDestructor
 {
     // Assume we can't retrieve the account level.
     std::function<void()> destructor = []() {};
@@ -2247,7 +2247,7 @@ auto accountLevelRestorer(MegaApi& client)
         EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
 
         // Return destructor to caller.
-        return makeScopedDestructor(std::move(destructor));
+        return destructor;
     }
 
     // Build a destructor that will restore the user's account level.
@@ -2259,7 +2259,7 @@ auto accountLevelRestorer(MegaApi& client)
     };
 
     // Return destructor to caller.
-    return makeScopedDestructor(std::move(destructor));
+    return destructor;
 }
 
 auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string& name)
@@ -2294,24 +2294,20 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
     return makeUniqueFrom(directory);
 }
 
-auto elevateToPro(MegaApi& client)
+auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>
 {
     // Make sure client's plan alterations are temporary.
     auto restorer = accountLevelRestorer(client);
-
-    // Convenience.
-    using Restorer = decltype(restorer);
-    using Expected = ::Expected<Restorer>;
 
     // Try and elevate client to a pro pricing plan.
     auto result = setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_PROI, 1, nullptr);
 
     // Couldn't elevate client to a pro pricing plan.
     if (result != API_OK)
-        return Expected(std::in_place_type<Error>, result);
+        return result;
 
     // Return restorer to caller.
-    return Expected(std::in_place_type<Restorer>, std::move(restorer));
+    return restorer;
 }
 
 auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_t> expirationDate)
