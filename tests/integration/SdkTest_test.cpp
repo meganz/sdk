@@ -2165,13 +2165,13 @@ auto SdkTest::getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
     auto details = getAccountDetails(api);
 
     // Couldn't get account details.
-    if (std::get<1>(details) != API_OK)
+    if (auto result = ::result(details); result != API_OK)
     {
-        return std::make_tuple(0, 0, std::get<1>(details));
+        return std::make_tuple(0, 0, result);
     }
 
     // Latch the user's plan.
-    auto plan = std::get<0>(details)->getProLevel();
+    auto plan = value(details)->getProLevel();
 
     // User has a free account: No need to get features or months.
     if (plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
@@ -2206,21 +2206,20 @@ auto SdkTest::getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
     return std::make_tuple(0, 0, API_ENOENT);
 }
 
-auto SdkTest::getAccountDetails(MegaApi& api)
-    -> std::tuple<std::unique_ptr<MegaAccountDetails>, int>
+auto getAccountDetails(MegaApi& client) -> Expected<std::unique_ptr<MegaAccountDetails>>
 {
     // So we can wait for the client's result.
-    RequestTracker tracker(&api);
+    RequestTracker tracker(&client);
 
     // Ask client for account details.
-    api.getAccountDetails(&tracker);
+    client.getAccountDetails(&tracker);
 
-    // Wait for client to report a result.
-    auto result = tracker.waitForResult();
-    auto details = makeUniqueFrom(tracker.request->getMegaAccountDetails());
+    // Couldn't get the client's account details.
+    if (auto result = tracker.waitForResult(); result != API_OK)
+        return result;
 
-    // Return result to caller.
-    return std::make_tuple(std::move(details), result);
+    // Return account details to caller.
+    return makeUniqueFrom(tracker.request->getMegaAccountDetails());
 }
 
 auto SdkTest::getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>

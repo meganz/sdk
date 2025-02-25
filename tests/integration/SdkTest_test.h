@@ -1099,8 +1099,6 @@ public:
 
     auto getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>;
 
-    auto getAccountDetails(MegaApi& api) -> std::tuple<std::unique_ptr<MegaAccountDetails>, int>;
-
     auto getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>;
 
     auto makeScopedAccountLevelRestorer(MegaApi& api);
@@ -1378,6 +1376,19 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
 auto exportNode(MegaApi& client,
                 const MegaNode& node,
                 std::optional<std::int64_t> expirationDate = std::nullopt) -> Expected<std::string>;
+
+/**
+ * @brief
+ * Retrieve a client's account details.
+ *
+ * @param client
+ * The client whose account details we want to retrieve.
+ *
+ * @return
+ * A pointer to an account details instance on success.
+ * An error on failure.
+ */
+auto getAccountDetails(MegaApi& client) -> Expected<std::unique_ptr<MegaAccountDetails>>;
 
 /**
  * Import a node into this account via public link.
