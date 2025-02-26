@@ -4012,14 +4012,14 @@ using namespace mega;
 }
 
 - (nullable MEGATotpTokenGenResult *)generateTotpTokenFromNode:(MEGAHandle)handle {
-    if (self.megaApi) {
-        MegaTotpTokenGenResult tokenGenResult = self.megaApi->generateTotpTokenFromNode(handle);
-        MegaTotpTokenLifetime tokenLifetime = tokenGenResult.second;
-        NSString *token = [NSString stringWithUTF8String:tokenLifetime.first.c_str()];
-        MEGATotpTokenLifetime *tokenLifetimeObj = [[MEGATotpTokenLifetime alloc] initWithToken:token lifetime:tokenLifetime.second];
-        MEGATotpTokenGenResult *tokenGenResultObj = [[MEGATotpTokenGenResult alloc] initWithResult:tokenGenResult.first tokenLifetime:tokenLifetimeObj];
-        return tokenGenResultObj;
-    }
+    if (self.megaApi == nil) return nil;
+
+    MegaTotpTokenGenResult tokenGenResult = self.megaApi->generateTotpTokenFromNode(handle);
+    MegaTotpTokenLifetime tokenLifetime = tokenGenResult.second;
+    NSString *token = [NSString stringWithUTF8String:tokenLifetime.first.c_str()];
+    MEGATotpTokenLifetime *tokenLifetimeObj = [[MEGATotpTokenLifetime alloc] initWithToken:token lifetime:tokenLifetime.second];
+    MEGATotpTokenGenResult *tokenGenResultObj = [[MEGATotpTokenGenResult alloc] initWithResult:tokenGenResult.first tokenLifetime:tokenLifetimeObj];
+    return tokenGenResultObj;
 }
 
 + (nullable NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length {
