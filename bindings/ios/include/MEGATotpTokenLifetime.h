@@ -24,7 +24,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /**
- * @brief Represents a TOTP token  and its lifetime.
+ * @brief Represents a TOTP token and its lifetime.
  */
 @interface MEGATotpTokenLifetime : NSObject
 
