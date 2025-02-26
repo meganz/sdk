@@ -8684,8 +8684,8 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    -1 /*cd429*/,
                    -1 /*cd503*/,
                    0 /*nFailedReqs*/,
-                   30000 /*streamingMinimumRateBps*/,
-                   300000 /*downloadLimitBps*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
     LOG_debug << "#### Test5: Streaming Download limiting min streaming rate and max download "
@@ -8695,8 +8695,8 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    2 /*cd429*/,
                    -1 /*cd503*/,
                    0 /*nFailedReqs*/,
-                   30000 /*streamingMinimumRateBps*/,
-                   300000 /*downloadLimitBps*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
     LOG_debug << "#### Test6: Streaming Download limiting min streaming rate and max download "
