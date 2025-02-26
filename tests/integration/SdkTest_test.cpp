@@ -609,7 +609,7 @@ void SdkTest::Cleanup()
                 const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
                 ASSERT_TRUE(c);
                 auto numPeers = c->getPeerList() ? c->getPeerList()->size() : 0;
-                // skip chats where we aren't moderator and self-chat
+                // skip chats where we aren't moderator and self-chat, which can't be deleted
                 if (c->getOwnPrivilege() == PRIV_MODERATOR && (numPeers || c->isGroup()))
                 {
                     RequestTracker rt(megaApi[nApi].get());
