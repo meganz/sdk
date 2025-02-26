@@ -25,7 +25,6 @@ public:
     void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts) override;
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) override;
     void onAccountUpdate(MegaApi* api) override;
-    void onReloadNeeded(MegaApi* api) override;
     void onEvent(MegaApi* api, MegaEvent *e) override;
 
 #ifdef ENABLE_SYNC

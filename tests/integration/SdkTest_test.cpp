@@ -2307,7 +2307,11 @@ auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_
 {
     RequestTracker tracker(&client);
 
-    client.exportNode(const_cast<MegaNode*>(&node), expirationDate.value_or(-1), &tracker);
+    client.exportNode(const_cast<MegaNode*>(&node),
+                      expirationDate.value_or(-1),
+                      false,
+                      false,
+                      &tracker);
 
     if (auto result = tracker.waitForResult(); result != API_OK)
     {
@@ -2539,29 +2543,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     ASSERT_EQ(test_mtime, n1_mtime->getModificationTime()) << "Could not set the mtime of a file upload";
     ASSERT_EQ(ffp.mtime, n1->getModificationTime()) << "Normal file upload did not get the right mtime of the file";
 
-
-    // ___ Set invalid duration of a node ___
-
-    ASSERT_EQ(API_EARGS, synchronousSetNodeDuration(0, n1.get(), -14)) << "Unexpected error setting invalid node duration";
-
-
-    // ___ Set duration of a node ___
-
-    ASSERT_EQ(API_OK, synchronousSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
-
-
     megaApi[0]->log(2, "test postlog", __FILE__, __LINE__);
-
-    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
-    ASSERT_EQ(929734, n1->getDuration()) << "Duration value does not match";
-
-
-    // ___ Reset duration of a node ___
-
-    ASSERT_EQ(API_OK, synchronousSetNodeDuration(0, n1.get(), -1)) << "Cannot reset node duration";
-
-    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
-    ASSERT_EQ(-1, n1->getDuration()) << "Duration value does not match";
 
     // set several values that the requests will need to consolidate, some will be in the same batch
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom1", "value1");
@@ -2573,10 +2555,12 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom2", "value23");
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value31");
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value32");
-    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value33");
-    ASSERT_EQ(API_OK, doSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
-    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
+    RequestTracker requestTracker(megaApi[0].get());
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value33", &requestTracker);
+    // Wait for the last set node attribute request before performing the get.
+    ASSERT_EQ(API_OK, requestTracker.waitForResult());
 
+    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
     ASSERT_STREQ("value13", n1->getCustomAttr("custom1"));
     ASSERT_STREQ("value23", n1->getCustomAttr("custom2"));
     ASSERT_STREQ("value33", n1->getCustomAttr("custom3"));
@@ -2747,13 +2731,13 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     resetOnNodeUpdateCompletionCBs();
 
     // create on existing node, no link yet
-    ASSERT_EQ(API_OK, doExportNode(0, n2.get()));
+    ASSERT_EQ(API_OK, doExportNode(0, n2.get(), 0, false, false));
 
     // create on existing node, with link already  (different command response)
-    ASSERT_EQ(API_OK, doExportNode(0, n2.get()));
+    ASSERT_EQ(API_OK, doExportNode(0, n2.get(), 0, false, false));
 
     // create on non existent node
-    ASSERT_EQ(API_EARGS, doExportNode(0, nullptr));
+    ASSERT_EQ(API_EARGS, doExportNode(0, nullptr, 0, false, false));
 }
 
 
@@ -3180,8 +3164,8 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Get node by fingerprint (needs to be a file, not a folder) ---
 
-    std::unique_ptr<char[]> fingerprint{megaApi[0]->getFingerprint(n1.get())};
-    MegaNode *n2 = megaApi[0]->getNodeByFingerprint(fingerprint.get());
+    const char* fingerprint = n1->getFingerprint();
+    MegaNode* n2 = megaApi[0]->getNodeByFingerprint(fingerprint);
 
     null_pointer = (n2 == NULL);
     EXPECT_FALSE(null_pointer) << "Node by fingerprint not found";
@@ -4108,7 +4092,8 @@ void SdkTestShares::getInshare(MegaHandle hfolder)
     ASSERT_STREQ("sharedfolder", thisInshareNode->getName())
         << "Wrong folder name of incoming share";
     ASSERT_EQ(API_OK,
-              mShareeApi->checkAccess(thisInshareNode, MegaShare::ACCESS_FULL).getErrorCode())
+              mShareeApi->checkAccessErrorExtended(thisInshareNode, MegaShare::ACCESS_FULL)
+                  ->getErrorCode())
         << "Wrong access level of incoming share";
     ASSERT_TRUE(thisInshareNode->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(thisInshareNode->isShared()) << "Wrong sharing information at incoming share";
@@ -4442,7 +4427,9 @@ TEST_F(SdkTest, SdkTestShares2)
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(MegaError::API_OK,
+              megaApi[1]->checkAccessErrorExtended(n, MegaShare::ACCESS_FULL)->getErrorCode())
+        << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
@@ -4804,7 +4791,9 @@ TEST_F(SdkTest, SdkTestShares)
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(API_OK,
+              megaApi[1]->checkAccessErrorExtended(n, MegaShare::ACCESS_FULL)->getErrorCode())
+        << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
@@ -5081,7 +5070,9 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     n = nl->get(0);
 
-    ASSERT_EQ(API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_READWRITE).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(API_OK,
+              megaApi[1]->checkAccessErrorExtended(n, MegaShare::ACCESS_READWRITE)->getErrorCode())
+        << "Wrong access level of incoming share";
 
     // --- Sharee leaves the inshare ---
     // Testing APs caused by actions done in the sharee account.
@@ -8477,9 +8468,6 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(API_OK, err) << "Get user email failed (error: " << err << ")";
     ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
 
-    // sendABTestActive()
-    ASSERT_EQ(API_OK, syncSendABTestActive(0, "devtest"));
-
     // cleanRubbishBin() test (accept both success and already empty statuses)
     err = synchronousCleanRubbishBin(0);
     ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
@@ -10102,8 +10090,7 @@ TEST_F(SdkTest, EscapesReservedCharacters)
     }
 
     // Escape input string.
-    unique_ptr<char[]> output(
-      megaApi[0]->escapeFsIncompatible(input.c_str()));
+    unique_ptr<char[]> output(megaApi[0]->escapeFsIncompatible(input.c_str(), nullptr));
 
     // Was the string escaped as expected?
     ASSERT_NE(output.get(), nullptr);
@@ -10173,14 +10160,12 @@ TEST_F(SdkTest, UnescapesReservedCharacters)
     string input_unescaped = "\\/:?\"<>|*Z!";
 
     // Escape input string.
-    unique_ptr<char[]> escaped(
-      megaApi[0]->escapeFsIncompatible(input.c_str()));
+    unique_ptr<char[]> escaped(megaApi[0]->escapeFsIncompatible(input.c_str(), nullptr));
 
     ASSERT_NE(escaped.get(), nullptr);
 
     // Unescape the escaped string.
-    unique_ptr<char[]> unescaped(
-      megaApi[0]->unescapeFsIncompatible(escaped.get()));
+    unique_ptr<char[]> unescaped(megaApi[0]->unescapeFsIncompatible(escaped.get(), nullptr));
 
     // Was the string unescaped as expected?  (round trip causes %5a to be unescaped now)
     ASSERT_NE(unescaped.get(), nullptr);
@@ -19139,7 +19124,7 @@ TEST_F(SdkTest, SdkTestSharesWhenMegaHosted)
     ASSERT_THAT(nFolder, ::testing::NotNull());
 
     RequestTracker rt(megaApi[0].get());
-    megaApi[0]->exportNode(nFolder.get(), true /*writable*/, true /*megaHosted*/, &rt);
+    megaApi[0]->exportNode(nFolder.get(), 0, true /*writable*/, true /*megaHosted*/, &rt);
     ASSERT_EQ(rt.waitForResult(), API_OK);
 
     // Test that encryption-key was used for "sk" (share-key) sent via "l" command

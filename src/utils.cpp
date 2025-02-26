@@ -2614,8 +2614,8 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::FileFolderDeletedByUser: return "FileFolderDeletedByUser";
     case PathProblem::MoveToDebrisFolderFailed: return "MoveToDebrisFolderFailed";
     case PathProblem::IgnoreFileMalformed: return "IgnoreFileMalformed";
-    case PathProblem::FilesystemErrorListingFolder: return "FilesystemErrorListingFolder";
-    case PathProblem::FilesystemErrorIdentifyingFolderContent: return "FilesystemErrorIdentifyingFolderContent"; // Deprecated after SDK-3206
+    case PathProblem::FilesystemErrorListingFolder:
+        return "FilesystemErrorListingFolder";
     case PathProblem::WaitingForScanningToComplete: return "WaitingForScanningToComplete";
     case PathProblem::WaitingForAnotherMoveToComplete: return "WaitingForAnotherMoveToComplete";
     case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";

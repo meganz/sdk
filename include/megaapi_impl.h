@@ -911,7 +911,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isForeign() override;
         bool isPasswordNode() const override;
         PasswordNodeData* getPasswordData() const override;
-        std::string* getPrivateAuth() override;
+        std::string* getPrivateAuth();
         MegaNodeList *getChildren() override;
         void setPrivateAuth(const char* newPrivateAuth) override;
         void setPublicAuth(const char* newPublicAuth);
@@ -919,8 +919,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         void setForeign(bool isForeign);
         void setChildren(MegaNodeList* newChildren);
         void setName(const char *newName);
-        std::string* getPublicAuth() override;
-        const char *getChatAuth() override;
+        std::string* getPublicAuth();
+        const char* getChatAuth();
         bool isShared() override;
         bool isOutShare() override;
         bool isInShare() override;
@@ -1557,8 +1557,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         bool isBackupTransfer() const override;
         bool isForeignOverquota() const override;
         bool isForceNewUpload() const override;
-        char *getLastBytes() const override;
-        MegaError getLastError() const override;
+        char* getLastBytes() const override;
         const MegaError *getLastErrorExtended() const override;
         bool isFolderTransfer() const override;
         int getFolderTransferTag() const override;
@@ -1773,7 +1772,6 @@ public:
 
     // getters
 
-    bool isGlobalEnabled() const override;
     bool isGlobalDndEnabled() const override;
     bool isGlobalChatsDndEnabled() const override;
     int64_t getGlobalDnd() const override;
@@ -1783,14 +1781,12 @@ public:
     int getGlobalScheduleEnd() const override;
     const char *getGlobalScheduleTimezone() const override;
 
-    bool isChatEnabled(MegaHandle chatid) const override;
     bool isChatDndEnabled(MegaHandle chatid) const override;
     int64_t getChatDnd(MegaHandle chatid) const override;
     bool isChatAlwaysNotifyEnabled(MegaHandle chatid) const override;
 
     bool isContactsEnabled() const override;
     bool isSharesEnabled() const override;
-    bool isChatsEnabled() const override;
 
     // setters
 
@@ -1994,7 +1990,6 @@ class MegaRequestPrivate : public MegaRequest
         int getAccess() const override;
         const char* getFile() const override;
         int getNumRetry() const override;
-        MegaNode *getPublicNode() const override;
         MegaNode *getPublicMegaNode() const override;
         int getParamType() const override;
         const char *getText() const override;
@@ -3121,12 +3116,9 @@ class MegaSyncStallPrivate : public MegaSyncStall
 
             int problem = pathProblem(cloudSide, index);
 
-            return problem == DetectedHardLink ||
-                   problem == DetectedNestedMount ||
-                   problem == DetectedSymlink ||
-                   problem == DetectedSpecialFile ||
-                   problem == FilesystemErrorListingFolder ||
-                   problem == FilesystemErrorIdentifyingFolderContent; // Deprecated after SDK-3206
+            return problem == DetectedHardLink || problem == DetectedNestedMount ||
+                   problem == DetectedSymlink || problem == DetectedSpecialFile ||
+                   problem == FilesystemErrorListingFolder;
         }
 
         const char* reasonDebugString() const override
@@ -3349,7 +3341,6 @@ public:
     void byNodeType(int nodeType) override;
     void byCategory(int mimeType) override;
     void byFavourite(int boolFilterOption) override;
-    void bySensitivity(bool excludeSensitive) override;
     void bySensitivity(int boolFilterOption) override;
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;
@@ -3539,8 +3530,7 @@ class MegaApiImpl : public MegaApp
         void createEphemeralAccountPlusPlus(const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
         void resumeCreateAccountEphemeralPlusPlus(const char* sid, MegaRequestListener *listener = NULL);
-        void cancelCreateAccount(MegaRequestListener *listener = NULL);
-        void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
+        void cancelCreateAccount(MegaRequestListener* listener = NULL);
         void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
@@ -3577,8 +3567,7 @@ class MegaApiImpl : public MegaApp
         void getUserCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         bool areCredentialsVerified(MegaUser *user);
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
-        void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
-        char* getMyRSAPrivateKey();
+        void resetCredentials(MegaUser* user, MegaRequestListener* listener = NULL);
         void setLogExtraForModules(bool networking, bool syncs);
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);
@@ -3654,8 +3643,7 @@ class MegaApiImpl : public MegaApp
         void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
-        void setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener = NULL);
-        void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
+        void setNodeS4(MegaNode* node, const char* value, MegaRequestListener* listener = NULL);
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
@@ -3962,27 +3950,14 @@ class MegaApiImpl : public MegaApp
         MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
         MegaScheduledCopy *getScheduledCopyByPath(const char * localPath);
 
-        void update();
         int isWaiting();
         bool isSyncStalled();
         bool isSyncStalledChanged() override;
 
-        //Statistics
-        int getNumPendingUploads();
-        int getNumPendingDownloads();
-        int getTotalUploads();
-        int getTotalDownloads();
-        void resetTotalDownloads();
-        void resetTotalUploads();
-        void updateStats();
         void setLRUCacheSize(unsigned long long size);
         unsigned long long getNumNodesAtCacheLRU() const;
         unsigned long long getNumNodes();
         unsigned long long getAccurateNumNodes();
-        long long getTotalDownloadedBytes();
-        long long getTotalUploadedBytes();
-        long long getTotalDownloadBytes();
-        long long getTotalUploadBytes();
 
         //Filesystem
 		int getNumChildren(MegaNode* parent);
@@ -4036,8 +4011,7 @@ public:
         static void removeRecursively(const char *path);
 
         //Fingerprint
-        char *getFingerprint(const char *filePath);
-        char *getFingerprint(MegaNode *node);
+        char* getFingerprint(const char* filePath);
         char *getFingerprint(MegaInputStream *inputStream, int64_t mtime);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
         MegaNodeList *getNodesByFingerprint(const char* fingerprint);
@@ -4052,10 +4026,8 @@ public:
         char *getCRC(MegaNode *node);
         MegaNode* getNodeByCRC(const char *crc, MegaNode* parent);
 
-        //Permissions
-        MegaError checkAccess(MegaNode* node, int level);
+        // Permissions
         MegaError* checkAccessErrorExtended(MegaNode* node, int level);
-        MegaError checkMove(MegaNode* node, MegaNode* target);
         MegaError* checkMoveErrorExtended(MegaNode* node, MegaNode* target);
 
         bool isFilesystemAvailable();
@@ -4077,8 +4049,8 @@ public:
                                            unsigned maxnodes,
                                            bool* optExcludeSensitives,
                                            MegaRequestListener* listener = NULL);
+
     public:
-        MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
         void getRecentActionsAsync(unsigned days,
                                    unsigned maxnodes,
                                    MegaRequestListener* listener = NULL);
@@ -4550,14 +4522,6 @@ public:
         // sc requests to close existing wsc and immediately retrieve pending actionpackets
         RequestQueue scRequestQueue;
 
-        int pendingUploads;
-        int pendingDownloads;
-        int totalUploads;
-        int totalDownloads;
-        long long totalDownloadedBytes;
-        long long totalUploadedBytes;
-        long long totalDownloadBytes;
-        long long totalUploadBytes;
         long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;

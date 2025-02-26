@@ -10,10 +10,6 @@ public class MegaApiAndroid extends MegaApiJava {
         super(appKey, userAgent, path, new AndroidGfxProcessor());
     }
 
-    public MegaApiAndroid(String appKey, String userAgent, String path, int clientType) {
-        super(appKey, userAgent, path, new AndroidGfxProcessor(), clientType);
-    }
-
     @Override
     void runCallback(Runnable runnable) {
         handler.post(runnable);
