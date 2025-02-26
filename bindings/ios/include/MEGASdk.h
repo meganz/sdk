@@ -9808,12 +9808,12 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  * compute the totp token and its lifetime.
  * @return A `MEGATotpTokenGenResult` object:
  * - `result`: `int` An error code that can be one of:
- *   + API_EARGS: The input handle is `UNDEF`
- *   + API_ENOENT: The input handle does not correspond to a password node
- *   + API_EKEY: The input handle corresponds to a password node with no TOTP data
- *   + API_EINTERNAL: The TOTP data stored in the password node is ill-formed and cannot be
+ *   + MEGAErrorTypeApiEArgs: The input handle is `UNDEF`
+ *   + MEGAErrorTypeApiENoent: The input handle does not correspond to a password node
+ *   + MEGAErrorTypeApiEKey: The input handle corresponds to a password node with no TOTP data
+ *   + MEGAErrorTypeApiEInternal: The TOTP data stored in the password node is ill-formed and cannot be
  *     used to generate valid tokens.
- *   + API_OK: the generation succeeded and the result can be retrieved from `second`
+ *   + MEGAErrorTypeApiOk: the generation succeeded and the result can be retrieved from `tokenLifetime`
  * - `tokenLifetime`: A `MEGATotpTokenLifetime` object:
  *   + `token`: `NSString` The generated token
  *   + `lifetime`: `NSUInteger` The remaining life time in seconds for the generated token

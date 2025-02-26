@@ -2,7 +2,7 @@
  * @file MEGATotpTokenGenResult.h
  * @brief Object Data for TOTP token generation result
  *
- * (c) 2023- by Mega Limited, Auckland, New Zealand
+ * (c) 2025- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

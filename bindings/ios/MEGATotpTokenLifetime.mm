@@ -2,7 +2,7 @@
  * @file MEGATotpTokenLifetime.h
  * @brief Represents a TOTP token and its lifetime
  *
- * (c) 2023- by Mega Limited, Auckland, New Zealand
+ * (c) 2025- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
