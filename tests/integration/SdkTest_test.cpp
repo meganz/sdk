@@ -608,19 +608,21 @@ void SdkTest::Cleanup()
             {
                 const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
                 ASSERT_TRUE(c);
-                if (c->getOwnPrivilege() == PRIV_MODERATOR)
+                auto numPeers = c->getPeerList() ? c->getPeerList()->size() : 0;
+                // skip chats where we aren't moderator and self-chat
+                if (c->getOwnPrivilege() == PRIV_MODERATOR && (numPeers || c->isGroup()))
                 {
                     RequestTracker rt(megaApi[nApi].get());
                     megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
                     auto e = rt.waitForResult();
                     EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS)
-                        << "Error" << e << "getting chat link for chatid " << c->getHandle();
+                        << "Error " << e << " getting chat link for chatid " << c->getHandle();
                     if (e == API_OK)
                     {
                         RequestTracker rtD(megaApi[nApi].get());
                         megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
                         EXPECT_EQ(rtD.waitForResult(), API_OK)
-                            << "Error deleting chatlink for chatid" << c->getHandle();
+                            << "Error deleting chatlink for chatid " << c->getHandle();
                     }
                 }
             }
