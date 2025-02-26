@@ -6797,14 +6797,11 @@ TEST_F(SdkTest, SdkTestChat)
 
     // --- Create a group chat ---
 
-    MegaTextChatPeerList *peers;
-    handle h;
-    bool group;
-
-    h = megaApi[1]->getMyUser()->getHandle();
-    peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
+    handle h = megaApi[1]->getMyUserHandleBinary();
+    MegaTextChatPeerList* peers =
+        MegaTextChatPeerList::createInstance(); // new MegaTextChatPeerListPrivate();
     peers->addPeer(h, PRIV_STANDARD);
-    group = true;
+    bool group = true;
 
     mApi[1].chatUpdated = false;
     mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
@@ -6872,6 +6869,17 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated) )   // at the target side (auxiliar account)
             << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
 
+    // --- Create 1on1 chat with self
+    megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
+    mApi[0].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
+    ASSERT_NO_FATAL_FAILURE(createChat(false, nullptr));
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]))
+        << "Cannot create a new chat with self";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Chat-with-self creation failed (error: " << mApi[0].lastError << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated)) // at the target side (auxiliar account)
+        << "Chat update not received after " << maxTimeout << " seconds";
 }
 #endif
 

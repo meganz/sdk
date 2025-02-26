@@ -7702,13 +7702,13 @@ void exec_chatc(autocomplete::ACState& s)
     unsigned parseoffset = 2;
     if (((wordscount - parseoffset) % 2) == 0)
     {
-        if (!group && (wordscount - parseoffset) != 2)
+        if (!group && (wordscount - parseoffset) > 2)
         {
-            cout << "Peer to peer chats must have only one peer" << endl;
+            cout << "Peer to peer chats must have no more than one peer" << endl;
             return;
         }
 
-        userpriv_vector *userpriv = new userpriv_vector;
+        userpriv_vector userpriv;
 
         unsigned numUsers = 0;
         while ((numUsers + 1) * 2 + parseoffset <= wordscount)
@@ -7718,7 +7718,6 @@ void exec_chatc(autocomplete::ACState& s)
             if (!u)
             {
                 cout << "User not found: " << email << endl;
-                delete userpriv;
                 return;
             }
 
@@ -7745,17 +7744,15 @@ void exec_chatc(autocomplete::ACState& s)
                 else
                 {
                     cout << "Unknown privilege for " << email << endl;
-                    delete userpriv;
                     return;
                 }
             }
 
-            userpriv->push_back(userpriv_pair(u->userhandle, priv));
+            userpriv.push_back(userpriv_pair(u->userhandle, priv));
             numUsers++;
         }
 
-        client->createChat(group != 0, false, userpriv);
-        delete userpriv;
+        client->createChat(group != 0, false, &userpriv);
     }
 }
 
