@@ -11538,7 +11538,7 @@ CommandFetchAds::CommandFetchAds(MegaClient* client, int adFlags, const std::vec
 
     if (!ISUNDEF(publicHandle))
     {
-        arg("ph", static_cast<m_off_t>(publicHandle));
+        arg("ph", NodeHandle().set6byte(publicHandle));
     }
 
     beginarray("au");
@@ -11579,7 +11579,7 @@ CommandQueryAds::CommandQueryAds(MegaClient* client, int adFlags, handle publicH
     arg("ad", adFlags);
     if (!ISUNDEF(publicHandle))
     {
-        arg("ph", static_cast<m_off_t>(publicHandle));
+        arg("ph", NodeHandle().set6byte(publicHandle));
     }
 
     tag = client->reqtag;
