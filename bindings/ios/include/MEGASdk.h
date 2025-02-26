@@ -9818,7 +9818,7 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  *   + `token`: `NSString` The generated token
  *   + `lifetime`: `NSUInteger` The remaining life time in seconds for the generated token
  */
-- (MEGATotpTokenGenResult *)generateTotpTokenFromNode:(MEGAHandle)handle;
+- (nullable MEGATotpTokenGenResult *)generateTotpTokenFromNode:(MEGAHandle)handle;
 
 /**
  * @brief Generate a new pseudo-randomly characters-based password

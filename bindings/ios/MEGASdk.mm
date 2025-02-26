@@ -4011,7 +4011,7 @@ using namespace mega;
     }
 }
 
-- (MEGATotpTokenGenResult *)generateTotpTokenFromNode:(MEGAHandle)handle {
+- (nullable MEGATotpTokenGenResult *)generateTotpTokenFromNode:(MEGAHandle)handle {
     if (self.megaApi) {
         MegaTotpTokenGenResult tokenGenResult = self.megaApi->generateTotpTokenFromNode(handle);
         MegaTotpTokenLifetime tokenLifetime = tokenGenResult.second;
