@@ -11538,7 +11538,7 @@ CommandFetchAds::CommandFetchAds(MegaClient* client, int adFlags, const std::vec
 
     if (!ISUNDEF(publicHandle))
     {
-        arg("p", static_cast<m_off_t>(publicHandle));
+        arg("ph", static_cast<m_off_t>(publicHandle));
     }
 
     beginarray("au");
