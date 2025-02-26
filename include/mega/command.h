@@ -25,6 +25,7 @@
 #include "account.h"
 #include "http.h"
 #include "json.h"
+#include "network_connectivity_test_helpers.h"
 #include "node.h"
 #include "nodemanager.h"
 #include "textchat.h"
@@ -2103,6 +2104,23 @@ public:
 
 private:
     Cb mCompletion;
+};
+
+class MEGA_API CommandGetNetworkConnectivityTestServerInfo: public Command
+{
+public:
+    using Completion = std::function<void(const Error&, NetworkConnectivityTestServerInfo&&)>;
+    CommandGetNetworkConnectivityTestServerInfo(MegaClient*, Completion&&);
+    bool procresult(Result, JSON&) override;
+
+private:
+    void onParseFailure()
+    {
+        if (mCompletion)
+            mCompletion(API_EINTERNAL, {});
+    }
+
+    Completion mCompletion;
 };
 /* MegaVPN Commands END*/
 

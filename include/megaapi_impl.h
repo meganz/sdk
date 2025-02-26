@@ -2078,6 +2078,10 @@ class MegaRequestPrivate : public MegaRequest
         MegaVpnCredentials* getMegaVpnCredentials() const override;
         void setMegaVpnCredentials(MegaVpnCredentials* megaVpnCredentials);
 
+        MegaNetworkConnectivityTestResults* getMegaNetworkConnectivityTestResults() const override;
+        void setMegaNetworkConnectivityTestResults(
+            MegaNetworkConnectivityTestResults* networkConnectivityTestResults);
+
         const MegaNotificationList* getMegaNotifications() const override;
         void setMegaNotifications(MegaNotificationList* megaNotifications);
 
@@ -2145,6 +2149,7 @@ class MegaRequestPrivate : public MegaRequest
         unique_ptr<MegaBackupInfoList> mMegaBackupInfoList;
         unique_ptr<MegaVpnRegionList> mMegaVpnRegions;
         unique_ptr<MegaVpnCredentials> mMegaVpnCredentials;
+        unique_ptr<MegaNetworkConnectivityTestResults> mNetworkConnectivityTestResults;
 
 #ifdef ENABLE_SYNC
         unique_ptr<MegaSyncStallList> mSyncStallList;
@@ -4441,6 +4446,7 @@ public:
         void setWelcomePdfCopied(bool copied, MegaRequestListener* listener);
         void getWelcomePdfCopied(MegaRequestListener* listener);
         void getMyIp(MegaRequestListener* listener);
+        void runNetworkConnectivityTest(MegaRequestListener* listener);
 
     private:
         void init(MegaApi* publicApi,
@@ -5747,6 +5753,45 @@ private:
     MapSlotIDToCredentialInfo mMapSlotIDToCredentialInfo;
     MapClusterPublicKeys mMapClusterPubKeys;
     std::vector<VpnRegion> mVpnRegions;
+};
+
+class MegaNetworkConnectivityTestResultsPrivate: public MegaNetworkConnectivityTestResults
+{
+public:
+    MegaNetworkConnectivityTestResultsPrivate(int ipv4udp, int ipv4dns, int ipv6udp, int ipv6dns):
+        mIPv4UDP(ipv4udp),
+        mIPv4DNS(ipv4dns),
+        mIPv6UDP(ipv6udp),
+        mIPv6DNS(ipv6dns)
+    {}
+
+    int getIPv4UDP() const override
+    {
+        return mIPv4UDP;
+    }
+
+    int getIPv4DNS() const override
+    {
+        return mIPv4DNS;
+    }
+
+    int getIPv6UDP() const override
+    {
+        return mIPv6UDP;
+    }
+
+    int getIPv6DNS() const override
+    {
+        return mIPv6DNS;
+    }
+
+    MegaNetworkConnectivityTestResultsPrivate* copy() const override;
+
+private:
+    const int mIPv4UDP;
+    const int mIPv4DNS;
+    const int mIPv6UDP;
+    const int mIPv6DNS;
 };
 
 class MegaNodeTreePrivate: public MegaNodeTree

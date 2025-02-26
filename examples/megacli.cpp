@@ -28,6 +28,7 @@
 #include "mega/pwm_file_parser.h"
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
+#include "mega/udp_socket.h"
 #include "mega/user_attribute.h"
 
 #include <bitset>
@@ -4905,6 +4906,33 @@ void exec_proxyset(autocomplete::ACState& state)
     client->httpio->setproxy(settings);
 }
 
+void exec_udp_send_recv(autocomplete::ACState& state)
+{
+    const string& address = state.words[1].s;
+    bool addressIsIPv4 = address.find(':') == std::string::npos;
+    bool convertIPv4toIPv6 = state.extractflag("-IPv4toIPv6");
+    const string& finalAddress = addressIsIPv4 && convertIPv4toIPv6 ? "::ffff:" + address : address;
+
+    UdpSocket socket(finalAddress, atoi(state.words[2].s.c_str()));
+
+    auto sendError = socket.sendAsyncMessage(state.words[3].s).get();
+    if (sendError.code)
+    {
+        cout << "Failed to send (" << sendError.code << "): " << sendError.message << endl;
+        return;
+    }
+
+    auto received = socket.receiveAsyncMessage(atoi(state.words[4].s.c_str())).get();
+    if (received.code)
+    {
+        cout << "Failed to receive (" << received.code << "): " << received.message << endl;
+    }
+    else
+    {
+        cout << "Received: " << received.message << endl;
+    }
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -5276,6 +5304,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_putvpncredential, sequence(text("putvpncredential"), param("region"), opt(sequence(flag("-file"), param("credentialfilewithoutextension"))), opt(flag("-noconsole"))));
     p->Add(exec_delvpncredential, sequence(text("delvpncredential"), param("slotID")));
     p->Add(exec_checkvpncredential, sequence(text("checkvpncredential"), param("userpublickey")));
+    p->Add(exec_getnetworktestserver, text("getnetworktestserver"));
+    p->Add(exec_networktest, text("networktest"));
     /* MEGA VPN commands END */
 
     p->Add(exec_fetchcreditcardinfo, text("cci"));
@@ -5462,6 +5492,14 @@ autocomplete::ACN autocompleteSyntax()
                     opt(sequence(flag("-user"), param("user"))),
                     opt(sequence(flag("-password"), param("password"))),
                     opt(sequence(flag("-type"), param("type")))));
+
+    p->Add(exec_udp_send_recv,
+           sequence(text("udp_send_recv"),
+                    param("ip"),
+                    param("port"),
+                    param("message"),
+                    param("recv_timeout"),
+                    opt(flag("-IPv4toIPv6"))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -13088,6 +13126,75 @@ void exec_checkvpncredential(autocomplete::ACState& s)
                 }
                 cout << endl;
             });
+}
+
+void exec_getnetworktestserver(autocomplete::ACState&)
+{
+    client->getNetworkConnectivityTestServerInfo(
+        [](const Error& e, NetworkConnectivityTestServerInfo&& info)
+        {
+            if (e == API_OK)
+            {
+                cout << "Network connectivity test server info: \n";
+                cout << "\tIPv4: " << info.ipv4 << "\n";
+                cout << "\tIPv6: " << info.ipv6 << "\n";
+                cout << "\tPorts: ";
+                for (const auto port: info.ports)
+                {
+                    cout << port << " ";
+                }
+                cout << endl;
+            }
+            else
+            {
+                cout << "Error requesting network connectivity test server info: " << errorstring(e)
+                     << " (" << e << ")" << endl;
+            }
+        });
+}
+
+static string NetworkConnectivityTestStatusToString(NetworkConnectivityTestMessageStatus status)
+{
+    switch (status)
+    {
+        case NetworkConnectivityTestMessageStatus::PASS:
+            return "Pass";
+        case NetworkConnectivityTestMessageStatus::FAIL:
+            return "Fail";
+        case NetworkConnectivityTestMessageStatus::NET_UNREACHABLE:
+            return "Network unreachable";
+        default:
+            return "Not run / Unknown";
+    }
+}
+
+void exec_networktest(autocomplete::ACState&)
+{
+    client->runNetworkConnectivityTest(
+        [](const Error& e, const NetworkConnectivityTestResults& results)
+        {
+            if (e == API_OK)
+            {
+                cout << "Network connectivity test:\n"
+                     << "\tIPv4 UDP: "
+                     << NetworkConnectivityTestStatusToString(results.ipv4.udpMessages) << '\n'
+                     << "\tIPv4 DNS: "
+                     << NetworkConnectivityTestStatusToString(results.ipv4.dnsLookupMessages)
+                     << '\n'
+                     << "\tIPv4 summary: " << results.ipv4.summary << '\n'
+                     << "\tIPv6 UDP: "
+                     << NetworkConnectivityTestStatusToString(results.ipv6.udpMessages) << '\n'
+                     << "\tIPv6 DNS: "
+                     << NetworkConnectivityTestStatusToString(results.ipv6.dnsLookupMessages)
+                     << '\n'
+                     << "\tIPv6 summary: " << results.ipv6.summary << endl;
+            }
+            else
+            {
+                cout << "Error running network connectivity test: " << errorstring(e) << " (" << e
+                     << ")" << endl;
+            }
+        });
 }
 /* MEGA VPN commands */
 

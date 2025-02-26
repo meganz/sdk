@@ -4286,6 +4286,9 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mMegaVpnRegions.reset(request->mMegaVpnRegions ? request->mMegaVpnRegions->copy() :
                                                            nullptr);
     this->mMegaVpnCredentials.reset(request->mMegaVpnCredentials ? request->mMegaVpnCredentials->copy() : nullptr);
+    mNetworkConnectivityTestResults.reset(request->mNetworkConnectivityTestResults ?
+                                              request->mNetworkConnectivityTestResults->copy() :
+                                              nullptr);
     this->mMegaNotifications.reset(request->mMegaNotifications ? request->mMegaNotifications->copy() : nullptr);
     this->mMegaNodeTree.reset(request->mMegaNodeTree ? request->mMegaNodeTree->copy() : nullptr);
     this->mStringIntegerMap.reset(request->mStringIntegerMap ? request->mStringIntegerMap->copy() :
@@ -4973,6 +4976,18 @@ MegaVpnCredentials* MegaRequestPrivate::getMegaVpnCredentials() const
 void MegaRequestPrivate::setMegaVpnCredentials(MegaVpnCredentials* megaVpnCredentials)
 {
     mMegaVpnCredentials.reset(megaVpnCredentials);
+}
+
+MegaNetworkConnectivityTestResults*
+    MegaRequestPrivate::getMegaNetworkConnectivityTestResults() const
+{
+    return mNetworkConnectivityTestResults.get();
+}
+
+void MegaRequestPrivate::setMegaNetworkConnectivityTestResults(
+    MegaNetworkConnectivityTestResults* networkConnectivityTestResults)
+{
+    mNetworkConnectivityTestResults.reset(networkConnectivityTestResults);
 }
 
 const char *MegaRequestPrivate::getRequestString() const
@@ -27316,6 +27331,29 @@ void MegaApiImpl::putVpnCredential(const char* region, MegaRequestListener* list
     waiter->notify();
 }
 
+/**
+ * @brief Helper function specifically introduced to guarantee equivalence between internal and
+ * public enums.
+ * A new entry added to NetworkConnectivityTestMessageStatus will trigger a compilation warning.
+ */
+static constexpr int
+    toPublicNetworkConnectivityTestStatus(const NetworkConnectivityTestMessageStatus s)
+{
+    switch (s)
+    {
+        case NetworkConnectivityTestMessageStatus::PASS:
+            return MegaNetworkConnectivityTestResults::NETWORK_CONNECTIVITY_TEST_PASS;
+        case NetworkConnectivityTestMessageStatus::FAIL:
+        case NetworkConnectivityTestMessageStatus::NOT_RUN:
+            return MegaNetworkConnectivityTestResults::NETWORK_CONNECTIVITY_TEST_FAIL;
+        case NetworkConnectivityTestMessageStatus::NET_UNREACHABLE:
+            return MegaNetworkConnectivityTestResults::NETWORK_CONNECTIVITY_TEST_NET_UNREACHABLE;
+    }
+
+    assert(s == NetworkConnectivityTestMessageStatus::FAIL); // should never get here
+    return MegaNetworkConnectivityTestResults::NETWORK_CONNECTIVITY_TEST_FAIL;
+}
+
 void MegaApiImpl::delVpnCredential(int slotID, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_DEL_VPN_CREDENTIAL, listener);
@@ -27352,6 +27390,36 @@ void MegaApiImpl::checkVpnCredential(const char* userPubKey, MegaRequestListener
         client->checkVpnCredential(userPK,
             [this, request] (const Error& e)
             {
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::runNetworkConnectivityTest(MegaRequestListener* listener)
+{
+    auto* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_RUN_NETWORK_CONNECTIVITY_TEST, listener);
+
+    request->performRequest = [this, request]()
+    {
+        client->runNetworkConnectivityTest(
+            [this, request](const Error& e, NetworkConnectivityTestResults&& results)
+            {
+                if (e == API_OK)
+                {
+                    client->sendNetworkConnectivityTestEvent(results);
+
+                    request->setMegaNetworkConnectivityTestResults(
+                        new MegaNetworkConnectivityTestResultsPrivate(
+                            toPublicNetworkConnectivityTestStatus(results.ipv4.udpMessages),
+                            toPublicNetworkConnectivityTestStatus(results.ipv4.dnsLookupMessages),
+                            toPublicNetworkConnectivityTestStatus(results.ipv6.udpMessages),
+                            toPublicNetworkConnectivityTestStatus(results.ipv6.dnsLookupMessages)));
+                }
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             });
         return API_OK;
@@ -39976,6 +40044,11 @@ MegaNodeTreePrivate::MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
     {
         mCompleteUploadData.reset(completeUploadData->copy());
     }
+}
+
+MegaNetworkConnectivityTestResultsPrivate* MegaNetworkConnectivityTestResultsPrivate::copy() const
+{
+    return new MegaNetworkConnectivityTestResultsPrivate(mIPv4UDP, mIPv4DNS, mIPv6UDP, mIPv6DNS);
 }
 
 MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const

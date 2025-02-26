@@ -55,6 +55,7 @@
 namespace mega {
 
 class Logger;
+struct NetworkConnectivityTestResults;
 
 class MEGA_API FetchNodesStats
 {
@@ -3024,6 +3025,12 @@ public:
         std::string&& /* IPv6 */,
         StringKeyPair&& /* Peer Key Pair <User Private, Cluster Public> */);
 
+    void getNetworkConnectivityTestServerInfo(
+        CommandGetNetworkConnectivityTestServerInfo::Completion&& completion);
+
+    void runNetworkConnectivityTest(
+        std::function<void(const Error&, NetworkConnectivityTestResults&&)>&& completion);
+    void sendNetworkConnectivityTestEvent(const NetworkConnectivityTestResults& results);
     /* Mega VPN methods END */
 
     void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);

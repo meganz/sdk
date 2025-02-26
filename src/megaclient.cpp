@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
+#include "mega/network_connectivity_test.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
@@ -21320,6 +21321,70 @@ string MegaClient::generateVpnCredentialString(const std::string& host,
         .append(host)
         .append(":51820");
     return credential;
+}
+
+void MegaClient::getNetworkConnectivityTestServerInfo(
+    CommandGetNetworkConnectivityTestServerInfo::Completion&& completion)
+{
+    reqs.add(new CommandGetNetworkConnectivityTestServerInfo(this, std::move(completion)));
+}
+
+void MegaClient::runNetworkConnectivityTest(
+    std::function<void(const Error&, NetworkConnectivityTestResults&&)>&& testCompletion)
+{
+    getNetworkConnectivityTestServerInfo(
+        [this,
+         testCompletion = std::move(testCompletion)](const Error& e,
+                                                     NetworkConnectivityTestServerInfo&& serverInfo)
+        {
+            if (e)
+            {
+                LOG_err
+                    << "Failed to retrieve Network Connectivity test server. Test will not run.";
+                testCompletion(e, {});
+                return;
+            }
+
+            NetworkConnectivityTest test;
+            if (!test.start(me, std::move(serverInfo)))
+            {
+                LOG_err << "Failed to start Network Connectivity test (already running?).";
+                testCompletion(API_EINTERNAL, {});
+                return;
+            }
+
+            auto testResults{test.getResults()};
+
+            // Log errors from socket communication
+            for (const auto& singleError: testResults.ipv4.socketErrors)
+                LOG_err << singleError;
+            for (const auto& singleError: testResults.ipv6.socketErrors)
+                LOG_err << singleError;
+
+            testCompletion(API_OK, std::move(testResults));
+        });
+}
+
+void MegaClient::sendNetworkConnectivityTestEvent(const NetworkConnectivityTestResults& results)
+{
+    string resultString;
+    if (results.ipv4.udpMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
+        results.ipv4.dnsLookupMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
+    {
+        resultString = results.ipv4.summary;
+    }
+    if (results.ipv6.udpMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
+        results.ipv6.dnsLookupMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
+    {
+        if (!resultString.empty())
+            resultString += ' ';
+        resultString += results.ipv6.summary;
+    }
+    if (!resultString.empty())
+    {
+        static constexpr int VPN_NETWORK_CONNECTIVITY_TEST_EVENT = 99495;
+        sendevent(VPN_NETWORK_CONNECTIVITY_TEST_EVENT, resultString.c_str());
+    }
 }
 /* Mega VPN methods END */
 

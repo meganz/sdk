@@ -1224,6 +1224,11 @@ MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
     return nullptr;
 }
 
+MegaNetworkConnectivityTestResults* MegaRequest::getMegaNetworkConnectivityTestResults() const
+{
+    return nullptr;
+}
+
 const MegaNotificationList* MegaRequest::getMegaNotifications() const
 {
     return nullptr;
@@ -6299,6 +6304,11 @@ void MegaApi::setWelcomePdfCopied(bool copied, MegaRequestListener* listener)
 void MegaApi::getMyIp(MegaRequestListener* listener)
 {
     pImpl->getMyIp(listener);
+}
+
+void MegaApi::runNetworkConnectivityTest(MegaRequestListener* listener)
+{
+    pImpl->runNetworkConnectivityTest(listener);
 }
 
 /* END MEGAAPI */
