@@ -480,7 +480,7 @@ struct MEGA_API HttpReq
 
     void setLogName(const std::string& newLogName)
     {
-        logname = newLogName + logname;
+        logname += newLogName;
     }
 
 private:
