@@ -2163,37 +2163,31 @@ void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
                                                         FILENODEKEYLENGTH);
 }
 
-auto SdkTest::getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
+auto getAccountLevel(MegaApi& client) -> Expected<AccountLevel>
 {
     // Try and retrieve the user's account details.
-    auto details = getAccountDetails(api);
+    auto details = getAccountDetails(client);
 
     // Couldn't get account details.
-    if (std::get<1>(details) != API_OK)
-    {
-        return std::make_tuple(0, 0, std::get<1>(details));
-    }
+    if (auto result = ::result(details); result != API_OK)
+        return result;
 
     // Latch the user's plan.
-    auto plan = std::get<0>(details)->getProLevel();
+    auto plan = value(details)->getProLevel();
 
     // User has a free account: No need to get features or months.
     if (plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
-    {
-        return std::make_tuple(0, plan, API_OK);
-    }
+        return AccountLevel(0, plan);
 
     // Try and get pricing information.
-    auto pricing = getPricing(api);
+    auto pricing = getPricing(client);
 
     // Couldn't get pricing information.
-    if (std::get<1>(pricing) != API_OK)
-    {
-        return std::make_tuple(0, 0, std::get<1>(pricing));
-    }
+    if (auto result = ::result(pricing); result != API_OK)
+        return result;
 
     // Convenience.
-    auto& priceDetails = *std::get<0>(pricing);
+    auto& priceDetails = *value(pricing);
 
     // Locate the user's plan.
     for (auto i = 0, j = priceDetails.getNumProducts(); i < j; ++i)
@@ -2202,76 +2196,74 @@ auto SdkTest::getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
         if (plan == priceDetails.getProLevel(i))
         {
             // Return plan and its length.
-            return std::make_tuple(priceDetails.getMonths(i), plan, API_OK);
+            return AccountLevel(priceDetails.getMonths(i), plan);
         }
     }
 
     // Couldn't locate the user's plan.
-    return std::make_tuple(0, 0, API_ENOENT);
+    return API_ENOENT;
 }
 
-auto SdkTest::getAccountDetails(MegaApi& api)
-    -> std::tuple<std::unique_ptr<MegaAccountDetails>, int>
+auto getAccountDetails(MegaApi& client) -> Expected<std::unique_ptr<MegaAccountDetails>>
 {
     // So we can wait for the client's result.
-    RequestTracker tracker(&api);
+    RequestTracker tracker(&client);
 
     // Ask client for account details.
-    api.getAccountDetails(&tracker);
+    client.getAccountDetails(&tracker);
 
-    // Wait for client to report a result.
-    auto result = tracker.waitForResult();
-    auto details = makeUniqueFrom(tracker.request->getMegaAccountDetails());
+    // Couldn't get the client's account details.
+    if (auto result = tracker.waitForResult(); result != API_OK)
+        return result;
 
-    // Return result to caller.
-    return std::make_tuple(std::move(details), result);
+    // Return account details to caller.
+    return makeUniqueFrom(tracker.request->getMegaAccountDetails());
 }
 
-auto SdkTest::getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>
+auto getPricing(MegaApi& client) -> Expected<std::unique_ptr<MegaPricing>>
 {
     // So we can wait for the client's result.
-    RequestTracker tracker(&api);
+    RequestTracker tracker(&client);
 
     // Ask client for plan pricing information,
-    api.getPricing(&tracker);
+    client.getPricing(&tracker);
 
-    // Wait for client to report a result.
-    auto result = tracker.waitForResult();
-    auto pricing = makeUniqueFrom(tracker.request->getPricing());
+    // Couldn't get pricing plans.
+    if (auto result = tracker.waitForResult(); result != API_OK)
+        return result;
 
-    // Return result to caller.
-    return std::make_tuple(std::move(pricing), result);
+    // Return pricing plans to caller.
+    return makeUniqueFrom(tracker.request->getPricing());
 }
 
-auto SdkTest::makeScopedAccountLevelRestorer(MegaApi& api)
+auto accountLevelRestorer(MegaApi& client) -> ScopedDestructor
 {
     // Assume we can't retrieve the account level.
     std::function<void()> destructor = []() {};
 
-    auto months = 0;
-    auto plan = 0;
-    auto result = 0;
-
     // Try and retrieve the user's current account level.
-    std::tie(months, plan, result) = getAccountLevel(api);
+    auto accountLevel = getAccountLevel(client);
 
-    // Leave a trail if we couldn't get the account level.
-    EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
-
-    // We were able to retrieve the account level.
-    if (result == API_OK)
+    // Couldn't retrieve account level.
+    if (auto result = ::result(accountLevel); result != API_OK)
     {
-        // Build a destructor that will restore the user's account level.
-        destructor = [&api, months, plan, this]()
-        {
-            // Try and restore the user's account level.
-            auto result = setAccountLevel(api, plan, months, nullptr);
-            EXPECT_EQ(result, API_OK) << "Couldn't restore account level: " << result;
-        };
+        // Leave a trail if we couldn't get the account level.
+        EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+
+        // Return destructor to caller.
+        return destructor;
     }
 
+    // Build a destructor that will restore the user's account level.
+    destructor = [&client, level = value(accountLevel)]()
+    {
+        // Try and restore the user's account level.
+        auto result = setAccountLevel(client, level.plan, level.months, nullptr);
+        EXPECT_EQ(result, API_OK) << "Couldn't restore account level: " << result;
+    };
+
     // Return destructor to caller.
-    return makeScopedDestructor(std::move(destructor));
+    return destructor;
 }
 
 auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string& name)
@@ -2304,6 +2296,22 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
     }
 
     return makeUniqueFrom(directory);
+}
+
+auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>
+{
+    // Make sure client's plan alterations are temporary.
+    auto restorer = accountLevelRestorer(client);
+
+    // Try and elevate client to a pro pricing plan.
+    auto result = setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_PROI, 1, nullptr);
+
+    // Couldn't elevate client to a pro pricing plan.
+    if (result != API_OK)
+        return result;
+
+    // Return restorer to caller.
+    return restorer;
 }
 
 auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_t> expirationDate)
@@ -7411,10 +7419,16 @@ TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferWithConnectionFailures)
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
-TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferBestCase)
+TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
 {
     LOG_info << "___TEST Cloudraid transfers best case___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+    auto restorer1 = elevateToPro(*megaApi[1]);
+    ASSERT_EQ(result(restorer1), API_OK);
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
@@ -19575,7 +19589,7 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
 TEST_F(SdkTest, SdkTestSetAccountLevel)
 {
     // Make sure we can transition between account levels.
-    auto check = [this](MegaApi& api, int months, int plan)
+    auto check = [](MegaApi& api, int months, int plan)
     {
         // Try and set the account level.
         auto result = setAccountLevel(api, plan, months, nullptr);
@@ -19585,17 +19599,19 @@ TEST_F(SdkTest, SdkTestSetAccountLevel)
         // Make sure the account level actually changed.
         if (result == API_OK)
         {
-            auto m = 0;
-            auto p = 0;
+            // Try and get the client's account level.
+            auto level = getAccountLevel(api);
 
-            // Try and retrieve the account level.
-            std::tie(m, p, result) = getAccountLevel(api);
-
-            EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+            // Couldn't get account level.
+            if (result = ::result(level); result != API_OK)
+            {
+                EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+                return result;
+            }
 
             // Make sure the account level actually changed.
-            EXPECT_EQ(m, months);
-            EXPECT_EQ(p, plan);
+            EXPECT_EQ(value(level).months, months);
+            EXPECT_EQ(value(level).plan, plan);
         }
 
         return result;
@@ -19612,7 +19628,7 @@ TEST_F(SdkTest, SdkTestSetAccountLevel)
     auto& api = *megaApi[0];
 
     // Make sure any modifications we make are reversed.
-    auto restorer = makeScopedAccountLevelRestorer(api);
+    auto restorer = accountLevelRestorer(api);
 
     // Make sure we can change to a free plan.
     EXPECT_EQ(check(api, 0, FREE), API_OK);
@@ -19933,7 +19949,7 @@ TEST_F(SdkTest, ExportNodeWithExpiryDate)
     auto& client = *megaApi[0];
 
     // Make sure any plan changed are reversed.
-    auto restorer = makeScopedAccountLevelRestorer(client);
+    auto restorer = accountLevelRestorer(client);
 
     // Make sure the backend thinks we have a free account.
     EXPECT_EQ(setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr), API_OK);

@@ -9,13 +9,12 @@ namespace mega
 {
 
 // Executes a user-provided function when destroyed.
-template<typename Destructor>
 class ScopedDestructor
 {
-    Destructor mDestructor;
+    std::function<void()> mDestructor;
 
 public:
-    ScopedDestructor(Destructor destructor):
+    ScopedDestructor(std::function<void()> destructor):
         mDestructor(std::move(destructor))
     {}
 
@@ -23,15 +22,17 @@ public:
 
     ~ScopedDestructor()
     {
-        mDestructor();
+        if (mDestructor != nullptr)
+            mDestructor();
     }
 
     ScopedDestructor& operator=(ScopedDestructor&& rhs) = default;
 }; // ScopedDestructor
 
 // Returns an object that executes function when destroyed.
-template<typename Function, typename = std::enable_if_t<std::is_invocable_v<Function>>>
+template<typename Function>
 auto makeScopedDestructor(Function function)
+    -> std::enable_if_t<std::is_same_v<std::invoke_result_t<Function>, void>, ScopedDestructor>
 {
     return ScopedDestructor(std::move(function));
 }

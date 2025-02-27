@@ -1279,27 +1279,6 @@ public:
 
     /* MegaVpnCredentials END */
 
-    auto getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>;
-
-    auto getAccountDetails(MegaApi& api) -> std::tuple<std::unique_ptr<MegaAccountDetails>, int>;
-
-    auto getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>;
-
-    auto makeScopedAccountLevelRestorer(MegaApi& api);
-
-    template<typename... requestArgs>
-    int setAccountLevel(MegaApi& api, requestArgs... args)
-    {
-        // So we can wait for the client's result.
-        RequestTracker tracker(&api);
-
-        // Try and set the user's account level.
-        api.sendSetAccountLevelDevCommand(args..., &tracker);
-
-        // Return client's result to caller.
-        return tracker.waitForResult();
-    }
-
     template<typename... Arguments>
     int setThumbnail(MegaApi& client, Arguments... arguments)
     {
@@ -1522,6 +1501,18 @@ public:
 
 /**
  * @brief
+ * Return an object that will restore client's plan on destruction.
+ *
+ * @param client
+ * The client whose plan we want to restore.
+ *
+ * @return
+ * An object that will restore client's plan on destruction.
+ */
+auto accountLevelRestorer(MegaApi& client) -> ScopedDestructor;
+
+/**
+ * @brief
  * Create a directory with a given name under a specified parent.
  *
  * @param client
@@ -1539,6 +1530,19 @@ public:
  */
 auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string& name)
     -> Expected<std::unique_ptr<MegaNode>>;
+
+/**
+ * @brief
+ * Elevate client to a pro pricing plan.
+ *
+ * @param client
+ * The client who we want to elevate to a pro pricing plan.
+ *
+ * @return
+ * An account level restorer on success.
+ * An error on failure.
+ */
+auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>;
 
 /**
  * @brief
@@ -1562,6 +1566,62 @@ auto exportNode(MegaApi& client,
                 std::optional<std::int64_t> expirationDate = std::nullopt) -> Expected<std::string>;
 
 /**
+ * @brief
+ * Retrieve a client's account details.
+ *
+ * @param client
+ * The client whose account details we want to retrieve.
+ *
+ * @return
+ * A pointer to an account details instance on success.
+ * An error on failure.
+ */
+auto getAccountDetails(MegaApi& client) -> Expected<std::unique_ptr<MegaAccountDetails>>;
+
+/**
+ * Describes a client's current account level.
+ */
+struct AccountLevel
+{
+    AccountLevel(int months, int plan):
+        months(months),
+        plan(plan)
+    {}
+
+    // How long the client's current pricing is active.
+    int months;
+
+    // The client's current pricing plan.
+    int plan;
+}; // AccountLevel
+
+/**
+ * @brief
+ * Retrieve a client's current account level.
+ *
+ * @param client
+ * The client whose account level we want to retrieve.
+ *
+ * @return
+ * An account level object instance on success.
+ * An error on failure.
+ */
+auto getAccountLevel(MegaApi& client) -> Expected<AccountLevel>;
+
+/**
+ * @brief
+ * Retrieve available pricing plans.
+ *
+ * @param client
+ * The client who should request the available pricing plans.
+ *
+ * @return
+ * A pointer to a pricing object instance on success.
+ * An error on failure.
+ */
+auto getPricing(MegaApi& client) -> Expected<std::unique_ptr<MegaPricing>>;
+
+/**
  * Import a node into this account via public link.
  *
  * @param client
@@ -1579,3 +1639,29 @@ auto exportNode(MegaApi& client,
  */
 auto importNode(MegaApi& client, const std::string& link, const MegaNode& parent)
     -> Expected<std::unique_ptr<MegaNode>>;
+
+/**
+ * @brief
+ * Set a client's account level.
+ *
+ * @param client
+ * The client whose account level we want to set.
+ *
+ * @param args
+ * Arguments suitable for MegaApi::sendSetAccountLevelDevCommand(...).
+ *
+ * @return
+ * API_OK on success.
+ */
+template<typename... requestArgs>
+Error setAccountLevel(MegaApi& client, requestArgs... args)
+{
+    // So we can wait for the client's result.
+    RequestTracker tracker(&client);
+
+    // Try and set the user's account level.
+    client.sendSetAccountLevelDevCommand(args..., &tracker);
+
+    // Return client's result to caller.
+    return tracker.waitForResult();
+}
