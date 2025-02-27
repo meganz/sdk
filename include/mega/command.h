@@ -1245,6 +1245,7 @@ public:
     bool procresult(Result, JSON&) override;
 
     CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty, const ScheduledMeeting* schedMeeting = nullptr);
+    ~CommandChatCreate();
 };
 
 typedef std::function<void(Error)> CommandSetChatOptionsCompletion;

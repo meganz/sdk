@@ -608,17 +608,21 @@ void SdkTest::Cleanup()
             {
                 const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
                 ASSERT_TRUE(c);
-                if (c->getOwnPrivilege() == PRIV_MODERATOR)
+                auto numPeers = c->getPeerList() ? c->getPeerList()->size() : 0;
+                // skip chats where we aren't moderator and self-chat, which can't be deleted
+                if (c->getOwnPrivilege() == PRIV_MODERATOR && (numPeers || c->isGroup()))
                 {
                     RequestTracker rt(megaApi[nApi].get());
                     megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
                     auto e = rt.waitForResult();
-                    EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS) << "e == " << e;
+                    EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS)
+                        << "Error " << e << " getting chat link for chatid " << c->getHandle();
                     if (e == API_OK)
                     {
                         RequestTracker rtD(megaApi[nApi].get());
                         megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
-                        EXPECT_EQ(rtD.waitForResult(), API_OK);
+                        EXPECT_EQ(rtD.waitForResult(), API_OK)
+                            << "Error deleting chatlink for chatid " << c->getHandle();
                     }
                 }
             }
@@ -6788,14 +6792,11 @@ TEST_F(SdkTest, SdkTestChat)
 
     // --- Create a group chat ---
 
-    MegaTextChatPeerList *peers;
-    handle h;
-    bool group;
-
-    h = megaApi[1]->getMyUser()->getHandle();
-    peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
+    handle h = megaApi[1]->getMyUserHandleBinary();
+    MegaTextChatPeerList* peers =
+        MegaTextChatPeerList::createInstance(); // new MegaTextChatPeerListPrivate();
     peers->addPeer(h, PRIV_STANDARD);
-    group = true;
+    bool group = true;
 
     mApi[1].chatUpdated = false;
     mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
@@ -6863,6 +6864,17 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated) )   // at the target side (auxiliar account)
             << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
 
+    // --- Create 1on1 chat with self
+    megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
+    mApi[0].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
+    ASSERT_NO_FATAL_FAILURE(createChat(false, nullptr));
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]))
+        << "Cannot create a new chat with self";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Chat-with-self creation failed (error: " << mApi[0].lastError << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated)) // at the target side (auxiliar account)
+        << "Chat update not received after " << maxTimeout << " seconds";
 }
 #endif
 

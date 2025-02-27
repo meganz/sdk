@@ -8106,7 +8106,7 @@ bool CommandGetLocalSSLCertificate::procresult(Result r, JSON& json)
 CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
     this->client = client;
-    this->chatPeers = new userpriv_vector(*upl);
+    this->chatPeers = upl ? new userpriv_vector(*upl) : nullptr;
     this->mPublicChat = publicchat;
     this->mTitle = title ? string(title) : "";
     this->mUnifiedKey = "";
@@ -8151,31 +8151,30 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
     }
 
     beginarray("u");
-
-    userpriv_vector::iterator itupl;
-    for (itupl = chatPeers->begin(); itupl != chatPeers->end(); itupl++)
+    if (chatPeers)
     {
-        beginobject();
-
-        handle uh = itupl->first;
-        privilege_t priv = itupl->second;
-
-        arg("u", (byte *)&uh, MegaClient::USERHANDLE);
-        arg("p", priv);
-
-        if (publicchat)
+        for (const auto& peer: *chatPeers)
         {
-            char uid[12];
-            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-            uid[11] = '\0';
+            beginobject();
 
-            string_map::const_iterator ituk = ukm->find(uid);
-            if(ituk != ukm->end())
+            handle uh = peer.first;
+            arg("u", (byte*)&uh, MegaClient::USERHANDLE);
+            arg("p", peer.second);
+
+            if (publicchat)
             {
-                arg("ck", ituk->second.c_str());
+                char uid[12];
+                Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+                uid[11] = '\0';
+
+                string_map::const_iterator ituk = ukm->find(uid);
+                if (ituk != ukm->end())
+                {
+                    arg("ck", ituk->second.c_str());
+                }
             }
+            endobject();
         }
-        endobject();
     }
 
     endarray();
@@ -8201,7 +8200,6 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
     if (r.wasErrorOrOK())
     {
         client->app->chatcreate_result(NULL, r.errorOrOK());
-        delete chatPeers;
         return true;
     }
     else
@@ -8258,7 +8256,6 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                     if (!json.storeobject())
                     {
                         client->app->chatcreate_result(NULL, API_EINTERNAL);
-                        delete chatPeers;   // unused, but might be set at creation
                         return false;
                     }
             }
@@ -8330,16 +8327,23 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
 
             client->notifychat(chat);
             client->app->chatcreate_result(chat, API_OK);
+            chatPeers = nullptr;
         }
         else
         {
             client->app->chatcreate_result(NULL, API_EINTERNAL);
-            delete chatPeers;   // unused, but might be set at creation
         }
         return true;
     }
 }
 
+CommandChatCreate::~CommandChatCreate()
+{
+    if (chatPeers)
+    {
+        delete chatPeers;
+    }
+}
 CommandSetChatOptions::CommandSetChatOptions(MegaClient* client, handle chatid, int option, bool enabled, CommandSetChatOptionsCompletion completion)
     : mCompletion(completion)
 {

@@ -4358,9 +4358,10 @@ MegaTextChatPeerList *MegaRequestPrivate::getMegaTextChatPeerList() const
 void MegaRequestPrivate::setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers)
 {
     if (this->chatPeerList)
+    {
         delete this->chatPeerList;
-
-    this->chatPeerList = chatPeers->copy();
+    }
+    this->chatPeerList = chatPeers ? chatPeers->copy() : nullptr;
 }
 
 MegaTextChatList *MegaRequestPrivate::getMegaTextChatList() const
@@ -24006,16 +24007,8 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList* 
             bool group = request->getFlag();
             const char *title = request->getText();
             bool publicchat = (request->getAccess() == 1);
-            MegaStringMap *userKeyMap = request->getMegaStringMap();
-
-            if (!chatPeers) // empty groupchat
-            {
-                MegaTextChatPeerListPrivate tmp = MegaTextChatPeerListPrivate();
-                request->setMegaTextChatPeerList(&tmp);
-                chatPeers = request->getMegaTextChatPeerList();
-            }
-
-            int numPeers = chatPeers->size();
+            MegaStringMap* userKeyMap = request->getMegaStringMap();
+            int numPeers = chatPeers ? chatPeers->size() : 0;
             const string_map *uhkeymap = NULL;
             if(publicchat)
             {
@@ -24028,7 +24021,7 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList* 
             }
             else
             {
-                if (!group && numPeers != 1)
+                if (!group && numPeers > 1)
                 {
                     return API_EACCESS;
                 }
@@ -24046,13 +24039,21 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList* 
                 schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getMegaScheduledMeetingList()->at(0));
             }
 
-            const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
-            // if 1:1 chat, peer is enforced to be moderator too
-            if (!group && userpriv->at(0).second != PRIV_MODERATOR)
+            const userpriv_vector* userpriv;
+            if (numPeers)
             {
-                ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
+                userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
+                // if 1:1 chat, peer is enforced to be moderator too
+                if (!group && numPeers && userpriv->at(0).second != PRIV_MODERATOR)
+                {
+                    ((MegaTextChatPeerListPrivate*)chatPeers)
+                        ->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
+                }
             }
-
+            else
+            {
+                userpriv = nullptr;
+            }
             client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, request->getParamType() /*chat options value*/, schedMeeting ? schedMeeting->scheduledMeeting() : nullptr);
             return API_OK;
         };
