@@ -42,6 +42,7 @@ std::string toNodeHandle(NodeHandle nodeHandle);
 NodeHandle toNodeHandle(const byte* data);  // consider moving functionality to NodeHandle
 NodeHandle toNodeHandle(const std::string* data);
 std::string toHandle(handle h);
+handle stringToHandle(const std::string& b64String, const int handleSize);
 std::pair<bool, TypeOfLink> toTypeOfLink (nodetype_t type);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
@@ -1458,6 +1459,29 @@ std::string numberToString(T number)
     }
 
     return {};
+}
+
+/**
+ * @brief Converts an string to a number of any aritmetic type.
+ *
+ * @tparam T The type of the number to be converted to. It must be an arithmetic type (e.g., int,
+ * float, double).
+ *
+ * @param sv The string to be converter to a number
+ * @return An optional value contained in std::optional<T>. Value will not be present if the
+ * converstion fails.
+ */
+template<typename T>
+std::optional<T> stringToNumber(const std::string_view sv)
+{
+    static_assert(std::is_arithmetic_v<T>, "invalid numeric type");
+
+    T r;
+    const auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), r);
+    if (ec == std::errc())
+        return r;
+    else
+        return std::nullopt;
 }
 
 /**

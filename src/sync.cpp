@@ -34,7 +34,9 @@
 #include "mega/sync.h"
 #include "mega/syncinternals/syncinternals_logging.h"
 #include "mega/syncinternals/syncuploadthrottlingmanager.h"
+#include "mega/tlv.h"
 #include "mega/transfer.h"
+#include "mega/user_attribute.h"
 
 namespace mega {
 
@@ -6596,6 +6598,7 @@ std::function<void(MegaClient&, TransferDbCommitter&)>
             remainingSds = sds,
             boolsptr = us.sdsUpdateInProgress](MegaClient& mc, TransferDbCommitter&) mutable
     {
+        // Lambda to be executed in the client thread
         if (std::shared_ptr<Node> node = mc.nodeByHandle(remoteNode))
         {
             remainingSds.erase(std::remove_if(remainingSds.begin(),
@@ -6604,16 +6607,47 @@ std::function<void(MegaClient&, TransferDbCommitter&)>
                                               {
                                                   return sdsRequest.first == backupId;
                                               }));
-
-            mc.setattr(
-                node,
-                attr_map(Node::sdsId(), Node::toSdsString(remainingSds)),
-                [boolsptr](NodeHandle handle, Error result)
+            // SDS values for full-syncs (account root node) are set in the *!sds attribute
+            // instead of as an attribute of the backup/sync root node.
+            if (mc.mNodeManager.getRootNodeFiles().eq(remoteNode))
+            {
+                string_map records;
+                // Map current sds to a string_map compatible with putua.
+                for (const auto& [bkpId, state]: remainingSds)
                 {
-                    LOG_debug << "SDS: Attribute updated on " << handle << " result: " << result;
-                    *boolsptr = false;
-                },
-                true);
+                    records[toHandle(bkpId)] = std::to_string(state);
+                }
+
+                mc.putua(ATTR_SYNC_DESIRED_STATE,
+                         std::move(records),
+                         0,
+                         UNDEF,
+                         0,
+                         0,
+                         [boolsptr](Error e)
+                         {
+                             if (e != API_OK)
+                             {
+                                 LOG_warn << "Failed to update "
+                                          << User::attr2string(ATTR_SYNC_DESIRED_STATE)
+                                          << " user attribute: " << e;
+                             }
+                             *boolsptr = false;
+                         });
+            }
+            else
+            {
+                mc.setattr(
+                    node,
+                    attr_map(Node::sdsId(), Node::toSdsString(remainingSds)),
+                    [boolsptr](NodeHandle handle, Error result)
+                    {
+                        LOG_debug << "SDS: Attribute updated on " << handle
+                                  << " result: " << result;
+                        *boolsptr = false;
+                    },
+                    true);
+            }
         }
     };
 }
@@ -13677,7 +13711,19 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         if (depth) *depth = n->depth();
 
-        if (sdsBackups) *sdsBackups = n->getSdsBackups();
+        if (sdsBackups)
+        {
+            // SDS values for full-syncs (account root node) are set in the *!sds attribute
+            // instead of as an attribute of the backup/sync root node.
+            if (mClient.mNodeManager.getRootNodeFiles().eq(h))
+            {
+                *sdsBackups = getSdsBackupsFullSync();
+            }
+            else
+            {
+                *sdsBackups = n->getSdsBackups();
+            }
+        }
 
         cn = CloudNode(*n);
 
@@ -14066,6 +14112,45 @@ void Syncs::assertThrottlingManagerIsValid() const
     LOG_err << "Syncs upload throttling manager is not valid and it should! It is expected to be "
                "initialized from Syncs constructor";
     assert(false && "Syncs upload throttling manager should always be valid!!!");
+}
+
+void Syncs::setSdsBackupsFullSync(const std::unique_ptr<string_map>& sds)
+{
+    lock_guard<mutex> sdsGuard(mSdsBackupsFullSyncMutex);
+
+    mSdsBackupsFullSync.clear();
+
+    if (sds)
+    {
+        // Map the sds records from the user attribute to the mSdsBackupsFullSync variable format
+        for (const auto& [backupIdStr, backupStateStr]: *sds)
+        {
+            const handle backupId = stringToHandle(backupIdStr, MegaClient::BACKUPHANDLE);
+            if (ISUNDEF(backupId))
+            {
+                string msg = "Undefined backup ID in '*!sds' attr";
+                LOG_err << msg;
+                assert(false && msg.c_str());
+                continue;
+            }
+            const auto backupState = stringToNumber<int>(backupStateStr);
+            if (!backupState)
+            {
+                string msg = "Invalid backup state \"" + backupStateStr +
+                             "\" in '*!sds' attr value for backup ID " + backupIdStr;
+                LOG_err << msg;
+                assert(false && msg.c_str());
+                continue;
+            }
+            mSdsBackupsFullSync.emplace_back(backupId, *backupState);
+        }
+    }
+}
+
+Syncs::SyncsDesiredStates Syncs::getSdsBackupsFullSync() const
+{
+    lock_guard<mutex> sdsGuard(mSdsBackupsFullSyncMutex);
+    return mSdsBackupsFullSync;
 }
 
 } // namespace

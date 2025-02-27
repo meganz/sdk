@@ -2091,6 +2091,11 @@ private:
     std::atomic<bool> mUploadsPaused {false};
     std::atomic<bool> mTransferPauseFlagsChanged {false};
 
+    // Local sds values for full-syncs
+    using SyncsDesiredStates = std::vector<std::pair<handle, int>>;
+    SyncsDesiredStates mSdsBackupsFullSync;
+    mutable std::mutex mSdsBackupsFullSyncMutex;
+
     /**
      * @brief Shared pointer to IUploadThrottlingManager, in charge of everything related to upload
      * throttling.
@@ -2315,6 +2320,16 @@ public:
     void setThrottlingManager(std::shared_ptr<IUploadThrottlingManager> uploadThrottlingManager,
                               std::function<void(const error)>&& completion);
 
+    /**
+     * @brief Sets the sds value for the syncs
+     *
+     * Method to be executed out of the sync thread. The value will be copied to be used later in
+     * the sync thread, protected by the mSdsBackupsFullSyncMutex mutex.
+     *
+     * @param sds New *!sds user attribute value. It can be null.
+     */
+    void setSdsBackupsFullSync(const std::unique_ptr<string_map>& sds);
+
 private:
     /**
      * @brief Checks the throttling manager validity.
@@ -2326,6 +2341,18 @@ private:
      * This method is expected to be called on the sync thread. It also asserts that.
      */
     void assertThrottlingManagerIsValid() const;
+
+    /**
+     * @brief Gets the sds value for the full-sync with the sds node attribute format
+     *
+     * Internal method intended to be used in the sync thread. The returned values are set using
+     * setSdsBackupsFullSync method. Protected by the mSdsBackupsFullSyncMutex
+     *
+     * @see setSdsBackupsFullSync
+     *
+     * @return vector with the latest known *!sds user attribute values.
+     */
+    SyncsDesiredStates getSdsBackupsFullSync() const;
 };
 
 class OverlayIconCachedPaths

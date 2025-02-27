@@ -3432,7 +3432,13 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
                 LOG_info << "Unshareable key successfully created";
                 client->unshareablekey.swap(av);
             }
-
+#ifdef ENABLE_SYNC
+            else if (attributeType == ATTR_SYNC_DESIRED_STATE)
+            {
+                const std::unique_ptr<string_map> records{tlv::containerToRecords(av, client->key)};
+                client->syncs.setSdsBackupsFullSync(records);
+            }
+#endif
             client->notifyuser(u);
             mCompletion(API_OK);
         }
@@ -3759,6 +3765,12 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                 tlv::containerToRecords(value, client->key)};
                             if (records || (value.empty() && !version.empty()))
                             {
+#ifdef ENABLE_SYNC
+                                if (at == ATTR_SYNC_DESIRED_STATE)
+                                {
+                                    client->syncs.setSdsBackupsFullSync(records);
+                                }
+#endif
                                 u->setAttribute(at, value, version);
                                 mCompletionTLV(std::move(records), at);
                             }
@@ -4319,6 +4331,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionVisibleTermsOfService;
     string pwmh, pwmhVersion;
     vector<uint32_t> notifs;
+    std::string sds, sdsVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4705,6 +4718,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
         case makeNameid("^!tsur"):
         {
             parseUserAttribute(json, enabledTestSurveys, versionEnabledTestSurveys);
+            break;
+        }
+
+        case makeNameid("*!sds"):
+        {
+            parseUserAttribute(json, sds, sdsVersion);
             break;
         }
 
@@ -5133,6 +5152,23 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     u->removeAttribute(ATTR_PWM_BASE);
+                }
+
+                if (!sds.empty() || !sdsVersion.empty())
+                {
+                    changes |= updatePrivateEncryptedUserAttribute(u,
+                                                                   sds,
+                                                                   sdsVersion,
+                                                                   ATTR_SYNC_DESIRED_STATE);
+#ifdef ENABLE_SYNC
+                    const std::unique_ptr<string_map> records{
+                        tlv::containerToRecords(sds, client->key)};
+                    client->syncs.setSdsBackupsFullSync(records);
+#endif
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_SYNC_DESIRED_STATE);
                 }
 
                 if (changes)
