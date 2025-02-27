@@ -3971,6 +3971,12 @@ using namespace mega;
     }
 }
 
+- (void)getMyIPWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getMyIp([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 #pragma mark - Password Manager
 
 - (void)getPasswordManagerBaseWithDelegate:(id<MEGARequestDelegate>)delegate {

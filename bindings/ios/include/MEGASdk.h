@@ -9675,6 +9675,20 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  */
 - (void)checkVpnCredentialWithUserPubKey:(NSString *)userPubKey delegate:(id<MEGARequestDelegate>)delegate;
 
+/**
+ * @brief Gets the public IP address and country code.
+ *
+ * The associated request type with this request is MEGARequestTypeGetMyIP.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest name] - Returns the country code.
+ * - [MEGARequest text] - Returns the public IP address.
+ *
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)getMyIPWithDelegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Password Manager
 
 /**
