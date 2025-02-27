@@ -1009,6 +1009,11 @@ int MegaRequest::getNumRetry() const
 	return 0;
 }
 
+MegaNode *MegaRequest::getPublicNode() const
+{
+	return NULL;
+}
+
 MegaNode *MegaRequest::getPublicMegaNode() const
 {
 	return NULL;
