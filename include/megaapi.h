@@ -5529,7 +5529,7 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::createChat - Returns the list of peers and their privilege level
          *
-         * @return List of peers of a chat
+         * @return List of peers of a chat. Can be \c nullptr
          */
         virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
 
@@ -21284,42 +21284,49 @@ class MegaApi
 #ifdef ENABLE_CHAT
         /**
          * @brief Creates a chat for one or more participants, allowing you to specify their
-         * permissions and if the chat should be a group chat or not (when it is just for 2 participants).
+         * permissions and if the chat should be a group chat or not (when it is just for 2
+         * participants).
          *
-         * There are two types of chat: permanent an group. A permanent chat is between two people, and
-         * participants can not leave it. It's also called 1on1 or 1:1.
+         * There are two types of chat: permanent an group. A permanent chat is between two people,
+         * or only with ourselves (note-to-self chat), and participants can not leave it. It's also
+         * called 1on1 or 1:1.
          *
-         * The creator of the chat will have moderator level privilege and should not be included in the
-         * list of peers.
+         * The creator of the chat will have moderator level privilege and should not be included in
+         * the list of peers.
          *
-         * On 1:1 chats, the other participant has also moderator level privilege, regardless the
-         * privilege level specified.
+         * On 1:1 chats with a peer, the other participant has also moderator level privilege,
+         * regardless the privilege level specified.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_CREATE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getFlag - Returns if the new chat is a group chat or permanent chat
          * - MegaRequest::getAccess - Returns zero (private mode)
-         * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
+         * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level.
+         * Note-to-self chats have no peers, so this function will return \c nullptr
          * - MegaRequest::getText - Returns the title of the chat.
-         * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
-         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
+         * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be
+         * enabled in creation
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a
+         * MegaScheduledMeeting with data introduced by user)
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getMegaTextChatList - Returns the new chat's information
-         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with definitive ScheduledMeeting updated from API)
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with
+         * definitive ScheduledMeeting updated from API)
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If more than 1 peer is provided for a 1on1 chatroom.
          * - MegaError::API_EARGS   - If chatOptions param is provided for a 1on1 chat
          *
-         * @note If peers list contains only one person, group chat is not set and a permament chat already
-         * exists with that person, then this call will return the information for the existing chat, rather
-         * than a new chat.
+         * @note If peers list contains only one person, group chat is not set and a permament chat
+         * already exists with that person, then this call will return the information for the
+         * existing chat, rather than a new chat.
          *
          * @param group Flag to indicate if the chat is a group chat or not
          * @param peers MegaTextChatPeerList including other users and their privilege level
-         * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
+         * @param title Byte array that contains the chat topic if exists. NULL if no custom title
+         * is required.
          * @param chatOptions Bitmask that contains the chat options to create the chat
          * @param scheduledMeeting MegaScheduledMeeting with data introduced by user
          * @param listener MegaRequestListener to track this request
@@ -26554,7 +26561,7 @@ public:
      * A handle identifying a cloud node.
      */
     virtual void setHandle(MegaHandle handle) = 0;
-    
+
     /**
      * @brief
      * Set this mount's local path.
