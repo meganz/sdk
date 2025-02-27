@@ -19,6 +19,7 @@
 #ifndef MEGA_DNS_LOOKUP_PSEUDOMESSAGE_H
 #define MEGA_DNS_LOOKUP_PSEUDOMESSAGE_H
 
+#include <cstdint>
 #include <string>
 
 namespace mega
