@@ -6267,7 +6267,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                 if (reqs.cmdsInflight())
                 {
                     LOG_verbose << clientname << "st tag " << tag << ". Wait for cs response to arrive";
-                    return false;  // we can't tell yet if a command will give us a tag to wait for
+                    break; // we can't tell yet if a command will give us a tag to wait for
                 }
                 else
                 {
@@ -6308,9 +6308,10 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                     return true;
                 }
             }
-            break;
         }
     }
+
+    return false;
 }
 
 // Looks for the "st" in the action packet, if any.
