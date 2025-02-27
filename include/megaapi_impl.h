@@ -617,7 +617,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
             public:
                 bool sharedSecretExist() const override
                 {
-                    return mSharedSecretExists;
+                    return mFieldsPresence[INDEX_SHSE];
                 }
 
                 bool sharedSecretValid() const override
@@ -625,14 +625,29 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                     return !mValidationErrors[totp::INVALID_TOTP_SHARED_SECRET];
                 }
 
+                bool algorithmExist() const override
+                {
+                    return mFieldsPresence[INDEX_HASH];
+                }
+
                 bool algorithmValid() const override
                 {
                     return !mValidationErrors[totp::INVALID_TOTP_ALG];
                 }
 
+                bool expirationTimeExist() const override
+                {
+                    return mFieldsPresence[INDEX_EXPT];
+                }
+
                 bool expirationTimeValid() const override
                 {
                     return !mValidationErrors[totp::INVALID_TOTP_EXPT];
+                }
+
+                bool nDigitsExist() const override
+                {
+                    return mFieldsPresence[INDEX_NDIG];
                 }
 
                 bool nDigitsValid() const override
@@ -642,7 +657,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 
                 bool isValidForCreate() const override
                 {
-                    return mSharedSecretExists && isValidForUpdate();
+                    return mFieldsPresence.all() && isValidForUpdate();
                 }
 
                 bool isValidForUpdate() const override
@@ -653,9 +668,13 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                 ValidationPrivate(std::optional<std::string_view> sharedSecret,
                                   std::optional<std::chrono::seconds> expirationTimeSecs,
                                   std::optional<unsigned> hashAlgorithm,
-                                  std::optional<unsigned> ndigits):
-                    mSharedSecretExists(sharedSecret.has_value())
+                                  std::optional<unsigned> ndigits)
                 {
+                    mFieldsPresence[INDEX_SHSE] = sharedSecret.has_value();
+                    mFieldsPresence[INDEX_EXPT] = expirationTimeSecs.has_value();
+                    mFieldsPresence[INDEX_HASH] = hashAlgorithm.has_value();
+                    mFieldsPresence[INDEX_NDIG] = ndigits.has_value();
+
                     const auto alg = hashAlgorithm ? std::optional{totp::hashAlgorithmPubToStrView(
                                                          static_cast<int>(*hashAlgorithm))} :
                                                      std::nullopt;
@@ -664,7 +683,12 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                 }
 
             protected:
-                bool mSharedSecretExists{false};
+                static constexpr size_t INDEX_SHSE{0};
+                static constexpr size_t INDEX_EXPT{1};
+                static constexpr size_t INDEX_HASH{2};
+                static constexpr size_t INDEX_NDIG{3};
+                std::bitset<4> mFieldsPresence{};
+
                 totp::TotpValidationErrors mValidationErrors{};
             };
 
@@ -759,8 +783,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                 }
 
                 int alg = TOTPNULLOPT;
-                if (const auto itAlg =
-                        m.map.find(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH));
+                if (const auto itAlg = m.map.find(
+                        AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG));
                     itAlg != m.map.end())
                 {
                     alg = totp::charToPubhashAlgorithm(itAlg->second);

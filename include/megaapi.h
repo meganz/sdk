@@ -618,13 +618,40 @@ class MegaNode
                 /**
                  * @brief The Validation class represents the current validation status for a
                  * TotpData instance
+                 *
+                 * Usage:
+                 * - Get a validation instance from your TotpData object using the
+                 *   TotpData::getValidation() method
+                 * - If you are planning to use the object to update the existing TotpData of a
+                 *   password node, invoke the Validation::isValidForUpdate() to check if the your
+                 *   TotpData object contains valid data.
+                 *   - If it returns true, you can safely use it to update the node. No errors will
+                 *     be triggered due to the format of the totp data.
+                 *   - If not (returns false), you can check the outputs from the following methods
+                 *     to detect where the problem comes from:
+                 *     - sharedSecretValid()
+                 *     - algorithmValid()
+                 *     - nDigitsValid()
+                 *     - expirationTimeValid()
+                 * - If the instances is going to be used for creating a new password node with totp
+                 *   data or to update a node that has no totp data stored, you should check the
+                 *   output from Validation::isValidForCreate().
+                 *   - If it returns true, you can use the TotpData instance to create a new node or
+                 *     to update an existing one without previous totp data.
+                 *   - Else, in addition to the methods that must return true also for the update
+                 *     (above), for creation, all the fields must be present. For that you can
+                 *     check:
+                 *     - sharedSecretExist()
+                 *     - algorithmExist()
+                 *     - nDigitsExist()
+                 *     - expirationTimeExist()
                  */
                 class Validation
                 {
                 public:
                     virtual ~Validation() = default;
                     /**
-                     * @brief Returns `true` if shared secret exists, `false` otherwise
+                     * @brief Returns `true` if shared secret has a value, `false` otherwise
                      */
                     virtual bool sharedSecretExist() const = 0;
 
@@ -634,14 +661,32 @@ class MegaNode
                     virtual bool sharedSecretValid() const = 0;
 
                     /**
+                     * @brief Returns `true` if algorithm has a value different from TOTPNULLOPT,
+                     * `false` otherwise
+                     */
+                    virtual bool algorithmExist() const = 0;
+
+                    /**
                      * @brief Returns `true` if algorithm is valid, `false` otherwise
                      */
                     virtual bool algorithmValid() const = 0;
 
                     /**
+                     * @brief Returns `true` if expiration time has a value different from
+                     * TOTPNULLOPT, `false` otherwise
+                     */
+                    virtual bool expirationTimeExist() const = 0;
+
+                    /**
                      * @brief Returns `true` if expiration time is valid, `false` otherwise
                      */
                     virtual bool expirationTimeValid() const = 0;
+
+                    /**
+                     * @brief Returns `true` if number of digits has a value different from
+                     * TOTPNULLOPT, `false` otherwise
+                     */
+                    virtual bool nDigitsExist() const = 0;
 
                     /**
                      * @brief Returns `true` if number of digits is valid, `false` otherwise
@@ -651,8 +696,9 @@ class MegaNode
                     /**
                      * @brief Returns `true` if TotpData instance is valid for initializing a new
                      * totp data field in a password node, `false` otherwise
-                     * @note For initializing the totpData field in a password node, mandatory
-                     * fields such as the shared secret must be present in the TotpData instance.
+                     * @note For initializing the totpData field in a password node, all the
+                     * mandatory fields (shared secret, expiration time, algorithm and n digits)
+                     * must be present in the TotpData instance.
                      */
                     virtual bool isValidForCreate() const = 0;
 
@@ -673,10 +719,15 @@ class MegaNode
                     HASH_ALGO_SHA512 = 2,
                 };
 
-                virtual ~TotpData() = default;
+                // Default values when not provided by the authentication provider
+                static constexpr int DEFAULT_HASH_ALGO = 0;
+                static constexpr int DEFAULT_EXPIRATION_TIME_SECS = 30;
+                static constexpr int DEFAULT_NDIGITS = 6;
 
                 // Use this constant to leave a field untouched
                 static constexpr int TOTPNULLOPT = -1;
+
+                virtual ~TotpData() = default;
 
                 /**
                  * @brief Creates a special instance of `TotpData` marked for removal.
@@ -691,9 +742,12 @@ class MegaNode
                  * @brief Creates a new instance of `TotpData` with specified parameters.
                  *
                  * In an update operation, to leave values untouched, use nullptr for `sharedSecret`
-                 * and TOTPNULLOPT constant for the rest of the parameters. The latter can also be
-                 * used for a creation operation to initialize those integer values to their
-                 * defaults.
+                 * and TOTPNULLOPT constant for the rest of the parameters.
+                 *
+                 * For creating a node with Totp data or for setting it in an existing node that has
+                 * no totp data, you are forced to pass all the parameters valid values. You can use
+                 * DEFAULT_EXPIRATION_TIME_SECS, DEFAULT_HASH_ALGO and DEFAULT_NDIGITS to set
+                 * default values.
                  *
                  * @param sharedSecret The shared secret key for TOTP.
                  * @param expirationTimeSecs The expiration time in seconds.
@@ -10604,9 +10658,12 @@ class MegaApi
             IMPORTED_PASSWORD_ERROR_MISSINGNAME = 3,
             IMPORTED_PASSWORD_ERROR_MISSING_TOTP_SHSE = 4,
             IMPORTED_PASSWORD_ERROR_INVALID_TOTP_SHSE = 5,
-            IMPORTED_PASSWORD_ERROR_INVALID_TOTP_NDIGITS = 6,
-            IMPORTED_PASSWORD_ERROR_INVALID_TOTP_EXPTIME = 7,
-            IMPORTED_PASSWORD_ERROR_INVALID_TOTP_ALG = 8,
+            IMPORTED_PASSWORD_ERROR_MISSING_TOTP_NDIGITS = 6,
+            IMPORTED_PASSWORD_ERROR_INVALID_TOTP_NDIGITS = 7,
+            IMPORTED_PASSWORD_ERROR_MISSING_TOTP_EXPTIME = 8,
+            IMPORTED_PASSWORD_ERROR_INVALID_TOTP_EXPTIME = 9,
+            IMPORTED_PASSWORD_ERROR_MISSING_TOTP_HASH_ALG = 10,
+            IMPORTED_PASSWORD_ERROR_INVALID_TOTP_HASH_ALG = 11,
         };
 
         enum

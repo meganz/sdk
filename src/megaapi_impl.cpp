@@ -27161,7 +27161,7 @@ static std::string totpToJson(const MegaNode::PasswordNodeData::TotpData& totp)
             std::to_string(expirationTime);
 
     if (const auto hashAlgorithm = totp.hashAlgorithm(); hashAlgorithm >= 0)
-        attrMap.map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH)] =
+        attrMap.map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG)] =
             totp::hashAlgorithmPubToStrView(hashAlgorithm);
 
     if (const auto nDigits = totp.nDigits(); nDigits >= 0)
@@ -27289,12 +27289,18 @@ static constexpr int toPublicErrorCode(const PasswordEntryError e)
             return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_TOTP_SHSE;
         case PasswordEntryError::INVALID_TOTP_SHARED_SECRET:
             return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_SHSE;
+        case PasswordEntryError::MISSING_TOTP_NDIGITS:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_TOTP_NDIGITS;
         case PasswordEntryError::INVALID_TOTP_NDIGITS:
             return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_NDIGITS;
+        case PasswordEntryError::MISSING_TOTP_EXPT:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_TOTP_EXPTIME;
         case PasswordEntryError::INVALID_TOTP_EXPT:
             return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_EXPTIME;
-        case PasswordEntryError::INVALID_TOTP_ALG:
-            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_ALG;
+        case PasswordEntryError::MISSING_TOTP_HASH_ALG:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_TOTP_HASH_ALG;
+        case PasswordEntryError::INVALID_TOTP_HASH_ALG:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_HASH_ALG;
     }
     assert(false);
     return -1; // We should never get here

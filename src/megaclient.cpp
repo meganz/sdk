@@ -8769,7 +8769,7 @@ static std::optional<totp::TotpParameters> toTotpParameters(const AttrMap& totpA
         convertIfPositive<unsigned>(stringToNumber<int>(ndigitsStr.value_or("")).value_or(-1));
     if (!ndigitsOpt)
         return {};
-    const auto hashAlgoStr = totpAttrs.getStringView(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH);
+    const auto hashAlgoStr = totpAttrs.getStringView(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG);
     const auto hashAlgoOpt = totp::charTohashAlgorithm(hashAlgoStr.value_or(""));
     if (!hashAlgoOpt)
         return {};
@@ -21578,7 +21578,7 @@ const char* const MegaClient::PWM_ATTR_PASSWORD_PWD = "pwd";
 const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP = "totp";
 const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE = "shse";
 const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT = "t";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH = "alg";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG = "alg";
 const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS = "nd";
 
 NodeHandle MegaClient::getPasswordManagerBase()
@@ -21631,11 +21631,12 @@ void MegaClient::ensureTotpDataIsFilled(AttrMap& data) const
             std::to_string(totp::DEF_EXP_TIME.count());
     }
 
-    if (const auto algIt = (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH)));
+    if (const auto algIt =
+            (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH_ALG)));
         algIt == totpMap.map.end())
     {
         hasChanged = true;
-        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH)] =
+        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH_ALG)] =
             totp::hashAlgorithmToStrView(totp::DEF_ALG);
     }
 
@@ -21823,7 +21824,7 @@ PasswordEntryError MegaClient::validateTotpDataFormat(const AttrMap& data)
     if (const auto expirationTime = data.getStringView(PWM_ATTR_PASSWORD_TOTP_EXPT); expirationTime)
         expTime = std::chrono::seconds(stringToNumber<int>(*expirationTime).value_or(0));
 
-    const auto alg = data.getStringView(PWM_ATTR_PASSWORD_TOTP_HASH);
+    const auto alg = data.getStringView(PWM_ATTR_PASSWORD_TOTP_HASH_ALG);
 
     const auto errors = totp::validateFields(shse, nDigitsNum, expTime, alg);
     if (errors.none())
@@ -21836,19 +21837,22 @@ PasswordEntryError MegaClient::validateTotpDataFormat(const AttrMap& data)
     if (errors[totp::INVALID_TOTP_EXPT])
         return PasswordEntryError::INVALID_TOTP_EXPT;
     if (errors[totp::INVALID_TOTP_ALG])
-        return PasswordEntryError::INVALID_TOTP_ALG;
+        return PasswordEntryError::INVALID_TOTP_HASH_ALG;
 
     static_assert(errors.size() == totp::INVALID_TOTP_ALG + 1, "Missing validation error ");
-    return PasswordEntryError::INVALID_TOTP_ALG;
+    return PasswordEntryError::INVALID_TOTP_HASH_ALG;
 }
 
 PasswordEntryError MegaClient::validateNewNodeTotpData(const AttrMap& data)
 {
-    if (!data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_SHSE)))
-    {
+    if (!data.getStringView(PWM_ATTR_PASSWORD_TOTP_SHSE))
         return PasswordEntryError::MISSING_TOTP_SHARED_SECRET;
-    }
-
+    if (!data.getStringView(PWM_ATTR_PASSWORD_TOTP_NDIGITS))
+        return PasswordEntryError::MISSING_TOTP_NDIGITS;
+    if (!data.getStringView(PWM_ATTR_PASSWORD_TOTP_EXPT))
+        return PasswordEntryError::MISSING_TOTP_EXPT;
+    if (!data.getStringView(PWM_ATTR_PASSWORD_TOTP_HASH_ALG))
+        return PasswordEntryError::MISSING_TOTP_HASH_ALG;
     return validateTotpDataFormat(data);
 }
 

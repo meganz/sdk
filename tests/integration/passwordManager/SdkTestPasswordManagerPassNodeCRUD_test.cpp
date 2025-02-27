@@ -10,6 +10,11 @@
 #include <gmock/gmock.h>
 
 using namespace testing;
+
+// Convenience
+using PasswordNodeData = MegaNode::PasswordNodeData;
+using TotpData = MegaNode::PasswordNodeData::TotpData;
+
 /**
  * @brief Helper matcher to compare two const char* (including nullptr check)
  */
@@ -94,8 +99,7 @@ MATCHER_P(PasswordNodeDataEquals, expected, "Matches PasswordNodeData object")
 class SdkTestPasswordManagerPassNodeCRUD: public SdkTestPasswordManager
 {
 public:
-    handle createPasswordNode(const std::string& name = {},
-                              const MegaNode::PasswordNodeData* data = nullptr)
+    handle createPasswordNode(const std::string& name = {}, const PasswordNodeData* data = nullptr)
     {
         const auto nameFinal = name.empty() ? getFilePrefix() : name;
         const auto* dataFinal = data ? data : predefinedPwdDataOwned();
@@ -105,23 +109,21 @@ public:
     /**
      * @brief Returns a pointer to a default password data owned by the fixture
      */
-    const MegaNode::PasswordNodeData* predefinedPwdDataOwned() const
+    const PasswordNodeData* predefinedPwdDataOwned() const
     {
         static const auto defaultData{predefinedPwdData()};
         return defaultData.get();
     }
 
-    std::unique_ptr<MegaNode::PasswordNodeData::TotpData> predefinedPwdTotpData() const
+    std::unique_ptr<TotpData> predefinedPwdTotpData() const
     {
-        using TotpData = MegaNode::PasswordNodeData::TotpData;
         std::unique_ptr<TotpData> totpData{
             TotpData::createInstance("abcd", 20, TotpData::HASH_ALGO_SHA256, 8)};
         return totpData;
     }
 
-    std::unique_ptr<MegaNode::PasswordNodeData::TotpData> emptyPwdTotpData() const
+    std::unique_ptr<TotpData> emptyPwdTotpData() const
     {
-        using TotpData = MegaNode::PasswordNodeData::TotpData;
         std::unique_ptr<TotpData> totpData{TotpData::createInstance(nullptr,
                                                                     TotpData::TOTPNULLOPT,
                                                                     TotpData::TOTPNULLOPT,
@@ -129,32 +131,27 @@ public:
         return totpData;
     }
 
-    std::unique_ptr<MegaNode::PasswordNodeData> predefinedPwdData() const
+    std::unique_ptr<PasswordNodeData> predefinedPwdData() const
     {
         auto totpData = predefinedPwdTotpData();
-        return std::unique_ptr<MegaNode::PasswordNodeData>{
-            MegaNode::PasswordNodeData::createInstance("12},\" '34",
-                                                       "notes",
-                                                       "url",
-                                                       "userName",
-                                                       totpData.get())};
+        return std::unique_ptr<PasswordNodeData>{PasswordNodeData::createInstance("12},\" '34",
+                                                                                  "notes",
+                                                                                  "url",
+                                                                                  "userName",
+                                                                                  totpData.get())};
     }
 
-    std::unique_ptr<MegaNode::PasswordNodeData> emptyPwdData() const
+    std::unique_ptr<PasswordNodeData> emptyPwdData() const
     {
-        return std::unique_ptr<MegaNode::PasswordNodeData>{
-            MegaNode::PasswordNodeData::createInstance(nullptr,
-                                                       nullptr,
-                                                       nullptr,
-                                                       nullptr,
-                                                       nullptr)};
+        return std::unique_ptr<PasswordNodeData>{
+            PasswordNodeData::createInstance(nullptr, nullptr, nullptr, nullptr, nullptr)};
     }
 
-    std::unique_ptr<MegaNode::PasswordNodeData>
-        getCustomTotpData(std::unique_ptr<MegaNode::PasswordNodeData>&& pwdData,
-                          std::function<void(MegaNode::PasswordNodeData::TotpData&)> modifyTotpData)
+    std::unique_ptr<PasswordNodeData>
+        getCustomTotpData(std::unique_ptr<PasswordNodeData>&& pwdData,
+                          std::function<void(TotpData&)> modifyTotpData)
     {
-        std::unique_ptr<MegaNode::PasswordNodeData::TotpData> totpData;
+        std::unique_ptr<TotpData> totpData;
         if (auto auxTotpData = pwdData->totpData(); !auxTotpData)
         {
             totpData = emptyPwdTotpData();
@@ -169,7 +166,7 @@ public:
         return std::move(pwdData);
     }
 
-    void updatePwdNode(const handle nh, const MegaNode::PasswordNodeData* data)
+    void updatePwdNode(const handle nh, const PasswordNodeData* data)
     {
         NiceMock<MockRequestListener> rl;
         rl.setErrorExpectations(API_OK, _, MegaRequest::TYPE_UPDATE_PASSWORD_NODE);
@@ -181,12 +178,12 @@ public:
      * @brief Checks that the password data of the node with the given handle matches the one
      * provided
      */
-    void validatePwdNodeData(const handle nh, const MegaNode::PasswordNodeData* data)
+    void validatePwdNodeData(const handle nh, const PasswordNodeData* data)
     {
         std::unique_ptr<MegaNode> retrievedNode{mApi->getNodeByHandle(nh)};
         ASSERT_TRUE(retrievedNode);
         ASSERT_TRUE(retrievedNode->isPasswordNode());
-        std::unique_ptr<MegaNode::PasswordNodeData> retrievedData{retrievedNode->getPasswordData()};
+        std::unique_ptr<PasswordNodeData> retrievedData{retrievedNode->getPasswordData()};
         ASSERT_THAT(retrievedData.get(), PasswordNodeDataEquals(data));
     }
 };
@@ -216,7 +213,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, CreateNewPassNode)
 
     LOG_debug << logPre << "Validating node name and data";
     EXPECT_STREQ(newPwdNode->getName(), pwdNodeName.c_str());
-    std::unique_ptr<MegaNode::PasswordNodeData> receivedPwdData{newPwdNode->getPasswordData()};
+    std::unique_ptr<PasswordNodeData> receivedPwdData{newPwdNode->getPasswordData()};
     EXPECT_THAT(receivedPwdData.get(), PasswordNodeDataEquals(predefinedPwdDataOwned()));
 }
 
@@ -233,7 +230,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, CopyPassNode)
 
     LOG_debug << logPre << "Clonning the node";
     std::unique_ptr<MegaNode> clonedNode{newPwdNode->copy()};
-    std::unique_ptr<MegaNode::PasswordNodeData> clonedPwdData{clonedNode->getPasswordData()};
+    std::unique_ptr<PasswordNodeData> clonedPwdData{clonedNode->getPasswordData()};
 
     LOG_debug << logPre << "Validating cloned node";
     ASSERT_TRUE(clonedNode->isPasswordNode());
@@ -300,7 +297,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateRenameNode)
 
     ASSERT_TRUE(newPwdNode->isPasswordNode());
     ASSERT_STREQ(newName, newPwdNode->getName());
-    std::unique_ptr<MegaNode::PasswordNodeData> pwdData{newPwdNode->getPasswordData()};
+    std::unique_ptr<PasswordNodeData> pwdData{newPwdNode->getPasswordData()};
     EXPECT_THAT(pwdData.get(), PasswordNodeDataEquals(predefinedPwdDataOwned()));
 }
 
@@ -422,7 +419,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, DeletePwdNode)
  * @brief Ensures that TotpData must be valid (shared secret must be present) to add totp field on a
  * password node that had no totp information stored.
  */
-TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataFromNullError)
+TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataFromNullErrorMissingMandatoryData)
 {
     static const auto logPre = getLogPrefix();
     LOG_debug << logPre << "Creating a node with no totp data";
@@ -430,10 +427,10 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataFromNullError)
     pwdData->setTotpData(nullptr);
     const auto newPwdNodeHandle = createPasswordNode({}, pwdData.get());
 
-    LOG_debug << logPre << "Preparing totp data with no shared secret";
+    LOG_debug << logPre << "Preparing totp data with no number of digits";
     pwdData = emptyPwdData();
     const auto totpData = predefinedPwdTotpData();
-    totpData->setSharedSecret(nullptr);
+    totpData->setNdigits(TotpData::TOTPNULLOPT);
     pwdData->setTotpData(totpData.get());
 
     LOG_debug << logPre << "Update node expecting an error";
@@ -461,6 +458,9 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataFromNullOk)
 
     LOG_debug << logPre << "Update node";
     ASSERT_NO_FATAL_FAILURE(updatePwdNode(newPwdNodeHandle, pwdData.get()));
+
+    LOG_debug << logPre << "Validating data";
+    validatePwdNodeData(newPwdNodeHandle, predefinedPwdData().get());
 }
 
 TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataNDigitsFromSameData)
@@ -491,22 +491,22 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataAlgorithmFromEmptyData)
     ASSERT_NE(newPwdNodeHandle, UNDEF);
 
     LOG_debug << logPre << "Updating just the Ndigits";
-    const auto pwdData = getCustomTotpData(
-        emptyPwdData(),
-        [](auto& totpData)
-        {
-            totpData.setHashAlgorithm(MegaNode::PasswordNodeData::TotpData::HASH_ALGO_SHA512);
-        });
+    const auto pwdData =
+        getCustomTotpData(emptyPwdData(),
+                          [](auto& totpData)
+                          {
+                              totpData.setHashAlgorithm(TotpData::HASH_ALGO_SHA512);
+                          });
 
     ASSERT_NO_FATAL_FAILURE(updatePwdNode(newPwdNodeHandle, pwdData.get()));
 
     LOG_debug << logPre << "Validating data";
-    const auto pwdDataPred = getCustomTotpData(
-        predefinedPwdData(),
-        [](auto& totpData)
-        {
-            totpData.setHashAlgorithm(MegaNode::PasswordNodeData::TotpData::HASH_ALGO_SHA512);
-        });
+    const auto pwdDataPred =
+        getCustomTotpData(predefinedPwdData(),
+                          [](auto& totpData)
+                          {
+                              totpData.setHashAlgorithm(TotpData::HASH_ALGO_SHA512);
+                          });
     validatePwdNodeData(newPwdNodeHandle, pwdDataPred.get());
 }
 
@@ -632,7 +632,6 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, DeleteTotpData)
     ASSERT_NE(newPwdNodeHandle, UNDEF);
 
     LOG_debug << logPre << "Remove Totp data";
-    using TotpData = MegaNode::PasswordNodeData::TotpData;
     std::unique_ptr<TotpData> totpData{TotpData::createRemovalInstance()};
 
     const auto pwdData = emptyPwdData();
@@ -648,7 +647,6 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, DeleteTotpData)
 TEST(SdkTestPasswordManagerTotpValidation, ValidateTotpFields)
 {
     static const auto logPre = "SdkTestPasswordManagerTotpValidation::ValidateTotpFields: ";
-    using TotpData = MegaNode::PasswordNodeData::TotpData;
     std::unique_ptr<TotpData> totpData{
         TotpData::createInstance("abcd", 20, TotpData::HASH_ALGO_SHA256, 8)};
     ASSERT_TRUE(totpData) << "Cannot create TotpData instance";
@@ -659,7 +657,7 @@ TEST(SdkTestPasswordManagerTotpValidation, ValidateTotpFields)
     EXPECT_TRUE(val->isValidForCreate());
     EXPECT_TRUE(val->isValidForUpdate());
 
-    LOG_debug << logPre << "#### Test2 Validate Totp data with all field wrong";
+    LOG_debug << logPre << "#### Test2 Validate Totp data with all the fields wrong";
     totpData.reset(TotpData::createInstance("1234", 0, 100, 5));
     val.reset(totpData->getValidation());
     ASSERT_TRUE(val) << "Cannot get TotpData validation";
@@ -672,7 +670,7 @@ TEST(SdkTestPasswordManagerTotpValidation, ValidateTotpFields)
 
     LOG_debug << logPre
               << "#### Test3 Validate Totp data with valid fields for update but not for creation";
-    totpData.reset(TotpData::createInstance(nullptr, 10, -1, 6));
+    totpData.reset(TotpData::createInstance(nullptr, 10, TotpData::TOTPNULLOPT, 6));
     val.reset(totpData->getValidation());
     ASSERT_TRUE(val) << "Cannot get TotpData validation";
     EXPECT_TRUE(!val->isValidForCreate());
@@ -692,6 +690,24 @@ TEST(SdkTestPasswordManagerTotpValidation, ValidateTotpFields)
     EXPECT_TRUE(val->algorithmValid());
     EXPECT_TRUE(val->expirationTimeValid());
     EXPECT_TRUE(!val->nDigitsValid());
+
+    LOG_debug << logPre << "#### Test5 Validate Totp data with missing fields";
+    totpData.reset(TotpData::createInstance("abcd",
+                                            TotpData::TOTPNULLOPT,
+                                            TotpData::TOTPNULLOPT,
+                                            TotpData::TOTPNULLOPT));
+    val.reset(totpData->getValidation());
+    ASSERT_TRUE(val) << "Cannot get TotpData validation";
+    EXPECT_TRUE(!val->isValidForCreate());
+    EXPECT_TRUE(val->isValidForUpdate());
+    EXPECT_TRUE(val->sharedSecretExist());
+    EXPECT_TRUE(val->sharedSecretValid());
+    EXPECT_TRUE(!val->algorithmExist());
+    EXPECT_TRUE(val->algorithmValid());
+    EXPECT_TRUE(!val->expirationTimeExist());
+    EXPECT_TRUE(val->expirationTimeValid());
+    EXPECT_TRUE(!val->nDigitsExist());
+    EXPECT_TRUE(val->nDigitsValid());
 }
 
 class SdkTestPasswordManagerGenerateTotpFromMegaApi: public SdkTestPasswordManagerPassNodeCRUD
