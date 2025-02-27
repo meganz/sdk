@@ -22,6 +22,7 @@
 #include "mega/udp_socket.h"
 
 #include <algorithm>
+#include <chrono>
 #include <map>
 
 using namespace std;
