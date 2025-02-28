@@ -23,11 +23,11 @@
 
 @implementation MEGATotpTokenGenResult
 
-- (instancetype)initWithResult:(int)result tokenLifetime:(MEGATotpTokenLifetime *)tokenLifetime {
+- (instancetype)initWithErrorCode:(int)errorCode result:(MEGATotpTokenLifetime *)result {
     self = [super init];
     if (self) {
+        _errorCode = errorCode;
         _result = result;
-        _tokenLifetime = tokenLifetime;
     }
     return self;
 }

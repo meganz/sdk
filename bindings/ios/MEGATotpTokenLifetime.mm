@@ -23,11 +23,11 @@
 
 @implementation MEGATotpTokenLifetime
 
-- (instancetype)initWithToken:(NSString *)token lifetime:(NSUInteger)lifetime {
+- (instancetype)initWithToken:(NSString *)token remainingLifeTimeSeconds:(NSUInteger)remainingLifeTimeSeconds {
     self = [super init];
     if (self) {
         _token = token;
-        _lifetime = lifetime;
+        _remainingLifeTimeSeconds = remainingLifeTimeSeconds;
     }
     return self;
 }

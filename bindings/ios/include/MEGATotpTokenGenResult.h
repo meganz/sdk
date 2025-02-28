@@ -29,10 +29,10 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @interface MEGATotpTokenGenResult : NSObject
 
-@property (nonatomic, assign) int result;
-@property (nonatomic, strong) MEGATotpTokenLifetime *tokenLifetime;
+@property (nonatomic, assign) int errorCode;
+@property (nonatomic, strong) MEGATotpTokenLifetime *result;
 
-- (instancetype)initWithResult:(int)result tokenLifetime:(MEGATotpTokenLifetime *)tokenLifetime;
+- (instancetype)initWithErrorCode:(int)errorCode result:(MEGATotpTokenLifetime *)result;
 
 @end
 

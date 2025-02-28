@@ -29,9 +29,9 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MEGATotpTokenLifetime : NSObject
 
 @property (nonatomic, strong) NSString *token;
-@property (nonatomic, assign) NSUInteger lifetime;
+@property (nonatomic, assign) NSUInteger remainingLifeTimeSeconds;
 
-- (instancetype)initWithToken:(NSString *)token lifetime:(NSUInteger)lifetime;
+- (instancetype)initWithToken:(NSString *)token remainingLifeTimeSeconds:(NSUInteger)remainingLifeTimeSeconds;
 
 @end
 

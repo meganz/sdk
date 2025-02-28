@@ -4015,10 +4015,10 @@ using namespace mega;
     if (self.megaApi == nil) return nil;
 
     MegaTotpTokenGenResult tokenGenResult = self.megaApi->generateTotpTokenFromNode(handle);
-    MegaTotpTokenLifetime tokenLifetime = tokenGenResult.second;
-    NSString *token = [NSString stringWithUTF8String:tokenLifetime.first.c_str()];
-    MEGATotpTokenLifetime *tokenLifetimeObj = [[MEGATotpTokenLifetime alloc] initWithToken:token lifetime:tokenLifetime.second];
-    MEGATotpTokenGenResult *tokenGenResultObj = [[MEGATotpTokenGenResult alloc] initWithResult:tokenGenResult.first tokenLifetime:tokenLifetimeObj];
+    MegaTotpTokenLifetime tokenLifetime = tokenGenResult.result;
+    NSString *token = [NSString stringWithUTF8String:tokenLifetime.token.c_str()];
+    MEGATotpTokenLifetime *result = [[MEGATotpTokenLifetime alloc] initWithToken:token remainingLifeTimeSeconds:tokenLifetime.remainingLifeTimeSeconds];
+    MEGATotpTokenGenResult *tokenGenResultObj = [[MEGATotpTokenGenResult alloc] initWithErrorCode:tokenGenResult.errorCode result:result];
     return tokenGenResultObj;
 }
 
