@@ -35,6 +35,7 @@
 #import "MEGASet.h"
 #import "MEGASetElement.h"
 #import "MEGAVPNCredentials.h"
+#import "MEGANetworkConnectivityTestResults.h"
 #import "MEGAVPNRegion.h"
 #import "MEGANotificationList.h"
 
@@ -242,7 +243,12 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeAnswerSurvey = 199,
     MEGARequestTypeChangeSyncRoot = 200,
     MEGARequestTypeGetMyIP = 201,
-    TotalOfRequestTypes = 202
+    MEGARequestTypeSetSyncUploadThrottleValues = 202,
+    MEGARequestTypeGetSyncUploadThrottleValues = 203,
+    MEGARequestTypeGetSyncUploadThrottleLimits = 204,
+    MEGARequestTypeCheckSyncUploadThrottledValues = 205,
+    MEGARequestTypeRunNetworkConnectivityTest = 206,
+    TotalOfRequestTypes = 207
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
@@ -697,6 +703,13 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *  @return an object of MEGAVPNCredentials
  */
 @property (readonly, nonatomic, nullable) MEGAVPNCredentials *megaVpnCredentials;
+
+/**
+ * @brief Container class to store the results of a network connectivity test
+ *
+ * @return an object of MEGANetworkConnectivityTestResult
+ */
+@property (readonly, nonatomic, nullable) MEGANetworkConnectivityTestResults *megaNetworkConnectivityTestResults;
 
 /**
  * @brief Provide all available VPN Regions, including their details.

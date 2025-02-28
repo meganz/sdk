@@ -3977,6 +3977,12 @@ using namespace mega;
     }
 }
 
+- (void)runNetworkConnectivityTestWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->runNetworkConnectivityTest([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 #pragma mark - Password Manager
 
 - (void)getPasswordManagerBaseWithDelegate:(id<MEGARequestDelegate>)delegate {

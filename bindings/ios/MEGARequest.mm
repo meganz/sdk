@@ -39,6 +39,7 @@
 #import "MEGAVPNCredentials+init.h"
 #import "MEGAVPNRegion.h"
 #import "MEGAVPNRegion+init.h"
+#import "MEGANetworkConnectivityTestResults+init.h"
 #import "MEGANotificationList+init.h"
 #import "MEGAIntegerList+init.h"
 
@@ -362,6 +363,10 @@ using namespace mega;
 
 - (nullable MEGAVPNCredentials *)megaVpnCredentials {
     return self.megaRequest ? [[MEGAVPNCredentials alloc] initWithMegaVpnCredentials:self.megaRequest->getMegaVpnCredentials()->copy() cMemoryOwn:YES] : nil;
+}
+
+- (nullable MEGANetworkConnectivityTestResults *)megaNetworkConnectivityTestResults {
+    return self.megaRequest ? [[MEGANetworkConnectivityTestResults alloc] initWithMegaNetworkConnectivityTestResults:self.megaRequest->getMegaNetworkConnectivityTestResults()->copy() cMemoryOwn:YES] : nil;
 }
 
 - (nonnull NSArray<MEGAVPNRegion *> *)megaVpnRegions {

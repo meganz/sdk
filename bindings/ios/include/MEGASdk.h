@@ -9689,6 +9689,22 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  */
 - (void)getMyIPWithDelegate:(id<MEGARequestDelegate>)delegate;
 
+/**
+ * @brief Run a network connectivity test.
+ *
+ * The associated request type with this request is MEGARequestTypeRunNetworkConnectivityTest.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaNetworkConnectivityTestResults] - Returns the results of the test.
+ *
+ * If the network connectivity test server could not be retrieved, the test will not run and
+ * the request will fail with MEGAErrorTypeApiESid.
+ *
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)runNetworkConnectivityTestWithDelegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Password Manager
 
 /**
