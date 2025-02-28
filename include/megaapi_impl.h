@@ -5141,7 +5141,7 @@ protected:
     int maxOutputSize;
     int restrictedMode;
     bool localOnly;
-    bool started;
+    std::atomic_bool started;
     int port;
     bool closing;
     int remainingcloseevents;

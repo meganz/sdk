@@ -32172,6 +32172,8 @@ bool MegaTCPServer::start(int newPort, bool newLocalOnly)
 
     thread->start(threadEntryPoint, this);
     uv_sem_wait(&semaphoreStartup);
+    if (!started)
+        port = 0;
 
     LOG_verbose << "MegaTCPServer::start. port = " << newPort << ", returning " << started;
     return started;
@@ -32226,7 +32228,6 @@ void MegaTCPServer::run()
         if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
         {
             LOG_err << "Unable to init evt ctx";
-            port = 0;
             uv_sem_post(&semaphoreStartup);
             uv_sem_post(&semaphoreEnd);
             return;
@@ -32291,7 +32292,6 @@ void MegaTCPServer::run()
         || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
     {
         LOG_err << "TCP failed to bind/listen port = " << port;
-        port = 0;
 
         uv_close((uv_handle_t *)&exit_handle,NULL);
         uv_close((uv_handle_t *)&server,NULL);
@@ -32313,6 +32313,7 @@ void MegaTCPServer::run()
     LOG_info << "Starting uv loop ...";
     uv_run(&uv_loop, UV_RUN_DEFAULT);
 
+    // Can get here only after stop() has been called
     LOG_info << "UV loop ended";
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
@@ -32326,8 +32327,6 @@ void MegaTCPServer::run()
     {
         LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
     }
-    started = false;
-    port = 0;
     LOG_debug << "UV loop thread exit";
 }
 
@@ -32435,6 +32434,7 @@ void MegaTCPServer::stop(bool doNotWait)
     }
     LOG_debug << "Stopped MegaTCPServer port = " << port;
     started = false;
+    port = 0;
 }
 
 int MegaTCPServer::getPort()
