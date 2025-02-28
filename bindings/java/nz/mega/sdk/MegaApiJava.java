@@ -300,6 +300,35 @@ public class MegaApiJava {
         megaApi = new MegaApi(appKey, MegaGfxProvider.createExternalInstance(gfxProcessor), basePath, userAgent);
     }
 
+    /**
+     * MegaApi Constructor that allows use of a custom GFX processor & specify client type.
+     * <p>
+     * The SDK attaches thumbnails and previews to all uploaded images. To generate them, it needs a graphics processor.
+     * You can build the SDK with one of the provided built-in graphics processors. If none are available
+     * in your app, you can implement the MegaGfxProcessor interface to provide a custom processor. Please
+     * read the documentation of MegaGfxProcessor carefully to ensure that your implementation is valid.
+     *
+     * @param appKey       AppKey of your application.
+     *                     Generate an AppKey for free here: https://mega.co.nz/#sdk
+     * @param userAgent    User agent to use in network requests.
+     *                     If you pass null to this parameter, a default user agent will be used.
+     * @param basePath     Base path to store the local cache.
+     *                     If you pass null to this parameter, the SDK won't use any local cache.
+     * @param gfxProcessor Image processor. The SDK will use it to generate previews and thumbnails.
+     *                     If you pass null to this parameter, the SDK will try to use the built-in image processors.
+     * @param clientType   Client type (default, VPN or Password Manager) enables SDK to function differently
+     *                     Possible values:
+     *                     MegaApi::CLIENT_TYPE_DEFAULT = 0
+     *                     MegaApi::CLIENT_TYPE_VPN = 1
+     *                     MegaApi::CLIENT_TYPE_PASSWORD_MANAGER = 2
+     *
+     * WARNING: Do not remove this, this constructor is used by VPN and Password Manager projects.
+     */
+    public MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor, int clientType) {
+        this.gfxProcessor = gfxProcessor;
+        megaApi = new MegaApi(appKey, MegaGfxProvider.createExternalInstance(gfxProcessor), basePath, userAgent, 1, clientType);
+    }
+
     //****************************************************************************************************/
     // LISTENER MANAGEMENT
     //****************************************************************************************************/
