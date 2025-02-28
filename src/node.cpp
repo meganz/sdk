@@ -2340,6 +2340,24 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
 {
     if (rareRO().scanBlocked && rare().scanBlocked->folderUnreadable)
     {
+        const auto cleanRareFieldsIfFilesUnreachable = [this]() -> bool
+        {
+            if (rare().scanBlocked->filesUnreadable)
+                return false;
+            rare().scanBlocked.reset();
+            trimRareFields();
+            return true;
+        };
+
+        // The blocked path does not exist anymore?
+        if (!fsNode)
+        {
+            LOG_verbose << sync->syncname
+                        << "Recovered from being scan blocked after deleting fsNode";
+            if (cleanRareFieldsIfFilesUnreachable())
+                return false;
+        }
+
         // Have we recovered?
         if (fsNode && fsNode->type != TYPE_UNKNOWN && !fsNode->isBlocked)
         {
@@ -2349,12 +2367,8 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
             setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode->localname, FileFingerprint());
             sync->statecacheadd(this);
 
-            if (!rare().scanBlocked->filesUnreadable)
-            {
-                rare().scanBlocked.reset();
-                trimRareFields();
+            if (cleanRareFieldsIfFilesUnreachable())
                 return false;
-            }
         }
 
         LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
