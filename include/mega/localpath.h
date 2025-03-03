@@ -55,7 +55,7 @@ class AbstractLocalPath
 public:
     virtual ~AbstractLocalPath() {}
 
-    virtual auto asPlatformEncoded(bool stripPrefix) const -> string_type = 0;
+    virtual auto asPlatformEncoded(const bool stripPrefix) const -> string_type = 0;
     virtual std::string platformEncoded() const = 0;
 
     virtual bool empty() const = 0;
@@ -63,7 +63,8 @@ public:
     virtual LocalPath leafName() const = 0;
     virtual std::string leafOrParentName() const = 0;
     virtual void append(const LocalPath& additionalPath) = 0;
-    virtual void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways) = 0;
+    virtual void appendWithSeparator(const LocalPath& additionalPath,
+                                     const bool separatorAlways) = 0;
     virtual void prependWithSeparator(const LocalPath& additionalPath) = 0;
     virtual LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const = 0;
     virtual void trimNonDriveTrailingSeparator() = 0;
@@ -72,7 +73,7 @@ public:
     virtual bool endsInSeparator() const = 0;
 
     virtual size_t getLeafnameByteIndex() const = 0;
-    virtual LocalPath subpathFrom(size_t bytePos) const = 0;
+    virtual LocalPath subpathFrom(const size_t bytePos) const = 0;
 
     virtual void changeLeaf(const LocalPath& newLeaf) = 0;
 
@@ -83,9 +84,9 @@ public:
     virtual bool isContainingPathOf(const LocalPath& path,
                                     size_t* subpathIndex = nullptr) const = 0;
     virtual bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const = 0;
-    virtual bool hasNextPathComponent(size_t index) const = 0;
+    virtual bool hasNextPathComponent(const size_t index) const = 0;
 
-    virtual std::string toPath(bool normalize) const = 0;
+    virtual std::string toPath(const bool normalize) const = 0;
 
     virtual std::string toName(const FileSystemAccess& fsaccess) const = 0;
 
@@ -202,9 +203,9 @@ public:
     // convert MEGA path (UTF-8) to local format
     // there is still at least one use from outside this class
     static void path2local(const std::string*, std::string*);
-    static void local2path(const std::string*, std::string*, bool normalize);
+    static void local2path(const std::string*, std::string*, const bool normalize);
 #if defined(_WIN32)
-    static void local2path(const std::wstring*, std::string*, bool normalize);
+    static void local2path(const std::wstring*, std::string*, const bool normalize);
     static void path2local(const std::string*, std::wstring*);
 #endif
 
@@ -224,12 +225,12 @@ public:
     // conversion.
     static LocalPath fromRelativeName(std::string path,
                                       const FileSystemAccess& fsaccess,
-                                      FileSystemType fsType);
+                                      const FileSystemType fsType);
 
     // Create a LocalPath from a string that was already converted to be appropriate for a local
     // file path.
-    static LocalPath fromPlatformEncodedAbsolute(std::string localname);
-    static LocalPath fromPlatformEncodedRelative(std::string localname);
+    static LocalPath fromPlatformEncodedAbsolute(const std::string localname);
+    static LocalPath fromPlatformEncodedRelative(const std::string localname);
 #ifdef WIN32
     static LocalPath fromPlatformEncodedAbsolute(std::wstring&& localname);
     static LocalPath fromPlatformEncodedRelative(std::wstring&& localname);
@@ -261,7 +262,7 @@ public:
     }
 
     std::string serialize() const;
-    static std::optional<LocalPath> unserialize(const std::string& d, bool isURI);
+    static std::optional<LocalPath> unserialize(const std::string& d, const bool isURI);
 
     bool operator==(const LocalPath& p) const;
     bool operator!=(const LocalPath& p) const;
@@ -271,7 +272,7 @@ public:
     //
     // Mostly useful when we need to call platform-specific functions and
     // don't want to incur the cost of a copy.
-    auto asPlatformEncoded(bool stripPrefix) const -> string_type override;
+    auto asPlatformEncoded(const bool stripPrefix) const -> string_type override;
     std::string platformEncoded() const override;
 
     bool empty() const override;
@@ -304,7 +305,7 @@ public:
     std::string leafOrParentName() const override;
 
     void append(const LocalPath& additionalPath) override;
-    void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways) override;
+    void appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways) override;
     void prependWithSeparator(const LocalPath& additionalPath) override;
     LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const override;
     void trimNonDriveTrailingSeparator() override;
@@ -314,7 +315,7 @@ public:
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
     size_t getLeafnameByteIndex() const override;
-    LocalPath subpathFrom(size_t bytePos) const override;
+    LocalPath subpathFrom(const size_t bytePos) const override;
 
     void changeLeaf(const LocalPath& newLeaf) override;
 
@@ -327,11 +328,11 @@ public:
 
     bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const override;
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const override;
-    bool hasNextPathComponent(size_t index) const override;
+    bool hasNextPathComponent(const size_t index) const override;
 
     // Return a utf8 representation of the LocalPath
     // No escaping or unescaping is done.
-    std::string toPath(bool normalize) const override;
+    std::string toPath(const bool normalize) const override;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.

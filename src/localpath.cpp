@@ -72,15 +72,15 @@ class Path: public mega::AbstractLocalPath
 public:
     ~Path() override {}
 
-    auto asPlatformEncoded(bool stripPrefix) const -> string_type override;
     std::string platformEncoded() const override;
+    auto asPlatformEncoded(const bool stripPrefix) const -> string_type override;
 
     bool empty() const override;
     void clear() override;
     LocalPath leafName() const override;
     std::string leafOrParentName() const override;
     void append(const LocalPath& additionalPath) override;
-    void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways) override;
+    void appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways) override;
     void prependWithSeparator(const LocalPath& additionalPath) override;
     LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const override;
     void trimNonDriveTrailingSeparator() override;
@@ -89,7 +89,7 @@ public:
     bool endsInSeparator() const override;
 
     size_t getLeafnameByteIndex() const override;
-    LocalPath subpathFrom(size_t bytePos) const override;
+    LocalPath subpathFrom(const size_t bytePos) const override;
 
     void changeLeaf(const LocalPath& newLeaf) override;
 
@@ -99,9 +99,9 @@ public:
 
     bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const override;
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const override;
-    bool hasNextPathComponent(size_t index) const override;
+    bool hasNextPathComponent(const size_t index) const override;
 
-    std::string toPath(bool normalize) const override;
+    std::string toPath(const bool normalize) const override;
 
     std::string toName(const FileSystemAccess& fsaccess) const override;
 
@@ -134,7 +134,7 @@ public:
         return std::make_unique<Path>(*this);
     }
 
-    void setPathType(PathType type)
+    void setPathType(const PathType type)
     {
         mPathType = type;
     }
@@ -155,7 +155,7 @@ class PathURI: public mega::AbstractLocalPath
 public:
     ~PathURI() override {}
 
-    auto asPlatformEncoded(bool stripPrefix) const -> string_type override;
+    auto asPlatformEncoded(const bool stripPrefix) const -> string_type override;
     std::string platformEncoded() const override;
 
     bool empty() const override;
@@ -163,7 +163,7 @@ public:
     LocalPath leafName() const override;
     std::string leafOrParentName() const override;
     void append(const LocalPath& additionalPath) override;
-    void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways) override;
+    void appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways) override;
     void prependWithSeparator(const LocalPath& additionalPath) override;
     LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const override;
     void trimNonDriveTrailingSeparator() override;
@@ -172,7 +172,7 @@ public:
     bool endsInSeparator() const override;
 
     size_t getLeafnameByteIndex() const override;
-    LocalPath subpathFrom(size_t bytePos) const override;
+    LocalPath subpathFrom(const size_t bytePos) const override;
 
     void changeLeaf(const LocalPath& newLeaf) override;
 
@@ -182,9 +182,9 @@ public:
 
     bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const override;
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const override;
-    bool hasNextPathComponent(size_t index) const override;
+    bool hasNextPathComponent(const size_t index) const override;
 
-    std::string toPath(bool normalize) const override;
+    std::string toPath(const bool normalize) const override;
 
     std::string toName(const FileSystemAccess& fsaccess) const override;
 
@@ -265,12 +265,12 @@ void LocalPath::path2local(const std::string* path, std::string* local)
     // make space for the worst case
     local->resize((path->size() + 1) * sizeof(wchar_t));
 
-    int len = MultiByteToWideChar(CP_UTF8,
-                                  0,
-                                  path->c_str(),
-                                  -1,
-                                  (wchar_t*)local->data(),
-                                  int(local->size() / sizeof(wchar_t) + 1));
+    const auto len = MultiByteToWideChar(CP_UTF8,
+                                         0,
+                                         path->c_str(),
+                                         -1,
+                                         (wchar_t*)local->data(),
+                                         int(local->size() / sizeof(wchar_t) + 1));
     if (len)
     {
         // resize to actual result
@@ -288,12 +288,12 @@ void LocalPath::path2local(const std::string* path, std::wstring* local)
     // make space for the worst case
     local->resize(path->size() + 2);
 
-    int len = MultiByteToWideChar(CP_UTF8,
-                                  0,
-                                  path->c_str(),
-                                  -1,
-                                  const_cast<wchar_t*>(local->data()),
-                                  int(local->size()));
+    const auto len = MultiByteToWideChar(CP_UTF8,
+                                         0,
+                                         path->c_str(),
+                                         -1,
+                                         const_cast<wchar_t*>(local->data()),
+                                         int(local->size()));
     if (len)
     {
         // resize to actual result
@@ -306,7 +306,7 @@ void LocalPath::path2local(const std::string* path, std::wstring* local)
 }
 
 // convert Windows Unicode to UTF-8
-void LocalPath::local2path(const std::string* local, std::string* path, bool normalize)
+void LocalPath::local2path(const std::string* local, std::string* path, const bool normalize)
 {
     path->resize((local->size() + 1) * 4 / sizeof(wchar_t) + 1);
 
@@ -323,7 +323,7 @@ void LocalPath::local2path(const std::string* local, std::string* path, bool nor
         utf8_normalize(path);
 }
 
-void LocalPath::local2path(const std::wstring* local, std::string* path, bool normalize)
+void LocalPath::local2path(const std::wstring* local, std::string* path, const bool normalize)
 {
     path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
 
@@ -351,7 +351,7 @@ void LocalPath::path2local(const std::string* path, std::string* local)
 #endif
 }
 
-void LocalPath::local2path(const std::string* local, std::string* path, bool normalize)
+void LocalPath::local2path(const std::string* local, std::string* path, const bool normalize)
 {
     *path = *local;
     if (normalize)
@@ -430,13 +430,13 @@ bool LocalPath::isURIPath(const string_type& path)
 
 LocalPath LocalPath::fromRelativeName(std::string path,
                                       const FileSystemAccess& fsaccess,
-                                      FileSystemType fsType)
+                                      const FileSystemType fsType)
 {
     fsaccess.escapefsincompatible(&path, fsType);
     return fromRelativePath(path);
 }
 
-LocalPath LocalPath::fromPlatformEncodedAbsolute(std::string path)
+LocalPath LocalPath::fromPlatformEncodedAbsolute(const std::string path)
 {
     if (LocalPath::isURIPath(path))
     {
@@ -484,7 +484,7 @@ LocalPath LocalPath::fromPlatformEncodedAbsolute(wstring&& wpath)
 }
 #endif
 
-LocalPath LocalPath::fromPlatformEncodedRelative(std::string path)
+LocalPath LocalPath::fromPlatformEncodedRelative(const std::string path)
 {
     LocalPath p;
     string_type auxPath;
@@ -508,7 +508,7 @@ void LocalPath::utf8_normalize(std::string* filename)
         return;
 
     const char* cfilename = filename->c_str();
-    size_t fnsize = filename->size();
+    const auto fnsize = filename->size();
     std::string result;
 
     for (size_t i = 0; i < fnsize;)
@@ -567,7 +567,7 @@ bool LocalPath::operator<(const LocalPath& p) const
     return toPath(false) < p.toPath(false);
 }
 
-auto LocalPath::asPlatformEncoded(bool stripPrefix) const -> string_type
+auto LocalPath::asPlatformEncoded(const bool stripPrefix) const -> string_type
 {
     if (mImplementation)
     {
@@ -631,7 +631,7 @@ void LocalPath::append(const LocalPath& additionalPath)
     }
 }
 
-void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways)
+void LocalPath::appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways)
 {
     if (mImplementation)
     {
@@ -650,7 +650,7 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
 
     if (additionalPath.isURI())
     {
-        std::string previousPath = this->toPath(false);
+        const auto previousPath = this->toPath(false);
         mImplementation =
             std::make_unique<PathURI>(*LocalPathImplementationHelper::getPathURI(*this));
         mImplementation->append(LocalPath::fromRelativePath(previousPath));
@@ -776,7 +776,7 @@ bool LocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component) co
     return false;
 }
 
-bool LocalPath::hasNextPathComponent(size_t index) const
+bool LocalPath::hasNextPathComponent(const size_t index) const
 {
     if (mImplementation)
     {
@@ -786,7 +786,7 @@ bool LocalPath::hasNextPathComponent(size_t index) const
     return false;
 }
 
-std::string LocalPath::toPath(bool normalize) const
+std::string LocalPath::toPath(const bool normalize) const
 {
     if (mImplementation)
     {
@@ -866,7 +866,7 @@ bool LocalPath::invariant() const
     return false;
 }
 
-auto Path::asPlatformEncoded([[maybe_unused]] bool skipPrefix) const -> string_type
+auto Path::asPlatformEncoded([[maybe_unused]] const bool skipPrefix) const -> string_type
 {
 #ifdef WIN32
     // Caller wants the prefix intact.
@@ -993,7 +993,7 @@ void Path::append(const LocalPath& additionalPath)
     assert(invariant());
 }
 
-void Path::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways)
+void Path::appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways)
 {
     if (additionalPath.isAbsolute() || additionalPath.isURI())
     {
@@ -1112,7 +1112,7 @@ size_t Path::getLeafnameByteIndex() const
     return p;
 }
 
-LocalPath Path::subpathFrom(size_t bytePos) const
+LocalPath Path::subpathFrom(const size_t bytePos) const
 {
     assert(invariant());
     Path result;
@@ -1123,7 +1123,7 @@ LocalPath Path::subpathFrom(size_t bytePos) const
 
 void Path::changeLeaf(const LocalPath& newLeaf)
 {
-    size_t leafIndex = getLeafnameByteIndex();
+    const auto leafIndex = getLeafnameByteIndex();
     truncate(leafIndex);
     appendWithSeparator(newLeaf, false);
 }
@@ -1138,8 +1138,8 @@ LocalPath Path::insertFilenameSuffix(const std::string& suffix) const
 {
     assert(invariant());
 
-    size_t dotindex = mLocalpath.find_last_of('.');
-    size_t sepindex = mLocalpath.find_last_of(LocalPath::localPathSeparator);
+    const auto dotindex = mLocalpath.find_last_of('.');
+    const auto sepindex = mLocalpath.find_last_of(LocalPath::localPathSeparator);
 
     Path result, extension;
 
@@ -1221,7 +1221,7 @@ bool Path::nextPathComponent(size_t& subpathIndex, LocalPath& component) const
     {
         ++subpathIndex;
     }
-    size_t start = subpathIndex;
+    const auto start = subpathIndex;
     if (start >= mLocalpath.size())
     {
         return false;
@@ -1250,7 +1250,7 @@ bool Path::hasNextPathComponent(size_t index) const
     return index < mLocalpath.size();
 }
 
-std::string Path::toPath(bool normalize) const
+std::string Path::toPath(const bool normalize) const
 {
     assert(invariant());
     std::string path;
@@ -1547,7 +1547,7 @@ bool Path::findNextSeparator(size_t& separatorBytePos) const
     return separatorBytePos != std::string::npos;
 }
 
-auto PathURI::asPlatformEncoded(bool) const -> string_type
+auto PathURI::asPlatformEncoded(const bool) const -> string_type
 {
     return getRealPath();
 }
@@ -1613,7 +1613,7 @@ void PathURI::append(const LocalPath& additionalPath)
     mAuxPath.emplace_back(additionalPath.toPath(false));
 }
 
-void PathURI::appendWithSeparator(const LocalPath& additionalPath, bool)
+void PathURI::appendWithSeparator(const LocalPath& additionalPath, const bool)
 {
     append(additionalPath);
 }
@@ -1660,7 +1660,7 @@ size_t PathURI::getLeafnameByteIndex() const
     return 0;
 }
 
-LocalPath PathURI::subpathFrom(size_t) const
+LocalPath PathURI::subpathFrom(const size_t) const
 {
     LOG_err << "Invalid operation for URI Path (subpathFrom)";
     assert(false);
@@ -1718,14 +1718,14 @@ bool PathURI::nextPathComponent(size_t&, LocalPath&) const
     return false;
 }
 
-bool PathURI::hasNextPathComponent(size_t) const
+bool PathURI::hasNextPathComponent(const size_t) const
 {
     LOG_err << "Invalid operation for URI Path (hasNextPathComponent)";
     assert(false);
     return false;
 }
 
-std::string PathURI::toPath(bool) const
+std::string PathURI::toPath(const bool) const
 {
     std::string aux;
     string_type name = getRealPath();
