@@ -10604,6 +10604,7 @@ bool Sync::resolve_downsync(SyncRow& row,
                                   << logTriplet(row, fullPath);
 
                         changestate(INSUFFICIENT_DISK_SPACE, false, true, true);
+                        syncs.mHeartBeatMonitor->updateOrRegisterSync(mUnifiedSync);
 
                         return false;
                     }
@@ -12787,6 +12788,7 @@ void Syncs::syncLoop()
                     {
                         LOG_err << "Sync local root folder is not a folder: " << sync->localroot->localname;
                         sync->changestate(INVALID_LOCAL_TYPE, false, true, true);
+                        mHeartBeatMonitor->updateOrRegisterSync(*us);
                         continue;
                     }
                     else if (fa->fsid != sync->localroot->fsid_lastSynced)
@@ -12794,6 +12796,7 @@ void Syncs::syncLoop()
                         LOG_err << "Sync local root folder fsid has changed for " << sync->localroot->localname << ": "
                                 << fa->fsid << " was: " << sync->localroot->fsid_lastSynced;
                         sync->changestate(MISMATCH_OF_ROOT_FSID, false, true, true);
+                        mHeartBeatMonitor->updateOrRegisterSync(*us);
                         continue;
                     }
                 }
@@ -12801,6 +12804,7 @@ void Syncs::syncLoop()
                 {
                     LOG_err << "Sync local root folder could not be opened: " << sync->localroot->localname;
                     sync->changestate(LOCAL_PATH_UNAVAILABLE, false, true, true);
+                    mHeartBeatMonitor->updateOrRegisterSync(*us);
                     continue;
                 }
 
@@ -12818,6 +12822,7 @@ void Syncs::syncLoop()
                                 << "  Current: "
                                 << computedFsfp.toString();
                         sync->changestate(LOCAL_FILESYSTEM_MISMATCH, false, true, true);
+                        mHeartBeatMonitor->updateOrRegisterSync(*us);
                         continue;
                     }
                 }
@@ -12842,6 +12847,11 @@ void Syncs::syncLoop()
                 else if (remoteRootHasChanged)
                 {
                     manageRemoteRootLocationChange(*sync);
+                }
+
+                if (!us->mConfig.mEnabled && us->mConfig.mError != NO_SYNC_ERROR)
+                {
+                    mHeartBeatMonitor->updateOrRegisterSync(*us);
                 }
             }
             else if (us->mConfig.mRunState == SyncRunState::Suspend &&
@@ -12966,6 +12976,7 @@ void Syncs::syncLoop()
                                 << ")";
 
                         sync->changestate(NOTIFICATION_SYSTEM_UNAVAILABLE, false, true, true);
+                        mHeartBeatMonitor->updateOrRegisterSync(*us);
                         continue;
                     }
                 }
