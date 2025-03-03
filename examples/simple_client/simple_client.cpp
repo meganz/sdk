@@ -1,8 +1,8 @@
 /**
- * @file examples/win32/testmega/main.cpp
- * @brief Example app for Windows
+ * @file examples/simple_client/simple_client.cpp
+ * @brief Example app
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2013-2025 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
