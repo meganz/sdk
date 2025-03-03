@@ -32,7 +32,7 @@ fi
 if [[ "$DISTRO" == opensuse* ]]
 then
     PACKAGES="$PACKAGES automake awk gcc-c++"
-    zypper install -y $PACKAGES
+    zypper install -y --force-resolution $PACKAGES
 else
     PACKAGES="$PACKAGES build-essential"
     export DEBCONF_NOWARNINGS=yes
