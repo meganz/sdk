@@ -245,6 +245,13 @@ private:
     SyncRunState mKnownRunState = SyncRunState::Pending;
 };
 
+std::pair<error, SyncConfig> buildSyncConfig(const SyncConfig::Type syncType,
+                                             const std::string& localPath,
+                                             const std::string& name,
+                                             const std::string& drivePath,
+                                             const handle nodeHandle,
+                                             MegaClient& client);
+
 // Convenience.
 using SyncConfigVector = vector<SyncConfig>;
 struct Syncs;
@@ -1400,8 +1407,43 @@ struct Syncs
 
     void transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused);
 
-    // returns a copy of the config, for thread safety
-    bool syncConfigByBackupId(handle backupId, SyncConfig&) const;
+private:
+    /**
+     * @brief Searches for a SyncConfig with the given backupID and executes an optional action
+     * callback.
+     *
+     * This method is expected to be called out of the sync thread.
+     *
+     * Acquires the lock on mSyncVec, searches for a SyncConfig with the given backupId,
+     * and if found, invokes the provided callable under lock.
+     *
+     * @tparam SyncConfigCallable Callable type that accepts a SyncConfig type param.
+     * @param backupId The backupID to search for.
+     * @param completion A callable that is invoked with the SyncConfig if a match is found.
+     *                   If set to nullptr, no callback is executed.
+     * @return true if a matching SyncConfig was found, false otherwise.
+     */
+    template<typename SyncConfigCallable>
+    bool ifFoundSyncConfigByBackupId(const handle backupId, SyncConfigCallable&& action) const;
+
+public:
+    /**
+     * @brief Checks whether a sync configuration with the specified backupID exists.
+     *
+     * @return true if a matching SyncConfig was found, false otherwise.
+     * @see findSyncConfigByBackupId()
+     */
+    bool hasSyncConfigByBackupId(const handle backupId) const;
+
+    /**
+     * @brief Retrieves a copy of the sync configuration if exists for the specified backupID.
+     *
+     * @param syncConfig Output parameter that receives the found configuration (copied for thread
+     * safety).
+     * @return true if a matching SyncConfig was found, false otherwise.
+     * @see findSyncConfigByBackupId()
+     */
+    bool syncConfigByBackupId(const handle backupId, SyncConfig& syncConfig) const;
 
     void purgeRunningSyncs();
     void loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore);

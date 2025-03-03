@@ -4914,7 +4914,8 @@ class MegaRequest
             TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS = 204,
             TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS = 205,
             TYPE_RUN_NETWORK_CONNECTIVITY_TEST = 206,
-            TOTAL_OF_REQUEST_TYPES = 207,
+            TYPE_ADD_SYNC_PREVALIDATION = 207,
+            TOTAL_OF_REQUEST_TYPES = 208,
         };
 
         virtual ~MegaRequest();
@@ -16798,16 +16799,36 @@ class MegaApi
         /**
          * @brief Start a Sync or Backup between a local folder and a folder in MEGA
          *
+         * Check the syncFolder() function below for the full documentation.
+         *
+         * @param excludePath deprecated parameter, never used.
+         *
+         * @deprecated This function is deprecated. Please don't use it in new code. Use the one
+         * below. It's the same one, but without the unused excludePath and with std types.
+         */
+        void syncFolder(const MegaSync::SyncType syncType,
+                        const char* localSyncRootFolder,
+                        const char* name,
+                        const MegaHandle remoteSyncRootFolder,
+                        const char* driveRootIfExternal,
+                        MegaRequestListener* const listener,
+                        const char* excludePath = nullptr);
+
+        /**
+         * @brief Start a Sync or Backup between a local folder and a folder in MEGA
+         *
          * This function should be used to add a new synchronization/backup task for the MegaApi.
          * To resume a previously configured task folder, use MegaApi::enableSync.
          *
          * Both TYPE_TWOWAY and TYPE_BACKUP are supported for the first parameter.
          *
-         * The sync/backup's name is optional. If not provided, it will take the name of the leaf folder of
-         * the local path. In example, for "/home/user/Documents", it will become "Documents".
+         * The sync/backup's name is optional. If not provided, it will take the name of the leaf
+         * folder of the local path. In example, for "/home/user/Documents", it will become
+         * "Documents".
          *
-         * The remote sync root folder should be INVALID_HANDLE for syncs of TYPE_BACKUP. The handle of the
-         * remote node, which is created as part of this request, will be set to the MegaRequest::getNodeHandle.
+         * The remote sync root folder should be INVALID_HANDLE for syncs of TYPE_BACKUP. The handle
+         * of the remote node, which is created as part of this request, will be set to the
+         * MegaRequest::getNodeHandle.
          *
          * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
          * Valid data in the MegaRequest object received on callbacks:
@@ -16817,43 +16838,81 @@ class MegaApi
          * - MegaRequest::getParamType - Returns the type of the sync
          * - MegaRequest::getLink - Returns the drive root if external backup
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
-         * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional info for
-         * the specific sync error (MegaSync::Error). It could happen both when the request has succeeded (API_OK) and
-         * also in some cases of failure, when the request error is not accurate enough.
+         * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional
+         * info for the specific sync error (MegaSync::Error). It could happen both when the request
+         * has succeeded (API_OK) and also in some cases of failure, when the request error is not
+         * accurate enough.
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is other than MegaError::API_OK:
-         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
-         * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId
          *
-         * On the onRequestFinish error, the error code associated to the MegaError (MegaError::getErrorCode()) can be:
+         * On the onRequestFinish error, the error code associated to the MegaError
+         * (MegaError::getErrorCode()) can be:
          * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
-         * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
-         * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-         * wrong 'dev-id'/'drv-id' tag.
-         * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
-         * the handle.
-         * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+         * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My
+         * Backups" folder, or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but
+         * was not a folder, or it had the wrong 'dev-id'/'drv-id' tag.
+         * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a
+         * record containing the handle.
+         * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user
+         * attribute was invalid
          * - or the node could not be found.
-         * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
-         * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
-         * or device name was empty.
-         * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
+         * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have
+         * an attribute for device name, or the attribute was invalid, or the attribute did not
+         * contain a record for the device name, or device name was empty.
+         * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name
+         * already exists.
          *
-         * The MegaError can also contain a SyncError (MegaError::getSyncError()), with the same value as MegaRequest::getNumDetails()
-         * See MegaApi::isNodeSyncableWithError() for specific SyncError codes depending on the specific MegaError code.
+         * The MegaError can also contain a SyncError (MegaError::getSyncError()), with the same
+         * value as MegaRequest::getNumDetails() See MegaApi::isNodeSyncableWithError() for specific
+         * SyncError codes depending on the specific MegaError code.
          *
          * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
          * @param localSyncRootFolder Path of the Local folder to sync/backup.
-         * @param name Name given to the sync. You can pass NULL, and the folder name will be used instead.
-         * @param remoteSyncRootFolder Handle of MEGA folder. If you have a MegaNode for that folder, use its getHandle()
-         * @param driveRootIfExternal Only relevant for backups, and only if the backup is on an external disk. Otherwise use NULL.
+         * @param name Name given to the sync. You can pass NULL, and the folder name will be used
+         * instead.
+         * @param remoteSyncRootFolder Handle of MEGA folder. If you have a MegaNode for that
+         * folder, use its getHandle()
+         * @param driveRootIfExternal Only relevant for backups, and only if the backup is on an
+         * external disk. Otherwise use an empty string.
          * @param listener MegaRequestListener to track this request
          */
-        void syncFolder(MegaSync::SyncType syncType, const char *localSyncRootFolder, const char *name, MegaHandle remoteSyncRootFolder,
-            const char* driveRootIfExternal,
-            MegaRequestListener *listener, const char* excludePath = nullptr);
+        void syncFolder(const MegaSync::SyncType syncType,
+                        const std::string& localSyncRootFolder,
+                        const std::string& name,
+                        const MegaHandle remoteSyncRootFolder,
+                        const std::string& driveRootIfExternal,
+                        MegaRequestListener* const listener);
+
+        /**
+         * @brief Prevalidates a Sync or Backup addition between a local folder and a folder in
+         * MEGA.
+         *
+         * This function could be used to pre-check most of the typical validations that would take
+         * place when calling MegaApi::syncFolder. This function does not create the sync, nor a
+         * related sync config would exist afterwards.
+         *
+         * Most of the documentation of MegaApi::syncFolder applies to this method, with the
+         * following differences:
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC_PREVALIDATION
+         *
+         * The handle of the remote node for syncs of TYPE_BACKUP is temporarily created as part of
+         * this request for validation purposes, so it will NOT be set to the
+         * MegaRequest::getNodeHandle. This method would return an undefined handle after the call.
+         * Moreover, for syncs of TYPE_BACKUP, the device name is created as part of the validation
+         * if it didn't exist before. It will not be cleared after the call.
+         *
+         * The final difference is that there is no additional data received in onRequestFinish: no
+         * fingerprint or backupID, as the ID is never generated.
+         */
+        void prevalidateSyncFolder(const MegaSync::SyncType syncType,
+                                   const std::string& localSyncRootFolder,
+                                   const std::string& name,
+                                   const MegaHandle remoteSyncRootFolder,
+                                   const std::string& driveRootIfExternal,
+                                   MegaRequestListener* const listener);
 
         /**
          * @brief Copy sync data to SDK cache.

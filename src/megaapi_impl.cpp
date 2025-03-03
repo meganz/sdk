@@ -5193,6 +5193,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES";
         case TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS:
             return "TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS";
+        case TYPE_ADD_SYNC_PREVALIDATION:
+            return "TYPE_ADD_SYNC_PREVALIDATION";
     }
     return "UNKNOWN";
 }
@@ -14504,6 +14506,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr,
                      (request->getType() != MegaRequest::TYPE_MOVE) &&
                      (request->getType() != MegaRequest::TYPE_RESTORE) &&
                      (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
+                     (request->getType() != MegaRequest::TYPE_ADD_SYNC_PREVALIDATION) &&
                      (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD) &&
                      (request->getType() != MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE)))
         return;
@@ -22856,87 +22859,6 @@ void MegaApiImpl::startTimer(int64_t period, MegaRequestListener* listener)
 }
 
 #ifdef ENABLE_SYNC
-void MegaApiImpl::syncFolder(const char* localFolder, const char* name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal, const char* excludePath, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
-    request->setNodeHandle(megaHandle);
-    request->setFile(localFolder);
-
-    if (name || type == SyncConfig::TYPE_BACKUP)
-    {
-        request->setName(name);  // for TYPE_BACKUP, if empty, replacement name will be created when sending request
-    }
-    else if (localFolder)
-    {
-        request->setName(request->getFile());
-    }
-    request->setParamType(type);
-    request->setLink(driveRootIfExternal);
-
-    if (excludePath)
-    {
-        request->setText(excludePath);
-    }
-
-    request->performRequest = [this, request]()
-        {
-            SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
-
-            const string& localPath = request->getFile() ? request->getFile() : string();
-            if (localPath.empty())
-            {
-                LOG_debug << "Error: empty local path";
-                return API_EARGS;
-            }
-
-            std::shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
-            if (type != SyncConfig::TYPE_BACKUP &&
-                (!node || (node->type == FILENODE)))
-            {
-                LOG_debug << "Node not found for sync add";
-                return API_EARGS;
-            }
-
-            LocalPath localPathLP(LocalPath::fromAbsolutePath(localPath));
-            const char* name = request->getName();
-            const string& syncName = name ? name : localPathLP.leafOrParentName();
-            const auto& drivePath = request->getLink() ? LocalPath::fromAbsolutePath(request->getLink()) : LocalPath();
-
-            SyncConfig syncConfig(localPathLP,
-                syncName, NodeHandle(), "",
-                fsfp_t(), drivePath, true, type);
-
-
-            if (type == SyncConfig::TYPE_BACKUP)
-            {
-                // for backups, we create the node to sync to, then call addsync()
-                client->preparebackup(syncConfig, [this, request](Error e, SyncConfig backupConfig, MegaClient::UndoFunction revertOnError){
-                    if (e)
-                    {
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                    }
-                    else
-                    {
-                        request->setNodeHandle(backupConfig.mRemoteNode.as8byte());
-                        addSyncByRequest(request, backupConfig, revertOnError);
-                    }
-                });
-            }
-            else
-            {
-                // for syncs, the node to sync to already exists
-                syncConfig.mRemoteNode = NodeHandle().set6byte(request->getNodeHandle());
-                syncConfig.mOriginalPathOfRemoteRootNode = node->displaypath();
-                addSyncByRequest(request, syncConfig, nullptr);
-            }
-
-            return API_OK;
-        };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS, listener);
@@ -25812,49 +25734,6 @@ void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp s
 
     requestQueue.push(request);
     waiter->notify();
-}
-#endif
-
-#ifdef ENABLE_SYNC
-void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncConfig, MegaClient::UndoFunction revertOnError)
-{
-    client->addsync(std::move(syncConfig),
-        [this, request, revertOnError](error e, SyncError se, handle backupId)
-        {
-            request->setNumDetails(se);
-
-            SyncConfig createdConfig;
-            bool found = client->syncs.syncConfigByBackupId(backupId, createdConfig);
-
-            if (!found)
-            {
-                if (!e)
-                {
-                    LOG_debug << "Correcting error to API_ENOENT for sync add";
-                    e = API_ENOENT;
-                }
-
-                if (revertOnError)
-                {
-                    // deletes backup root node, if we created one but then couldn't finish configuring
-                    revertOnError([this, request, e, se](){
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
-                    });
-                }
-                else
-                {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
-                }
-            }
-            else
-            {
-                request->setParentHandle(backupId);
-
-                auto sync = std::make_unique<MegaSyncPrivate>(createdConfig, client);
-
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
-            }
-        }, "", basePath);
 }
 #endif
 
