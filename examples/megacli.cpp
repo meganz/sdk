@@ -5350,7 +5350,11 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(sequence(flag("-url"), param("url"))),
                                     opt(sequence(flag("-u"), param("username"))),
                                     opt(sequence(flag("-n"), param("note")))),
-                           sequence(text("removeentry"), param("nodehandle")))));
+                           sequence(text("removeentry"), param("nodehandle")),
+                           sequence(text("import"),
+                                    sequence(flag("-source"), either(text("google"))),
+                                    localFSPath("file"),
+                                    param("parenthandle")))));
 
     p->Add(exec_generatepassword,
            sequence(text("generatepassword"),
@@ -5360,9 +5364,6 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(flag("-useDigits")),
                                     opt(flag("-useSymbols")))
                         )));
-
-    p->Add(exec_importpasswordsfromgooglefile,
-           sequence(text("importpasswordsgoogle"), localFSPath("file"), param("parenthandle")));
 
     p->Add(exec_fusedb,
            sequence(text("fuse"),
@@ -13227,6 +13228,33 @@ void exec_fetchcreditcardinfo(autocomplete::ACState&)
     });
 }
 
+static void importpasswordsfromgooglefile(const LocalPath& sourceFile,
+                                          const NodeHandle& parentHandle,
+                                          const pwm::import::FileSource source)
+{
+    if (parentHandle.isUndef())
+    {
+        std::cout << "Parent handle is undef\n";
+        return;
+    }
+
+    using namespace pwm::import;
+    const auto [err, badEntries, nGoodEntries] =
+        client->importPasswordsFromFile(sourceFile.platformEncoded(), source, parentHandle, 0);
+    if (err != API_OK)
+        std::cout << "Error importing file. Code " << err << "\n";
+    else
+        std::cout << "Successfully imported " << nGoodEntries << " entries\n";
+
+    std::for_each(begin(badEntries),
+                  end(badEntries),
+                  [](const auto& badEntry)
+                  {
+                      std::cout << "Error (" << toString(badEntry.second)
+                                << " ) importing line: " << badEntry.first;
+                  });
+}
+
 void exec_passwordmanager(autocomplete::ACState& s)
 {
     static const set<string> nonLoggedInCmds {};
@@ -13532,6 +13560,26 @@ void exec_passwordmanager(autocomplete::ACState& s)
 
         client->updatePasswordNode(nh, std::move(pwdData), std::move(cb));
     }
+    else if (command == "import")
+    {
+        // Example: (All mandatory)
+        // pwdman import -source google ./test_google.csv 12abcd
+        std::string sourceOriginStr;
+        s.extractflagparam("-source", sourceOriginStr);
+        pwm::import::FileSource sourceOrigin;
+        if (sourceOriginStr == "google")
+            sourceOrigin = pwm::import::FileSource::GOOGLE_PASSWORD;
+        else
+        {
+            assert(false && "Not all sources listed in the command signature are considered in the "
+                            "implementation");
+            return;
+        }
+
+        const auto sourceFile = localPathArg(s.words[2].s);
+        const auto parentHandle = getNodeHandleFromParam(3);
+        importpasswordsfromgooglefile(sourceFile, parentHandle, sourceOrigin);
+    }
     else
     {
         cout << command << " not recognized. Ignoring it\n";
@@ -13568,50 +13616,6 @@ void exec_generatepassword(autocomplete::ACState& s)
 
         if (pwd.empty()) cout << "Error generating the password. Please check the logs (if active)\n";
         else cout << "Characers-based password successfully generated: " << pwd << "\n";
-    }
-}
-
-void exec_importpasswordsfromgooglefile(autocomplete::ACState& s)
-{
-    auto localname = localPathArg(s.words[1].s);
-    handle nh;
-    Base64::atob(s.words[2].s.c_str(), (byte*)&nh, MegaClient::NODEHANDLE);
-    NodeHandle parentHandle{};
-    parentHandle.set6byte(nh);
-
-    if (parentHandle.isUndef())
-    {
-        std::cout << "Parent handle is undef\n";
-        return;
-    }
-
-    using namespace pwm::import;
-    const auto [err, badEntries, nGoodEntries] =
-        client->importPasswordsFromFile(localname.platformEncoded(),
-                                        FileSource::GOOGLE_PASSWORD,
-                                        parentHandle,
-                                        0);
-    if (err != API_OK)
-        std::cout << "Error importing file. Code " << err << "\n";
-    else
-        std::cout << "Successfully imported " << nGoodEntries << " entries\n";
-
-    std::for_each(begin(badEntries),
-                  end(badEntries),
-                  [](const auto& badEntry)
-                  {
-                      std::cout << "Error (" << toString(badEntry.second)
-                                << " ) importing line: " << badEntry.first;
-                  });
-
-    if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
-    {
-        std::cout
-            << "\n*****\n"
-            << "* Password Manager commands executed in a non-Password Manager MegaClient type.\n"
-            << "* Be wary of implications regarding fetch nodes and action packets received.\n"
-            << "* Check megacli help to start it as a Password Manager MegaClient type.\n"
-            << "*****\n\n";
     }
 }
 
