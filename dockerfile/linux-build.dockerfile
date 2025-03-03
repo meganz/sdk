@@ -57,5 +57,5 @@ CMD ["/bin/sh", "-c", "\
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -S sdk \
             -B build && \
-        cmake --build build \
+        cmake --build build -j $(nproc) \
     "]
