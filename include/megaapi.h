@@ -155,6 +155,12 @@ class MegaCancelSubscriptionReasonList;
 class MegaGfxProcessor
 {
 public:
+    enum
+    {
+        GFX_HINT_NONE = 0,
+        GFX_HINT_FORMAT_PNG = 1, // Format can be in PNG
+    };
+
     /**
      * @brief Read the image file and check if it can be processed
      *
@@ -216,12 +222,15 @@ public:
      * image)
      * @param rw Width of the desired image (in pixels over the scaled image)
      * @param rh Height of the desired image (in pixels over the scaled image)
+     * @param hint The hint for thumbnail and preview generation:
+     *  - GFX_HINT_NONE
+     *  - GFX_HINT_FORMAT_PNG
      *
      * @return Size of the buffer required to store the image (in bytes) or a number <= 0 if it's
      * not possible to generate it.
      *
      */
-    virtual int getBitmapDataSize(int width, int height, int px, int py, int rw, int rh);
+    virtual int getBitmapDataSize(int width, int height, int px, int py, int rw, int rh, int hint);
 
     /**
      * @brief Copy the thumbnail/preview data to a buffer provided by the SDK

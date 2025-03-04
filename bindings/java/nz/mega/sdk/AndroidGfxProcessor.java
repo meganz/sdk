@@ -369,7 +369,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         return false;
     }
 
-    public int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh) {
+    public int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh, int hint) {
         if (bitmap == null)
             bitmap = getBitmap(srcPath, size, orientation, w, h);
         else
