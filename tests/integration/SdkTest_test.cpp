@@ -16836,6 +16836,9 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             std::unique_ptr<MegaStringList> clusterDns{firstCluster->getDns()};
             ASSERT_THAT(clusterDns, testing::NotNull());
             ASSERT_GT(clusterDns->size(), 0);
+            std::unique_ptr<MegaStringList> adBlockingDns{firstCluster->getAdBlockingDns()};
+            ASSERT_THAT(adBlockingDns, testing::NotNull());
+            ASSERT_GT(adBlockingDns->size(), 0);
             ASSERT_STRNE(region->getCountryCode(), "");
             ASSERT_STRNE(region->getCountryName(), "");
         };

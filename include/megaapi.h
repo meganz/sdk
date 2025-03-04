@@ -24898,6 +24898,15 @@ public:
      */
     virtual MegaStringList* getDns() const = 0;
 
+    /**
+     * @brief Get the list of ad-blocking DNS IPs.
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A list containing the IPs for ad blocking DNS, always not-null
+     */
+    virtual MegaStringList* getAdBlockingDns() const = 0;
+
     virtual ~MegaVpnCluster() = default;
     virtual MegaVpnCluster* copy() const = 0;
 

@@ -39533,6 +39533,12 @@ MegaStringList* MegaVpnClusterPrivate::getDns() const
     return dns;
 }
 
+MegaStringList* MegaVpnClusterPrivate::getAdBlockingDns() const
+{
+    auto* adBlockingDns{new MegaStringListPrivate(mCluster.getAdBlockingDns())};
+    return adBlockingDns;
+}
+
 MegaIntegerListPrivate* MegaVpnClusterMapPrivate::getKeys() const
 {
     MegaIntegerListPrivate* keys = new MegaIntegerListPrivate();

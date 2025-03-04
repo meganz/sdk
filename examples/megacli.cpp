@@ -12830,8 +12830,22 @@ void exec_getvpnregions(autocomplete::ACState&)
                         const auto clusters = vpnRegions[i].getClusters();
                         for (const auto& cluster: clusters)
                         {
-                            cout << "\t Cluster [" << cluster.first << "] -> "
-                                 << cluster.second.getHost() << endl;
+                            cout << "\tCluster [" << cluster.first << "] -> "
+                                 << cluster.second.getHost() << '\n';
+
+                            cout << "\t\tDNS: ";
+                            for (const auto& dns: cluster.second.getDns())
+                            {
+                                cout << dns << ", ";
+                            }
+                            cout << '\n';
+
+                            cout << "\t\tAd-blocking DNS:";
+                            for (const auto& adBlockingDns: cluster.second.getAdBlockingDns())
+                            {
+                                cout << adBlockingDns << ", ";
+                            }
+                            cout << endl;
                         }
                     }
                 }
