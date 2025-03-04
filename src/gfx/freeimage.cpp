@@ -396,7 +396,10 @@ GfxProviderFreeImage::~GfxProviderFreeImage()
 #ifdef USE_MEDIAINFO
 bool GfxProviderFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
 {
-    const StringPair& cover = MediaProperties::getCoverFromId3v2(imagePath.toPath(false));
+    string_type auxPath;
+    std::string imgPathStr = imagePath.toPath(false);
+    LocalPath::path2local(&imgPathStr, &auxPath);
+    const StringPair& cover = MediaProperties::getCoverFromId3v2(auxPath);
     if (cover.first.empty())
     {
         return false;

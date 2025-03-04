@@ -365,9 +365,9 @@ LocalPath LocalPath::fromAbsolutePath(const std::string& path)
     LocalPath p;
     string_type newPath;
     path2local(&path, &newPath);
-    if (LocalPath::isURIPath(newPath))
+    if (LocalPath::isURIPath(path))
     {
-        p.mImplementation = std::make_unique<PathURI>(path);
+        p.mImplementation = std::make_unique<PathURI>(newPath);
     }
     else
     {
@@ -394,27 +394,32 @@ LocalPath LocalPath::fromRelativePath(const std::string& path)
     return p;
 }
 
-LocalPath LocalPath::fromURIPath(const std::string& path)
+LocalPath LocalPath::fromURIPath(const string_type& path)
 {
     LocalPath p;
-    auto elements = mega::splitString<std::vector<string_type>>(path, PathURI::URI_SEPARATOR);
+    std::string auxStr;
+    LocalPath::local2path(&path, &auxStr, false);
+    auto elements = mega::splitString<std::vector<std::string>>(auxStr, PathURI::URI_SEPARATOR);
     std::unique_ptr<PathURI> aux;
 
     for (size_t i = 0; i < elements.size(); i++)
     {
         if (i == 0)
         {
-            if (!URIHandler::isURI(elements[0]))
+            string_type auxStrType;
+            LocalPath::path2local(&elements[0], &auxStrType);
+            if (!URIHandler::isURI(auxStrType))
             {
                 assert(false);
                 return {};
             }
 
-            aux = std::make_unique<PathURI>(elements[0]);
+            aux = std::make_unique<PathURI>(auxStrType);
         }
         else
         {
-            aux->append(LocalPath::fromRelativePath(elements[i]));
+            LocalPath::local2path(&elements[i], &auxStr, false);
+            aux->append(LocalPath::fromRelativePath(auxStr));
         }
     }
 
@@ -423,9 +428,11 @@ LocalPath LocalPath::fromURIPath(const std::string& path)
     return p;
 }
 
-bool LocalPath::isURIPath(const string_type& path)
+bool LocalPath::isURIPath(const std::string& path)
 {
-    return URIHandler::isURI(path);
+    string_type stringTypePath;
+    LocalPath::path2local(&path, &stringTypePath);
+    return URIHandler::isURI(stringTypePath);
 }
 
 LocalPath LocalPath::fromRelativeName(std::string path,
@@ -440,7 +447,9 @@ LocalPath LocalPath::fromPlatformEncodedAbsolute(const std::string path)
 {
     if (LocalPath::isURIPath(path))
     {
-        return fromURIPath(path);
+        string_type aux;
+        LocalPath::path2local(&path, &aux);
+        return fromURIPath(aux);
     }
 
     LocalPath p;
@@ -1570,16 +1579,19 @@ void PathURI::clear()
 
 LocalPath PathURI::leafName() const
 {
+    std::string aux;
     if (mAuxPath.size())
     {
-        return LocalPath::fromRelativePath(mAuxPath.back());
+        LocalPath::local2path(&mAuxPath.back(), &aux, false);
+        return LocalPath::fromRelativePath(aux);
     }
     else
     {
         std::optional<string_type> optionalName = URIHandler::getName(mUri);
         if (optionalName.has_value())
         {
-            return LocalPath::fromRelativePath(optionalName.value());
+            LocalPath::local2path(&optionalName.value(), &aux, false);
+            return LocalPath::fromRelativePath(aux);
         }
     }
 
@@ -1588,16 +1600,17 @@ LocalPath PathURI::leafName() const
 
 std::string PathURI::leafOrParentName() const
 {
+    std::string aux;
     if (mAuxPath.size())
     {
-        return mAuxPath.back();
+        LocalPath::local2path(&mAuxPath.back(), &aux, false);
+        return aux;
     }
     else
     {
         std::optional<string_type> optionalName = URIHandler::getName(mUri);
         if (optionalName.has_value())
         {
-            std::string aux;
             LocalPath::local2path(&optionalName.value(), &aux, false);
             return aux;
         }
@@ -1610,7 +1623,7 @@ void PathURI::append(const LocalPath& additionalPath)
 {
     assert(!additionalPath.isAbsolute() && !additionalPath.isURI());
 
-    mAuxPath.emplace_back(additionalPath.toPath(false));
+    mAuxPath.emplace_back(additionalPath.asPlatformEncoded(false));
 }
 
 void PathURI::appendWithSeparator(const LocalPath& additionalPath, const bool)
@@ -1685,7 +1698,7 @@ void PathURI::changeLeaf(const LocalPath& newLeaf)
         }
     }
 
-    mAuxPath.emplace_back(newLeaf.toPath(false));
+    mAuxPath.emplace_back(newLeaf.asPlatformEncoded(false));
 }
 
 LocalPath PathURI::parentPath() const
@@ -1806,7 +1819,7 @@ void PathURI::removeLastElement()
         std::optional<string_type> parentPath = URIHandler::getParentURI(mUri);
         if (parentPath.has_value())
         {
-            LocalPath::path2local(&parentPath.value(), &mUri);
+            mUri = parentPath.value();
         }
     }
 }

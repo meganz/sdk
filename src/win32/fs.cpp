@@ -1442,7 +1442,7 @@ void WinDirNotify::process(DWORD bytesTransferred)
         int errCount = ++mErrorCount;
         LOG_err << "Empty filesystem notification: "
                 << (localrootnode ? localrootnode->localname.asPlatformEncoded(false).c_str() :
-                                    "NULL")
+                                    L"NULL")
                 << " errors: " << errCount;
 
         // reissue request for notifications

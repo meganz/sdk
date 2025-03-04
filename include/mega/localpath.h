@@ -218,7 +218,7 @@ public:
     // Example:
     // "content://com.android.externalstorage.documents/tree/primary%3Adescarga%2Fvarias/#F1#"
     static LocalPath fromURIPath(const string_type& path);
-    static bool isURIPath(const string_type& path);
+    static bool isURIPath(const std::string& path);
 
     // Create a LocalPath from a utf8 string, making any character conversions (escaping) necessary
     // for characters that are disallowed on that filesystem.  fsaccess is used to do the
