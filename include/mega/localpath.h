@@ -37,9 +37,9 @@ enum FileSystemType
 
 #ifdef WIN32
 using string_type = std::wstring;
-#else // _WIN32
+#else
 using string_type = std::string;
-#endif // ! _WIN32
+#endif
 
 class LocalPath;
 
@@ -113,7 +113,7 @@ class MEGA_API PlatformURIHelper
 {
 public:
     virtual ~PlatformURIHelper(){};
-    // Returns true if string is an URI
+    // Returns true if string is a URI
     virtual bool isURI(const string_type& URI) = 0;
     // Returns the name of file/directory pointed by the URI
     virtual std::optional<string_type> getName(const string_type& uri) = 0;
@@ -199,6 +199,21 @@ public:
         return p;
     }
 
+    AbstractLocalPath* getImpl() const
+    {
+        return mImplementation.get();
+    }
+
+    void setImpl(std::unique_ptr<AbstractLocalPath>&& imp)
+    {
+        mImplementation = std::move(imp);
+    }
+
+    void setPath(const PathType p)
+    {
+        mPathType = p;
+    }
+
     // path2local / local2path are much more natural here than in FileSystemAccess
     // convert MEGA path (UTF-8) to local format
     // there is still at least one use from outside this class
@@ -221,7 +236,7 @@ public:
     static bool isURIPath(const std::string& path);
 
     // Create a LocalPath from a utf8 string, making any character conversions (escaping) necessary
-    // for characters that are disallowed on that filesystem.  fsaccess is used to do the
+    // for characters that are disallowed on that filesystem. fsaccess is used to do the
     // conversion.
     static LocalPath fromRelativeName(std::string path,
                                       const FileSystemAccess& fsaccess,
@@ -243,12 +258,12 @@ public:
 
 #ifdef _WIN32
     typedef wchar_t separator_t;
-    const static separator_t localPathSeparator = L'\\';
-    const static char localPathSeparator_utf8 = '\\';
+    static constexpr separator_t localPathSeparator = L'\\';
+    static constexpr char localPathSeparator_utf8 = '\\';
 #else
     typedef char separator_t;
-    const static separator_t localPathSeparator = '/';
-    const static char localPathSeparator_utf8 = '/';
+    static constexpr separator_t localPathSeparator = '/';
+    static constexpr char localPathSeparator_utf8 = '/';
 #endif
 
     bool isAbsolute() const

@@ -67,6 +67,9 @@ void URIHandler::setPlatformHelper(PlatformURIHelper* platformHelper)
     mPlatformHelper = platformHelper;
 }
 
+// anonymous namespace
+namespace
+{
 class Path: public mega::AbstractLocalPath
 {
 public:
@@ -221,22 +224,22 @@ class LocalPathImplementationHelper
 public:
     static const PathURI* getPathURI(const LocalPath& p)
     {
-        return dynamic_cast<const PathURI*>(p.mImplementation.get());
+        return dynamic_cast<const PathURI*>(p.getImpl());
     }
 
     static PathURI* getPathURI(LocalPath& p)
     {
-        return dynamic_cast<PathURI*>(p.mImplementation.get());
+        return dynamic_cast<PathURI*>(p.getImpl());
     }
 
     static const Path* getPathLocal(const LocalPath& p)
     {
-        return dynamic_cast<const Path*>(p.mImplementation.get());
+        return dynamic_cast<const Path*>(p.getImpl());
     }
 
     static Path* getPathLocal(LocalPath& p)
     {
-        return dynamic_cast<Path*>(p.mImplementation.get());
+        return dynamic_cast<Path*>(p.getImpl());
     }
 
     static LocalPath buildLocalPath(const Path& path)
@@ -244,19 +247,21 @@ public:
         LocalPath localPath;
         auto aux = std::make_unique<Path>(path);
         aux->setPathType(path.getPathType());
-        localPath.mImplementation = std::move(aux);
-        localPath.mPathType = path.getPathType();
+        localPath.setImpl(std::move(aux));
+        localPath.setPath(path.getPathType());
         return localPath;
     }
 
     static LocalPath buildLocalPath(const PathURI& pathUri)
     {
         LocalPath localPath;
-        localPath.mImplementation = std::make_unique<PathURI>(pathUri);
-        localPath.mPathType = PathType::URI_PATH;
+        auto aux = std::make_unique<PathURI>(pathUri);
+        localPath.setImpl(std::move(aux));
+        localPath.setPath(PathType::URI_PATH);
         return localPath;
     }
 };
+}; // end anonymous namespace
 
 #if defined(_WIN32)
 // convert UTF-8 to Windows Unicode
