@@ -51,7 +51,7 @@ bool GfxProviderExternal::readbitmap(const LocalPath& localname, int /*size*/)
     return true;
 }
 
-bool GfxProviderExternal::resizebitmap(int rw, int rh, string* jpegout)
+bool GfxProviderExternal::resizebitmap(int rw, int rh, string* imageOut, Hint)
 {
     if(!processor) return false;
 
@@ -63,9 +63,9 @@ bool GfxProviderExternal::resizebitmap(int rw, int rh, string* jpegout)
 
     int size = processor->getBitmapDataSize(w, h, px, py, rw, rh);
     if(size <= 0) return false;
-    jpegout->resize(static_cast<size_t>(size));
+    imageOut->resize(static_cast<size_t>(size));
 
-    return processor->getBitmapData((char *)jpegout->data(), jpegout->size());
+    return processor->getBitmapData((char*)imageOut->data(), imageOut->size());
 }
 
 void GfxProviderExternal::freebitmap()

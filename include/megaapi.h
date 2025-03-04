@@ -125,10 +125,10 @@ class MegaCancelSubscriptionReasonList;
  * The implementation will receive callbacks from an internal worker thread.
  *
  * Images will be sequentially processed. At first, the SDK will call MegaGfxProcessor::readBitmap
- * with the path of the file. Then, it will call MegaGfxProcessor::getWidth and MegaGfxProcessor::getHeight
- * to get the dimensions of the file (in pixels). After that, the SDK will call
- * MegaGfxProcessor::getBitmapDataSize and MegaGfxProcessor::getBitmapData in a loop
- * to get thumbnails/previews of different sizes. Finally, the SDK will call
+ * with the path of the file. Then, it will call MegaGfxProcessor::getWidth and
+ * MegaGfxProcessor::getHeight to get the dimensions of the file (in pixels). After that, the SDK
+ * will call MegaGfxProcessor::getBitmapDataSize and MegaGfxProcessor::getBitmapData in a loop to
+ * get thumbnails/previews of different sizes. Finally, the SDK will call
  * MegaGfxProcessor::freeBitmap to let you free the resources required to process
  * the current file.
  *
@@ -137,7 +137,7 @@ class MegaCancelSubscriptionReasonList;
  * other coordinates in this interface are expressed over the image after the required
  * transformation based on the EXIF data.
  *
- * Generated images must be in JPG format.
+ * Generated images can be in JPG or PNG format.
  *
  */
 class MegaGfxProcessor
@@ -184,24 +184,29 @@ public:
     /**
      * @brief Generates a thumbnail/preview image.
      *
-     * This function provides the parameters of the thumbnail/preview that the SDK wants to generate.
-     * If the implementation can create it, it has to provide the size of the buffer (in bytes) that
-     * it needs to store the generated JPG image. Otherwise, it should return a number <= 0.
+     * This function provides the parameters of the thumbnail/preview that the SDK wants to
+     * generate. If the implementation can create it, it has to provide the size of the buffer (in
+     * bytes) that it needs to store the generated image. Otherwise, it should return a number <= 0.
      *
-     * The implementation of this function has to scale the image to the size (width, height) and then
-     * extract the rectangle starting at the point (px, py) with size (rw, rh). (px, py, rw and rh) are
-     * expressed in pixels over the scaled image, being the point (0, 0) the upper-left corner of the
-     * scaled image, with the X-axis growing to the right and the Y-axis growing to the bottom.
+     * The implementation of this function has to scale the image to the size (width, height) and
+     * then extract the rectangle starting at the point (px, py) with size (rw, rh). (px, py, rw and
+     * rh) are expressed in pixels over the scaled image, being the point (0, 0) the upper-left
+     * corner of the scaled image, with the X-axis growing to the right and the Y-axis growing to
+     * the bottom.
      *
-     * @param width Width of the scaled image from which the thumbnail/preview image will be extracted
-     * @param height Height of the scaled image from which the thumbnail/preview image will be extracted
-     * @param px X coordinate of the starting point of the desired image (in pixels over the scaled image)
-     * @param py Y coordinate of the starting point of the desired image (in pixels over the scaled image)
+     * @param width Width of the scaled image from which the thumbnail/preview image will be
+     * extracted
+     * @param height Height of the scaled image from which the thumbnail/preview image will be
+     * extracted
+     * @param px X coordinate of the starting point of the desired image (in pixels over the scaled
+     * image)
+     * @param py Y coordinate of the starting point of the desired image (in pixels over the scaled
+     * image)
      * @param rw Width of the desired image (in pixels over the scaled image)
      * @param rh Height of the desired image (in pixels over the scaled image)
      *
-     * @return Size of the buffer required to store the image (in bytes) or a number <= 0 if it's not
-     * possible to generate it.
+     * @return Size of the buffer required to store the image (in bytes) or a number <= 0 if it's
+     * not possible to generate it.
      *
      */
     virtual int getBitmapDataSize(int width, int height, int px, int py, int rw, int rh);

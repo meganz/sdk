@@ -58,7 +58,7 @@ class MEGA_API GfxProviderFreeImage : public IGfxLocalProvider
 
 public:
     bool readbitmap(const LocalPath&, int) override;
-    bool resizebitmap(int, int, string*) override;
+    bool resizebitmap(int, int, string*, Hint hint) override;
     void freebitmap() override;
 
     const char* supportedformats() override;
@@ -91,7 +91,6 @@ protected:
 #ifdef USE_MEDIAINFO
     bool readbitmapMediaInfo(const LocalPath& imagePath);
 #endif
-
 };
 } // namespace
 

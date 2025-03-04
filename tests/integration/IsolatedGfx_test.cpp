@@ -1,5 +1,50 @@
-#include "SdkTest_test.h"
 #include "sdk_test_utils.h"
+#include "SdkTest_test.h"
+
+#include <memory>
+
+namespace
+{
+
+using FIBITMAPPtr = std::unique_ptr<FIBITMAP, decltype(&FreeImage_Unload)>;
+
+FIBITMAPPtr load(const fs::path& image, FREE_IMAGE_FORMAT fif)
+{
+#ifdef _WIN32
+    return FIBITMAPPtr{FreeImage_LoadU(fif, image.c_str(), 0), &FreeImage_Unload};
+#else
+    return FIBITMAPPtr{FreeImage_Load(fif, image.c_str(), 0), &FreeImage_Unload};
+#endif
+}
+
+bool isTransparency(const fs::path& image, FREE_IMAGE_FORMAT fif)
+{
+    if (const auto dib = load(image, fif); dib)
+    {
+        return FreeImage_IsTransparent(dib.get()) == TRUE;
+    }
+    else
+    {
+        LOG_err << "Failed to load image";
+        return false;
+    }
+}
+
+// Get meta data tag count. -1 if there are errors
+int getMetadataCount(const fs::path& image, FREE_IMAGE_FORMAT fif)
+{
+    if (const auto dib = load(image, fif); dib)
+    {
+        return static_cast<int>(FreeImage_GetMetadataCount(FIMD_EXIF_MAIN, dib.get()));
+    }
+    else
+    {
+        LOG_err << "Failed to load image";
+        return -1;
+    }
+};
+
+}
 
 class SdkTestIsolatedGfx : public SdkTest
 {
@@ -25,6 +70,18 @@ protected:
     static constexpr const char* GOOD_THUMBNAIL = "logo_thumbnail.png";
 
     static constexpr const char* GOOD_PREVIEW   = "logo_preview.png";
+
+    static constexpr const char* TRANSPARENCY_IMAGE = "transparency.png";
+
+    static constexpr const char* TRANSPARENCY_THUMBNAIL = "transparency_thumbnail.png";
+
+    static constexpr const char* TRANSPARENCY_PREVIEW = "transparency_preview.jpg";
+
+    static constexpr const char* ORIENTATION_IMAGE = "orientation.jpg";
+
+    static constexpr const char* ORIENTATION_THUMBNAIL = "orientation_thumbnail.jpg";
+
+    static constexpr const char* ORIENTATION_PREVIEW = "orientation_preview.jpg";
 };
 
 void SdkTestIsolatedGfx::SetUp()
@@ -101,4 +158,62 @@ TEST_F(SdkTestIsolatedGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
 
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
+}
+
+TEST_F(SdkTestIsolatedGfx, ThumbnailSupportTransparency)
+{
+    LOG_info << "___TEST ThumbnailSupportTransparency";
+
+    // Download test data
+    ASSERT_TRUE(
+        getFileFromArtifactory(std::string{"test-data/"} + TRANSPARENCY_IMAGE, TRANSPARENCY_IMAGE));
+
+    // Thumbnail and preview
+    MegaApi* api = megaApi[0].get();
+    ASSERT_TRUE(api->createThumbnail(TRANSPARENCY_IMAGE, TRANSPARENCY_THUMBNAIL))
+        << "create thumbnail should succeed";
+    ASSERT_TRUE(api->createPreview(TRANSPARENCY_IMAGE, TRANSPARENCY_PREVIEW))
+        << "create preview should succeed";
+
+    // Use this to ensure FreeImage library is initialized for once
+    [[maybe_unused]] const auto a =
+        ::mega::makeUniqueFrom(MegaGfxProvider::createInternalInstance());
+
+    // Check all are transparency images
+    ASSERT_TRUE(isTransparency(fs::path{TRANSPARENCY_IMAGE}, FIF_PNG));
+    ASSERT_EQ(FreeImage_GetFileType(TRANSPARENCY_THUMBNAIL, 0), FIF_PNG);
+    ASSERT_TRUE(isTransparency(fs::path{TRANSPARENCY_THUMBNAIL}, FIF_PNG));
+    ASSERT_EQ(FreeImage_GetFileType(TRANSPARENCY_PREVIEW, 0), FIF_JPEG);
+    ASSERT_FALSE(isTransparency(fs::path{TRANSPARENCY_PREVIEW}, FIF_JPEG));
+
+    LOG_info << "___TEST ThumbnailSupportTransparency end___";
+}
+
+TEST_F(SdkTestIsolatedGfx, MetaDataIsRemoved)
+{
+    LOG_info << "___TEST MetaDataIsRemoved";
+
+    // Download test data
+    ASSERT_TRUE(
+        getFileFromArtifactory(std::string{"test-data/"} + ORIENTATION_IMAGE, ORIENTATION_IMAGE));
+
+    // Thumbnail and preview
+    MegaApi* api = megaApi[0].get();
+    ASSERT_TRUE(api->createThumbnail(ORIENTATION_IMAGE, ORIENTATION_THUMBNAIL))
+        << "create thumbnail should succeed";
+    ASSERT_TRUE(api->createPreview(ORIENTATION_IMAGE, ORIENTATION_PREVIEW))
+        << "create preview should succeed";
+
+    // Use this to ensure FreeImage library is initialized for once
+    [[maybe_unused]] const auto a =
+        ::mega::makeUniqueFrom(MegaGfxProvider::createInternalInstance());
+
+    // The original image has more than one EXIF data
+    ASSERT_GT(getMetadataCount(fs::path{ORIENTATION_IMAGE}, FIF_JPEG), 1);
+
+    // The thumbnail and preview has none EXIF data
+    ASSERT_EQ(getMetadataCount(fs::path{ORIENTATION_PREVIEW}, FIF_JPEG), 0);
+    ASSERT_EQ(getMetadataCount(fs::path{ORIENTATION_THUMBNAIL}, FIF_JPEG), 0);
+
+    LOG_info << "___TEST MetaDataIsRemoved end___";
 }

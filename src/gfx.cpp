@@ -159,8 +159,7 @@ void GfxProc::loop()
             auto images = generateImages(job->localfilename, getJobDimensions(job));
             for (auto& image : images)
             {
-                string* jpeg = image.empty() ? nullptr : new string(std::move(image));
-                job->images.push_back(jpeg);
+                job->images.push_back(image.empty() ? nullptr : new string(std::move(image)));
             }
 
             responses.push(job);
@@ -269,7 +268,6 @@ std::vector<std::string> IGfxLocalProvider::generateImages(const LocalPath& loca
     {
         for (unsigned int i = 0; i < dimensions.size(); ++i)
         {
-            string jpeg;
             int targetWidth = dimensions[i].w(), targetHeight = dimensions[i].h();
             if (width() < targetWidth && height() < targetHeight)
             {
@@ -278,9 +276,15 @@ std::vector<std::string> IGfxLocalProvider::generateImages(const LocalPath& loca
                 targetHeight = height();
             }
             // LOG_verbose << "resizebitmap w/h: " << targetWidth << "/" << targetHeight;
-            if (resizebitmap(targetWidth, targetHeight, &jpeg))
+
+            // For thumbnail, PNG is allowed images with transparency
+            const auto hint = (dimensions[i] == GfxProc::DIMENSIONS[GfxProc::THUMBNAIL]) ?
+                                  Hint::FORMAT_PNG :
+                                  Hint::NONE;
+            string image;
+            if (resizebitmap(targetWidth, targetHeight, &image, hint))
             {
-                images[i] = std::move(jpeg);
+                images[i] = std::move(image);
             }
         }
         freebitmap();
@@ -389,9 +393,9 @@ bool GfxProc::savefa(const LocalPath& localfilepath,
         return false;
     }
 
-    string jpeg = generateOneImage(localfilepath, dimension);
+    string image = generateOneImage(localfilepath, dimension);
 
-    if (jpeg.empty())
+    if (image.empty())
     {
         return false;
     }
@@ -403,7 +407,7 @@ bool GfxProc::savefa(const LocalPath& localfilepath,
         return false;
     }
 
-    if (!f->fwrite((const byte*)jpeg.data(), unsigned(jpeg.size()), 0))
+    if (!f->fwrite((const byte*)image.data(), unsigned(image.size()), 0))
     {
         return false;
     }

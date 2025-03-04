@@ -4738,10 +4738,22 @@ static void exec_thumbnail(autocomplete::ACState& state)
     const auto& destination = state.words[1].s;
     const auto& source = state.words[2].s;
 
+    const auto& dimension = [&state]()
+    {
+        size_t index = GfxProc::THUMBNAIL;
+        if (state.extractflag("-thumbnail"))
+        {
+            index = GfxProc::THUMBNAIL;
+        }
+        else if (state.extractflag("-preview"))
+        {
+            index = GfxProc::PREVIEW;
+        }
+        return GfxProc::DIMENSIONS[index];
+    }();
+
     // Try writing a thumbnail for source to destination.
-    auto result = client->gfx->savefa(localPathArg(source),
-                                      GfxProc::DIMENSIONS[GfxProc::THUMBNAIL],
-                                      localPathArg(destination));
+    auto result = client->gfx->savefa(localPathArg(source), dimension, localPathArg(destination));
 
     auto* message = "Saved generated thumbnail for ";
     auto* ostream = &std::cout;
@@ -5460,7 +5472,10 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_hashcash, sequence(text("hashcash"), opt(either(flag("-on"), flag("-off")))));
 
     p->Add(exec_thumbnail,
-           sequence(text("thumbnail"), localFSFile("destinationPath"), localFSFile("sourcePath")));
+           sequence(text("thumbnail"),
+                    localFSFile("destinationPath"),
+                    localFSFile("sourcePath"),
+                    opt(either(flag("-thumbnail"), flag("-preview")))));
 
     p->Add(exec_getmyip, text("getmyip"));
 

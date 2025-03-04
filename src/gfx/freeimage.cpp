@@ -22,7 +22,10 @@
 #include "mega/gfx/freeimage.h"
 
 #include "mega.h"
+#include "mega/logging.h"
 #include "mega/scoped_helpers.h"
+
+#include <optional>
 
 #ifdef USE_FREEIMAGE
 
@@ -47,6 +50,274 @@ extern "C" {
 #include <libavutil/imgutils.h>
 }
 #endif
+
+namespace
+{
+
+struct FIBITMAPDeleter
+{
+    void operator()(FIBITMAP* dib) const
+    {
+        FreeImage_Unload(dib);
+    }
+};
+
+using FIBITMAPPtr = std::unique_ptr<FIBITMAP, FIBITMAPDeleter>;
+
+// Rescale the image and convert it to standard FIT_BITMAP
+// @ return nullptr if it fails, otherwise the pointer to the new rescaled image
+FIBITMAPPtr rescale(FIBITMAP* dib, int width, int height)
+{
+    const FREE_IMAGE_TYPE image_type = FreeImage_GetImageType(dib);
+
+    auto thumbnail = [image_type, dib, width, height]() -> FIBITMAPPtr
+    {
+        switch (image_type)
+        {
+            case FIT_BITMAP:
+            case FIT_UINT16:
+            case FIT_RGB16:
+            case FIT_RGBA16:
+            case FIT_FLOAT:
+            case FIT_RGBF:
+            case FIT_RGBAF:
+                return FIBITMAPPtr{FreeImage_Rescale(dib, width, height, FILTER_BILINEAR)};
+            default:
+                // Other types are not supported by freeimage
+                return nullptr;
+        }
+    }();
+
+    if (!thumbnail || image_type == FIT_BITMAP)
+        return thumbnail;
+
+    // Convert these non standard bitmap to a standard bitmap FIT_BITMAP
+    switch (image_type)
+    {
+        case FIT_UINT16:
+            return FIBITMAPPtr{FreeImage_ConvertTo8Bits(thumbnail.get())};
+        case FIT_RGB16:
+            return FIBITMAPPtr{FreeImage_ConvertTo24Bits(thumbnail.get())};
+        case FIT_RGBA16:
+            return FIBITMAPPtr{FreeImage_ConvertTo32Bits(thumbnail.get())};
+        case FIT_FLOAT:
+            return FIBITMAPPtr{FreeImage_ConvertToStandardType(thumbnail.get(), TRUE)};
+        case FIT_RGBF:
+            return FIBITMAPPtr{FreeImage_ToneMapping(thumbnail.get(), FITMO_DRAGO03)};
+        case FIT_RGBAF:
+        {
+            FIBITMAPPtr rgbf{FreeImage_ConvertToRGBF(thumbnail.get())};
+            return FIBITMAPPtr{FreeImage_ToneMapping(rgbf.get(), FITMO_DRAGO03)};
+        }
+        default:
+            return nullptr;
+    };
+}
+
+using FITAGPtr = std::unique_ptr<FITAG, decltype(&FreeImage_DeleteTag)>;
+
+FITAGPtr getTagClone(FREE_IMAGE_MDMODEL model, FIBITMAP* dib, const char* key)
+{
+    FITAG* searchedTag = nullptr;
+    FreeImage_GetMetadata(model, dib, key, &searchedTag);
+    return ::mega::makeUniqueFrom(FreeImage_CloneTag(searchedTag), &FreeImage_DeleteTag);
+}
+
+FITAG* getTag(FREE_IMAGE_MDMODEL model, FIBITMAP* dib, const char* key)
+{
+    FITAG* searchedTag = nullptr;
+    FreeImage_GetMetadata(model, dib, key, &searchedTag);
+    return searchedTag;
+}
+
+void removeAllMetadata(FIBITMAP* dib)
+{
+    if (!dib)
+        return;
+
+    FreeImage_SetMetadata(FIMD_COMMENTS, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_MAIN, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_EXIF, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_GPS, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_MAKERNOTE, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_INTEROP, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_IPTC, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_XMP, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_GEOTIFF, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_ANIMATION, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_CUSTOM, dib, nullptr, nullptr);
+    FreeImage_SetMetadata(FIMD_EXIF_RAW, dib, nullptr, nullptr);
+}
+
+std::pair<FREE_IMAGE_FORMAT, int> decideSaveFormatFlag(FIBITMAP* dib, bool pngIsAllowed)
+{
+    return FreeImage_IsTransparent(dib) && pngIsAllowed ?
+               std::make_pair(FIF_PNG, PNG_DEFAULT) :
+               std::make_pair(FIF_JPEG, JPEG_BASELINE | JPEG_OPTIMIZE | 85);
+}
+
+/**
+ * @brief Prepares a standard bitmap image for saving to the target format.
+ *
+ * For JPEG target format, It performs the following steps:
+ *   1. Fills any transparent areas with black.
+ *   2. Converts the image to 24-bit format (required for JPEG).
+ *
+ * @param dib The original standard bitmap image to be processed.
+ * @param format The target format
+ *
+ * @return A pair containing:
+ *   - The converted image (nullptr if no conversion was needed).
+ *   - A boolean indicating if an error occurred:
+ *     - true: An error occurred during processing.
+ *     - false: No error occurred.
+ */
+std::pair<FIBITMAPPtr, bool> prepareImageForSave(FIBITMAP* dib, FREE_IMAGE_FORMAT format)
+{
+    assert(format == FIF_PNG || format == FIF_JPEG);
+
+    // No preparation is needed for PNG
+    if (format != FIF_JPEG)
+        return {nullptr, false};
+
+    // Prepare for JPEG
+    FIBITMAPPtr converted{};
+    if (FreeImage_IsTransparent(dib))
+    {
+        RGBQUAD black{0, 0, 0, 0};
+        converted.reset(FreeImage_Composite(dib, FALSE, &black));
+        if (!converted)
+        {
+            LOG_err << "FreeImage Composite error";
+            return {nullptr, true};
+        }
+
+        dib = converted.get();
+    }
+
+    if (FreeImage_GetBPP(dib) != 24)
+    {
+        converted.reset(FreeImage_ConvertTo24Bits(dib));
+        if (!converted)
+        {
+            LOG_err << "FreeImage ConvertTo24Bits error";
+            return {nullptr, true};
+        }
+    }
+
+    return {std::move(converted), false};
+}
+
+std::string saveToMemory(FIBITMAP* dib, FREE_IMAGE_FORMAT format, int flag)
+{
+    // Allocate Memory and Save
+    const auto hmem = ::mega::makeUniqueFrom(FreeImage_OpenMemory(),
+                                             [](FIMEMORY* p)
+                                             {
+                                                 FreeImage_CloseMemory(p);
+                                             });
+    if (!hmem)
+        return {};
+
+    if (!FreeImage_SaveToMemory(format, dib, hmem.get(), flag))
+        return {};
+
+    // To string
+    BYTE* tdata;
+    DWORD tlen;
+    FreeImage_AcquireMemory(hmem.get(), &tdata, &tlen);
+    return std::string{reinterpret_cast<char*>(tdata), tlen};
+}
+
+// Save the standard bitmap image in jpeg or png format.
+std::string saveToJpegOrPng(FIBITMAP* dib, bool pngIsAllowed)
+{
+    if (!dib)
+        return {};
+
+    assert(FreeImage_GetImageType(dib) == FIT_BITMAP);
+
+    const auto [format, flag] = decideSaveFormatFlag(dib, pngIsAllowed);
+
+    const auto [converted, hasError] = prepareImageForSave(dib, format);
+
+    if (hasError)
+        return {};
+
+    // Point to the converted image
+    if (converted)
+        dib = converted.get();
+
+    return saveToMemory(dib, format, flag);
+}
+
+std::optional<WORD> getOrientation(FIBITMAP* dib)
+{
+    FITAG* tag = getTag(FIMD_EXIF_MAIN, dib, "Orientation");
+
+    // Invalid
+    if (!tag || (FreeImage_GetTagID(tag) != 0x112) || (FreeImage_GetTagType(tag) != FIDT_SHORT))
+    {
+        return std::nullopt;
+    }
+
+    return *((const WORD*)FreeImage_GetTagValue(tag));
+}
+
+//
+// It may rotate the image based on EXIF orientation tag. It may release the original image and
+// update the pointer to the new rotated image.
+//
+FIBITMAPPtr rotateOnExifOrientation(FIBITMAPPtr dib)
+{
+    const auto orientation = getOrientation(dib.get());
+    if (!orientation.has_value())
+        return dib;
+
+    // Helper: rotate, release the original, and update the pointer to the new rotated one
+    auto rotate = [](FIBITMAPPtr dib, double degree)
+    {
+        if (auto rotated = FreeImage_Rotate(dib.get(), degree); rotated)
+        {
+            dib.reset(rotated);
+        }
+        return dib;
+    };
+
+    switch (orientation.value())
+    {
+        case 1: // Normal
+            break;
+        case 2: // Mirror horizontal
+            FreeImage_FlipHorizontal(dib.get());
+            break;
+        case 3: // Rotate 180
+            dib = rotate(std::move(dib), 180);
+            break;
+        case 4: // Mirror vertical
+            FreeImage_FlipVertical(dib.get());
+            break;
+        case 5: // Mirror horizontal and rotate 270 CW
+            dib = rotate(std::move(dib), 90);
+            FreeImage_FlipVertical(dib.get());
+            break;
+        case 6: // Rotate 90 CW
+            dib = rotate(std::move(dib), -90);
+            break;
+        case 7: // Mirror horizontal and rotate 90 CW
+            dib = rotate(std::move(dib), -90);
+            FreeImage_FlipVertical(dib.get());
+            break;
+        case 8: // Rotate 270 CW
+            dib = rotate(std::move(dib), 90);
+            break;
+        default:
+            break;
+    }
+
+    return dib;
+}
+}
 
 namespace mega {
 
@@ -178,26 +449,32 @@ bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int s
         return false;
     }
 
-    if (fif == FIF_JPEG)
+    // Load flag
+    const auto flag = [fif, size]()
     {
-        // load JPEG (scale & EXIF-rotate)
-        dib = FreeImage_LoadX(fif,
-                              imagePath.localpath.c_str(),
-                              JPEG_EXIFROTATE | JPEG_FAST | (size << 16));
-        if (!dib)
+        switch (fif)
         {
-            return false;
+            case FIF_JPEG:
+                return JPEG_FAST | (size << 16);
+            case FIF_RAW:
+                return RAW_PREVIEW;
+            default:
+                return 0;
         }
-    }
-    else
+    }();
+
+    // Load
+    dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(), flag);
+    if (!dib)
     {
-        // load all other image types - for RAW formats, rely on embedded preview
-        dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(), (fif == FIF_RAW) ? RAW_PREVIEW : 0);
-        if (!dib)
-        {
-            return false;
-        }
+        return false;
     }
+
+    // Rotate first
+    dib = rotateOnExifOrientation(FIBITMAPPtr{dib}).release();
+
+    // Remove Metadata after
+    removeAllMetadata(dib);
 
     w = static_cast<int>(FreeImage_GetWidth(dib));
     h = static_cast<int>(FreeImage_GetHeight(dib));
@@ -688,10 +965,8 @@ bool GfxProviderFreeImage::readbitmap(const LocalPath& localname, int size)
     return true;
 }
 
-bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* jpegout)
+bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* imageOut, Hint hint)
 {
-    FIBITMAP* tdib;
-    FIMEMORY* hmem;
     int px, py;
 
     if (!w || !h) return false;
@@ -702,51 +977,31 @@ bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 
     if (!w || !h) return false;
 
-    jpegout->clear();
+    imageOut->clear();
 
-    tdib = FreeImage_Rescale(dib, w, h, FILTER_BILINEAR);
-    if (tdib)
+    // Rescale
+    if (auto rescaled = rescale(dib, w, h); rescaled)
     {
         FreeImage_Unload(dib);
-
-        dib = tdib;
-
-        tdib = FreeImage_Copy(dib, px, py, px + rw, py + rh);
-        if (tdib)
-        {
-            FreeImage_Unload(dib);
-
-            dib = tdib;
-
-            WORD bpp = (WORD)FreeImage_GetBPP(dib);
-            if (bpp != 24) {
-                if ((tdib = FreeImage_ConvertTo24Bits(dib)) == NULL) {
-                    FreeImage_Unload(dib);
-                    dib = tdib;
-                    return 0;
-                }
-                FreeImage_Unload(dib);
-                dib = tdib;
-            }
-
-            hmem = FreeImage_OpenMemory();
-            if (hmem)
-            {
-                if (FreeImage_SaveToMemory(FIF_JPEG, dib, hmem, JPEG_BASELINE | JPEG_OPTIMIZE | 85))
-                {
-                    BYTE* tdata;
-                    DWORD tlen;
-
-                    FreeImage_AcquireMemory(hmem, &tdata, &tlen);
-                    jpegout->assign((char*)tdata, tlen);
-                }
-
-                FreeImage_CloseMemory(hmem);
-            }
-        }
+        dib = rescaled.release();
+    }
+    else
+    {
+        return false;
     }
 
-    return !jpegout->empty();
+    // copy part
+    auto tdib = FreeImage_Copy(dib, px, py, px + rw, py + rh);
+    if (!tdib)
+    {
+        return false;
+    }
+    FreeImage_Unload(dib);
+    dib = tdib;
+
+    *imageOut = saveToJpegOrPng(dib, hint == Hint::FORMAT_PNG);
+
+    return !imageOut->empty();
 }
 
 void GfxProviderFreeImage::freebitmap()

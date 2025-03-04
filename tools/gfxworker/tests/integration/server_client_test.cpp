@@ -81,7 +81,7 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
                     .runGfxTask(testImageLocalPath.string(), dimensions, images));
     EXPECT_EQ(images.size(), 2);
     EXPECT_GT(images[0].size(), 4500); // Use > as the size is different between MacOS and other platforms
-    EXPECT_GT(images[1].size(), 800);  // Use > as the above
+    EXPECT_GT(images[1].size(), 650); // Use > as the above
 
     // shutdown
     EXPECT_TRUE(
