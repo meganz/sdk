@@ -4148,6 +4148,11 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink, MegaHandle* im
     std::unique_ptr<MegaNode> authorizedFolderNode{
         mGuestApi->authorizeNode(folderNodeToImport.get())};
     ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodeLink;
+    ASSERT_TRUE(authorizedFolderNode->getChildren())
+        << "Authorized folder node children list is null but it should not";
+    ASSERT_EQ(mGuestApi->getNumChildren(folderNodeToImport.get()),
+              authorizedFolderNode->getChildren()->size())
+        << "Different number of child nodes after authorizing the folder node";
 
     // Logout the folder
     ASSERT_NO_FATAL_FAILURE(logout(mGuestIndex, false, 20));
@@ -4165,6 +4170,18 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink, MegaHandle* im
     std::unique_ptr<MegaNode> importedNode{
         mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get())};
     ASSERT_TRUE(importedNode) << "Imported node not found";
+    if (authorizedFolderNode->getChildren()->size())
+    {
+        std::unique_ptr<MegaNode> authorizedImportedNode(
+            mGuestApi->authorizeNode(importedNode.get()));
+        EXPECT_TRUE(authorizedImportedNode) << "Failed to authorize imported node";
+        EXPECT_TRUE(authorizedImportedNode->getChildren())
+            << "Authorized imported node children list is null but it should not";
+        ASSERT_EQ(authorizedFolderNode->getChildren()->size(),
+                  authorizedImportedNode->getChildren()->size())
+            << "Not all child nodes have been imported";
+    }
+
     if (importedNodeHandle)
         *importedNodeHandle = importedNode->getHandle();
 }
@@ -5338,6 +5355,11 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodelink6;
     std::unique_ptr<MegaNode> authorizedFolderNode(megaApi[2]->authorizeNode(folderNodeToImport.get()));
     ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodelink6;
+    ASSERT_TRUE(authorizedFolderNode->getChildren())
+        << "Authorized folder node children list is null but it should not";
+    ASSERT_EQ(megaApi[2]->getNumChildren(folderNodeToImport.get()),
+              authorizedFolderNode->getChildren()->size())
+        << "Different number of child nodes after authorizing the folder node";
     logout(2, false, 20);
 
     auto loginTracker = asyncRequestLogin(2, email.c_str(), pass.c_str());
@@ -5349,6 +5371,13 @@ TEST_F(SdkTest, SdkTestShares)
     EXPECT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
     std::unique_ptr<MegaNode> importedNode(megaApi[2]->getNodeByPath(authorizedFolderNode->getName(), rootNode2.get()));
     EXPECT_TRUE(importedNode) << "Imported node not found";
+    std::unique_ptr<MegaNode> authorizedImportedNode(megaApi[2]->authorizeNode(importedNode.get()));
+    EXPECT_TRUE(authorizedImportedNode) << "Failed to authorize imported node";
+    EXPECT_TRUE(authorizedImportedNode->getChildren())
+        << "Authorized imported node children list is null but it should not";
+    ASSERT_EQ(authorizedFolderNode->getChildren()->size(),
+              authorizedImportedNode->getChildren()->size())
+        << "Not all child nodes have been imported";
 }
 
 
