@@ -824,7 +824,7 @@ bool LocalPath::isRootPath() const
 {
     if (mImplementation)
     {
-        mImplementation->isRootPath();
+        return mImplementation->isRootPath();
     }
 
     return false;
