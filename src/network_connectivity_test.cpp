@@ -30,6 +30,7 @@
 #include <map>
 
 using namespace std;
+using namespace std::chrono;
 
 namespace mega
 {
@@ -63,6 +64,8 @@ bool NetworkConnectivityTest::start(uint64_t userId,
 
 const NetworkConnectivityTestResults& NetworkConnectivityTest::getResults()
 {
+    mTimeoutOfReceive = high_resolution_clock::now() + 1s;
+
     // IPv4 results
     if (!mSocketTestersIPv4.empty())
     {
@@ -90,7 +93,7 @@ NetworkConnectivityTestIpResults
     map<string, uint16_t> uniqueLogEntries;
     for (auto& t: testers)
     {
-        const auto& socketResults = t->getSocketResults();
+        const auto& socketResults = t->getSocketResults(mTimeoutOfReceive);
 
         // extract status for each message type
         for (const auto& m: socketResults.messageResults)

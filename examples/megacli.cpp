@@ -4927,14 +4927,16 @@ void exec_udp_send_recv(autocomplete::ACState& state)
 
     UdpSocket socket(finalAddress, atoi(state.words[2].s.c_str()));
 
-    auto sendError = socket.sendAsyncMessage(state.words[3].s).get();
+    auto sendError = socket.sendSyncMessage(state.words[3].s);
     if (sendError.code)
     {
         cout << "Failed to send (" << sendError.code << "): " << sendError.message << endl;
         return;
     }
 
-    auto received = socket.receiveAsyncMessage(atoi(state.words[4].s.c_str())).get();
+    auto timeout = std::chrono::high_resolution_clock::now() +
+                   std::chrono::seconds(atol(state.words[4].s.c_str()));
+    auto received = socket.receiveSyncMessage(timeout);
     if (received.code)
     {
         cout << "Failed to receive (" << received.code << "): " << received.message << endl;
@@ -5512,7 +5514,7 @@ autocomplete::ACN autocompleteSyntax()
                     param("ip"),
                     param("port"),
                     param("message"),
-                    param("recv_timeout"),
+                    param("recv_timeout_sec"),
                     opt(flag("-IPv4toIPv6"))));
 
     return autocompleteTemplate = std::move(p);
