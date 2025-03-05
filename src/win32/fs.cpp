@@ -1233,7 +1233,6 @@ bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& 
         return false;
     }
     newAbsolutepathStr.resize(newlen);
-    newAbsolutepathStr = absolutepathArg.asPlatformEncoded(false);
 
     if (memcmp(newAbsolutepathStr.data(), L"\\\\?\\", 8))
     {

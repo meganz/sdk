@@ -32,34 +32,14 @@ bool URIHandler::isURI(const string_type& uri)
     return false;
 }
 
-std::optional<string_type> URIHandler::getName(const string_type& uri)
+string_type URIHandler::getName(const string_type& uri)
 {
     if (mPlatformHelper)
     {
         return mPlatformHelper->getName(uri);
     }
 
-    return std::nullopt;
-}
-
-std::optional<string_type> URIHandler::getParentURI(const string_type& uri)
-{
-    if (mPlatformHelper)
-    {
-        return mPlatformHelper->getParentURI(uri);
-    }
-
-    return std::nullopt;
-}
-
-std::optional<string_type> URIHandler::getPath(const string_type& uri)
-{
-    if (mPlatformHelper)
-    {
-        return mPlatformHelper->getPath(uri);
-    }
-
-    return std::nullopt;
+    return {};
 }
 
 void URIHandler::setPlatformHelper(PlatformURIHelper* platformHelper)
@@ -211,13 +191,11 @@ public:
         return std::make_unique<PathURI>(*this);
     }
 
-    static constexpr char URI_SEPARATOR = '*';
-
 private:
     string_type mUri;
     std::vector<string_type> mAuxPath;
-    void removeLastElement();
 };
+}; // end anonymous namespace
 
 class LocalPathImplementationHelper
 {
@@ -261,7 +239,6 @@ public:
         return localPath;
     }
 };
-}; // end anonymous namespace
 
 #if defined(_WIN32)
 // convert UTF-8 to Windows Unicode
@@ -404,31 +381,8 @@ LocalPath LocalPath::fromURIPath(const string_type& path)
     LocalPath p;
     std::string auxStr;
     LocalPath::local2path(&path, &auxStr, false);
-    auto elements = mega::splitString<std::vector<std::string>>(auxStr, PathURI::URI_SEPARATOR);
     std::unique_ptr<PathURI> aux;
-
-    for (size_t i = 0; i < elements.size(); i++)
-    {
-        if (i == 0)
-        {
-            string_type auxStrType;
-            LocalPath::path2local(&elements[0], &auxStrType);
-            if (!URIHandler::isURI(auxStrType))
-            {
-                assert(false);
-                return {};
-            }
-
-            aux = std::make_unique<PathURI>(auxStrType);
-        }
-        else
-        {
-            LocalPath::local2path(&elements[i], &auxStr, false);
-            aux->append(LocalPath::fromRelativePath(auxStr));
-        }
-    }
-
-    p.mImplementation = std::move(aux);
+    p.mImplementation = std::make_unique<PathURI>(path);
     p.mPathType = PathType::URI_PATH;
     return p;
 }
@@ -1299,7 +1253,7 @@ std::string Path::toName(const FileSystemAccess& fsaccess) const
 bool Path::isRootPath() const
 {
 #ifdef WIN32
-    if (mPathType == PathType::ABSOLUTE_PATH)
+    if (mPathType != PathType::ABSOLUTE_PATH)
         return false;
 
     static const std::wstring prefix = L"\\\\?\\";
@@ -1412,6 +1366,7 @@ bool Path::invariant() const
         // must not contain a drive letter
         if (mLocalpath.find(L":") != string_type::npos)
             return false;
+
         // must not start "\\"
         if (mLocalpath.size() >= 2 && mLocalpath.substr(0, 2) == L"\\\\")
             return false;
@@ -1685,32 +1640,17 @@ LocalPath PathURI::subpathFrom(const size_t) const
     return LocalPath{};
 }
 
-void PathURI::changeLeaf(const LocalPath& newLeaf)
+void PathURI::changeLeaf(const LocalPath&)
 {
-    if (mAuxPath.size())
-    {
-        mAuxPath.pop_back();
-    }
-    else
-    {
-        if (auto uri = URIHandler::getParentURI(mUri); !uri.has_value())
-        {
-            mUri = uri.value();
-        }
-        else
-        {
-            assert(false && "Error change leaf with uri");
-        }
-    }
-
-    mAuxPath.emplace_back(newLeaf.asPlatformEncoded(false));
+    LOG_err << "Invalid operation for URI Path (changeLeaf)";
+    assert(false);
 }
 
 LocalPath PathURI::parentPath() const
 {
-    PathURI newPathUri{*this};
-    newPathUri.removeLastElement();
-    return LocalPathImplementationHelper::buildLocalPath(newPathUri);
+    LOG_err << "Invalid operation for URI Path (parentPath)";
+    assert(false);
+    return LocalPath{};
 }
 
 LocalPath PathURI::insertFilenameSuffix(const std::string& suffix) const
@@ -1753,22 +1693,7 @@ std::string PathURI::toPath(const bool) const
 
 std::string PathURI::toName(const FileSystemAccess&) const
 {
-    std::optional<string_type> name{URIHandler::getPath(mUri)};
-
-    if (name.has_value())
-    {
-        for (const auto& aux: mAuxPath)
-        {
-            name->push_back(LocalPath::localPathSeparator);
-            name->append(aux);
-        }
-
-        std::string aux;
-        LocalPath::local2path(&name.value(), &aux, false);
-        return aux;
-    }
-
-    return {};
+    return toPath(false);
 }
 
 bool PathURI::isRootPath() const
@@ -1801,7 +1726,7 @@ string_type PathURI::getRealPath() const
     string_type path{mUri};
     for (const auto& leaf: mAuxPath)
     {
-        path.push_back(URI_SEPARATOR);
+        path.push_back(LocalPath::localPathSeparator);
         path.append(leaf);
     }
 
@@ -1812,21 +1737,4 @@ bool PathURI::invariant() const
 {
     return true;
 }
-
-void PathURI::removeLastElement()
-{
-    if (mAuxPath.size())
-    {
-        mAuxPath.pop_back();
-    }
-    else
-    {
-        std::optional<string_type> parentPath = URIHandler::getParentURI(mUri);
-        if (parentPath.has_value())
-        {
-            mUri = parentPath.value();
-        }
-    }
-}
-
 }

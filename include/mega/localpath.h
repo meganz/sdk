@@ -116,10 +116,7 @@ public:
     // Returns true if string is a URI
     virtual bool isURI(const string_type& URI) = 0;
     // Returns the name of file/directory pointed by the URI
-    virtual std::optional<string_type> getName(const string_type& uri) = 0;
-    // Returns parent URI if it's available
-    virtual std::optional<string_type> getParentURI(const string_type& uri) = 0;
-    virtual std::optional<string_type> getPath(const string_type& uri) = 0;
+    virtual string_type getName(const string_type& uri) = 0;
 };
 
 /**
@@ -136,12 +133,7 @@ public:
     static bool isURI(const string_type& uri);
 
     // Retrieve the name for a given path or URI
-    static std::optional<string_type> getName(const string_type& uri);
-
-    // Retrieve the name for a given path or URI
-    static std::optional<string_type> getParentURI(const string_type& uri);
-
-    static std::optional<string_type> getPath(const string_type& uri);
+    static string_type getName(const string_type& uri);
 
     // platformHelper should be kept alive during all program execution and ownership isn't taken
     static void setPlatformHelper(PlatformURIHelper* platformHelper);
@@ -150,7 +142,7 @@ private:
     static PlatformURIHelper* mPlatformHelper;
 };
 
-class LocalPath: public AbstractLocalPath
+class LocalPath
 {
 public:
     LocalPath() = default;
@@ -185,19 +177,7 @@ public:
         return *this;
     }
 
-    ~LocalPath() override {}
-
-    std::unique_ptr<AbstractLocalPath> clone() const override
-    {
-        auto p = std::make_unique<LocalPath>();
-        if (mImplementation)
-        {
-            p->mImplementation = mImplementation->clone();
-            p->mPathType = mPathType;
-        }
-
-        return p;
-    }
+    ~LocalPath() {}
 
     AbstractLocalPath* getImpl() const
     {
@@ -287,13 +267,13 @@ public:
     //
     // Mostly useful when we need to call platform-specific functions and
     // don't want to incur the cost of a copy.
-    auto asPlatformEncoded(const bool stripPrefix) const -> string_type override;
-    std::string platformEncoded() const override;
+    auto asPlatformEncoded(const bool stripPrefix) const -> string_type;
+    std::string platformEncoded() const;
 
-    bool empty() const override;
-    void clear() override;
+    bool empty() const;
+    void clear();
 
-    LocalPath leafName() const override;
+    LocalPath leafName() const;
 
     /*
      * Return the last component of the path (internally uses absolute path, no matter how the
@@ -317,42 +297,41 @@ public:
      *   "..\\..\\.."        (as in "C:\\foo\\bar\\..\\..\\..", thus too far back)   "C"
      *   "/" (*nix)          ""
      */
-    std::string leafOrParentName() const override;
+    std::string leafOrParentName() const;
 
-    void append(const LocalPath& additionalPath) override;
-    void appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways) override;
-    void prependWithSeparator(const LocalPath& additionalPath) override;
-    LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const override;
-    void trimNonDriveTrailingSeparator() override;
-    bool findPrevSeparator(size_t& separatorBytePos,
-                           const FileSystemAccess& fsaccess) const override;
-    bool endsInSeparator() const override;
+    void append(const LocalPath& additionalPath);
+    void appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways);
+    void prependWithSeparator(const LocalPath& additionalPath);
+    LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const;
+    void trimNonDriveTrailingSeparator();
+    bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
+    bool endsInSeparator() const;
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
-    size_t getLeafnameByteIndex() const override;
-    LocalPath subpathFrom(const size_t bytePos) const override;
+    size_t getLeafnameByteIndex() const;
+    LocalPath subpathFrom(const size_t bytePos) const;
 
-    void changeLeaf(const LocalPath& newLeaf) override;
+    void changeLeaf(const LocalPath& newLeaf);
 
     // Return a path denoting this path's parent.
     //
     // Result is undefined if this path is a "root."
-    LocalPath parentPath() const override;
+    LocalPath parentPath() const;
 
-    LocalPath insertFilenameSuffix(const std::string& suffix) const override;
+    LocalPath insertFilenameSuffix(const std::string& suffix) const;
 
-    bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const override;
-    bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const override;
-    bool hasNextPathComponent(const size_t index) const override;
+    bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
+    bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
+    bool hasNextPathComponent(const size_t index) const;
 
     // Return a utf8 representation of the LocalPath
     // No escaping or unescaping is done.
-    std::string toPath(const bool normalize) const override;
+    std::string toPath(const bool normalize) const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
     // Those characters are converted back (unescaped).  fsaccess is used to do the conversion.
-    std::string toName(const FileSystemAccess& fsaccess) const override;
+    std::string toName(const FileSystemAccess& fsaccess) const;
 
     // Does this path represent a filesystem root?
     //
@@ -363,28 +342,28 @@ public:
     //
     // On Windows systems, this predicate returns true if and only if the
     // path specifies a drive such as C:\.
-    bool isRootPath() const override;
+    bool isRootPath() const;
 
     // Try to avoid using this function as much as you can.
     //
     // It's present for efficiency reasons and is really only meant for
     // specific cases when we are using a LocalPath instance in a system
     // call.
-    const string_type rawValue() const override;
+    const string_type rawValue() const;
 
-    bool extension(std::string& extension) const override;
+    bool extension(std::string& extension) const;
 
-    std::string extension() const override;
+    std::string extension() const;
 
     // Check if this path is "related" to another.
     //
     // Two paths are related if:
     // - They are effectively identical.
     // - One path contains another.
-    bool related(const LocalPath& other) const override;
+    bool related(const LocalPath& other) const;
 
     friend class LocalPathImplementationHelper;
-    bool invariant() const override;
+    bool invariant() const;
 
 private:
     std::unique_ptr<AbstractLocalPath> mImplementation;
