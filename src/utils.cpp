@@ -1800,7 +1800,7 @@ m_time_t m_mktime_UTC(const struct tm *src)
 {
     struct tm dst = *src;
     m_time_t t = 0;
-#if _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+)
+#if defined(_MSC_VER) || defined(__MINGW32__)
     t = mktime(&dst);
     TIME_ZONE_INFORMATION TimeZoneInfo;
     GetTimeZoneInformation(&TimeZoneInfo);

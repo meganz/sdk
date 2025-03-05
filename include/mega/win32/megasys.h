@@ -36,37 +36,27 @@
   #define __STDC_FORMAT_MACROS
 #endif
 
-// (inttypes.h is not present in Microsoft Visual Studio < 2015)
-#if (defined (MSC_VER) && (_MSC_VER < 1900)) && !defined(HAVE_INTTYPES_H)
-  #define PRIu32 "I32u"
-  #define PRIu64 "I64u"
-  #define PRId64 "I64d"
-  #define PRIi64 "I64i"
-#else
-  #include <inttypes.h>
-#endif
-
-#include <iostream>
 #include <algorithm>
 #include <array>
-#include <string>   // the MEGA SDK assumes writable, contiguous string::data()
-#include <sstream>
-#include <map>
+#include <assert.h>
 #include <deque>
-#include <set>
-#include <iterator>
-#include <queue>
-#include <list>
+#include <errno.h>
 #include <functional>
-
+#include <inttypes.h>
+#include <iostream>
+#include <iterator>
+#include <list>
+#include <map>
+#include <math.h>
+#include <memory.h>
+#include <queue>
+#include <set>
+#include <sstream>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <errno.h>
-#include <assert.h>
-#include <memory.h>
+#include <string> // the MEGA SDK assumes writable, contiguous string::data()
 #include <time.h>
-#include <math.h>
 
 #if defined(USE_PTHREAD) && defined (__MINGW32__)
 #include <sys/time.h>		
@@ -93,9 +83,6 @@
 #define atoll _atoi64
 #define strncasecmp _strnicmp
 #define strtoull _strtoui64
-#if _MSC_VER <= 1800 && !defined (__MINGW32__)// Visual Studio 2013
-#define strtoll _strtoi64
-#endif
 
 #ifndef strcasecmp
 #define strcasecmp _stricmp
