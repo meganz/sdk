@@ -29,7 +29,7 @@ then
     PACKAGES="$PACKAGES cmake"
 fi
 
-if [[ "$DISTRO" == opensuse* ]]
+if [[ "$DISTRO" = opensuse* ]]
 then
     PACKAGES="$PACKAGES automake awk gcc-c++"
     zypper install -y --force-resolution $PACKAGES
