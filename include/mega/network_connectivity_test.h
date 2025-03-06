@@ -22,6 +22,8 @@
 #include "mega/network_connectivity_test_helpers.h"
 #include "mega/udp_socket_tester.h"
 
+#include <chrono>
+
 namespace mega
 {
 
@@ -52,6 +54,7 @@ private:
     std::vector<std::shared_ptr<UdpSocketTester>> mSocketTestersIPv4;
     std::vector<std::shared_ptr<UdpSocketTester>> mSocketTestersIPv6;
     uint16_t mTestsPerSocket{};
+    std::chrono::high_resolution_clock::time_point mTimeoutOfReceive;
     NetworkConnectivityTestResults mResults;
 };
 

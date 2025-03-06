@@ -21,7 +21,7 @@
 
 #include "mega/udp_socket.h"
 
-#include <future>
+#include <chrono>
 #include <map>
 #include <memory>
 #include <string>
@@ -82,12 +82,12 @@ public:
         std::map<std::string, uint16_t> log; // {log message, counter}
     };
 
-    SocketResults getSocketResults(); // {port, {{messageType, error}, ...}, logged messages}
+    // Return {port, {{messageType, error}, ...}, logged messages}
+    SocketResults getSocketResults(const std::chrono::high_resolution_clock::time_point& timeout);
 
 private:
-    void waitForStatusOfSending();
-    void receiveReplies();
-    void waitForStatusOfReceiving();
+    void sendMessage(TestSuite::MessageType type, const std::string& message);
+    static void sleepIfMultipleOf(uint16_t multiFactor, uint16_t factor);
     void confirmFirst(TestSuite::MessageType type);
     static std::string getShortMessage(uint64_t userId);
     static std::string getLongMessage(uint64_t userId);
@@ -95,16 +95,13 @@ private:
     void log(std::string&& action, std::string&& error);
 
     std::unique_ptr<UdpSocket> mSocket;
-    static constexpr int TIMEOUT_SECONDS = 1;
     static constexpr int REPLY_NOT_RECEIVED = -1111;
     SocketResults mTestResults;
+    bool mRunning{};
 
     std::string mShortMessage;
     std::string mLongMessage;
     std::string mDnsMessage;
-    std::vector<std::pair<TestSuite::MessageType, std::future<UdpSocket::Communication>>>
-        mPendingSentMessages;
-    std::vector<std::future<UdpSocket::Communication>> mPendingReplies;
 };
 
 } // namespace mega

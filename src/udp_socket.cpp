@@ -34,15 +34,20 @@
 #endif
 
 #include <cassert>
+#include <thread>
+
+using namespace std;
+using namespace std::chrono;
+using namespace std::chrono_literals;
 
 namespace mega
 {
 
-UdpSocket::UdpSocket(const std::string& remoteIP, int remotePort)
+UdpSocket::UdpSocket(const string& remoteIP, int remotePort)
 {
     if (initializeSocketSupport())
     {
-        if (!createRemoteAddress(remoteIP, remotePort) || !openBlockingSocket())
+        if (!createRemoteAddress(remoteIP, remotePort) || !openNonblockingSocket())
         {
             cleanupSocketSupport();
         }
@@ -64,28 +69,11 @@ bool UdpSocket::isIPv4() const
     return mInetType == AF_INET;
 }
 
-std::future<UdpSocket::Communication> UdpSocket::sendAsyncMessage(const std::string& message)
-{
-    return std::async(std::launch::async,
-                      [this, message]()
-                      {
-                          return sendSyncMessage(message);
-                      });
-}
-
-UdpSocket::Communication UdpSocket::sendSyncMessage(const std::string& message)
+UdpSocket::Communication UdpSocket::sendSyncMessage(const string& message)
 {
     if (!mSocket)
     {
         return {-1, "Socket not properly initialized"};
-    }
-
-    // set timeout for sending to 1 second
-    timeval tv{};
-    tv.tv_sec = 1;
-    if (setsockopt(mSocket, SOL_SOCKET, SO_SNDTIMEO, (char*)&tv, sizeof(tv)) == -1)
-    {
-        return getSocketError();
     }
 
     if (sendtoWrapper(message) == -1)
@@ -96,46 +84,44 @@ UdpSocket::Communication UdpSocket::sendSyncMessage(const std::string& message)
     return {};
 }
 
-std::future<UdpSocket::Communication> UdpSocket::receiveAsyncMessage(int timeout)
-{
-    return std::async(std::launch::async,
-                      [this, timeout]()
-                      {
-                          return receiveSyncMessage(timeout);
-                      });
-}
-
-UdpSocket::Communication UdpSocket::receiveSyncMessage(int timeout)
+UdpSocket::Communication
+    UdpSocket::receiveSyncMessage(const high_resolution_clock::time_point& timeout)
 {
     if (!mSocket)
     {
         return {-1, "Socket not properly initialized"};
     }
 
-    if (timeout > 0)
+    for (;;)
     {
-        // IPv6: never reached here
-        timeval tv{};
-        tv.tv_sec = timeout;
-        if (setsockopt(mSocket, SOL_SOCKET, SO_RCVTIMEO, (char*)&tv, sizeof(tv)) == -1)
-        {
-            return getSocketError();
-        }
-    }
+        char buffer[2048];
+        socklen_t addrSize = static_cast<socklen_t>(mInetType == AF_INET ? sizeof(sockaddr_in) :
+                                                                           sizeof(sockaddr_in6));
+        auto bytesReceived = recvfrom(mSocket,
+                                      buffer,
+                                      sizeof(buffer) - 1,
+                                      0, // flags
+                                      getSockaddr(),
+                                      &addrSize);
 
-    char buffer[2048];
-    socklen_t addrSize =
-        static_cast<socklen_t>(mInetType == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6));
-    auto bytesReceived = recvfrom(mSocket,
-                                  buffer,
-                                  sizeof(buffer) - 1,
-                                  0, // flags
-                                  getSockaddr(),
-                                  &addrSize);
-    if (bytesReceived > 0)
-    {
-        std::string response{buffer, static_cast<size_t>(bytesReceived)};
-        return {0, response};
+        if (bytesReceived > 0)
+        {
+            std::string response{buffer, static_cast<size_t>(bytesReceived)};
+            return {0, response};
+        }
+        else if (noDataYet())
+        {
+            // No data available yet. We can waste time here up to given timeout,
+            // but let's evaluate and try again after some decent interval
+            if (high_resolution_clock::now() > timeout)
+                return {-1, "Timeout"};
+
+            std::this_thread::sleep_for(1ms);
+        }
+        else // actual error
+        {
+            break;
+        }
     }
 
     return getSocketError();
@@ -202,27 +188,25 @@ void UdpSocket::cleanupSocketSupport()
 #endif
 }
 
-bool UdpSocket::openBlockingSocket()
+bool UdpSocket::openNonblockingSocket()
 {
-#if defined(_WIN32)
-    // Create socket using native function, because one created with socket() is unreliable.
-    // For example it will fail to receive data if SO_RCVTIMEO was set.
-    mSocket = static_cast<int>(WSASocket(mInetType, SOCK_DGRAM, IPPROTO_UDP, nullptr, 0, 0));
-#else
-    mSocket = socket(mInetType, SOCK_DGRAM, IPPROTO_UDP);
-#endif
+    mSocket = static_cast<int>(socket(mInetType, SOCK_DGRAM, IPPROTO_UDP));
 
     if (mSocket != -1)
     {
-#if !defined(_WIN32)
-        // Remove O_NONBLOCK flag to enable blocking mode
+        // Set the socket to non-blocking mode
+#if defined(_WIN32)
+        unsigned long mode = 1; // Non-blocking mode
+        bool hadErrors = ioctlsocket(mSocket, FIONBIO, &mode) == -1;
+#else
         int flags = fcntl(mSocket, F_GETFL, 0); // Get current flags
-        if (flags == -1 || fcntl(mSocket, F_SETFL, flags & ~O_NONBLOCK) == -1)
+        bool hadErrors = flags == -1 || fcntl(mSocket, F_SETFL, flags | O_NONBLOCK) == -1;
+#endif
+        if (hadErrors)
         {
             closeSocket();
             mSocket = 0;
         }
-#endif
     }
     else
     {
@@ -230,6 +214,15 @@ bool UdpSocket::openBlockingSocket()
     }
 
     return mSocket != 0;
+}
+
+bool UdpSocket::noDataYet()
+{
+#if defined(_WIN32)
+    return WSAGetLastError() == WSAEWOULDBLOCK;
+#else
+    return errno == EWOULDBLOCK;
+#endif
 }
 
 void UdpSocket::closeSocket()

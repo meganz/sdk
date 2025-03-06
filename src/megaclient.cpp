@@ -21443,6 +21443,9 @@ void MegaClient::runNetworkConnectivityTest(
                 return;
             }
 
+            using namespace std::chrono;
+            auto netTestStart = high_resolution_clock::now();
+
             NetworkConnectivityTest test;
             if (!test.start(me, std::move(serverInfo)))
             {
@@ -21458,6 +21461,11 @@ void MegaClient::runNetworkConnectivityTest(
                 LOG_err << singleError;
             for (const auto& singleError: testResults.ipv6.socketErrors)
                 LOG_err << singleError;
+
+            LOG_info
+                << "Network Connectivity test ran for "
+                << duration_cast<milliseconds>(high_resolution_clock::now() - netTestStart).count()
+                << " ms.";
 
             testCompletion(API_OK, std::move(testResults));
         });
