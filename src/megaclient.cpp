@@ -15279,10 +15279,11 @@ void MegaClient::fatalError(ErrorReason errorReason)
     mLastErrorDetected = errorReason;
 
     // Disable sync.
-    // Sync is not enabled in case of ErrorReason::REASON_ERROR_NO_JSCD,
-    // therefore no need to disable it.
+    // Sync is not enabled in case of ErrorReason::REASON_ERROR_NO_JSCD or
+    // ErrorReason::REASON_ERROR_REGENERATE_JSCD therefore no need to disable it.
 #ifdef ENABLE_SYNC
-    if (errorReason != ErrorReason::REASON_ERROR_NO_JSCD)
+    if (errorReason != ErrorReason::REASON_ERROR_NO_JSCD &&
+        errorReason != ErrorReason::REASON_ERROR_REGENERATE_JSCD)
     {
         syncs.disableSyncs(FAILURE_ACCESSING_PERSISTENT_STORAGE, false, true);
     }
@@ -15311,6 +15312,10 @@ void MegaClient::fatalError(ErrorReason errorReason)
         case ErrorReason::REASON_ERROR_NO_JSCD:
             reason = "Failed to get JSON SYNC configuration data";
             sendevent(99488, reason.c_str(), 0);
+            break;
+        case ErrorReason::REASON_ERROR_REGENERATE_JSCD:
+            reason = "Fix JSON SYNC configuration data";
+            sendevent(99489, reason.c_str(), 0);
             break;
         case ErrorReason::REASON_ERROR_UNKNOWN:
             reason = "Unknown fatal error";

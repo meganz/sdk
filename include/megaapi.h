@@ -5857,6 +5857,7 @@ public:
         REASON_ERROR_DB_FULL                    = 3,    // Failure at DB layer because disk is full
         REASON_ERROR_DB_INDEX_OVERFLOW          = 4,    // Index used to primary key at db overflow
         REASON_ERROR_NO_JSCD = 5, // No JSON Sync Config Data
+        REASON_ERROR_REGENERATE_JSCD = 6, // JSON Sync Config Data has been regenerated
     };
 
     virtual ~MegaEvent();
@@ -5906,6 +5907,7 @@ public:
      *  - REASON_ERROR_DB_FULL = 3 -> Failure at DB layer because disk is full
      *  - REASON_ERROR_DB_INDEX_OVERFLOW = 4 -> Index used to primary key at db overflow
      *  - REASON_ERROR_NO_JSCD = 5 -> No JSON Sync Config Data
+     *  - REASON_ERROR_REGENERATE_JSCD = 6 -> JSON Sync Config Data has been regenerated
      *
      * @return Number relative to this event
      */
