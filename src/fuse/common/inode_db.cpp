@@ -171,7 +171,11 @@ InodeDB::Queries::Queries(Database& database)
 
     mGetModifiedByID = "select modified from inodes where id = :id";
 
-    mGetModifiedInodes = "select * from inodes where modified = 1";
+    mGetModifiedInodes = "select * "
+                         "  from inodes "
+                         " where modified = 1 "
+                         "   and (handle is not null "
+                         "        or parent_handle is not null)";
 
     mGetNextInodeID = "select next from inode_id";
 
