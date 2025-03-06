@@ -162,6 +162,7 @@ endif()
 ## Load examples and tests
 if(ENABLE_SDKLIB_EXAMPLES)
     add_subdirectory(examples)
+    add_subdirectory(examples/simple_client)
 endif()
 
 if(ENABLE_SDKLIB_TESTS)
