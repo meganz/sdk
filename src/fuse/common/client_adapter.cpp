@@ -276,7 +276,7 @@ std::set<std::string> ClientAdapter::childNames(NodeHandle parent) const
         return std::set<std::string>();
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Try and locate specified parent.
     auto parent_ = mClient.nodeByHandle(parent);
@@ -463,7 +463,7 @@ void ClientAdapter::each(std::function<void(NodeInfo)> function,
         return;
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Try and locate the specified node.
     auto node = mClient.nodeByHandle(handle);
@@ -558,7 +558,7 @@ bool ClientAdapter::exists(NodeHandle handle) const
         return false;
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Check if the node exists.
     return !!mClient.nodeByHandle(handle);
@@ -579,7 +579,7 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle handle) const
         return API_ENOENT;
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Try and locate the specified node.
     auto node = mClient.nodeByHandle(handle);
@@ -603,7 +603,7 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle parent,
         return API_ENOENT;
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Retrieve the child's description.
     if (auto node = child(mClient, parent, name))
@@ -625,7 +625,7 @@ NodeHandle ClientAdapter::handle(NodeHandle parent,
         return NodeHandle();
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Retrieve the child's handle.
     if (auto node = child(mClient, parent, name))
@@ -652,7 +652,7 @@ ErrorOr<bool> ClientAdapter::hasChildren(NodeHandle parent) const
         return API_ENOENT;
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Try and locate the specified parent.
     auto parent_ = mClient.nodeByHandle(parent);
@@ -796,7 +796,7 @@ NodeHandle ClientAdapter::parentHandle(NodeHandle handle) const
         return NodeHandle();
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Locate specified node.
     auto node = mClient.nodeByHandle(handle);
@@ -819,7 +819,7 @@ accesslevel_t ClientAdapter::permissions(NodeHandle handle) const
         return RDONLY;
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Try and locate the specified node.
     auto node = mClient.nodeByHandle(handle);

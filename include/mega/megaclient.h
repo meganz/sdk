@@ -1904,7 +1904,7 @@ public:
     // NodeManager instance to wrap all access to Node objects
     NodeManager mNodeManager;
 
-    mutex nodeTreeMutex;
+    recursive_mutex nodeTreeMutex;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;

@@ -510,7 +510,7 @@ protected:
     // sequence-tag, saved temporary while processing the response (it's received before nodes)
     string mSt;
 
-    std::unique_lock<mutex> mNodeTreeIsChanging;
+    std::unique_lock<recursive_mutex> mNodeTreeIsChanging;
     bool mFirstChunkProcessed = false;
 };
 

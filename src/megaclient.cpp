@@ -5047,7 +5047,7 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 bool MegaClient::procsc()
 {
     // prevent the sync thread from looking things up while we change the tree
-    std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
+    std::unique_lock<recursive_mutex> nodeTreeIsChanging(nodeTreeMutex);
 
     bool originalAC = actionpacketsCurrent;
     actionpacketsCurrent = false;
@@ -15430,7 +15430,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         sctable->truncate();
     }
 
-    std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
+    std::unique_lock<recursive_mutex> nodeTreeIsChanging(nodeTreeMutex);
 
     // only initial load from local cache
     if (!forceLoadFromServers &&
