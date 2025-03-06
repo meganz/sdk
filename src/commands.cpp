@@ -3791,7 +3791,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                 }
                                 return true;
                             }
-
                             break;
                         }
                         case ATTR_SCOPE_PUBLIC_UNENCRYPTED:
@@ -4247,7 +4246,7 @@ bool CommandGetUserData::updatePrivateEncryptedUserAttribute(User* u,
         }
         else
         {
-            LOG_err << "Cannot extract TLV records for " << at;
+            LOG_err << "Cannot extract TLV records for " << User::attr2string(at);
         }
     }
     else
