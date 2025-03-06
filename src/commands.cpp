@@ -3778,7 +3778,17 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             {
                                 LOG_err << "Cannot extract TLV records for private attribute "
                                         << User::attr2string(at);
-                                mCompletionErr(API_EINTERNAL);
+                                if (at == ATTR_JSON_SYNC_CONFIG_DATA)
+                                {
+                                    // Store the attribute so we can update it later with valid
+                                    // values
+                                    u->setAttribute(at, value, version);
+                                    mCompletionErr(API_EKEY);
+                                }
+                                else
+                                {
+                                    mCompletionErr(API_EINTERNAL);
+                                }
                                 return true;
                             }
 

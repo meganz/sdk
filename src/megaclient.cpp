@@ -23872,9 +23872,17 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     // Sanity.
     assert(callback);
 
-    // The user doesn't have any JSC data.
-    if (result == API_ENOENT)
+    // The user doesn't have any JSC data or the attribute can't be decrypted or the attribute
+    // exists but is fully empty. In any case, create a new one.
+    if (result == API_ENOENT || result == API_EKEY || (result == API_OK && !store))
     {
+        if (result != API_ENOENT)
+        {
+            LOG_err << "Couldn't extract JSON SYNC configuration data. Automatically regenerating "
+                       "the attribute";
+            // Send an event and notify the app. Existing syncs (if any) have been removed.
+            fatalError(ErrorReason::REASON_ERROR_REGENERATE_JSCD);
+        }
         return createJSCData(std::move(callback));
     }
 
