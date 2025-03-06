@@ -50,8 +50,9 @@ then
 fi
 EOF
 
+RUN git clone https://github.com/microsoft/vcpkg.git
+
 CMD ["/bin/sh", "-c", "\
-        git clone https://github.com/microsoft/vcpkg.git && \
         cmake \
             -DVCPKG_ROOT=vcpkg \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
