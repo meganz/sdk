@@ -13,7 +13,9 @@ import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.MediaStore;
+
 import androidx.exifinterface.media.ExifInterface;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -58,26 +60,25 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     public static Rect getImageDimensions(String path, int orientation) {
         Rect rect = new Rect();
 
-        if(isVideoFile(path)){
+        if (isVideoFile(path)) {
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 
             try {
                 setMediaMetadataRetrieverDataSource(retriever, path);
                 int width;
                 int height;
-                int interchangeOrientation = Integer.parseInt(Objects.requireNonNull(
-                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)));
+                int interchangeOrientation = Integer.parseInt(Objects.<String>requireNonNull(
+                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)));
                 if (interchangeOrientation == 90 || interchangeOrientation == 270) {
-                    width = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
-                        MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)));
-                    height = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
-                        MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)));
-                }
-                else {
-                    width = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
-                        MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)));
-                    height = Integer.parseInt(Objects.requireNonNull(retriever.extractMetadata(
-                        MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)));
+                    width = Integer.parseInt(Objects.<String>requireNonNull(retriever.extractMetadata(
+                            MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)));
+                    height = Integer.parseInt(Objects.<String>requireNonNull(retriever.extractMetadata(
+                            MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)));
+                } else {
+                    width = Integer.parseInt(Objects.<String>requireNonNull(retriever.extractMetadata(
+                            MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)));
+                    height = Integer.parseInt(Objects.<String>requireNonNull(retriever.extractMetadata(
+                            MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)));
                 }
 
                 rect.right = width;
@@ -91,8 +92,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                     System.out.println("Error releasing MediaMetadataRetriever for video: " + e);
                 }
             }
-        }
-        else{
+        } else {
             try {
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inJustDecodeBounds = true;
@@ -142,12 +142,11 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
 
     public boolean readBitmap(String path) {
 
-        if(isVideoFile(path)){
+        if (isVideoFile(path)) {
             srcPath = path;
             size = getImageDimensions(srcPath, orientation);
             return (size.right != 0) && (size.bottom != 0);
-        }
-        else{
+        } else {
             srcPath = path;
             orientation = getExifOrientation(path);
             size = getImageDimensions(srcPath, orientation);
@@ -178,7 +177,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
             if (!isContentUri) {
                 try {
                     bmThumbnail = ThumbnailUtils.createVideoThumbnail(
-                        path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
+                            path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
                     if (context != null && bmThumbnail == null) {
 
                         String SELECTION = MediaStore.MediaColumns.DATA + "=?";
@@ -191,7 +190,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                         if (cursor != null && cursor.moveToFirst()) {
                             long videoId = cursor.getLong(0);
                             bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(
-                                cr, videoId, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND, null);
+                                    cr, videoId, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND, null);
                         }
                     }
                 } catch (Exception e) {
@@ -203,10 +202,10 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                 }
             }
 
-            if(bmThumbnail==null){
+            if (bmThumbnail == null) {
 
                 MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-                try{
+                try {
                     setMediaMetadataRetrieverDataSource(retriever, path);
                     bmThumbnail = retriever.getFrameAtTime();
                 } catch (Exception e1) {
@@ -221,9 +220,9 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
             }
 
             if (!isContentUri && bmThumbnail == null) {
-                try{
+                try {
                     bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.MINI_KIND);
-                    if(context != null && bmThumbnail == null) {
+                    if (context != null && bmThumbnail == null) {
 
                         String SELECTION = MediaStore.MediaColumns.DATA + "=?";
                         String[] PROJECTION = {BaseColumns._ID};
@@ -250,10 +249,9 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                 if (bmThumbnail != null) {
                     return Bitmap.createScaledBitmap(bmThumbnail, w, h, true);
                 }
-            }catch (Exception e){
+            } catch (Exception e) {
             }
-        }
-        else{
+        } else {
             if ((orientation < 5) || (orientation > 8)) {
                 width = rect.right;
                 height = rect.bottom;
@@ -293,7 +291,8 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
             } catch (IOException e) {
                 try {
                     Thread.sleep(100);
-                } catch (InterruptedException e1) {}
+                } catch (InterruptedException e1) {
+                }
             }
 
             i++;
@@ -315,20 +314,20 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
 
         Matrix matrix = new Matrix();
         switch (orientation) {
-        case ExifInterface.ORIENTATION_TRANSPOSE:
-        case ExifInterface.ORIENTATION_ROTATE_90:
-            matrix.postRotate(90);
-            break;
-        case ExifInterface.ORIENTATION_ROTATE_180:
-        case ExifInterface.ORIENTATION_FLIP_VERTICAL:
-            matrix.postRotate(180);
-            break;
-        case ExifInterface.ORIENTATION_TRANSVERSE:
-        case ExifInterface.ORIENTATION_ROTATE_270:
-            matrix.postRotate(270);
-            break;
-        default:
-            break;
+            case ExifInterface.ORIENTATION_TRANSPOSE:
+            case ExifInterface.ORIENTATION_ROTATE_90:
+                matrix.postRotate(90);
+                break;
+            case ExifInterface.ORIENTATION_ROTATE_180:
+            case ExifInterface.ORIENTATION_FLIP_VERTICAL:
+                matrix.postRotate(180);
+                break;
+            case ExifInterface.ORIENTATION_TRANSVERSE:
+            case ExifInterface.ORIENTATION_ROTATE_270:
+                matrix.postRotate(270);
+                break;
+            default:
+                break;
         }
 
         if ((orientation == ExifInterface.ORIENTATION_FLIP_HORIZONTAL)
@@ -380,8 +379,18 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
             return 0;
 
         try {
+            Bitmap.CompressFormat targetFormat = Bitmap.CompressFormat.JPEG;
+            int targetQuality = 85;
+            if (hint == MegaGfxProcessor.GFX_HINT_FORMAT_PNG) {
+                boolean hasTransparency = bitmap.hasAlpha();
+                if (hasTransparency) {
+                    targetFormat = Bitmap.CompressFormat.PNG;
+                    targetQuality = 75;
+                }
+            }
+
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream))
+            if (!bitmap.compress(targetFormat, targetQuality, stream))
                 return 0;
 
             bitmapData = stream.toByteArray();
