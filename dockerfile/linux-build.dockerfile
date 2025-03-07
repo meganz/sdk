@@ -44,7 +44,7 @@ fi
 if [ "$DISTRO" = "ubuntu:20.04" ]
 then
     curl -L https://github.com/Kitware/CMake/releases/download/v3.18.0/cmake-3.18.0-Linux-x86_64.sh -o cmake.sh
-    echo "53b3d1bbfb1f4d46213f338630ae7a30 cmake.sh" | md5sum -c - || exit 1
+    echo "a417f70d146bb4811dfe11c2ad15487f3c84e64f435c82aea7913496a1464788 cmake.sh" | sha256sum -c || exit 1
     chmod u+x cmake.sh
     ./cmake.sh --prefix=/usr --exclude-subdir --skip-license
     rm cmake.sh
