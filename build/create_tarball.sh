@@ -97,6 +97,7 @@ mkdir $megasdk_NAME/examples
 ln -s $BASEPATH/examples/CMakeLists.txt $megasdk_NAME/examples/
 ln -s $BASEPATH/examples/megacli.cpp $megasdk_NAME/examples/
 ln -s $BASEPATH/examples/megacli.h $megasdk_NAME/examples/
+ln -s $BASEPATH/examples/simple_client $megasdk_NAME/examples/
 
 mkdir $megasdk_NAME/tools
 ln -s $BASEPATH/tools/gfxworker $megasdk_NAME/tools/
