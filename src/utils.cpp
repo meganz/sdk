@@ -1451,18 +1451,22 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
     return true;
 }
 
-std::string Utils::stringToHex(const std::string &input)
+std::string Utils::stringToHex(const std::string& input, bool spaceBetweenBytes)
 {
     static const char* const lut = "0123456789ABCDEF";
     size_t len = input.length();
 
     std::string output;
-    output.reserve(2 * len);
+    output.reserve(2 * len + (spaceBetweenBytes ? len : 0));
     for (size_t i = 0; i < len; ++i)
     {
         const unsigned char c = static_cast<unsigned char>(input[i]);
         output.push_back(lut[c >> 4]);
         output.push_back(lut[c & 15]);
+        if (spaceBetweenBytes && i + 1 < len)
+        {
+            output.push_back(' ');
+        }
     }
     return output;
 }

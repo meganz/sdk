@@ -35,7 +35,7 @@ using namespace std::chrono;
 namespace mega
 {
 
-bool NetworkConnectivityTest::start(uint64_t userId,
+bool NetworkConnectivityTest::start(UdpSocketTester::TestSuite&& testSuite,
                                     const NetworkConnectivityTestServerInfo& serverInfo)
 {
     if (!mSocketTestersIPv4.empty() || !mSocketTestersIPv6.empty())
@@ -43,8 +43,6 @@ bool NetworkConnectivityTest::start(uint64_t userId,
         return false;
     }
 
-    // Define test parameters
-    UdpSocketTester::TestSuite testSuite{10, 3, 3, 3}; // {loops, Shorts, Longs, Dns-s}
     mTestsPerSocket = testSuite.totalMessageCount();
     mResults = {};
 
@@ -54,9 +52,9 @@ bool NetworkConnectivityTest::start(uint64_t userId,
     for (int p: serverInfo.ports)
     {
         mSocketTestersIPv4.emplace_back(std::make_shared<UdpSocketTester>(serverInfo.ipv4, p))
-            ->startSuite(userId, testSuite);
+            ->startSuite(testSuite);
         mSocketTestersIPv6.emplace_back(std::make_shared<UdpSocketTester>(serverInfo.ipv6, p))
-            ->startSuite(userId, testSuite);
+            ->startSuite(testSuite);
     }
 
     return true;
