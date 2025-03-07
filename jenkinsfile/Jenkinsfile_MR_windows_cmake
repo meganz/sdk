@@ -1,3 +1,41 @@
+def setCommitStatus(String pStatus, String errorHint = '') {
+    switch (pStatus) {
+        case 'running':
+            pState = 'running'
+            pMessage = ""
+            break
+        case 'success':
+            pState = 'success'
+            pMessage = ":white_check_mark: ${env.JOB_NAME} <b>Windows</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'aborted':
+            pState = 'canceled'
+            pMessage = ":interrobang: ${env.JOB_NAME} <b>Windows</b> ABORTED :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'build_failure':
+            pState = 'failed'
+            pMessage = ":red_circle: ${env.JOB_NAME} <b>Windows</b> FAILURE :worried:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'tests_failure':
+            pState = 'failed'
+            pMessage = "🟠 ${env.JOB_NAME} <b>Windows</b> FAILURE :worried:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'unstable':
+            pState = 'failed'
+            pMessage = ":interrobang: ${env.JOB_NAME} <b>Windows</b> UNSTABLE :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        default:
+            pState = 'failed'
+            pMessage = ":interrobang: ${env.JOB_NAME} <b>Windows</b> UNKNOWN :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+    }
+    if (pMessage) {
+        if (errorHint) {
+            pMessage += '<br/> ' + errorHint
+        }
+        addGitLabMRComment(comment: pMessage)
+    }
+    updateGitlabCommitStatus(name: "${PIPELINE_NAME}", state: pState)
+}
 pipeline {
     agent none
     options {
@@ -6,6 +44,7 @@ pipeline {
     }
 
     environment {
+        PIPELINE_NAME = 'Build & test windows'
         BUILD_OPTIONS = ''
         TESTS_PARALLEL = ''
         APIURL_TO_TEST = ''
@@ -77,6 +116,14 @@ pipeline {
                             windows_sources_workspace = WORKSPACE
                         }
                     }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('build_failure', ':warning: Checkout failed')
+                            }
+                            error("Checkout stage failed")
+                        }
+                    }
                 }
                 stage('Build Windows'){
                     environment{
@@ -104,6 +151,14 @@ pipeline {
                             sh "mkdir build_dir_x86"
                             sh "cmake -DCMAKE_PREFIX_PATH='${MEGAQTPATH_X86}' -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' ${BUILD_OPTIONS} ${CMAKE_COMMON} -DCMAKE_GENERATOR_PLATFORM=Win32 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir_x86\\\\"
                             sh "cmake --build '${windows_sources_workspace}'\\\\build_dir_x86\\\\ --config Debug -j 1"
+                        }
+                    }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('build_failure', ':warning: Build failed. Tests won`t run')
+                            }
+                            error("Build stage failed. Tests won't run.")
                         }
                     }
                 }
@@ -153,6 +208,14 @@ pipeline {
                             }
                         }
                     }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('tests_failure', ':warning: Build succeed. Tests failed')
+                            }
+                            error("Test stage failed")
+                        }
+                    }
                 }
             }
             post{
@@ -175,10 +238,6 @@ pipeline {
         aborted {
             updateGitlabCommitStatus(name: 'Build & test windows', state: 'canceled')
             addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} <b>Windows</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
-        }
-        failure {
-            updateGitlabCommitStatus(name: 'Build & test windows', state: 'failed')
-            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} <b>Windows</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )                
         }
     }
 }
