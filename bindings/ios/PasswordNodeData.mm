@@ -19,6 +19,7 @@
  * program.
  */
 #import "PasswordNodeData.h"
+#import "MEGATOTPData.h"
 
 @interface PasswordNodeData ()
 
@@ -26,18 +27,20 @@
 @property (readwrite, nonatomic, nullable) NSString *notes;
 @property (readwrite, nonatomic, nullable) NSString *url;
 @property (readwrite, nonatomic, nullable) NSString *userName;
+@property (readwrite, nonatomic, nullable) MEGATOTPData *totp;
 
 @end
 
 @implementation PasswordNodeData
 
-- (instancetype)initWithPassword:(NSString *)password notes:(nullable NSString *)notes url:(nullable NSString *)url userName:(nullable NSString *)userName {
+- (instancetype)initWithPassword:(NSString *)password notes:(nullable NSString *)notes url:(nullable NSString *)url userName:(nullable NSString *)userName totp:(nullable MEGATOTPData *)totp {
     self = [super init];
     if (self) {
         _password = [password copy];
         _notes = [notes copy];
         _url = [url copy];
         _userName = [userName copy];
+        _totp = totp;
     }
     return self;
 }

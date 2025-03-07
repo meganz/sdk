@@ -22,6 +22,7 @@
 #import "MEGASdk.h"
 #import "megaapi.h"
 #import "MEGANode+init.h"
+#import "MEGATOTPData+init.h"
 #import "MEGASet+init.h"
 #import "MEGASetElement+init.h"
 #import "MEGAUser+init.h"
@@ -3999,21 +4000,27 @@ using namespace mega;
     return self.megaApi->isPasswordNodeFolder(node);
 }
 
-- (void)createPasswordNodeWithName:(NSString *)name data:(PasswordNodeData *)data parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate; {
+- (void)createPasswordNodeWithName:(NSString *)name data:(PasswordNodeData *)data parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        MegaNode::PasswordNodeData *passwordNodeData = MegaNode::PasswordNodeData::createInstance(data.password.UTF8String, data.notes.UTF8String, data.url.UTF8String, data.userName.UTF8String, NULL);
+        MegaNode::PasswordNodeData *passwordNodeData = MegaNode::PasswordNodeData::createInstance(data.password.UTF8String, data.notes.UTF8String, data.url.UTF8String, data.userName.UTF8String, data.totp.getCPtr);
         self.megaApi->createPasswordNode(name.UTF8String, passwordNodeData, parent, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
-- (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate; {
+- (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        MegaNode::PasswordNodeData *passwordNodeData = MegaNode::PasswordNodeData::createInstance(newData.password.UTF8String, newData.notes.UTF8String, newData.url.UTF8String, newData.userName.UTF8String, NULL);
+        MegaNode::PasswordNodeData::TotpData *totpData = nil;
+        if (newData.totp) {
+            totpData = newData.totp.markedToRemove ? MegaNode::PasswordNodeData::TotpData::createRemovalInstance() : newData.totp.getCPtr;
+        }
+        
+        MegaNode::PasswordNodeData *passwordNodeData = MegaNode::PasswordNodeData::createInstance(newData.password.UTF8String, newData.notes.UTF8String, newData.url.UTF8String, newData.userName.UTF8String, totpData);
+        
         self.megaApi->updatePasswordNode(node, passwordNodeData, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
-- (void)importPasswordsFromFile:(NSString *)filePath fileSource:(ImportPasswordFileSource)fileSource parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate; {
+- (void)importPasswordsFromFile:(NSString *)filePath fileSource:(ImportPasswordFileSource)fileSource parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->importPasswordsFromFile(filePath.UTF8String, (int)fileSource, parent, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
