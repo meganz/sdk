@@ -4500,6 +4500,11 @@ MegaNode* MegaApi::getNodeByHandle(uint64_t h)
     return pImpl->getNodeByHandle(h);
 }
 
+MegaTotpTokenGenResult MegaApi::generateTotpTokenFromNode(MegaHandle handle)
+{
+    return pImpl->generateTotpTokenFromNode(handle);
+}
+
 MegaContactRequest *MegaApi::getContactRequestByHandle(MegaHandle handle)
 {
     return pImpl->getContactRequestByHandle(handle);

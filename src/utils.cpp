@@ -2984,12 +2984,18 @@ std::string_view toString(const PasswordEntryError err)
             return "Missing totp shared secret";
         case PasswordEntryError::INVALID_TOTP_SHARED_SECRET:
             return "Invalid totp shared secret";
+        case PasswordEntryError::MISSING_TOTP_NDIGITS:
+            return "Missing totp ndigits";
         case PasswordEntryError::INVALID_TOTP_NDIGITS:
             return "Invalid totp ndigits";
+        case PasswordEntryError::MISSING_TOTP_EXPT:
+            return "Missing totp expt";
         case PasswordEntryError::INVALID_TOTP_EXPT:
             return "Invalid totp expt";
-        case PasswordEntryError::INVALID_TOTP_ALG:
-            return "Invalid totp alg";
+        case PasswordEntryError::MISSING_TOTP_HASH_ALG:
+            return "Missing totp hash alg";
+        case PasswordEntryError::INVALID_TOTP_HASH_ALG:
+            return "Invalid totp hash alg";
     }
     assert(false);
     return "Unknown error";
@@ -3524,4 +3530,5 @@ std::string getThisThreadIdStr()
     ss << std::this_thread::get_id();
     return ss.str();
 }
+
 } // namespace mega

@@ -62,6 +62,7 @@
 #import "PasswordNodeData.h"
 #import "MEGANotification.h"
 #import "MEGACancelSubscriptionReasonList.h"
+#import "MEGATotpTokenGenResult.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -9812,6 +9813,28 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
  * @param delegate MEGARequestDelegate to track this request.
  */
 - (void)importPasswordsFromFile:(NSString *)filePath fileSource:(ImportPasswordFileSource)fileSource parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Generate a TOTP token and its lifetime with the data stored in the node with the
+ * given handle.
+ *
+ * @note This performs a synchronous operation.
+ *
+ * @param handle The handle of the password node with the required totp data needed to
+ * compute the totp token and its lifetime.
+ * @return A `MEGATotpTokenGenResult` object:
+ * - `result`: `int` An error code that can be one of:
+ *   + MEGAErrorTypeApiEArgs: The input handle is `UNDEF`
+ *   + MEGAErrorTypeApiENoent: The input handle does not correspond to a password node
+ *   + MEGAErrorTypeApiEKey: The input handle corresponds to a password node with no TOTP data
+ *   + MEGAErrorTypeApiEInternal: The TOTP data stored in the password node is ill-formed and cannot be
+ *     used to generate valid tokens.
+ *   + MEGAErrorTypeApiOk: the generation succeeded and the result can be retrieved from `tokenLifetime`
+ * - `tokenLifetime`: A `MEGATotpTokenLifetime` object:
+ *   + `token`: `NSString` The generated token
+ *   + `lifetime`: `NSUInteger` The remaining life time in seconds for the generated token
+ */
+- (nullable MEGATotpTokenGenResult *)generateTotpTokenFromNode:(MEGAHandle)handle;
 
 /**
  * @brief Generate a new pseudo-randomly characters-based password

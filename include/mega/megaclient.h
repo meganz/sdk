@@ -2221,6 +2221,9 @@ public:
 
     shared_ptr<Node> nodeByPath(const char* path, std::shared_ptr<Node> node = nullptr, nodetype_t type = TYPE_UNKNOWN);
 
+    using TotpTokenResult = std::pair<int, std::pair<std::string, unsigned>>;
+    TotpTokenResult generateTotpTokenFromNode(const handle h);
+
 #if ENABLE_SYNC
     std::shared_ptr<Node> nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
@@ -3045,7 +3048,7 @@ public:
     static const char* const PWM_ATTR_PASSWORD_TOTP;
     static const char* const PWM_ATTR_PASSWORD_TOTP_SHSE;
     static const char* const PWM_ATTR_PASSWORD_TOTP_EXPT;
-    static const char* const PWM_ATTR_PASSWORD_TOTP_HASH;
+    static const char* const PWM_ATTR_PASSWORD_TOTP_HASH_ALG;
     static const char* const PWM_ATTR_PASSWORD_TOTP_NDIGITS;
 
     // Special value to mark nested data attribute to be removed
@@ -3162,6 +3165,9 @@ public:
      * @param data The attribute map containing TOTP data attr map.
      * @return PasswordEntryError An error code indicating validation status:
      * - `MISSING_TOTP_SHARED_SECRET` if the shared secret is missing.
+     * - `MISSING_TOTP_NDIGITS` if the number of digits is missing.
+     * - `MISSING_TOTP_EXPT` if the expiration time is missing.
+     * - `MISSING_TOTP_HASH_ALG` if the hashing algorithm is missing.
      * - The result of `validateTotpDataFormat(data)`, which checks other fields.
      */
     static PasswordEntryError validateNewNodeTotpData(const AttrMap& data);

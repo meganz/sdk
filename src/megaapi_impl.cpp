@@ -2246,20 +2246,16 @@ MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData() const
         aux.fromjson(getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER));
 
         std::optional<PNDataPrivate::TotpDataPrivate> totp{};
-        if (const auto itTotp =
-                aux.map.find(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP));
-            itTotp != aux.map.end())
-        {
-            AttrMap auxTotp;
-            auxTotp.fromjson(itTotp->second.c_str());
-            totp = PNDataPrivate::TotpDataPrivate::fromMap(auxTotp);
-        }
+        if (const auto auxTotp = aux.getNestedJsonObject(MegaClient::PWM_ATTR_PASSWORD_TOTP);
+            auxTotp)
+            totp = PNDataPrivate::TotpDataPrivate::fromMap(*auxTotp);
 
-        return new PNDataPrivate{aux.read(MegaClient::PWM_ATTR_PASSWORD_PWD),
-                                 aux.read(MegaClient::PWM_ATTR_PASSWORD_NOTES),
-                                 aux.read(MegaClient::PWM_ATTR_PASSWORD_URL),
-                                 aux.read(MegaClient::PWM_ATTR_PASSWORD_USERNAME),
-                                 getPtr(totp)};
+        return new PNDataPrivate{
+            getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_PASSWORD_PWD)),
+            getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_PASSWORD_NOTES)),
+            getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_PASSWORD_URL)),
+            getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_PASSWORD_USERNAME)),
+            getPtr(totp)};
     }
 
     return nullptr;
@@ -18404,6 +18400,13 @@ MegaNode* MegaApiImpl::getNodeByHandle(handle handle)
     return MegaNodePrivate::fromNode(client->nodebyhandle(handle).get());
 }
 
+MegaTotpTokenGenResult MegaApiImpl::generateTotpTokenFromNode(const MegaHandle handle)
+{
+    SdkMutexGuard g(sdkMutex);
+    const auto result = client->generateTotpTokenFromNode(handle);
+    return {result.first, {result.second.first, result.second.second}};
+}
+
 MegaContactRequest *MegaApiImpl::getContactRequestByHandle(MegaHandle handle)
 {
     SdkMutexGuard guard(sdkMutex);
@@ -27152,7 +27155,7 @@ static std::string totpToJson(const MegaNode::PasswordNodeData::TotpData& totp)
             std::to_string(expirationTime);
 
     if (const auto hashAlgorithm = totp.hashAlgorithm(); hashAlgorithm >= 0)
-        attrMap.map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH)] =
+        attrMap.map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG)] =
             totp::hashAlgorithmPubToStrView(hashAlgorithm);
 
     if (const auto nDigits = totp.nDigits(); nDigits >= 0)
@@ -27280,12 +27283,18 @@ static constexpr int toPublicErrorCode(const PasswordEntryError e)
             return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_TOTP_SHSE;
         case PasswordEntryError::INVALID_TOTP_SHARED_SECRET:
             return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_SHSE;
+        case PasswordEntryError::MISSING_TOTP_NDIGITS:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_TOTP_NDIGITS;
         case PasswordEntryError::INVALID_TOTP_NDIGITS:
             return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_NDIGITS;
+        case PasswordEntryError::MISSING_TOTP_EXPT:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_TOTP_EXPTIME;
         case PasswordEntryError::INVALID_TOTP_EXPT:
             return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_EXPTIME;
-        case PasswordEntryError::INVALID_TOTP_ALG:
-            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_ALG;
+        case PasswordEntryError::MISSING_TOTP_HASH_ALG:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_TOTP_HASH_ALG;
+        case PasswordEntryError::INVALID_TOTP_HASH_ALG:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_HASH_ALG;
     }
     assert(false);
     return -1; // We should never get here

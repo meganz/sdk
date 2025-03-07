@@ -111,6 +111,21 @@ TotpValidationErrors validateFields(const std::optional<std::string_view> base32
                                     const std::optional<std::string_view> alg);
 
 /**
+ * @class TotpParameters
+ * @brief Helper POD to group parameters for totp generation that are usually controlled by the
+ * users
+ */
+struct TotpParameters
+{
+    TotpParameters() = default;
+
+    std::string base32Key;
+    unsigned nDigits;
+    std::chrono::seconds expirationTime;
+    HashAlgorithm hashAlgo;
+};
+
+/**
  * @brief Generates a TOTP following RFC-6238 (https://www.rfc-editor.org/rfc/rfc6238)
  *
  * @param base32Key The shared secret key.
@@ -133,6 +148,14 @@ std::pair<std::string, std::chrono::seconds> generateTOTP(
     const unsigned nDigits = DEF_NDIGITS,
     const std::chrono::seconds timeStep = DEF_EXP_TIME,
     const HashAlgorithm hashAlgo = DEF_ALG,
+    const std::chrono::system_clock::time_point t0 = {},
+    const std::chrono::system_clock::time_point tEval = std::chrono::system_clock::now());
+
+/**
+ * @brief Overloaded version that takes the first 4 parameters as a TotpParameters object
+ */
+std::pair<std::string, std::chrono::seconds> generateTOTP(
+    const TotpParameters& totpParams,
     const std::chrono::system_clock::time_point t0 = {},
     const std::chrono::system_clock::time_point tEval = std::chrono::system_clock::now());
 

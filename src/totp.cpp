@@ -261,6 +261,19 @@ std::pair<std::string, seconds> generateTOTP(const std::string& base32Key,
     return generateTOTP(base32Key, duration_cast<seconds>(tEval - t0), nDigits, timeStep, hashAlgo);
 }
 
+std::pair<std::string, std::chrono::seconds>
+    generateTOTP(const TotpParameters& totpParams,
+                 const std::chrono::system_clock::time_point t0,
+                 const std::chrono::system_clock::time_point tEval)
+{
+    return generateTOTP(totpParams.base32Key,
+                        totpParams.nDigits,
+                        totpParams.expirationTime,
+                        totpParams.hashAlgo,
+                        t0,
+                        tEval);
+}
+
 std::pair<std::string, seconds> generateTOTP(const std::string& base32Key,
                                              const seconds timeDelta,
                                              const unsigned nDigits,

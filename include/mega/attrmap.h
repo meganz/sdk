@@ -57,10 +57,15 @@ struct MEGA_API AttrMap
 
     bool getBool(const char* name) const;
 
-    std::optional<std::string> getString(std::string_view name) const;
+    /**
+     * @brief Returns a string with the value matching the given key if it is found on the map
+     */
+    std::optional<std::string> getString(const std::string_view name) const;
 
-    // Same as getString but without copying the string
-    const char* read(const char* const name) const;
+    /**
+     * @brief Returns a view on the value matching the given key if it is found on the map
+     */
+    std::optional<std::string_view> getStringView(const std::string_view name) const;
 
     // compute rough storage size
     unsigned storagesize(int) const;
@@ -70,13 +75,24 @@ struct MEGA_API AttrMap
     static string nameid2string(nameid);
 
     // convert string to nameid
-    static nameid string2nameid(const char *);
+    static nameid string2nameid(const char*);
+
+    static constexpr nameid string2nameid(const std::string_view n)
+    {
+        return makeNameid(n);
+    }
 
     // export as JSON string
     void getjson(string*) const;
 
     // import from JSON string
     void fromjson(const char* buf);
+
+    /**
+     * @brief If there is an entry in the map with the given name, a new AttrMap is generated
+     * assuming the value is in json format.
+     */
+    std::optional<AttrMap> getNestedJsonObject(const std::string_view name) const;
 
     // export as raw binary serialize
     void serialize(string*) const;

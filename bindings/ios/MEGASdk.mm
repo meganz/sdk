@@ -4019,6 +4019,17 @@ using namespace mega;
     }
 }
 
+- (nullable MEGATotpTokenGenResult *)generateTotpTokenFromNode:(MEGAHandle)handle {
+    if (self.megaApi == nil) return nil;
+
+    MegaTotpTokenGenResult tokenGenResult = self.megaApi->generateTotpTokenFromNode(handle);
+    MegaTotpTokenLifetime tokenLifetime = tokenGenResult.result;
+    NSString *token = [NSString stringWithUTF8String:tokenLifetime.token.c_str()];
+    MEGATotpTokenLifetime *result = [[MEGATotpTokenLifetime alloc] initWithToken:token remainingLifeTimeSeconds:tokenLifetime.remainingLifeTimeSeconds];
+    MEGATotpTokenGenResult *tokenGenResultObj = [[MEGATotpTokenGenResult alloc] initWithErrorCode:tokenGenResult.errorCode result:result];
+    return tokenGenResultObj;
+}
+
 + (nullable NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length {
     const char *result = MegaApi::generateRandomCharsPassword(includeCapitalLetters, includeDigits, includeSymbols, length);
     if (!result) return nil;
