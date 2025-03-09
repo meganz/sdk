@@ -26,11 +26,7 @@ void ClientAdapter::desynchronize(mega::handle id)
           std::bind(&std::promise<void>::set_value, &notifier);
 
         // Ask the client to remove our sync.
-        mClient.syncs.disableSyncByBackupId(id,
-                                            NO_SYNC_ERROR,
-                                            false,
-                                            false,
-                                            std::move(completion));
+        mClient.syncs.deregisterThenRemoveSyncById(id, std::move(completion));
     });
 
     // Wait for the client to process our request.
