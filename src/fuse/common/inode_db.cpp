@@ -887,11 +887,15 @@ void InodeDB::handle(FileInode& file,
                      NodeHandle& oldHandle,
                      NodeHandle newHandle)
 {
-    // Acquire locks.
-    auto guard = lockAll(mContext.mDatabase, *this);
-
     // Sanity.
     assert(!newHandle.isUndef());
+
+    // Handle hasn't changed.
+    if (oldHandle == newHandle)
+        return;
+
+    // Acquire locks.
+    auto guard = lockAll(mContext.mDatabase, *this);
 
     // Swap new handle into place.
     std::swap(oldHandle, newHandle);
@@ -906,10 +910,6 @@ void InodeDB::handle(FileInode& file,
     query.param(":name") = nullptr;
     query.param(":parent_handle") = nullptr;
     query.execute();
-
-    // Handle hasn't changed.
-    if (oldHandle == newHandle)
-        return transaction.commit();
 
     // Sanity.
     assert(!mByHandle.count(oldHandle));
@@ -1973,6 +1973,11 @@ void InodeDB::EventObserver::added(const NodeEvent& event)
     // Node replaces an in-memory inode.
     if (auto ref = mInodeDB.child(name, parentHandle, MemoryOnly))
     {
+        // Node is a new version of this inode.
+        if (ref->handle() == handle)
+            return;
+
+        // Node replaces the inode.
         FUSEDebugF("%s (%s) [%s] replaces warm inode %s",
                    name.c_str(),
                    toNodeHandle(handle).c_str(),
