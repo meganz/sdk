@@ -394,8 +394,10 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
 #else
     // iOS doesn't use WAL mode, but Journal
     auto suffix = LocalPath::fromRelativePath("-journal");
-    auto from = legacyPath + suffix;
-    auto to = dbPath + suffix;
+    auto from = legacyPath;
+    from.append(suffix);
+    auto to = dbPath;
+    to.append(suffix);
 
     // -journal could or couldn't be present
     if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
@@ -425,7 +427,8 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
 #else
     // iOS doesn't use WAL mode, but Journal
     auto suffix = LocalPath::fromRelativePath("-journal");
-    auto fileToRemove = dbPath + suffix;
+    auto fileToRemove = dbPath;
+    fileToRemove.append(suffix);
     fsAccess.unlinklocal(fileToRemove);
 
 #endif
