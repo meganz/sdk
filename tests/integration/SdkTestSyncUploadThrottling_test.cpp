@@ -180,6 +180,10 @@ void editFileAndWaitForUpload(std::promise<void>& uploadStarted,
                               const UploadWaitConfig& config = {})
 {
     // 1) Call the completion fileAction function to perform now edits or changes in the file.
+    LOG_verbose
+        << "[editFileAndWaitForUpload] Set timeBeforeFileAction to now [minWaitForTransferStart = "
+        << config.minWaitForTransferStart.count() << " secs, maxWaitForTransferStartFromMinWait = "
+        << config.maxWaitForTransferStartFromMinWait.count() << " secs]";
     const auto timeBeforeFileAction = std::chrono::steady_clock::now();
     fileAction();
 
@@ -820,6 +824,11 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
                 << maxUploadsBeforeThrottle << ") threshold";
     doUnthrottledUploads(tempFile, newFileName, newFilePath, dir1Handle, maxUploadsBeforeThrottle);
 
+    LOG_verbose << logPre
+                << "Reset last processed time for throttling: next upload should happen "
+                   "approximately after updateRateSeconds";
+    uploadThrottlingManager->resetLastProcessedTime();
+
     for (const auto i: range(2))
     {
         LOG_verbose << logPre << "Prepare and edit the file for the next upload (num: "
@@ -840,16 +849,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
             });
 
         // Define the edit action to be executed within editFileAndWaitForUploadScoped().
-        const auto fileEditAction =
-            [&tempFile = std::as_const(tempFile), &uploadThrottlingManager, i]()
+        const auto fileEditAction = [&tempFile = std::as_const(tempFile)]()
         {
-            if (i == 0) // Only the first time
-            {
-                uploadThrottlingManager
-                    ->resetLastProcessedTime(); // This will ensure that the throttle time is
-                                                // more or less updateRateSeconds when calling
-                                                // resetLastProcessedTime().
-            }
             tempFile->appendData(100);
         };
 
