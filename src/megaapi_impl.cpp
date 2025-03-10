@@ -202,7 +202,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->isPublicNode = node->isPublic();
     this->privateAuth = *np->getPrivateAuth();
     this->publicAuth = *np->getPublicAuth();
-    this->chatAuth = np->getChatAuth();
+    this->chatAuth = np->getChatAuth() ? MegaApi::strdup(np->getChatAuth()) : NULL;
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
@@ -253,7 +253,6 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->fingerprint = NULL;
     this->originalfingerprint = NULL;
     this->children = NULL;
-    this->chatAuth = NULL;
 
     if (node->isvalid)
     {
