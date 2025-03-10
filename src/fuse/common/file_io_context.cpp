@@ -1,9 +1,3 @@
-#include <cassert>
-#include <chrono>
-#include <condition_variable>
-#include <future>
-#include <utility>
-
 #include <mega/fuse/common/bind_handle.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/error_or.h>
@@ -15,13 +9,18 @@
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/lock.h>
 #include <mega/fuse/common/logging.h>
-#include <mega/fuse/common/logging.h>
-#include <mega/fuse/common/logging.h>
+#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/service_flags.h>
 #include <mega/fuse/common/task_executor.h>
 #include <mega/fuse/common/upload.h>
 #include <mega/fuse/platform/mount.h>
 #include <mega/fuse/platform/service_context.h>
+
+#include <cassert>
+#include <chrono>
+#include <condition_variable>
+#include <future>
+#include <utility>
 
 namespace mega
 {
@@ -922,7 +921,16 @@ void FileIOContext::FlushContext::uploaded(ErrorOr<UploadResult> result)
     auto bound = [i, this](ErrorOr<NodeHandle> result) {
         // A name's been bound to our content.
         if (result)
-            mContext.mFile->handle(*result);
+        {
+            // Get the file's updated information.
+            auto info = client().get(*result);
+
+            // Sanity.
+            assert(info.error() == API_OK);
+
+            // Update the file's information.
+            mContext.mFile->info(*info);
+        }
 
         // Let the cache know we're done with the bind handle.
         inodeDB().bound(*mContext.mFile, i);

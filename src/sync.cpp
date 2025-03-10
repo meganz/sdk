@@ -4083,7 +4083,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
     error e;
     {
         // todo: even better thead safety
-        lock_guard<mutex> g(mClient.nodeTreeMutex);
+        lock_guard<recursive_mutex> g(mClient.nodeTreeMutex);
         std::tie(e, us.mConfig.mError, us.mConfig.mWarning) = mClient.checkSyncConfig(us.mConfig);
         us.mConfig.mEnabled = e == API_OK && us.mConfig.mError == NO_SYNC_ERROR;
     }
@@ -13656,7 +13656,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         }
     }
 
-    lock_guard<mutex> g(mClient.nodeTreeMutex);
+    lock_guard<recursive_mutex> g(mClient.nodeTreeMutex);
 
     if (nodeIsInActiveSyncQuery)
     {
@@ -13761,7 +13761,7 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     // so we use the mutex to prevent access during that time - which is only actionpacket processing.
     assert(onSyncThread());
 
-    lock_guard<mutex> g(mClient.nodeTreeMutex);
+    lock_guard<recursive_mutex> g(mClient.nodeTreeMutex);
     if (std::shared_ptr<Node> n = mClient.mNodeManager.getNodeByHandle(h))
     {
         assert(n->type > FILENODE);
@@ -13881,7 +13881,7 @@ bool Syncs::hasIgnoreFile(const SyncConfig& config)
     // Is there an ignore file present in the cloud?
     {
         // Ensure we have exclusive access to the remote node tree.
-        lock_guard<mutex> guard(mClient.nodeTreeMutex);
+        lock_guard<recursive_mutex> guard(mClient.nodeTreeMutex);
 
         // Get our hands on the sync root.
         auto root = mClient.mNodeManager.getNodeByHandle(config.mRemoteNode);

@@ -6830,7 +6830,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
 #endif
 
             assert(!mNodeTreeIsChanging.owns_lock());
-            mNodeTreeIsChanging = std::unique_lock<mutex>(client->nodeTreeMutex);
+            mNodeTreeIsChanging = std::unique_lock<recursive_mutex>(client->nodeTreeMutex);
             client->purgenodesusersabortsc(true);
 
             if (client->sctable)
@@ -6848,7 +6848,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         else
         {
             assert(!mNodeTreeIsChanging.owns_lock());
-            mNodeTreeIsChanging = std::unique_lock<mutex>(client->nodeTreeMutex);
+            mNodeTreeIsChanging = std::unique_lock<recursive_mutex>(client->nodeTreeMutex);
         }
         return true;
     });
@@ -7132,7 +7132,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
     // this just makes sure syncs exit any current tree iteration
     client->syncs.syncRun([&](){}, "fetchnodes ready");
 #endif
-    std::unique_lock<mutex> nodeTreeIsChanging(client->nodeTreeMutex);
+    std::unique_lock<recursive_mutex> nodeTreeIsChanging(client->nodeTreeMutex);
     client->purgenodesusersabortsc(true);
 
     if (client->sctable)
