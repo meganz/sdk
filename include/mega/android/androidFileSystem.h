@@ -34,13 +34,17 @@ public:
     AndroidFileWrapper& operator=(const AndroidFileWrapper&) = delete;
     AndroidFileWrapper(AndroidFileWrapper&& other) = delete;
     AndroidFileWrapper& operator=(AndroidFileWrapper&& other) = delete;
+    AndroidFileWrapper(jobject fileWrapper);
+
     bool exists();
     int getFileDescriptor(bool write);
     void close();
     std::string getName();
     std::vector<std::shared_ptr<AndroidFileWrapper>> getChildren();
     bool isFolder();
-    std::string getPath();
+    std::string getURI() const;
+    std::shared_ptr<AndroidFileWrapper> getParent() const;
+    std::optional<std::string> getPath() const;
     bool isURI();
 
     static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const std::string& path);
@@ -48,7 +52,7 @@ public:
 private:
     AndroidFileWrapper(const std::string& path);
     jobject mAndroidFileObject{nullptr};
-    std::string mPath;
+    std::string mURI;
     std::optional<std::string> mName;
     std::optional<bool> mIsFolder;
     std::optional<bool> mIsURI;
@@ -57,6 +61,8 @@ private:
     static constexpr char IS_FOLDER[] = "isFolder";
     static constexpr char GET_NAME[] = "getName";
     static constexpr char GET_CHILDREN_URIS[] = "getChildrenUris";
+    static constexpr char GET_PARENT[] = "getParentFile";
+    static constexpr char GET_PATH[] = "getPath";
 
     static LRUCache<std::string, std::shared_ptr<AndroidFileWrapper>> mRepository;
     static std::mutex mMutex;
@@ -69,7 +75,10 @@ class MEGA_API AndroidPlatformURIHelper: public PlatformURIHelper
 {
 public:
     bool isURI(const std::string& path) override;
-    std::string getName(const std::string& path) override;
+    std::optional<std::string> getName(const std::string& path) override;
+    // Returns parent URI if it's available
+    virtual std::optional<string_type> getParentURI(const string_type& uri);
+    virtual std::optional<string_type> getPath(const string_type& uri);
 
 private:
     /**

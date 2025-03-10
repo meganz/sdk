@@ -15,7 +15,7 @@ LRUCache<std::string, std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::m
 std::mutex AndroidFileWrapper::mMutex;
 
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
-    mPath(path)
+    mURI(path)
 {
     if (fileWrapper == nullptr)
     {
@@ -38,7 +38,7 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
         return;
     }
 
-    jstring jPath = env->NewStringUTF(mPath.c_str());
+    jstring jPath = env->NewStringUTF(mURI.c_str());
     jobject temporalObject = env->CallStaticObjectMethod(fileWrapper, getAndroidFileMethod, jPath);
     env->DeleteLocalRef(jPath);
 
@@ -48,6 +48,10 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
         env->DeleteLocalRef(temporalObject);
     }
 }
+
+AndroidFileWrapper::AndroidFileWrapper(jobject fileWrapper):
+    mAndroidFileObject(fileWrapper)
+{}
 
 AndroidFileWrapper::~AndroidFileWrapper()
 {
@@ -121,9 +125,9 @@ bool AndroidFileWrapper::isFolder()
     return mIsFolder.value();
 }
 
-string AndroidFileWrapper::getPath()
+std::string AndroidFileWrapper::getURI() const
 {
-    return mPath;
+    return mURI;
 }
 
 bool AndroidFileWrapper::isURI()
@@ -146,7 +150,7 @@ bool AndroidFileWrapper::isURI()
         return false;
     }
 
-    mIsURI = !env->CallStaticBooleanMethod(fileWrapper, methodID, env->NewStringUTF(mPath.c_str()));
+    mIsURI = !env->CallStaticBooleanMethod(fileWrapper, methodID, env->NewStringUTF(mURI.c_str()));
     return mIsURI.value();
 }
 
@@ -239,6 +243,64 @@ std::shared_ptr<AndroidFileWrapper>
     return androidFileWrapperNew;
 }
 
+std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getParent() const
+{
+    JNIEnv* env{nullptr};
+    MEGAjvm->AttachCurrentThread(&env, NULL);
+    jmethodID methodID = env->GetMethodID(fileWrapper,
+                                          GET_PARENT,
+                                          "()Lmega/privacy/android/data/filewrapper/FileWrapper;");
+
+    if (methodID == nullptr)
+    {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        LOG_err << "Error: AndroidFileWrapper::getParent";
+        return nullptr;
+    }
+
+    jobject temporalObject = env->CallObjectMethod(mAndroidFileObject, methodID);
+    jobject globalObject{nullptr};
+    if (temporalObject != nullptr)
+    {
+        globalObject = env->NewGlobalRef(temporalObject);
+        env->DeleteLocalRef(temporalObject);
+    }
+
+    if (!globalObject)
+    {
+        return nullptr;
+    }
+
+    return std::make_shared<AndroidFileWrapper>(globalObject);
+}
+
+std::optional<std::string> AndroidFileWrapper::getPath() const
+{
+    JNIEnv* env{nullptr};
+    MEGAjvm->AttachCurrentThread(&env, NULL);
+    jmethodID methodID = env->GetMethodID(fileWrapper, GET_PATH, "()Ljava/lang/String;");
+    if (!methodID)
+    {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        LOG_err << "Error: AndroidFileWrapper::getPath";
+        return std::nullopt;
+    }
+
+    jstring pathString = (jstring)env->CallObjectMethod(mAndroidFileObject, methodID);
+    if (!pathString)
+    {
+        return std::nullopt;
+    }
+
+    const char* chars = env->GetStringUTFChars(pathString, nullptr);
+    std::string outputString(chars);
+    env->ReleaseStringUTFChars(pathString, chars);
+    env->DeleteLocalRef(pathString);
+    return outputString;
+}
+
 AndroidPlatformURIHelper::AndroidPlatformURIHelper()
 {
     URIHandler::setPlatformHelper(this);
@@ -256,7 +318,7 @@ bool AndroidPlatformURIHelper::isURI(const std::string& path)
     return false;
 }
 
-std::string AndroidPlatformURIHelper::getName(const std::string& path)
+std::optional<std::string> AndroidPlatformURIHelper::getName(const std::string& path)
 {
     std::shared_ptr<AndroidFileWrapper> fileWrapper =
         AndroidFileWrapper::getAndroidFileWrapper(path);
@@ -265,7 +327,34 @@ std::string AndroidPlatformURIHelper::getName(const std::string& path)
         return fileWrapper->getName();
     }
 
-    return std::string();
+    return std::nullopt;
+}
+
+std::optional<std::string> AndroidPlatformURIHelper::getParentURI(const std::string& uri)
+{
+    std::shared_ptr<AndroidFileWrapper> fileWrapper =
+        AndroidFileWrapper::getAndroidFileWrapper(uri);
+
+    if (fileWrapper->exists())
+    {
+        std::shared_ptr<AndroidFileWrapper> parentWrapper = fileWrapper->getParent();
+        return parentWrapper ? std::optional<std::string>{parentWrapper->getURI()} : std::nullopt;
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> AndroidPlatformURIHelper::getPath(const std::string& uri)
+{
+    std::shared_ptr<AndroidFileWrapper> fileWrapper =
+        AndroidFileWrapper::getAndroidFileWrapper(uri);
+
+    if (fileWrapper->exists())
+    {
+        return fileWrapper->getPath();
+    }
+
+    return std::nullopt;
 }
 
 bool AndroidFileAccess::fopen(const LocalPath& f,
@@ -576,7 +665,7 @@ bool AndroidDirAccess::dnext(LocalPath& path,
 
     auto& next = mChildren[mIndex];
     assert(next.get());
-    path = LocalPath::fromPlatformEncodedAbsolute(next->getPath());
+    path = LocalPath::fromPlatformEncodedAbsolute(next->getURI());
     name = LocalPath::fromPlatformEncodedRelative(next->getName());
     if (type)
     {
