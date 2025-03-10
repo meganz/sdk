@@ -962,7 +962,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string publicAuth;
         std::string mDeviceId;
         std::string mS4;
-        const char *chatAuth;
+        const char* chatAuth = nullptr;
         uint64_t changed;
 
 #ifdef _MSC_VER
