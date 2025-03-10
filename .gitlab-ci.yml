@@ -1,6 +1,7 @@
+---
 variables:
   GIT_STRATEGY: clone
-  GIT_DEPTH: "0"
+  GIT_DEPTH: "200"
 
 stages:
   - lint
