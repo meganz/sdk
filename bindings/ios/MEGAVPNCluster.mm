@@ -58,7 +58,17 @@
     if (!self.megaVpnCluster) {
         return @[];
     }
-    mega::MegaStringList *dnsList = self.megaVpnCluster->getDns();
+    return [self _dnsListFromMegaStringList:self.megaVpnCluster->getDns()];
+}
+
+- (nonnull NSArray<NSString *> *)adBlockingDns {
+    if (!self.megaVpnCluster) {
+        return @[];
+    }
+    return [self _dnsListFromMegaStringList:self.megaVpnCluster->getAdBlockingDns()];
+}
+
+- (nonnull NSArray<NSString *> *)_dnsListFromMegaStringList:(mega::MegaStringList *)dnsList {
     if (!dnsList) {
         return @[];
     }
