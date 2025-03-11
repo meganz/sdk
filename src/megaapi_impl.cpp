@@ -31818,11 +31818,11 @@ void StreamingBuffer::init(size_t newCapacity)
                   << " [file size = " << fileSize << " bytes"
                   << ", total duration = "
                   << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                  << (duration ?
-                          std::string(", estimated duration in buffer: ")
-                              .append(
-                                  std::to_string(partialDuration(newCapacity)).append(" secs")) :
-                          "")
+                  << (duration ? std::string(", estimated duration in buffer: ")
+                                     .append(std::to_string(
+                                                 partialDuration(static_cast<m_off_t>(newCapacity)))
+                                                 .append(" secs")) :
+                                 "")
                   << "]";
     }
 
@@ -32073,13 +32073,17 @@ std::string StreamingBuffer::bufferStatus() const
     bufferState.reserve(256);
     bufferState.append("[|Buffer status| buffered = ")
                .append(std::to_string(size));
-    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(size)).append( " secs)"));
-    bufferState.append(", free = ")
-               .append(std::to_string(free));
-    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(free)).append( " secs)"));
-    bufferState.append(", capacity = ")
-               .append(std::to_string(capacity));
-    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(capacity)).append( " secs)"));
+    if (duration)
+        bufferState.append(" (").append(
+            std::to_string(partialDuration(static_cast<m_off_t>(size))).append(" secs)"));
+    bufferState.append(", free = ").append(std::to_string(free));
+    if (duration)
+        bufferState.append(" (").append(
+            std::to_string(partialDuration(static_cast<m_off_t>(free))).append(" secs)"));
+    bufferState.append(", capacity = ").append(std::to_string(capacity));
+    if (duration)
+        bufferState.append(" (").append(
+            std::to_string(partialDuration(static_cast<m_off_t>(capacity))).append(" secs)"));
     bufferState.append("]");
     return bufferState;
 }
@@ -32087,12 +32091,17 @@ std::string StreamingBuffer::bufferStatus() const
 // http_parser settings
 http_parser_settings MegaTCPServer::parsercfg;
 
-MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, string certificatepath, string keypath, bool ipv6)
-    : useIPv6(ipv6)
+MegaTCPServer::MegaTCPServer(MegaApiImpl* megaApi,
+                             string basePath,
+                             [[maybe_unused]] bool tls,
+                             [[maybe_unused]] string certificatepath,
+                             [[maybe_unused]] string keypath,
+                             bool ipv6):
+    useIPv6(ipv6),
 #ifdef ENABLE_EVT_TLS
-    , useTLS(tls)
+    useTLS(tls)
 #else
-    , useTLS(false)
+    useTLS(false)
 #endif
 {
     this->megaApi = megaApi;
@@ -32162,6 +32171,8 @@ bool MegaTCPServer::start(int newPort, bool newLocalOnly)
 
     thread->start(threadEntryPoint, this);
     uv_sem_wait(&semaphoreStartup);
+    if (!started)
+        port = 0;
 
     LOG_verbose << "MegaTCPServer::start. port = " << newPort << ", returning " << started;
     return started;
@@ -32216,7 +32227,6 @@ void MegaTCPServer::run()
         if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
         {
             LOG_err << "Unable to init evt ctx";
-            port = 0;
             uv_sem_post(&semaphoreStartup);
             uv_sem_post(&semaphoreEnd);
             return;
@@ -32281,7 +32291,6 @@ void MegaTCPServer::run()
         || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
     {
         LOG_err << "TCP failed to bind/listen port = " << port;
-        port = 0;
 
         uv_close((uv_handle_t *)&exit_handle,NULL);
         uv_close((uv_handle_t *)&server,NULL);
@@ -32303,6 +32312,7 @@ void MegaTCPServer::run()
     LOG_info << "Starting uv loop ...";
     uv_run(&uv_loop, UV_RUN_DEFAULT);
 
+    // Can get here only after stop() has been called
     LOG_info << "UV loop ended";
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
@@ -32316,8 +32326,6 @@ void MegaTCPServer::run()
     {
         LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
     }
-    started = false;
-    port = 0;
     LOG_debug << "UV loop thread exit";
 }
 
@@ -32425,6 +32433,7 @@ void MegaTCPServer::stop(bool doNotWait)
     }
     LOG_debug << "Stopped MegaTCPServer port = " << port;
     started = false;
+    port = 0;
 }
 
 int MegaTCPServer::getPort()
@@ -33073,7 +33082,10 @@ void MegaHTTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, 
         }
         else
         {
-            parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
+            parsed = static_cast<ssize_t>(http_parser_execute(&httpctx->parser,
+                                                              &parsercfg,
+                                                              buf->base,
+                                                              static_cast<size_t>(nread)));
         }
     }
 
@@ -33132,8 +33144,10 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
         if (httpctx->streamingBuffer.availableSpace() >= DirectReadSlot::MAX_DELIVERY_CHUNK)
         {
             httpctx->pause = false;
-            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
-            m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
+            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten +
+                            static_cast<m_off_t>(httpctx->streamingBuffer.availableData());
+            m_off_t len = httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten -
+                          static_cast<m_off_t>(httpctx->streamingBuffer.availableData());
 
             LOG_debug << httpctx->getLogName() << "[Streaming] Resuming streaming from " << start
                       << " len: " << len << " " << httpctx->streamingBuffer.bufferStatus();
@@ -33291,7 +33305,7 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
                {
                    httpctx->nodesize = size;
                    LOG_debug << httpctx->getLogName() << "Link size: " << size;
-                   index += (endptr - startsize) + 1;
+                   index += static_cast<size_t>(endptr - startsize) + 1u;
                    if (url[index] == '!')
                    {
                        const char *typeauth = url + index + 1;
@@ -33299,7 +33313,7 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
 
                        const char *ptr = url + index + 1;
                        string auth;
-                       auth.assign(ptr, endsize - ptr);
+                       auth.assign(ptr, static_cast<size_t>(endsize - ptr));
                        if (*typeauth == 'p')
                        {
                            assert(auth.size() == 8);
@@ -33412,7 +33426,7 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
                 return 0;
             }
 
-            httpctx->rangeStart = number;
+            httpctx->rangeStart = static_cast<m_off_t>(number);
             if (length > (index + 1))
             {
                 number = strtoull(value.c_str() + index + 1, &endptr, 10);
@@ -33420,7 +33434,7 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
                 {
                     return 0;
                 }
-                httpctx->rangeEnd = number;
+                httpctx->rangeEnd = static_cast<m_off_t>(number);
             }
             LOG_debug << httpctx->getLogName() << "Range value parsed: " << httpctx->rangeStart
                       << " - " << httpctx->rangeEnd;
@@ -33459,7 +33473,9 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             }
         }
 
-        if (!httpctx->tmpFileAccess->fwrite((const byte*)b, static_cast<unsigned>(n), httpctx->messageBodySize))
+        if (!httpctx->tmpFileAccess->fwrite(reinterpret_cast<const byte*>(b),
+                                            static_cast<unsigned>(n),
+                                            static_cast<m_off_t>(httpctx->messageBodySize)))
         {
             returnHttpCode(httpctx, 500);
             return 0;
@@ -33697,7 +33713,7 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
             unsigned const long long TB = 1024 * GB;
 
             web << "</td><td><span class=\"text\">";
-            unsigned long long bytes = child->getSize();
+            unsigned long long bytes = static_cast<unsigned long long>(child->getSize());
             if (bytes > TB)
                 web << double(((unsigned long long)((100 * bytes) / TB)))/100.0 << " TB";
             else if (bytes > GB)
@@ -33915,8 +33931,10 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     LOG_debug << httpctx->getLogName() << "Message complete";
     httpctx->bytesWritten = 0;
     httpctx->size = 0;
-    httpctx->streamingBuffer.setMaxBufferSize(httpctx->server->getMaxBufferSize());
-    httpctx->streamingBuffer.setMaxOutputSize(httpctx->server->getMaxOutputSize());
+    httpctx->streamingBuffer.setMaxBufferSize(
+        static_cast<unsigned>(httpctx->server->getMaxBufferSize()));
+    httpctx->streamingBuffer.setMaxOutputSize(
+        static_cast<unsigned>(httpctx->server->getMaxOutputSize()));
 
     MegaHTTPServer* httpserver = dynamic_cast<MegaHTTPServer *>(httpctx->server);
 
@@ -34816,8 +34834,10 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     if (httpctx->parser.method != HTTP_HEAD)
     {
         httpctx->streamingBuffer.init(std::max(static_cast<size_t>(len), resstr.size()));
-        httpctx->server->setMaxBufferSize(httpctx->streamingBuffer.getMaxBufferSize());
-        httpctx->server->setMaxOutputSize(httpctx->streamingBuffer.getMaxOutputSize());
+        httpctx->server->setMaxBufferSize(
+            static_cast<int>(httpctx->streamingBuffer.getMaxBufferSize()));
+        httpctx->server->setMaxOutputSize(
+            static_cast<int>(httpctx->streamingBuffer.getMaxOutputSize()));
         httpctx->size = len;
     }
 
@@ -35085,11 +35105,12 @@ bool MegaHTTPContext::onTransferData(MegaApi*,
 
     // append the data to the buffer
     uv_mutex_lock(&mutex);
-    long long remaining =
-        dataSize + (httpTransfer->getTotalBytes() - httpTransfer->getTransferredBytes());
-    long long availableSpace = streamingBuffer.availableSpace();
+    long long remaining = static_cast<long long>(dataSize) +
+                          (httpTransfer->getTotalBytes() - httpTransfer->getTransferredBytes());
+    long long availableSpace = static_cast<long long>(streamingBuffer.availableSpace());
     if ((remaining > availableSpace) &&
-        ((availableSpace - dataSize) < static_cast<long long>(DirectReadSlot::MAX_DELIVERY_CHUNK)))
+        ((availableSpace - static_cast<long long>(dataSize)) <
+         static_cast<long long>(DirectReadSlot::MAX_DELIVERY_CHUNK)))
     {
         LOG_debug << logname << "[Streaming] Buffer full: Pausing streaming. "
                   << streamingBuffer.bufferStatus();
@@ -35732,7 +35753,7 @@ std::string MegaFTPServer::cdup(handle parentHandle, MegaFTPContext* ftpctx)
             ftpctx->cwdpath = shortenpath(ftpctx->cwdpath);
             ftpctx->athandle = false;
             ftpctx->atroot = false;
-            size_t seps = std::count(ftpctx->cwdpath.begin(), ftpctx->cwdpath.end(), '/');
+            ptrdiff_t seps = std::count(ftpctx->cwdpath.begin(), ftpctx->cwdpath.end(), '/');
             if (seps < 2)
             {
                 ftpctx->cwdpath = string("/") + megaApi->handleToBase64(newcwd->getHandle()) + "/" + newcwd->getName();
@@ -35844,7 +35865,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         const char *separators = " ";
         const char *crlf = "\r\n";
 
-        petition = string(buf->base, nread);
+        petition = string(buf->base, static_cast<size_t>(nread));
 
         LOG_verbose << "FTP Server received: " << petition << " at port = " << port;
 
@@ -35861,7 +35882,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         else
         {
-            parsed = petition.size();
+            parsed = static_cast<ssize_t>(petition.size());
             petition = petition.substr(0,psepend);
             command = petition.substr(0,psep);
             for (char& c : command) { c = static_cast<char>(toupper(c)); };
@@ -36682,7 +36703,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 unsigned long long number = strtoull(ftpctx->arg1.c_str(), NULL, 10);
                 if (number != ULLONG_MAX)
                 {
-                    ftpctx->ftpDataServer->rangeStartREST = number;
+                    ftpctx->ftpDataServer->rangeStartREST = static_cast<m_off_t>(number);
                     response = "350 Restarting at: ";
                     response.append(ftpctx->arg1);
                 }
@@ -36946,7 +36967,7 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
             else // This could be unexpected if CWD is removed elsewhere by the time this RequestFinish completes //TODO: decide upon revision: is this OK?
             {
                 MegaNode *n = megaApi->getNodeByHandle(cwd);
-                size_t seps = std::count(cwdpath.begin(), cwdpath.end(), '/');
+                size_t seps = static_cast<size_t>(std::count(cwdpath.begin(), cwdpath.end(), '/'));
                 unsigned int isep = 0;
                 string sup = cwdpath;
                 while (!n && (isep++ < seps))
@@ -37151,8 +37172,11 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
             if (ftpdatactx->streamingBuffer.availableSpace() > ftpdatactx->streamingBuffer.availableCapacity() / 2)
             {
                 ftpdatactx->pause = false;
-                m_off_t start = ftpdatactx->rangeStart + ftpdatactx->rangeWritten + ftpdatactx->streamingBuffer.availableData();
-                m_off_t len =  ftpdatactx->rangeEnd - ftpdatactx->rangeStart -  ftpdatactx->rangeWritten - ftpdatactx->streamingBuffer.availableData();
+                m_off_t start = ftpdatactx->rangeStart + ftpdatactx->rangeWritten +
+                                static_cast<m_off_t>(ftpdatactx->streamingBuffer.availableData());
+                m_off_t len = ftpdatactx->rangeEnd - ftpdatactx->rangeStart -
+                              ftpdatactx->rangeWritten -
+                              static_cast<m_off_t>(ftpdatactx->streamingBuffer.availableData());
 
                 LOG_debug << "[Streaming] Resuming streaming from " << start << " len: " << len
                           << " " << ftpdatactx->streamingBuffer.bufferStatus();
@@ -37257,13 +37281,15 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         if (nread > 0)
         {
             LOG_verbose << " Writing " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
-            if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, static_cast<unsigned>(nread), ftpdatactx->tmpFileSize) )
+            if (!ftpdatactx->tmpFileAccess->fwrite(reinterpret_cast<const byte*>(buf->base),
+                                                   static_cast<unsigned>(nread),
+                                                   static_cast<m_off_t>(ftpdatactx->tmpFileSize)))
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
                 closeConnection(tcpctx);
             }
-            ftpdatactx->tmpFileSize += nread;
+            ftpdatactx->tmpFileSize += static_cast<size_t>(nread);
         }
     }
     else
@@ -37358,8 +37384,10 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             rangeStartREST = 0;// so as not to start again
             ftpdatactx->bytesWritten = 0;
             ftpdatactx->size = 0;
-            ftpdatactx->streamingBuffer.setMaxBufferSize(ftpdatactx->server->getMaxBufferSize());
-            ftpdatactx->streamingBuffer.setMaxOutputSize(ftpdatactx->server->getMaxOutputSize());
+            ftpdatactx->streamingBuffer.setMaxBufferSize(
+                static_cast<unsigned>(ftpdatactx->server->getMaxBufferSize()));
+            ftpdatactx->streamingBuffer.setMaxOutputSize(
+                static_cast<unsigned>(ftpdatactx->server->getMaxOutputSize()));
 
             ftpdatactx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
 
@@ -37589,8 +37617,8 @@ bool MegaFTPDataContext::onTransferData(MegaApi*,
 {
     LOG_verbose << "Streaming data received: " << ftpDataTransfer->getTransferredBytes()
                 << " Size: " << dataSize << " Remaining from transfer: "
-                << (dataSize +
-                    (ftpDataTransfer->getTotalBytes() - ftpDataTransfer->getTransferredBytes()))
+                << (dataSize + static_cast<size_t>(ftpDataTransfer->getTotalBytes() -
+                                                   ftpDataTransfer->getTransferredBytes()))
                 << " Remaining to write TCP: " << (size - bytesWritten)
                 << " Queued: " << this->tcphandle.write_queue_size
                 << " Buffered: " << streamingBuffer.availableData()
@@ -37606,8 +37634,9 @@ bool MegaFTPDataContext::onTransferData(MegaApi*,
     // append the data to the buffer
     uv_mutex_lock(&mutex);
     long long remaining =
-        dataSize + (ftpDataTransfer->getTotalBytes() - ftpDataTransfer->getTransferredBytes());
-    long long availableSpace = streamingBuffer.availableSpace();
+        static_cast<long long>(dataSize) +
+        (ftpDataTransfer->getTotalBytes() - ftpDataTransfer->getTransferredBytes());
+    long long availableSpace = static_cast<long long>(streamingBuffer.availableSpace());
     if (remaining > availableSpace && availableSpace < (2 * m_off_t(dataSize)))
     {
         LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
