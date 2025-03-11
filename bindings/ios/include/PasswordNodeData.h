@@ -20,6 +20,7 @@
  */
 
 #import <Foundation/Foundation.h>
+#import "MEGATOTPData.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -54,9 +55,27 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic, nullable) NSString *userName;
 
 /**
- * @brief Initializer, receiving the necessary attributes from mega::MEGANode::PasswordNodeData.
+ * @brief Represents data related to TOTP (Time-based One-Time Password) token
+ * generation
+ *
+ * @return A `MEGATOTPData` object containing the TOTP data or nil if not set.
  */
-- (instancetype)initWithPassword:(NSString *)password notes:(nullable NSString *)notes url:(nullable NSString *)url userName:(nullable NSString *)userName;
+@property (readonly, nonatomic, nullable) MEGATOTPData *totp;
+
+/**
+ * @brief Initializes a new instance with the provided password-related attributes.
+ *
+ * This initializer creates a new object using the attributes from `mega::MEGANode::PasswordNodeData`.
+ *
+ * @param password The password string (required).
+ * @param notes Additional notes related to the password (optional).
+ * @param url The associated URL, if any (optional).
+ * @param userName The username linked to the password (optional).
+ * @param totp A `MEGATOTPData` instance representing TOTP data (optional).
+ *
+ * @return An initialized instance of the object.
+ */
+- (instancetype)initWithPassword:(NSString *)password notes:(nullable NSString *)notes url:(nullable NSString *)url userName:(nullable NSString *)userName totp:(nullable MEGATOTPData *)totp;
 
 @end
 

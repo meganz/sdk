@@ -1,8 +1,8 @@
 /**
- * @file MEGATotpTokenLifetime.mm
- * @brief Represents a TOTP token and its lifetime
+ * @file MEGATOTPDataValidation+init.h
+ * @brief Private functions of MEGATOTPDataValidation
  *
- * (c) 2025- by Mega Limited, Auckland, New Zealand
+ * (c) 2025 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -18,18 +18,14 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#import "MEGATOTPDataValidation.h"
+#import "megaapi.h"
 
-#import "MEGATotpTokenLifetime.h"
+using MegaTotpDataValidation = mega::MegaNode::PasswordNodeData::TotpData::Validation;
 
-@implementation MEGATotpTokenLifetime
+@interface MEGATOTPDataValidation (init)
 
-- (instancetype)initWithToken:(NSString *)token remainingLifeTimeSeconds:(NSUInteger)remainingLifeTimeSeconds {
-    self = [super init];
-    if (self) {
-        _token = token;
-        _remainingLifeTimeSeconds = remainingLifeTimeSeconds;
-    }
-    return self;
-}
+- (instancetype)initWithMegaTotpDataValidation:(MegaTotpDataValidation *)megaTotpDataValidation cMemoryOwn:(BOOL)cMemoryOwn;
+- (MegaTotpDataValidation *)getCPtr;
 
 @end
