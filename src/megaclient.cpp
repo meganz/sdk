@@ -6131,6 +6131,42 @@ bool MegaClient::slotavail() const
     return !mBlocked && tslots.size() < MAXTOTALTRANSFERS;
 }
 
+bool MegaClient::processStorageStatusFromCmd(const storagestatus_t status)
+{
+    switch (status)
+    {
+        case STORAGE_RED:
+        {
+            const auto isPaywall = (ststatus == STORAGE_PAYWALL);
+            LOG_verbose << "[processStorageStatusFromCmd] Storage status is RED [isPaywall = "
+                        << isPaywall << "]";
+            activateoverquota(0, isPaywall);
+            return true;
+        }
+        case STORAGE_ORANGE:
+        {
+            LOG_verbose << "[processStorageStatusFromCmd] Storage status is ORANGE (close to the "
+                           "storage capacity)";
+            [[fallthrough]];
+        }
+        case STORAGE_GREEN:
+        {
+            setstoragestatus(status);
+            return true;
+        }
+        case STORAGE_UNKNOWN:
+        {
+            LOG_warn << "[processStorageStatusFromCmd] Storage status is unknown";
+            return false;
+        }
+        default:
+        {
+            LOG_err << "[processStorageStatusFromCmd] Invalid storage status: " << status;
+            return false;
+        }
+    }
+}
+
 bool MegaClient::setstoragestatus(storagestatus_t status)
 {
     // transition from paywall to red should not happen
