@@ -3051,9 +3051,6 @@ public:
     static const char* const PWM_ATTR_PASSWORD_TOTP_HASH_ALG;
     static const char* const PWM_ATTR_PASSWORD_TOTP_NDIGITS;
 
-    // Special value to mark nested data attribute to be removed
-    static constexpr std::string_view REMOVAL_PWM_ATTR{"PWM_REMOVE"};
-
     /**
      * @brief Ensures that TotpData attr in map is properly filled with all required fields.
      *
@@ -3068,9 +3065,8 @@ public:
      *
      * @param data The attribute map containing TOTP-related information.
      *
-     * @note If TOTP attribute value is equal to `REMOVAL_PWM_ATTR`, an assertion failure is
-     * triggered. At this point we should already have removed TOTP attr if it has been marked to be
-     * removed.
+     * @note If TOTP attribute value is equal to an empty string, an assertion failure is triggered.
+     * At this point we should already have removed TOTP attr if it has been marked to be removed.
      */
     void ensureTotpDataIsFilled(AttrMap& data) const;
     NodeHandle getPasswordManagerBase();

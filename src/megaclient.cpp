@@ -21615,7 +21615,7 @@ void MegaClient::ensureTotpDataIsFilled(AttrMap& data) const
         return;
     }
 
-    if (totpIt->second == REMOVAL_PWM_ATTR)
+    if (totpIt->second.empty())
     {
         assert(false);
         LOG_err << "Ill-formed Totp data";
@@ -21957,7 +21957,7 @@ error MegaClient::updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> new
     const auto itNewDataTotp = newData->map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
     AttrMap newTotpData;
     const bool containsNewDataTotp = itNewDataTotp != newData->map.end();
-    const bool removeTotpData = containsNewDataTotp && itNewDataTotp->second == REMOVAL_PWM_ATTR;
+    const bool removeTotpData = containsNewDataTotp && itNewDataTotp->second.empty();
     if (containsNewDataTotp && !removeTotpData)
     {
         newTotpData.fromjson(itNewDataTotp->second.c_str());
