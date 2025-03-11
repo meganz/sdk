@@ -136,9 +136,12 @@ TEST(LocalPathTest, LocalPathCreation)
     LOG_debug << "#### Test6: Create absolute LocalPath from a string that was already converted "
                  "to be appropriate for a local file path ####";
     {
-#ifdef WIN32
+#if defined(WIN32)
         std::string input{"D:\\home\\user\\Jose\x65\xCC\x81.txt"};
         std::string expected{"D:\\home\\user\\Jose\x65\xCC\x81.txt"};
+#elif defined(__MACH__)
+        std::string input{"/home/user/Jos\xC3\xA9.txt"};
+        std::string expected{"/home/user/Jose\xCC\x81.txt"};
 #else
         std::string input{"/home/user/Jos\xC3\xA9.txt"};
         std::string expected{"/home/user/Jos\xC3\xA9.txt"};
@@ -152,9 +155,12 @@ TEST(LocalPathTest, LocalPathCreation)
     LOG_debug << "#### Test7: Create relative LocalPath from a string that was already converted "
                  "to be appropriate for a local file path ####";
     {
-#ifdef WIN32
+#if defined(WIN32)
         std::string input{"Jose\x65\xCC\x81.txt"};
         std::string expected{"Jose\x65\xCC\x81.txt"};
+#elif defined(__MACH__)
+        std::string input{"Jos\xC3\xA9.txt"};
+        std::string expected{"Jose\xCC\x81.txt"};
 #else
         std::string input{"Jos\xC3\xA9.txt"};
         std::string expected{"Jos\xC3\xA9.txt"};
