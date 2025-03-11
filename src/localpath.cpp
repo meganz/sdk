@@ -69,6 +69,7 @@ public:
     void trimNonDriveTrailingSeparator() override;
     bool findPrevSeparator(size_t& separatorBytePos,
                            const FileSystemAccess& fsaccess) const override;
+    bool beginsWithSeparator() const override;
     bool endsInSeparator() const override;
 
     size_t getLeafnameByteIndex() const override;
@@ -128,7 +129,6 @@ private:
 
     void removeTrailingSeparators();
     void truncate(size_t bytePos);
-    bool beginsWithSeparator() const;
     LocalPath subpathTo(size_t bytePos) const;
     bool findNextSeparator(size_t& separatorBytePos) const;
 };
@@ -152,6 +152,7 @@ public:
     void trimNonDriveTrailingSeparator() override;
     bool findPrevSeparator(size_t& separatorBytePos,
                            const FileSystemAccess& fsaccess) const override;
+    bool beginsWithSeparator() const override;
     bool endsInSeparator() const override;
 
     size_t getLeafnameByteIndex() const override;
@@ -668,6 +669,16 @@ bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAcce
     return false;
 }
 
+bool LocalPath::beginsWithSeparator() const
+{
+    if (mImplementation)
+    {
+        return mImplementation->beginsWithSeparator();
+    }
+
+    return false;
+}
+
 bool LocalPath::endsInSeparator() const
 {
     if (mImplementation)
@@ -972,7 +983,7 @@ void Path::appendWithSeparator(const LocalPath& additionalPath, const bool separ
 
 #ifdef USE_IOS
     bool originallyUsesAppBasePath =
-        isAbsolute() && (localpath.empty() || localpath.front() != localPathSeparator);
+        getPathType() == PathType::ABSOLUTE_PATH && (empty() || !beginsWithSeparator());
 #endif
 
     if (separatorAlways || mLocalpath.size())
@@ -992,9 +1003,9 @@ void Path::appendWithSeparator(const LocalPath& additionalPath, const bool separ
 #ifdef USE_IOS
     if (originallyUsesAppBasePath)
     {
-        while (!localpath.empty() && localpath.front() == localPathSeparator)
+        while (!empty() && beginsWithSeparator())
         {
-            localpath.erase(0, 1);
+            mLocalpath.erase(0, 1);
         }
     }
 #endif
@@ -1547,10 +1558,10 @@ LocalPath PathURI::leafName() const
     }
     else
     {
-        std::optional<string_type> optionalName = URIHandler::getName(mUri);
-        if (optionalName.has_value())
+        string_type name = URIHandler::getName(mUri);
+        if (!name.empty())
         {
-            LocalPath::local2path(&optionalName.value(), &aux, false);
+            LocalPath::local2path(&name, &aux, false);
             return LocalPath::fromRelativePath(aux);
         }
     }
@@ -1568,10 +1579,10 @@ std::string PathURI::leafOrParentName() const
     }
     else
     {
-        std::optional<string_type> optionalName = URIHandler::getName(mUri);
-        if (optionalName.has_value())
+        string_type name = URIHandler::getName(mUri);
+        if (!name.empty())
         {
-            LocalPath::local2path(&optionalName.value(), &aux, false);
+            LocalPath::local2path(&name, &aux, false);
             return aux;
         }
     }
@@ -1619,10 +1630,17 @@ bool PathURI::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess
     return false;
 }
 
+bool PathURI::beginsWithSeparator() const
+{
+    LOG_err << "Invalid operation for URI Path (beginsWithSeparator)";
+    assert(false); // TODO ARV, improve implementation (Maybe we can check if its folder)
+    return false;
+}
+
 bool PathURI::endsInSeparator() const
 {
     LOG_err << "Invalid operation for URI Path (endsInSeparator)";
-    assert(false); // TODO ARV, improve implementation (Maybe we can chek if its folder)
+    assert(false); // TODO ARV, improve implementation (Maybe we can check if its folder)
     return false;
 }
 

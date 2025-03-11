@@ -70,6 +70,7 @@ public:
     virtual void trimNonDriveTrailingSeparator() = 0;
     virtual bool findPrevSeparator(size_t& separatorBytePos,
                                    const FileSystemAccess& fsaccess) const = 0;
+    virtual bool beginsWithSeparator() const = 0;
     virtual bool endsInSeparator() const = 0;
 
     virtual size_t getLeafnameByteIndex() const = 0;
@@ -305,6 +306,7 @@ public:
     LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const;
     void trimNonDriveTrailingSeparator();
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
+    bool beginsWithSeparator() const;
     bool endsInSeparator() const;
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
