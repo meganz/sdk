@@ -318,7 +318,7 @@ public:
         return data32;
     }
 
-    static std::string stringToHex(const std::string& input);
+    static std::string stringToHex(const std::string& input, bool spaceBetweenBytes = false);
     static std::string hexToString(const std::string& input);
     /**
      * @brief Converts a hexadecimal string to a uint64_t value. The input string may or may not have the hex prefix "0x".

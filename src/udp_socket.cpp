@@ -109,7 +109,7 @@ UdpSocket::Communication
             std::string response{buffer, static_cast<size_t>(bytesReceived)};
             return {0, response};
         }
-        else if (noDataYet())
+        else if (noDataYet() || !getSocketErrorCode())
         {
             // No data available yet. We can waste time here up to given timeout,
             // but let's evaluate and try again after some decent interval
@@ -269,6 +269,15 @@ UdpSocket::Communication UdpSocket::getSocketError()
     return {errorCode, messageCopy};
 #else
     return {errno, strerror(errno)};
+#endif
+}
+
+int UdpSocket::getSocketErrorCode()
+{
+#if defined(_WIN32)
+    return WSAGetLastError();
+#else
+    return errno;
 #endif
 }
 

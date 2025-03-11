@@ -66,6 +66,7 @@ private:
     static bool noDataYet();
     void closeSocket();
     static Communication getSocketError();
+    static int getSocketErrorCode();
 };
 
 } // namespace mega

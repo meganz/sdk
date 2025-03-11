@@ -21510,19 +21510,33 @@ void MegaClient::runNetworkConnectivityTest(
         {
             if (e)
             {
-                LOG_err
-                    << "Failed to retrieve Network Connectivity test server. Test will not run.";
+                LOG_err << "NetworkConnectivityTest: failed to retrieve server info.";
                 testCompletion(e, {});
                 return;
             }
+
+            UdpSocketTester::TestSuite testSuite{10, // loop count
+                                                 3, // short message count
+                                                 3, // long message count
+                                                 3, // DNS message count
+                                                 me}; // user id
+            LOG_debug << "NetworkConnectivityTest: messages to be sent (hex):";
+            LOG_debug << "NetworkConnectivityTest: S: "
+                      << Utils::stringToHex(testSuite.getShortMessage(), true);
+            LOG_debug << "NetworkConnectivityTest: L: "
+                      << Utils::stringToHex(testSuite.getLongMessage(), true);
+            LOG_debug << "NetworkConnectivityTest: D (IPV4): "
+                      << Utils::stringToHex(testSuite.getDnsIPv4Message(), true);
+            LOG_debug << "NetworkConnectivityTest: D (IPV6): "
+                      << Utils::stringToHex(testSuite.getDnsIPv6Message(), true);
 
             using namespace std::chrono;
             auto netTestStart = high_resolution_clock::now();
 
             NetworkConnectivityTest test;
-            if (!test.start(me, std::move(serverInfo)))
+            if (!test.start(std::move(testSuite), std::move(serverInfo)))
             {
-                LOG_err << "Failed to start Network Connectivity test (already running?).";
+                LOG_err << "NetworkConnectivityTest: failed to start test (already running?).";
                 testCompletion(API_EINTERNAL, {});
                 return;
             }
@@ -21531,12 +21545,12 @@ void MegaClient::runNetworkConnectivityTest(
 
             // Log errors from socket communication
             for (const auto& singleError: testResults.ipv4.socketErrors)
-                LOG_err << singleError;
+                LOG_err << "NetworkConnectivityTest: " << singleError;
             for (const auto& singleError: testResults.ipv6.socketErrors)
-                LOG_err << singleError;
+                LOG_err << "NetworkConnectivityTest: " << singleError;
 
             LOG_info
-                << "Network Connectivity test ran for "
+                << "NetworkConnectivityTest: test ran for "
                 << duration_cast<milliseconds>(high_resolution_clock::now() - netTestStart).count()
                 << " ms.";
 
