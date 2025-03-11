@@ -2966,17 +2966,12 @@ private:
     std::pair<bool, error> checkRenameNodePrecons(std::shared_ptr<Node> n);
 
     /**
-     * @brief Prepares the password node data and stores in attributes map (in JSON format).
+     * @brief Stores json serialized `data` into the  `attrs` `NODE_ATTR_PASSWORD_MANAGER` field
      *
-     * This function verifies that the provided `data` map is not empty, ensures that
-     * TOTP data fields are properly set using `ensureTotpDataIsFilled`, and then
-     * converts the `data` map to a JSON string. The resulting JSON data is stored
-     * in the `attrs` map under the key corresponding to `NODE_ATTR_PASSWORD_MANAGER`.
-     *
-     * @param attrs The attribute map where the processed password node data will be stored.
+     * @param attrs The node attribute map to write the serialized password data
      * @param data The attribute map containing password-related information.
      */
-    void preparePasswordNodeData(attr_map& attrs, AttrMap& data) const;
+    void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
 
     // Get a string to complete sc/wsc url and receive partial action packages
     // It's used from clients of type PWD and VPN
@@ -3051,24 +3046,6 @@ public:
     static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_HASH_ALG{"alg"};
     static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_NDIGITS{"nd"};
 
-    /**
-     * @brief Ensures that TotpData attr in map is properly filled with all required fields.
-     *
-     * This function checks if the TOTP attribute exists in the provided `data` map.
-     * If it exists and contains ill-formed data, it removes it.
-     * Additionally, it verifies the presence of essential TOTP parameters such as:
-     * - Number of digits (`PWM_ATTR_PASSWORD_TOTP_NDIGITS`)
-     * - Expiry time (`PWM_ATTR_PASSWORD_TOTP_EXPT`)
-     * - Hash algorithm (`PWM_ATTR_PASSWORD_TOTP_HASH`)
-     *
-     * If any of these fields are missing, they are added with default values.
-     *
-     * @param data The attribute map containing TOTP-related information.
-     *
-     * @note If TOTP attribute value is equal to an empty string, an assertion failure is triggered.
-     * At this point we should already have removed TOTP attr if it has been marked to be removed.
-     */
-    void ensureTotpDataIsFilled(AttrMap& data) const;
     NodeHandle getPasswordManagerBase();
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
     error createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,

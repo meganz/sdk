@@ -21599,74 +21599,10 @@ NodeHandle MegaClient::getPasswordManagerBase()
                NodeHandle{};
 }
 
-void MegaClient::ensureTotpDataIsFilled(AttrMap& data) const
-{
-    auto totpIt = data.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
-    if (totpIt == data.map.end())
-    {
-        return;
-    }
-
-    if (totpIt->second.empty())
-    {
-        assert(false);
-        LOG_err << "Ill-formed Totp data";
-        data.map.erase(totpIt);
-        return;
-    }
-
-    AttrMap totpMap;
-    totpMap.fromjson(data.map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
-
-    assert(totpMap.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_SHSE)));
-
-    bool hasChanged{false};
-    if (const auto nDigitsIt =
-            (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_NDIGITS)));
-        nDigitsIt == totpMap.map.end())
-    {
-        hasChanged = true;
-        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_NDIGITS)] =
-            std::to_string(totp::DEF_NDIGITS);
-    }
-
-    if (const auto expTimeIt =
-            (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_EXPT)));
-        expTimeIt == totpMap.map.end())
-    {
-        hasChanged = true;
-        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_EXPT)] =
-            std::to_string(totp::DEF_EXP_TIME.count());
-    }
-
-    if (const auto algIt =
-            (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH_ALG)));
-        algIt == totpMap.map.end())
-    {
-        hasChanged = true;
-        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH_ALG)] =
-            totp::hashAlgorithmToStrView(totp::DEF_ALG);
-    }
-
-    if (!hasChanged)
-    {
-        return;
-    }
-
-    LOG_info << "Adding missing fields to Totp attr map";
-    std::string attrJson;
-    totpMap.getjson(&attrJson);
-    data.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)] = attrJson;
-}
-
-void MegaClient::preparePasswordNodeData(attr_map& attrs, AttrMap& data) const
+void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const
 {
     assert(!data.map.empty());
-
-    ensureTotpDataIsFilled(data);
-    std::string jsonData;
-    data.getjson(&jsonData);
-    attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = std::move(jsonData);
+    attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = data.getjson();
 }
 
 std::string MegaClient::getPartialAPs()
