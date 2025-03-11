@@ -13376,7 +13376,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         assert(pwdData.has_value());
         cout << "Password data for entry " << pwdNode->attrs.map['n'] << " (" << toNodeHandle(nh) << "):\n";
         const auto printAttr =
-            [](const char* attr, const AttrMap& data, const unsigned nest = 1) -> void
+            [](const std::string_view attr, const AttrMap& data, const unsigned nest = 1) -> void
         {
             for (unsigned i = 0; i < nest; ++i)
                 std::cout << "\t";

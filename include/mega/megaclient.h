@@ -3041,15 +3041,15 @@ public:
 
     // Password Manager
     static const char* const NODE_ATTR_PASSWORD_MANAGER;
-    static const char* const PWM_ATTR_PASSWORD_NOTES;
-    static const char* const PWM_ATTR_PASSWORD_URL;
-    static const char* const PWM_ATTR_PASSWORD_USERNAME;
-    static const char* const PWM_ATTR_PASSWORD_PWD;
-    static const char* const PWM_ATTR_PASSWORD_TOTP;
-    static const char* const PWM_ATTR_PASSWORD_TOTP_SHSE;
-    static const char* const PWM_ATTR_PASSWORD_TOTP_EXPT;
-    static const char* const PWM_ATTR_PASSWORD_TOTP_HASH_ALG;
-    static const char* const PWM_ATTR_PASSWORD_TOTP_NDIGITS;
+    static constexpr std::string_view PWM_ATTR_PASSWORD_NOTES{"n"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_URL{"url"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_USERNAME{"u"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_PWD{"pwd"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP{"totp"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_SHSE{"shse"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_EXPT{"t"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_HASH_ALG{"alg"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_NDIGITS{"nd"};
 
     /**
      * @brief Ensures that TotpData attr in map is properly filled with all required fields.

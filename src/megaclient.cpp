@@ -21588,15 +21588,6 @@ void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion
 }
 
 const char* const MegaClient::NODE_ATTR_PASSWORD_MANAGER = "pwm";
-const char* const MegaClient::PWM_ATTR_PASSWORD_NOTES = "n";
-const char* const MegaClient::PWM_ATTR_PASSWORD_URL = "url";
-const char* const MegaClient::PWM_ATTR_PASSWORD_USERNAME = "u";
-const char* const MegaClient::PWM_ATTR_PASSWORD_PWD = "pwd";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP = "totp";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE = "shse";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT = "t";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG = "alg";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS = "nd";
 
 NodeHandle MegaClient::getPasswordManagerBase()
 {
@@ -21917,7 +21908,7 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
         }
 
         auto attrMap = std::make_unique<AttrMap>();
-        auto addField = [&attrMap](std::string&& field, const char* const fieldKey)
+        auto addField = [&attrMap](std::string&& field, const std::string_view fieldKey)
         {
             if (!field.empty())
                 attrMap->map[AttrMap::string2nameid(fieldKey)] = std::move(field);
