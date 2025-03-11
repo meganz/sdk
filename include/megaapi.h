@@ -12890,8 +12890,18 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
          *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish
+         * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EBUSINESSPASTDUE:
+         *   + If the MEGA account is a business account and it's status is expired
+         * - MegaError::API_EARGS:
+         *   + If `newData` is nullptr or empty
+         *   + If `node` does not belong to a password node
+         * - MegaError::API_EAPPKEY:
+         *   + If the node ends up in an invalid state after applying the provided updates in
+         *    `newData`. For example, some of the Totp fields are removed.
          *
          * @param node Node to modify
          * @param newData New data for the Password Node to update

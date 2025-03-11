@@ -9734,24 +9734,22 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
     return API_OK;
 }
 
-std::pair<bool, error> MegaClient::checkRenameNodePrecons(std::shared_ptr<Node> n)
+error MegaClient::checkRenameNodePrecons(std::shared_ptr<Node> n)
 {
-    if (ststatus == STORAGE_PAYWALL) return std::make_pair(false, API_EPAYWALL);
-
-    if (!n) return std::make_pair(false, API_EARGS);
-
-    if (!checkaccess(n.get(), FULL)) return std::make_pair(false, API_EACCESS);
-
-    return std::make_pair(true, API_OK);
+    if (ststatus == STORAGE_PAYWALL)
+        return API_EPAYWALL;
+    if (!n)
+        return API_EARGS;
+    if (!checkaccess(n.get(), FULL))
+        return API_EACCESS;
+    return API_OK;
 }
 
 error MegaClient::renameNode(NodeHandle nh, const char* newName, CommandSetAttr::Completion&& cbRequest)
 {
     auto node = nodeByHandle(nh);
-    const auto aux = checkRenameNodePrecons(node);
-    const bool& preconsOK = aux.first;
-    const error& code = aux.second;
-    if (!preconsOK) return code;
+    if (const auto err = checkRenameNodePrecons(node); err != API_OK)
+        return err;
 
     if (!(newName && *newName)) return API_EARGS;
 
@@ -21865,76 +21863,38 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
     return result;
 }
 
-error MegaClient::updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
+error MegaClient::updatePasswordNode(const NodeHandle nh,
+                                     std::unique_ptr<AttrMap> newData,
                                      CommandSetAttr::Completion&& cb)
 {
     auto pwdNode = nodeByHandle(nh);
-    const auto aux = checkRenameNodePrecons(pwdNode);
-    const bool& preconsOK = aux.first;
-    const error& code = aux.second;
-    if (!preconsOK) return code;
+    if (const auto err = checkRenameNodePrecons(pwdNode); err != API_OK)
+        return err;
+    if (!newData || newData->map.empty())
+        return logAndReturnError(
+            API_EARGS,
+            "Password Manager: calling updatePasswordNode with nothing to update");
+    if (!pwdNode->isPasswordNode())
+        return logAndReturnError(
+            API_EARGS,
+            "Password Manager: calling updatePasswordNode with not a Password node handle");
 
-    if (!(newData && !newData->map.empty() && pwdNode->isPasswordNode()))
-    {
-        LOG_err << "Password Manager: failed Password Node update wrong parameters "
-                << (pwdNode->isPasswordNode() ? "" : "Node provided is not Password Node ")
-                << (newData && !newData->map.empty() ? "" : "nothing to update ");
-        return API_EARGS;
-    }
+    AttrMap mergedData =
+        pwdNode->attrs.getNestedJsonObject(NODE_ATTR_PASSWORD_MANAGER).value_or(AttrMap{});
+    mergedData.applyUpdatesWithNestedFields(*newData, std::array{PWM_ATTR_PASSWORD_TOTP});
 
-    const auto itNewDataTotp = newData->map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
-    AttrMap newTotpData;
-    const bool containsNewDataTotp = itNewDataTotp != newData->map.end();
-    const bool removeTotpData = containsNewDataTotp && itNewDataTotp->second.empty();
-    if (containsNewDataTotp && !removeTotpData)
-    {
-        newTotpData.fromjson(itNewDataTotp->second.c_str());
-        if (validateTotpDataFormat(newTotpData) != PasswordEntryError::OK)
-        {
-            LOG_err << "Password Manager: invalid TotpData";
-            return API_EAPPKEY;
-        }
-    }
-
-    AttrMap mergedData;
-    mergedData.fromjson(
-        pwdNode->attrs.map[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)].c_str());
-
-    const auto itMergedTotp = mergedData.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
-    AttrMap mergedTotpData;
-    if (itMergedTotp != mergedData.map.end())
-    {
-        mergedTotpData.fromjson(itMergedTotp->second.c_str());
-    }
-
-    mergedTotpData.applyUpdates(newTotpData.map);
-
-    mergedData.applyUpdates(newData->map);
-    if (auto itNewMergedTotp = mergedData.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
-        itNewMergedTotp != mergedData.map.end())
-    {
-        if (removeTotpData)
-        {
-            mergedData.map.erase(itNewMergedTotp);
-        }
-        else
-        {
-            if (validateNewNodeTotpData(mergedTotpData) != PasswordEntryError::OK)
-            {
-                LOG_err << "Password Manager: invalid TotpData after merging updates";
-                return API_EAPPKEY;
-            }
-            std::string totpStr;
-            mergedTotpData.getjson(&totpStr);
-            itNewMergedTotp->second = totpStr;
-        }
-    }
+    if (const auto validCode = validateNewPasswordNodeData(mergedData);
+        validCode != PasswordEntryError::OK)
+        return logAndReturnError(API_EAPPKEY,
+                                 "Password Manager: calling updatePasswordNode with data that "
+                                 "leaves the node in an invalid state. Validation error: " +
+                                     std::string{toString(validCode)});
 
     attr_map updates;
     preparePasswordNodeData(updates, mergedData);
 
-    const bool canChangeVault = true;
-    return setattr(pwdNode, std::move(updates), std::move(cb), canChangeVault);
+    static constexpr bool CAN_CHANGE_VAULT{true};
+    return setattr(std::move(pwdNode), std::move(updates), std::move(cb), CAN_CHANGE_VAULT);
 }
 
 std::string MegaClient::generatePasswordChars(const bool useUpper,

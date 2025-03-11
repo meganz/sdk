@@ -2963,8 +2963,6 @@ private:
     // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (MegaClient::putVpnCredential)
     StringKeyPair generateVpnKeyPair();
 
-    std::pair<bool, error> checkRenameNodePrecons(std::shared_ptr<Node> n);
-
     /**
      * @brief Stores json serialized `data` into the  `attrs` `NODE_ATTR_PASSWORD_MANAGER` field
      *
@@ -2972,6 +2970,17 @@ private:
      * @param data The attribute map containing password-related information.
      */
     void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+
+    /**
+     * @brief Checks preconditions for node rename operations on the given node.
+     *
+     * @return  Possible returned error codes:
+     * - API_EPAYWALL: If over disk quota paywall
+     * - API_EARGS: If the given node is nullptr
+     * - API_EACCESS: If the node is not full accessible
+     * - API_OK: No problems to rename the node
+     */
+    error checkRenameNodePrecons(std::shared_ptr<Node> n);
 
     // Get a string to complete sc/wsc url and receive partial action packages
     // It's used from clients of type PWD and VPN
@@ -3050,7 +3059,25 @@ public:
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
     error createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
                              std::shared_ptr<Node> nParent, int rtag);
-    error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
+
+    /**
+     * @brief Updates the password node data stored in the node with the given `nh` with the
+     * provided `newData`
+     *
+     * @param nh Handle of the node to update
+     * @param newData Map with the new data. Notice that fields set to empty strings will cause the
+     * data of that field to be removed.
+     * @param cb The callback to forward to the `setattr` call.
+     * @return An error code that can be:
+     * - API_EARGS, if:
+     *   + newData is empty or nullptr
+     *   + The node to update is not a password node
+     *   + The updates leave the node in an invalid state
+     * - All the possible codes returned by MegaClient::checkRenameNodePrecons
+     * - All the possible codes returned by MegaClient::setattr
+     */
+    error updatePasswordNode(const NodeHandle nh,
+                             std::unique_ptr<AttrMap> newData,
                              CommandSetAttr::Completion&& cb);
 
     // Data type to call putnodes and create password nodes
