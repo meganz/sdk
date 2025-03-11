@@ -1671,7 +1671,7 @@ inline bool isAllDigits(const std::string_view s)
                        });
 }
 
-storagestatus_t getStorageStateFromString(const string& value);
+storagestatus_t getStorageStatusFromString(const std::string& storageStateStr);
 
 } // namespace mega
 

@@ -3860,21 +3860,11 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             }
                             else if (at == ATTR_STORAGE_STATE)
                             {
-                                storagestatus_t state = getStorageStateFromString(value);
-                                if (state == STORAGE_UNKNOWN)
+                                if (const auto storageStatus = getStorageStatusFromString(value);
+                                    !client->processStorageStatusFromCmd(storageStatus))
                                 {
-                                    LOG_err << "Storage state unknown: " << state;
-                                    assert(false && "Storage state unknown");
-                                    break;
-                                }
-                                else if (state == STORAGE_RED)
-                                {
-                                    bool isPaywall = (client->ststatus == STORAGE_PAYWALL);
-                                    client->activateoverquota(0, isPaywall);
-                                }
-                                else
-                                {
-                                    client->setstoragestatus(state);
+                                    assert(false &&
+                                           "CommandGetUA: Storage status is unknown or invalid");
                                 }
                             }
                             break;
@@ -5211,7 +5201,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                                                     userStorageLevel,
                                                                     versionUserStorageLevel);
                 }
-                // else (API should never delete it, once created)
+                else
+                {
+                    LOG_debug << "[CommandGetUserData] userStorageLevel is empty";
+                }
 
                 if (changes)
                 {
@@ -5294,7 +5287,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 client->setBusinessStatus(BIZ_STATUS_INACTIVE);
             }
 
-            storagestatus_t state = getStorageStateFromString(userStorageLevel);
+            const auto storageStatus = getStorageStatusFromString(userStorageLevel);
             if (uspw)
             {
                 if (deadlineTs == -1 || warningTs.empty())
@@ -5308,25 +5301,14 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     client->activateoverquota(0, true);
                 }
 
-                if (state != STORAGE_RED)
+                if (storageStatus != STORAGE_RED)
                 {
                     client->sendevent(99492, "Paywall enabled, but storage level not red");
                     assert(false && "Paywall enabled, but storage level not red");
                 }
             }
 
-            if (state != STORAGE_UNKNOWN)
-            {
-                if (state == STORAGE_RED)
-                {
-                    bool isPaywall = (client->ststatus == STORAGE_PAYWALL);
-                    client->activateoverquota(0, isPaywall);
-                }
-                else // orange and green
-                {
-                    client->setstoragestatus(state);
-                }
-            }
+            client->processStorageStatusFromCmd(storageStatus);
 
             mCompletion(&name, &pubk, &privk, API_OK);
             return true;

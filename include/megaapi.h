@@ -10754,7 +10754,7 @@ class MegaApi
             STORAGE_STATE_GREEN = 0,
             STORAGE_STATE_ORANGE = 1,
             STORAGE_STATE_RED = 2,
-            STORAGE_STATE_CHANGE = 3, /** @obsolete not notified any more */
+            STORAGE_STATE_CHANGE = 3, /** @deprecated not notified any more */
             STORAGE_STATE_PAYWALL = 4,
         };
 
