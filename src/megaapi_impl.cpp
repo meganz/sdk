@@ -27141,7 +27141,7 @@ static std::string totpToJson(const MegaNode::PasswordNodeData::TotpData& totp)
 {
     if (totp.markedToRemove())
     {
-        return std::string{MegaClient::REMOVAL_PWM_ATTR};
+        return "";
     }
 
     AttrMap attrMap{};
