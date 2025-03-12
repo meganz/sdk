@@ -485,6 +485,9 @@ public:
 #endif
     }
 
+    SimpleLogger(const SimpleLogger&) = delete;
+    SimpleLogger& operator=(const SimpleLogger&) = delete;
+
     static const char *toStr(LogLevel ll)
     {
         switch (ll)
