@@ -271,6 +271,13 @@ void AttrMap::getjson(string* s) const
     }
 }
 
+std::string AttrMap::getjson() const
+{
+    std::string result;
+    getjson(&result);
+    return result;
+}
+
 void AttrMap::fromjson(const char* buf)
 {
     if (!buf) return;

@@ -65,6 +65,7 @@ set(SDKLIB_HEADERS
     include/mega/syncinternals/syncuploadthrottlingmanager.h
     include/mega/heartbeats.h
     include/mega/utils.h
+    include/mega/utils_optional.h
     include/mega/account.h
     include/mega/transfer.h
     include/mega/transferstats.h

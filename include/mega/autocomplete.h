@@ -286,8 +286,36 @@ namespace autocomplete {
     bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput, bool reportNoMatch);
 
     // functions to bulid command descriptions
-    ACN either(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr, ACN n9 = nullptr, ACN n10 = nullptr, ACN n11 = nullptr, ACN n12 = nullptr, ACN n13 = nullptr);
-    ACN sequence(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr, ACN n9 = nullptr, ACN n10 = nullptr);
+
+    template<typename... Args>
+    ACN either(Args&&... args)
+    {
+        static_assert((std::is_same_v<std::decay_t<Args>, ACN> && ...),
+                      "All arguments must be of type ACN");
+        auto n = std::make_shared<Either>();
+        (n->Add(std::forward<Args>(args)), ...);
+        return n;
+    }
+
+    template<typename... Args>
+    ACN sequence(ACN n1, Args&&... args)
+    {
+        static_assert((std::is_same_v<std::decay_t<Args>, ACN> && ...),
+                      "All arguments must be of type ACN");
+        if constexpr (sizeof...(args) == 0)
+        {
+            return n1;
+        }
+        else
+        {
+            static const auto sequenceBuilder = [](ACN n1, ACN n2) -> ACN
+            {
+                return n2 ? std::make_shared<Sequence>(n1, n2) : n1;
+            };
+            return sequenceBuilder(n1, sequence(std::forward<Args>(args)...));
+        }
+    }
+
     ACN text(const std::string s);
     ACN param(const std::string s);
     ACN flag(const std::string s);

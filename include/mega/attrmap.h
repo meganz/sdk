@@ -84,6 +84,7 @@ struct MEGA_API AttrMap
 
     // export as JSON string
     void getjson(string*) const;
+    std::string getjson() const;
 
     // import from JSON string
     void fromjson(const char* buf);
