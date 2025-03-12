@@ -18,29 +18,19 @@
 using namespace std;
 using namespace mega;
 
-extern string pathSep;
-extern string rootName;
-extern string rootDrive;
-
-std::string pathSep{LocalPath::localPathSeparator_utf8};
-
 #ifdef WIN32
-string rootName = "D";
-string rootDrive = rootName + ':';
+static const string rootName = "D";
+static const string rootDrive = rootName + ':';
+static const string winPathPrefix = "\\\\?\\";
 #else
-string rootName;
-string rootDrive;
+static const string rootName;
+static const string rootDrive;
 #endif
-
-int auxauxauax = 2;
+static const std::string pathSep{LocalPath::localPathSeparator_utf8};
 
 /**
  * @test LocalPathTest.LocalPathCreation
  * @brief Tests different ways to instanciate LocalPath objects
- *
- * @note:  "\x65\xCC\x81" => "e" + "´"
- *         "\xC3\xA9/"    => "é"
- *
  * This test includes the following test cases:
  * - Test1: Convert local path string into MEGA path (UTF-8) string
  * - Test2: Convert local path string into MEGA path (UTF-8 normalized) string
@@ -197,8 +187,8 @@ TEST(LocalPathTest, LocalPathUpdate)
 
     LOG_debug << "#### Test2: append to Localpath ####";
     {
-        LocalPath localPath = LocalPath::fromAbsolutePath(rootDrive + pathSep + "folder1" +
-                                                          pathSep); // + pathSep + "bar.txt");
+        LocalPath localPath =
+            LocalPath::fromAbsolutePath(rootDrive + pathSep + "folder1" + pathSep);
         auto leafLocalPath = LocalPath::fromRelativePath("folder2");
         localPath.append(leafLocalPath);
         auto checkLocalPath =
@@ -307,9 +297,10 @@ TEST(LocalPathTest, LocalPathRead)
 
     LOG_debug << "#### Test6: get LocalPath leaf name given a byte index ####";
     {
-        auto localPath = LocalPath::fromAbsolutePath(rootDrive + pathSep + "bar.txt");
+        const std::string leaf = "bar.txt";
+        auto localPath = LocalPath::fromAbsolutePath(rootDrive + pathSep + leaf);
 #ifdef WIN32
-        EXPECT_EQ(localPath.getLeafnameByteIndex(), rootDrive.size() + pathSep.size());
+        EXPECT_EQ(localPath.getLeafnameByteIndex(), leaf.size());
 #else
         EXPECT_EQ(localPath.getLeafnameByteIndex(), rootDrive.size());
 #endif
@@ -319,7 +310,12 @@ TEST(LocalPathTest, LocalPathRead)
     {
         auto localPath = LocalPath::fromAbsolutePath(rootDrive + pathSep + "bar.txt");
         auto checkLocalPath = LocalPath::fromRelativePath("bar.txt");
+#ifdef WIN32
+        auto sublocalPath =
+            localPath.subpathFrom(winPathPrefix.size() + rootDrive.size() + pathSep.size());
+#else
         auto sublocalPath = localPath.subpathFrom(rootDrive.size() + pathSep.size());
+#endif
         EXPECT_EQ(sublocalPath, checkLocalPath);
     }
 
@@ -336,7 +332,11 @@ TEST(LocalPathTest, LocalPathRead)
         LocalPath nextComponent;
         auto localPath =
             LocalPath::fromAbsolutePath(rootDrive + pathSep + "folder1" + pathSep + "bar.txt");
+#ifdef WIN32
+        size_t idx = winPathPrefix.size() + rootDrive.size() + pathSep.size();
+#else
         size_t idx = rootDrive.size() + pathSep.size();
+#endif
         localPath.nextPathComponent(idx, nextComponent);
         EXPECT_TRUE(localPath.hasNextPathComponent(idx));
         EXPECT_EQ(nextComponent.toPath(false), "folder1");
