@@ -7576,10 +7576,13 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
  * Tests resumption for raid file download.
  */
 #ifdef DEBUG
-TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferResume)
+TEST_F(SdkTest, SdkTestCloudraidTransferResume)
 {
     LOG_info << "___TEST Cloudraid transfer resume___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
