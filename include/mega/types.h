@@ -879,6 +879,7 @@ typedef enum {
     REASON_ERROR_DB_FULL            = 3,
     REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
     REASON_ERROR_NO_JSCD = 5,
+    REASON_ERROR_REGENERATE_JSCD = 6,
 } ErrorReason;
 
 //#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
