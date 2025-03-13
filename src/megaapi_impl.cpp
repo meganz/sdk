@@ -7068,35 +7068,60 @@ void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLog
     if (singleExclusiveLogger)
     {
         assert(!g_exclusiveLogger.exclusiveCallback);
-        g_exclusiveLogger.exclusiveCallback = [megaLogger](const char *time, int loglevel, const char *source, const char *message
+        g_exclusiveLogger.exclusiveCallback = [megaLogger](const char* time,
+                                                           int loglevel,
+                                                           const char* source,
+                                                           const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+                                                           ,
+                                                           const char** directMessages,
+                                                           size_t* directMessagesSizes,
+                                                           unsigned numberMessages
 #endif
-            ){
-                megaLogger->log(time, loglevel, source, message
+                                              )
+        {
+            megaLogger->log(time,
+                            loglevel,
+                            source,
+                            message
 #ifdef ENABLE_LOG_PERFORMANCE
-                    , directMessages, directMessagesSizes, numberMessages
+                            ,
+                            directMessages,
+                            directMessagesSizes,
+                            static_cast<int>(numberMessages)
 #endif
-                );
+            );
         };
 
         SimpleLogger::setOutputClass(&g_exclusiveLogger);
     }
     else
     {
-
-    g_externalLogger.addMegaLogger(megaLogger,
-        [megaLogger](const char *time, int loglevel, const char *source, const char *message
+        g_externalLogger.addMegaLogger(megaLogger,
+                                       [megaLogger](const char* time,
+                                                    int loglevel,
+                                                    const char* source,
+                                                    const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+                                                    ,
+                                                    const char** directMessages,
+                                                    size_t* directMessagesSizes,
+                                                    unsigned numberMessages
 #endif
-        ){
-            megaLogger->log(time, loglevel, source, message
+                                       )
+                                       {
+                                           megaLogger->log(time,
+                                                           loglevel,
+                                                           source,
+                                                           message
 #ifdef ENABLE_LOG_PERFORMANCE
-                , directMessages, directMessagesSizes, numberMessages
+                                                           ,
+                                                           directMessages,
+                                                           directMessagesSizes,
+                                                           static_cast<int>(numberMessages)
 #endif
-            );
-        });
+                                           );
+                                       });
     }
 }
 
