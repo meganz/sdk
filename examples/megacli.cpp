@@ -3923,6 +3923,33 @@ void exec_getmybackups(autocomplete::ACState&)
 }
 
 #ifdef ENABLE_SYNC
+std::string deviceCenterStateToString(CommandBackupPut::SPState state)
+{
+    switch (state)
+    {
+        case CommandBackupPut::SPState::STATE_NOT_INITIALIZED:
+            return "STATE_NOT_INITIALIZED";
+        case CommandBackupPut::SPState::ACTIVE:
+            return "ACTIVE";
+        case CommandBackupPut::SPState::FAILED:
+            return "FAILED";
+        case CommandBackupPut::SPState::TEMPORARY_DISABLED:
+            return "TEMPORARY_DISABLED";
+        case CommandBackupPut::SPState::DISABLED:
+            return "DISABLED";
+        case CommandBackupPut::SPState::PAUSE_UP:
+            return "PAUSE_UP";
+        case CommandBackupPut::SPState::PAUSE_DOWN:
+            return "PAUSE_DOWN";
+        case CommandBackupPut::SPState::PAUSE_FULL:
+            return "PAUSE_FULL";
+        case CommandBackupPut::SPState::DELETED:
+            return "DELETED";
+    }
+
+    return "UNKNOWN";
+}
+
 void exec_backupcentreUpdateState(const string& backupIdStr, CommandBackupPut::SPState newState)
 {
     handle backupId = 0;
@@ -3993,10 +4020,15 @@ void exec_backupcentre(autocomplete::ACState& s)
                         cout << "  local folder: " << d.localFolder << endl;
                         cout << "  device id: " << d.deviceId << endl;
                         cout << "  device user-agent: " << d.deviceUserAgent << endl;
-                        cout << "  sync state: " << d.syncState << endl;
-                        cout << "  sync substate: " << d.syncSubstate << endl;
+                        cout << "  sync state: "
+                             << deviceCenterStateToString(
+                                    static_cast<CommandBackupPut::SPState>(d.syncState))
+                             << endl;
+                        cout << "  sync substate: "
+                             << SyncConfig::syncErrorToStr(static_cast<SyncError>(d.syncSubstate))
+                             << endl;
                         cout << "  extra: " << d.extra << endl;
-                        cout << "    backup name: " << d.backupName << endl;
+                        cout << "  backup name: " << d.backupName << endl;
                         cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
                         cout << "  heartbeat status: " << d.hbStatus << endl;
                         cout << "  heartbeat progress: " << d.hbProgress << endl;
