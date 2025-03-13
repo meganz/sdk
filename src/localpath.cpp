@@ -91,7 +91,6 @@ public:
 
     bool isRootPath() const override;
 
-    const string_type rawValue() const override;
     bool extension(std::string& extension) const override;
     std::string extension() const override;
 
@@ -174,7 +173,6 @@ public:
 
     bool isRootPath() const override;
 
-    const string_type rawValue() const override;
     bool extension(std::string& extension) const override;
     std::string extension() const override;
 
@@ -403,7 +401,7 @@ LocalPath LocalPath::fromRelativeName(std::string path,
     return fromRelativePath(path);
 }
 
-LocalPath LocalPath::fromPlatformEncodedAbsolute(const std::string path)
+LocalPath LocalPath::fromPlatformEncodedAbsolute(const std::string& path)
 {
     if (LocalPath::isURIPath(path))
     {
@@ -453,7 +451,7 @@ LocalPath LocalPath::fromPlatformEncodedAbsolute(wstring&& wpath)
 }
 #endif
 
-LocalPath LocalPath::fromPlatformEncodedRelative(const std::string path)
+LocalPath LocalPath::fromPlatformEncodedRelative(const std::string& path)
 {
     LocalPath p;
     string_type auxPath;
@@ -622,7 +620,7 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
         const auto previousPath = this->toPath(false);
         mImplementation =
             std::make_unique<PathURI>(*LocalPathImplementationHelper::getPathURI(*this));
-        mImplementation->append(LocalPath::fromRelativePath(previousPath));
+        mImplementation->appendWithSeparator(LocalPath::fromRelativePath(previousPath), true);
         return;
     }
     else if (!mImplementation)
@@ -772,7 +770,7 @@ std::string LocalPath::toPath(const bool normalize) const
         return mImplementation->toPath(normalize);
     }
 
-    return std::string{};
+    return {};
 }
 
 std::string LocalPath::toName(const FileSystemAccess& fsaccess) const
@@ -782,7 +780,7 @@ std::string LocalPath::toName(const FileSystemAccess& fsaccess) const
         return mImplementation->toName(fsaccess);
     }
 
-    return std::string{};
+    return {};
 }
 
 bool LocalPath::isRootPath() const
@@ -793,16 +791,6 @@ bool LocalPath::isRootPath() const
     }
 
     return false;
-}
-
-const string_type LocalPath::rawValue() const
-{
-    if (mImplementation)
-    {
-        return mImplementation->rawValue();
-    }
-
-    return string_type{};
 }
 
 bool LocalPath::extension(std::string& extension) const
@@ -822,7 +810,7 @@ std::string LocalPath::extension() const
         return mImplementation->extension();
     }
 
-    return std::string{};
+    return {};
 }
 
 bool LocalPath::related(const LocalPath& other) const
@@ -1308,11 +1296,6 @@ bool Path::isRootPath() const
 #endif
 }
 
-const string_type Path::rawValue() const
-{
-    return mLocalpath;
-}
-
 bool Path::extension(std::string& extension) const
 {
     return extensionOf(leafName().toPath(false), extension);
@@ -1550,23 +1533,7 @@ void PathURI::clear()
 
 LocalPath PathURI::leafName() const
 {
-    std::string aux;
-    if (mAuxPath.size())
-    {
-        LocalPath::local2path(&mAuxPath.back(), &aux, false);
-        return LocalPath::fromRelativePath(aux);
-    }
-    else
-    {
-        string_type name = URIHandler::getName(mUri);
-        if (!name.empty())
-        {
-            LocalPath::local2path(&name, &aux, false);
-            return LocalPath::fromRelativePath(aux);
-        }
-    }
-
-    return {};
+    return LocalPath::fromRelativePath(leafOrParentName());
 }
 
 std::string PathURI::leafOrParentName() const
@@ -1594,12 +1561,19 @@ void PathURI::append(const LocalPath& additionalPath)
 {
     assert(!additionalPath.isAbsolute() && !additionalPath.isURI());
 
-    mAuxPath.emplace_back(additionalPath.asPlatformEncoded(false));
+    mAuxPath.back().append(additionalPath.asPlatformEncoded(false));
 }
 
-void PathURI::appendWithSeparator(const LocalPath& additionalPath, const bool)
+void PathURI::appendWithSeparator(const LocalPath& additionalPath, const bool withSeparator)
 {
-    append(additionalPath);
+    if (withSeparator)
+    {
+        mAuxPath.emplace_back(additionalPath.asPlatformEncoded(false));
+    }
+    else
+    {
+        append(additionalPath);
+    }
 }
 
 void PathURI::prependWithSeparator(const LocalPath&)
@@ -1633,14 +1607,14 @@ bool PathURI::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess
 bool PathURI::beginsWithSeparator() const
 {
     LOG_err << "Invalid operation for URI Path (beginsWithSeparator)";
-    assert(false); // TODO ARV, improve implementation (Maybe we can check if its folder)
+    assert(false);
     return false;
 }
 
 bool PathURI::endsInSeparator() const
 {
     LOG_err << "Invalid operation for URI Path (endsInSeparator)";
-    assert(false); // TODO ARV, improve implementation (Maybe we can check if its folder)
+    assert(false);
     return false;
 }
 
@@ -1668,7 +1642,7 @@ LocalPath PathURI::parentPath() const
 {
     LOG_err << "Invalid operation for URI Path (parentPath)";
     assert(false);
-    return LocalPath{};
+    return {};
 }
 
 LocalPath PathURI::insertFilenameSuffix(const std::string& suffix) const
@@ -1719,11 +1693,6 @@ bool PathURI::isRootPath() const
     return false;
 }
 
-const string_type PathURI::rawValue() const
-{
-    return asPlatformEncoded(false);
-}
-
 bool PathURI::extension(std::string& extension) const
 {
     return extensionOf(leafName().toPath(false), extension);
@@ -1736,6 +1705,8 @@ std::string PathURI::extension() const
 
 bool PathURI::related(const LocalPath&) const
 {
+    LOG_err << "Invalid operation for URI Path (related)";
+    assert(false);
     return false;
 }
 

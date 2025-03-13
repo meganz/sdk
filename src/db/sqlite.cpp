@@ -297,11 +297,13 @@ std::optional<std::filesystem::path>
     SqliteDbAccess::getExistingDbPath(const FileSystemAccess& fsAccess,
                                       const std::string& fname) const
 {
-    auto expectedPath = databasePath(fsAccess, fname, DbAccess::DB_VERSION).rawValue();
+    auto expectedPath =
+        databasePath(fsAccess, fname, DbAccess::DB_VERSION).asPlatformEncoded(false);
     if (std::filesystem::exists(expectedPath))
         return expectedPath;
 
-    expectedPath = databasePath(fsAccess, fname, DbAccess::LEGACY_DB_VERSION).rawValue();
+    expectedPath =
+        databasePath(fsAccess, fname, DbAccess::LEGACY_DB_VERSION).asPlatformEncoded(false);
     if (std::filesystem::exists(expectedPath))
         return expectedPath;
     return {};

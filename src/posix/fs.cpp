@@ -142,14 +142,14 @@ AdjustBasePathResult adjustBasePath(const LocalPath& path)
 
     // No base path.
     if (basePath.empty())
-        return path.rawValue();
+        return path.asPlatformEncoded(false);
 
     // Path is absolute.
     if (path.beginsWithSeparator())
-        return path.rawValue();
+        return path.asPlatformEncoded(false);
 
     // Compute absolute path.
-    basePath.append(path.rawValue());
+    basePath.append(path.asPlatformEncoded(false));
 
     // Return absolute path to caller.
     return basePath;
@@ -159,7 +159,7 @@ AdjustBasePathResult adjustBasePath(const LocalPath& path)
 
 AdjustBasePathResult adjustBasePath(const LocalPath& path)
 {
-    return path.rawValue();
+    return path.asPlatformEncoded(false);
 }
 
 #endif // ! USE_IOS

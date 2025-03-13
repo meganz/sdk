@@ -571,7 +571,8 @@ void SyncConfig::renameDBToMatchTarget(const SyncConfig& targetConfig,
                                                                     targetConfig.mRemoteNode,
                                                                     client.me);
     std::filesystem::path newDbPath{
-        client.dbaccess->databasePath(fsAccess, newDbFileName, DbAccess::DB_VERSION).rawValue()};
+        client.dbaccess->databasePath(fsAccess, newDbFileName, DbAccess::DB_VERSION)
+            .asPlatformEncoded(false)};
     std::filesystem::rename(*currentDbPath, newDbPath);
 }
 
@@ -4381,7 +4382,7 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
             std::filesystem::path newDbPath{
                 syncs.mClient.dbaccess
                     ->databasePath(*syncs.fsaccess, newDbFileName, DbAccess::DB_VERSION)
-                    .rawValue()};
+                    .asPlatformEncoded(false)};
 
             std::filesystem::rename(*currentDbPath, newDbPath);
         }

@@ -93,7 +93,6 @@ public:
 
     virtual bool isRootPath() const = 0;
 
-    virtual const string_type rawValue() const = 0;
     virtual bool extension(std::string& extension) const = 0;
     virtual std::string extension() const = 0;
 
@@ -143,6 +142,15 @@ private:
     static PlatformURIHelper* mPlatformHelper;
 };
 
+/**
+ * @brief Class to manage device paths
+ *
+ * This class provide two implementations one for standard paths and other for URIs
+ * For URI implementation works properly, an implementation for PlatformURIHelper should be provided
+ * Standard path is implemented with a string
+ * URI implementation has a string to store the URI and a vector of string to handle the leaves of
+ * the tree
+ */
 class LocalPath
 {
 public:
@@ -225,8 +233,8 @@ public:
 
     // Create a LocalPath from a string that was already converted to be appropriate for a local
     // file path.
-    static LocalPath fromPlatformEncodedAbsolute(const std::string localname);
-    static LocalPath fromPlatformEncodedRelative(const std::string localname);
+    static LocalPath fromPlatformEncodedAbsolute(const std::string& localname);
+    static LocalPath fromPlatformEncodedRelative(const std::string& localname);
 #ifdef WIN32
     static LocalPath fromPlatformEncodedAbsolute(std::wstring&& localname);
     static LocalPath fromPlatformEncodedRelative(std::wstring&& localname);
@@ -256,9 +264,6 @@ public:
     {
         return mPathType == PathType::URI_PATH;
     }
-
-    std::string serialize() const;
-    static std::optional<LocalPath> unserialize(const std::string& d, const bool isURI);
 
     bool operator==(const LocalPath& p) const;
     bool operator!=(const LocalPath& p) const;
@@ -345,13 +350,6 @@ public:
     // On Windows systems, this predicate returns true if and only if the
     // path specifies a drive such as C:\.
     bool isRootPath() const;
-
-    // Try to avoid using this function as much as you can.
-    //
-    // It's present for efficiency reasons and is really only meant for
-    // specific cases when we are using a LocalPath instance in a system
-    // call.
-    const string_type rawValue() const;
 
     bool extension(std::string& extension) const;
 
