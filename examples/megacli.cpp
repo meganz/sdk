@@ -1407,7 +1407,7 @@ void DemoApp::getua_result(unique_ptr<string_map> records, attr_t type)
 {
     if (!records)
     {
-        cout << "Error getting private user attribute" << endl;
+        cout << "Error getting private user attribute: No valid records in the attribute" << endl;
     }
     else if (!gVerboseMode)
     {
