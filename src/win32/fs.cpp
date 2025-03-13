@@ -929,7 +929,7 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     {
         DWORD e = GetLastError();
         LOG_warn << "Unable to get short path name: " << namePath << ". Error code: " << e;
-        sname.clear();
+        snamePath.clear();
         return false;
     }
 
@@ -945,7 +945,9 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     {
         sname.erase(0, ptr - sname.data() + 1);
     }
-    return sname.size() > 0;
+
+    snamePath = LocalPath::fromPlatformEncodedRelative(std::move(sname));
+    return !snamePath.empty();
 }
 
 // FIXME: if a folder rename fails because the target exists, do a top-down
