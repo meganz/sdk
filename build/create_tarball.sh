@@ -93,11 +93,7 @@ ln -s $BASEPATH/third_party $megasdk_NAME/
 ln -s $BASEPATH/tests $megasdk_NAME/
 ln -s $BASEPATH/CMakeLists.txt $megasdk_NAME/
 ln -s $BASEPATH/vcpkg.json $megasdk_NAME/
-mkdir $megasdk_NAME/examples
-ln -s $BASEPATH/examples/CMakeLists.txt $megasdk_NAME/examples/
-ln -s $BASEPATH/examples/megacli.cpp $megasdk_NAME/examples/
-ln -s $BASEPATH/examples/megacli.h $megasdk_NAME/examples/
-ln -s $BASEPATH/examples/simple_client $megasdk_NAME/examples/
+ln -s $BASEPATH/examples $megasdk_NAME/
 
 mkdir $megasdk_NAME/tools
 ln -s $BASEPATH/tools/gfxworker $megasdk_NAME/tools/
