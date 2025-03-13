@@ -8218,7 +8218,13 @@ void MegaClient::sc_scheduledmeetings()
                 if (res)
                 {
                     if (isNewSchedMeeting) createNewSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides);
-                    else createUpdatedSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides, std::move(cs));
+                    else
+                        createUpdatedSMAlert(ou,
+                                             chat->getChatId(),
+                                             schedId,
+                                             parentSchedId,
+                                             overrides,
+                                             decltype(cs){cs});
                 }
             }
         }
