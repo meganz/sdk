@@ -55,6 +55,7 @@
 namespace mega {
 
 class Logger;
+struct NetworkConnectivityTestResults;
 
 class MEGA_API FetchNodesStats
 {
@@ -1553,6 +1554,23 @@ public:
     bool retryessl;
 
 private:
+    // The current request's status in millis.
+    //
+    // This member is maintained by procreqstat(...) whether request
+    // monitoring is enabled or not, the idea being that we want an
+    // application to be able to show a progress bar once any request
+    // starts, without any delay.
+    //
+    // When the SDK starts a request, it checks to see if this member is
+    // valid. If it is, it immediately notifies the application.
+    //
+    // If this member is not valid when a request is started, the SDK delays
+    // notifying the application until progress information is received.
+    std::optional<int> mRequestProgress;
+
+    // Tracks whether we've notified the application of request progress.
+    bool mRequestProgressNotified = false;
+
     // flag to start / stop the request status monitor
     bool mReqStatEnabled = false;
 public:
@@ -2055,6 +2073,32 @@ public:
 
     // return the list of incoming shared folder (only top level, nested inshares are skipped)
     sharedNode_vector getInShares();
+
+    template<typename Function>
+    using IsIncomingShareIterator =
+        std::conjunction<std::is_invocable<Function, std::shared_ptr<Node>>,
+                         std::is_same<std::invoke_result_t<Function, std::shared_ptr<Node>>, void>>;
+
+    // Call function on each incoming share.
+    template<typename Function>
+    auto forEachIncomingShare(Function&& function)
+        -> std::enable_if_t<IsIncomingShareIterator<Function>::value, void>
+    {
+        // Iterate over each user.
+        for (const auto& user: users)
+        {
+            // And each node handle shared by that user.
+            for (const auto& handle: user.second.sharing)
+            {
+                // Get our hands on the incoming shared node.
+                if (auto node = nodebyhandle(handle); node && node->parent == nullptr)
+                {
+                    // Pass the node to our iterator function.
+                    std::invoke(function, std::move(node));
+                }
+            }
+        }
+    }
 
     // return the list of verified incoming shared folders (only top level, nested inshares are skipped)
     sharedNode_vector getVerifiedInShares();
@@ -2918,8 +2962,18 @@ private:
 
     std::pair<bool, error> checkRenameNodePrecons(std::shared_ptr<Node> n);
 
-    // Password Manager - private
-    void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+    /**
+     * @brief Prepares the password node data and stores in attributes map (in JSON format).
+     *
+     * This function verifies that the provided `data` map is not empty, ensures that
+     * TOTP data fields are properly set using `ensureTotpDataIsFilled`, and then
+     * converts the `data` map to a JSON string. The resulting JSON data is stored
+     * in the `attrs` map under the key corresponding to `NODE_ATTR_PASSWORD_MANAGER`.
+     *
+     * @param attrs The attribute map where the processed password node data will be stored.
+     * @param data The attribute map containing password-related information.
+     */
+    void preparePasswordNodeData(attr_map& attrs, AttrMap& data) const;
 
     // Get a string to complete sc/wsc url and receive partial action packages
     // It's used from clients of type PWD and VPN
@@ -2971,6 +3025,12 @@ public:
         std::string&& /* IPv6 */,
         StringKeyPair&& /* Peer Key Pair <User Private, Cluster Public> */);
 
+    void getNetworkConnectivityTestServerInfo(
+        CommandGetNetworkConnectivityTestServerInfo::Completion&& completion);
+
+    void runNetworkConnectivityTest(
+        std::function<void(const Error&, NetworkConnectivityTestResults&&)>&& completion);
+    void sendNetworkConnectivityTestEvent(const NetworkConnectivityTestResults& results);
     /* Mega VPN methods END */
 
     void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
@@ -2982,6 +3042,34 @@ public:
     static const char* const PWM_ATTR_PASSWORD_URL;
     static const char* const PWM_ATTR_PASSWORD_USERNAME;
     static const char* const PWM_ATTR_PASSWORD_PWD;
+    static const char* const PWM_ATTR_PASSWORD_TOTP;
+    static const char* const PWM_ATTR_PASSWORD_TOTP_SHSE;
+    static const char* const PWM_ATTR_PASSWORD_TOTP_EXPT;
+    static const char* const PWM_ATTR_PASSWORD_TOTP_HASH;
+    static const char* const PWM_ATTR_PASSWORD_TOTP_NDIGITS;
+
+    // Special value to mark nested data attribute to be removed
+    static constexpr std::string_view REMOVAL_PWM_ATTR{"PWM_REMOVE"};
+
+    /**
+     * @brief Ensures that TotpData attr in map is properly filled with all required fields.
+     *
+     * This function checks if the TOTP attribute exists in the provided `data` map.
+     * If it exists and contains ill-formed data, it removes it.
+     * Additionally, it verifies the presence of essential TOTP parameters such as:
+     * - Number of digits (`PWM_ATTR_PASSWORD_TOTP_NDIGITS`)
+     * - Expiry time (`PWM_ATTR_PASSWORD_TOTP_EXPT`)
+     * - Hash algorithm (`PWM_ATTR_PASSWORD_TOTP_HASH`)
+     *
+     * If any of these fields are missing, they are added with default values.
+     *
+     * @param data The attribute map containing TOTP-related information.
+     *
+     * @note If TOTP attribute value is equal to `REMOVAL_PWM_ATTR`, an assertion failure is
+     * triggered. At this point we should already have removed TOTP attr if it has been marked to be
+     * removed.
+     */
+    void ensureTotpDataIsFilled(AttrMap& data) const;
     NodeHandle getPasswordManagerBase();
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
     error createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
@@ -3042,6 +3130,43 @@ public:
                                                 const int rTag);
 
     /**
+     * @brief Validates the format of TOTP data stored in the given attribute map.
+     *
+     * This function checks the validity of essential TOTP fields:
+     * - Shared secret (`PWM_ATTR_PASSWORD_TOTP_SHSE`)
+     * - Number of digits (`PWM_ATTR_PASSWORD_TOTP_NDIGITS`)
+     * - Expiry time (`PWM_ATTR_PASSWORD_TOTP_EXPT`)
+     * - Hash algorithm (`PWM_ATTR_PASSWORD_TOTP_HASH`)
+     *
+     * If any field is ill-formed, an appropriate error code is returned.
+     *
+     * @param data The attribute map containing TOTP-related information.
+     * @return PasswordEntryError An error code indicating validation status:
+     * - `OK` if all fields are correctly formed.
+     * - `INVALID_TOTP_SHARED_SECRET` if the shared secret is invalid.
+     * - `INVALID_TOTP_NDIGITS` if the number of digits is invalid.
+     * - `INVALID_TOTP_EXPT` if the expiration time is invalid.
+     * - `INVALID_TOTP_ALG` if the hash algorithm is invalid.
+     *
+     * @note Uses `totp::validateFields` to check field validity.
+     */
+    static PasswordEntryError validateTotpDataFormat(const AttrMap& data);
+
+    /**
+     * @brief Validates the TOTP data for a new node.
+     *
+     * This function checks if the TOTP shared secret (`PWM_ATTR_PASSWORD_TOTP_SHSE`)
+     * is present in the provided attribute map. If it is missing, an error is returned.
+     * Otherwise, it validates the rest of the fields by calling `validateTotpDataFormat`.
+     *
+     * @param data The attribute map containing TOTP data attr map.
+     * @return PasswordEntryError An error code indicating validation status:
+     * - `MISSING_TOTP_SHARED_SECRET` if the shared secret is missing.
+     * - The result of `validateTotpDataFormat(data)`, which checks other fields.
+     */
+    static PasswordEntryError validateNewNodeTotpData(const AttrMap& data);
+
+    /**
      * @brief Ensures the given data can be used to create a new password node.
      *
      * For instance, the password field is mandatory and must be present.
@@ -3049,7 +3174,7 @@ public:
      * @param data The map with the password data
      * @return The error code for the validation
      */
-    static PasswordEntryError validatePasswordData(const AttrMap& data);
+    static PasswordEntryError validateNewPasswordNodeData(const AttrMap& data);
 
     /**
      * @brief Processes the input password entries and splits them into two containers (bad, good).

@@ -130,11 +130,6 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     integerClass = (jclass)jenv->NewGlobalRef(localIntegerClass);
     jenv->DeleteLocalRef(localIntegerClass);
 
-
-#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
-    ares_library_init_jvm(jvm);
-#endif
-
     return JNI_VERSION_1_6;
 }
 #endif

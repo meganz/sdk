@@ -286,6 +286,11 @@ enum class PasswordEntryError : uint8_t
     PARSE_ERROR,
     MISSING_PASSWORD,
     MISSING_NAME,
+    MISSING_TOTP_SHARED_SECRET,
+    INVALID_TOTP_SHARED_SECRET,
+    INVALID_TOTP_NDIGITS,
+    INVALID_TOTP_EXPT,
+    INVALID_TOTP_ALG,
 };
 
 /**
@@ -871,6 +876,7 @@ typedef enum {
     REASON_ERROR_DB_FULL            = 3,
     REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
     REASON_ERROR_NO_JSCD = 5,
+    REASON_ERROR_REGENERATE_JSCD = 6,
 } ErrorReason;
 
 //#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
@@ -1104,38 +1110,38 @@ enum class SyncWaitReason {
 
 enum class PathProblem : unsigned short {
     NoProblem = 0,
-    FileChangingFrequently,
-    IgnoreRulesUnknown,
-    DetectedHardLink,
-    DetectedSymlink,
-    DetectedSpecialFile,
-    DifferentFileOrFolderIsAlreadyPresent,
-    ParentFolderDoesNotExist,
-    FilesystemErrorDuringOperation,
-    NameTooLongForFilesystem,
-    CannotFingerprintFile,
-    DestinationPathInUnresolvedArea,
-    MACVerificationFailure,
-    UnknownDownloadIssue,
-    DeletedOrMovedByUser,
-    FileFolderDeletedByUser,
-    MoveToDebrisFolderFailed,
-    IgnoreFileMalformed,
-    FilesystemErrorListingFolder,
-    FilesystemErrorIdentifyingFolderContent,  // Deprecated after SDK-3206
-    WaitingForScanningToComplete,
-    WaitingForAnotherMoveToComplete,
-    SourceWasMovedElsewhere,
-    FilesystemCannotStoreThisName,
-    CloudNodeInvalidFingerprint,
-    CloudNodeIsBlocked,
+    FileChangingFrequently = 1,
+    IgnoreRulesUnknown = 2,
+    DetectedHardLink = 3,
+    DetectedSymlink = 4,
+    DetectedSpecialFile = 5,
+    DifferentFileOrFolderIsAlreadyPresent = 6,
+    ParentFolderDoesNotExist = 7,
+    FilesystemErrorDuringOperation = 8,
+    NameTooLongForFilesystem = 9,
+    CannotFingerprintFile = 10,
+    DestinationPathInUnresolvedArea = 11,
+    MACVerificationFailure = 12,
+    UnknownDownloadIssue = 13,
+    DeletedOrMovedByUser = 14,
+    FileFolderDeletedByUser = 15,
+    MoveToDebrisFolderFailed = 16,
+    IgnoreFileMalformed = 17,
+    FilesystemErrorListingFolder = 18,
+    // FilesystemErrorIdentifyingFolderContent = 19, -> obsolete
+    WaitingForScanningToComplete = 20,
+    WaitingForAnotherMoveToComplete = 21,
+    SourceWasMovedElsewhere = 22,
+    FilesystemCannotStoreThisName = 23,
+    CloudNodeInvalidFingerprint = 24,
+    CloudNodeIsBlocked = 25,
 
-    PutnodeDeferredByController,
-    PutnodeCompletionDeferredByController,
-    PutnodeCompletionPending,
-    UploadDeferredByController,
+    PutnodeDeferredByController = 26,
+    PutnodeCompletionDeferredByController = 27,
+    PutnodeCompletionPending = 28,
+    UploadDeferredByController = 29,
 
-    DetectedNestedMount,
+    DetectedNestedMount = 30,
 
     PathProblem_LastPlusOne
 };

@@ -59,6 +59,7 @@ enum attr_t
     ATTR_LAST_ACTIONED_BANNER = 45, // private, non-encrypted - char array - versioned
     ATTR_ENABLE_TEST_SURVEYS = 46, // private - non-encrypted - char array - non-versioned
     ATTR_WELCOME_PDF_COPIED = 47, // private - non-encrypted - char array
+    ATTR_SYNC_DESIRED_STATE = 48, // private - byte array - versioned
 };
 
 enum UserAttributeScope : char

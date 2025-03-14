@@ -307,8 +307,8 @@ public:
      * @param cancelToken
      * A token that can be used to terminate the query's execution prematurely.
      *
-     * @param handle
-     * A handle specifying which node we want to list tags below.
+     * @param handles
+     * A set of handles specifying which nodes we want to list tags below.
      *
      * If undefined, the query will list tags below all root nodes.
      *
@@ -320,7 +320,7 @@ public:
      * std::set<std::string> on success.
      */
     auto getNodeTagsBelow(CancelToken cancelToken,
-                          NodeHandle handle,
+                          const std::set<NodeHandle>& handles,
                           const std::string& pattern = {}) -> std::optional<std::set<std::string>>;
 
     sharedNode_vector getNodesByFingerprint(const FileFingerprint& fingerprint);

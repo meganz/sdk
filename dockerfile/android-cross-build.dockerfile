@@ -76,7 +76,6 @@ CMD ["sh", "-c", "\
         -DVCPKG_ROOT=/mega/vcpkg \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DCMAKE_SYSTEM_NAME=Android \
-        -DCMAKE_ANDROID_API=26 \
         -DCMAKE_ANDROID_ARCH_ABI=${ANDROID_ARCH} \
         -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} && \
     cmake --build buildAndroid' && \

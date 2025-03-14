@@ -3432,7 +3432,13 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
                 LOG_info << "Unshareable key successfully created";
                 client->unshareablekey.swap(av);
             }
-
+#ifdef ENABLE_SYNC
+            else if (attributeType == ATTR_SYNC_DESIRED_STATE)
+            {
+                const std::unique_ptr<string_map> records{tlv::containerToRecords(av, client->key)};
+                client->syncs.setSdsBackupsFullSync(records);
+            }
+#endif
             client->notifyuser(u);
             mCompletion(API_OK);
         }
@@ -3759,6 +3765,12 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                 tlv::containerToRecords(value, client->key)};
                             if (records || (value.empty() && !version.empty()))
                             {
+#ifdef ENABLE_SYNC
+                                if (at == ATTR_SYNC_DESIRED_STATE)
+                                {
+                                    client->syncs.setSdsBackupsFullSync(records);
+                                }
+#endif
                                 u->setAttribute(at, value, version);
                                 mCompletionTLV(std::move(records), at);
                             }
@@ -3766,10 +3778,19 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             {
                                 LOG_err << "Cannot extract TLV records for private attribute "
                                         << User::attr2string(at);
-                                mCompletionErr(API_EINTERNAL);
+                                if (at == ATTR_JSON_SYNC_CONFIG_DATA)
+                                {
+                                    // Store the attribute so we can update it later with valid
+                                    // values
+                                    u->setAttribute(at, value, version);
+                                    mCompletionErr(API_EKEY);
+                                }
+                                else
+                                {
+                                    mCompletionErr(API_EINTERNAL);
+                                }
                                 return true;
                             }
-
                             break;
                         }
                         case ATTR_SCOPE_PUBLIC_UNENCRYPTED:
@@ -4225,7 +4246,7 @@ bool CommandGetUserData::updatePrivateEncryptedUserAttribute(User* u,
         }
         else
         {
-            LOG_err << "Cannot extract TLV records for " << at;
+            LOG_err << "Cannot extract TLV records for " << User::attr2string(at);
         }
     }
     else
@@ -4319,6 +4340,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionVisibleTermsOfService;
     string pwmh, pwmhVersion;
     vector<uint32_t> notifs;
+    std::string sds, sdsVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4705,6 +4727,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
         case makeNameid("^!tsur"):
         {
             parseUserAttribute(json, enabledTestSurveys, versionEnabledTestSurveys);
+            break;
+        }
+
+        case makeNameid("*!sds"):
+        {
+            parseUserAttribute(json, sds, sdsVersion);
             break;
         }
 
@@ -5133,6 +5161,23 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     u->removeAttribute(ATTR_PWM_BASE);
+                }
+
+                if (!sds.empty() || !sdsVersion.empty())
+                {
+                    changes |= updatePrivateEncryptedUserAttribute(u,
+                                                                   sds,
+                                                                   sdsVersion,
+                                                                   ATTR_SYNC_DESIRED_STATE);
+#ifdef ENABLE_SYNC
+                    const std::unique_ptr<string_map> records{
+                        tlv::containerToRecords(sds, client->key)};
+                    client->syncs.setSdsBackupsFullSync(records);
+#endif
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_SYNC_DESIRED_STATE);
                 }
 
                 if (changes)
@@ -8070,7 +8115,7 @@ bool CommandGetLocalSSLCertificate::procresult(Result r, JSON& json)
 CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
     this->client = client;
-    this->chatPeers = new userpriv_vector(*upl);
+    this->chatPeers = upl ? new userpriv_vector(*upl) : nullptr;
     this->mPublicChat = publicchat;
     this->mTitle = title ? string(title) : "";
     this->mUnifiedKey = "";
@@ -8115,31 +8160,30 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
     }
 
     beginarray("u");
-
-    userpriv_vector::iterator itupl;
-    for (itupl = chatPeers->begin(); itupl != chatPeers->end(); itupl++)
+    if (chatPeers)
     {
-        beginobject();
-
-        handle uh = itupl->first;
-        privilege_t priv = itupl->second;
-
-        arg("u", (byte *)&uh, MegaClient::USERHANDLE);
-        arg("p", priv);
-
-        if (publicchat)
+        for (const auto& peer: *chatPeers)
         {
-            char uid[12];
-            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-            uid[11] = '\0';
+            beginobject();
 
-            string_map::const_iterator ituk = ukm->find(uid);
-            if(ituk != ukm->end())
+            handle uh = peer.first;
+            arg("u", (byte*)&uh, MegaClient::USERHANDLE);
+            arg("p", peer.second);
+
+            if (publicchat)
             {
-                arg("ck", ituk->second.c_str());
+                char uid[12];
+                Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+                uid[11] = '\0';
+
+                string_map::const_iterator ituk = ukm->find(uid);
+                if (ituk != ukm->end())
+                {
+                    arg("ck", ituk->second.c_str());
+                }
             }
+            endobject();
         }
-        endobject();
     }
 
     endarray();
@@ -8165,7 +8209,6 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
     if (r.wasErrorOrOK())
     {
         client->app->chatcreate_result(NULL, r.errorOrOK());
-        delete chatPeers;
         return true;
     }
     else
@@ -8222,7 +8265,6 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                     if (!json.storeobject())
                     {
                         client->app->chatcreate_result(NULL, API_EINTERNAL);
-                        delete chatPeers;   // unused, but might be set at creation
                         return false;
                     }
             }
@@ -8294,16 +8336,23 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
 
             client->notifychat(chat);
             client->app->chatcreate_result(chat, API_OK);
+            chatPeers = nullptr;
         }
         else
         {
             client->app->chatcreate_result(NULL, API_EINTERNAL);
-            delete chatPeers;   // unused, but might be set at creation
         }
         return true;
     }
 }
 
+CommandChatCreate::~CommandChatCreate()
+{
+    if (chatPeers)
+    {
+        delete chatPeers;
+    }
+}
 CommandSetChatOptions::CommandSetChatOptions(MegaClient* client, handle chatid, int option, bool enabled, CommandSetChatOptionsCompletion completion)
     : mCompletion(completion)
 {
@@ -11538,7 +11587,7 @@ CommandFetchAds::CommandFetchAds(MegaClient* client, int adFlags, const std::vec
 
     if (!ISUNDEF(publicHandle))
     {
-        arg("p", static_cast<m_off_t>(publicHandle));
+        arg("ph", NodeHandle().set6byte(publicHandle));
     }
 
     beginarray("au");
@@ -11579,7 +11628,7 @@ CommandQueryAds::CommandQueryAds(MegaClient* client, int adFlags, handle publicH
     arg("ad", adFlags);
     if (!ISUNDEF(publicHandle))
     {
-        arg("ph", static_cast<m_off_t>(publicHandle));
+        arg("ph", NodeHandle().set6byte(publicHandle));
     }
 
     tag = client->reqtag;
@@ -11726,6 +11775,8 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
         std::optional<string> host{vpnRegion ? std::make_optional<string>() : std::nullopt};
         std::optional<vector<string>> dns{vpnRegion ? std::make_optional<vector<string>>() :
                                                       std::nullopt};
+        std::optional<vector<string>> afdns{vpnRegion ? std::make_optional<vector<string>>() :
+                                                        std::nullopt};
 
         for (bool hasData = true; hasData;) // host, dns
         {
@@ -11758,6 +11809,23 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
                         return false;
                     break;
 
+                case makeNameid("afdns"):
+                    if (!json.enterarray())
+                        return false;
+
+                    while (json.storeobject(pBuffer))
+                    {
+                        if (afdns)
+                        {
+                            afdns->emplace_back(std::move(buffer));
+                            buffer.clear();
+                        }
+                    }
+
+                    if (!json.leavearray())
+                        return false;
+                    break;
+
                 case EOO:
                     hasData = false;
                     break;
@@ -11770,9 +11838,11 @@ bool CommandGetVpnRegions::parseClusters(JSON& json, VpnRegion* vpnRegion)
         if (!json.leaveobject())
             return false;
 
-        if (host && dns)
+        if (host && dns && afdns)
         {
-            vpnRegion->addCluster(clusterID, {std::move(host.value()), std::move(dns.value())});
+            vpnRegion->addCluster(
+                clusterID,
+                {std::move(host.value()), std::move(dns.value()), std::move(afdns.value())});
         }
     }
     return true;
@@ -12093,6 +12163,92 @@ bool CommandCheckVpnCredential::procresult(Command::Result r, JSON&)
     }
     return r.wasErrorOrOK();
 }
+
+CommandGetNetworkConnectivityTestServerInfo::CommandGetNetworkConnectivityTestServerInfo(
+    MegaClient* client,
+    Completion&& completion)
+{
+    cmd("vpnv");
+    tag = client->reqtag;
+
+    mCompletion = std::move(completion);
+}
+
+bool CommandGetNetworkConnectivityTestServerInfo::procresult(Command::Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        assert(r.wasStrictlyError());
+        if (mCompletion)
+            mCompletion(r.errorOrOK(), {});
+        return true;
+    }
+
+    if (!r.hasJsonObject())
+    {
+        onParseFailure();
+        return false;
+    }
+
+    NetworkConnectivityTestServerInfo info;
+
+    for (bool finished = false; !finished;)
+    {
+        switch (json.getnameid())
+        {
+            case makeNameid("t"): // IPv4
+                if (!json.storeobject(&info.ipv4))
+                {
+                    onParseFailure();
+                    return false;
+                }
+                break;
+            case makeNameid("t6"): // IPv6
+                if (!json.storeobject(&info.ipv6))
+                {
+                    onParseFailure();
+                    return false;
+                }
+                break;
+            case makeNameid("p"): // ports list
+                if (!json.enterarray())
+                {
+                    onParseFailure();
+                    return false;
+                }
+
+                while (json.isnumeric())
+                {
+                    info.ports.push_back(json.getint32());
+                }
+
+                if (!json.leavearray())
+                {
+                    onParseFailure();
+                    return false;
+                }
+                break;
+
+            default:
+                if (!json.storeobject())
+                {
+                    onParseFailure();
+                    return false;
+                }
+                break;
+            case EOO:
+                finished = true;
+                break;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(API_OK, std::move(info));
+    }
+    return true;
+}
+
 /* MegaVPN Commands END*/
 
 CommandFetchCreditCard::CommandFetchCreditCard(MegaClient* client, CommandFetchCreditCardCompletion completion)

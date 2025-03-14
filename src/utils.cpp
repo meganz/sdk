@@ -89,6 +89,20 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
+handle stringToHandle(const std::string& b64String, const int handleSize)
+{
+    if (b64String.empty())
+        return UNDEF;
+
+    std::string binary;
+    if (Base64::atob(b64String, binary) != handleSize)
+    {
+        assert(false);
+        return UNDEF;
+    }
+    return *reinterpret_cast<handle*>(binary.data());
+}
+
 std::pair<bool, TypeOfLink> toTypeOfLink(nodetype_t type)
 {
     bool error = false;
@@ -2614,8 +2628,8 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::FileFolderDeletedByUser: return "FileFolderDeletedByUser";
     case PathProblem::MoveToDebrisFolderFailed: return "MoveToDebrisFolderFailed";
     case PathProblem::IgnoreFileMalformed: return "IgnoreFileMalformed";
-    case PathProblem::FilesystemErrorListingFolder: return "FilesystemErrorListingFolder";
-    case PathProblem::FilesystemErrorIdentifyingFolderContent: return "FilesystemErrorIdentifyingFolderContent"; // Deprecated after SDK-3206
+    case PathProblem::FilesystemErrorListingFolder:
+        return "FilesystemErrorListingFolder";
     case PathProblem::WaitingForScanningToComplete: return "WaitingForScanningToComplete";
     case PathProblem::WaitingForAnotherMoveToComplete: return "WaitingForAnotherMoveToComplete";
     case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
@@ -2966,6 +2980,16 @@ std::string_view toString(const PasswordEntryError err)
             return "Missing password";
         case PasswordEntryError::MISSING_NAME:
             return "Missing name";
+        case PasswordEntryError::MISSING_TOTP_SHARED_SECRET:
+            return "Missing totp shared secret";
+        case PasswordEntryError::INVALID_TOTP_SHARED_SECRET:
+            return "Invalid totp shared secret";
+        case PasswordEntryError::INVALID_TOTP_NDIGITS:
+            return "Invalid totp ndigits";
+        case PasswordEntryError::INVALID_TOTP_EXPT:
+            return "Invalid totp expt";
+        case PasswordEntryError::INVALID_TOTP_ALG:
+            return "Invalid totp alg";
     }
     assert(false);
     return "Unknown error";

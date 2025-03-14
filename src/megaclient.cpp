@@ -22,10 +22,13 @@
 #include "mega.h"
 #include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
+#include "mega/network_connectivity_test.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
+#include "mega/totp.h"
 #include "mega/user_attribute.h"
+#include "mega/utils.h"
 
 #include <cryptopp/hkdf.h> // required for derive key of master key
 #include <mega/fuse/common/normalized_path.h>
@@ -757,17 +760,12 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 sharedNode_vector MegaClient::getInShares()
 {
     sharedNode_vector nodes;
-    for (auto &it : users)
-    {
-        for (auto &share : it.second.sharing)
+
+    forEachIncomingShare(
+        [&nodes](std::shared_ptr<Node> node)
         {
-            std::shared_ptr<Node> n = nodebyhandle(share);
-            if (n && !n->parent)    // top-level inshare have parent==nullptr
-            {
-                nodes.push_back(n);
-            }
-        }
-    }
+            nodes.emplace_back(std::move(node));
+        });
 
     return nodes;
 }
@@ -921,7 +919,7 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
 {
     shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
 
-    // step 4: handle result of setattr()
+    // step 4: handle result of setattr()/putua()
     auto setAttrCompletion = [bkpId, finalCompletion](NodeHandle, Error setAttrErr)
     {
         if (setAttrErr != API_OK)
@@ -955,16 +953,68 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
             return;
         }
 
-        vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
-        sdsBkps.emplace_back(bkpId, newState);
-        const string sdsValue = Node::toSdsString(sdsBkps);
-        attr_map sdsAttrMap(Node::sdsId(), sdsValue);
-
-        auto e = setattr(bkpRootNode, std::move(sdsAttrMap), setAttrCompletion, true);
-        if (e != API_OK)
+        // SDS values for full-syncs (account root node) are set in the *!sds attribute
+        // instead of as an attribute of the backup/sync root node.
+        if (mNodeManager.getRootNodeFiles().eq(*bkpRoot))
         {
-            LOG_err << "Update backup/sync: failed to set the 'sds' node attribute in client";
-            finalCompletion(e);
+            auto updateSDSUserAttr =
+                [this, bkpId, newState, setAttrCompletion](unique_ptr<string_map> currentSds,
+                                                           attr_t)
+            {
+                if (!currentSds)
+                {
+                    // Create an empty map when the attribute doesn't exist.
+                    // Could be empty value in the getua or a non existing attribute.
+                    currentSds = std::make_unique<string_map>();
+                }
+                const string b64BkupId = toHandle(bkpId);
+                const string state = std::to_string(newState);
+                (*currentSds)[b64BkupId] = state;
+
+                putua(ATTR_SYNC_DESIRED_STATE,
+                      std::move(*currentSds),
+                      0,
+                      UNDEF,
+                      0,
+                      0,
+                      [setAttrCompletion](Error e)
+                      {
+                          setAttrCompletion({}, e);
+                      });
+            };
+
+            getua(
+                ownuser(),
+                ATTR_SYNC_DESIRED_STATE,
+                0,
+                [setAttrCompletion, updateSDSUserAttr](Error e)
+                {
+                    if (e == API_ENOENT)
+                    {
+                        // updateSDSUserAttr will manage null pointers
+                        updateSDSUserAttr(std::unique_ptr<string_map>(), ATTR_SYNC_DESIRED_STATE);
+                    }
+                    else
+                    {
+                        setAttrCompletion({}, e);
+                    }
+                },
+                nullptr,
+                updateSDSUserAttr);
+        }
+        else
+        {
+            vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
+            sdsBkps.emplace_back(bkpId, newState);
+            const string sdsValue = Node::toSdsString(sdsBkps);
+            attr_map sdsAttrMap(Node::sdsId(), sdsValue);
+
+            auto e = setattr(bkpRootNode, std::move(sdsAttrMap), setAttrCompletion, true);
+            if (e != API_OK)
+            {
+                LOG_err << "Update backup/sync: failed to set the 'sds' node attribute in client";
+                finalCompletion(e);
+            }
         }
     };
 
@@ -1074,16 +1124,67 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
             return;
         }
 
-        vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
-        sdsBkps.emplace_back(std::make_pair(bkpId, CommandBackupPut::DELETED));
-        const string& sdsValue = Node::toSdsString(sdsBkps);
-        attr_map sdsAttrMap(Node::sdsId(), sdsValue);
-
-        auto e = setattr(bkpRootNode, std::move(sdsAttrMap), moveOrDeleteBackup, true);
-        if (e != API_OK)
+        // SDS values for full-syncs (account root node) are set in the *!sds attribute
+        // instead of as an attribute of the backup/sync root node.
+        if (mNodeManager.getRootNodeFiles().eq(*bkpRoot))
         {
-            LOG_err << "Remove backup/sync: failed to set the 'sds' node attribute";
-            finalCompletion(e);
+            auto updateSDSUserAttr =
+                [this, bkpId, moveOrDeleteBackup](unique_ptr<string_map> currentSds, attr_t)
+            {
+                if (!currentSds)
+                {
+                    // Create an empty map when the attribute doesn't exist.
+                    // Could be empty value in the getua or a non existing attribute.
+                    currentSds = std::make_unique<string_map>();
+                }
+                const string b64BkupId = toHandle(bkpId);
+                const string state = std::to_string(CommandBackupPut::DELETED);
+                (*currentSds)[b64BkupId] = state;
+
+                putua(ATTR_SYNC_DESIRED_STATE,
+                      std::move(*currentSds),
+                      0,
+                      UNDEF,
+                      0,
+                      0,
+                      [moveOrDeleteBackup](Error e)
+                      {
+                          moveOrDeleteBackup({}, e);
+                      });
+            };
+
+            getua(
+                ownuser(),
+                ATTR_SYNC_DESIRED_STATE,
+                0,
+                [moveOrDeleteBackup, updateSDSUserAttr](Error e)
+                {
+                    if (e == API_ENOENT)
+                    {
+                        // updateSDSUserAttr will manage null pointers
+                        updateSDSUserAttr(std::unique_ptr<string_map>(), ATTR_SYNC_DESIRED_STATE);
+                    }
+                    else
+                    {
+                        moveOrDeleteBackup({}, e);
+                    }
+                },
+                nullptr,
+                updateSDSUserAttr);
+        }
+        else
+        {
+            vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
+            sdsBkps.emplace_back(std::make_pair(bkpId, CommandBackupPut::DELETED));
+            const string& sdsValue = Node::toSdsString(sdsBkps);
+            attr_map sdsAttrMap(Node::sdsId(), sdsValue);
+
+            auto e = setattr(bkpRootNode, std::move(sdsAttrMap), moveOrDeleteBackup, true);
+            if (e != API_OK)
+            {
+                LOG_err << "Remove backup/sync: failed to set the 'sds' node attribute";
+                finalCompletion(e);
+            }
         }
     };
 
@@ -2463,6 +2564,13 @@ void MegaClient::exec()
                         if ((!pendingcs->mChunked && pendingcs->in != "-3" && pendingcs->in != "-4")
                             || (pendingcs->mChunked && (reqs.chunkedProgress() || (pendingcs->in != "-3" && pendingcs->in != "-4"))))
                         {
+                            // Have we been telling the application about request progress?
+                            if (std::exchange(mRequestProgressNotified, false))
+                            {
+                                // Let the application know that the request has completed.
+                                app->reqstat_progress(-1);
+                            }
+
                             if ((!pendingcs->mChunked && *pendingcs->in.c_str() == '[')
                                 || (pendingcs->mChunked && (reqs.chunkedProgress() || *pendingcs->in.c_str() == '[' || pendingcs->in.empty())))
                             {
@@ -2650,6 +2758,12 @@ void MegaClient::exec()
                                 csretrying = false;
 
                                 reqs.servererror(std::to_string(API_ESSL), this);
+
+                                if (std::exchange(mRequestProgressNotified, false))
+                                {
+                                    app->reqstat_progress(-1);
+                                }
+
                                 break;
                             }
                         }
@@ -2719,6 +2833,15 @@ void MegaClient::exec()
                         // Currently only fetchnodes requests can take advantage of chunked processing
                         // However VPN client shouldn't need it, because it'll receive a minimal response
                         pendingcs->mChunked = !isClientType(ClientType::VPN);
+                    }
+
+                    // Remember whether we've told the app about request progress.
+                    mRequestProgressNotified = mReqStatEnabled && mRequestProgress;
+
+                    // Immediately notify application of request progress.
+                    if (mRequestProgressNotified)
+                    {
+                        app->reqstat_progress(*mRequestProgress);
                     }
 
                     pendingcs->mHashcashToken = std::move(mReqHashcashToken);
@@ -3238,7 +3361,7 @@ void MegaClient::exec()
             }
         }
 
-        if (!mReqStatCS && mReqStatEnabled && sid.size() && btreqstat.armed())
+        if (!mReqStatCS && sid.size() && btreqstat.armed())
         {
             LOG_debug << clientname << "Sending reqstat request";
             mReqStatCS.reset(new HttpReq());
@@ -3399,7 +3522,7 @@ int MegaClient::preparewait()
             btworkinglock.update(&nds);
         }
 
-        if (!mReqStatCS && mReqStatEnabled && sid.size())
+        if (!mReqStatCS && sid.size())
         {
             btreqstat.update(&nds);
         }
@@ -4615,6 +4738,15 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     // when all pending requests are "abandoned."
     mFuseClientAdapter.deinitialize();
 
+    // Make sure the application hides any progress bars thay may have been visible.
+    if (std::exchange(mRequestProgressNotified, false))
+    {
+        app->reqstat_progress(-1);
+    }
+
+    // Clear cached request progress.
+    mRequestProgress.reset();
+
     sctable.reset();
     mNodeManager.setTable(nullptr);
     pendingsccommit = false;
@@ -5452,7 +5584,9 @@ size_t MegaClient::procreqstat()
     if (!numUsers)
     {
         LOG_debug << "reqstat: No operation in progress";
-        app->reqstat_progress(-1);
+
+        // Clear cached request progress.
+        mRequestProgress.reset();
 
         // resetting cs backoff here, because the account should be unlocked
         // and there should be connectivity with MEGA servers
@@ -5526,7 +5660,17 @@ size_t MegaClient::procreqstat()
     oss << " [" << curr << "/" << end << "]";
     LOG_debug << oss.str();
 
-    app->reqstat_progress(static_cast<int>(1000u * curr / end));
+    // Update cached request progress.
+    mRequestProgress = static_cast<int>(1000u * curr / end);
+
+    // Remember whether we've told the app about request progress.
+    mRequestProgressNotified = mReqStatEnabled && (pendingcs || csretrying);
+
+    // Notify application if necessary.
+    if (mRequestProgressNotified)
+    {
+        app->reqstat_progress(*mRequestProgress);
+    }
 
     return pos;
 }
@@ -7006,6 +7150,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:
                                     case ATTR_DEVICE_NAMES:
                                     case ATTR_JSON_SYNC_CONFIG_DATA:
+                                    case ATTR_SYNC_DESIRED_STATE:
                                     {
                                         if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) &&
                                             mKeyManager.generation())
@@ -8987,7 +9132,30 @@ auto MegaClient::getNodeTagsBelow(CancelToken cancelToken,
                                   const std::string& pattern)
     -> std::optional<std::set<std::string>>
 {
-    return mNodeManager.getNodeTagsBelow(std::move(cancelToken), handle, pattern);
+    std::set<NodeHandle> handles;
+
+    if (handle.isUndef())
+    {
+        // Callers interested in all tags visible under the usual root nodes.
+        for (auto node: mNodeManager.getRootNodes())
+            handles.emplace(node->nodeHandle());
+
+        // As well as those visible below full-access incoming shares.
+        forEachIncomingShare(
+            [&handles](std::shared_ptr<Node> node)
+            {
+                if (node->inshare->access == FULL)
+                    handles.emplace(node->nodeHandle());
+            });
+    }
+    else
+    {
+        // Callers interested in tags visible under a particular node.
+        handles.emplace(handle);
+    }
+
+    // Get all tags visible at or below the specified node handles.
+    return mNodeManager.getNodeTagsBelow(std::move(cancelToken), handles, pattern);
 }
 
 auto MegaClient::getNodeTagsBelow(NodeHandle handle, const std::string& pattern)
@@ -15111,10 +15279,11 @@ void MegaClient::fatalError(ErrorReason errorReason)
     mLastErrorDetected = errorReason;
 
     // Disable sync.
-    // Sync is not enabled in case of ErrorReason::REASON_ERROR_NO_JSCD,
-    // therefore no need to disable it.
+    // Sync is not enabled in case of ErrorReason::REASON_ERROR_NO_JSCD or
+    // ErrorReason::REASON_ERROR_REGENERATE_JSCD therefore no need to disable it.
 #ifdef ENABLE_SYNC
-    if (errorReason != ErrorReason::REASON_ERROR_NO_JSCD)
+    if (errorReason != ErrorReason::REASON_ERROR_NO_JSCD &&
+        errorReason != ErrorReason::REASON_ERROR_REGENERATE_JSCD)
     {
         syncs.disableSyncs(FAILURE_ACCESSING_PERSISTENT_STORAGE, false, true);
     }
@@ -15143,6 +15312,10 @@ void MegaClient::fatalError(ErrorReason errorReason)
         case ErrorReason::REASON_ERROR_NO_JSCD:
             reason = "Failed to get JSON SYNC configuration data";
             sendevent(99488, reason.c_str(), 0);
+            break;
+        case ErrorReason::REASON_ERROR_REGENERATE_JSCD:
+            reason = "Fix JSON SYNC configuration data";
+            sendevent(99489, reason.c_str(), 0);
             break;
         case ErrorReason::REASON_ERROR_UNKNOWN:
             reason = "Unknown fatal error";
@@ -19357,14 +19530,8 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
     if (auto curlhttpio = dynamic_cast<CurlHttpIO*>(httpio))
     {
         s << curlhttpio->countCurlHttpIOAddevents.report(reset) << "\n"
-#ifdef MEGA_USE_C_ARES
-            << curlhttpio->countAddAresEventsCode.report(reset) << "\n"
-#endif
-            << curlhttpio->countAddCurlEventsCode.report(reset) << "\n"
-#ifdef MEGA_USE_C_ARES
-            << curlhttpio->countProcessAresEventsCode.report(reset) << "\n"
-#endif
-            << curlhttpio->countProcessCurlEventsCode.report(reset) << "\n";
+          << curlhttpio->countAddCurlEventsCode.report(reset) << "\n"
+          << curlhttpio->countProcessCurlEventsCode.report(reset) << "\n";
     }
 #ifdef WIN32
     s << " waiter nonzero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutNonzero
@@ -21258,6 +21425,70 @@ string MegaClient::generateVpnCredentialString(const std::string& host,
         .append(":51820");
     return credential;
 }
+
+void MegaClient::getNetworkConnectivityTestServerInfo(
+    CommandGetNetworkConnectivityTestServerInfo::Completion&& completion)
+{
+    reqs.add(new CommandGetNetworkConnectivityTestServerInfo(this, std::move(completion)));
+}
+
+void MegaClient::runNetworkConnectivityTest(
+    std::function<void(const Error&, NetworkConnectivityTestResults&&)>&& testCompletion)
+{
+    getNetworkConnectivityTestServerInfo(
+        [this,
+         testCompletion = std::move(testCompletion)](const Error& e,
+                                                     NetworkConnectivityTestServerInfo&& serverInfo)
+        {
+            if (e)
+            {
+                LOG_err
+                    << "Failed to retrieve Network Connectivity test server. Test will not run.";
+                testCompletion(e, {});
+                return;
+            }
+
+            NetworkConnectivityTest test;
+            if (!test.start(me, std::move(serverInfo)))
+            {
+                LOG_err << "Failed to start Network Connectivity test (already running?).";
+                testCompletion(API_EINTERNAL, {});
+                return;
+            }
+
+            auto testResults{test.getResults()};
+
+            // Log errors from socket communication
+            for (const auto& singleError: testResults.ipv4.socketErrors)
+                LOG_err << singleError;
+            for (const auto& singleError: testResults.ipv6.socketErrors)
+                LOG_err << singleError;
+
+            testCompletion(API_OK, std::move(testResults));
+        });
+}
+
+void MegaClient::sendNetworkConnectivityTestEvent(const NetworkConnectivityTestResults& results)
+{
+    string resultString;
+    if (results.ipv4.udpMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
+        results.ipv4.dnsLookupMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
+    {
+        resultString = results.ipv4.summary;
+    }
+    if (results.ipv6.udpMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
+        results.ipv6.dnsLookupMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
+    {
+        if (!resultString.empty())
+            resultString += ' ';
+        resultString += results.ipv6.summary;
+    }
+    if (!resultString.empty())
+    {
+        static constexpr int VPN_NETWORK_CONNECTIVITY_TEST_EVENT = 99495;
+        sendevent(VPN_NETWORK_CONNECTIVITY_TEST_EVENT, resultString.c_str());
+    }
+}
 /* Mega VPN methods END */
 
 void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion)
@@ -21270,6 +21501,11 @@ const char* const MegaClient::PWM_ATTR_PASSWORD_NOTES = "n";
 const char* const MegaClient::PWM_ATTR_PASSWORD_URL = "url";
 const char* const MegaClient::PWM_ATTR_PASSWORD_USERNAME = "u";
 const char* const MegaClient::PWM_ATTR_PASSWORD_PWD = "pwd";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP = "totp";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE = "shse";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT = "t";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH = "alg";
+const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS = "nd";
 
 NodeHandle MegaClient::getPasswordManagerBase()
 {
@@ -21281,10 +21517,70 @@ NodeHandle MegaClient::getPasswordManagerBase()
                NodeHandle{};
 }
 
-void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const
+void MegaClient::ensureTotpDataIsFilled(AttrMap& data) const
+{
+    auto totpIt = data.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
+    if (totpIt == data.map.end())
+    {
+        return;
+    }
+
+    if (totpIt->second == REMOVAL_PWM_ATTR)
+    {
+        assert(false);
+        LOG_err << "Ill-formed Totp data";
+        data.map.erase(totpIt);
+        return;
+    }
+
+    AttrMap totpMap;
+    totpMap.fromjson(data.map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
+
+    assert(totpMap.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_SHSE)));
+
+    bool hasChanged{false};
+    if (const auto nDigitsIt =
+            (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_NDIGITS)));
+        nDigitsIt == totpMap.map.end())
+    {
+        hasChanged = true;
+        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_NDIGITS)] =
+            std::to_string(totp::DEF_NDIGITS);
+    }
+
+    if (const auto expTimeIt =
+            (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_EXPT)));
+        expTimeIt == totpMap.map.end())
+    {
+        hasChanged = true;
+        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_EXPT)] =
+            std::to_string(totp::DEF_EXP_TIME.count());
+    }
+
+    if (const auto algIt = (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH)));
+        algIt == totpMap.map.end())
+    {
+        hasChanged = true;
+        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH)] =
+            totp::hashAlgorithmToStrView(totp::DEF_ALG);
+    }
+
+    if (!hasChanged)
+    {
+        return;
+    }
+
+    LOG_info << "Adding missing fields to Totp attr map";
+    std::string attrJson;
+    totpMap.getjson(&attrJson);
+    data.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)] = attrJson;
+}
+
+void MegaClient::preparePasswordNodeData(attr_map& attrs, AttrMap& data) const
 {
     assert(!data.map.empty());
 
+    ensureTotpDataIsFilled(data);
     std::string jsonData;
     data.getjson(&jsonData);
     attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = std::move(jsonData);
@@ -21356,15 +21652,13 @@ error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_pt
             assert(false);
             continue;
         }
-        if (auto validCode = validatePasswordData(*dataAttrMap);
+        if (const auto validCode = validateNewPasswordNodeData(*dataAttrMap);
             validCode != PasswordEntryError::OK)
         {
             std::string errMsg = "Password Manager: Wrong parameters. Failed Password Node "
                                  "creation for entry with name \"" +
-                                 name + "\"";
-            if (validCode == PasswordEntryError::MISSING_PASSWORD)
-                errMsg += ": Missing mandatory password field";
-            LOG_err << errMsg;
+                                 name + "\": ";
+            LOG_err << errMsg << toString(validCode);
             return API_EARGS;
         }
         const auto addAttrs = [this, d = dataAttrMap.get()](AttrMap& attrs)
@@ -21443,12 +21737,66 @@ MegaClient::ImportPaswordResult
     return {createPasswordNodes(std::move(goodEntries), parent, rTag), badEntries, nGoodEntries};
 }
 
-PasswordEntryError MegaClient::validatePasswordData(const AttrMap& data)
+PasswordEntryError MegaClient::validateTotpDataFormat(const AttrMap& data)
+{
+    const auto shse = charPtrToStrViewOpt(data.read(PWM_ATTR_PASSWORD_TOTP_SHSE));
+
+    std::optional<unsigned> nDigitsNum;
+    if (const auto nDigits = data.read(PWM_ATTR_PASSWORD_TOTP_NDIGITS); nDigits)
+        nDigitsNum = static_cast<unsigned>(std::atoi(nDigits));
+
+    std::optional<std::chrono::seconds> expTime;
+    if (const auto expirationTime = data.read(PWM_ATTR_PASSWORD_TOTP_EXPT); expirationTime)
+        expTime = std::chrono::seconds(std::atoi(expirationTime));
+
+    const auto alg = charPtrToStrViewOpt(data.read(PWM_ATTR_PASSWORD_TOTP_HASH));
+
+    const auto errors = totp::validateFields(shse, nDigitsNum, expTime, alg);
+    if (errors.none())
+        return PasswordEntryError::OK;
+
+    if (errors[totp::INVALID_TOTP_SHARED_SECRET])
+        return PasswordEntryError::INVALID_TOTP_SHARED_SECRET;
+    if (errors[totp::INVALID_TOTP_NDIGITS])
+        return PasswordEntryError::INVALID_TOTP_NDIGITS;
+    if (errors[totp::INVALID_TOTP_EXPT])
+        return PasswordEntryError::INVALID_TOTP_EXPT;
+    if (errors[totp::INVALID_TOTP_ALG])
+        return PasswordEntryError::INVALID_TOTP_ALG;
+
+    static_assert(errors.size() == totp::INVALID_TOTP_ALG + 1, "Missing validation error ");
+    return PasswordEntryError::INVALID_TOTP_ALG;
+}
+
+PasswordEntryError MegaClient::validateNewNodeTotpData(const AttrMap& data)
+{
+    if (!data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_SHSE)))
+    {
+        return PasswordEntryError::MISSING_TOTP_SHARED_SECRET;
+    }
+
+    return validateTotpDataFormat(data);
+}
+
+PasswordEntryError MegaClient::validateNewPasswordNodeData(const AttrMap& data)
 {
     if (const bool pwdPresent = (data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
         !pwdPresent)
     {
         return PasswordEntryError::MISSING_PASSWORD;
+    }
+
+    if (const bool totpPresent =
+            (data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)));
+        totpPresent)
+    {
+        AttrMap totpMap;
+        totpMap.fromjson(data.map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
+
+        if (const auto res = validateNewNodeTotpData(totpMap); res != PasswordEntryError::OK)
+        {
+            return res;
+        }
     }
     return PasswordEntryError::OK;
 }
@@ -21484,7 +21832,7 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
         addField(std::move(entry.mPassword), PWM_ATTR_PASSWORD_PWD);
         addField(std::move(entry.mNote), PWM_ATTR_PASSWORD_NOTES);
 
-        if (auto validationError = validatePasswordData(*attrMap);
+        if (auto validationError = validateNewPasswordNodeData(*attrMap);
             validationError != PasswordEntryError::OK)
         {
             bad[entry.mOriginalContent] = validationError;
@@ -21512,9 +21860,54 @@ error MegaClient::updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> new
         return API_EARGS;
     }
 
+    const auto itNewDataTotp = newData->map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
+    AttrMap newTotpData;
+    const bool containsNewDataTotp = itNewDataTotp != newData->map.end();
+    const bool removeTotpData = containsNewDataTotp && itNewDataTotp->second == REMOVAL_PWM_ATTR;
+    if (containsNewDataTotp && !removeTotpData)
+    {
+        newTotpData.fromjson(itNewDataTotp->second.c_str());
+        if (validateTotpDataFormat(newTotpData) != PasswordEntryError::OK)
+        {
+            LOG_err << "Password Manager: invalid TotpData";
+            return API_EAPPKEY;
+        }
+    }
+
     AttrMap mergedData;
-    mergedData.fromjson(pwdNode->attrs.map[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)].c_str());
+    mergedData.fromjson(
+        pwdNode->attrs.map[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)].c_str());
+
+    const auto itMergedTotp = mergedData.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
+    AttrMap mergedTotpData;
+    if (itMergedTotp != mergedData.map.end())
+    {
+        mergedTotpData.fromjson(itMergedTotp->second.c_str());
+    }
+
+    mergedTotpData.applyUpdates(newTotpData.map);
+
     mergedData.applyUpdates(newData->map);
+    if (auto itNewMergedTotp = mergedData.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
+        itNewMergedTotp != mergedData.map.end())
+    {
+        if (removeTotpData)
+        {
+            mergedData.map.erase(itNewMergedTotp);
+        }
+        else
+        {
+            if (validateNewNodeTotpData(mergedTotpData) != PasswordEntryError::OK)
+            {
+                LOG_err << "Password Manager: invalid TotpData after merging updates";
+                return API_EAPPKEY;
+            }
+            std::string totpStr;
+            mergedTotpData.getjson(&totpStr);
+            itNewMergedTotp->second = totpStr;
+        }
+    }
+
     attr_map updates;
     preparePasswordNodeData(updates, mergedData);
 
@@ -23479,9 +23872,17 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     // Sanity.
     assert(callback);
 
-    // The user doesn't have any JSC data.
-    if (result == API_ENOENT)
+    // The user doesn't have any JSC data or the attribute can't be decrypted or the attribute
+    // exists but is fully empty. In any case, create a new one.
+    if (result == API_ENOENT || result == API_EKEY || (result == API_OK && !store))
     {
+        if (result != API_ENOENT)
+        {
+            LOG_err << "Couldn't extract JSON SYNC configuration data. Automatically regenerating "
+                       "the attribute";
+            // Send an event and notify the app. Existing syncs (if any) have been removed.
+            fatalError(ErrorReason::REASON_ERROR_REGENERATE_JSCD);
+        }
         return createJSCData(std::move(callback));
     }
 

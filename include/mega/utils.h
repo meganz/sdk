@@ -42,6 +42,7 @@ std::string toNodeHandle(NodeHandle nodeHandle);
 NodeHandle toNodeHandle(const byte* data);  // consider moving functionality to NodeHandle
 NodeHandle toNodeHandle(const std::string* data);
 std::string toHandle(handle h);
+handle stringToHandle(const std::string& b64String, const int handleSize);
 std::pair<bool, TypeOfLink> toTypeOfLink (nodetype_t type);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
@@ -1461,6 +1462,29 @@ std::string numberToString(T number)
 }
 
 /**
+ * @brief Converts an string to a number of any aritmetic type.
+ *
+ * @tparam T The type of the number to be converted to. It must be an arithmetic type (e.g., int,
+ * float, double).
+ *
+ * @param sv The string to be converter to a number
+ * @return An optional value contained in std::optional<T>. Value will not be present if the
+ * converstion fails.
+ */
+template<typename T>
+std::optional<T> stringToNumber(const std::string_view sv)
+{
+    static_assert(std::is_arithmetic_v<T>, "invalid numeric type");
+
+    T r;
+    const auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), r);
+    if (ec == std::errc())
+        return r;
+    else
+        return std::nullopt;
+}
+
+/**
  * @brief helper type for std::visit
  *
  * @example Usage example (see https://en.cppreference.com/w/cpp/utility/variant/visit):
@@ -1602,6 +1626,37 @@ inline Range range(const unsigned start, const unsigned end)
 inline Range range(const unsigned end)
 {
     return range(0, end);
+}
+
+/**
+ * @brief Returns std::nullopt if opt is negative, std::optional<T>{opt} otherwise
+ */
+template<typename T>
+constexpr std::optional<T> convertIfPositive(const int opt)
+{
+    return opt < 0 ? std::nullopt : std::optional<T>{opt};
+}
+
+inline std::optional<std::string> charPtrToStrOpt(const char* s)
+{
+    return s ? std::optional{s} : std::nullopt;
+}
+
+inline std::optional<std::string_view> charPtrToStrViewOpt(const char* s)
+{
+    return s ? std::optional{s} : std::nullopt;
+}
+
+template<typename T>
+T* getPtr(std::optional<T>& opt) noexcept
+{
+    return opt.has_value() ? std::addressof(opt.value()) : nullptr;
+}
+
+template<typename T>
+const T* getPtr(const std::optional<T>& opt) noexcept
+{
+    return opt.has_value() ? std::addressof(opt.value()) : nullptr;
 }
 
 } // namespace mega

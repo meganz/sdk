@@ -210,6 +210,41 @@ class ReleaseProcess:
                 f"Hello <!channel>,\n\nPlease approve the MR for {reason}",
             )
 
+    def _filter_release_notes(self, raw_release_notes: str, included_tickets: list[str]):
+        # Regular expression to detect ticket lines and section lines
+        ticket_line_regex = re.compile(r"^• \[<[^|]+\|([A-Z]+-\d+)\>\]")
+        section_header_regex = re.compile(r"^(?!• )\S.*")
+
+        filtered_lines = []
+        current_section = []
+        section_has_content = False
+
+        for line in raw_release_notes.splitlines():
+            if section_header_regex.match(line):
+                # Process the previous section
+                if current_section and section_has_content:
+                    filtered_lines.extend(current_section)
+
+                current_section = [line]
+                section_has_content = False
+
+            elif ticket_line_regex.search(line):
+                ticket_match = ticket_line_regex.search(line)
+                if ticket_match and ticket_match.group(1) in included_tickets:
+                    current_section.append(line)
+                    section_has_content = True
+            else:
+                current_section.append(line)
+                if line.strip():
+                    section_has_content = True
+
+        # Append the last section if it has relevant content
+        if current_section and section_has_content:
+            filtered_lines.extend(current_section)
+
+        filtered_notes = "\n".join(filtered_lines)
+        return filtered_notes
+
     # STEP 4: Create "release/vX.Y.Z" branch
     def create_release_branch(self):
         self._version_v_prefixed = f"v{self._new_version}"
@@ -283,15 +318,38 @@ class ReleaseProcess:
         self._jira.create_new_version()
 
     # STEP 8: Post release notes to Slack
-    def post_notes(self, apps: list[str]):
+    def post_notes(self, apps: list[str], releaseType: str, tickets: list[str] = None):
         print("Generating release notes...", flush=True)
         assert self._rc_tag is not None
         assert self._jira is not None
+        assert releaseType is not None
         tag_url = self._remote_private_repo.get_tag_url(self._rc_tag)
+        
+        if releaseType == "newRelease":
+            notes: str = (
+                f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
+            )
+        elif releaseType == "releaseCandidate":
+            notes: str = (
+                f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n"
+                f"\U000026A0 What's new in this candidate:\n\n"
+            )
+        elif releaseType == "patchRelease":
+            major, minor, micro = (int(n) for n in self._new_version.split("."))
+            previousVersion = f"{major}.{minor}.{micro - 1}"
+            notes: str = (
+                f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n"
+                f"\U000026A0 \U000026A0 Hotfix created from `{previousVersion}` not develop, please only use this if your app was affected by some of the fixed issues\n\n"
+            )
+        raw_notes = self._jira.get_release_notes_for_slack(apps)
 
-        notes: str = (
-            f"\U0001F4E3 \U0001F4E3 *New {self._project_name} version  -->  `{self._rc_tag}`* (<{tag_url}|Link>)\n\n"
-        ) + self._jira.get_release_notes_for_slack(apps)
+        if tickets:
+            filtered_notes = self._filter_release_notes(raw_notes, tickets)
+        else:
+            filtered_notes = raw_notes
+
+        notes += filtered_notes
+
         if not self._slack or not self._slack_channel_announce:
             print("Enjoy:\n\n" + notes, flush=True)
         else:
@@ -466,9 +524,9 @@ class ReleaseProcess:
         # move current user last
         re_pattern = (
             "<h[1-6]>Release Captain schedule</h[1-6]>.*?"
-            "<ol(\\s.*?)?>"   # Opening tag
+            "<ol(\\s.*?)?>"  # Opening tag
             "(<li>.*?</li>)"  # Match first item in the list. Current captain
-            ".*?(</ol>)"      # Skip the rest of the list and matches closing tag.
+            ".*?(</ol>)"  # Skip the rest of the list and matches closing tag.
         )
         match = re.search(re_pattern, content)
         if match is None:
@@ -482,10 +540,10 @@ class ReleaseProcess:
         closingTag = match.group(3)
 
         new_content = (
-            content[:match.start(0)]
+            content[: match.start(0)]
             + completeMatch.replace(captain, "").replace(closingTag, captain)
             + closingTag
-            + content[match.end(0):]
+            + content[match.end(0) :]
         )
         self._wiki.update_page(page_id, page["title"], new_content)
         print("v Release Captain rotated")
@@ -559,19 +617,22 @@ class ReleaseProcess:
     def set_release_version_for_new_rc(self, version: str):
         assert not self._new_version
         assert self._jira is not None
+        self._new_version = version
+        self._version_v_prefixed = f"v{self._new_version}"
+        print(f"Version v prefixed is {self._version_v_prefixed}")
         self._jira.setup_release(self._version_v_prefixed)
         [exists, was_released, app_descr] = self._jira.get_version_info(version)
         assert exists, f"Could not find version {version}, for a new RC"
         assert not was_released, "Cannot make a new RC for a released version"
-
-        self._new_version = version
-        self._version_v_prefixed = f"v{self._new_version}"
-
         return app_descr
 
-    def create_branch_from_last_rc(self, remote_name: str, branch_name: str) -> int:
+    def get_last_rc(self):
         rc = self._remote_private_repo.get_last_rc(self._version_v_prefixed)
         assert rc, f"No RC found for version {self._new_version}"
+        return rc
+
+    def create_branch_from_last_rc(self, remote_name: str, branch_name: str) -> int:
+        rc = self.get_last_rc()
 
         print("Creating branch", branch_name, flush=True)
         self._remote_private_repo.create_branch(

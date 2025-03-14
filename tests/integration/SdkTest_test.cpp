@@ -608,17 +608,21 @@ void SdkTest::Cleanup()
             {
                 const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
                 ASSERT_TRUE(c);
-                if (c->getOwnPrivilege() == PRIV_MODERATOR)
+                auto numPeers = c->getPeerList() ? c->getPeerList()->size() : 0;
+                // skip chats where we aren't moderator and self-chat, which can't be deleted
+                if (c->getOwnPrivilege() == PRIV_MODERATOR && (numPeers || c->isGroup()))
                 {
                     RequestTracker rt(megaApi[nApi].get());
                     megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
                     auto e = rt.waitForResult();
-                    EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS) << "e == " << e;
+                    EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS)
+                        << "Error " << e << " getting chat link for chatid " << c->getHandle();
                     if (e == API_OK)
                     {
                         RequestTracker rtD(megaApi[nApi].get());
                         megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
-                        EXPECT_EQ(rtD.waitForResult(), API_OK);
+                        EXPECT_EQ(rtD.waitForResult(), API_OK)
+                            << "Error deleting chatlink for chatid " << c->getHandle();
                     }
                 }
             }
@@ -2159,37 +2163,31 @@ void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
                                                         FILENODEKEYLENGTH);
 }
 
-auto SdkTest::getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
+auto getAccountLevel(MegaApi& client) -> Expected<AccountLevel>
 {
     // Try and retrieve the user's account details.
-    auto details = getAccountDetails(api);
+    auto details = getAccountDetails(client);
 
     // Couldn't get account details.
-    if (std::get<1>(details) != API_OK)
-    {
-        return std::make_tuple(0, 0, std::get<1>(details));
-    }
+    if (auto result = ::result(details); result != API_OK)
+        return result;
 
     // Latch the user's plan.
-    auto plan = std::get<0>(details)->getProLevel();
+    auto plan = value(details)->getProLevel();
 
     // User has a free account: No need to get features or months.
     if (plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
-    {
-        return std::make_tuple(0, plan, API_OK);
-    }
+        return AccountLevel(0, plan);
 
     // Try and get pricing information.
-    auto pricing = getPricing(api);
+    auto pricing = getPricing(client);
 
     // Couldn't get pricing information.
-    if (std::get<1>(pricing) != API_OK)
-    {
-        return std::make_tuple(0, 0, std::get<1>(pricing));
-    }
+    if (auto result = ::result(pricing); result != API_OK)
+        return result;
 
     // Convenience.
-    auto& priceDetails = *std::get<0>(pricing);
+    auto& priceDetails = *value(pricing);
 
     // Locate the user's plan.
     for (auto i = 0, j = priceDetails.getNumProducts(); i < j; ++i)
@@ -2198,76 +2196,74 @@ auto SdkTest::getAccountLevel(MegaApi& api) -> std::tuple<int, int, int>
         if (plan == priceDetails.getProLevel(i))
         {
             // Return plan and its length.
-            return std::make_tuple(priceDetails.getMonths(i), plan, API_OK);
+            return AccountLevel(priceDetails.getMonths(i), plan);
         }
     }
 
     // Couldn't locate the user's plan.
-    return std::make_tuple(0, 0, API_ENOENT);
+    return API_ENOENT;
 }
 
-auto SdkTest::getAccountDetails(MegaApi& api)
-    -> std::tuple<std::unique_ptr<MegaAccountDetails>, int>
+auto getAccountDetails(MegaApi& client) -> Expected<std::unique_ptr<MegaAccountDetails>>
 {
     // So we can wait for the client's result.
-    RequestTracker tracker(&api);
+    RequestTracker tracker(&client);
 
     // Ask client for account details.
-    api.getAccountDetails(&tracker);
+    client.getAccountDetails(&tracker);
 
-    // Wait for client to report a result.
-    auto result = tracker.waitForResult();
-    auto details = makeUniqueFrom(tracker.request->getMegaAccountDetails());
+    // Couldn't get the client's account details.
+    if (auto result = tracker.waitForResult(); result != API_OK)
+        return result;
 
-    // Return result to caller.
-    return std::make_tuple(std::move(details), result);
+    // Return account details to caller.
+    return makeUniqueFrom(tracker.request->getMegaAccountDetails());
 }
 
-auto SdkTest::getPricing(MegaApi& api) -> std::tuple<std::unique_ptr<MegaPricing>, int>
+auto getPricing(MegaApi& client) -> Expected<std::unique_ptr<MegaPricing>>
 {
     // So we can wait for the client's result.
-    RequestTracker tracker(&api);
+    RequestTracker tracker(&client);
 
     // Ask client for plan pricing information,
-    api.getPricing(&tracker);
+    client.getPricing(&tracker);
 
-    // Wait for client to report a result.
-    auto result = tracker.waitForResult();
-    auto pricing = makeUniqueFrom(tracker.request->getPricing());
+    // Couldn't get pricing plans.
+    if (auto result = tracker.waitForResult(); result != API_OK)
+        return result;
 
-    // Return result to caller.
-    return std::make_tuple(std::move(pricing), result);
+    // Return pricing plans to caller.
+    return makeUniqueFrom(tracker.request->getPricing());
 }
 
-auto SdkTest::makeScopedAccountLevelRestorer(MegaApi& api)
+auto accountLevelRestorer(MegaApi& client) -> ScopedDestructor
 {
     // Assume we can't retrieve the account level.
     std::function<void()> destructor = []() {};
 
-    auto months = 0;
-    auto plan = 0;
-    auto result = 0;
-
     // Try and retrieve the user's current account level.
-    std::tie(months, plan, result) = getAccountLevel(api);
+    auto accountLevel = getAccountLevel(client);
 
-    // Leave a trail if we couldn't get the account level.
-    EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
-
-    // We were able to retrieve the account level.
-    if (result == API_OK)
+    // Couldn't retrieve account level.
+    if (auto result = ::result(accountLevel); result != API_OK)
     {
-        // Build a destructor that will restore the user's account level.
-        destructor = [&api, months, plan, this]()
-        {
-            // Try and restore the user's account level.
-            auto result = setAccountLevel(api, plan, months, nullptr);
-            EXPECT_EQ(result, API_OK) << "Couldn't restore account level: " << result;
-        };
+        // Leave a trail if we couldn't get the account level.
+        EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+
+        // Return destructor to caller.
+        return destructor;
     }
 
+    // Build a destructor that will restore the user's account level.
+    destructor = [&client, level = value(accountLevel)]()
+    {
+        // Try and restore the user's account level.
+        auto result = setAccountLevel(client, level.plan, level.months, nullptr);
+        EXPECT_EQ(result, API_OK) << "Couldn't restore account level: " << result;
+    };
+
     // Return destructor to caller.
-    return makeScopedDestructor(std::move(destructor));
+    return destructor;
 }
 
 auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string& name)
@@ -2302,12 +2298,32 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
     return makeUniqueFrom(directory);
 }
 
+auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>
+{
+    // Make sure client's plan alterations are temporary.
+    auto restorer = accountLevelRestorer(client);
+
+    // Try and elevate client to a pro pricing plan.
+    auto result = setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_PROI, 1, nullptr);
+
+    // Couldn't elevate client to a pro pricing plan.
+    if (result != API_OK)
+        return result;
+
+    // Return restorer to caller.
+    return restorer;
+}
+
 auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_t> expirationDate)
     -> Expected<std::string>
 {
     RequestTracker tracker(&client);
 
-    client.exportNode(const_cast<MegaNode*>(&node), expirationDate.value_or(-1), &tracker);
+    client.exportNode(const_cast<MegaNode*>(&node),
+                      expirationDate.value_or(-1),
+                      false,
+                      false,
+                      &tracker);
 
     if (auto result = tracker.waitForResult(); result != API_OK)
     {
@@ -2539,29 +2555,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     ASSERT_EQ(test_mtime, n1_mtime->getModificationTime()) << "Could not set the mtime of a file upload";
     ASSERT_EQ(ffp.mtime, n1->getModificationTime()) << "Normal file upload did not get the right mtime of the file";
 
-
-    // ___ Set invalid duration of a node ___
-
-    ASSERT_EQ(API_EARGS, synchronousSetNodeDuration(0, n1.get(), -14)) << "Unexpected error setting invalid node duration";
-
-
-    // ___ Set duration of a node ___
-
-    ASSERT_EQ(API_OK, synchronousSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
-
-
     megaApi[0]->log(2, "test postlog", __FILE__, __LINE__);
-
-    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
-    ASSERT_EQ(929734, n1->getDuration()) << "Duration value does not match";
-
-
-    // ___ Reset duration of a node ___
-
-    ASSERT_EQ(API_OK, synchronousSetNodeDuration(0, n1.get(), -1)) << "Cannot reset node duration";
-
-    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
-    ASSERT_EQ(-1, n1->getDuration()) << "Duration value does not match";
 
     // set several values that the requests will need to consolidate, some will be in the same batch
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom1", "value1");
@@ -2573,10 +2567,12 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom2", "value23");
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value31");
     megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value32");
-    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value33");
-    ASSERT_EQ(API_OK, doSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
-    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
+    RequestTracker requestTracker(megaApi[0].get());
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value33", &requestTracker);
+    // Wait for the last set node attribute request before performing the get.
+    ASSERT_EQ(API_OK, requestTracker.waitForResult());
 
+    n1.reset(megaApi[0]->getNodeByHandle(n1->getHandle()));
     ASSERT_STREQ("value13", n1->getCustomAttr("custom1"));
     ASSERT_STREQ("value23", n1->getCustomAttr("custom2"));
     ASSERT_STREQ("value33", n1->getCustomAttr("custom3"));
@@ -2747,13 +2743,13 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     resetOnNodeUpdateCompletionCBs();
 
     // create on existing node, no link yet
-    ASSERT_EQ(API_OK, doExportNode(0, n2.get()));
+    ASSERT_EQ(API_OK, doExportNode(0, n2.get(), 0, false, false));
 
     // create on existing node, with link already  (different command response)
-    ASSERT_EQ(API_OK, doExportNode(0, n2.get()));
+    ASSERT_EQ(API_OK, doExportNode(0, n2.get(), 0, false, false));
 
     // create on non existent node
-    ASSERT_EQ(API_EARGS, doExportNode(0, nullptr));
+    ASSERT_EQ(API_EARGS, doExportNode(0, nullptr, 0, false, false));
 }
 
 
@@ -3180,8 +3176,8 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Get node by fingerprint (needs to be a file, not a folder) ---
 
-    std::unique_ptr<char[]> fingerprint{megaApi[0]->getFingerprint(n1.get())};
-    MegaNode *n2 = megaApi[0]->getNodeByFingerprint(fingerprint.get());
+    const char* fingerprint = n1->getFingerprint();
+    MegaNode* n2 = megaApi[0]->getNodeByFingerprint(fingerprint);
 
     null_pointer = (n2 == NULL);
     EXPECT_FALSE(null_pointer) << "Node by fingerprint not found";
@@ -4108,7 +4104,8 @@ void SdkTestShares::getInshare(MegaHandle hfolder)
     ASSERT_STREQ("sharedfolder", thisInshareNode->getName())
         << "Wrong folder name of incoming share";
     ASSERT_EQ(API_OK,
-              mShareeApi->checkAccess(thisInshareNode, MegaShare::ACCESS_FULL).getErrorCode())
+              mShareeApi->checkAccessErrorExtended(thisInshareNode, MegaShare::ACCESS_FULL)
+                  ->getErrorCode())
         << "Wrong access level of incoming share";
     ASSERT_TRUE(thisInshareNode->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(thisInshareNode->isShared()) << "Wrong sharing information at incoming share";
@@ -4151,6 +4148,11 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink, MegaHandle* im
     std::unique_ptr<MegaNode> authorizedFolderNode{
         mGuestApi->authorizeNode(folderNodeToImport.get())};
     ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodeLink;
+    ASSERT_TRUE(authorizedFolderNode->getChildren())
+        << "Authorized folder node children list is null but it should not";
+    ASSERT_EQ(mGuestApi->getNumChildren(folderNodeToImport.get()),
+              authorizedFolderNode->getChildren()->size())
+        << "Different number of child nodes after authorizing the folder node";
 
     // Logout the folder
     ASSERT_NO_FATAL_FAILURE(logout(mGuestIndex, false, 20));
@@ -4168,6 +4170,18 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink, MegaHandle* im
     std::unique_ptr<MegaNode> importedNode{
         mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get())};
     ASSERT_TRUE(importedNode) << "Imported node not found";
+    if (authorizedFolderNode->getChildren()->size())
+    {
+        std::unique_ptr<MegaNode> authorizedImportedNode(
+            mGuestApi->authorizeNode(importedNode.get()));
+        EXPECT_TRUE(authorizedImportedNode) << "Failed to authorize imported node";
+        EXPECT_TRUE(authorizedImportedNode->getChildren())
+            << "Authorized imported node children list is null but it should not";
+        ASSERT_EQ(authorizedFolderNode->getChildren()->size(),
+                  authorizedImportedNode->getChildren()->size())
+            << "Not all child nodes have been imported";
+    }
+
     if (importedNodeHandle)
         *importedNodeHandle = importedNode->getHandle();
 }
@@ -4442,7 +4456,9 @@ TEST_F(SdkTest, SdkTestShares2)
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(MegaError::API_OK,
+              megaApi[1]->checkAccessErrorExtended(n, MegaShare::ACCESS_FULL)->getErrorCode())
+        << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
@@ -4804,7 +4820,9 @@ TEST_F(SdkTest, SdkTestShares)
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(API_OK,
+              megaApi[1]->checkAccessErrorExtended(n, MegaShare::ACCESS_FULL)->getErrorCode())
+        << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
@@ -5081,7 +5099,9 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     n = nl->get(0);
 
-    ASSERT_EQ(API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_READWRITE).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(API_OK,
+              megaApi[1]->checkAccessErrorExtended(n, MegaShare::ACCESS_READWRITE)->getErrorCode())
+        << "Wrong access level of incoming share";
 
     // --- Sharee leaves the inshare ---
     // Testing APs caused by actions done in the sharee account.
@@ -5335,6 +5355,11 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodelink6;
     std::unique_ptr<MegaNode> authorizedFolderNode(megaApi[2]->authorizeNode(folderNodeToImport.get()));
     ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodelink6;
+    ASSERT_TRUE(authorizedFolderNode->getChildren())
+        << "Authorized folder node children list is null but it should not";
+    ASSERT_EQ(megaApi[2]->getNumChildren(folderNodeToImport.get()),
+              authorizedFolderNode->getChildren()->size())
+        << "Different number of child nodes after authorizing the folder node";
     logout(2, false, 20);
 
     auto loginTracker = asyncRequestLogin(2, email.c_str(), pass.c_str());
@@ -5346,6 +5371,13 @@ TEST_F(SdkTest, SdkTestShares)
     EXPECT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
     std::unique_ptr<MegaNode> importedNode(megaApi[2]->getNodeByPath(authorizedFolderNode->getName(), rootNode2.get()));
     EXPECT_TRUE(importedNode) << "Imported node not found";
+    std::unique_ptr<MegaNode> authorizedImportedNode(megaApi[2]->authorizeNode(importedNode.get()));
+    EXPECT_TRUE(authorizedImportedNode) << "Failed to authorize imported node";
+    EXPECT_TRUE(authorizedImportedNode->getChildren())
+        << "Authorized imported node children list is null but it should not";
+    ASSERT_EQ(authorizedFolderNode->getChildren()->size(),
+              authorizedImportedNode->getChildren()->size())
+        << "Not all child nodes have been imported";
 }
 
 
@@ -6797,14 +6829,11 @@ TEST_F(SdkTest, SdkTestChat)
 
     // --- Create a group chat ---
 
-    MegaTextChatPeerList *peers;
-    handle h;
-    bool group;
-
-    h = megaApi[1]->getMyUser()->getHandle();
-    peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
+    handle h = megaApi[1]->getMyUserHandleBinary();
+    MegaTextChatPeerList* peers =
+        MegaTextChatPeerList::createInstance(); // new MegaTextChatPeerListPrivate();
     peers->addPeer(h, PRIV_STANDARD);
-    group = true;
+    bool group = true;
 
     mApi[1].chatUpdated = false;
     mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
@@ -6872,6 +6901,17 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated) )   // at the target side (auxiliar account)
             << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
 
+    // --- Create 1on1 chat with self
+    megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
+    mApi[0].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
+    ASSERT_NO_FATAL_FAILURE(createChat(false, nullptr));
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]))
+        << "Cannot create a new chat with self";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Chat-with-self creation failed (error: " << mApi[0].lastError << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated)) // at the target side (auxiliar account)
+        << "Chat update not received after " << maxTimeout << " seconds";
 }
 #endif
 
@@ -7149,7 +7189,7 @@ namespace mega
  * periodically destrying the megaApi object, then recreating and Resuming (with session token)
  */
 #ifdef DEBUG
-TEST_F(SdkTest, SdkTestCloudraidTransfers)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransfers)
 {
     LOG_info << "___TEST Cloudraid transfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7340,7 +7380,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 */
 
 #ifdef DEBUG
-TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferWithConnectionFailures)
 {
     LOG_info << "___TEST Cloudraid transfers with connection failures___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7413,6 +7453,12 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
     LOG_info << "___TEST Cloudraid transfers best case___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+    auto restorer1 = elevateToPro(*megaApi[1]);
+    ASSERT_EQ(result(restorer1), API_OK);
+
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
     std::string url100MB = "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; //https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
@@ -7460,7 +7506,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
 */
 
 #ifdef DEBUG
-TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
     LOG_info << "___TEST Cloudraid transfers with single channel timeouts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7527,7 +7573,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
  * Tests resumption for raid file download.
  */
 #ifdef DEBUG
-TEST_F(SdkTest, SdkTestCloudraidTransferResume)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransferResume)
 {
     LOG_info << "___TEST Cloudraid transfer resume___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7713,7 +7759,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 */
 
 #ifdef DEBUG
-TEST_F(SdkTest, SdkTestOverquotaCloudraid)
+TEST_F(SdkTest, DISABLED_SdkTestOverquotaCloudraid)
 {
     LOG_info << "___TEST SdkTestOverquotaCloudraid";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7884,8 +7930,7 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 *
 */
 
-
-TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
+TEST_F(SdkTest, DISABLED_SdkTestCloudraidStreamingSoakTest)
 {
     LOG_info << "___TEST SdkTestCloudraidStreamingSoakTest";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -8151,7 +8196,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
 }
 
-TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
+TEST_F(SdkTest, DISABLED_SdkTestStreamingRaidedTransferWithConnectionFailures)
 {
     LOG_info << "___TEST Streaming Raided Transfer With Connection Failures___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -8477,9 +8522,6 @@ TEST_F(SdkTest, SdkSimpleCommands)
     err = synchronousGetUserEmail(0, user->getHandle());
     ASSERT_EQ(API_OK, err) << "Get user email failed (error: " << err << ")";
     ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
-
-    // sendABTestActive()
-    ASSERT_EQ(API_OK, syncSendABTestActive(0, "devtest"));
 
     // cleanRubbishBin() test (accept both success and already empty statuses)
     err = synchronousCleanRubbishBin(0);
@@ -10103,8 +10145,7 @@ TEST_F(SdkTest, EscapesReservedCharacters)
     }
 
     // Escape input string.
-    unique_ptr<char[]> output(
-      megaApi[0]->escapeFsIncompatible(input.c_str()));
+    unique_ptr<char[]> output(megaApi[0]->escapeFsIncompatible(input.c_str(), nullptr));
 
     // Was the string escaped as expected?
     ASSERT_NE(output.get(), nullptr);
@@ -10174,14 +10215,12 @@ TEST_F(SdkTest, UnescapesReservedCharacters)
     string input_unescaped = "\\/:?\"<>|*Z!";
 
     // Escape input string.
-    unique_ptr<char[]> escaped(
-      megaApi[0]->escapeFsIncompatible(input.c_str()));
+    unique_ptr<char[]> escaped(megaApi[0]->escapeFsIncompatible(input.c_str(), nullptr));
 
     ASSERT_NE(escaped.get(), nullptr);
 
     // Unescape the escaped string.
-    unique_ptr<char[]> unescaped(
-      megaApi[0]->unescapeFsIncompatible(escaped.get()));
+    unique_ptr<char[]> unescaped(megaApi[0]->unescapeFsIncompatible(escaped.get(), nullptr));
 
     // Was the string unescaped as expected?  (round trip causes %5a to be unescaped now)
     ASSERT_NE(unescaped.get(), nullptr);
@@ -16826,6 +16865,9 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             std::unique_ptr<MegaStringList> clusterDns{firstCluster->getDns()};
             ASSERT_THAT(clusterDns, testing::NotNull());
             ASSERT_GT(clusterDns->size(), 0);
+            std::unique_ptr<MegaStringList> adBlockingDns{firstCluster->getAdBlockingDns()};
+            ASSERT_THAT(adBlockingDns, testing::NotNull());
+            ASSERT_GT(adBlockingDns->size(), 0);
             ASSERT_STRNE(region->getCountryCode(), "");
             ASSERT_STRNE(region->getCountryName(), "");
         };
@@ -19140,7 +19182,7 @@ TEST_F(SdkTest, SdkTestSharesWhenMegaHosted)
     ASSERT_THAT(nFolder, ::testing::NotNull());
 
     RequestTracker rt(megaApi[0].get());
-    megaApi[0]->exportNode(nFolder.get(), true /*writable*/, true /*megaHosted*/, &rt);
+    megaApi[0]->exportNode(nFolder.get(), 0, true /*writable*/, true /*megaHosted*/, &rt);
     ASSERT_EQ(rt.waitForResult(), API_OK);
 
     // Test that encryption-key was used for "sk" (share-key) sent via "l" command
@@ -19579,7 +19621,7 @@ TEST_F(SdkTest, CreditCardCancelSubscriptions)
 TEST_F(SdkTest, SdkTestSetAccountLevel)
 {
     // Make sure we can transition between account levels.
-    auto check = [this](MegaApi& api, int months, int plan)
+    auto check = [](MegaApi& api, int months, int plan)
     {
         // Try and set the account level.
         auto result = setAccountLevel(api, plan, months, nullptr);
@@ -19589,17 +19631,19 @@ TEST_F(SdkTest, SdkTestSetAccountLevel)
         // Make sure the account level actually changed.
         if (result == API_OK)
         {
-            auto m = 0;
-            auto p = 0;
+            // Try and get the client's account level.
+            auto level = getAccountLevel(api);
 
-            // Try and retrieve the account level.
-            std::tie(m, p, result) = getAccountLevel(api);
-
-            EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+            // Couldn't get account level.
+            if (result = ::result(level); result != API_OK)
+            {
+                EXPECT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+                return result;
+            }
 
             // Make sure the account level actually changed.
-            EXPECT_EQ(m, months);
-            EXPECT_EQ(p, plan);
+            EXPECT_EQ(value(level).months, months);
+            EXPECT_EQ(value(level).plan, plan);
         }
 
         return result;
@@ -19616,7 +19660,7 @@ TEST_F(SdkTest, SdkTestSetAccountLevel)
     auto& api = *megaApi[0];
 
     // Make sure any modifications we make are reversed.
-    auto restorer = makeScopedAccountLevelRestorer(api);
+    auto restorer = accountLevelRestorer(api);
 
     // Make sure we can change to a free plan.
     EXPECT_EQ(check(api, 0, FREE), API_OK);
@@ -19937,7 +19981,7 @@ TEST_F(SdkTest, ExportNodeWithExpiryDate)
     auto& client = *megaApi[0];
 
     // Make sure any plan changed are reversed.
-    auto restorer = makeScopedAccountLevelRestorer(client);
+    auto restorer = accountLevelRestorer(client);
 
     // Make sure the backend thinks we have a free account.
     EXPECT_EQ(setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr), API_OK);

@@ -28,6 +28,7 @@
 #include "mega/pwm_file_parser.h"
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
+#include "mega/udp_socket.h"
 #include "mega/user_attribute.h"
 
 #include <bitset>
@@ -1406,7 +1407,7 @@ void DemoApp::getua_result(unique_ptr<string_map> records, attr_t type)
 {
     if (!records)
     {
-        cout << "Error getting private user attribute" << endl;
+        cout << "Error getting private user attribute: No valid records in the attribute" << endl;
     }
     else if (!gVerboseMode)
     {
@@ -4905,6 +4906,33 @@ void exec_proxyset(autocomplete::ACState& state)
     client->httpio->setproxy(settings);
 }
 
+void exec_udp_send_recv(autocomplete::ACState& state)
+{
+    const string& address = state.words[1].s;
+    bool addressIsIPv4 = address.find(':') == std::string::npos;
+    bool convertIPv4toIPv6 = state.extractflag("-IPv4toIPv6");
+    const string& finalAddress = addressIsIPv4 && convertIPv4toIPv6 ? "::ffff:" + address : address;
+
+    UdpSocket socket(finalAddress, atoi(state.words[2].s.c_str()));
+
+    auto sendError = socket.sendAsyncMessage(state.words[3].s).get();
+    if (sendError.code)
+    {
+        cout << "Failed to send (" << sendError.code << "): " << sendError.message << endl;
+        return;
+    }
+
+    auto received = socket.receiveAsyncMessage(atoi(state.words[4].s.c_str())).get();
+    if (received.code)
+    {
+        cout << "Failed to receive (" << received.code << "): " << received.message << endl;
+    }
+    else
+    {
+        cout << "Received: " << received.message << endl;
+    }
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -5267,7 +5295,6 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
-    p->Add(exec_sendABTestActive, sequence(text("setabflag"), param("flag")));
     p->Add(exec_contactVerificationWarning, sequence(text("verificationwarnings"), opt(either(flag("-on"), flag("-off")))));
 
     /* MEGA VPN commands */
@@ -5276,6 +5303,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_putvpncredential, sequence(text("putvpncredential"), param("region"), opt(sequence(flag("-file"), param("credentialfilewithoutextension"))), opt(flag("-noconsole"))));
     p->Add(exec_delvpncredential, sequence(text("delvpncredential"), param("slotID")));
     p->Add(exec_checkvpncredential, sequence(text("checkvpncredential"), param("userpublickey")));
+    p->Add(exec_getnetworktestserver, text("getnetworktestserver"));
+    p->Add(exec_networktest, text("networktest"));
     /* MEGA VPN commands END */
 
     p->Add(exec_fetchcreditcardinfo, text("cci"));
@@ -5462,6 +5491,14 @@ autocomplete::ACN autocompleteSyntax()
                     opt(sequence(flag("-user"), param("user"))),
                     opt(sequence(flag("-password"), param("password"))),
                     opt(sequence(flag("-type"), param("type")))));
+
+    p->Add(exec_udp_send_recv,
+           sequence(text("udp_send_recv"),
+                    param("ip"),
+                    param("port"),
+                    param("message"),
+                    param("recv_timeout"),
+                    opt(flag("-IPv4toIPv6"))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -7702,13 +7739,13 @@ void exec_chatc(autocomplete::ACState& s)
     unsigned parseoffset = 2;
     if (((wordscount - parseoffset) % 2) == 0)
     {
-        if (!group && (wordscount - parseoffset) != 2)
+        if (!group && (wordscount - parseoffset) > 2)
         {
-            cout << "Peer to peer chats must have only one peer" << endl;
+            cout << "Peer to peer chats must have no more than one peer" << endl;
             return;
         }
 
-        userpriv_vector *userpriv = new userpriv_vector;
+        userpriv_vector userpriv;
 
         unsigned numUsers = 0;
         while ((numUsers + 1) * 2 + parseoffset <= wordscount)
@@ -7718,7 +7755,6 @@ void exec_chatc(autocomplete::ACState& s)
             if (!u)
             {
                 cout << "User not found: " << email << endl;
-                delete userpriv;
                 return;
             }
 
@@ -7745,17 +7781,15 @@ void exec_chatc(autocomplete::ACState& s)
                 else
                 {
                     cout << "Unknown privilege for " << email << endl;
-                    delete userpriv;
                     return;
                 }
             }
 
-            userpriv->push_back(userpriv_pair(u->userhandle, priv));
+            userpriv.push_back(userpriv_pair(u->userhandle, priv));
             numUsers++;
         }
 
-        client->createChat(group != 0, false, userpriv);
-        delete userpriv;
+        client->createChat(group != 0, false, &userpriv);
     }
 }
 
@@ -12631,23 +12665,6 @@ void exec_getABTestValue(autocomplete::ACState &s)
     cout << "[" << flag<< "]:" << value << endl;
 }
 
-void exec_sendABTestActive(autocomplete::ACState &s)
-{
-    string flag = s.words[1].s;
-
-    client->sendABTestActive(flag.c_str(), [](Error e)
-        {
-            if (e)
-            {
-                cout << "Error sending Ab Test flag: " << e << endl;
-            }
-            else
-            {
-                cout << "Flag has been correctly sent." << endl;
-            }
-        });
-}
-
 void exec_contactVerificationWarning(autocomplete::ACState& s)
 {
     bool enable = s.extractflag("-on");
@@ -12813,8 +12830,22 @@ void exec_getvpnregions(autocomplete::ACState&)
                         const auto clusters = vpnRegions[i].getClusters();
                         for (const auto& cluster: clusters)
                         {
-                            cout << "\t Cluster [" << cluster.first << "] -> "
-                                 << cluster.second.getHost() << endl;
+                            cout << "\tCluster [" << cluster.first << "] -> "
+                                 << cluster.second.getHost() << '\n';
+
+                            cout << "\t\tDNS: ";
+                            for (const auto& dns: cluster.second.getDns())
+                            {
+                                cout << dns << ", ";
+                            }
+                            cout << '\n';
+
+                            cout << "\t\tAd-blocking DNS:";
+                            for (const auto& adBlockingDns: cluster.second.getAdBlockingDns())
+                            {
+                                cout << adBlockingDns << ", ";
+                            }
+                            cout << endl;
                         }
                     }
                 }
@@ -13088,6 +13119,75 @@ void exec_checkvpncredential(autocomplete::ACState& s)
                 }
                 cout << endl;
             });
+}
+
+void exec_getnetworktestserver(autocomplete::ACState&)
+{
+    client->getNetworkConnectivityTestServerInfo(
+        [](const Error& e, NetworkConnectivityTestServerInfo&& info)
+        {
+            if (e == API_OK)
+            {
+                cout << "Network connectivity test server info: \n";
+                cout << "\tIPv4: " << info.ipv4 << "\n";
+                cout << "\tIPv6: " << info.ipv6 << "\n";
+                cout << "\tPorts: ";
+                for (const auto port: info.ports)
+                {
+                    cout << port << " ";
+                }
+                cout << endl;
+            }
+            else
+            {
+                cout << "Error requesting network connectivity test server info: " << errorstring(e)
+                     << " (" << e << ")" << endl;
+            }
+        });
+}
+
+static string NetworkConnectivityTestStatusToString(NetworkConnectivityTestMessageStatus status)
+{
+    switch (status)
+    {
+        case NetworkConnectivityTestMessageStatus::PASS:
+            return "Pass";
+        case NetworkConnectivityTestMessageStatus::FAIL:
+            return "Fail";
+        case NetworkConnectivityTestMessageStatus::NET_UNREACHABLE:
+            return "Network unreachable";
+        default:
+            return "Not run / Unknown";
+    }
+}
+
+void exec_networktest(autocomplete::ACState&)
+{
+    client->runNetworkConnectivityTest(
+        [](const Error& e, const NetworkConnectivityTestResults& results)
+        {
+            if (e == API_OK)
+            {
+                cout << "Network connectivity test:\n"
+                     << "\tIPv4 UDP: "
+                     << NetworkConnectivityTestStatusToString(results.ipv4.udpMessages) << '\n'
+                     << "\tIPv4 DNS: "
+                     << NetworkConnectivityTestStatusToString(results.ipv4.dnsLookupMessages)
+                     << '\n'
+                     << "\tIPv4 summary: " << results.ipv4.summary << '\n'
+                     << "\tIPv6 UDP: "
+                     << NetworkConnectivityTestStatusToString(results.ipv6.udpMessages) << '\n'
+                     << "\tIPv6 DNS: "
+                     << NetworkConnectivityTestStatusToString(results.ipv6.dnsLookupMessages)
+                     << '\n'
+                     << "\tIPv6 summary: " << results.ipv6.summary << endl;
+            }
+            else
+            {
+                cout << "Error running network connectivity test: " << errorstring(e) << " (" << e
+                     << ")" << endl;
+            }
+        });
 }
 /* MEGA VPN commands */
 

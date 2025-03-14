@@ -21,10 +21,6 @@ using namespace std::chrono; // convenience in this compilation unit
 namespace
 {
 
-constexpr unsigned NDIGITS_IN_MAX_INT32{10}; // int32_t::max -> 2147483647
-constexpr unsigned MIN_ALLOWED_DIGITS_TOTP{6};
-constexpr unsigned MAX_ALLOWED_DIGITS_TOTP{NDIGITS_IN_MAX_INT32};
-
 using CryptoPP::SecByteBlock;
 
 constexpr bool isValidBase32Digit(const char c)
@@ -45,27 +41,6 @@ static constexpr char PADDING_CHAR{'='};
 constexpr bool isPaddingChar(const char c)
 {
     return c == '=';
-}
-
-/**
- * @brief Check that all the characters in the given string are contained in
- * "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567". Lowercase and uppercase are both allowed.
- * Padding characters ("=") are allowed only if they are placed at the end.
- */
-bool isValid(const std::string_view base32Key)
-{
-    if (const auto pos = base32Key.find(PADDING_CHAR); pos != std::string_view::npos)
-    {
-        const auto endSlice = base32Key.substr(pos);
-        return isValid(base32Key.substr(0, pos)) &&
-               std::all_of(begin(endSlice), end(endSlice), isPaddingChar);
-    }
-    return std::all_of(begin(base32Key), end(base32Key), isValidBase32Char);
-}
-
-size_t numberOfValidChars(const std::string_view base32Key)
-{
-    return static_cast<size_t>(std::count_if(begin(base32Key), end(base32Key), isValidBase32Char));
 }
 
 /**
@@ -245,28 +220,7 @@ bool areInputsValid(const std::string& base32Key,
                     const unsigned nDigits,
                     const seconds timeStep)
 {
-    bool areValid{true};
-    if (base32Key.empty() || numberOfValidChars(base32Key) == 0)
-    {
-        LOG_err << "Empty input shared secret";
-        areValid = false;
-    }
-    if (!isValid(base32Key))
-    {
-        LOG_err << "Input shared secret contains invalid characters: " << base32Key;
-        areValid = false;
-    }
-    if (nDigits < MIN_ALLOWED_DIGITS_TOTP || nDigits > MAX_ALLOWED_DIGITS_TOTP)
-    {
-        LOG_err << "Invalid number of digits (allowed between " << MIN_ALLOWED_DIGITS_TOTP
-                << " and " << MAX_ALLOWED_DIGITS_TOTP << "). Given: " << nDigits;
-        areValid = false;
-    }
-    if (timeStep <= 0s)
-    {
-        LOG_err << "Invalid time step (expected value greater than 0): " << timeStep.count();
-        areValid = false;
-    }
+    bool areValid = validateFields(base32Key, nDigits, timeStep, std::nullopt).none();
     if (timeDelta.count() < 0)
     {
         LOG_err << "Invalid time delta (negative): " << timeDelta.count();
@@ -281,12 +235,28 @@ seconds getRemainingValidTime(const seconds timeDelta, const seconds timeStep)
 }
 }
 
+size_t numberOfValidChars(const std::string_view base32Key)
+{
+    return static_cast<size_t>(std::count_if(begin(base32Key), end(base32Key), isValidBase32Char));
+}
+
+bool isValidBase32Key(const std::string_view base32Key)
+{
+    if (const auto pos = base32Key.find(PADDING_CHAR); pos != std::string_view::npos)
+    {
+        const auto endSlice = base32Key.substr(pos);
+        return isValidBase32Key(base32Key.substr(0, pos)) &&
+               std::all_of(begin(endSlice), end(endSlice), isPaddingChar);
+    }
+    return std::all_of(begin(base32Key), end(base32Key), isValidBase32Char);
+}
+
 std::pair<std::string, seconds> generateTOTP(const std::string& base32Key,
                                              const unsigned nDigits,
                                              const seconds timeStep,
+                                             const HashAlgorithm hashAlgo,
                                              const system_clock::time_point t0,
-                                             const system_clock::time_point tEval,
-                                             const HashAlgorithm hashAlgo)
+                                             const system_clock::time_point tEval)
 {
     return generateTOTP(base32Key, duration_cast<seconds>(tEval - t0), nDigits, timeStep, hashAlgo);
 }
@@ -304,5 +274,44 @@ std::pair<std::string, seconds> generateTOTP(const std::string& base32Key,
     return {to0PaddedStr(truncate(totpBytes(byteBlockKey, timeStep, timeDelta, hashAlgo), nDigits),
                          nDigits),
             getRemainingValidTime(timeDelta, timeStep)};
+}
+
+TotpValidationErrors validateFields(const std::optional<std::string_view> base32Key,
+                                    const std::optional<unsigned> nDigits,
+                                    const std::optional<seconds> exptime,
+                                    const std::optional<std::string_view> alg)
+{
+    TotpValidationErrors totpValidationErrors{0};
+    if (base32Key && (base32Key->empty() || numberOfValidChars(*base32Key) == 0))
+    {
+        if (base32Key->empty())
+            LOG_err << "Empty input shared secret";
+        else
+            LOG_err << "The input has no valid chars";
+        totpValidationErrors[INVALID_TOTP_SHARED_SECRET] = true;
+    }
+    if (base32Key && !isValidBase32Key(*base32Key))
+    {
+        LOG_err << "Input shared secret contains invalid characters: " << *base32Key;
+        totpValidationErrors[INVALID_TOTP_SHARED_SECRET] = true;
+    }
+    if (nDigits && !isValidNDigits(*nDigits))
+    {
+        LOG_err << "Invalid number of digits (allowed between " << MIN_ALLOWED_DIGITS_TOTP
+                << " and " << MAX_ALLOWED_DIGITS_TOTP << "). Given: " << *nDigits;
+        totpValidationErrors[INVALID_TOTP_NDIGITS] = true;
+    }
+    if (exptime && *exptime <= 0s)
+    {
+        LOG_err << "Invalid time step (expected value greater than 0): " << exptime->count();
+        totpValidationErrors[INVALID_TOTP_EXPT] = true;
+    }
+    if (alg && !charTohashAlgorithm(*alg))
+    {
+        LOG_err << "Invalid time delta (negative): " << *alg;
+        totpValidationErrors[INVALID_TOTP_ALG] = true;
+    }
+
+    return totpValidationErrors;
 }
 }

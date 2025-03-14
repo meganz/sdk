@@ -1,6 +1,6 @@
 /**
  * @file posix/net.cpp
- * @brief POSIX network access layer (using cURL + c-ares)
+ * @brief POSIX network access layer (using cURL)
  *
  * (c) 2013-2017 by Mega Limited, Auckland, New Zealand
  *
@@ -25,11 +25,6 @@
 
 #if defined(USE_OPENSSL)
 #include <openssl/err.h>
-#endif
-
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
-#include <jni.h>
-extern JavaVM *MEGAjvm;
 #endif
 
 #define IPV6_RETRY_INTERVAL_DS 72000
@@ -305,19 +300,6 @@ CurlHttpIO::CurlHttpIO()
     if (++instanceCount == 1)
     {
         curl_global_init(CURL_GLOBAL_DEFAULT);
-#ifdef MEGA_USE_C_ARES
-        ares_library_init(ARES_LIB_INIT_ALL);
-
-        const char *aresversion = ares_version(NULL);
-        if (aresversion)
-        {
-            LOG_debug << "c-ares version: " << aresversion;
-        }
-
-#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
-        initialize_android();
-#endif
-#endif
     };
 
     curlMutex.unlock();
@@ -328,17 +310,6 @@ CurlHttpIO::CurlHttpIO()
     numconnections[API] = 0;
     numconnections[GET] = 0;
     numconnections[PUT] = 0;
-
-#ifdef MEGA_USE_C_ARES
-    struct ares_options options;
-    options.tries = 2;
-    ares_init_options(&ares, &options, ARES_OPT_TRIES);
-    arestimeout = -1;
-#endif
-
-#ifdef MEGA_USE_C_ARES
-    filterDNSservers();
-#endif
 
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETFUNCTION, api_socket_callback);
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETDATA, this);
@@ -415,182 +386,6 @@ bool CurlHttpIO::ipv6available()
     return ipv6_works != 0;
 }
 
-#ifdef MEGA_USE_C_ARES
-void CurlHttpIO::filterDNSservers()
-{
-    string newservers;
-    string serverlist;
-    set<string> serverset;
-    vector<string> filteredservers;
-
-    ares_addr_node *servers;
-    ares_addr_node *server;
-    if (ares_get_servers(ares, &servers) == ARES_SUCCESS)
-    {
-        bool first = true;
-        bool filtered = false;
-        server = servers;
-        while (server)
-        {
-            char straddr[INET6_ADDRSTRLEN];
-            straddr[0] = 0;
-
-            if (server->family == AF_INET6)
-            {
-                mega_inet_ntop(PF_INET6, &server->addr, straddr, sizeof(straddr));
-            }
-            else if (server->family == AF_INET)
-            {
-                mega_inet_ntop(PF_INET, &server->addr, straddr, sizeof(straddr));
-            }
-            else
-            {
-                LOG_warn << "Unknown IP address family: " << server->family;
-            }
-
-            if (straddr[0])
-            {
-                serverlist.append(straddr);
-                serverlist.append(",");
-            }
-
-            if (straddr[0]
-                    && serverset.find(straddr) == serverset.end()
-                    && strncasecmp(straddr, "fec0:", 5)
-                    && strncasecmp(straddr, "169.254.", 8))
-            {
-                if (!first)
-                {
-                    newservers.append(",");
-                }
-
-                newservers.append(straddr);
-                serverset.insert(straddr);
-                first = false;
-            }
-            else
-            {
-                filtered = true;
-                if (!straddr[0])
-                {
-                    LOG_debug << "Filtering unkwnown address of DNS server";
-                }
-                else if (serverset.find(straddr) == serverset.end())
-                {
-                    serverset.insert(straddr);
-                    filteredservers.push_back(straddr);
-                }
-            }
-
-            server = server->next;
-        }
-
-        if (serverlist.size())
-        {
-            serverlist.resize(serverlist.size() - 1);
-        }
-        LOG_debug << "DNS servers: " << serverlist;
-
-        if (filtered && (newservers.size() || filteredservers.size()))
-        {
-            for (unsigned int i = 0; i < filteredservers.size(); i++)
-            {
-                if (newservers.size())
-                {
-                    newservers.append(",");
-                }
-
-                newservers.append(filteredservers[i]);
-            }
-
-            LOG_debug << "Setting filtered DNS servers: " << newservers;
-            ares_set_servers_csv(ares, newservers.c_str());
-        }
-
-        ares_free_data(servers);
-    }
-}
-
-void CurlHttpIO::addaresevents([[maybe_unused]] Waiter* eventWaiter)
-{
-#ifdef MEGA_MEASURE_CODE
-    CodeCounter::ScopeTimer ccst(countAddAresEventsCode);
-#endif
-
-    SockInfoMap prevAressockets;   // if there are SockInfo records that were in use, and won't be anymore, they will be deleted with this
-    prevAressockets.swap(aressockets);
-
-    ares_socket_t socks[ARES_GETSOCK_MAXNUM];
-    int bitmask = ares_getsock(ares, socks, ARES_GETSOCK_MAXNUM);
-    for (int i = 0; i < ARES_GETSOCK_MAXNUM; i++)
-    {
-        bool readable = ARES_GETSOCK_READABLE(bitmask, i);
-        bool writeable = ARES_GETSOCK_WRITABLE(bitmask, i);
-
-        if (readable || writeable)
-        {
-            // take the old record from the prior version of the map, if there is one, and then we will update it
-            auto it = prevAressockets.find(socks[i]);
-            if (it == prevAressockets.end())
-            {
-#ifdef WIN32
-                auto pair = aressockets.emplace(socks[i], SockInfo(mSocketsWaitEvent));
-#else
-                auto pair = aressockets.emplace(socks[i], SockInfo());
-#endif
-                it = pair.first;
-            }
-            else
-            {
-                auto pair = aressockets.emplace(socks[i], std::move(it->second));
-                prevAressockets.erase(it);
-                it = pair.first;
-            }
-            SockInfo& info = it->second;
-            info.mode = 0;
-
-            if (readable)
-            {
-                info.fd = socks[i];
-                info.mode |= SockInfo::READ;
-            }
-
-            if (writeable)
-            {
-                info.fd = socks[i];
-                info.mode |= SockInfo::WRITE;
-            }
-
-#if defined(_WIN32)
-            info.createAssociateEvent();
-#else
-            if (readable)
-            {
-                MEGA_FD_SET(info.fd, &((PosixWaiter*)eventWaiter)->rfds);
-                ((PosixWaiter*)eventWaiter)->bumpmaxfd(info.fd);
-            }
-            if (writeable)
-            {
-                MEGA_FD_SET(info.fd, &((PosixWaiter*)eventWaiter)->wfds);
-                ((PosixWaiter*)eventWaiter)->bumpmaxfd(info.fd);
-            }
-#endif
-        }
-    }
-
-#if defined(_WIN32)
-    for (auto& mapPair : prevAressockets)
-    {
-        // We pass false for c-ares becase we can't be sure if c-ares closed the socket or not
-        // If it's not using the socket, the event should not be triggered, and even if it is
-        // then we just do one extra loop.
-        mapPair.second.closeEvent(false);
-    }
-#endif
-}
-
-#endif // #ifdef MEGA_USE_C_ARES
-
 void CurlHttpIO::addcurlevents(Waiter* eventWaiter, direction_t d)
 {
 #ifdef MEGA_MEASURE_CODE
@@ -654,19 +449,6 @@ int CurlHttpIO::checkevents(Waiter*)
 #endif
 }
 
-#ifdef MEGA_USE_C_ARES
-void CurlHttpIO::closearesevents()
-{
-#if defined(_WIN32)
-    for (auto& mapPair : aressockets)
-    {
-        mapPair.second.closeEvent(false);
-    }
-#endif
-    aressockets.clear();
-}
-#endif
-
 void CurlHttpIO::closecurlevents(direction_t d)
 {
     SockInfoMap &socketmap = curlsockets[d];
@@ -678,50 +460,6 @@ void CurlHttpIO::closecurlevents(direction_t d)
 #endif
     socketmap.clear();
 }
-
-#ifdef MEGA_USE_C_ARES
-void CurlHttpIO::processaresevents()
-{
-#ifdef MEGA_MEASURE_CODE
-    CodeCounter::ScopeTimer ccst(countProcessAresEventsCode);
-#endif
-
-#ifndef _WIN32
-    auto *rfds = &((PosixWaiter *)waiter)->rfds;
-    auto *wfds = &((PosixWaiter *)waiter)->wfds;
-#endif
-
-    for (auto& mapPair : aressockets)
-    {
-        SockInfo &info = mapPair.second;
-        if (!info.mode)
-        {
-            continue;
-        }
-
-#if defined(_WIN32)
-        bool read, write;
-        if (info.checkEvent(read, write, false))  // if checkEvent returns true, both `read` and `write` have been set.
-        {
-            ares_process_fd(ares, read ? info.fd : ARES_SOCKET_BAD, write ? info.fd : ARES_SOCKET_BAD);
-        }
-#else
-        if (((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)))
-        {
-            ares_process_fd(ares,
-                            ((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) ? info.fd : ARES_SOCKET_BAD,
-                            ((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)) ? info.fd : ARES_SOCKET_BAD);
-        }
-#endif
-    }
-
-    if (arestimeout >= 0 && arestimeout <= Waiter::ds)
-    {
-        arestimeout = -1;
-        ares_process_fd(ares, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
-    }
-}
-#endif
 
 void CurlHttpIO::processcurlevents(direction_t d)
 {
@@ -792,17 +530,11 @@ void CurlHttpIO::processcurlevents(direction_t d)
 CurlHttpIO::~CurlHttpIO()
 {
     disconnecting = true;
-#ifdef MEGA_USE_C_ARES
-    ares_destroy(ares);
-#endif
     curl_multi_cleanup(curlm[API]);
     curl_multi_cleanup(curlm[GET]);
     curl_multi_cleanup(curlm[PUT]);
     curl_share_cleanup(curlsh);
 
-#ifdef MEGA_USE_C_ARES
-    closearesevents();
-#endif
     closecurlevents(API);
     closecurlevents(GET);
     closecurlevents(PUT);
@@ -814,9 +546,6 @@ CurlHttpIO::~CurlHttpIO()
     curlMutex.lock();
     if (--instanceCount == 0)
     {
-#ifdef MEGA_USE_C_ARES
-        ares_library_cleanup();
-#endif
         curl_global_cleanup();
     }
     curlMutex.unlock();
@@ -832,34 +561,12 @@ void CurlHttpIO::setuseragent(string* u)
     useragent = *u;
 }
 
-#ifdef MEGA_USE_C_ARES
-void CurlHttpIO::setdnsservers(const char* servers)
-{
-    if (servers)
-    {
-        lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
-        if (DNS_CACHE_EXPIRES)
-        {
-            dnscache.clear();
-        }
-
-        dnsservers = servers;
-
-        LOG_debug << "Using custom DNS servers: " << dnsservers;
-        ares_set_servers_csv(ares, servers);
-    }
-}
-#endif
-
 void CurlHttpIO::disconnect()
 {
     LOG_debug << "Reinitializing the network layer";
     disconnecting = true;
     assert(!numconnections[API] && !numconnections[GET] && !numconnections[PUT]);
 
-#ifdef MEGA_USE_C_ARES
-    ares_destroy(ares);
-#endif
     curl_multi_cleanup(curlm[API]);
     curl_multi_cleanup(curlm[GET]);
     curl_multi_cleanup(curlm[PUT]);
@@ -872,9 +579,6 @@ void CurlHttpIO::disconnect()
         numconnections[PUT] = 0;
     }
 
-#ifdef MEGA_USE_C_ARES
-    closearesevents();
-#endif
     closecurlevents(API);
     closecurlevents(GET);
     closecurlevents(PUT);
@@ -895,13 +599,6 @@ void CurlHttpIO::disconnect()
     curlm[API] = curl_multi_init();
     curlm[GET] = curl_multi_init();
     curlm[PUT] = curl_multi_init();
-#ifdef MEGA_USE_C_ARES
-    struct ares_options options;
-    options.tries = 2;
-    ares_init_options(&ares, &options, ARES_OPT_TRIES);
-    arestimeout = -1;
-#endif
-
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETFUNCTION, api_socket_callback);
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[API], CURLMOPT_TIMERFUNCTION, api_timer_callback);
@@ -931,18 +628,6 @@ void CurlHttpIO::disconnect()
     arerequestspaused[PUT] = false;
 
     disconnecting = false;
-#ifdef MEGA_USE_C_ARES
-    if (dnsservers.size())
-    {
-        LOG_debug << "Using custom DNS servers: " << dnsservers;
-        ares_set_servers_csv(ares, dnsservers.c_str());
-    }
-    else
-    {
-        filterDNSservers();
-    }
-#endif
-
     if (proxyurl.size() && !proxyip.size())
     {
         LOG_debug << "Unresolved proxy name. Resolving...";
@@ -1012,13 +697,10 @@ void CurlHttpIO::addevents(Waiter* w, int)
     waiter = (WAIT_CLASS*)w;
     long curltimeoutms = -1;
 
-#ifdef MEGA_USE_C_ARES
-    addaresevents(waiter);
-#endif
     addcurlevents(waiter, API);
 
 #ifdef WIN32
-    ((WinWaiter *)waiter)->addhandle(mSocketsWaitEvent, Waiter::NEEDEXEC);
+    ((WinWaiter*)waiter)->addhandle(mSocketsWaitEvent, Waiter::NEEDEXEC);
 #endif
 
     if (curltimeoutreset[API] >= 0)
@@ -1067,8 +749,8 @@ void CurlHttpIO::addevents(Waiter* w, int)
         }
     }
 
-    if ((curltimeoutms < 0 || curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS)
-            && (downloadSpeed || uploadSpeed))
+    if ((curltimeoutms < 0 || curltimeoutms > MAX_SPEED_CONTROL_TIMEOUT_MS) &&
+        (downloadSpeed || uploadSpeed))
     {
         curltimeoutms = MAX_SPEED_CONTROL_TIMEOUT_MS;
     }
@@ -1086,351 +768,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
             waiter->maxds = dstime(timeoutds);
         }
     }
-#ifdef MEGA_USE_C_ARES
-    timeval tv;
-    if (ares_timeout(ares, NULL, &tv))
-    {
-        arestimeout = tv.tv_sec * 10 + tv.tv_usec / 100000;
-        if (!arestimeout && tv.tv_usec)
-        {
-            arestimeout = 1;
-        }
-
-        if (arestimeout < waiter->maxds)
-        {
-            waiter->maxds = dstime(arestimeout);
-        }
-        arestimeout += Waiter::ds;
-    }
-    else
-    {
-        arestimeout = -1;
-    }
-#endif
 }
-
-#ifdef MEGA_USE_C_ARES
-void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
-{
-    // the name of a proxy has been resolved
-    CurlHttpContext* httpctx = (CurlHttpContext*)arg;
-    CurlHttpIO* httpio = httpctx->httpio;
-
-    LOG_debug << "c-ares info received (proxy)";
-
-    httpctx->ares_pending--;
-    if (!httpctx->ares_pending)
-    {
-        httpio->proxyinflight--;
-    }
-
-    if (!httpio->proxyhost.size() // the proxy was disabled during the name resolution.
-            || httpio->proxyip.size())   // or we already have the correct ip
-    {
-        if (!httpctx->ares_pending)
-        {
-            LOG_debug << "Proxy ready";
-
-            // name resolution finished.
-            // nothing more to do.
-            // free resources and continue sending requests.
-            delete httpctx;
-            httpio->send_pending_requests();
-        }
-        else
-        {
-            LOG_debug << "Proxy ready. Waiting for c-ares";
-        }
-
-        return;
-    }
-
-    // check if result is valid
-    // IPv6 takes precedence over IPv4
-    // discard the IP if it's IPv6 and IPv6 isn't available
-    if (status == ARES_SUCCESS && host && host->h_addr_list[0]
-            && httpio->proxyhost == httpctx->hostname
-            && (!httpctx->hostip.size() || host->h_addrtype == PF_INET6)
-            && (host->h_addrtype != PF_INET6 || httpio->ipv6available()))
-    {
-        LOG_debug << "Received a valid IP for the proxy";
-
-        // save the IP of the proxy
-        char ip[INET6_ADDRSTRLEN];
-
-        mega_inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof ip);
-        httpctx->hostip = ip;
-        httpctx->isIPv6 = host->h_addrtype == PF_INET6;
-
-        if (httpctx->isIPv6 && ip[0] != '[')
-        {
-            httpctx->hostip.insert(0, "[");
-            httpctx->hostip.append("]");
-        }
-    }
-    else if (status != ARES_SUCCESS)
-    {
-        LOG_warn << "c-ares error (proxy) " << status;
-    }
-
-    if (!httpctx->ares_pending)
-    {
-        LOG_debug << "c-ares request finished (proxy)";
-
-        // name resolution finished
-        // if the IP is valid, use it and continue sending requests.
-        if (httpio->proxyhost == httpctx->hostname && httpctx->hostip.size())
-        {
-            std::ostringstream oss;
-
-            oss << httpctx->hostip << ":" << httpio->proxyport;
-            httpio->proxyip = oss.str();
-
-            LOG_info << "Updated proxy URL: " << httpio->proxyip;
-
-            httpio->inetstatus(true);
-
-            httpio->send_pending_requests();
-        }
-        else if (!httpio->proxyinflight)
-        {
-            LOG_err << "Invalid proxy IP";
-
-            httpio->inetstatus(false);
-
-            // the IP isn't up to date and there aren't pending
-            // name resolutions for proxies. Abort requests.
-            httpio->drop_pending_requests();
-
-            if (status != ARES_EDESTRUCTION)
-            {
-                // reinitialize c-ares to prevent persistent hangs
-                httpio->reset = true;
-            }
-        }
-        else
-        {
-            LOG_debug << "Waiting for the IP of the proxy";
-        }
-
-        // nothing more to do - free resources
-        delete httpctx;
-    }
-    else
-    {
-        LOG_debug << "Waiting for the completion of the c-ares request (proxy)";
-    }
-}
-
-void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct hostent* host)
-{
-    CurlHttpContext* httpctx = (CurlHttpContext*)arg;
-    CurlHttpIO* httpio = httpctx->httpio;
-    HttpReq* req = httpctx->req;
-    bool invalidcache = false;
-    httpctx->ares_pending--;
-
-    LOG_debug << "c-ares info received";
-
-    // check if result is valid
-    if (status == ARES_SUCCESS && host && host->h_addr_list[0])
-    {
-        char ip[INET6_ADDRSTRLEN];
-        mega_inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
-
-        LOG_debug << "Received a valid IP for "<< httpctx->hostname << ": " << ip;
-
-        httpio->inetstatus(true);
-
-        // add to DNS cache
-        CurlDNSEntry& dnsEntry = httpio->dnscache[httpctx->hostname];
-
-        int i = 0;
-        bool incache = false;
-        if ((host->h_addrtype == PF_INET6 && dnsEntry.ipv6.size())
-                || (host->h_addrtype != PF_INET6 && dnsEntry.ipv4.size()))
-        {
-            invalidcache = true;
-            while (host->h_addr_list[i] != NULL)
-            {
-                char checkip[INET6_ADDRSTRLEN];
-                mega_inet_ntop(host->h_addrtype, host->h_addr_list[i], checkip, sizeof(checkip));
-                if (host->h_addrtype == PF_INET6)
-                {
-                    if (!strcmp(dnsEntry.ipv6.c_str(), checkip))
-                    {
-                        incache = true;
-                        invalidcache = false;
-                        break;
-                    }
-                }
-                else
-                {
-                    if (!strcmp(dnsEntry.ipv4.c_str(), checkip))
-                    {
-                        incache = true;
-                        invalidcache = false;
-                        break;
-                    }
-                }
-                i++;
-            }
-        }
-
-        if (incache)
-        {
-            LOG_debug << "The current DNS cache record is still valid";
-        }
-        else if (invalidcache)
-        {
-            LOG_warn << "The current DNS cache record is invalid";
-        }
-
-        if (host->h_addrtype == PF_INET6)
-        {
-            if (!incache)
-            {
-                dnsEntry.ipv6 = ip;
-            }
-            dnsEntry.ipv6timestamp = Waiter::ds;
-        }
-        else
-        {
-            if (!incache)
-            {
-                dnsEntry.ipv4 = ip;
-            }
-            dnsEntry.ipv4timestamp = Waiter::ds;
-        }
-
-        // IPv6 takes precedence over IPv4
-        if (!httpctx->hostip.size() || (host->h_addrtype == PF_INET6 && !httpctx->curl))
-        {
-            httpctx->isIPv6 = host->h_addrtype == PF_INET6;
-
-            //save the IP for this request
-            std::ostringstream oss;
-            if (httpctx->isIPv6)
-            {
-                oss << "[" << ip << "]";
-            }
-            else
-            {
-                oss << ip;
-            }
-
-            httpctx->hostip = oss.str();
-        }
-    }
-    else if (status != ARES_SUCCESS)
-    {
-        LOG_warn << "c-ares error. code: " << status;
-    }
-    else
-    {
-        LOG_err << "Unknown c-ares error";
-    }
-
-    if (!req) // the request was cancelled
-    {
-        if (!httpctx->ares_pending)
-        {
-            LOG_debug << "Request cancelled";
-            delete httpctx;
-        }
-
-        return;
-    }
-
-    if (httpctx->curl)
-    {
-        LOG_debug << "Request already sent using a previous DNS response";
-        if (invalidcache && httpctx->isIPv6 == (host->h_addrtype == PF_INET6))
-        {
-            LOG_warn << "Cancelling request due to the detection of an invalid DNS cache record";
-            httpio->cancel(req);
-        }
-        return;
-    }
-
-    // check for fatal errors
-    if ((httpio->proxyurl.size() && !httpio->proxyhost.size() && req->method != METHOD_NONE) //malformed proxy string
-            || (!httpctx->ares_pending && !httpctx->hostip.size())) // or unable to get the IP for this request
-    {
-        if (!httpio->proxyinflight || req->method == METHOD_NONE)
-        {
-            req->status = REQ_FAILURE;
-            httpio->statechange = true;
-
-            if (!httpctx->ares_pending && !httpctx->hostip.size())
-            {
-                LOG_debug << "Unable to get the IP for " << httpctx->hostname;
-
-                // unable to get the IP.
-                httpio->inetstatus(false);
-
-                if (status != ARES_EDESTRUCTION)
-                {
-                    // reinitialize c-ares to prevent permanent hangs
-                    httpio->reset = true;
-                }
-            }
-
-            req->httpiohandle = NULL;
-
-            httpctx->req = NULL;
-            if (!httpctx->ares_pending)
-            {
-                delete httpctx;
-            }
-        }
-        else if(!httpctx->ares_pending)
-        {
-            httpio->pendingrequests.push(httpctx);
-            LOG_debug << "Waiting for the IP of the proxy (1)";
-        }
-
-        return;
-    }
-
-    bool ares_pending = httpctx->ares_pending != 0;
-    if (httpctx->hostip.size())
-    {
-        LOG_debug << "Name resolution finished";
-
-        // if there is no proxy or we already have the IP of the proxy, send the request.
-        // otherwise, queue the request until we get the IP of the proxy
-        if (!httpio->proxyurl.size() || httpio->proxyip.size() || req->method == METHOD_NONE)
-        {
-            send_request(httpctx);
-        }
-        else if (!httpctx->ares_pending)
-        {
-            httpio->pendingrequests.push(httpctx);
-
-            if (!httpio->proxyinflight)
-            {
-                LOG_err << "Unable to get the IP of the proxy";
-
-                // c-ares failed to get the IP of the proxy.
-                // queue this request and retry.
-                httpio->ipv6proxyenabled = !httpio->ipv6proxyenabled && httpio->ipv6available();
-                httpio->request_proxy_ip();
-                return;
-            }
-            else
-            {
-                LOG_debug << "Waiting for the IP of the proxy (2)";
-            }
-        }
-    }
-
-    if (ares_pending)
-    {
-        LOG_debug << "Waiting for the completion of the c-ares request";
-    }
-}
-#endif
 
 struct curl_slist* CurlHttpIO::clone_curl_slist(struct curl_slist* inlist)
 {
@@ -1546,34 +884,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         req->mHashcashToken.clear();
     }
 
-#ifdef MEGA_USE_C_ARES
-    if(httpio->proxyip.size())
-    {
-        NET_debug << "Using the hostname instead of the IP";
-    }
-    else if(httpctx->hostip.size())
-    {
-        NET_debug << "Using the IP of the hostname: " << httpctx->hostip;
-        httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
-        httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
-    }
-    else
-    {
-        LOG_err << "No IP nor proxy available";
-        req->status = REQ_FAILURE;
-        req->httpiohandle = NULL;
-        curl_slist_free_all(httpctx->headers);
-
-        httpctx->req = NULL;
-        if (!httpctx->ares_pending)
-        {
-            delete httpctx;
-        }
-        httpio->statechange = true;
-        return;
-    }
-#endif
-
     CURL* curl;
     curl = curl_easy_init();
     if (curl)
@@ -1620,9 +930,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-#ifndef MEGA_USE_C_ARES
         curl_easy_setopt(curl, CURLOPT_QUICK_EXIT, 1L);
-#endif
 
         // Some networks (eg vodafone UK) seem to block TLS 1.3 ClientHello.  1.2 is secure, and works:
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2 | CURL_SSLVERSION_MAX_TLSv1_2);
@@ -1747,13 +1055,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_slist_free_all(httpctx->headers);
 
         httpctx->req = NULL;
-
-#ifdef MEGA_USE_C_ARES
-        if (!httpctx->ares_pending)
-#endif
-        {
-            delete httpctx;
-        }
+        delete httpctx;
     }
 
     httpio->statechange = true;
@@ -1761,33 +1063,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
 void CurlHttpIO::request_proxy_ip()
 {
-#ifdef MEGA_USE_C_ARES
-    if (!proxyhost.size())
-    {
-        return;
-    }
-
-    proxyinflight++;
-    proxyip.clear();
-
-    CurlHttpContext* httpctx = new CurlHttpContext;
-    httpctx->httpio = this;
-    httpctx->hostname = proxyhost;
-
-    send_request(httpctx);
-
-    httpctx->ares_pending = 1;
-
-    if (ipv6proxyenabled)
-    {
-        httpctx->ares_pending++;
-        NET_debug << "Resolving IPv6 address for proxy: " << proxyhost;
-        ares_gethostbyname(ares, proxyhost.c_str(), PF_INET6, proxy_ready_callback, httpctx);
-    }
-
-    NET_debug << "Resolving IPv4 address for proxy: " << proxyhost;
-    ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, httpctx);
-#else
     if (!proxyhost.empty() && proxyport)
     {
         // No need to resolve the proxy's IP: cURL will resolve it for us.
@@ -1795,7 +1070,6 @@ void CurlHttpIO::request_proxy_ip()
         ostream << proxyhost << ":" << proxyport;
         proxyip = ostream.str();
     }
-#endif
 }
 
 bool CurlHttpIO::crackurl(const string* url, string* scheme, string* hostname, int* port)
@@ -1967,9 +1241,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->headers = NULL;
     httpctx->isIPv6 = false;
     httpctx->isCachedIp = false;
-#ifdef MEGA_USE_C_ARES
-    httpctx->ares_pending = 0;
-#endif
     httpctx->d = (req->type == REQ_JSON || req->method == METHOD_NONE) ? API : ((data ? len : req->out->size()) ? PUT : GET);
     req->httpiohandle = (void*)httpctx;
 
@@ -1998,35 +1269,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         ipv6requestsenabled = true;
     }
-
-#ifdef MEGA_USE_C_ARES
-    if (reset)
-    {
-        LOG_debug << "Error in c-ares. Reinitializing...";
-        reset = false;
-        ares_destroy(ares);
-        struct ares_options options;
-        options.tries = 2;
-        ares_init_options(&ares, &options, ARES_OPT_TRIES);
-
-        if (dnsservers.size())
-        {
-            LOG_info << "Using custom DNS servers: " << dnsservers;
-            ares_set_servers_csv(ares, dnsservers.c_str());
-        }
-        else if (!dnsok)
-        {
-            getMEGADNSservers(&dnsservers, false);
-            ares_set_servers_csv(ares, dnsservers.c_str());
-        }
-
-        if (proxyurl.size() && !proxyip.size())
-        {
-            LOG_debug << "Unresolved proxy name. Resolving...";
-            request_proxy_ip();
-        }
-    }
-#endif
 
     // purge DNS cache if needed
     if (DNS_CACHE_EXPIRES && (Waiter::ds - lastdnspurge) > DNS_CACHE_TIMEOUT_DS)
@@ -2086,11 +1328,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->hostheader = "Host: ";
     httpctx->hostheader.append(httpctx->hostname);
 
-
-#ifdef MEGA_USE_C_ARES
-    httpctx->ares_pending = 1;
-#endif
-
     CurlDNSEntry* dnsEntry = NULL;
     map<string, CurlDNSEntry>::iterator it = dnscache.find(httpctx->hostname);
     if (it != dnscache.end())
@@ -2108,9 +1345,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             httpctx->isCachedIp = true;
             oss << "[" << dnsEntry->ipv6 << "]";
             httpctx->hostip = oss.str();
-#ifdef MEGA_USE_C_ARES
-            httpctx->ares_pending = 0;
-#endif
             send_request(httpctx);
             return;
         }
@@ -2122,26 +1356,10 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         httpctx->isIPv6 = false;
         httpctx->isCachedIp = true;
         httpctx->hostip = dnsEntry->ipv4;
-#ifdef MEGA_USE_C_ARES
-        httpctx->ares_pending = 0;
-#endif
         send_request(httpctx);
         return;
     }
-
-#ifndef MEGA_USE_C_ARES
     send_request(httpctx);
-#else
-    if (ipv6requestsenabled)
-    {
-        httpctx->ares_pending++;
-        NET_debug << "Resolving IPv6 address for " << httpctx->hostname;
-        ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
-    }
-
-    NET_debug << "Resolving IPv4 address for " << httpctx->hostname;
-    ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
-#endif
 }
 
 std::optional<Proxy> CurlHttpIO::getproxy() const
@@ -2227,11 +1445,7 @@ void CurlHttpIO::cancel(HttpReq* req)
 
         httpctx->req = NULL;
 
-        if ((req->status == REQ_FAILURE || httpctx->curl)
-#ifdef MEGA_USE_C_ARES
-            && !httpctx->ares_pending
-#endif
-            )
+        if (req->status == REQ_FAILURE || httpctx->curl)
         {
             delete httpctx;
         }
@@ -2271,10 +1485,6 @@ bool CurlHttpIO::doio()
 {
     bool result;
     statechange = false;
-
-#ifdef MEGA_USE_C_ARES
-    processaresevents();
-#endif
 
     result = statechange;
     statechange = false;
@@ -2546,12 +1756,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         ipv6deactivationtime = Waiter::ds;
 
                         // for IPv6 errors, try IPv4 before sending an error to the engine
-                        if ((dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired())
-                                || (!httpctx->isCachedIp
-#ifdef MEGA_USE_C_ARES
-                                    && httpctx->ares_pending
-#endif
-                                    ))
+                        if ((dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired()) ||
+                            (!httpctx->isCachedIp))
                         {
                             numconnections[httpctx->d]--;
                             pausedrequests[httpctx->d].erase(msg->easy_handle);
@@ -2606,12 +1812,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 req->httpiohandle = NULL;
 
                 httpctx->req = NULL;
-#ifdef MEGA_USE_C_ARES
-                if (!httpctx->ares_pending)
-#endif
-                {
-                    delete httpctx;
-                }
+                delete httpctx;
             }
         }
         msg = curl_multi_info_read(curlmhandle, &dummy);
@@ -2693,12 +1894,7 @@ void CurlHttpIO::drop_pending_requests()
         }
 
         httpctx->req = NULL;
-#ifdef MEGA_USE_C_ARES
-        if (!httpctx->ares_pending)
-#endif
-        {
-            delete httpctx;
-        }
+        delete httpctx;
         pendingrequests.pop();
     }
 }
@@ -2986,33 +2182,11 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     return 0;
 }
 
-// This one was causing us to issue additional c-ares requests, when normal usage already sends those requests
-// CURL doco: When set, this callback function gets called by libcurl when the socket has been created, but before the connect call to allow applications to change specific socket options.The callback's purpose argument identifies the exact purpose for this particular socket:
-
+// CURL doco: When set, this callback function gets called by libcurl when the socket has been
+// created, but before the connect call to allow applications to change specific socket options.The
+// callback's purpose argument identifies the exact purpose for this particular socket:
 int CurlHttpIO::sockopt_callback([[maybe_unused]] void* clientp, curl_socket_t, curlsocktype)
 {
-#ifdef MEGA_USE_C_ARES
-    HttpReq *req = (HttpReq*)clientp;
-    CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
-    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-    if (httpio && !httpio->disconnecting
-            && httpctx && httpctx->isCachedIp && !httpctx->ares_pending && httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain)
-    {
-        httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain = false;
-        httpctx->ares_pending = 1;
-
-        if (httpio->ipv6requestsenabled)
-        {
-            httpctx->ares_pending++;
-            LOG_debug << "Resolving IPv6 address for " << httpctx->hostname << " during connection";
-            ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
-        }
-
-        LOG_debug << "Resolving IPv4 address for " << httpctx->hostname << " during connection";
-        ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
-    }
-#endif
-
     return CURL_SOCKOPT_OK;
 }
 
@@ -3236,180 +2410,5 @@ bool CurlDNSEntry::isIPv6Expired()
 {
     return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
 }
-
-#ifdef MEGA_USE_C_ARES
-#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
-
-void CurlHttpIO::initialize_android()
-{
-    bool initialized = ares_library_android_initialized() == ARES_SUCCESS;
-    if (initialized)
-    {
-            LOG_warn << "initialize_android: already initialized";
-            crashlytics_log("initialize_android: already initialized");
-            return;
-    }
-
-    if (!MEGAjvm)
-    {
-        LOG_err << "No JVM found";
-        crashlytics_log("No JVM found");
-        return;
-    }
-
-    bool detach = false;
-    try
-    {
-        JNIEnv *env;
-        int result = MEGAjvm->GetEnv((void **)&env, JNI_VERSION_1_6);
-        if (result == JNI_EDETACHED)
-        {
-            if (MEGAjvm->AttachCurrentThread(&env, NULL) != JNI_OK)
-            {
-                LOG_err << "Unable to attach the current thread";
-                crashlytics_log("Unable to attach the current thread");
-                return;
-            }
-            detach = true;
-        }
-        else if (result != JNI_OK)
-        {
-            LOG_err << "Unable to get JNI environment";
-            crashlytics_log("Unable to get JNI environment");
-            return;
-        }
-
-        jclass appGlobalsClass = env->FindClass("android/app/AppGlobals");
-        if (!appGlobalsClass)
-        {
-            env->ExceptionClear();
-            LOG_err << "Failed to get android/app/AppGlobals";
-            crashlytics_log("Failed to get android/app/AppGlobals");
-            if (detach)
-            {
-                MEGAjvm->DetachCurrentThread();
-            }
-            return;
-        }
-
-        jmethodID getInitialApplicationMID = env->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
-        if (!getInitialApplicationMID)
-        {
-            env->ExceptionClear();
-            LOG_err << "Failed to get getInitialApplication()";
-            crashlytics_log("Failed to get getInitialApplication()");
-            if (detach)
-            {
-                MEGAjvm->DetachCurrentThread();
-            }
-            return;
-        }
-
-        jobject context = env->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
-        if (!context)
-        {
-            env->ExceptionClear();
-            LOG_err << "Failed to get context";
-            crashlytics_log("Failed to get context");
-            if (detach)
-            {
-                MEGAjvm->DetachCurrentThread();
-            }
-            return;
-        }
-
-        jclass contextClass = env->FindClass("android/content/Context");
-        if (!contextClass)
-        {
-            env->ExceptionClear();
-            LOG_err << "Failed to get android/content/Context";
-            crashlytics_log("Failed to get android/content/Context");
-            if (detach)
-            {
-                MEGAjvm->DetachCurrentThread();
-            }
-            return;
-        }
-
-        jmethodID getSystemServiceMID = env->GetMethodID(contextClass, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
-        if (!getSystemServiceMID)
-        {
-            env->ExceptionClear();
-            LOG_err << "Failed to get getSystemService()";
-            crashlytics_log("Failed to get getSystemService()");
-            if (detach)
-            {
-                MEGAjvm->DetachCurrentThread();
-            }
-            return;
-        }
-
-        jfieldID fid = env->GetStaticFieldID(contextClass, "CONNECTIVITY_SERVICE", "Ljava/lang/String;");
-        if (!fid)
-        {
-            env->ExceptionClear();
-            LOG_err << "Failed to get CONNECTIVITY_SERVICE";
-            crashlytics_log("Failed to get CONNECTIVITY_SERVICE");
-            if (detach)
-            {
-                MEGAjvm->DetachCurrentThread();
-            }
-            return;
-        }
-
-        jstring str = (jstring)env->GetStaticObjectField(contextClass, fid);
-        if (!str)
-        {
-            env->ExceptionClear();
-            LOG_err << "Failed to get CONNECTIVITY_SERVICE value";
-            crashlytics_log("Failed to get CONNECTIVITY_SERVICE value");
-            if (detach)
-            {
-                MEGAjvm->DetachCurrentThread();
-            }
-            return;
-        }
-
-        jobject connectivityManager = env->CallObjectMethod(context, getSystemServiceMID, str);
-        if (!connectivityManager)
-        {
-            env->ExceptionClear();
-            LOG_err << "Failed to get connectivityManager";
-            crashlytics_log("Failed to get connectivityManager");
-            if (detach)
-            {
-                MEGAjvm->DetachCurrentThread();
-            }
-            return;
-        }
-
-        // ares_library_init_jvm(MEGAjvm); --> already done at JNI_OnLoad()
-        ares_library_init_android(connectivityManager);
-        initialized = ares_library_android_initialized() == ARES_SUCCESS;
-        assert(initialized);
-        if (!initialized)
-        {
-            crashlytics_log("Failed to initialize c-ares for Android");
-        }
-
-        if (detach)
-        {
-            MEGAjvm->DetachCurrentThread();
-        }
-    }
-    catch (...)
-    {
-        try
-        {
-            if (detach)
-            {
-                MEGAjvm->DetachCurrentThread();
-            }
-        }
-        catch (...) { }
-    }
-}
-#endif
-#endif
 
 } // namespace

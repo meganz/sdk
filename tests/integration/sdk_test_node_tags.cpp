@@ -240,19 +240,31 @@ TEST_F(SdkTestNodeTagsSearch, AllTagsSucceeds)
 {
     using testing::UnorderedElementsAre;
 
+    // Make sure client1 contains at least one tag.
     auto root = rootNode(*client1);
     ASSERT_NE(root, nullptr);
 
-    // Make sure client1 contains at least one tag.
     auto q = createDirectory(*client1, *root, "q");
     ASSERT_EQ(result(q), API_OK);
     EXPECT_EQ(addTag(*client1, *value(q), "q"), API_OK);
 
-    // Make sure client0 and client1 are friends.
-    EXPECT_EQ(befriend(*client0, *client1), API_OK);
+    // Make sure client2 contains at least one tag.
+    root = rootNode(*client2);
+    ASSERT_NE(root, nullptr);
 
-    // Share qf with client0.
-    EXPECT_EQ(share(*client1, *value(q), *client0, MegaShare::ACCESS_FULL), API_OK);
+    auto r = createDirectory(*client2, *root, "r");
+    ASSERT_EQ(result(r), API_OK);
+    EXPECT_EQ(addTag(*client2, *value(r), "r"), API_OK);
+
+    // Make sure client0, client1 and client2 are friends.
+    EXPECT_EQ(befriend(*client0, *client1), API_OK);
+    EXPECT_EQ(befriend(*client0, *client2), API_OK);
+
+    // Share q with client0.
+    EXPECT_EQ(share(*client1, *value(q), *client0, MegaShare::ACCESS_READWRITE), API_OK);
+
+    // Share r with client0.
+    EXPECT_EQ(share(*client2, *value(r), *client0, MegaShare::ACCESS_FULL), API_OK);
 
     // Move x/y/z into the rubbish bin.
     auto rubbish = makeUniqueFrom(client0->getRubbishNode());
@@ -270,7 +282,7 @@ TEST_F(SdkTestNodeTagsSearch, AllTagsSucceeds)
     // Should contain all tags except those from client1.
     EXPECT_THAT(
         value(tags),
-        UnorderedElementsAre("xf0", "xf1", "xf2", "yf0", "yf1", "yf2", "zf0", "zf1", "zf2"));
+        UnorderedElementsAre("r", "xf0", "xf1", "xf2", "yf0", "yf1", "yf2", "zf0", "zf1", "zf2"));
 }
 
 TEST_F(SdkTestNodeTagsSearch, FindNodesByDirectorySucceeds)

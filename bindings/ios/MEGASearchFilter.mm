@@ -27,6 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString *)term
                  description:(NSString * _Nullable)description
+                         tag:(NSString * _Nullable)tag
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(MEGANodeType)nodeType
                     category:(MEGANodeFormatType)category
@@ -41,6 +42,7 @@ NS_ASSUME_NONNULL_BEGIN
     if (self != nil) {
         _term = term;
         _searchDescription = description;
+        _searchTag = tag;
         _parentNodeHandle = parentNodeHandle;
         _nodeType = nodeType;
         _category = category;
@@ -65,6 +67,7 @@ NS_ASSUME_NONNULL_BEGIN
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
     return [self initWithTerm:term
                   description:nil
+                          tag:nil
              parentNodeHandle:parentNodeHandle
                      nodeType:nodeType
                      category:category
@@ -86,6 +89,7 @@ NS_ASSUME_NONNULL_BEGIN
        modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
     return [self initWithTerm:term
                   description:nil
+                          tag:nil
              parentNodeHandle:-1
                      nodeType:nodeType
                      category:category
@@ -99,6 +103,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString *)term
                  description:(NSString * _Nullable)description
+                         tag:(NSString * _Nullable)tag
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(MEGANodeType)nodeType
                     category:(MEGANodeFormatType)category
@@ -109,6 +114,7 @@ NS_ASSUME_NONNULL_BEGIN
           useAndForTextQuery:(BOOL)useAndForTextQuery {
     return [self initWithTerm:term
             description:description
+                          tag:tag
              parentNodeHandle:parentNodeHandle
                      nodeType:nodeType
                      category:category
@@ -122,6 +128,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString *)term
                  description:(NSString * _Nullable)description
+                         tag:(NSString * _Nullable)tag
                     nodeType:(MEGANodeType)nodeType
                     category:(MEGANodeFormatType)category
              sensitiveFilter:(MEGASearchFilterSensitiveOption)sensitiveFilter
@@ -132,6 +139,7 @@ NS_ASSUME_NONNULL_BEGIN
           useAndForTextQuery:(BOOL)useAndForTextQuery {
     return [self initWithTerm:term
                   description:description
+                          tag:tag
              parentNodeHandle:-1
                      nodeType:nodeType
                      category:category
@@ -145,6 +153,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString *)term
                  description:(NSString * _Nullable)description
+                         tag:(NSString * _Nullable)tag
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
@@ -155,6 +164,7 @@ NS_ASSUME_NONNULL_BEGIN
           useAndForTextQuery:(BOOL)useAndForTextQuery {
     return [self initWithTerm:term
                   description:description
+                          tag:tag
              parentNodeHandle:parentNodeHandle
                      nodeType:(MEGANodeType)nodeType
                      category:(MEGANodeFormatType)category
@@ -168,6 +178,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTerm:(NSString *)term
                  description:(NSString * _Nullable)description
+                         tag:(NSString * _Nullable)tag
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
@@ -178,6 +189,7 @@ NS_ASSUME_NONNULL_BEGIN
           useAndForTextQuery:(BOOL)useAndForTextQuery {
     return [self initWithTerm:term
                   description:description
+                          tag:tag
              parentNodeHandle:-1
                      nodeType:(MEGANodeType)nodeType
                      category:(MEGANodeFormatType)category

@@ -414,7 +414,6 @@ void exec_drivemonitor(autocomplete::ACState& s);
 void exec_driveid(autocomplete::ACState& s);
 void exec_randomfile(autocomplete::ACState& s);
 void exec_getABTestValue(autocomplete::ACState& s);
-void exec_sendABTestActive(autocomplete::ACState& s);
 void exec_contactVerificationWarning(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
@@ -441,6 +440,8 @@ void exec_getvpncredentials(autocomplete::ACState& s);
 void exec_putvpncredential(autocomplete::ACState& s);
 void exec_delvpncredential(autocomplete::ACState& s);
 void exec_checkvpncredential(autocomplete::ACState& s);
+void exec_getnetworktestserver(autocomplete::ACState& s);
+void exec_networktest(autocomplete::ACState& s);
 /* MEGA VPN commands END */
 
 void exec_fetchcreditcardinfo(autocomplete::ACState&);

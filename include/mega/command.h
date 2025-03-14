@@ -25,6 +25,7 @@
 #include "account.h"
 #include "http.h"
 #include "json.h"
+#include "network_connectivity_test_helpers.h"
 #include "node.h"
 #include "nodemanager.h"
 #include "textchat.h"
@@ -1244,6 +1245,7 @@ public:
     bool procresult(Result, JSON&) override;
 
     CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty, const ScheduledMeeting* schedMeeting = nullptr);
+    ~CommandChatCreate();
 };
 
 typedef std::function<void(Error)> CommandSetChatOptionsCompletion;
@@ -1936,9 +1938,12 @@ public:
 class VpnCluster
 {
 public:
-    VpnCluster(std::string&& host, std::vector<std::string>&& dns):
+    VpnCluster(std::string&& host,
+               std::vector<std::string>&& dns,
+               std::vector<std::string>&& addBlockingDns):
         mHost{std::move(host)},
-        mDns{std::move(dns)}
+        mDns{std::move(dns)},
+        mAdBlockingDns{std::move(addBlockingDns)}
     {}
 
     const std::string& getHost() const
@@ -1951,9 +1956,15 @@ public:
         return mDns;
     }
 
+    const std::vector<std::string>& getAdBlockingDns() const
+    {
+        return mAdBlockingDns;
+    }
+
 private:
     std::string mHost; // "nz.vpn.mega.nz"
     std::vector<std::string> mDns; // {"8.8.8.8", "8.8.4.4", ...}
+    std::vector<std::string> mAdBlockingDns;
 };
 
 class VpnRegion
@@ -2103,6 +2114,23 @@ public:
 
 private:
     Cb mCompletion;
+};
+
+class MEGA_API CommandGetNetworkConnectivityTestServerInfo: public Command
+{
+public:
+    using Completion = std::function<void(const Error&, NetworkConnectivityTestServerInfo&&)>;
+    CommandGetNetworkConnectivityTestServerInfo(MegaClient*, Completion&&);
+    bool procresult(Result, JSON&) override;
+
+private:
+    void onParseFailure()
+    {
+        if (mCompletion)
+            mCompletion(API_EINTERNAL, {});
+    }
+
+    Completion mCompletion;
 };
 /* MegaVPN Commands END*/
 

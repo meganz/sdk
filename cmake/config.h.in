@@ -219,9 +219,6 @@
 /* Define to use UNICODE (for MediaInfo) */
 #cmakedefine UNICODE 1
 
-/* Define to use c-ares */
-#cmakedefine MEGA_USE_C_ARES 1
-
 /* Define to use libcryptopp */
 #cmakedefine USE_CRYPTOPP 1
 

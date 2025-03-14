@@ -48,7 +48,7 @@ pipeline {
                                 def BUILD_DIR = "${WORKSPACE}\\build_dir_${ARCHITECTURE}"
                                 def QTPATH = "C:\\Qt\\Qt5.15.13\\5.15.13"
                                 def VCPKGPATH  = "${WORKSPACE}\\..\\..\\vcpkg"
-                                def CMAKE_FLAGS = "-DVCPKG_ROOT='${VCPKGPATH}' -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -S '${WORKSPACE}' -B '${BUILD_DIR}'"
+                                def CMAKE_FLAGS = "-DVCPKG_ROOT='${VCPKGPATH}' -DSWIG_EXECUTABLE='C:\\swigwin-4.0.2\\swig.exe' -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DENABLE_JAVA_BINDINGS=ON -DUSE_LIBUV=ON -S '${WORKSPACE}' -B '${BUILD_DIR}'"
                                 def CMAKE_PLATFORM = "-DCMAKE_GENERATOR_PLATFORM=${ARCHITECTURE}"
 
                                 // x64 and Win32 have QT bindings. arm64 does not.
