@@ -36,10 +36,9 @@ static const std::string pathSep{LocalPath::localPathSeparator_utf8};
  * - Test2: Convert local path string into MEGA path (UTF-8 normalized) string
  * - Test3: Convert MEGA path (UTF-8) string into local path string
  * - Test4: Create absolute LocalPath from fileName string (no character scaping)
- * - Test5: Create absolute LocalPath from fileName string (no character scaping)
- * - Test6: Create absolute LocalPath from a string that was already converted to be appropriate for
+ * - Test5: Create absolute LocalPath from a string that was already converted to be appropriate for
  * a local file path
- * - Test7: Create relative LocalPath from a string that was already converted to be appropriate for
+ * - Test6: Create relative LocalPath from a string that was already converted to be appropriate for
  * a local file path
  *
  */
@@ -106,24 +105,7 @@ TEST(LocalPathTest, LocalPathCreation)
         EXPECT_EQ(outputLocalPath, auxLocalPath);
     }
 
-    LOG_debug
-        << "#### Test5: Create absolute LocalPath from fileName string (no character scaping) ####";
-    {
-#ifdef WIN32
-        std::string input{"D:\\home\\user\\Jose\x65\xCC\x81.txt"};
-        std::string expected{"D:\\home\\user\\Jose\x65\xCC\x81.txt"};
-#else
-        std::string input{"Jos\x65\xCC\x81.txt"};
-        std::string expected{(fs::current_path() / "Jos\x65\xCC\x81.txt").u8string()};
-#endif
-
-        auto outputLocalPath = LocalPath::fromAbsolutePath(input);
-        auto auxLocalPath = LocalPath::fromAbsolutePath(expected);
-        EXPECT_TRUE(outputLocalPath.isAbsolute());
-        EXPECT_EQ(outputLocalPath, auxLocalPath);
-    }
-
-    LOG_debug << "#### Test6: Create absolute LocalPath from a string that was already converted "
+    LOG_debug << "#### Test5: Create absolute LocalPath from a string that was already converted "
                  "to be appropriate for a local file path ####";
     {
 #if defined(WIN32)
@@ -142,7 +124,7 @@ TEST(LocalPathTest, LocalPathCreation)
         EXPECT_EQ(outputLocalPath.toPath(false), expected);
     }
 
-    LOG_debug << "#### Test7: Create relative LocalPath from a string that was already converted "
+    LOG_debug << "#### Test6: Create relative LocalPath from a string that was already converted "
                  "to be appropriate for a local file path ####";
     {
 #if defined(WIN32)

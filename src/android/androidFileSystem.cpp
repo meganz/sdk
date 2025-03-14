@@ -279,7 +279,7 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
 {
     fopenSucceeded = false;
     retry = false;
-    std::string fstr = f.rawValue();
+    std::string fstr = f.asPlatformEncoded(false);
     assert(!mFileWrapper);
 
     mFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(fstr);
@@ -413,11 +413,12 @@ bool AndroidFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
     if (!mFileWrapper)
     {
-        mFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(nonblocking_localname.rawValue());
+        mFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(
+            nonblocking_localname.asPlatformEncoded(false));
     }
     else
     {
-        assert(nonblocking_localname.rawValue() == mFileWrapper->getName());
+        assert(nonblocking_localname.asPlatformEncoded(false) == mFileWrapper->getName());
     }
 
     bool opened = false;
@@ -543,7 +544,7 @@ bool AndroidDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
     else
     {
         assert(path);
-        std::string fstr = path->rawValue();
+        std::string fstr = path->asPlatformEncoded(false);
         assert(!mFileWrapper);
 
         mFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(fstr);
