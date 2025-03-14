@@ -621,6 +621,7 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
         mImplementation =
             std::make_unique<PathURI>(*LocalPathImplementationHelper::getPathURI(*this));
         mImplementation->appendWithSeparator(LocalPath::fromRelativePath(previousPath), true);
+        mPathType = PathType::URI_PATH;
         return;
     }
     else if (!mImplementation)
