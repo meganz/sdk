@@ -38,7 +38,8 @@ typedef NS_ENUM(NSUInteger, MEGABackupHeartbeatStatus) {
     MEGABackupHeartbeatStatusSyncing = 2,
     MEGABackupHeartbeatStatusPending = 3,
     MEGABackupHeartbeatStatusInactive = 4,
-    MEGABackupHeartbeatStatusUnknown = 5
+    MEGABackupHeartbeatStatusUnknown = 5,
+    MEGABackupHeartbeatStatusStalled = 6,
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -323,6 +324,8 @@ NS_ASSUME_NONNULL_BEGIN
  * - MEGABackupHeartbeatStatusUnknown          = 5,
  * The backup status is unknown.
  *
+ * - MEGABackupHeartbeatStatusStalled              = 6,
+ * The backup status is stalled.
  */
 @property (readonly, nonatomic) MEGABackupHeartbeatStatus status;
 
