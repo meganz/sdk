@@ -7,15 +7,32 @@ namespace fuse
 
 const char* toString(MountResult result)
 {
-    switch (result)
+    static const char * const sValues [] {
+        #define SOME_GENERATOR_MACRO(name, _) #name,
+            DEFINE_MOUNT_RESULTS(SOME_GENERATOR_MACRO)
+        #undef SOME_GENERATOR_MACRO
+    };
+    if (result >= sizeof(sValues))
     {
-#define DEFINE_MOUNT_RESULT_CLAUSE(name) case name: return #name;
-        DEFINE_MOUNT_RESULTS(DEFINE_MOUNT_RESULT_CLAUSE);
-#undef  DEFINE_MOUNT_RESULT_CLAUSE
+        return "N/A";
     }
 
-    // Here only to silence the compiler.
-    return "N/A";
+    return sValues[result];
+}
+
+const char* getDescriptionString(MountResult result)
+{
+    static const char * const sValues [] {
+#define SOME_GENERATOR_MACRO(name, description) description,
+    DEFINE_MOUNT_RESULTS(SOME_GENERATOR_MACRO)
+#undef SOME_GENERATOR_MACRO
+    };
+    if (result >= sizeof(sValues))
+    {
+        return "N/A";
+    }
+
+    return sValues[result];
 }
 
 } // fuse

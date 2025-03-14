@@ -8087,6 +8087,13 @@ const char* MegaMount::getResultString(int result)
     return fuse::toString(static_cast<fuse::MountResult>(result));
 }
 
+const char* MegaMount::getResultDescription(int result)
+{
+    assert(result >= ABORTED && result <= UNSUPPORTED);
+
+    return fuse::getDescriptionString(static_cast<fuse::MountResult>(result));
+}
+
 MegaMountFlags::MegaMountFlags() = default;
 
 MegaMountFlags::~MegaMountFlags() = default;

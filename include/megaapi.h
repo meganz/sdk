@@ -25848,6 +25848,18 @@ public:
 
     /**
      * @brief
+     * Translates a result code into a human readable description.
+     *
+     * @param result
+     * The result you want to translate.
+     *
+     * @return
+     * A description of the result.
+     */
+    static const char* getResultDescription(int result);
+
+    /**
+     * @brief
      * Update this mount's flags.
      *
      * @param flags
