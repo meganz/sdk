@@ -1,11 +1,13 @@
 #include <algorithm>
 #include <cassert>
+#include <map>
 #include <vector>
 
-#include <mega/fuse/common/database_builder.h>
 #include <mega/fuse/common/database.h>
+#include <mega/fuse/common/database_builder.h>
 #include <mega/fuse/common/inode_id.h>
 #include <mega/fuse/common/logging.h>
+#include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/query.h>
 #include <mega/fuse/common/scoped_query.h>
 #include <mega/fuse/common/transaction.h>
@@ -23,22 +25,26 @@ static std::size_t currentVersion(Query& query);
 static void downgrade10(Query& query);
 static void downgrade21(Query& query);
 static void downgrade32(Query& query);
+static void downgrade43(Query& query);
 
 static void upgrade01(Query& query);
 static void upgrade12(Query& query);
 static void upgrade23(Query& query);
+static void upgrade34(Query& query);
 
 static const std::vector<DowngradeFunction> downgrades = {
     nullptr,
     &downgrade10,
     &downgrade21,
     &downgrade32,
+    &downgrade43,
 }; // downgrades
 
 static const std::vector<UpgradeFunction> upgrades = {
     &upgrade01,
     &upgrade12,
     &upgrade23,
+    &upgrade34,
 }; // upgrades
 
 template<typename Function>
@@ -171,6 +177,90 @@ void downgrade21(Query& query)
 void downgrade32(Query& query)
 {
     query = "alter table drop column extension";
+    query.execute();
+}
+
+void downgrade43(Query& query)
+{
+    struct MountInfoLess
+    {
+        bool operator()(const MountInfo& lhs, const MountInfo& rhs) const
+        {
+            return lhs.mPath < rhs.mPath;
+        }
+    }; // MountInfoLess
+    
+    // Convenience.
+    using MountInfoSet = std::set<MountInfo, MountInfoLess>;
+
+    // Tracks which mounts we're migrating.
+    MountInfoSet mounts;
+
+    // Mounts become keyed on path rather than name.
+    //
+    // Mounts with the same path will be dropped.
+    query = "create table mounts_new ( "
+            "  enable_at_startup integer "
+            "  constraint nn_mounts_enable_at_startup "
+            "             not null, "
+            "  id integer "
+            "  constraint nn_mounts_id "
+            "             not null, "
+            "  name text "
+            "  constraint nn_mounts_name "
+            "             not null, "
+            "  path text "
+            "  constraint nn_mounts_path "
+            "             not null, "
+            "  persistent integer "
+            "  constraint nn_mounts_persistent "
+            "             not null, "
+            "  read_only integer "
+            "  constraint nn_mounts_read_only "
+            "             not null, "
+            "  constraint pk_mounts "
+            "             primary key (path) "
+            ")";
+
+    query.execute();
+
+    // Figure out which mounts we want to migrate.
+    query = "select * from mounts";
+
+    for (query.execute(); query; ++query)
+    {
+        // Add a mount to the set only if it has a path.
+        if (!query.field("path").null())
+            mounts.emplace(MountInfo::deserialize(query));
+    }
+
+    // Add mounts back into the database.
+    query = "insert into mounts_new values ( "
+            "  :enable_at_startup, "
+            "  :id, "
+            "  :name, "
+            "  :path, "
+            "  :persistent, "
+            "  :read_only "
+            ")";
+
+    for (auto i = mounts.begin(); i != mounts.end(); ++i)
+    {
+        // Reset any parameter bindings.
+        query.reset();
+
+        // Write mount into the database.
+        i->serialize(query);
+
+        // Add the mount.
+        query.execute();
+    }
+
+    // Replace the old mounts table with our new one.
+    query = "drop table mounts";
+    query.execute();
+
+    query = "alter table mounts_new rename to mounts";
     query.execute();
 }
 
@@ -343,6 +433,97 @@ void upgrade23(Query& query)
     query.execute();
 
     query = "alter table inodes_new rename to inodes";
+    query.execute();
+}
+
+void upgrade34(Query& query)
+{
+    // The mounts table will now be keyed on name.
+    query = "create table mounts_new ( "
+            "  enable_at_startup integer "
+            "  constraint nn_mounts_enable_at_startup "
+            "             not null, "
+            "  id integer "
+            "  constraint nn_mounts_id "
+            "             not null, "
+            "  name text "
+            "  constraint nn_mounts_name "
+            "             not null, "
+            "  path text, "
+            "  persistent integer "
+            "  constraint nn_mounts_persistent "
+            "             not null, "
+            "  read_only integer "
+            "  constraint nn_mounts_read_only "
+            "             not null, "
+            "  constraint pk_mounts "
+            "             primary key (name) "
+            ")";
+
+    // Create the new table.
+    query.execute();
+
+    // Tracks the mounts we are migrating.
+    std::vector<MountInfo> mounts;
+
+    // Tracks how many times a given name has been used.
+    std::map<std::string, std::size_t> occurances;
+
+    // Migrate existing mounts, resolving name conflicts as necessary.
+    query = "select * from mounts";
+
+    for (query.execute(); query; ++query)
+    {
+        // Latch the mount's description.
+        mounts.emplace_back(MountInfo::deserialize(query));
+
+        // Convenience.
+        auto& name = mounts.back().mFlags.mName;
+
+        // Remember that we've seen this mount's name.
+        auto i = occurances.emplace(name, 0u);
+
+        // We've seen this name before.
+        while (!i.second)
+        {
+            // generate a new name by adding a counter.
+            name += " (" + std::to_string(++i.first->second) + ")";
+
+            // make sure our new name is unique.
+            i = occurances.emplace(name, 0u);
+        }
+    }
+
+    // Add mounts back into the database.
+    query = "insert into mounts_new values ( "
+            "  :enable_at_startup, "
+            "  :id, "
+            "  :name, "
+            "  :path, "
+            "  :persistent, "
+            "  :read_only "
+            ")";
+
+    while (!mounts.empty())
+    {
+        // Reset any bound query parameters.
+        query.reset();
+
+        // Write the mount's info to the database.
+        mounts.back().serialize(query);
+
+        // Add the mount.
+        query.execute();
+
+        // Mount's been added.
+        mounts.pop_back();
+    }
+
+    // Replace the old mounts table with our new one.
+    query = "drop table mounts";
+    query.execute();
+
+    query = "alter table mounts_new rename to mounts";
     query.execute();
 }
 
