@@ -153,7 +153,7 @@ NTSTATUS Mount::create(const std::wstring& path,
 
     // Couldn't create the new node.
     if (!created)
-        return translate(created.errorOr(API_OK));
+        return translate(created.error());
 
     // Latch the new node's description.
     translate(info, *this, std::get<1>(*created));
@@ -191,7 +191,7 @@ NTSTATUS Mount::create(const std::wstring& path,
 
     // Couldn't open the file.
     if (!opened)
-        return translate(opened.errorOr(API_OK));
+        return translate(opened.error());
 
     // Caller now owns file context.
     context = opened->release();
@@ -435,7 +435,7 @@ NTSTATUS Mount::open(const std::wstring& path,
 
     // Couldn't open the file.
     if (!opened)
-        return translate(opened.errorOr(API_OK));
+        return translate(opened.error());
 
     // Latch the file's description.
     translate(info, *this, fileRef->info());
@@ -504,7 +504,7 @@ NTSTATUS Mount::read(PVOID context, PVOID buffer, UINT64 offset, ULONG length, U
 
         // Couldn't read the file.
         if (!result)
-            return mDispatcher.reply(*response, result.errorOr(API_OK));
+            return mDispatcher.reply(*response, result.error());
 
         // Let the caller know how much data was read.
         response->IoStatus.Information = static_cast<ULONG>(result->size());
@@ -807,7 +807,7 @@ NTSTATUS Mount::write(PVOID context,
 
         // Couldn't write the data to the file.
         if (!result)
-            return mDispatcher.reply(*response, result.errorOr(API_OK));
+            return mDispatcher.reply(*response, result.error());
 
         // Let the caller know how much data was written.
         response->IoStatus.Information = static_cast<UINT32>(*result);
