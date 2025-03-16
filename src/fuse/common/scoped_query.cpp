@@ -122,6 +122,13 @@ Parameter ScopedQuery::param(const char* name)
     return mQuery->param(name);
 }
 
+Query& ScopedQuery::query()
+{
+    assert(mQuery);
+
+    return *mQuery;
+}
+
 void ScopedQuery::reset()
 {
     assert(mQuery);
