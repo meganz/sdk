@@ -42,7 +42,7 @@ void ServiceContext::current()
 
 ErrorOr<InodeInfo> ServiceContext::describe(const NormalizedPath&) const
 {
-    return API_ENOENT;
+    return unexpected(API_ENOENT);
 }
 
 void ServiceContext::disable(MountDisabledCallback callback,

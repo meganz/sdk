@@ -154,7 +154,7 @@ NTSTATUS Mount::create(const std::wstring& path,
     // Couldn't create the new node.
     if (!created)
         return translate(created.error());
-    
+
     // Latch the new node's description.
     translate(info, *this, std::get<1>(*created));
 

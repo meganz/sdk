@@ -153,6 +153,8 @@ struct Query
 
     auto field(const char* name) -> Field;
 
+    std::uint64_t lastID() const;
+
     auto param(const std::string& name) -> Parameter;
 
     auto param(const char* name) -> Parameter;

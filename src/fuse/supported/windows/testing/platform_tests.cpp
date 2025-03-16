@@ -235,7 +235,7 @@ TEST_P(FUSEPlatformTests, find_first_file_fails_when_no_match)
 TEST_P(FUSEPlatformTests, find_first_file_succeeds_when_singular)
 {
     auto sf0 = ClientW()->get("/x/s/sf0");
-    ASSERT_EQ(sf0.error(), API_OK);
+    ASSERT_TRUE(sf0);
 
     auto info = WIN32_FIND_DATAW();
     auto handle = FindFirstFileP(MountPathW() / "sf0", &info);
@@ -252,19 +252,19 @@ TEST_P(FUSEPlatformTests, find_first_file_succeeds)
 
     {
         auto s = ClientW()->get("/x/s");
-        ASSERT_EQ(s.error(), API_OK);
+        ASSERT_TRUE(s);
 
         expectations[".."] = *s;
 
         auto sd0 = ClientW()->get("/x/s/sd0");
-        ASSERT_EQ(sd0.error(), API_OK);
+        ASSERT_TRUE(sd0);
 
         expectations["."] = *sd0;
 
         for (const auto& name : ClientW()->childNames(sd0->mHandle))
         {
             auto child = ClientW()->get(sd0->mHandle, name);
-            ASSERT_EQ(child.error(), API_OK);
+            ASSERT_TRUE(child);
 
             expectations[child->mName] = *child;
         }
@@ -333,7 +333,7 @@ TEST_P(FUSEPlatformTests, get_file_attributes_succeeds)
     auto buffer = WIN32_FILE_ATTRIBUTE_DATA();
     auto info = ClientRS()->describe(MountPathR() / "sd0");
 
-    ASSERT_EQ(info.error(), API_OK);
+    ASSERT_TRUE(info);
     EXPECT_TRUE(GetFileAttributesExP(MountPathR() / "sd0",
                                      GetFileExInfoStandard,
                                      &buffer));
@@ -342,7 +342,7 @@ TEST_P(FUSEPlatformTests, get_file_attributes_succeeds)
 
     info = ClientWS()->describe(MountPathW() / "sf0");
 
-    ASSERT_EQ(info.error(), API_OK);
+    ASSERT_TRUE(info);
     EXPECT_TRUE(GetFileAttributesExP(MountPathW() / "sf0",
                                      GetFileExInfoStandard,
                                      &buffer));
@@ -351,7 +351,7 @@ TEST_P(FUSEPlatformTests, get_file_attributes_succeeds)
 
     info = ClientRS()->describe(MountPathR() / "sf0");
 
-    ASSERT_EQ(info.error(), API_OK);
+    ASSERT_TRUE(info);
     EXPECT_TRUE(GetFileAttributesExP(MountPathR() / "sf0",
                                      GetFileExInfoStandard,
                                      &buffer));
@@ -903,8 +903,8 @@ TEST_P(FUSEPlatformTests, open_file_truncate_succeeds)
 
     auto info = ClientW()->get("/x/s/sf0");
 
-    EXPECT_EQ(info.error(), API_OK);
-    EXPECT_TRUE(info && !info->mSize);
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    ASSERT_EQ(info->mSize, 0);
 }
 
 TEST_P(FUSEPlatformTests, read_directory_changes_succeeds)
@@ -1367,14 +1367,14 @@ TEST_P(FUSEPlatformTests, set_file_time_succeeds)
     }, mDefaultTimeout));
 
     auto info = ClientW()->get("/x/s/sf0");
-    EXPECT_EQ(info.error(), API_OK);
+    ASSERT_TRUE(info);
     EXPECT_EQ(expected, *info);
 }
 
 TEST_P(FUSEPlatformTests, truncate_fails_when_read_only)
 {
     auto sf0 = ClientW()->get("/x/s/sf0");
-    ASSERT_EQ(sf0.error(), API_OK);
+    ASSERT_TRUE(sf0);
 
     sf0->mPermissions = RDONLY;
 
@@ -1451,8 +1451,8 @@ TEST_P(FUSEPlatformTests, truncate_succeeds)
 
     auto info = ClientW()->get("/x/s/sf0");
 
-    EXPECT_EQ(info.error(), API_OK);
-    EXPECT_TRUE(info && !info->mSize);
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    ASSERT_EQ(info->mSize, 0);
 }
 
 TEST_P(FUSEPlatformTests, write_fails_when_read_only)

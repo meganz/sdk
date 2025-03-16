@@ -393,7 +393,7 @@ TEST_F(FUSECommonTests, reload)
     ASSERT_EQ(client->remove("/x/s/sd1"), API_OK);
 
     // Add sd2.
-    ASSERT_EQ(client->makeDirectory("sd2", "/x/s").error(), API_OK);
+    ASSERT_EQ(client->makeDirectory("sd2", "/x/s").errorOr(API_OK), API_OK);
 
     // Move sf0 to sdx/sf0.
     ASSERT_EQ(client->move("sf0", "/x/s/sf0", "/x/s/sdx"), API_OK);
@@ -404,7 +404,7 @@ TEST_F(FUSECommonTests, reload)
         File sf2("sf2", "sf2", mScratchPath);
 
         // Upload the file.
-        ASSERT_EQ(client->upload("/x/s", sf2.path()).error(), API_OK);
+        ASSERT_EQ(client->upload("/x/s", sf2.path()).errorOr(API_OK), API_OK);
     }
 
     // Simulate ETOOMANY by reloading the cloud tree.
@@ -470,24 +470,24 @@ TEST_F(FUSECommonTests, share_changes_permissions)
         if (!error)
             return status.permissions();
 
-        return API_EREAD;
+        return unexpected(API_EREAD);
     }; // permissions
 
     // Verify initial permissions are as we expect.
     auto perms = permissions(MountPathRS() / "sd0");
-    ASSERT_EQ(perms.error(), API_OK);
+    ASSERT_EQ(perms.errorOr(API_OK), API_OK);
     EXPECT_EQ(perms.value(), U_RX);
 
     perms = permissions(MountPathRS() / "sf0");
-    ASSERT_EQ(perms.error(), API_OK);
+    ASSERT_EQ(perms.errorOr(API_OK), API_OK);
     EXPECT_EQ(perms.value(), U_R);
 
     perms = permissions(MountPathWS() / "sd0");
-    ASSERT_EQ(perms.error(), API_OK);
+    ASSERT_EQ(perms.errorOr(API_OK), API_OK);
     EXPECT_EQ(perms.value(), U_RWX);
 
     perms = permissions(MountPathWS() / "sf0");
-    ASSERT_EQ(perms.error(), API_OK);
+    ASSERT_EQ(perms.errorOr(API_OK), API_OK);
     EXPECT_EQ(perms.value(), U_RW);
 
     // Change permissions of shares.
