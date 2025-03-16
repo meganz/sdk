@@ -74,16 +74,15 @@ void DatabaseBuilder::downgrade(std::size_t target)
         if (current <= target)
             return;
 
-        auto* i = &downgrades[current];
-        auto* j = &downgrades[target];
-
-        for (; i > j; --current, --i)
+        for (; current > target; --current)
         {
-            assert(*i);
+            auto* downgrader = &downgrades[current];
+
+            assert(*downgrader);
 
             FUSEDebugF("Downgrading database to version %zu", current - 1);
 
-            (*i)(query);
+            (*downgrader)(query);
 
             query = "delete from version where version = :version";
 
@@ -103,16 +102,15 @@ void DatabaseBuilder::upgrade(std::size_t target)
         if (current >= target)
             return;
 
-        auto i = &upgrades[current];
-        auto j = &upgrades[0] + target;
-
-        for (++current ; i < j; ++current, ++i)
+        while (current < target)
         {
-            assert(*i);
+            auto* upgrader = &upgrades[current++];
+
+            assert(*upgrader);
 
             FUSEDebugF("Upgrading database to version %zu", current);
 
-            (*i)(query);
+            (*upgrader)(query);
 
             query = "insert into version values (:version)";
 
