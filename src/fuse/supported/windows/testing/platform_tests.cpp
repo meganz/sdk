@@ -903,8 +903,8 @@ TEST_P(FUSEPlatformTests, open_file_truncate_succeeds)
 
     auto info = ClientW()->get("/x/s/sf0");
 
-    ASSERT_TRUE(info);
-    EXPECT_TRUE(info && !info->mSize);
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    ASSERT_EQ(info->mSize, 0);
 }
 
 TEST_P(FUSEPlatformTests, read_directory_changes_succeeds)
@@ -1451,8 +1451,8 @@ TEST_P(FUSEPlatformTests, truncate_succeeds)
 
     auto info = ClientW()->get("/x/s/sf0");
 
-    EXPECT_TRUE(info);
-    EXPECT_TRUE(info && !info->mSize);
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    ASSERT_EQ(info->mSize, 0);
 }
 
 TEST_P(FUSEPlatformTests, write_fails_when_read_only)
