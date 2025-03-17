@@ -2513,7 +2513,7 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
 
     struct statfs statbuf;
 
-    if (!statfs(path.asPlatformEncoded(false).c_str(), &statbuf))
+    if (!statfs(path.toPath(false).c_str(), &statbuf))
     {
         auto it = filesystemTypes.find(statbuf.f_fstypename);
 
