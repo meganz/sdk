@@ -570,6 +570,119 @@ class MegaNode
         };
 
         /**
+         * @brief Pure Object Data for Credit Card Node attributes. Instances of this class are
+         * returned by the function getCreditCardData on a Credit Card Node, as well as provided
+         * as an argument for Credit Card Node updates in updateCreditCardNode function.
+         */
+        class CreditCardNodeData
+        {
+        public:
+            virtual ~CreditCardNodeData() = default;
+
+            /**
+             * @brief Creates a new instance of CreditCardNodeData.
+             *
+             * @param cardNumber Number of the card (All characters must be digits). This field
+             * cannot be null nor empty when creating a new Credit card Node
+             * @param notes Notes to attach to the Credit card node
+             * @param cardHolderName Name of holder of Credit Card
+             * @param cvv card verification Value of the Credit Card (All characters must be digits)
+             * @param expirationDate expiration date of Credit card (Expected format `MM/YY` with MM
+             * and YY digits)
+             *
+             * @note: nullptr can be used to specify that a field is not to be updated when calling
+             * MegaApi::updateCreditCardNode.
+             *
+             * @note The caller takes the ownership of the returned pointer.
+             *
+             * @return A pointer to the newly created object which will be owned by the caller.
+             */
+            static CreditCardNodeData* createInstance(const char* cardNumber,
+                                                      const char* notes,
+                                                      const char* cardHolderName,
+                                                      const char* cvv,
+                                                      const char* expirationDate);
+            /**
+             * @brief Set cardNumber attribute value.
+             *
+             * @note All characters must be digits
+             *
+             * @param cardNumber Value to set
+             */
+            virtual void setCardNumber(const char* cardNumber) = 0;
+
+            /**
+             * @brief Set notes attribute value.
+             *
+             * @param notes Value to set
+             */
+            virtual void setNotes(const char* notes) = 0;
+
+            /**
+             * @brief Set cardHolderName attribute value.
+             *
+             * @param cardHolderName Value to set
+             */
+            virtual void setCardHolderName(const char* cardHolderName) = 0;
+
+            /**
+             * @brief Set cvv attribute value.
+             *
+             * @note All characters must be digits
+             *
+             * @param cvv Value to set
+             */
+            virtual void setCvv(const char* cvv) = 0;
+
+            /**
+             * @brief Set expirationDate attribute value.
+             *
+             * @note Expected format `MM/YY` with MM and YY digits
+             *
+             * @param expirationDate Value to set
+             */
+            virtual void setExpirationDate(const char* expirationDate) = 0;
+
+            /**
+             * @brief Get cardNumber attribute value.
+             *
+             * @return null-terminated string with the cardNumber value or nullptr/NULL if none
+             */
+            virtual const char* cardNumber() const = 0;
+
+            /**
+             * @brief Get notes attribute value.
+             *
+             * @return null-terminated string with the notes value or nullptr/NULL if none
+             */
+            virtual const char* notes() const = 0;
+
+            /**
+             * @brief Get cardHolderName attribute value.
+             *
+             * @return null-terminated string with the cardHolderName value or nullptr/NULL if none
+             */
+            virtual const char* cardHolderName() const = 0;
+
+            /**
+             * @brief Get cvv attribute value.
+             *
+             * @return null-terminated string with the cvv value or nullptr/NULL if none
+             */
+            virtual const char* cvv() const = 0;
+
+            /**
+             * @brief Get expiration date attribute value (in MM/YY format).
+             *
+             * @return null-terminated string with the expirationDate value or nullptr/NULL if none
+             */
+            virtual const char* expirationDate() const = 0;
+
+        protected:
+            CreditCardNodeData() = default;
+        };
+
+        /**
          * @brief Pure Object Data for Password Node attributes. Instances of this class are
          * returned by the function getPasswordData on a Password Node, as well as provided
          * as an argument for Password Node updates in updatePasswordNode function.
@@ -644,10 +757,11 @@ class MegaNode
                  *     be triggered due to the format of the totp data.
                  *   - If not (returns false), you can check the outputs from the following methods
                  *     to detect where the problem comes from:
-                 *     - sharedSecretValid()
-                 *     - algorithmValid()
-                 *     - nDigitsValid()
-                 *     - expirationTimeValid()
+                 *     - sharedSecretValid(): Must be a string only containing characters in
+                 *       "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+                 *     - algorithmValid(): Must be one of the enum entries `HASH_ALGO_*`
+                 *     - nDigitsValid(): Between 6 and 10 both included
+                 *     - expirationTimeValid(): A positive number greater than 0
                  * - If the instances is going to be used for creating a new password node with totp
                  *   data or to update a node that has no totp data stored, you should check the
                  *   output from Validation::isValidForCreate().
@@ -1553,6 +1667,17 @@ class MegaNode
         virtual bool isForeign();
 
         /**
+         * @brief Returns true if this MegaNode is a Credit Card Node
+         *
+         * @note: A Credit Card Node is a Password Manager Node with credit card information.
+         *
+         * Only MegaNodes created with MegaApi::createCreditCardNode return true in this function.
+         *
+         * @return true if this node is a Credit Card Node
+         */
+        virtual bool isCreditCardNode() const;
+
+        /**
          * @brief Returns true if this MegaNode is a Password Node
          *
          * @note: A Password Node is a Password Manager Node with login credential information.
@@ -1575,6 +1700,17 @@ class MegaNode
         virtual bool isPasswordManagerNode() const;
 
         /**
+         * @brief Gets the Credit Card Node value if the node is a Credit Card Node
+         *
+         * Non-set MegaNode::CreditCardNodeData members will return nullptr/NULL
+         *
+         * @note The caller takes the ownership of the returned pointer.
+         *
+         * @return Credit Card Node data. Caller receives ownership.
+         */
+        virtual CreditCardNodeData* getCreditCardData() const;
+
+        /**
          * @brief Gets the Password Node value if the node is a Password Node
          *
          * Non-set MegaNode::PasswordNodeData members will return nullptr/NULL
@@ -1583,7 +1719,7 @@ class MegaNode
          *
          * @return Password Node data. Caller receives ownership.
          */
-        virtual MegaNode::PasswordNodeData* getPasswordData() const;
+        virtual PasswordNodeData* getPasswordData() const;
 
         /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)
@@ -10722,6 +10858,10 @@ class MegaApi
             IMPORTED_PASSWORD_ERROR_INVALID_TOTP_EXPTIME = 9,
             IMPORTED_PASSWORD_ERROR_MISSING_TOTP_HASH_ALG = 10,
             IMPORTED_PASSWORD_ERROR_INVALID_TOTP_HASH_ALG = 11,
+            IMPORTED_PASSWORD_ERROR_MISSING_CREDIT_CARD_NUMBER = 12,
+            IMPORTED_PASSWORD_ERROR_INVALID_CREDIT_CARD_NUMBER = 13,
+            IMPORTED_PASSWORD_ERROR_INVALID_CREDIT_CARD_CVV = 14,
+            IMPORTED_PASSWORD_ERROR_INVALID_CREDIT_CARD_EXPIRATION_DATE = 15,
         };
 
         enum
@@ -10750,6 +10890,12 @@ class MegaApi
             ACT_END_PHOTO_UPLOAD = 7,
             ACT_END_ALBUM_UPLOAD = 8,
             ACT_SHARE_FOLDER_FILE = 9,
+        };
+
+        enum
+        {
+            PWM_NODE_TYPE_PASSWORD = 1,
+            PWM_NODE_TYPE_CREDIT_CARD = 2,
         };
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
@@ -12922,23 +13068,87 @@ class MegaApi
         virtual bool isPasswordManagerNodeFolder(MegaHandle node) const;
 
         /**
+         * @brief Create a new Credit Card Node in your Password Manager tree
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
+         * - MegaRequest::getName - name for the new Password Node provided as an argument
+         * - MegaRequest::getParamType - MegaApi::PWM_NODE_TYPE_CREDIT_CARD
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Handle of the new Password Node
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EBUSINESSPASTDUE:
+         *   + If the MEGA account is a business account and it's status is expired
+         * - MegaError::API_EARGS:
+         *   + If `name` is nullptr or empty string
+         *   + If `data` is nullptr
+         *   + If `parent` does belong to a passwordNodeFolder
+         * - MegaError::API_EEXIST:
+         *   + If there already is a Password Manager Node in the target path with the same name. In
+         *     that case, the existing Password Manager Node MegaHandle can be retrieved by
+         *     MegaRequest::getNodeHandle.
+         * - MegaError::API_EAPPKEY:
+         *   + If the `data` is ill-formed. These are the format requirements for the data in the
+         *     CreditCardNodeData object:
+         *     - `cardNumber`: Mandatory (not nullptr nor empty string). Can only contain digits (no
+         *       spaces or other characters are allowed)
+         *     - `cvv`: Optional. If defined, must contain only digits (no spaces or other
+         *       characters are allowed)
+         *     - `expirationDate`: Optional. If defined must follow exactly the format: MM/YY, where
+         *       MM and YY are digits and MM must be between 01 and 12. Some examples:
+         *       + Valid inputs: 01/11, 12/25, 05/99.
+         *       + Invalid inputs: 13/25, 1/30, 03/5.
+         *     - `notes` and `cardHolderName`: Optionals and with no format restrictions.
+         *
+         * @param name Name for the new Credit Card Node
+         * @param data Credit Card Node data for the Credit Card Node
+         * @param parent Parent folder for the new Credit Card Node
+         * @param listener MegaRequestListener to track this request
+         */
+        virtual void createCreditCardNode(const char* name,
+                                          const MegaNode::CreditCardNodeData* data,
+                                          MegaHandle parent,
+                                          MegaRequestListener* listener = NULL);
+
+        /**
          * @brief Create a new Password Node in your Password Manager tree
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
          * - MegaRequest::getName - name for the new Password Node provided as an argument
+         * - MegaRequest::getParamType - MegaApi::PWM_NODE_TYPE_PASSWORD
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new Password Node
          *
-         * If there already is a Password Node in target path with the same name, error code
-         * API_EEXIST is returned and the existing Password Node MegaHandle included in
-         * MegaRequest::getNodeHandle.
-         *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EBUSINESSPASTDUE:
+         *   + If the MEGA account is a business account and it's status is expired
+         * - MegaError::API_EARGS:
+         *   + If `name` is nullptr or empty string
+         *   + If `data` is nullptr
+         *   + If `parent` does belong to a passwordNodeFolder
+         * - MegaError::API_EEXIST:
+         *   + If there already is a Password Manager Node in the target path with the same name. In
+         *     that case, the existing Password Manager Node MegaHandle can be retrieved by
+         *     MegaRequest::getNodeHandle.
+         * - MegaError::API_EAPPKEY:
+         *   + If the `data` is ill-formed. These are the format requirements for the data in the
+         *     PasswordNodeData object:
+         *     - `password`: Mandatory (not nullptr nor empty string).
+         *     - `cvv`: Optional. If defined, must contain only digits (no spaces or other
+         *       characters are allowed)
+         *     - `totp`: Optional. If defined all their field must have valid values, i.e., the
+         *       `TotpData::Validation` object get from `TotpData::getValidation()` must return true
+         *       on `TotpData::Validation::isValidForCreate()`. See `TotpData::Validation` class
+         *       documentation for more information.
+         *     - `notes`, `url` and `userName`: Optionals and with no format restrictions.
          *
          * @param name Name for the new Password Node
          * @param data Password Node data for the Password Node
@@ -12949,11 +13159,12 @@ class MegaApi
                                 MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Update a Password Node in the MEGA account according to the parameters
+         * @brief Update a Creadit Card Node in the MEGA account according to the parameters
          *
          * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+         * - MegaRequest::getParamType - MegaApi::PWM_NODE_TYPE_CREDIT_CARD
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish
          * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -12963,10 +13174,41 @@ class MegaApi
          *   + If the MEGA account is a business account and it's status is expired
          * - MegaError::API_EARGS:
          *   + If `newData` is nullptr or empty
-         *   + If `node` does not belong to a password node
+         *   + If `node` does not exist or does not belong to a Credit Card Node
          * - MegaError::API_EAPPKEY:
          *   + If the node ends up in an invalid state after applying the provided updates in
-         *    `newData`. For example, some of the Totp fields are removed.
+         *    `newData`. See `MegaApi::createCreditCardNode` documentation for more details on the
+         *    expected format of each field if specified for the update.
+         *
+         * @param node Node to modify
+         * @param newData New data for the Credit Card Node to update
+         * @param listener MegaRequestListener to track this request
+         */
+        void updateCreditCardNode(MegaHandle node,
+                                  const MegaNode::CreditCardNodeData* newData,
+                                  MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Update a Password Node in the MEGA account according to the parameters
+         *
+         * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+         * - MegaRequest::getParamType - MegaApi::PWM_NODE_TYPE_PASSWORD
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish
+         * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EBUSINESSPASTDUE:
+         *   + If the MEGA account is a business account and it's status is expired
+         * - MegaError::API_EARGS:
+         *   + If `newData` is nullptr or empty
+         *   + If `node` does not exist or does not belong to a password node
+         * - MegaError::API_EAPPKEY:
+         *   + If the node ends up in an invalid state after applying the provided updates in
+         *    `newData`. See `MegaApi::createPasswordNode` documentation for more details on the
+         *    expected format of each field if specified for the update.
          *
          * @param node Node to modify
          * @param newData New data for the Password Node to update

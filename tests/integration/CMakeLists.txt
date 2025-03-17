@@ -43,6 +43,7 @@ target_sources(test_integration
     passwordManager/SdkTestPasswordManagerImport_test.cpp
     passwordManager/SdkTestPasswordManagerPassFolderCRUD_test.cpp
     passwordManager/SdkTestPasswordManagerPassNodeCRUD_test.cpp
+    passwordManager/SdkTestPasswordManagerCreditCardNodeCRUD_test.cpp
 )
 
 target_sources_conditional(test_integration

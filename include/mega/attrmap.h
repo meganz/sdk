@@ -173,6 +173,9 @@ struct MEGA_API AttrMap
 
     // determine if attrId differs between the 2 maps
     bool hasDifferentValue(nameid attrId, const attr_map& other) const;
+
+    // remove items from the map where the value is an empty string
+    void removeEmptyValues();
 };
 } // namespace
 
