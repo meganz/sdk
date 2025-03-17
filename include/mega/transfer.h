@@ -214,6 +214,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // Add stats for this transfer to the MEGAclient. The client must be valid at this point.
     bool addTransferStats();
 
+    void collectAndPrintTransferStatsIfLimitReached();
+
 private:
     FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);
 };

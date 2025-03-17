@@ -6,6 +6,8 @@
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
 
+#include <numeric>
+
 namespace
 {
 
@@ -70,11 +72,13 @@ void compareMetrics(const stats::TransferStats::Metrics& expected,
     EXPECT_EQ(expected.mTransferType, actual.mTransferType);
     EXPECT_EQ(expected.mMedianSize, actual.mMedianSize);
     EXPECT_EQ(expected.mContraharmonicMeanSize, actual.mContraharmonicMeanSize);
-    EXPECT_TRUE(actual.mMedianSpeed > 0);
-    EXPECT_TRUE(actual.mWeightedAverageSpeed >= actual.mMedianSpeed);
-    EXPECT_TRUE(actual.mMaxSpeed >= actual.mMedianSpeed);
-    EXPECT_TRUE(actual.mAvgLatency > 0 && actual.mAvgLatency < 1000);
-    EXPECT_TRUE(actual.mFailedRequestRatio >= 0.0 && actual.mFailedRequestRatio <= 1.1);
+    EXPECT_GT(actual.mMedianSpeed, 0);
+    EXPECT_GE(actual.mWeightedAverageSpeed, actual.mMedianSpeed);
+    EXPECT_GE(actual.mMaxSpeed, actual.mMedianSpeed);
+    EXPECT_GT(actual.mAvgLatency, 0);
+    EXPECT_LT(actual.mAvgLatency, 150000);
+    EXPECT_GE(actual.mFailedRequestRatio, 0.0);
+    EXPECT_LE(actual.mFailedRequestRatio, 1.1);
     EXPECT_EQ(expected.mRaidedTransferRatio, actual.mRaidedTransferRatio);
 };
 
@@ -143,7 +147,7 @@ public:
 };
 
 /**
- * @brief TEST_F SdkTestTransferStats
+ * @test SdkTestTransferStats
  *
  * Upload and download regular files and a CloudRAID file,
  * collect Transfer Metrics and check expected results.
@@ -156,14 +160,14 @@ public:
  *    1.1 Upload files.
  *    1.2 Download both files.
  * 2. COLLECT AND COMPARE UPLOADS AND DOWNLOADS METRICS.
- *    2.1 Collect metrics.
- *    2.2 Define sizes of uploaded and regular downloaded files.
+ *    2.1 Define sizes of uploaded and regular downloaded files.
+ *    2.2 Collect metrics.
  *    2.3 Define expected metrics for uploads and compare results.
  *    2.4 Define expected metrics for the regular downloads and compare results.
  * 3. CHECK DOWNLOAD TRANSFER STATS INCLUDING A NEW CLOUDRAID FILE.
  *    3.1 Download a CloudRAID file.
- *    3.2 Collect metrics for downloads including the CloudRAID file.
- *    3.3 Define expected metrics after RAID download and compare results.
+ *    3.2 Define expected metrics after RAID download.
+ *    3.3 Collect metrics for downloads including the CloudRAID file and compare results.
  */
 TEST_F(SdkTestTransferStats, DISABLED_SdkTestTransferStats)
 {
@@ -192,20 +196,27 @@ TEST_F(SdkTestTransferStats, DISABLED_SdkTestTransferStats)
 
     // 2. COLLECT AND COMPARE UPLOADS AND DOWNLOADS METRICS.
 
-    // 2.1 Collect metrics.
-    const auto* const client{megaApi[0]->getClient()};
+    // 2.1 Define sizes of uploaded and regular downloaded files.
+    constexpr m_off_t file1size = file1content.size(); // size = 17 bytes
+    constexpr m_off_t file2size = file2content.size(); // size = 26 bytes
+    const std::vector<m_off_t> regularFileSizes = {file1size, file2size};
+    const stats::TransferStats::UncollectedTransfersCounters unCollectedDataExpectations{
+        regularFileSizes.size(),
+        std::accumulate(regularFileSizes.begin(), regularFileSizes.end(), m_off_t{0})};
+
+    // 2.2 Collect metrics.
+    auto* const client{megaApi[0]->getClient()};
     LOG_debug << "[SdkTest::SdkTestTransferStats] collectAndPrintMetrics for UPLOADS";
+    ASSERT_EQ(client->mTransferStatsManager.getUncollectedAndPrintedTransferData(PUT),
+              unCollectedDataExpectations);
     const stats::TransferStats::Metrics uploadMetrics =
         client->mTransferStatsManager.collectAndPrintMetrics(PUT);
 
     LOG_debug << "[SdkTest::SdkTestTransferStats] collectAndPrintMetrics for DOWNLOADS";
+    ASSERT_EQ(client->mTransferStatsManager.getUncollectedAndPrintedTransferData(GET),
+              unCollectedDataExpectations);
     const stats::TransferStats::Metrics downloadMetrics1 =
         client->mTransferStatsManager.collectAndPrintMetrics(GET);
-
-    // 2.2 Define sizes of uploaded and regular downloaded files.
-    const m_off_t file1size = file1content.size(); // size = 17 bytes
-    const m_off_t file2size = file2content.size(); // size = 26 bytes
-    const std::vector<m_off_t> regularFileSizes = {file1size, file2size};
 
     // 2.3 Define expected metrics for uploads and compare results.
     const stats::TransferStats::Metrics expectedUploadMetrics =
@@ -233,19 +244,71 @@ TEST_F(SdkTestTransferStats, DISABLED_SdkTestTransferStats)
         deleteFile(downloadFileName3.data());
     }
 
-    // 3.2 Collect metrics for downloads including the CloudRAID file.
-    std::this_thread::sleep_for(std::chrono::seconds{1});
-    LOG_debug << "[SdkTest::SdkTestTransferStats] collectAndPrintMetrics for DOWNLOADS after "
-                 "CLOUDRAID download";
-    const stats::TransferStats::Metrics downloadMetrics2 =
-        client->mTransferStatsManager.collectAndPrintMetrics(GET);
-
-    // 3.3 Define expected metrics after RAID download and compare results.
-    const m_off_t raidFileSize = 100 * 1024 * 1024; // 100MB
+    // 3.2 Define expected metrics after RAID download.
+    constexpr m_off_t raidFileSize = 100 * 1024 * 1024; // 100MB
     const std::vector<m_off_t> allFileSizes = {file1size, file2size, raidFileSize};
     const stats::TransferStats::Metrics expectedDownloadMetrics2 =
         calculateExpectedMetrics(GET,
                                  allFileSizes,
                                  0.33); // 1 out of 3 is RAID, with 2 decimal precision
+
+    // 3.3 Collect metrics for downloads including the CloudRAID file and compare results.
+    std::this_thread::sleep_for(std::chrono::seconds{1});
+    LOG_debug << "[SdkTest::SdkTestTransferStats] collectAndPrintMetrics for DOWNLOADS after "
+                 "CLOUDRAID download";
+    ASSERT_EQ(client->mTransferStatsManager.getUncollectedAndPrintedTransferData(GET),
+              (stats::TransferStats::UncollectedTransfersCounters{size_t{1}, raidFileSize}));
+    const stats::TransferStats::Metrics downloadMetrics2 =
+        client->mTransferStatsManager.collectAndPrintMetrics(GET);
+
     compareMetrics(expectedDownloadMetrics2, downloadMetrics2);
+}
+
+/**
+ * @test SdkTestTransferStatsLogging
+ *
+ * Tests that TransferStats::collectAndPrintMetrics() have been called automatically after
+ * TransferStatsManager::NUM_ENTRIES_FOR_LOGGING transfers.
+ *
+ * 1. Uploads NUM_ENTRIES_FOR_LOGGING-1 regular files
+ * 2. Checks that the uncollectedAndPrinted transfer data is equal to the accumulated data for those
+ * NUM_ENTRIES_FOR_LOGGING-1 transfers.
+ * 3. Uploads 1 extra file.
+ * 4. Checks that the uncollectedAndPrinted transfer data values are now zero.
+ */
+TEST_F(SdkTestTransferStats, SdkTestTransferStatsLogging)
+{
+    static const auto logPre = getLogPrefix();
+    LOG_info << "___TEST " << logPre;
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const auto rootNode = std::unique_ptr<MegaNode>(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode);
+
+    constexpr std::string_view fileName{"test1.txt"};
+    constexpr std::string_view baseContent{"Current content "};
+    constexpr auto numUploads{stats::TransferStatsManager::NUM_ENTRIES_FOR_LOGGING - 1};
+    size_t totalExpectedBytes = 0;
+
+    for (const auto i: range(numUploads))
+    {
+        const auto fileContent = std::string(baseContent) + std::to_string(i);
+        totalExpectedBytes += fileContent.size();
+        LOG_debug << logPre << "Upload file " << (i + 1);
+        ASSERT_TRUE(
+            std::unique_ptr<MegaNode>(uploadFileForStats(rootNode.get(), fileName, fileContent)));
+    }
+
+    auto* const client = megaApi[0]->getClient();
+    ASSERT_EQ(client->mTransferStatsManager.getUncollectedAndPrintedTransferData(PUT),
+              (stats::TransferStats::UncollectedTransfersCounters{
+                  numUploads,
+                  static_cast<m_off_t>(totalExpectedBytes)}));
+
+    LOG_debug << logPre << "Upload last file (" << (numUploads + 1) << ")";
+    ASSERT_TRUE(
+        std::unique_ptr<MegaNode>(uploadFileForStats(rootNode.get(), fileName, baseContent)));
+
+    ASSERT_EQ(client->mTransferStatsManager.getUncollectedAndPrintedTransferData(PUT),
+              stats::TransferStats::UncollectedTransfersCounters{});
 }

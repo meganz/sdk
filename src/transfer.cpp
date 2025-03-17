@@ -627,6 +627,20 @@ bool Transfer::addTransferStats()
     return client->mTransferStatsManager.addTransferStats(this);
 }
 
+void Transfer::collectAndPrintTransferStatsIfLimitReached()
+{
+    if (!client)
+    {
+        LOG_err << "[Transfer::collectAndPrintTransferStatsIfLimitReached] called with a NULL "
+                   "MEGAclient";
+        assert(
+            false &&
+            "[Transfer::collectAndPrintTransferStatsIfLimitReached] called with a NULL MEGAclient");
+        return;
+    }
+    client->mTransferStatsManager.collectAndPrintTransferStatsIfLimitReached(type);
+}
+
 FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResolution(CollisionResolution resolution)
 {
     switch (resolution) {

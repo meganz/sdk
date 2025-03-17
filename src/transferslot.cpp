@@ -62,7 +62,7 @@ double stats::TransferSlotStats::failedRequestRatio() const
     return static_cast<double>(mNumFailedRequests) / static_cast<double>(mNumTotalRequests);
 }
 
-double stats::TransferSlotStats::averageLatency() const
+double stats::TransferSlotStats::averageConnectTime() const
 {
     assert(mTotalConnectTime != -1 || !mNumRequestsWithCalculatedLatency);
     if (mTotalConnectTime <= 0 || !mNumRequestsWithCalculatedLatency)
@@ -72,15 +72,15 @@ double stats::TransferSlotStats::averageLatency() const
     return std::round(mTotalConnectTime / static_cast<double>(mNumRequestsWithCalculatedLatency));
 }
 
-m_off_t stats::TransferSlotStats::averageStartTransferTime() const
+double stats::TransferSlotStats::averageStartTransferTime() const
 {
     assert(mTotalStartTransferTime != -1 || !mNumRequestsWithCalculatedLatency);
     if (mTotalStartTransferTime <= 0 || !mNumRequestsWithCalculatedLatency)
     {
         return 0;
     }
-    return static_cast<m_off_t>(std::round(mTotalStartTransferTime /
-                                           static_cast<double>(mNumRequestsWithCalculatedLatency)));
+    return std::round(mTotalStartTransferTime /
+                      static_cast<double>(mNumRequestsWithCalculatedLatency));
 }
 
 // transfer attempts are considered failed after XFERTIMEOUT deciseconds
@@ -319,25 +319,7 @@ TransferSlot::~TransferSlot()
         }
     }
 
-    // Manage transfer stats before setting the slot to NULL
-    LOG_verbose << "[TransferSlot::~TransferSlot] Stats: FailedRequestRatio = "
-                << tsStats.failedRequestRatio()
-                << " ms. Average latency: " << tsStats.averageLatency()
-                << " ms. Average start transfer time: " << tsStats.averageStartTransferTime()
-                << " [totalRequests = " << tsStats.mNumTotalRequests
-                << ", failedRequests = " << tsStats.mNumFailedRequests
-                << ", totalRequestsWithLatency = " << tsStats.mNumRequestsWithCalculatedLatency
-                << "] [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
-    if (transfer->addTransferStats())
-    {
-        LOG_verbose << "[TransferSlot::~TransferSlot] Stats for this transfer have been added to "
-                       "the global transfer stats";
-    }
-    else
-    {
-        LOG_debug << "[TransferSlot::~TransferSlot] Stats for this transfer have NOT been added to "
-                     "the global transfer stats";
-    }
+    processTransferStats();
 
     transfer->slot = NULL;
 
@@ -372,6 +354,52 @@ TransferSlot::~TransferSlot()
     delete[] asyncIO;
 
     LOG_verbose << "[TransferSlot::~TransferSlot] END [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
+}
+
+void TransferSlot::processTransferStats()
+{
+    const auto transferTypeStrV = std::invoke(
+        [transferType = transfer->type, isRaid = (cloudRaid != nullptr)]() -> std::string_view
+        {
+            switch (transferType)
+            {
+                case PUT:
+                    return "[Upload]";
+                case GET:
+                    return (isRaid ? "[CloudRaid]" : "[Non CloudRaid]");
+                case API:
+                    return "[API]";
+                default:
+                    assert(false && "Unknown transfer type");
+                    return "[Unknown]";
+            }
+        });
+
+    LOG_verbose << "[TransferSlot::processTransferStats] " << transferTypeStrV
+                << " Stats: Mean speed: " << (meanSpeed)
+                << " B/s, Progress: " << transfer->progresscompleted << "/" << transfer->size
+                << " ("
+                << static_cast<unsigned>(
+                       std::round(static_cast<double>(transfer->progresscompleted * 100) /
+                                  static_cast<double>(transfer->size)))
+                << "%)"
+                << ". TransferSlotStats: FailedRequestRatio = " << tsStats.failedRequestRatio()
+                << ". Average connect time: " << tsStats.averageConnectTime()
+                << " ms. Average start transfer time: " << tsStats.averageStartTransferTime()
+                << ". Total requests = " << tsStats.mNumTotalRequests
+                << " (with calculated latency: " << tsStats.mNumRequestsWithCalculatedLatency
+                << "). Failed requests = " << tsStats.mNumFailedRequests
+                << ". [Transfer->name = " << transfer->localfilename << "]"
+                << " [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
+
+    const auto addedToTransferStats = transfer->addTransferStats();
+    LOG_verbose << "[TransferSlot::processTransferStats] " << transferTypeStrV
+                << " Stats for this transfer have " << (addedToTransferStats ? "" : "NOT ")
+                << "been added to the global transfer stats";
+    if (addedToTransferStats)
+    {
+        transfer->collectAndPrintTransferStatsIfLimitReached();
+    }
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)
@@ -789,8 +817,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 meanSpeed = mTransferSpeed.getMeanSpeed();
                                 LOG_verbose
                                     << "[TransferSlot::doio] [Upload] COMPLETED (with a diff)"
-                                    << " Speed: " << (speed / 1)
-                                    << " KB/s. Mean speed: " << (meanSpeed / 1)
+                                    << " Speed: " << (speed / 1024)
+                                    << " KB/s. Mean speed: " << (meanSpeed / 1024)
                                     << " KB/s [diff = " << diff << "]"
                                     << " [progressreported = " << progressreported
                                     << ", transfer->progresscompleted = "
@@ -1749,25 +1777,17 @@ std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection, m_off_t
 
 void TransferSlot::processRequestLatency(const std::shared_ptr<HttpReqXfer>& req)
 {
-    if (!req->isLatencyProcessed)
-    {
-        if (req->mConnectTime > -1 && req->mStartTransferTime > -1)
-        {
-            if (req->mConnectTime > 0)
-            {
-                // mConnectTime, populated from CURLINFO_CONNECT_TIME, can be 0
-                // for reused connections. We want to calculate the network performance,
-                // so we exclude reused connections.
-                // For coherence, we only include CURLINFO_STARTTRANSFER_TIME when
-                // we have included CURLINFO_CONNECT_TIME, because we only have one
-                // variable for "numRequestsWithCalculatedLatency" to calculate both averages.
-                tsStats.mTotalConnectTime += req->mConnectTime;
-                tsStats.mTotalStartTransferTime += req->mStartTransferTime;
-                ++tsStats.mNumRequestsWithCalculatedLatency;
-            }
-            req->isLatencyProcessed = true;
-        }
-    }
+    if (req->isLatencyProcessed)
+        return;
+
+    if (const auto valuesAreUninitialized = (req->mConnectTime < 0 || req->mStartTransferTime < 0);
+        valuesAreUninitialized)
+        return;
+
+    tsStats.mTotalConnectTime += req->mConnectTime;
+    tsStats.mTotalStartTransferTime += req->mStartTransferTime;
+    ++tsStats.mNumRequestsWithCalculatedLatency;
+    req->isLatencyProcessed = true;
 }
 
 } // namespace

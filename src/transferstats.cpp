@@ -132,6 +132,9 @@ bool TransferStats::addTransferData(TransferData&& transferData)
         mTransfersData.pop_front();
     }
 
+    mUncollectedAndPrintedTransferData.first += 1;
+    mUncollectedAndPrintedTransferData.second += transferData.mSize;
+
     // Update the timestamp and move the transferData to the collection.
     transferData.mTimestamp = now;
     mTransfersData.push_back(std::move(transferData));
@@ -217,6 +220,15 @@ TransferStats::Metrics TransferStats::collectMetrics(const direction_t type) con
     return metrics;
 }
 
+TransferStats::Metrics TransferStats::collectAndPrintMetrics(const direction_t type,
+                                                             const std::string& separator)
+{
+    const auto metrics = collectMetrics(type);
+    printMetrics(metrics, separator);
+    mUncollectedAndPrintedTransferData = {};
+    return metrics;
+}
+
 // TransferStatsManager
 bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
 {
@@ -229,7 +241,7 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
     // Add transfer stats.
     TransferStats::TransferData transferData{transfer->size,
                                              transfer->slot->mTransferSpeed.getMeanSpeed(),
-                                             transfer->slot->tsStats.averageLatency(),
+                                             transfer->slot->tsStats.averageStartTransferTime(),
                                              transfer->slot->tsStats.failedRequestRatio(),
                                              transfer->slot->transferbuf.isRaid() ||
                                                  transfer->slot->transferbuf.isNewRaid()};
@@ -254,16 +266,32 @@ TransferStats::Metrics TransferStatsManager::collectMetrics(const direction_t ty
                          mDownloadStatistics.collectMetrics(type);
 }
 
-TransferStats::Metrics
-    TransferStatsManager::collectAndPrintMetrics(const direction_t type,
-                                                 const std::string& separator) const
+TransferStats::Metrics TransferStatsManager::collectAndPrintMetrics(const direction_t type,
+                                                                    const std::string& separator)
 {
+    checkTransferTypeValidity(type);
+
     LOG_info << (type == PUT ? "[UploadStatistics]" : "[DownloadStatistics]")
              << " Number of transfers: " << size(type) << ". Max entries: " << getMaxEntries(type)
              << ". Max age in seconds: " << getMaxAgeSeconds(type);
 
-    TransferStats::Metrics metrics = collectMetrics(type);
-    printMetrics(metrics, separator);
+    std::lock_guard<std::mutex> guard(mTransferStatsMutex);
+    return type == PUT ? mUploadStatistics.collectAndPrintMetrics(type, separator) :
+                         mDownloadStatistics.collectAndPrintMetrics(type, separator);
+}
+
+std::optional<TransferStats::Metrics>
+    TransferStatsManager::collectAndPrintTransferStatsIfLimitReached(const direction_t type,
+                                                                     const std::string& separator)
+{
+    if (const auto [numTransfers, totalSize] = getUncollectedAndPrintedTransferData(type);
+        (numTransfers < NUM_ENTRIES_FOR_LOGGING && totalSize < TOTAL_SIZE_FOR_LOGGING))
+        return {};
+
+    const auto metrics = collectAndPrintMetrics(type, separator);
+    assert(getUncollectedAndPrintedTransferData(type) ==
+           TransferStats::UncollectedTransfersCounters{});
+
     return metrics;
 }
 
@@ -292,12 +320,15 @@ int64_t TransferStatsManager::getMaxAgeSeconds(const direction_t type) const
                          mDownloadStatistics.getMaxAgeSeconds();
 }
 
-// Utils
-std::string metricsToJson(const TransferStats::Metrics& metrics)
+TransferStats::UncollectedTransfersCounters
+    TransferStatsManager::getUncollectedAndPrintedTransferData(const direction_t type) const
 {
-    return metrics.toJson();
+    std::lock_guard<std::mutex> guard(mTransferStatsMutex);
+    return type == PUT ? mUploadStatistics.getUncollectedAndPrintedTransferData() :
+                         mDownloadStatistics.getUncollectedAndPrintedTransferData();
 }
 
+// Utils
 void printMetrics(const TransferStats::Metrics& metrics, const std::string& separator)
 {
     LOG_info << metrics.toString(separator);

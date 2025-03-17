@@ -637,12 +637,15 @@ void CurlHttpIO::disconnect()
 
 bool CurlHttpIO::setmaxdownloadspeed(m_off_t bpslimit)
 {
+    LOG_debug << "[CurlHttpIO::setmaxdownloadspeed] Set max download speed to " << bpslimit
+              << " B/s";
     maxspeed[GET] = bpslimit;
     return true;
 }
 
 bool CurlHttpIO::setmaxuploadspeed(m_off_t bpslimit)
 {
+    LOG_debug << "[CurlHttpIO::setmaxuploadspeed] Set max upload speed to " << bpslimit << " B/s";
     maxspeed[PUT] = bpslimit;
     return true;
 }
