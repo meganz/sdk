@@ -48,6 +48,15 @@
     return self;
 }
 
+- (instancetype)initWithRemovalInstance {
+    self = [super init];
+    if (self) {
+        _megaTOTPData = MegaTotpData::createRemovalInstance();
+        _cMemoryOwn = YES;
+    }
+    return self;
+}
+
 - (instancetype)initWithMegaTotpData:(MegaTotpData *)megaTotpData cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
     if (self) {
@@ -100,6 +109,18 @@
 
 + (NSInteger)totpNoChangeValue {
     return -1;
+}
+
++ (NSInteger)defaultExpirationTime {
+    return MegaTotpData::DEFAULT_EXPIRATION_TIME_SECS;
+}
+
++ (MEGATOTPHashAlgorithm)defaultHashAlgorithm {
+    return (MEGATOTPHashAlgorithm)MegaTotpData::DEFAULT_HASH_ALGO;
+}
+
++ (NSInteger)defaultDigits {
+    return MegaTotpData::DEFAULT_NDIGITS;
 }
 
 @end
