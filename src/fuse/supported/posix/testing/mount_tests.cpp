@@ -20,12 +20,12 @@ TEST_F(FUSEMountTests, add_fails_when_target_is_empty)
     MountInfo info;
 
     info.mHandle = ClientW()->handle("/x/s");
-    info.mFlags.mName = "s";
+    info.name("s");
 
     auto observer = ClientW()->mountEventObserver();
 
     observer->expect({
-        info.mFlags.mName,
+        info.name(),
         MOUNT_LOCAL_UNKNOWN,
         MOUNT_ADDED
     });
@@ -42,13 +42,13 @@ TEST_F(FUSEMountTests, add_fails_when_target_is_unknown)
     MountInfo info;
 
     info.mHandle = ClientW()->handle("/x/s");
-    info.mFlags.mName = "s";
+    info.name("s");
     info.mPath = Path(MountPathW().path() / "bogus");
 
     auto observer = ClientW()->mountEventObserver();
 
     observer->expect({
-        info.mFlags.mName,
+        info.name(),
         MOUNT_LOCAL_UNKNOWN,
         MOUNT_ADDED
     });
@@ -69,12 +69,12 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_unknown)
     {
         Directory sd0("sd0", mScratchPath);
 
-        mount.mFlags.mName = "s";
+        mount.name("s");
         mount.mHandle = ClientW()->handle("/x/s");
         mount.mPath = sd0.path();
 
         observer->expect({
-            mount.mFlags.mName,
+            mount.name(),
             MOUNT_SUCCESS,
             MOUNT_ADDED
         });
@@ -83,12 +83,12 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_unknown)
     }
 
     observer->expect({
-        mount.mFlags.mName,
+        mount.name(),
         MOUNT_LOCAL_UNKNOWN,
         MOUNT_ENABLED
     });
 
-    ASSERT_EQ(ClientW()->enableMount(mount.mFlags.mName, false),
+    ASSERT_EQ(ClientW()->enableMount(mount.name(), false),
               MOUNT_LOCAL_UNKNOWN);
 
     ASSERT_TRUE(ClientW()->mounts(true).empty());

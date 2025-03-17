@@ -42,7 +42,7 @@ MountResult Service::add(const MountInfo& info)
 {
     MountEvent event;
 
-    event.mName = info.mFlags.mName;
+    event.mName = info.name();
     event.mResult = MOUNT_UNEXPECTED;
     event.mType = MOUNT_ADDED;
 

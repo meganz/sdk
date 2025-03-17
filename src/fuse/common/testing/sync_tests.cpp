@@ -143,7 +143,7 @@ ScopedMount::ScopedMount(ClientPtr& client,
     MountInfo info;
 
     // Describe our new mount.
-    info.mFlags.mName = mName;
+    info.name(mName);
     info.mHandle = targetPath.resolve(mClient);
     info.mPath = sourcePath;
 

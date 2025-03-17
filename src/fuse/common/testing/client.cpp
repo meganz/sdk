@@ -284,7 +284,7 @@ MountResult Client::disableMounts(bool remember)
         }; // disabled
 
         // Try and disable the mount.
-        auto result = disableMount(mount.mFlags.mName, remember);
+        auto result = disableMount(mount.name(), remember);
 
         // Keep trying to disable the mount if necessary.
         for (auto attempts = 0;
@@ -295,7 +295,7 @@ MountResult Client::disableMounts(bool remember)
             std::this_thread::sleep_for(idleTime);
 
             // Try and disable the mount again.
-            result = disableMount(mount.mFlags.mName, remember);
+            result = disableMount(mount.name(), remember);
         }
 
         // Try and disable the next mount.
@@ -535,7 +535,7 @@ MountResult Client::removeMounts(bool disable)
         auto& mount = mounts.back();
 
         // Try and remove the mount.
-        auto result = removeMount(mount.mFlags.mName);
+        auto result = removeMount(mount.name());
 
         // Couldn't remove the mount.
         if (result != MOUNT_SUCCESS)

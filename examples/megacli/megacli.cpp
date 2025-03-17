@@ -4372,12 +4372,12 @@ static void exec_fusemountadd(autocomplete::ACState& state)
         return;
     }
 
-    if (info.mFlags.mName.empty())
+    if (info.name().empty())
     {
-        info.mFlags.mName = sourceNode->displayname();
+        info.name(sourceNode->displayname());
 
         if (!sourceNode->parent)
-            info.mFlags.mName = "MEGA";
+            info.name("MEGA");
     }
 
     auto targetPath = state.words[4].s;
@@ -4592,10 +4592,10 @@ static void exec_fusemountlist(autocomplete::ACState& state)
                   << (info.mFlags.mEnableAtStartup ? "Yes" : "No")
                   << "\n"
                   << "  Enabled: "
-                  << client->mFuseService.enabled(info.mFlags.mName)
+                  << client->mFuseService.enabled(info.name())
                   << "\n"
                   << "  Name: \""
-                  << info.mFlags.mName
+                  << info.name()
                   << "\"\n"
                   << "  Read "
                   << (info.mFlags.mReadOnly ? "Only" : "Write")

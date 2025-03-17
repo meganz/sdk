@@ -99,7 +99,7 @@ MountResult MountDB::check(const MountInfo& info)
 {
     // Convenience.
     auto& handle = info.mHandle;
-    auto& name = info.mFlags.mName;
+    auto& name = info.name();
 
     // User's specified a bogus node handle.
     if (handle.isUndef())
@@ -382,7 +382,7 @@ try
     auto query = transaction.query(mQueries.mGetMountInodeByName);
 
     // Make sure the name isn't already associated with a mount.
-    query.param(":name") = info.mFlags.mName;
+    query.param(":name") = info.name();
     query.execute();
 
     // A mount's already associated with this name.
