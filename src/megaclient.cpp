@@ -23884,6 +23884,12 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     {
         return callback({}, result);
     }
+    else if (mLastErrorDetected == ErrorReason::REASON_ERROR_REGENERATE_JSCD)
+    {
+        LOG_debug << "JSON SYNC configuration has been correctly regenerated.";
+        // Cleanup error to allow syncs to be configured
+        mLastErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+    }
 
     JSCData data;
 
