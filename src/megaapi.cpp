@@ -625,6 +625,11 @@ bool MegaNode::isPasswordNode() const
     return false;
 }
 
+bool MegaNode::isPasswordManagerNode() const
+{
+    return false;
+}
+
 MegaNode::PasswordNodeData::TotpData* MegaNode::PasswordNodeData::TotpData::createRemovalInstance()
 {
     return MegaNodePrivate::PNDataPrivate::TotpDataPrivate::createRemovalInstance();
@@ -2536,7 +2541,12 @@ void MegaApi::getPasswordManagerBase(MegaRequestListener *listener)
 
 bool MegaApi::isPasswordNodeFolder(MegaHandle node) const
 {
-    return pImpl->isPasswordNodeFolder(node);
+    return pImpl->isPasswordManagerNodeFolder(node);
+}
+
+bool MegaApi::isPasswordManagerNodeFolder(MegaHandle node) const
+{
+    return pImpl->isPasswordManagerNodeFolder(node);
 }
 
 void MegaApi::createPasswordNode(const char* name, const MegaNode::PasswordNodeData* data,

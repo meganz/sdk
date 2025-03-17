@@ -3045,6 +3045,7 @@ public:
 
     // Password Manager
     static const char* const NODE_ATTR_PASSWORD_MANAGER;
+    static constexpr std::string_view PWM_ATTR_NODE_TYPE{"t"};
     static constexpr std::string_view PWM_ATTR_PASSWORD_NOTES{"n"};
     static constexpr std::string_view PWM_ATTR_PASSWORD_URL{"url"};
     static constexpr std::string_view PWM_ATTR_PASSWORD_USERNAME{"u"};
@@ -3054,6 +3055,23 @@ public:
     static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_EXPT{"t"};
     static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_HASH_ALG{"alg"};
     static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_NDIGITS{"nd"};
+
+    enum class PwmEntryType
+    {
+        PASSWORD
+    };
+
+    /**
+     * @brief This method converts the value in the field PWM_ATTR_NODE_TYPE into a PwmEntryType. If
+     * the value is not expected this method returns nullopt
+     */
+    static std::optional<PwmEntryType> toPwmEntryType(const std::optional<std::string_view>& t)
+    {
+        if (!t) // Password entries have no PWM_ATTR_NODE_TYPE field
+            return PwmEntryType::PASSWORD;
+
+        return std::nullopt;
+    }
 
     NodeHandle getPasswordManagerBase();
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);

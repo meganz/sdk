@@ -934,6 +934,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isTakenDown() override;
         bool isForeign() override;
         bool isPasswordNode() const override;
+        bool isPasswordManagerNode() const override;
         PasswordNodeData* getPasswordData() const override;
         std::string* getPrivateAuth();
         MegaNodeList *getChildren() override;
@@ -4371,7 +4372,7 @@ public:
 
         // Password Manager
         void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
-        bool isPasswordNodeFolder(MegaHandle node) const;
+        bool isPasswordManagerNodeFolder(MegaHandle node) const;
         void createPasswordNode(const char *name, const MegaNode::PasswordNodeData *data,
                                 MegaHandle parent, MegaRequestListener *listener = nullptr);
         void updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,

@@ -208,8 +208,9 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, CreateNewPassNode)
     ASSERT_NE(newPwdNodeHandle, UNDEF);
     const std::unique_ptr<MegaNode> newPwdNode{mApi->getNodeByHandle(newPwdNodeHandle)};
     ASSERT_NE(newPwdNode, nullptr) << "New node could not be retrieved";
+    ASSERT_TRUE(newPwdNode->isPasswordManagerNode());
     ASSERT_TRUE(newPwdNode->isPasswordNode());
-    ASSERT_FALSE(mApi->isPasswordNodeFolder(newPwdNode->getHandle()));
+    ASSERT_FALSE(mApi->isPasswordManagerNodeFolder(newPwdNode->getHandle()));
 
     LOG_debug << logPre << "Validating node name and data";
     EXPECT_STREQ(newPwdNode->getName(), pwdNodeName.c_str());
@@ -234,7 +235,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, CopyPassNode)
 
     LOG_debug << logPre << "Validating cloned node";
     ASSERT_TRUE(clonedNode->isPasswordNode());
-    ASSERT_FALSE(mApi->isPasswordNodeFolder(clonedNode->getHandle()));
+    ASSERT_FALSE(mApi->isPasswordManagerNodeFolder(clonedNode->getHandle()));
 
     EXPECT_STREQ(clonedNode->getName(), pwdNodeName.c_str());
     EXPECT_THAT(clonedPwdData.get(), PasswordNodeDataEquals(predefinedPwdDataOwned()));

@@ -1448,16 +1448,25 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
 
 bool Node::isPasswordNode() const
 {
+    if (!isPasswordManagerNode())
+        return false;
+
+    return MegaClient::toPwmEntryType(attrs.getStringView(MegaClient::PWM_ATTR_NODE_TYPE)) ==
+           MegaClient::PwmEntryType::PASSWORD;
+}
+
+bool Node::isPasswordManagerNode() const
+{
     return ((type == FOLDERNODE) &&
             (attrs.map.contains(AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER))));
 }
 
-bool Node::isPasswordNodeFolder() const
+bool Node::isPasswordManagerNodeFolder() const
 {
     assert(client);
     const auto nhBase = client->getPasswordManagerBase();
     return ((type == FOLDERNODE) && (nodeHandle() == nhBase || isAncestor(nhBase))) &&
-           !isPasswordNode();
+           !isPasswordManagerNode();
 }
 
 bool NodeData::readComponents()

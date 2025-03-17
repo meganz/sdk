@@ -1546,11 +1546,24 @@ class MegaNode
         /**
          * @brief Returns true if this MegaNode is a Password Node
          *
+         * @note: A Password Node is a Password Manager Node with login credential information.
+         *
          * Only MegaNodes created with MegaApi::createPasswordNode return true in this function.
          *
          * @return true if this node is a Password Node
          */
         virtual bool isPasswordNode() const;
+
+        /**
+         * @brief Returns true if this MegaNode is a Password Manager Node
+         *
+         * A node is considered a Password Manager Node if Password Manager Base is its
+         * ancestor and it's not a Password Manager Node Folder.
+         *
+         * @return true if this node is a Password Manager Node, false otherwise.
+         * In case node doesn't exists this method will also returns false.
+         */
+        virtual bool isPasswordManagerNode() const;
 
         /**
          * @brief Gets the Password Node value if the node is a Password Node
@@ -12855,8 +12868,23 @@ class MegaApi
          * @param node MegaHandle of the node to check if it is a Password Node Folder
          * @return true if this node is a Password Node Folder, false otherwise.
          * In case node doesn't exists this method will also returns false.
+         *
+         * @deprecated Moved to isPasswordManagerNodeFolder.
          */
+        MEGA_DEPRECATED
         virtual bool isPasswordNodeFolder(MegaHandle node) const;
+
+        /**
+         * @brief Returns true if provided MegaHandle belongs to a Password Manager Node Folder
+         *
+         * A folder is considered a Password Manager Node Folder if Password Manager Base is its
+         * ancestor, or if the node is the Password Manager Base folder itself.
+         *
+         * @param node MegaHandle of the node to check if it is a Password Manager Node Folder
+         * @return true if this node is a Password Manager Node Folder, false otherwise.
+         * In case node doesn't exists this method will also returns false.
+         */
+        virtual bool isPasswordManagerNodeFolder(MegaHandle node) const;
 
         /**
          * @brief Create a new Password Node in your Password Manager tree

@@ -2129,9 +2129,12 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                 break;
             }
             case FOLDERNODE:
-                if (n->isPasswordNode())            stream << "password entry";
-                else if (n->isPasswordNodeFolder()) stream << "password folder";
-                else                                stream << "folder";
+                if (n->isPasswordManagerNode())
+                    stream << "password manager node entry";
+                else if (n->isPasswordManagerNodeFolder())
+                    stream << "password folder";
+                else
+                    stream << "folder";
 
                 if (handles_on)
                 {
@@ -13663,9 +13666,10 @@ void exec_passwordmanager(autocomplete::ACState& s)
             cout << "No node found with provided handle " << toNodeHandle(nh) << "\n";
             return;
         }
-        if (!pwdNode->isPasswordNode())
+        if (!pwdNode->isPasswordManagerNode())
         {
-            cout << "Node handle provided " << toNodeHandle(nh) << " isn't a Password Node's\n";
+            cout << "Node handle provided " << toNodeHandle(nh)
+                 << " isn't a Password Manager Node's\n";
             return;
         }
 
