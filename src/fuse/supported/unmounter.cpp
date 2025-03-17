@@ -17,7 +17,7 @@ namespace platform
 {
 
 void Unmounter::emitEvent(MountDisabledCallback callback,
-                          std::string name,
+                          const std::string& name,
                           MountResult result)
 {
 
@@ -50,8 +50,8 @@ void Unmounter::emitEvent(MountDisabledCallback callback,
 
 void Unmounter::unmount(MountDisabledCallback callback,
                         MountWeakPtr mount,
-                        std::string name,
-                        LocalPath path)
+                        const std::string& name,
+                        const LocalPath& path)
 {
     FUSEDebugF("Attempting to unmount mount: %s", name.c_str());
 
@@ -61,17 +61,13 @@ void Unmounter::unmount(MountDisabledCallback callback,
     {
         FUSEDebugF("Mount no longer exists: %s", name.c_str());
 
-        return emitEvent(std::move(callback),
-                         std::move(name),
-                         MOUNT_UNKNOWN);
+        return emitEvent(std::move(callback), name, MOUNT_UNKNOWN);
     }
 
     auto result = this->unmount(*mount_, path.toPath(false), false);
 
     if (result != MOUNT_SUCCESS)
-        return emitEvent(std::move(callback),
-                         std::move(name),
-                         result);
+        return emitEvent(std::move(callback), name, result);
 
     auto disabled = mount_->disabled();
 
@@ -81,9 +77,7 @@ void Unmounter::unmount(MountDisabledCallback callback,
 
     FUSEDebugF("Mount %s has been unmounted", name.c_str());
 
-    emitEvent(std::move(callback),
-              std::move(name),
-              MOUNT_SUCCESS);
+    emitEvent(std::move(callback), name, MOUNT_SUCCESS);
 }
 
 Unmounter::Unmounter(platform::ServiceContext& context)
@@ -103,21 +97,21 @@ void Unmounter::unmount(MountDisabledCallback callback, MountPtr mount)
     auto wrapper = [this](Activity&,
                           MountDisabledCallback& callback,
                           MountWeakPtr mount,
-                          std::string& name,
-                          LocalPath& path,
+                          const std::string& name,
+                          const LocalPath& path,
                           const Task& task)
     {
         // Don't bother unmounting as we're being torn down.
         if (task.cancelled())
             return emitEvent(std::move(callback),
-                             std::move(name),
+                             name,
                              MOUNT_ABORTED);
 
         // Try and unmount the specified mount.
         unmount(std::move(callback),
                 std::move(mount),
-                std::move(name),
-                std::move(path));
+                name,
+                path);
     }; // wrapper
 
     auto name = mount->name();
