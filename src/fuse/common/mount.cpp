@@ -94,7 +94,7 @@ Mount::~Mount()
 
     // Broadcast a mount disabled event.
     mMountDB.client().emitEvent({
-        path(),
+        name(),
         MOUNT_SUCCESS,
         MOUNT_DISABLED
     });

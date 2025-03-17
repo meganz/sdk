@@ -42,7 +42,7 @@ MountResult Service::add(const MountInfo& info)
 {
     MountEvent event;
 
-    event.mPath = info.mPath;
+    event.mName = info.mFlags.mName;
     event.mResult = MOUNT_UNEXPECTED;
     event.mType = MOUNT_ADDED;
 
@@ -74,19 +74,19 @@ ErrorOr<InodeInfo> Service::describe(const NormalizedPath& path) const
 }
 
 void Service::disable(MountDisabledCallback callback,
-                      const NormalizedPath& path,
+                      const std::string& name,
                       bool remember)
 {
     assert(callback);
 
     if (mContext)
         return mContext->disable(std::move(callback),
-                                 path,
+                                 name,
                                  remember);
 
     MountEvent event;
 
-    event.mPath = path;
+    event.mName = name;
     event.mResult = MOUNT_UNKNOWN;
     event.mType = MOUNT_DISABLED;
 
@@ -119,26 +119,26 @@ MountResult Service::downgrade(const NormalizedPath& path,
     return MOUNT_UNSUPPORTED;
 }
 
-MountResult Service::enable(const NormalizedPath& path,
+MountResult Service::enable(const std::string& name,
                             bool remember)
 {
     MountEvent event;
 
-    event.mPath = path;
+    event.mName = name;
     event.mResult = MOUNT_UNKNOWN;
     event.mType = MOUNT_ENABLED;
 
     if (mContext)
-        event.mResult = mContext->enable(path, remember);
+        event.mResult = mContext->enable(name, remember);
 
     mClient.emitEvent(event);
 
     return event.mResult;
 }
 
-bool Service::enabled(const NormalizedPath& path) const
+bool Service::enabled(const std::string& name) const
 {
-    return mContext && mContext->enabled(path);
+    return mContext && mContext->enabled(name);
 }
 
 Task Service::execute(std::function<void(const Task&)> function)
@@ -153,35 +153,35 @@ Task Service::execute(std::function<void(const Task&)> function)
     return task;
 }
 
-MountResult Service::flags(const NormalizedPath& path,
+MountResult Service::flags(const std::string& name,
                            const MountFlags& flags)
 {
     MountEvent event;
 
-    event.mPath = path;
+    event.mName = name;
     event.mResult = MOUNT_UNKNOWN;
     event.mType = MOUNT_CHANGED;
 
     if (mContext)
-        event.mResult = mContext->flags(path, flags);
+        event.mResult = mContext->flags(name, flags);
 
     mClient.emitEvent(event);
 
     return event.mResult;
 }
 
-MountFlagsPtr Service::flags(const NormalizedPath& path) const
+MountFlagsPtr Service::flags(const std::string& name) const
 {
     if (mContext)
-        return mContext->flags(path);
+        return mContext->flags(name);
 
     return nullptr;
 }
 
-MountInfoPtr Service::get(const NormalizedPath& path) const
+MountInfoPtr Service::get(const std::string& name) const
 {
     if (mContext)
-        return mContext->get(path);
+        return mContext->get(name);
 
     return nullptr;
 }
@@ -224,24 +224,24 @@ LogLevel Service::logLevel() const
     return Logger::logLevel();
 }
 
-NormalizedPathVector Service::paths(const std::string& name) const
+NormalizedPath Service::path(const std::string& name) const
 {
     if (mContext)
-        return mContext->paths(name);
+        return mContext->path(name);
 
-    return NormalizedPathVector();
+    return NormalizedPath();
 }
 
-MountResult Service::remove(const NormalizedPath& path)
+MountResult Service::remove(const std::string& name)
 {
     MountEvent event;
 
-    event.mPath = path;
+    event.mName = name;
     event.mResult = MOUNT_UNKNOWN;
     event.mType = MOUNT_REMOVED;
 
     if (mContext)
-        event.mResult = mContext->remove(path);
+        event.mResult = mContext->remove(name);
 
     mClient.emitEvent(event);
 

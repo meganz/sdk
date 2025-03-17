@@ -5870,11 +5870,11 @@ MegaMount* MegaApi::getMountInfo(const char* path)
     return pImpl->getMountInfo(path);
 }
 
-MegaStringList* MegaApi::getMountPaths(const char* name)
+char* MegaApi::getMountPath(const char* name)
 {
     assert(name);
 
-    return pImpl->getMountPaths(name);
+    return pImpl->getMountPath(name);
 }
 
 MegaMountList* MegaApi::listMounts(bool enabled)

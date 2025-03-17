@@ -19,12 +19,13 @@ class Unmounter final
 {
     // Report the result of an unmount operation.
     void emitEvent(MountDisabledCallback callback,
-                   LocalPath path,
+                   std::string name,
                    MountResult result);
 
     // Try and unmount the specified mount.
     void unmount(MountDisabledCallback callback,
                  MountWeakPtr mount,
+                 std::string name,
                  LocalPath path);
 
     // Unmount the specified mount.
