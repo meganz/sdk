@@ -189,7 +189,7 @@ public:
     MountInfoVector get(bool enabled) const;
 
     // Query which path a named mount is associated with.
-    NormalizedPath path(const std::string& name) const;
+    std::optional<NormalizedPath> path(const std::string& name) const;
 
     // Prune stale mount entries from the database.
     MountResult prune();

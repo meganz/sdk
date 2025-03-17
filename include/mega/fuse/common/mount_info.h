@@ -32,8 +32,18 @@ struct MountInfo
 
     MountFlags mFlags;
     NodeHandle mHandle;
-    NormalizedPath mPath;
+    std::optional<NormalizedPath> mPath;
 }; // MountInfo
+
+struct MountInfoNameLess
+{
+    bool operator()(const MountInfo& lhs, const MountInfo& rhs) const;
+}; // MountInfoNameLess
+
+struct MountInfoPathLess
+{
+    bool operator()(const MountInfo& lhs, const MountInfo& rhs) const;
+}; // MountInfoPathLess
 
 } // fuse
 } // mega

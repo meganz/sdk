@@ -224,12 +224,12 @@ LogLevel Service::logLevel() const
     return Logger::logLevel();
 }
 
-NormalizedPath Service::path(const std::string& name) const
+std::optional<NormalizedPath> Service::path(const std::string& name) const
 {
     if (mContext)
         return mContext->path(name);
 
-    return NormalizedPath();
+    return std::nullopt;
 }
 
 MountResult Service::remove(const std::string& name)

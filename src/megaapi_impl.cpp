@@ -26220,8 +26220,8 @@ char* MegaApiImpl::getMountPath(const char* name)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    if (auto path = client->mFuseService.path(name); !path.empty())
-        return MegaApi::strdup(path.toPath(false).c_str());
+    if (auto path = client->mFuseService.path(name); path)
+        return MegaApi::strdup(path->toPath(false).c_str());
 
     return nullptr;
 }
@@ -39893,7 +39893,7 @@ MegaMountPrivate::MegaMountPrivate(const fuse::MountInfo& info)
   : MegaMount()
   , mFlags(std::make_unique<MegaMountFlagsPrivate>(info.mFlags))
   , mHandle(info.mHandle.as8byte())
-  , mPath(info.mPath.toPath(false))
+  , mPath(info.mPath.value_or(LocalPath()).toPath(false))
 {
 }
 
@@ -39933,7 +39933,10 @@ MegaHandle MegaMountPrivate::getHandle() const
 
 const char* MegaMountPrivate::getPath() const
 {
-    return mPath.c_str();
+    if (!mPath.empty())
+        return mPath.c_str();
+
+    return nullptr;
 }
 
 void MegaMountPrivate::setFlags(const MegaMountFlags* flags)

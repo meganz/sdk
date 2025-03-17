@@ -230,7 +230,7 @@ public:
     MountInfoPtr mountInfo(const std::string& name) const;
 
     // Retrieve the path associated with the specified name.
-    NormalizedPath mountPath(const std::string& name) const;
+    std::optional<NormalizedPath> mountPath(const std::string& name) const;
 
     // Retrieve a description of each (enabled) mount.
     MountInfoVector mounts(bool enabled) const;

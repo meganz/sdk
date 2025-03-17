@@ -782,6 +782,7 @@ Mount::Mount(const MountInfo& info, MountDB& mountDB)
   : fuse::Mount(info, mountDB)
   , mActivities()
   , mExecutor(mountDB.executorFlags())
+  , mPath(*info.mPath)
   , mSession(*this)
   , mInvalidator(mSession)
 {
@@ -866,6 +867,11 @@ MountInodeID Mount::map(InodeID id) const
         return MountInodeID(FUSE_ROOT_ID);
 
     return MountInodeID(id);
+}
+
+NormalizedPath Mount::path() const
+{
+    return mPath;
 }
 
 } // platform

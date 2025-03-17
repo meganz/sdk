@@ -140,10 +140,10 @@ MountResult MountDB::check(const MountInfo& info)
     }
 
     // Make sure the target path isn't claimed by a sync.
-    if (!client().mountable(info.mPath))
+    if (info.mPath && !client().mountable(*info.mPath))
     {
         FUSEErrorF("Local path is being synchronized: %s",
-                   info.mPath.toPath(false).c_str());
+                   info.mPath->toPath(false).c_str());
 
         return MOUNT_LOCAL_SYNCING;
     }
@@ -472,15 +472,21 @@ MountInfoPtr MountDB::contains(const LocalPath& path,
     // Search for a matching mount.
     for (auto& m : mounts)
     {
+        // Sanity.
+        assert(m.mPath);
+
         // Convenience.
-        auto& path_ = m.mPath;
+        auto& path_ = *m.mPath;
 
         // Path isn't within this mount.
         if (!path_.isContainingPathOf(path, &index))
             continue;
 
+        // Sanity.
+        assert(!mount || mount->mPath);
+
         // This mount is a better match.
-        if (!mount || path_.isContainingPathOf(mount->mPath, &index))
+        if (!mount || path_.isContainingPathOf(*mount->mPath, &index))
             mount = &m;
     }
 
@@ -745,13 +751,16 @@ try
         return MOUNT_SUCCESS;
 
     // Another thread's enabled a mount with the same path.
-    if (auto mount = this->mount(info.mPath))
+    if (info.mPath)
     {
-        FUSEErrorF("Path %s already taken by mount: %s",
-                   info.mPath.toPath(false).c_str(),
-                   mount->name().c_str());
+        if (auto mount = this->mount(*info.mPath))
+        {
+            FUSEErrorF("Path %s already taken by mount: %s",
+                       info.mPath->toPath(false).c_str(),
+                       mount->name().c_str());
 
-        return MOUNT_LOCAL_TAKEN;
+            return MOUNT_LOCAL_TAKEN;
+        }
     }
     
     // Mount path might already exist on disk.
@@ -767,7 +776,7 @@ try
     // Add the mount to the index.
     mByHandle[info.mHandle].emplace(mount);
     mByName[name] = mount;
-    mByPath[info.mPath] = mount;
+    mByPath[mount->path()] = mount;
 
     // Release lock.
     lock.unlock();
@@ -954,18 +963,15 @@ try
 {
     auto guard = lockAll(mContext.mDatabase, *this);
 
-    MountInfoVector mounts;
+    MountInfoSet<MountInfoNameLess> mounts;
+
+    // Copy descriptions of enabled mounts.
+    for (auto& i : mByPath)
+        mounts.emplace(i.second->info());
 
     // Caller's interested only in mounts that are enabled.
     if (enabled)
-    {
-        // Copy descriptions of enabled mounts.
-        for (auto& i : mByPath)
-            mounts.emplace_back(i.second->info());
-
-        // And return them to the caller.
-        return mounts;
-    }
+        return MountInfoVector(mounts.begin(), mounts.end());
 
     // Retrieve descriptions of all known mounts from the database.
     auto transaction = mContext.mDatabase.transaction();
@@ -975,10 +981,10 @@ try
 
     // Deserialize each description.
     for ( ; query; ++query)
-        mounts.emplace_back(MountInfo::deserialize(query));
+        mounts.emplace(MountInfo::deserialize(query));
 
     // And return them all to the caller.
-    return mounts;
+    return MountInfoVector(mounts.begin(), mounts.end());
 }
 catch (std::runtime_error& exception)
 {
@@ -989,10 +995,13 @@ catch (std::runtime_error& exception)
     return MountInfoVector();
 }
 
-NormalizedPath MountDB::path(const std::string& name) const
+std::optional<NormalizedPath> MountDB::path(const std::string& name) const
 try
 {
     auto guard = lockAll(mContext.mDatabase, *this);
+
+    if (auto mount = this->mount(name))
+        return mount->path();
 
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetMountPathByName);
@@ -1000,10 +1009,10 @@ try
     query.param(":name") = name;
     query.execute();
 
-    if (query)
+    if (query && !query.field("path").null())
         return query.field("path").path();
 
-    return NormalizedPath();
+    return std::nullopt;
 }
 catch (std::runtime_error& exception)
 {
@@ -1011,7 +1020,7 @@ catch (std::runtime_error& exception)
                name.c_str(),
                exception.what());
 
-    return NormalizedPath();
+    return std::nullopt;
 }
 
 MountResult MountDB::prune()

@@ -450,7 +450,7 @@ MountInfoPtr Client::mountInfo(const std::string& name) const
     return service().get(name);
 }
 
-NormalizedPath Client::mountPath(const std::string& name) const
+std::optional<NormalizedPath> Client::mountPath(const std::string& name) const
 {
     return service().path(name);
 }

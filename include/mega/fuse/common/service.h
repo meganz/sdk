@@ -96,7 +96,7 @@ public:
     LogLevel logLevel() const;
 
     // Retrieve the path the mount associated with name.
-    NormalizedPath path(const std::string& name) const;
+    std::optional<NormalizedPath> path(const std::string& name) const;
 
     // Remove a disabled mount from the database.
     MountResult remove(const std::string& name);
