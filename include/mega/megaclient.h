@@ -872,6 +872,17 @@ public:
     void setBlocked(bool value);
 
     // enqueue/abort direct read
+    void pread(Node*, m_off_t, m_off_t, DirectRead::Callback&& callback);
+    void pread(handle,
+               SymmCipher* cypher,
+               int64_t,
+               m_off_t,
+               m_off_t,
+               DirectRead::Callback&& callback,
+               bool = false,
+               const char* = NULL,
+               const char* = NULL,
+               const char* = NULL);
     void pread(Node*, m_off_t, m_off_t, void*);
     void pread(handle,
                SymmCipher* cypher,
@@ -1859,6 +1870,17 @@ public:
     bool isprivatehandle(handle*);
 
     // add direct read
+    void queueread(handle,
+                   bool,
+                   SymmCipher*,
+                   int64_t,
+                   m_off_t,
+                   m_off_t,
+                   DirectRead::Callback&& callback,
+                   const char* = NULL,
+                   const char* = NULL,
+                   const char* = NULL);
+
     void queueread(handle, bool, SymmCipher*, int64_t, m_off_t, m_off_t, void*, const char* = NULL, const char* = NULL, const char* = NULL);
 
     // execute pending direct reads

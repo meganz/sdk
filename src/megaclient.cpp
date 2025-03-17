@@ -27,6 +27,7 @@
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
 #include "mega/totp.h"
+#include "mega/transfer.h"
 #include "mega/user_attribute.h"
 #include "mega/utils.h"
 
@@ -16779,6 +16780,40 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 }
 
 // request direct read by node pointer
+void MegaClient::pread(Node* n, m_off_t offset, m_off_t count, DirectRead::Callback&& callback)
+{
+    queueread(n->nodehandle,
+              true,
+              n->nodecipher(),
+              MemAccess::get<int64_t>((const char*)n->nodekey().data() + SymmCipher::KEYLENGTH),
+              offset,
+              count,
+              std::move(callback));
+}
+
+void MegaClient::pread(handle ph,
+                       SymmCipher* cypher,
+                       int64_t ctriv,
+                       m_off_t offset,
+                       m_off_t count,
+                       DirectRead::Callback&& callback,
+                       bool isforeign,
+                       const char* privauth,
+                       const char* pubauth,
+                       const char* cauth)
+{
+    queueread(ph,
+              isforeign,
+              cypher,
+              ctriv,
+              offset,
+              count,
+              std::move(callback),
+              privauth,
+              pubauth,
+              cauth);
+}
+
 void MegaClient::pread(Node* n, m_off_t offset, m_off_t count, void* appdata)
 {
     queueread(n->nodehandle, true, n->nodecipher(),
@@ -16826,6 +16861,58 @@ void MegaClient::queueread(handle h,
                            const char* pubauth,
                            const char* cauth)
 {
+    assert(appdata);
+    auto callback = [this, appdata](DirectRead::CallbackParam& param) mutable
+    {
+        if (auto result = std::get_if<DirectRead::GoodResult>(&param); result)
+        {
+            result->ret = app->pread_data(result->buffer,
+                                          result->len,
+                                          result->offset,
+                                          result->speed,
+                                          result->meanSpeed,
+                                          appdata);
+            return;
+        }
+
+        if (auto result = std::get_if<DirectRead::FailureResult>(&param); result)
+        {
+            result->ret = app->pread_failure(result->e, result->retry, appdata, result->timeLeft);
+            return;
+        }
+
+        if (auto invalidate = std::get_if<DirectRead::Invalidate>(&param); invalidate)
+        {
+            if (invalidate->appdata == appdata)
+            {
+                appdata = nullptr;
+                invalidate->ret = true;
+            }
+            return;
+        }
+
+        if (auto isValid = std::get_if<DirectRead::IsValid>(&param); isValid)
+        {
+            isValid->ret = appdata != nullptr;
+            return;
+        }
+    };
+
+    queueread(h, p, cypher, ctriv, offset, count, std::move(callback), privauth, pubauth, cauth);
+}
+
+void MegaClient::queueread(handle h,
+                           bool p,
+                           SymmCipher* cypher,
+                           int64_t ctriv,
+                           m_off_t offset,
+                           m_off_t count,
+                           DirectRead::Callback&& callback,
+                           const char* privauth,
+                           const char* pubauth,
+                           const char* cauth)
+{
+    using namespace std::placeholders;
     handledrn_map::iterator it;
 
     encodehandletype(&h, p);
@@ -16841,12 +16928,12 @@ void MegaClient::queueread(handle h,
                 h,
                 new DirectReadNode(this, h, p, cypher, ctriv, privauth, pubauth, cauth)));
         it->second->hdrn_it = it;
-        it->second->enqueue(offset, count, reqtag, appdata);
+        auto directRead = it->second->enqueue(offset, count, reqtag, std::move(callback));
 
         if (overquotauntil && overquotauntil > Waiter::ds)
         {
             dstime timeleft = dstime(overquotauntil - Waiter::ds);
-            app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
+            directRead->onFailure(API_EOVERQUOTA, 0, timeleft);
             it->second->schedule(timeleft);
         }
         else
@@ -16856,11 +16943,11 @@ void MegaClient::queueread(handle h,
     }
     else
     {
-        it->second->enqueue(offset, count, reqtag, appdata);
+        auto directRead = it->second->enqueue(offset, count, reqtag, std::move(callback));
         if (overquotauntil && overquotauntil > Waiter::ds)
         {
             dstime timeleft = dstime(overquotauntil - Waiter::ds);
-            app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
+            directRead->onFailure(API_EOVERQUOTA, 0, timeleft);
             it->second->schedule(timeleft);
         }
     }
@@ -16874,10 +16961,8 @@ void MegaClient::removeAppData(void* t)
         for(auto it2 = dreads.begin(); it2 != dreads.end(); ++it2)
         {
             DirectRead* dr = *it2;
-            if (dr && dr->appdata == t)
-            {
-                dr->appdata = nullptr;
-            }
+            if (dr)
+                dr->onInvalidate(t);
         }
     }
 }
@@ -16910,7 +16995,7 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
             if ((offset < 0 || offset == (*itRead)->offset) &&
                 (count < 0 || count == (*itRead)->count))
             {
-                app->pread_failure(API_EINCOMPLETE, (*itRead)->drn->retries, (*itRead)->appdata, 0);
+                (*itRead)->onFailure(API_EINCOMPLETE, (*itRead)->drn->retries, 0);
 
                 delete *(itRead++);
             }

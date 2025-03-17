@@ -29,6 +29,7 @@
 #include "mega/sync.h"
 #include "mega/testhooks.h"
 #include "mega/transferslot.h"
+#include "mega/types.h"
 #include "mega/utils.h"
 #include "megawaiter.h"
 
@@ -1198,14 +1199,16 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
     // signal failure to app, obtain minimum desired retry time
     for (dr_list::iterator it = reads.begin(); it != reads.end(); )
     {
-        if ((*it)->appdata)
+        if ((*it)->onIsValid())
         {
             (*it)->abort();
 
             if (e)
             {
-                LOG_debug << "[DirectReadNode::retry] Calling pread_failure for DirectRead (" << (void*)(*it) << ")" << " [this = " << this << "]";
-                dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
+                LOG_debug << "[DirectReadNode::retry] Calling onFailure for DirectRead ("
+                          << (void*)(*it) << ")"
+                          << " [this = " << this << "]";
+                dstime retryds = (*it)->onFailure(e, retries, timeleft);
 
                 if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
                 {
@@ -1218,7 +1221,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
             // This situation should never happen
             client->sendevent(99472, "DirectRead detected with a null transfer");
         }
-        if (!(*it)->appdata) // It may have been deleted after pread_failure
+        if (!(*it)->onIsValid()) // It may have been deleted after onFailure
         {
             // Transfer is deleted
             LOG_warn << "[DirectReadNode::retry] No appdata (transfer has been deleted) for this DirectRead (" << (void*)(*it) << "). Deleting affected DirectRead" << " [this = " << this << "]";
@@ -1325,9 +1328,12 @@ void DirectReadNode::schedule(dstime deltads)
     }
 }
 
-void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* appdata)
+DirectRead* DirectReadNode::enqueue(m_off_t offset,
+                                    m_off_t count,
+                                    int reqtag,
+                                    DirectRead::Callback&& callback)
 {
-    new DirectRead(this, count, offset, reqtag, appdata);
+    return new DirectRead(this, count, offset, reqtag, std::move(callback));
 }
 
 size_t UnusedConn::getNum() const
@@ -1402,7 +1408,7 @@ bool DirectReadSlot::processAnyOutputPieces()
         mMeanSpeed = mSpeedController.getMeanSpeed();
         mDr->drn->client->httpio->updatedownloadspeed(static_cast<m_off_t>(len));
 
-        if (mDr->appdata)
+        if (mDr->onIsValid())
         {
             mSlotThroughput.first += static_cast<m_off_t>(len);
             auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - mSlotStartTime).count();
@@ -1410,12 +1416,11 @@ bool DirectReadSlot::processAnyOutputPieces()
             LOG_verbose << "DirectReadSlot -> Delivering assembled part ->"
                         << "len = " << len << ", speed = " << mSpeed << ", meanSpeed = " << (mMeanSpeed / 1024) << " KB/s"
                         << ", slotThroughput = " << ((calcThroughput(mSlotThroughput.first, mSlotThroughput.second) * 1000) / 1024) << " KB/s]" << " [this = " << this << "]";
-            continueDirectRead = mDr->drn->client->app->pread_data(outputPiece->buf.datastart(),
-                                                                   static_cast<m_off_t>(len),
-                                                                   mPos,
-                                                                   mSpeed,
-                                                                   mMeanSpeed,
-                                                                   mDr->appdata);
+            continueDirectRead = mDr->onData(outputPiece->buf.datastart(),
+                                             static_cast<m_off_t>(len),
+                                             mPos,
+                                             mSpeed,
+                                             mMeanSpeed);
         }
         else
         {
@@ -1878,7 +1883,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         LOG_debug << "DirectReadSlot: Watchdog -> Mean speed: " << meanspeed << " B/s. Min speed: " << minspeed << " B/s [Partial len: " << mDr->drn->partiallen << ". Ds: " << dsSinceLastWatch << "]" << " [this = " << this << "]";
         if (minspeed != 0 && meanspeed < minspeed)
         {
-            if (!mDr->appdata)
+            if (!mDr->onIsValid())
             {
                 // It's better for this check to be here instead of above: this way we can know if the transfer speed is to low, even if the transfer is already deleted at this point.
                 LOG_err << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming, but transfer is already deleted. Skipping retry" << " [this = " << this << "]";
@@ -2099,7 +2104,7 @@ bool DirectReadSlot::doio()
                     }
                     else
                     {
-                        if (!mDr->appdata)
+                        if (!mDr->onIsValid())
                         {
                             LOG_err << "DirectReadSlot [conn " << connectionNum << "] There is a chunk request, but transfer is already deleted. This should never happen. Aborting" << " [this = " << this << "]";
                             mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
@@ -2179,7 +2184,7 @@ bool DirectReadSlot::doio()
 void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t connectionNum)
 {
     decreaseReqsInflight();
-    if (!mDr->appdata)
+    if (!mDr->onIsValid())
     {
         LOG_err << "DirectReadSlot [conn " << connectionNum
                 << "] Request failed, but transfer is already deleted. Aborting"
@@ -2225,17 +2230,61 @@ m_off_t DirectRead::drMaxReqSize() const
     return std::max(drn->size / numParts, TransferSlot::MAX_REQ_SIZE);
 }
 
-DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, int creqtag, void* cappdata)
-    : drbuf(this)
+void DirectRead::onInvalidate(void* appData)
 {
-    LOG_debug << "[DirectRead::DirectRead] New DirectRead [cappdata = " << cappdata << "]" << " [this = " << this << "]";
+    DirectRead::CallbackParam param{std::in_place_type<DirectRead::Invalidate>, appData};
+    callback(param);
+}
+
+bool DirectRead::onData(byte* buffer,
+                        m_off_t len,
+                        m_off_t theOffset,
+                        m_off_t speed,
+                        m_off_t meanSpeed)
+{
+    DirectRead::CallbackParam param{std::in_place_type<DirectRead::GoodResult>,
+                                    buffer,
+                                    len,
+                                    theOffset,
+                                    speed,
+                                    meanSpeed};
+    callback(param);
+    return std::get<DirectRead::GoodResult>(param).ret;
+}
+
+dstime DirectRead::onFailure(const Error& e, int retry, dstime timeLeft)
+{
+    DirectRead::CallbackParam param{std::in_place_type<DirectRead::FailureResult>,
+                                    e,
+                                    retry,
+                                    timeLeft};
+    callback(param);
+    return std::get<DirectRead::FailureResult>(param).ret;
+}
+
+bool DirectRead::onIsValid()
+{
+    DirectRead::CallbackParam param{std::in_place_type<DirectRead::IsValid>};
+    callback(param);
+    return std::get<DirectRead::IsValid>(param).ret;
+}
+
+DirectRead::DirectRead(DirectReadNode* cdrn,
+                       m_off_t ccount,
+                       m_off_t coffset,
+                       int creqtag,
+                       Callback&& callback):
+    drbuf(this),
+    callback(std::move(callback))
+{
+    LOG_debug << "[DirectRead::DirectRead] New DirectRead "
+              << "[this = " << this << "]";
     drn = cdrn;
 
     count = ccount;
     offset = coffset;
     progress = 0;
     reqtag = creqtag;
-    appdata = cappdata;
 
     drs = NULL;
 

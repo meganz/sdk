@@ -19,6 +19,9 @@
  * program.
  */
 
+#include "mega/types.h"
+
+#include <variant>
 #ifndef MEGA_TRANSFER_H
 #define MEGA_TRANSFER_H 1
 
@@ -981,6 +984,59 @@ private:
 
 struct MEGA_API DirectRead
 {
+    struct GoodResult
+    {
+        GoodResult(byte* buffer, m_off_t len, m_off_t offset, m_off_t speed, m_off_t meanSpeed):
+            buffer{buffer},
+            len{len},
+            offset{offset},
+            speed{speed},
+            meanSpeed{meanSpeed}
+        {}
+
+        byte* buffer{nullptr};
+        m_off_t len{0};
+        m_off_t offset{0};
+        m_off_t speed{0};
+        m_off_t meanSpeed{0};
+        bool ret{false};
+    };
+
+    struct FailureResult
+    {
+        FailureResult(const Error& e, int retry, dstime timeLeft):
+            e{e},
+            retry{retry},
+            timeLeft{timeLeft}
+        {}
+
+        Error e{API_OK};
+        int retry{0};
+        dstime timeLeft{0};
+        dstime ret{0};
+    };
+
+    struct Invalidate
+    {
+        Invalidate(void* appData):
+            appdata{appData}
+        {}
+
+        void* appdata{nullptr};
+        bool ret{false};
+    };
+
+    struct IsValid
+    {
+        bool ret{false};
+    };
+
+    using CallbackParam = std::variant<GoodResult, FailureResult, Invalidate, IsValid>;
+
+    using Callback = std::function<void(CallbackParam&)>;
+
+    // using OnFailure = std::function<dstime(const Error&, int, dstime)>;
+
     m_off_t count;
     m_off_t offset;
     m_off_t progress;
@@ -994,14 +1050,22 @@ struct MEGA_API DirectRead
     dr_list::iterator reads_it;
     dr_list::iterator drq_it;
 
-    void* appdata;
-
     int reqtag;
+
+    Callback callback;
 
     void abort();
     m_off_t drMaxReqSize() const;
 
-    DirectRead(DirectReadNode*, m_off_t, m_off_t, int, void*);
+    void onInvalidate(void* appData);
+
+    bool onData(byte* buffer, m_off_t len, m_off_t theOffset, m_off_t speed, m_off_t meanSpeed);
+
+    dstime onFailure(const Error& e, int retry, dstime timeLeft);
+
+    bool onIsValid();
+
+    DirectRead(DirectReadNode*, m_off_t, m_off_t, int, Callback&& callback);
     ~DirectRead();
 };
 
@@ -1037,7 +1101,7 @@ struct MEGA_API DirectReadNode
     void cmdresult(const Error&, dstime = 0);
 
     // enqueue new read
-    void enqueue(m_off_t, m_off_t, int, void*);
+    DirectRead* enqueue(m_off_t, m_off_t, int, DirectRead::Callback&& callback);
 
     // dispatch all reads
     void dispatch();
