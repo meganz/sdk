@@ -90,19 +90,17 @@ static handle createSyncAux(MegaApi* megaApi,
 
     using namespace testing;
     NiceMock<MockRequestListener> rl{megaApi};
-    const auto expectedErr = Pointee(Property(&MegaError::getErrorCode, API_OK));
-    const auto& expectedReqType =
-        Pointee(Property(&MegaRequest::getType, MegaRequest::TYPE_ADD_SYNC));
-    const auto expectedSyncErr =
-        Pointee(Property(&MegaError::getSyncError, MegaSync::NO_SYNC_ERROR));
+
     handle backupId = UNDEF;
-    EXPECT_CALL(rl, onRequestFinish(_, expectedReqType, AllOf(expectedErr, expectedSyncErr)))
-        .WillOnce(
-            [&backupId, &rl](MegaApi*, MegaRequest* req, MegaError*)
-            {
-                backupId = req->getParentHandle();
-                rl.markAsFinished();
-            });
+    auto setBackupId = [&backupId](const MegaRequest& req)
+    {
+        backupId = req.getParentHandle();
+    };
+
+    rl.setErrorExpectations(API_OK,
+                            MegaSync::NO_SYNC_ERROR,
+                            MegaRequest::TYPE_ADD_SYNC,
+                            std::move(setBackupId));
 
     megaApi->syncFolder(syncType,
                         localRootPath.c_str(),

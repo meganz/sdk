@@ -104,6 +104,7 @@ set(SDKLIB_HEADERS
 set(SDKLIB_SOURCES
     src/megaapi.cpp
     src/megaapi_impl.cpp
+    src/megaapi_impl_sync.cpp
     src/arguments.cpp
     src/attrmap.cpp
     src/autocomplete.cpp

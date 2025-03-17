@@ -17159,6 +17159,9 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
 
 SyncErrorInfo MegaClient::checkSyncConfig(const SyncConfig& syncConfig)
 {
+    assert(syncConfig.mExternalDrivePath.empty() || syncConfig.mExternalDrivePath.isAbsolute());
+    assert(syncConfig.mLocalPath.isAbsolute());
+
     // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
     // until the account is reloaded (or the app restarts)
     if (accountShouldBeReloadedOrRestarted())
@@ -17361,8 +17364,6 @@ void MegaClient::setSyncUploadThrottlingManager(
 void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);
-    assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
-    assert(config.mLocalPath.isAbsolute());
 
     error e;
     std::tie(e, config.mError, config.mWarning) = checkSyncConfig(config);

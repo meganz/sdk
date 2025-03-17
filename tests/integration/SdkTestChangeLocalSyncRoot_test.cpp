@@ -9,7 +9,7 @@
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
-#include "SdkTestNodesSetUp_test.h"
+#include "SdkTestNodesSetUp.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -292,7 +292,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
         LOG_verbose << logPre << "Giving non existent backupId and good remote handle";
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, UNKNOWN_ERROR);
-        megaApi[0]->changeSyncLocalRoot(*getNodeHandleByPath("dir1"),
+        megaApi[0]->changeSyncLocalRoot(getNodeHandleByPath("dir1"),
                                         newRootAbsPath.c_str(),
                                         &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));

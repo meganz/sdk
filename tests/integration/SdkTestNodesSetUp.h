@@ -91,9 +91,9 @@ public:
 
     /**
      * @brief Given the path relative to the root of the test dir, returns the handle of the node
-     * with that path (if exists, nullopt otherwise)
+     * with that path if exists, UNDEF otherwise.
      */
-    std::optional<MegaHandle> getNodeHandleByPath(const std::string& path) const;
+    MegaHandle getNodeHandleByPath(const std::string& path) const;
 
 protected:
     /**
