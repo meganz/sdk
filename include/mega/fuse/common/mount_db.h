@@ -167,7 +167,7 @@ public:
     MountResult enable(const std::string& name, bool remember);
 
     // Query whether the specified mount is enabled.
-    bool enabled(const std::string& path) const;
+    bool enabled(const std::string& name) const;
 
     // Update executor flags.
     void executorFlags(const TaskExecutorFlags& flags);
