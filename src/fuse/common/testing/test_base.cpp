@@ -33,7 +33,7 @@ bool TestBase::DoSetUp(const Parameters& parameters)
 
         // Try and add the mount.
         observer->expect({
-            mount.mPath,
+            mount.mFlags.mName,
             MOUNT_SUCCESS,
             MOUNT_ADDED
         });
@@ -48,12 +48,12 @@ bool TestBase::DoSetUp(const Parameters& parameters)
 
         // Try and enable the mount.
         observer->expect({
-            mount.mPath,
+            mount.mFlags.mName,
             MOUNT_SUCCESS,
             MOUNT_ENABLED
         });
 
-        EXPECT_EQ((result = client.enableMount(mount.mPath, false)),
+        EXPECT_EQ((result = client.enableMount(mount.mFlags.mName, false)),
                   MOUNT_SUCCESS);
 
         // Couldn't enable the mount.

@@ -25,7 +25,7 @@ TEST_F(FUSEMountTests, add_fails_when_target_is_empty)
     auto observer = ClientW()->mountEventObserver();
 
     observer->expect({
-        info.mPath,
+        info.mFlags.mName,
         MOUNT_LOCAL_UNKNOWN,
         MOUNT_ADDED
     });
@@ -48,7 +48,7 @@ TEST_F(FUSEMountTests, add_fails_when_target_is_unknown)
     auto observer = ClientW()->mountEventObserver();
 
     observer->expect({
-        info.mPath,
+        info.mFlags.mName,
         MOUNT_LOCAL_UNKNOWN,
         MOUNT_ADDED
     });
@@ -74,7 +74,7 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_unknown)
         mount.mPath = sd0.path();
 
         observer->expect({
-            mount.mPath,
+            mount.mFlags.mName,
             MOUNT_SUCCESS,
             MOUNT_ADDED
         });
@@ -83,12 +83,12 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_unknown)
     }
 
     observer->expect({
-        mount.mPath,
+        mount.mFlags.mName,
         MOUNT_LOCAL_UNKNOWN,
         MOUNT_ENABLED
     });
 
-    ASSERT_EQ(ClientW()->enableMount(mount.mPath, false),
+    ASSERT_EQ(ClientW()->enableMount(mount.mFlags.mName, false),
               MOUNT_LOCAL_UNKNOWN);
 
     ASSERT_TRUE(ClientW()->mounts(true).empty());
