@@ -809,7 +809,7 @@ TaskExecutorFlags MountDB::executorFlags() const
     return mContext.serviceFlags().mMountExecutorFlags;
 }
 
-MountResult MountDB::flags(const std::string& name,
+MountResult MountDB::flags(const std::string& currentName,
                            const MountFlags& flags)
 try
 {
@@ -823,33 +823,28 @@ try
         return MOUNT_NO_NAME;
     }
 
-    // Is the mount enabled?
-    auto mount = this->mount(name);
+    // Make sure the mount's new name is unique.
+    auto transaction = mContext.mDatabase.transaction();
+    auto query = transaction.query(mQueries.mGetMountByName);
 
-    // Mount's enabled.
-    if (mount)
+    query.param(":name") = flags.mName;
+    query.execute();
+
+    // Mount's new name isn't unique.
+    if (query)
     {
-        // Is this name already taken by another mount?
-        auto other = this->mount(flags.mName);
+        FUSEErrorF("Name \"%s\" already taken by another mount.",
+                   flags.mName.c_str());
 
-        // Name's taken by another enabled mount.
-        if (other && other != mount)
-        {
-            FUSEErrorF("Name %s already taken by mount: %s",
-                       flags.mName.c_str(),
-                       other->path().toPath(false).c_str());
-
-            return MOUNT_NAME_TAKEN;
-        }
+        return MOUNT_NAME_TAKEN;
     }
 
     // Update the mount's flags.
-    auto transaction = mContext.mDatabase.transaction();
-    auto query = transaction.query(mQueries.mSetMountFlagsByName);
+    query = transaction.query(mQueries.mSetMountFlagsByName);
 
     flags.serialize(query);
 
-    query.param(":current_name") = name;
+    query.param(":current_name") = currentName;
     query.execute();
 
     // No mount is associated with this path.
@@ -857,13 +852,13 @@ try
         return MOUNT_UNKNOWN;
 
     // Mount's enabled.
-    if (mount)
+    if (auto mount = this->mount(currentName))
     {
         // Keep mount consistent with the database.
         mount->flags(flags);
 
         // Keep the by-name index up to date.
-        mByName.erase(mount->name());
+        mByName.erase(currentName);
         mByName.emplace(flags.mName, mount);
     }
 
@@ -876,7 +871,7 @@ catch (std::runtime_error& exception)
 {
     // Unexpected error while updating the mount's flags.
     FUSEErrorF("Unable to update flags for mount %s: %s",
-               name.c_str(),
+               currentName.c_str(),
                exception.what());
 
     return MOUNT_UNEXPECTED;
