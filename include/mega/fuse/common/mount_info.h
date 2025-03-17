@@ -22,6 +22,11 @@ struct MountInfo
     static MountInfo deserialize(Query& query);
     static MountInfo deserialize(ScopedQuery& query);
 
+    // Convenience.
+    void name(const std::string& name);
+
+    const std::string& name() const;
+
     void serialize(Query& query) const;
     void serialize(ScopedQuery& query) const;
 

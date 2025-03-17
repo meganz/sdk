@@ -22,6 +22,16 @@ bool MountInfo::operator!=(const MountInfo& rhs) const
     return !(*this == rhs);
 }
 
+void MountInfo::name(const std::string& name)
+{
+    mFlags.mName = name;
+}
+
+const std::string& MountInfo::name() const
+{
+    return mFlags.mName;
+}
+
 MountInfo MountInfo::deserialize(Query& query)
 try
 {
