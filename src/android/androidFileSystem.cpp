@@ -385,6 +385,7 @@ void AndroidFileAccess::updatelocalname(const LocalPath& name, bool force)
     if (force || !nonblocking_localname.empty())
     {
         nonblocking_localname = name;
+        mFileWrapper.reset();
     }
 }
 
