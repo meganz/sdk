@@ -89,6 +89,27 @@ typedef NS_ENUM(NSInteger, MEGATOTPHashAlgorithm) {
 + (NSInteger)totpNoChangeValue;
 
 /**
+ * @brief Default value when expirationTime is not provided by the authentication provider
+ *
+ * @return 30 secs as default
+*/
++ (NSInteger)defaultExpirationTime;
+
+/**
+ * @brief Default value when hashAlgorithm is not provided by the authentication provider
+ *
+ * @return SHA1 = 0 as default
+*/
++ (MEGATOTPHashAlgorithm)defaultHashAlgorithm;
+
+/**
+ * @brief Default value when digits is not provided by the authentication provider
+ *
+ * @return 6 digits as default
+*/
++ (NSInteger)defaultDigits;
+
+/**
  * @brief Initializes a MEGATOTPData instance with the given parameters.
  *
  * @param sharedKey The shared secret key for TOTP. Can be nil if not available.
@@ -102,6 +123,14 @@ typedef NS_ENUM(NSInteger, MEGATOTPHashAlgorithm) {
                   expirationTime:(NSInteger)expirationTime
                    hashAlgorithm:(MEGATOTPHashAlgorithm)hashAlgorithm
                            digits:(NSInteger)digits;
+
+/**
+ * @brief Creates a special instance of `MEGATOTPData` marked for removal.
+ * This instance could be used to remove TOTP data from PasswordNodeData.
+ *
+ * @return A pointer to a `MEGATOTPData` instance marked for removal.
+ */
+- (instancetype)initWithRemovalInstance;
 
 @end
 

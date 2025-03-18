@@ -4011,7 +4011,7 @@ using namespace mega;
     if (self.megaApi) {
         MegaNode::PasswordNodeData::TotpData *totpData = nil;
         if (newData.totp) {
-            totpData = newData.totp.markedToRemove ? MegaNode::PasswordNodeData::TotpData::createRemovalInstance() : newData.totp.getCPtr;
+            totpData = newData.totp.getCPtr;
         }
         
         MegaNode::PasswordNodeData *passwordNodeData = MegaNode::PasswordNodeData::createInstance(newData.password.UTF8String, newData.notes.UTF8String, newData.url.UTF8String, newData.userName.UTF8String, totpData);
