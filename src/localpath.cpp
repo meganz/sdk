@@ -64,11 +64,13 @@ public:
     std::string leafOrParentName() const override;
     void append(const LocalPath& additionalPath) override;
     void appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways) override;
+
     void prependWithSeparator(const LocalPath& additionalPath) override;
     LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const override;
     void trimNonDriveTrailingSeparator() override;
     bool findPrevSeparator(size_t& separatorBytePos,
                            const FileSystemAccess& fsaccess) const override;
+
     bool beginsWithSeparator() const override;
     bool endsInSeparator() const override;
 
@@ -148,11 +150,13 @@ public:
     std::string leafOrParentName() const override;
     void append(const LocalPath& additionalPath) override;
     void appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways) override;
+
     void prependWithSeparator(const LocalPath& additionalPath) override;
     LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const override;
     void trimNonDriveTrailingSeparator() override;
     bool findPrevSeparator(size_t& separatorBytePos,
                            const FileSystemAccess& fsaccess) const override;
+
     bool beginsWithSeparator() const override;
     bool endsInSeparator() const override;
 
@@ -200,8 +204,10 @@ public:
 private:
     string_type mUri;
     std::vector<string_type> mAuxPath;
+
+    void removeLastElement();
 };
-}; // end anonymous namespace
+} // end anonymous namespace
 
 class LocalPathImplementationHelper
 {
@@ -302,6 +308,7 @@ void LocalPath::path2local(const std::string* path, std::wstring* local)
                                          -1,
                                          const_cast<wchar_t*>(local->data()),
                                          int(local->size()));
+
     if (len)
     {
         // resize to actual result
@@ -1194,6 +1201,7 @@ bool Path::nextPathComponent(size_t& subpathIndex, LocalPath& component) const
     {
         ++subpathIndex;
     }
+
     const auto start = subpathIndex;
     if (start >= mLocalpath.size())
     {
@@ -1539,7 +1547,20 @@ void PathURI::clear()
 
 LocalPath PathURI::leafName() const
 {
-    return LocalPath::fromRelativePath(leafOrParentName());
+    if (mAuxPath.size())
+    {
+        return LocalPath::fromRelativePath(mAuxPath.back());
+    }
+    else
+    {
+        std::optional<string_type> optionalName = URIHandler::getName(mUri);
+        if (optionalName.has_value())
+        {
+            return LocalPath::fromRelativePath(optionalName.value());
+        }
+    }
+
+    return {};
 }
 
 std::string PathURI::leafOrParentName() const
@@ -1552,10 +1573,11 @@ std::string PathURI::leafOrParentName() const
     }
     else
     {
-        string_type name = URIHandler::getName(mUri);
-        if (!name.empty())
+        std::optional<string_type> optionalName = URIHandler::getName(mUri);
+        if (optionalName.has_value())
         {
-            LocalPath::local2path(&name, &aux, false);
+            std::string aux;
+            LocalPath::local2path(&optionalName.value(), &aux, false);
             return aux;
         }
     }
@@ -1638,17 +1660,24 @@ LocalPath PathURI::subpathFrom(const size_t) const
     return LocalPath{};
 }
 
-void PathURI::changeLeaf(const LocalPath&)
+void PathURI::changeLeaf(const LocalPath& newLeaf)
 {
-    LOG_err << "Invalid operation for URI Path (changeLeaf)";
-    assert(false);
+    if (mAuxPath.size())
+    {
+        mAuxPath.pop_back();
+        mAuxPath.emplace_back(newLeaf.toPath(false));
+    }
+    else
+    {
+        assert(false && "Error change leaf with uri");
+    }
 }
 
 LocalPath PathURI::parentPath() const
 {
-    LOG_err << "Invalid operation for URI Path (parentPath)";
-    assert(false);
-    return {};
+    PathURI newPathUri{*this};
+    newPathUri.removeLastElement();
+    return LocalPathImplementationHelper::buildLocalPath(newPathUri);
 }
 
 LocalPath PathURI::insertFilenameSuffix(const std::string& suffix) const
@@ -1731,5 +1760,18 @@ string_type PathURI::getRealPath() const
 bool PathURI::invariant() const
 {
     return true;
+}
+
+void PathURI::removeLastElement()
+{
+    if (mAuxPath.size())
+    {
+        mAuxPath.pop_back();
+    }
+    else
+    {
+        LOG_err << "Invalid operation for URI Path (removeLastElement)";
+        assert(false);
+    }
 }
 }
