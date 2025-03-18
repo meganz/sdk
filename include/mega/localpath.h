@@ -65,11 +65,13 @@ public:
     virtual void append(const LocalPath& additionalPath) = 0;
     virtual void appendWithSeparator(const LocalPath& additionalPath,
                                      const bool separatorAlways) = 0;
+
     virtual void prependWithSeparator(const LocalPath& additionalPath) = 0;
     virtual LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const = 0;
     virtual void trimNonDriveTrailingSeparator() = 0;
     virtual bool findPrevSeparator(size_t& separatorBytePos,
                                    const FileSystemAccess& fsaccess) const = 0;
+
     virtual bool beginsWithSeparator() const = 0;
     virtual bool endsInSeparator() const = 0;
 
@@ -84,6 +86,7 @@ public:
 
     virtual bool isContainingPathOf(const LocalPath& path,
                                     size_t* subpathIndex = nullptr) const = 0;
+
     virtual bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const = 0;
     virtual bool hasNextPathComponent(const size_t index) const = 0;
 
@@ -114,7 +117,7 @@ class MEGA_API PlatformURIHelper
 {
 public:
     virtual ~PlatformURIHelper(){};
-    // Returns true if string is a URI
+    // Returns true if string is an URI
     virtual bool isURI(const string_type& URI) = 0;
     // Returns the name of file/directory pointed by the URI
     virtual string_type getName(const string_type& uri) = 0;
@@ -205,6 +208,7 @@ public:
     // file path.
     static LocalPath fromPlatformEncodedAbsolute(const std::string& localname);
     static LocalPath fromPlatformEncodedRelative(const std::string& localname);
+
 #ifdef WIN32
     static LocalPath fromPlatformEncodedAbsolute(std::wstring&& localname);
     static LocalPath fromPlatformEncodedRelative(std::wstring&& localname);
@@ -242,6 +246,9 @@ public:
         }
         return false;
     }
+
+    std::string serialize() const;
+    static std::optional<LocalPath> unserialize(const std::string& d, bool isURI);
 
     bool operator==(const LocalPath& p) const;
     bool operator!=(const LocalPath& p) const;
