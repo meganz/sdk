@@ -16912,7 +16912,6 @@ void MegaClient::queueread(handle h,
                            const char* pubauth,
                            const char* cauth)
 {
-    using namespace std::placeholders;
     handledrn_map::iterator it;
 
     encodehandletype(&h, p);

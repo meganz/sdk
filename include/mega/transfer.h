@@ -19,17 +19,16 @@
  * program.
  */
 
-#include "mega/types.h"
-
-#include <variant>
 #ifndef MEGA_TRANSFER_H
 #define MEGA_TRANSFER_H 1
 
-#include "filefingerprint.h"
 #include "backofftimer.h"
-#include "http.h"
 #include "command.h"
+#include "filefingerprint.h"
+#include "http.h"
 #include "raid.h"
+
+#include <variant>
 
 namespace mega {
 
