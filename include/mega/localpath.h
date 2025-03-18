@@ -120,7 +120,10 @@ public:
     // Returns true if string is an URI
     virtual bool isURI(const string_type& URI) = 0;
     // Returns the name of file/directory pointed by the URI
-    virtual string_type getName(const string_type& uri) = 0;
+    virtual std::optional<string_type> getName(const string_type& uri) = 0;
+    // Returns parent URI if it's available
+    virtual std::optional<string_type> getParentURI(const string_type& uri) = 0;
+    virtual std::optional<string_type> getPath(const string_type& uri) = 0;
 };
 
 /**
@@ -137,7 +140,12 @@ public:
     static bool isURI(const string_type& uri);
 
     // Retrieve the name for a given path or URI
-    static string_type getName(const string_type& uri);
+    static std::optional<string_type> getName(const string_type& uri);
+
+    // Retrieve the name for a given path or URI
+    static std::optional<string_type> getParentURI(const string_type& uri);
+
+    static std::optional<string_type> getPath(const string_type& uri);
 
     // platformHelper should be kept alive during all program execution and ownership isn't taken
     static void setPlatformHelper(PlatformURIHelper* platformHelper);
