@@ -16864,38 +16864,35 @@ void MegaClient::queueread(handle h,
     assert(appdata);
     auto callback = [this, appdata](DirectRead::CallbackParam& param) mutable
     {
-        if (auto result = std::get_if<DirectRead::Data>(&param); result)
-        {
-            result->ret = app->pread_data(result->buffer,
-                                          result->len,
-                                          result->offset,
-                                          result->speed,
-                                          result->meanSpeed,
-                                          appdata);
-            return;
-        }
-
-        if (auto result = std::get_if<DirectRead::Failure>(&param); result)
-        {
-            result->ret = app->pread_failure(result->e, result->retry, appdata, result->timeLeft);
-            return;
-        }
-
-        if (auto invalidate = std::get_if<DirectRead::Revoke>(&param); invalidate)
-        {
-            if (invalidate->appdata == appdata)
-            {
-                appdata = nullptr;
-                invalidate->ret = true;
-            }
-            return;
-        }
-
-        if (auto isValid = std::get_if<DirectRead::IsValid>(&param); isValid)
-        {
-            isValid->ret = appdata != nullptr;
-            return;
-        }
+        std::visit(overloaded{[&](DirectRead::Data& data)
+                              {
+                                  data.ret = app->pread_data(data.buffer,
+                                                             data.len,
+                                                             data.offset,
+                                                             data.speed,
+                                                             data.meanSpeed,
+                                                             appdata);
+                              },
+                              [&](DirectRead::Failure& failure)
+                              {
+                                  failure.ret = app->pread_failure(failure.e,
+                                                                   failure.retry,
+                                                                   appdata,
+                                                                   failure.timeLeft);
+                              },
+                              [&](DirectRead::Revoke& revoke)
+                              {
+                                  if (appdata == revoke.appdata)
+                                  {
+                                      appdata = nullptr;
+                                      revoke.ret = true;
+                                  }
+                              },
+                              [&](DirectRead::IsValid& isValid)
+                              {
+                                  isValid.ret = appdata != nullptr;
+                              }},
+                   param);
     };
 
     queueread(h, p, cypher, ctriv, offset, count, std::move(callback), privauth, pubauth, cauth);
