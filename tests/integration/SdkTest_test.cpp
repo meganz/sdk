@@ -8209,10 +8209,15 @@ TEST_F(SdkTest, SdkRecentsTest)
     EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
 }
 
-TEST_F(SdkTest, DISABLED_SdkTestStreamingRaidedTransferWithConnectionFailures)
+TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
 {
     LOG_info << "___TEST Streaming Raided Transfer With Connection Failures___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
     auto importRaidHandle =
