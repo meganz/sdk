@@ -82,7 +82,7 @@ class JiraProject:
             url=self._version_manager_url,
             data={
                 "name": name,
-                "releasedate": today,
+                "startdate": today,
                 "description": f"Version {name} - {for_apps}",
             },
         )
