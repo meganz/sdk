@@ -983,9 +983,10 @@ private:
 
 struct MEGA_API DirectRead
 {
-    struct GoodResult
+    // Type for the callback when a data is recieved
+    struct Data
     {
-        GoodResult(byte* buffer, m_off_t len, m_off_t offset, m_off_t speed, m_off_t meanSpeed):
+        Data(byte* buffer, m_off_t len, m_off_t offset, m_off_t speed, m_off_t meanSpeed):
             buffer{buffer},
             len{len},
             offset{offset},
@@ -998,43 +999,44 @@ struct MEGA_API DirectRead
         m_off_t offset{0};
         m_off_t speed{0};
         m_off_t meanSpeed{0};
-        bool ret{false};
+        bool ret{false}; // Callback sets and tells a success or a failure
     };
 
-    struct FailureResult
+    // Type for the callback on a failure
+    struct Failure
     {
-        FailureResult(const Error& e, int retry, dstime timeLeft):
+        Failure(const Error& e, int retry, dstime timeLeft):
             e{e},
             retry{retry},
             timeLeft{timeLeft}
         {}
 
-        Error e{API_OK};
+        Error e;
         int retry{0};
         dstime timeLeft{0};
-        dstime ret{0};
+        dstime ret{0}; // Callback sets and tells the interval for a retry
     };
 
-    struct Invalidate
+    // Type for the callback to revoke itself
+    struct Revoke
     {
-        Invalidate(void* appData):
+        Revoke(void* appData):
             appdata{appData}
         {}
 
-        void* appdata{nullptr};
-        bool ret{false};
+        void* appdata{nullptr}; // appdata to match the callback
+        bool ret{false}; // Callback sets and tells if it is revoked or not
     };
 
+    // Type for the callback to tell if it is still valid (not revoked)
     struct IsValid
     {
-        bool ret{false};
+        bool ret{false}; // Callback sets
     };
 
-    using CallbackParam = std::variant<GoodResult, FailureResult, Invalidate, IsValid>;
+    using CallbackParam = std::variant<Data, Failure, Revoke, IsValid>;
 
     using Callback = std::function<void(CallbackParam&)>;
-
-    // using OnFailure = std::function<dstime(const Error&, int, dstime)>;
 
     m_off_t count;
     m_off_t offset;
@@ -1056,13 +1058,13 @@ struct MEGA_API DirectRead
     void abort();
     m_off_t drMaxReqSize() const;
 
-    void onInvalidate(void* appData);
+    void revokeCallback(void* appData);
 
     bool onData(byte* buffer, m_off_t len, m_off_t theOffset, m_off_t speed, m_off_t meanSpeed);
 
     dstime onFailure(const Error& e, int retry, dstime timeLeft);
 
-    bool onIsValid();
+    bool hasValidCallback();
 
     DirectRead(DirectReadNode*, m_off_t, m_off_t, int, Callback&& callback);
     ~DirectRead();

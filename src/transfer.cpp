@@ -1199,7 +1199,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
     // signal failure to app, obtain minimum desired retry time
     for (dr_list::iterator it = reads.begin(); it != reads.end(); )
     {
-        if ((*it)->onIsValid())
+        if ((*it)->hasValidCallback())
         {
             (*it)->abort();
 
@@ -1221,7 +1221,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
             // This situation should never happen
             client->sendevent(99472, "DirectRead detected with a null transfer");
         }
-        if (!(*it)->onIsValid()) // It may have been deleted after onFailure
+        if (!(*it)->hasValidCallback()) // It may have been deleted after onFailure
         {
             // Transfer is deleted
             LOG_warn << "[DirectReadNode::retry] No appdata (transfer has been deleted) for this DirectRead (" << (void*)(*it) << "). Deleting affected DirectRead" << " [this = " << this << "]";
@@ -1408,7 +1408,7 @@ bool DirectReadSlot::processAnyOutputPieces()
         mMeanSpeed = mSpeedController.getMeanSpeed();
         mDr->drn->client->httpio->updatedownloadspeed(static_cast<m_off_t>(len));
 
-        if (mDr->onIsValid())
+        if (mDr->hasValidCallback())
         {
             mSlotThroughput.first += static_cast<m_off_t>(len);
             auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - mSlotStartTime).count();
@@ -1883,7 +1883,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         LOG_debug << "DirectReadSlot: Watchdog -> Mean speed: " << meanspeed << " B/s. Min speed: " << minspeed << " B/s [Partial len: " << mDr->drn->partiallen << ". Ds: " << dsSinceLastWatch << "]" << " [this = " << this << "]";
         if (minspeed != 0 && meanspeed < minspeed)
         {
-            if (!mDr->onIsValid())
+            if (!mDr->hasValidCallback())
             {
                 // It's better for this check to be here instead of above: this way we can know if the transfer speed is to low, even if the transfer is already deleted at this point.
                 LOG_err << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming, but transfer is already deleted. Skipping retry" << " [this = " << this << "]";
@@ -2104,7 +2104,7 @@ bool DirectReadSlot::doio()
                     }
                     else
                     {
-                        if (!mDr->onIsValid())
+                        if (!mDr->hasValidCallback())
                         {
                             LOG_err << "DirectReadSlot [conn " << connectionNum << "] There is a chunk request, but transfer is already deleted. This should never happen. Aborting" << " [this = " << this << "]";
                             mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
@@ -2184,7 +2184,7 @@ bool DirectReadSlot::doio()
 void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t connectionNum)
 {
     decreaseReqsInflight();
-    if (!mDr->onIsValid())
+    if (!mDr->hasValidCallback())
     {
         LOG_err << "DirectReadSlot [conn " << connectionNum
                 << "] Request failed, but transfer is already deleted. Aborting"
@@ -2230,9 +2230,12 @@ m_off_t DirectRead::drMaxReqSize() const
     return std::max(drn->size / numParts, TransferSlot::MAX_REQ_SIZE);
 }
 
-void DirectRead::onInvalidate(void* appData)
+void DirectRead::revokeCallback(void* appData)
 {
-    DirectRead::CallbackParam param{std::in_place_type<DirectRead::Invalidate>, appData};
+    if (!callback)
+        return;
+
+    DirectRead::CallbackParam param{std::in_place_type<DirectRead::Revoke>, appData};
     callback(param);
 }
 
@@ -2242,28 +2245,34 @@ bool DirectRead::onData(byte* buffer,
                         m_off_t speed,
                         m_off_t meanSpeed)
 {
-    DirectRead::CallbackParam param{std::in_place_type<DirectRead::GoodResult>,
+    if (!callback)
+        return false;
+
+    DirectRead::CallbackParam param{std::in_place_type<DirectRead::Data>,
                                     buffer,
                                     len,
                                     theOffset,
                                     speed,
                                     meanSpeed};
     callback(param);
-    return std::get<DirectRead::GoodResult>(param).ret;
+    return std::get<DirectRead::Data>(param).ret;
 }
 
 dstime DirectRead::onFailure(const Error& e, int retry, dstime timeLeft)
 {
-    DirectRead::CallbackParam param{std::in_place_type<DirectRead::FailureResult>,
-                                    e,
-                                    retry,
-                                    timeLeft};
+    if (!callback)
+        return NEVER;
+
+    DirectRead::CallbackParam param{std::in_place_type<DirectRead::Failure>, e, retry, timeLeft};
     callback(param);
-    return std::get<DirectRead::FailureResult>(param).ret;
+    return std::get<DirectRead::Failure>(param).ret;
 }
 
-bool DirectRead::onIsValid()
+bool DirectRead::hasValidCallback()
 {
+    if (!callback)
+        return false;
+
     DirectRead::CallbackParam param{std::in_place_type<DirectRead::IsValid>};
     callback(param);
     return std::get<DirectRead::IsValid>(param).ret;

@@ -16864,7 +16864,7 @@ void MegaClient::queueread(handle h,
     assert(appdata);
     auto callback = [this, appdata](DirectRead::CallbackParam& param) mutable
     {
-        if (auto result = std::get_if<DirectRead::GoodResult>(&param); result)
+        if (auto result = std::get_if<DirectRead::Data>(&param); result)
         {
             result->ret = app->pread_data(result->buffer,
                                           result->len,
@@ -16875,13 +16875,13 @@ void MegaClient::queueread(handle h,
             return;
         }
 
-        if (auto result = std::get_if<DirectRead::FailureResult>(&param); result)
+        if (auto result = std::get_if<DirectRead::Failure>(&param); result)
         {
             result->ret = app->pread_failure(result->e, result->retry, appdata, result->timeLeft);
             return;
         }
 
-        if (auto invalidate = std::get_if<DirectRead::Invalidate>(&param); invalidate)
+        if (auto invalidate = std::get_if<DirectRead::Revoke>(&param); invalidate)
         {
             if (invalidate->appdata == appdata)
             {
@@ -16961,7 +16961,7 @@ void MegaClient::removeAppData(void* t)
         {
             DirectRead* dr = *it2;
             if (dr)
-                dr->onInvalidate(t);
+                dr->revokeCallback(t);
         }
     }
 }
