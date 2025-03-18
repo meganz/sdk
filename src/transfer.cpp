@@ -2232,9 +2232,7 @@ m_off_t DirectRead::drMaxReqSize() const
 
 void DirectRead::revokeCallback(void* appData)
 {
-    if (!callback)
-        return;
-
+    assert(callback);
     DirectRead::CallbackParam param{std::in_place_type<DirectRead::Revoke>, appData};
     callback(param);
 }
@@ -2245,9 +2243,7 @@ bool DirectRead::onData(byte* buffer,
                         m_off_t speed,
                         m_off_t meanSpeed)
 {
-    if (!callback)
-        return false;
-
+    assert(callback);
     DirectRead::CallbackParam param{std::in_place_type<DirectRead::Data>,
                                     buffer,
                                     len,
@@ -2260,9 +2256,7 @@ bool DirectRead::onData(byte* buffer,
 
 dstime DirectRead::onFailure(const Error& e, int retry, dstime timeLeft)
 {
-    if (!callback)
-        return NEVER;
-
+    assert(callback);
     DirectRead::CallbackParam param{std::in_place_type<DirectRead::Failure>, e, retry, timeLeft};
     callback(param);
     return std::get<DirectRead::Failure>(param).ret;
@@ -2270,9 +2264,7 @@ dstime DirectRead::onFailure(const Error& e, int retry, dstime timeLeft)
 
 bool DirectRead::hasValidCallback()
 {
-    if (!callback)
-        return false;
-
+    assert(callback);
     DirectRead::CallbackParam param{std::in_place_type<DirectRead::IsValid>};
     callback(param);
     return std::get<DirectRead::IsValid>(param).ret;
