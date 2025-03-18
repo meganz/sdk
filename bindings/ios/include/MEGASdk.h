@@ -74,25 +74,23 @@ extern NSString * const MEGAIsBeingLogoutNotification;
 typedef uint64_t MEGAHandle;
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
-    MEGASortOrderTypeNone,
-    MEGASortOrderTypeDefaultAsc,
-    MEGASortOrderTypeDefaultDesc,
-    MEGASortOrderTypeSizeAsc,
-    MEGASortOrderTypeSizeDesc,
-    MEGASortOrderTypeCreationAsc,
-    MEGASortOrderTypeCreationDesc,
-    MEGASortOrderTypeModificationAsc,
-    MEGASortOrderTypeModificationDesc,
-//    MEGASortOrderTypePhotoAsc = 11, (deprecated)
-//    MEGASortOrderTypePhotoDesc, (deprecated)
-//    MEGASortOrderTypeVideoAsc, (deprecated)
-//    MEGASortOrderTypeVideoDesc, (deprecated)
-    MEGASortOrderTypeLinkCreationAsc,
-    MEGASortOrderTypeLinkCreationDesc,
-    MEGASortOrderTypeLabelAsc,
-    MEGASortOrderTypeLabelDesc,
-    MEGASortOrderTypeFavouriteAsc,
-    MEGASortOrderTypeFavouriteDesc
+    MEGASortOrderTypeNone = 0,
+    MEGASortOrderTypeDefaultAsc = 1,
+    MEGASortOrderTypeDefaultDesc = 2,
+    MEGASortOrderTypeSizeAsc = 3,
+    MEGASortOrderTypeSizeDesc = 4,
+    MEGASortOrderTypeCreationAsc = 5,
+    MEGASortOrderTypeCreationDesc = 6,
+    MEGASortOrderTypeModificationAsc = 7,
+    MEGASortOrderTypeModificationDesc = 8,
+    MEGASortOrderTypeLinkCreationAsc = 15,
+    MEGASortOrderTypeLinkCreationDesc = 16,
+    MEGASortOrderTypeLabelAsc = 17,
+    MEGASortOrderTypeLabelDesc = 18,
+    MEGASortOrderTypeFavouriteAsc = 19,
+    MEGASortOrderTypeFavouriteDesc = 20,
+    MEGASortOrderTypeShareCreationAsc = 21,
+    MEGASortOrderTypeShareCreationDesc = 22,
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
