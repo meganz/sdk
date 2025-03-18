@@ -4390,7 +4390,7 @@ static void exec_fusemountadd(autocomplete::ACState& state)
     if (result != MOUNT_SUCCESS)
     {
         std::cerr << "Failed to add mount \""
-                  << info.mFlags.mName
+                  << info.name()
                   << "\": "
                   << toString(result)
                   << std::endl;
@@ -4399,7 +4399,7 @@ static void exec_fusemountadd(autocomplete::ACState& state)
     }
 
     std::cout << "Successfully added mount \""
-              << info.mFlags.mName
+              << info.name()
               << "\"."
               << std::endl;
 }
@@ -4581,11 +4581,6 @@ static void exec_fusemountlist(autocomplete::ACState& state)
         if (sourceNode)
             sourcePath = sourceNode->displaypath();
 
-        std::string targetPath = "N/A";
-
-        if (info.mPath)
-            targetPath = info.mPath->toPath(false);
-
         std::cout << "Mount #"
                   << (i + 1)
                   << ":\n"
@@ -4608,7 +4603,7 @@ static void exec_fusemountlist(autocomplete::ACState& state)
                   << sourcePath
                   << "\n"
                   << "  Target Path: "
-                  << targetPath
+                  << info.mPath.toPath(true)
                   << "\n"
                   << std::endl;
     }

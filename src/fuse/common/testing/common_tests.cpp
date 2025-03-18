@@ -269,7 +269,7 @@ TEST_F(FUSECommonTests, file_cache_load)
     mount.mFlags.mPersistent = true;
     mount.mPath = client->storagePath() / "s";
 
-    UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(*mount.mPath))));
+    UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(mount.mPath))));
 
     ASSERT_EQ(client->addMount(mount), MOUNT_SUCCESS);
 
@@ -357,7 +357,7 @@ TEST_F(FUSECommonTests, reload)
     mount.name("s");
     mount.mPath = client->storagePath() / "s";
 
-    UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(*mount.mPath))));
+    UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(mount.mPath))));
 
     ASSERT_EQ(client->addMount(mount), MOUNT_SUCCESS);
 

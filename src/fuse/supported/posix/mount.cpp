@@ -782,7 +782,7 @@ Mount::Mount(const MountInfo& info, MountDB& mountDB)
   : fuse::Mount(info, mountDB)
   , mActivities()
   , mExecutor(mountDB.executorFlags())
-  , mPath(*info.mPath)
+  , mPath(info.mPath)
   , mSession(*this)
   , mInvalidator(mSession)
 {

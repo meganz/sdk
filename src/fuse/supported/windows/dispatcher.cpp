@@ -598,7 +598,7 @@ NTSTATUS Dispatcher::write(FSP_FILE_SYSTEM* filesystem,
 }
 
 Dispatcher::Dispatcher(Mount& mount,
-                       const std::optional<NormalizedPath>& path)
+                       const NormalizedPath& path)
   : mFilesystem(nullptr)
   , mMount(mount)
   , mPath()
@@ -625,7 +625,7 @@ Dispatcher::Dispatcher(Mount& mount,
     std::wstring type = L"" FSP_FSCTL_DISK_DEVICE_NAME;
 
     // Actually mounting as a "network" filesystem.
-    if (!path || path->isRootPath())
+    if (path.empty() || path.isRootPath())
     {
         // Compute UNC prefix.
         auto prefix = UNCPrefix + toWideString(mount.name());
@@ -699,7 +699,7 @@ FSP_FSCTL_TRANSACT_REQ& Dispatcher::request() const
     return *context->Request;
 }
 
-void Dispatcher::start(const std::optional<NormalizedPath>& path)
+void Dispatcher::start(const NormalizedPath& path)
 {
     // Try and start the dispatcher.
     auto result = FspFileSystemStartDispatcher(mFilesystem, 0);
@@ -718,11 +718,7 @@ void Dispatcher::start(const std::optional<NormalizedPath>& path)
         descriptor = &mMount.mMountDB.mReadOnlySecurityDescriptor;
 
     // Assume the user wants us to allocate a drive letter.
-    std::wstring path_;
-
-    // User has a specific path in mind.
-    if (path)
-        path_ = path->asPlatformEncoded(true);
+    auto path_ = path.asPlatformEncoded(true);
 
     // Try and make the mount visible on the local filesystem.
     result = FspFileSystemSetMountPointEx(mFilesystem,

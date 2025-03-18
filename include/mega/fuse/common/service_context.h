@@ -82,7 +82,7 @@ public:
     virtual MountInfoVector get(bool enabled) const = 0;
 
     // Retrieve the path the mount associated with this name.
-    virtual std::optional<NormalizedPath> path(const std::string& name) const = 0;
+    virtual NormalizedPath path(const std::string& name) const = 0;
 
     // Remove a disabled mount from the database.
     virtual MountResult remove(const std::string& name) = 0;

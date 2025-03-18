@@ -43,6 +43,7 @@ TEST_F(FUSEMountTests, add_fails_when_target_is_unspecified)
 
     info.mHandle = ClientW()->handle("/x/s");
     info.name("s");
+    info.mPath = NormalizedPath();
 
     auto observer = ClientW()->mountEventObserver();
 

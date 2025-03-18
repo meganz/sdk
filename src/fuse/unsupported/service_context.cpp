@@ -109,9 +109,9 @@ MountInfoVector ServiceContext::get(bool) const
     return MountInfoVector();
 }
 
-std::optional<NormalizedPath> ServiceContext::path(const std::string&) const
+NormalizedPath ServiceContext::path(const std::string&) const
 {
-    return std::nullopt;
+    return NormalizedPath();
 }
 
 MountResult ServiceContext::remove(const std::string&)

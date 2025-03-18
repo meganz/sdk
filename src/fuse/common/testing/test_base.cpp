@@ -76,13 +76,13 @@ bool TestBase::DoSetUp(const Parameters& parameters)
         auto path = client.mountPath(mount.name());
 
         // Sanity.
-        EXPECT_TRUE(path);
+        EXPECT_FALSE(path.empty());
 
-        if (!path)
+        if (path.empty())
             return false;
 
         // Wait for sentinel to be visible.
-        auto sentinel = Path(*path).path() / "sentinel";
+        auto sentinel = Path(path).path() / "sentinel";
         auto visible = false;
 
         EXPECT_TRUE((visible = waitFor([&]() {

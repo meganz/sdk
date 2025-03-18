@@ -148,7 +148,7 @@ class Dispatcher
 
 public:
     explicit Dispatcher(Mount& mount,
-                        const std::optional<NormalizedPath>& path);
+                        const NormalizedPath& path);
 
     ~Dispatcher();
 
@@ -159,7 +159,7 @@ public:
 
     FSP_FSCTL_TRANSACT_REQ& request() const;
 
-    void start(const std::optional<NormalizedPath>& path);
+    void start(const NormalizedPath& path);
 
     void stop();
 }; // Dispatcher

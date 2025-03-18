@@ -87,29 +87,6 @@ TEST_F(FUSEMountTests, add_fails_when_source_is_unknown)
     ASSERT_TRUE(ClientW()->mounts(false).empty());
 }
 
-TEST_F(FUSEMountTests, add_fails_when_target_is_empty)
-{
-    MountInfo info;
-
-    info.mHandle = ClientW()->handle("/x/s");
-    info.name("s");
-    info.mPath = NormalizedPath();
-
-    auto observer = ClientW()->mountEventObserver();
-
-    observer->expect({
-        info.name(),
-        MOUNT_LOCAL_UNKNOWN,
-        MOUNT_ADDED
-    });
-
-    ASSERT_EQ(ClientW()->addMount(info), MOUNT_LOCAL_UNKNOWN);
-
-    ASSERT_TRUE(observer->wait(mDefaultTimeout));
-
-    ASSERT_TRUE(ClientW()->mounts(false).empty());
-}
-
 TEST_F(FUSEMountTests, add_fails_when_target_is_file)
 {
     File sf0("sf0", "sf0", mScratchPath);
@@ -734,7 +711,7 @@ TEST_F(FUSEMountTests, enables_enabled_persisent_mounts_after_login)
     mount.mFlags.mPersistent = true;
     mount.mPath = client->storagePath() / "s";
 
-    UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(*mount.mPath))));
+    UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(mount.mPath))));
 
     auto observer = client->mountEventObserver();
 
@@ -1206,7 +1183,7 @@ TEST_F(FUSEMountTests, path_unused_name)
 
     ASSERT_TRUE(observer->wait(mDefaultTimeout));
 
-    ASSERT_FALSE(ClientW()->mountPath("t"));
+    ASSERT_TRUE(ClientW()->mountPath("t").empty());
 }
 
 TEST_F(FUSEMountTests, persistent_mounts_are_persistent)
@@ -1223,7 +1200,7 @@ TEST_F(FUSEMountTests, persistent_mounts_are_persistent)
     mount.mFlags.mPersistent = true;
     mount.mPath = client->storagePath() / "s";
 
-    UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(*mount.mPath))));
+    UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(mount.mPath))));
 
     auto observer = client->mountEventObserver();
 
@@ -1491,7 +1468,7 @@ TEST_F(FUSEMountTests, transient_mounts_are_transient)
     mount.name("s");
     mount.mPath = client->storagePath() / "s";
 
-    UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(*mount.mPath))));
+    UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(mount.mPath))));
 
     auto observer = client->mountEventObserver();
 

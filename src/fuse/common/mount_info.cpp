@@ -17,9 +17,7 @@ bool MountInfoNameLess::operator()(const MountInfo& lhs, const MountInfo& rhs) c
 
 bool MountInfoPathLess::operator()(const MountInfo& lhs, const MountInfo& rhs) const
 {
-    static const NormalizedPath dummy;
-
-    return lhs.mPath.value_or(dummy) < rhs.mPath.value_or(dummy);
+    return lhs.mPath < rhs.mPath;
 }
 
 bool MountInfo::operator==(const MountInfo& rhs) const
@@ -51,10 +49,10 @@ try
 
     info.mFlags = MountFlags::deserialize(query);
     info.mHandle = query.field("id");
-    info.mPath = std::nullopt;
+    info.mPath = NormalizedPath();
 
     if (!query.field("path").null())
-        info.mPath = query.field("path").path();
+        info.mPath = query.field("path");
 
     return info;
 }
@@ -78,8 +76,8 @@ try
     query.param(":id") = mHandle;
     query.param(":path") = nullptr;
 
-    if (mPath)
-        query.param(":path") = *mPath;
+    if (!mPath.empty())
+        query.param(":path") = mPath;
 }
 catch (std::runtime_error& exception)
 {

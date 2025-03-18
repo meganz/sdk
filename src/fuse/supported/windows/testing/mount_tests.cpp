@@ -65,8 +65,7 @@ TEST_F(FUSEMountTests, enable_succeeds_when_target_is_empty)
 
     auto path = ClientW()->mountPath(info.name());
 
-    ASSERT_TRUE(path);
-    ASSERT_FALSE(path->empty());
+    ASSERT_FALSE(path.empty());
 }
 
 } // testing

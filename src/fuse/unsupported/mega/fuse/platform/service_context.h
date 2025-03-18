@@ -66,7 +66,7 @@ public:
     MountInfoVector get(bool enabled) const override;
 
     // Retrieve the path of the mount associated with name.
-    std::optional<NormalizedPath> path(const std::string& name) const override;
+    NormalizedPath path(const std::string& name) const override;
 
     // Remove a disabled mount from the database.
     MountResult remove(const std::string& path) override;

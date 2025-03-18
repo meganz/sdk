@@ -62,7 +62,7 @@ MountResult MountDB::check(const Client& client, const MountInfo& info) const
     auto& path = info.mPath;
 
     // User's specified a bogus path.
-    if (!path || path->empty())
+    if (path.empty())
     {
         FUSEError1("Invalid local path specified");
 
@@ -72,13 +72,13 @@ MountResult MountDB::check(const Client& client, const MountInfo& info) const
     // Try and retrieve the local path's type.
     auto fileAccess = client.fsAccess().newfileaccess(false);
 
-    fileAccess->fopen(*path, FSLogging::noLogging);
+    fileAccess->fopen(path, FSLogging::noLogging);
 
     // Path isn't accessible.
     if (fileAccess->type == TYPE_UNKNOWN)
     {
         FUSEErrorF("Local path doesn't exist: %s",
-                   path->toPath(false).c_str());
+                   path.toPath(false).c_str());
 
         return MOUNT_LOCAL_UNKNOWN;
     }
@@ -87,7 +87,7 @@ MountResult MountDB::check(const Client& client, const MountInfo& info) const
     if (fileAccess->type != FOLDERNODE)
     {
         FUSEErrorF("Local path is not a directory: %s",
-                   path->toPath(false).c_str());
+                   path.toPath(false).c_str());
 
         return MOUNT_LOCAL_FILE;
     }

@@ -140,10 +140,10 @@ MountResult MountDB::check(const MountInfo& info)
     }
 
     // Make sure the target path isn't claimed by a sync.
-    if (info.mPath && !client().mountable(*info.mPath))
+    if (!client().mountable(info.mPath))
     {
         FUSEErrorF("Local path is being synchronized: %s",
-                   info.mPath->toPath(false).c_str());
+                   info.mPath.toPath(false).c_str());
 
         return MOUNT_LOCAL_SYNCING;
     }
@@ -472,21 +472,15 @@ MountInfoPtr MountDB::contains(const LocalPath& path,
     // Search for a matching mount.
     for (auto& m : mounts)
     {
-        // Sanity.
-        assert(m.mPath);
-
         // Convenience.
-        auto& path_ = *m.mPath;
+        auto& path_ = m.mPath;
 
         // Path isn't within this mount.
         if (!path_.isContainingPathOf(path, &index))
             continue;
 
-        // Sanity.
-        assert(!mount || mount->mPath);
-
         // This mount is a better match.
-        if (!mount || path_.isContainingPathOf(*mount->mPath, &index))
+        if (!mount || path_.isContainingPathOf(mount->mPath, &index))
             mount = &m;
     }
 
@@ -499,7 +493,7 @@ MountInfoPtr MountDB::contains(const LocalPath& path,
         *relativePath = path.subpathFrom(index);
 
     // Return description to caller.
-    return std::make_unique<MountInfo>(std::move(*mount));
+    return std::make_unique<MountInfo>(*mount);
 }
 
 void MountDB::disable(MountDisabledCallback callback,
@@ -751,16 +745,13 @@ try
         return MOUNT_SUCCESS;
 
     // Another thread's enabled a mount with the same path.
-    if (info.mPath)
+    if (auto mount = this->mount(info.mPath))
     {
-        if (auto mount = this->mount(*info.mPath))
-        {
-            FUSEErrorF("Path %s already taken by mount: %s",
-                       info.mPath->toPath(false).c_str(),
-                       mount->name().c_str());
+        FUSEErrorF("Path %s already taken by mount: %s",
+                   info.mPath.toPath(false).c_str(),
+                   mount->name().c_str());
 
-            return MOUNT_LOCAL_TAKEN;
-        }
+        return MOUNT_LOCAL_TAKEN;
     }
     
     // Mount path might already exist on disk.
@@ -998,7 +989,7 @@ catch (std::runtime_error& exception)
     return MountInfoVector();
 }
 
-std::optional<NormalizedPath> MountDB::path(const std::string& name) const
+NormalizedPath MountDB::path(const std::string& name) const
 try
 {
     auto guard = lockAll(mContext.mDatabase, *this);
@@ -1015,7 +1006,7 @@ try
     if (query && !query.field("path").null())
         return query.field("path").path();
 
-    return std::nullopt;
+    return NormalizedPath();
 }
 catch (std::runtime_error& exception)
 {
@@ -1023,7 +1014,7 @@ catch (std::runtime_error& exception)
                name.c_str(),
                exception.what());
 
-    return std::nullopt;
+    return NormalizedPath();
 }
 
 MountResult MountDB::prune()

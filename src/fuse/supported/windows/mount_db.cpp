@@ -33,15 +33,11 @@ MountResult MountDB::check(const Client& client,
     if (FspLoad(nullptr) != STATUS_SUCCESS)
         return MOUNT_BACKEND_UNAVAILABLE;
 
-    // An empty path is always invalid.
-    if (path && path->empty())
-        return MOUNT_LOCAL_UNKNOWN;
-
     // Assume path isn't suitable for a network device.
     auto maxNameLength = MaxMountNameLength;
 
     // Path's suitable for mounting as a network device.
-    if (!path || path->isRootPath())
+    if (path.empty() || path.isRootPath())
         maxNameLength = MaxVolumePrefixLength - UNCPrefix.size();
 
     // Make sure the mount's name is within limits.
@@ -56,14 +52,14 @@ MountResult MountDB::check(const Client& client,
     }
 
     // An unspecified path signals we should assign a drive letter.
-    if (!path)
+    if (path.empty())
         return MOUNT_SUCCESS;
 
     // Make sure nothing exists at the path.
     auto fileAccess = client.fsAccess().newfileaccess(true);
 
     // Check if something already exists at the path.
-    fileAccess->fopen(*path, FSLogging::noLogging);
+    fileAccess->fopen(path, FSLogging::noLogging);
 
     // Convenience.
     auto result = fileAccess->errorcode;
@@ -72,7 +68,7 @@ MountResult MountDB::check(const Client& client,
     if (result == ERROR_SUCCESS)
     {
         FUSEErrorF("Local path is already occupied: %s",
-                   path->toPath(false).c_str());
+                   path.toPath(false).c_str());
 
         return MOUNT_LOCAL_EXISTS;
     }
@@ -81,7 +77,7 @@ MountResult MountDB::check(const Client& client,
     if (result == ERROR_PATH_NOT_FOUND)
     {
         FUSEErrorF("Local path doesn't exist: %s",
-                   path->toPath(false).c_str());
+                   path.toPath(false).c_str());
 
         return MOUNT_LOCAL_UNKNOWN;
     }
@@ -92,7 +88,7 @@ MountResult MountDB::check(const Client& client,
 
     // Couldn't determine whether anything exists at the path.
     FUSEErrorF("Couldn't determine status of path: %s: %d",
-               path->toPath(false).c_str(),
+               path.toPath(false).c_str(),
                result);
 
     return MOUNT_UNEXPECTED;

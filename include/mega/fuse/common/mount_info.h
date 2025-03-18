@@ -32,7 +32,7 @@ struct MountInfo
 
     MountFlags mFlags;
     NodeHandle mHandle;
-    std::optional<NormalizedPath> mPath;
+    NormalizedPath mPath;
 }; // MountInfo
 
 struct MountInfoNameLess
