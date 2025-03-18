@@ -7943,10 +7943,14 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 *
 */
 
-TEST_F(SdkTest, DISABLED_SdkTestCloudraidStreamingSoakTest)
+TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 {
     LOG_info << "___TEST SdkTestCloudraidStreamingSoakTest";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto accountRestorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
