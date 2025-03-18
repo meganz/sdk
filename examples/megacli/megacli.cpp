@@ -4372,12 +4372,12 @@ static void exec_fusemountadd(autocomplete::ACState& state)
         return;
     }
 
-    if (info.mFlags.mName.empty())
+    if (info.name().empty())
     {
-        info.mFlags.mName = sourceNode->displayname();
+        info.name(sourceNode->displayname());
 
         if (!sourceNode->parent)
-            info.mFlags.mName = "MEGA";
+            info.name("MEGA");
     }
 
     auto targetPath = state.words[4].s;
@@ -4415,50 +4415,20 @@ static void exec_fusemountdisable(autocomplete::ACState& state)
 
     using namespace fuse;
 
-    auto name = std::string();
-    auto path = std::string();
-
-    if (state.extractflagparam("-name", name))
-    {
-        auto paths = client->mFuseService.paths(name);
-
-        if (paths.size() > 1)
-        {
-            std::cerr << "Multiple mounts are associated with the name \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        if (paths.empty())
-        {
-            std::cerr << "There are no mounts named \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        path = paths.front().toPath(false);
-    }
-
-    state.extractflagparam("-path", path);
+    auto name = state.words[3].s;
 
     auto callback = [=](MountResult result) {
         if (result == MOUNT_SUCCESS)
         {
             std::cout << "Successfully disabled mount \""
-                      << path
+                      << name
                       << "\"."
                       << std::endl;
             return;
         }
 
         std::cerr << "Failed to disable mount \""
-                  << path
+                  << name
                   << "\": "
                   << toString(result)
                   << std::endl;
@@ -4467,7 +4437,7 @@ static void exec_fusemountdisable(autocomplete::ACState& state)
     auto remember = state.extractflag("-remember");
 
     client->mFuseService.disable(std::move(callback),
-                                 localPathArg(path),
+                                 name,
                                  remember);
 }
 
@@ -4478,54 +4448,24 @@ static void exec_fusemountenable(autocomplete::ACState& state)
 
     using fuse::MOUNT_SUCCESS;
 
-    auto name = std::string();
-    auto path = std::string();
-
-    if (state.extractflagparam("-name", name))
-    {
-        auto paths = client->mFuseService.paths(name);
-
-        if (paths.size() > 1)
-        {
-            std::cerr << "Multiple mounts are associated with the name \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        if (paths.empty())
-        {
-            std::cerr << "There are no mounts named \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        path = paths.front().toPath(false);
-    }
-
-    state.extractflagparam("-path", path);
+    const auto& name = state.words[3].s;
 
     auto remember = state.extractflag("-remember");
 
-    auto result = client->mFuseService.enable(localPathArg(path), remember);
+    auto result = client->mFuseService.enable(name, remember);
 
     if (result == MOUNT_SUCCESS)
     {
-        std::cout << "Successfully enabled mount at \""
-                  << path
+        std::cout << "Successfully enabled mount \""
+                  << name 
                   << "\"."
                   << std::endl;
 
         return;
     }
 
-    std::cerr << "Failed to enable mount at \""
-              << path
+    std::cerr << "Failed to enable mount \""
+              << name 
               << "\": "
               << toString(result)
               << std::endl;
@@ -4536,44 +4476,14 @@ static void exec_fusemountflags(autocomplete::ACState& state)
     if (!isFullAccount("You must be logged in to alter FUSE mount flags."))
         return;
 
-    auto name = std::string();
-    auto path = std::string();
+    const auto& name = state.words[3].s;
 
-    if (state.extractflagparam("-by-name", name))
-    {
-        auto paths = client->mFuseService.paths(name);
-
-        if (paths.size() > 1)
-        {
-            std::cerr << "Multiple mounts are associated with the name \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        if (paths.empty())
-        {
-            std::cerr << "There are no mounts named \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        path = paths.front().toPath(false);
-    }
-
-    state.extractflagparam("-by-path", path);
-
-    auto flags = client->mFuseService.flags(localPathArg(path));
+    auto flags = client->mFuseService.flags(name);
 
     if (!flags)
     {
-        std::cerr << "Couldn't retrieve flags for mount at \""
-                  << path
+        std::cerr << "Couldn't retrieve flags for mount \""
+                  << name
                   << "\"."
                   << std::endl;
 
@@ -4625,7 +4535,7 @@ static void exec_fusemountflags(autocomplete::ACState& state)
     flags->mPersistent |= persistent;
     flags->mPersistent &= !transient;
 
-    auto result = client->mFuseService.flags(localPathArg(path), *flags);
+    auto result = client->mFuseService.flags(name, *flags);
 
     if (result != fuse::MOUNT_SUCCESS)
     {
@@ -4682,10 +4592,10 @@ static void exec_fusemountlist(autocomplete::ACState& state)
                   << (info.mFlags.mEnableAtStartup ? "Yes" : "No")
                   << "\n"
                   << "  Enabled: "
-                  << client->mFuseService.enabled(info.mPath)
+                  << client->mFuseService.enabled(info.name())
                   << "\n"
                   << "  Name: \""
-                  << info.mFlags.mName
+                  << info.name()
                   << "\"\n"
                   << "  Read "
                   << (info.mFlags.mReadOnly ? "Only" : "Write")
@@ -4715,52 +4625,22 @@ static void exec_fusemountremove(autocomplete::ACState& state)
 
     using namespace fuse;
 
-    auto name = std::string();
-    auto path = std::string();
+    const auto& name = state.words[3].s;
 
-    if (state.extractflagparam("-name", name))
-    {
-        auto paths = client->mFuseService.paths(name);
-
-        if (paths.size() > 1)
-        {
-            std::cerr << "Multiple mounts are associated with the name \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        if (paths.empty())
-        {
-            std::cerr << "There are no mounts named \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        path = paths.front().toPath(false);
-    }
-
-    state.extractflagparam("-path", path);
-
-    auto result = client->mFuseService.remove(localPathArg(path));
+    auto result = client->mFuseService.remove(name);
 
     if (result == MOUNT_SUCCESS)
     {
-        std::cout << "Successfully removed mount against \""
-                  << path
+        std::cout << "Successfully removed mount \""
+                  << name
                   << "\"."
                   << std::endl;
 
         return;
     }
 
-    std::cerr << "Failed to remove mount against \""
-              << path
+    std::cerr << "Failed to remove mount \""
+              << name
               << "\": "
               << toString(result)
               << std::endl;
@@ -5469,30 +5349,21 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("fuse"),
                     text("mount"),
                     text("disable"),
-                    sequence(either(sequence(flag("-name"),
-                                             param("name")),
-                                    sequence(flag("-path"),
-                                             localFSFolder("target"))),
-                             opt(flag("-remember")))));
+                    param("name"),
+                    opt(flag("-remember"))));
 
     p->Add(exec_fusemountenable,
            sequence(text("fuse"),
                     text("mount"),
                     text("enable"),
-                    sequence(either(sequence(flag("-name"),
-                                             param("name")),
-                                    sequence(flag("-path"),
-                                             localFSFolder("target"))),
-                             opt(flag("-remember")))));
+                    param("name"),
+                    opt(flag("-remember"))));
 
     p->Add(exec_fusemountflags,
            sequence(text("fuse"),
                     text("mount"),
                     text("flags"),
-                    either(sequence(flag("-by-name"),
-                                    param("name")),
-                           sequence(flag("-by-path"),
-                                    localFSFolder("target"))),
+                    param("name"),
                     repeat(either(flag("-disabled-at-startup"),
                                   flag("-enabled-at-startup"),
                                   sequence(flag("-name"),
@@ -5512,10 +5383,7 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("fuse"),
                     text("mount"),
                     text("remove"),
-                    either(sequence(flag("-name"),
-                                    param("name")),
-                           sequence(flag("-path"),
-                                    localFSFolder("target")))));
+                    param("name")));
 
     p->Add(exec_getpricing, text("getpricing"));
 

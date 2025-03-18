@@ -16,6 +16,7 @@ namespace fuse
     expander(MOUNT_LOCAL_EXISTS,        "Mount target already exists") \
     expander(MOUNT_LOCAL_FILE,          "Mount target doesn't denote a directory") \
     expander(MOUNT_LOCAL_SYNCING,       "Mount target is being synchronized") \
+    expander(MOUNT_LOCAL_TAKEN,         "A mount's already associated with the target path") \
     expander(MOUNT_LOCAL_UNKNOWN,       "Mount target doesn't exist") \
     expander(MOUNT_NAME_TAKEN,          "A mount already exists with a specified name") \
     expander(MOUNT_NAME_TOO_LONG,       "The mount's name is too long") \

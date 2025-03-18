@@ -26,7 +26,7 @@ MountResult MountDB::check(const Client& client,
                            const MountInfo& info) const
 {
     // Convenience.
-    auto& name = info.mFlags.mName;
+    auto& name = info.name();
     auto& path = info.mPath;
 
     // Check if WinFSP is actually available.

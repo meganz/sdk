@@ -156,7 +156,7 @@ public:
     void desynchronize(::mega::handle id);
 
     // Disable a previously enabled mount.
-    MountResult disableMount(const Path& path, bool remember);
+    MountResult disableMount(const std::string& name, bool remember);
 
     // Disable all enabled mounts.
     MountResult disableMounts(bool remember);
@@ -168,7 +168,7 @@ public:
     virtual std::string email() const = 0;
 
     // Enable a previously added mount.
-    MountResult enableMount(const Path& path, bool remember);
+    MountResult enableMount(const std::string& name, bool remember);
 
     // Execute some function on the client thread.
     Task execute(std::function<void(const Task&)> function);
@@ -218,19 +218,19 @@ public:
     MountEventObserverPtr mountEventObserver();
 
     // Query whether a mount is enabled.
-    bool mountEnabled(const Path& path) const;
+    bool mountEnabled(const std::string& name) const;
 
     // Update a mount's flags.
-    MountResult mountFlags(const Path& path, const MountFlags& flags);
+    MountResult mountFlags(const std::string& name, const MountFlags& flags);
 
     // Retrieve a mount's flags.
-    MountFlagsPtr mountFlags(const Path& path) const;
+    MountFlagsPtr mountFlags(const std::string& name) const;
 
     // Retrieve a mount's description.
-    MountInfoPtr mountInfo(const Path& path) const;
+    MountInfoPtr mountInfo(const std::string& name) const;
 
-    // Retrieve the paths associated with the specified name.
-    NormalizedPathVector mountPaths(const std::string& name) const;
+    // Retrieve the path associated with the specified name.
+    NormalizedPath mountPath(const std::string& name) const;
 
     // Retrieve a description of each (enabled) mount.
     MountInfoVector mounts(bool enabled) const;
@@ -250,7 +250,7 @@ public:
     Error removeAll(CloudPath path);
 
     // Remove a mount from the database.
-    MountResult removeMount(const Path& path);
+    MountResult removeMount(const std::string& name);
 
     // Remove all mounts from the database.
     MountResult removeMounts(bool disable);

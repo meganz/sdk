@@ -3840,8 +3840,8 @@ class MegaApiImpl : public MegaApp
         // Retrieve a mount's description.
         MegaMount* getMountInfo(const char* path);
 
-        // Retrieve the path of all mounts associated with a given name.
-        MegaStringList* getMountPaths(const char* name);
+        // Retrieve the path of the mounts associated with name.
+        char* getMountPath(const char* name);
 
         // Retrieve a list of all (enabled) mounts.
         MegaMountList* listMounts(bool enabled);

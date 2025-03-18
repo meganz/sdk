@@ -265,7 +265,7 @@ TEST_F(FUSECommonTests, file_cache_load)
     MountInfo mount;
 
     mount.mHandle = client->handle("/x/s");
-    mount.mFlags.mName = "s";
+    mount.name("s");
     mount.mFlags.mPersistent = true;
     mount.mPath = client->storagePath() / "s";
 
@@ -274,7 +274,7 @@ TEST_F(FUSECommonTests, file_cache_load)
     ASSERT_EQ(client->addMount(mount), MOUNT_SUCCESS);
 
     // Enable the mount.
-    ASSERT_EQ(client->enableMount(mount.mPath, false), MOUNT_SUCCESS);
+    ASSERT_EQ(client->enableMount(mount.name(), false), MOUNT_SUCCESS);
 
     // Create a new file.
     auto sfxData = randomBytes(32);
@@ -295,7 +295,7 @@ TEST_F(FUSECommonTests, file_cache_load)
     auto observer = client->mountEventObserver();
 
     observer->expect({
-        mount.mPath,
+        mount.name(),
         MOUNT_SUCCESS,
         MOUNT_DISABLED
     });
@@ -312,7 +312,7 @@ TEST_F(FUSECommonTests, file_cache_load)
     }
 
     // Re-enable the mount.
-    ASSERT_EQ(client->enableMount(mount.mPath, false), MOUNT_SUCCESS);
+    ASSERT_EQ(client->enableMount(mount.name(), false), MOUNT_SUCCESS);
 
     // Try and read the file's data back.
     ASSERT_EQ(readFile(sfxPath), sfxData);
@@ -328,7 +328,7 @@ TEST_F(FUSECommonTests, file_cache_load)
 
     // Disable the mount.
     observer->expect({
-        mount.mPath,
+        mount.name(),
         MOUNT_SUCCESS,
         MOUNT_DISABLED
     });
@@ -354,7 +354,7 @@ TEST_F(FUSECommonTests, reload)
     MountInfo mount;
 
     mount.mHandle = client->handle("/x/s");
-    mount.mFlags.mName = "s";
+    mount.name("s");
     mount.mPath = client->storagePath() / "s";
 
     UNIX_ONLY(ASSERT_TRUE(fs::create_directories(Path(mount.mPath))));
@@ -362,7 +362,7 @@ TEST_F(FUSECommonTests, reload)
     ASSERT_EQ(client->addMount(mount), MOUNT_SUCCESS);
 
     // Enable the mount.
-    ASSERT_EQ(client->enableMount(mount.mPath, false), MOUNT_SUCCESS);
+    ASSERT_EQ(client->enableMount(mount.name(), false), MOUNT_SUCCESS);
 
     // Bring a few inodes into memory.
 

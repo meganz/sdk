@@ -9698,13 +9698,13 @@ class MegaListener
          * @param api
          * The API instance where the mount is being added.
          *
-         * @param path
-         * A path identifying the mount that was added.
+         * @param name
+         * THe name identifying the mount that was added.
          *
          * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountAdded(MegaApi* api, const char* path, int megaMountResult);
+        virtual void onMountAdded(MegaApi* api, const char* name, int megaMountResult);
 
         /**
          * @brief
@@ -9713,13 +9713,13 @@ class MegaListener
          * @param api
          * The API instance where the mount is being added.
          *
-         * @param path
-         * A path identifying the mount that has changed.
+         * @param name
+         * The name identifying the mount that has changed.
          *
          * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountChanged(MegaApi* api, const char* path, int megaMountResult);
+        virtual void onMountChanged(MegaApi* api, const char* name, int megaMountResult);
 
         /**
          * @brief
@@ -9728,13 +9728,13 @@ class MegaListener
          * @param api
          * The API instance where the mount is being added.
          *
-         * @param path
-         * A path identifying the mount that has been disabled.
+         * @param name
+         * The name identifying the mount that has been disabled.
          *
          * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountDisabled(MegaApi* api, const char* path, int megaMountResult);
+        virtual void onMountDisabled(MegaApi* api, const char* name, int megaMountResult);
 
         /**
          * @brief
@@ -9743,13 +9743,13 @@ class MegaListener
          * @param api
          * The API instance where the mount is being enabled.
          *
-         * @param path
-         * A path identifying the mount that has been enabled.
+         * @param name
+         * The name identifying the mount that has been enabled.
          *
          * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountEnabled(MegaApi* api, const char* path, int megaMountResult);
+        virtual void onMountEnabled(MegaApi* api, const char* name, int megaMountResult);
 
         /**
          * @brief
@@ -9758,13 +9758,13 @@ class MegaListener
          * @param api
          * The API instance where the mount is being removed.
          *
-         * @param path
-         * A path identifying the mount that has been removed.
+         * @param name
+         * The name identifying the mount that has been removed.
          *
          * @param megaMountResult
          * An element of the MegaMount::Result enumeration.
          */
-        virtual void onMountRemoved(MegaApi* api, const char* path, int megaMountResult);
+        virtual void onMountRemoved(MegaApi* api, const char* name, int megaMountResult);
 };
 
 /**
@@ -22900,7 +22900,7 @@ class MegaApi
          * @brief
          * Disable an active mount.
          *
-         * @path path
+         * @path name
          * Identifies the mount to be disabled.
          *
          * @param listener
@@ -22918,7 +22918,7 @@ class MegaApi
          * @note
          * This call will issue a new request of the type TYPE_DISABLE_MOUNT.
          */
-        void disableMount(const char* path,
+        void disableMount(const char* name,
                           MegaRequestListener* listener,
                           bool remember);
 
@@ -22926,7 +22926,7 @@ class MegaApi
          * @brief
          * Enable an inactive mount.
          *
-         * @param path
+         * @param name
          * Identifies the mount to be enabled.
          *
          * @param listener
@@ -22944,7 +22944,7 @@ class MegaApi
          * @note
          * This call will issue a new request of the type TYPE_ENABLE_MOUNT.
          */
-        void enableMount(const char* path,
+        void enableMount(const char* name,
                          MegaRequestListener* listener,
                          bool remember);
 
@@ -22961,37 +22961,37 @@ class MegaApi
          * @brief
          * Retrieve an existing mount's flags.
          *
-         * @param path
+         * @param name
          * Identifies the mount we want to query.
          *
          * @return
          * NULL if no such mount exists.
          */
-        MegaMountFlags* getMountFlags(const char* path);
+        MegaMountFlags* getMountFlags(const char* name);
 
         /**
          * @brief
          * Retrieve a description of an existing mount.
          *
-         * @param path
+         * @param name
          * Identifies the mount we want to describe.
          *
          * @return
          * NULL if no such mount exists.
          */
-        MegaMount* getMountInfo(const char* path);
+        MegaMount* getMountInfo(const char* name);
 
         /**
          * @brief
-         * Retrieve the path of all mounts associated with a name.
+         * Retrieve the path of the mount associated with name.
          *
          * @param name
          * A name of a previously added mount.
          *
          * @return
-         * A list containing the paths of each mount associated with name.
+         * The mounts path if any otherwise null.
          */
-        MegaStringList* getMountPaths(const char* name);
+        char* getMountPath(const char* name);
 
         /**
          * @brief
@@ -25833,8 +25833,6 @@ public:
         BACKEND_UNAVAILABLE,
         // The mount's busy and cannot be disabled.
         BUSY,
-        // A mount's already associated with the target path.
-        EXISTS,
         // A mount has encountered an expected failure and has been disabled.
         FAILED,
         // Mount target already exists.
@@ -25843,6 +25841,8 @@ public:
         LOCAL_FILE,
         // Mount target is being synchronized.
         LOCAL_SYNCING,
+        // A mount's already associated with the target path.
+        LOCAL_TAKEN,
         // Mount target doesn't exist.
         LOCAL_UNKNOWN,
         // A mount already exists with a specified name.
