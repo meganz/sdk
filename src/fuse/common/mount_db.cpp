@@ -832,20 +832,23 @@ try
         return MOUNT_NO_NAME;
     }
 
-    // Make sure the mount's new name is unique.
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetMountByName);
 
-    query.param(":name") = flags.mName;
-    query.execute();
-
-    // Mount's new name isn't unique.
-    if (query)
+    // Make sure the mount's new name, if any, is unique.
+    if (currentName != flags.mName)
     {
-        FUSEErrorF("Name \"%s\" already taken by another mount.",
-                   flags.mName.c_str());
+        query.param(":name") = flags.mName;
+        query.execute();
 
-        return MOUNT_NAME_TAKEN;
+        // Mount's new name isn't unique.
+        if (query)
+        {
+            FUSEErrorF("Name \"%s\" already taken by another mount.",
+                       flags.mName.c_str());
+
+            return MOUNT_NAME_TAKEN;
+        }
     }
 
     // Update the mount's flags.
