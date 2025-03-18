@@ -6299,7 +6299,13 @@ int MegaGfxProcessor::getHeight()
     return 0;
 }
 
-int MegaGfxProcessor::getBitmapDataSize(int /*width*/, int /*height*/, int /*px*/, int /*py*/, int /*rw*/, int /*rh*/)
+int MegaGfxProcessor::getBitmapDataSize(int /*width*/,
+                                        int /*height*/,
+                                        int /*px*/,
+                                        int /*py*/,
+                                        int /*rw*/,
+                                        int /*rh*/,
+                                        int /*hint*/)
 {
     return 0;
 }
