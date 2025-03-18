@@ -32,14 +32,34 @@ bool URIHandler::isURI(const string_type& uri)
     return false;
 }
 
-string_type URIHandler::getName(const string_type& uri)
+std::optional<string_type> URIHandler::getName(const string_type& uri)
 {
     if (mPlatformHelper)
     {
         return mPlatformHelper->getName(uri);
     }
 
-    return {};
+    return std::nullopt;
+}
+
+std::optional<string_type> URIHandler::getParentURI(const string_type& uri)
+{
+    if (mPlatformHelper)
+    {
+        return mPlatformHelper->getParentURI(uri);
+    }
+
+    return std::nullopt;
+}
+
+std::optional<string_type> URIHandler::getPath(const string_type& uri)
+{
+    if (mPlatformHelper)
+    {
+        return mPlatformHelper->getPath(uri);
+    }
+
+    return std::nullopt;
 }
 
 void URIHandler::setPlatformHelper(PlatformURIHelper* platformHelper)
@@ -204,7 +224,6 @@ public:
 private:
     string_type mUri;
     std::vector<string_type> mAuxPath;
-
     void removeLastElement();
 };
 } // end anonymous namespace
@@ -1725,12 +1744,20 @@ void PathURI::changeLeaf(const LocalPath& newLeaf)
     if (mAuxPath.size())
     {
         mAuxPath.pop_back();
-        mAuxPath.emplace_back(newLeaf.toPath(false));
     }
     else
     {
-        assert(false && "Error change leaf with uri");
+        if (auto uri = URIHandler::getParentURI(mUri); !uri.has_value())
+        {
+            mUri = uri.value();
+        }
+        else
+        {
+            assert(false && "Error change leaf with uri");
+        }
     }
+
+    mAuxPath.emplace_back(newLeaf.asPlatformEncoded(false));
 }
 
 LocalPath PathURI::parentPath() const
@@ -1830,8 +1857,11 @@ void PathURI::removeLastElement()
     }
     else
     {
-        LOG_err << "Invalid operation for URI Path (removeLastElement)";
-        assert(false);
+        std::optional<string_type> parentPath = URIHandler::getParentURI(mUri);
+        if (parentPath.has_value())
+        {
+            mUri = parentPath.value();
+        }
     }
 }
 }
