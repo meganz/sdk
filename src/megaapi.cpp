@@ -8129,6 +8129,13 @@ MegaMount* MegaMount::create()
     return new MegaMountPrivate();
 }
 
+const char* MegaMount::getResultDescription(int result)
+{
+    assert(result >= ABORTED && result <= UNSUPPORTED);
+
+    return fuse::toDescription(static_cast<fuse::MountResult>(result));
+}
+
 const char* MegaMount::getResultString(int result)
 {
     assert(result >= ABORTED && result <= UNSUPPORTED);
