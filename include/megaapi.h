@@ -25836,18 +25836,6 @@ public:
 
     /**
      * @brief
-     * Translates a result code into a human readable string.
-     *
-     * @param result
-     * The result you want to translate.
-     *
-     * @return
-     * A human-readable version of the result code.
-     */
-    static const char* getResultString(int result);
-
-    /**
-     * @brief
      * Translates a result code into a human readable description.
      *
      * @param result
@@ -25857,6 +25845,18 @@ public:
      * A description of the result.
      */
     static const char* getResultDescription(int result);
+
+    /**
+     * @brief
+     * Translates a result code into a human readable string.
+     *
+     * @param result
+     * The result you want to translate.
+     *
+     * @return
+     * A human-readable version of the result code.
+     */
+    static const char* getResultString(int result);
 
     /**
      * @brief

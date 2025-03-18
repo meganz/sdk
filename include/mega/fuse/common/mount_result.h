@@ -30,13 +30,13 @@ namespace fuse
 
 enum MountResult : unsigned int
 {
-#define DEFINE_MOUNT_RESULT_ENUMERANT(name, _) name,
+#define DEFINE_MOUNT_RESULT_ENUMERANT(name, description) name,
     DEFINE_MOUNT_RESULTS(DEFINE_MOUNT_RESULT_ENUMERANT)
 #undef DEFINE_MOUNT_RESULT_ENUMERANT
 }; // MountResult
 
+const char* toDescription(MountResult result);
 const char* toString(MountResult result);
-const char* getDescriptionString(MountResult result);
 
 } // fuse
 } // mega
