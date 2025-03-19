@@ -952,7 +952,7 @@ catch (std::runtime_error& exception)
     return nullptr;
 }
 
-MountInfoVector MountDB::get(bool enabled) const
+MountInfoVector MountDB::get(bool onlyEnabled) const
 try
 {
     auto guard = lockAll(mContext.mDatabase, *this);
@@ -960,11 +960,20 @@ try
     MountInfoSet<MountInfoNameLess> mounts;
 
     // Copy descriptions of enabled mounts.
+    //
+    // Note that we do this even when onlyEnabled is false.
+    //
+    // The reason is that some mounts may only have a defined path when they
+    // are enabled and we want to provide that path to the caller when
+    // possible.
+    //
+    // We rely on the set above to prevent entries from the database from
+    // overwriting what we've retrieved from memory.
     for (auto& i : mByPath)
         mounts.emplace(i.second->info());
 
     // Caller's interested only in mounts that are enabled.
-    if (enabled)
+    if (onlyEnabled)
         return MountInfoVector(mounts.begin(), mounts.end());
 
     // Retrieve descriptions of all known mounts from the database.

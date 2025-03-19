@@ -79,7 +79,7 @@ public:
     MountInfoPtr get(const std::string& name) const override;
 
     // Describe all (enabled) mounts.
-    MountInfoVector get(bool enabled) const override;
+    MountInfoVector get(bool onlyEnabled) const override;
 
     // Retrieve the path of the mounts associated with name.
     NormalizedPath path(const std::string& name) const override;

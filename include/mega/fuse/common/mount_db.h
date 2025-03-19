@@ -186,7 +186,7 @@ public:
     MountInfoPtr get(const std::string& name) const;
 
     // Retrieve a list of known mounts.
-    MountInfoVector get(bool enabled) const;
+    MountInfoVector get(bool onlyEnabled) const;
 
     // Query which path a named mount is associated with.
     NormalizedPath path(const std::string& name) const;
