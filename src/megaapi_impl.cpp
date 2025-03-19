@@ -3533,7 +3533,7 @@ bool MegaTransferPrivate::serialize(string *d) const
     }
 
     auto localPathSerialized = mLocalPath.serialize();
-    ll = localPathSerialized.size();
+    ll = static_cast<unsigned short>(localPathSerialized.size());
     d->append((char*)&ll, sizeof(ll));
     d->append(localPathSerialized.data(), ll);
 
