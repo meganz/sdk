@@ -101,6 +101,13 @@ Field ScopedQuery::field(const char* name)
     return mQuery->field(name);
 }
 
+std::uint64_t ScopedQuery::lastID() const
+{
+    assert(mQuery);
+
+    return mQuery->lastID();
+}
+
 Parameter ScopedQuery::param(const std::string& name)
 {
     assert(mQuery);
@@ -113,6 +120,13 @@ Parameter ScopedQuery::param(const char* name)
     assert(mQuery);
 
     return mQuery->param(name);
+}
+
+Query& ScopedQuery::query()
+{
+    assert(mQuery);
+
+    return *mQuery;
 }
 
 void ScopedQuery::reset()

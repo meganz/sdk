@@ -38,7 +38,12 @@ auto waitFor(std::future<T> future)
 
     // Promise didn't transmit a value in time.
     if (status == std::future_status::timeout)
-        return LOCAL_ETIMEOUT;
+    {
+        if constexpr (IsErrorOr<T>::value)
+            return unexpected(LOCAL_ETIMEOUT);
+        else
+            return LOCAL_ETIMEOUT;
+    }
 
     // Return the promise's value to the caller.
     return future.get();

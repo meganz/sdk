@@ -1,5 +1,5 @@
 /**
- * @file MEGATotpTokenLifetime.h
+ * @file MEGATotpTokenLifetime.mm
  * @brief Represents a TOTP token and its lifetime
  *
  * (c) 2025- by Mega Limited, Auckland, New Zealand

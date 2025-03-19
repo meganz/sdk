@@ -1368,35 +1368,6 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
     }
 }
 
-ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n9, ACN n10, ACN n11, ACN n12, ACN n13)
-{
-    auto n = std::make_shared<Either>();
-    n->Add(n1);
-    n->Add(n2);
-    n->Add(n3);
-    n->Add(n4);
-    n->Add(n5);
-    n->Add(n6);
-    n->Add(n7);
-    n->Add(n8);
-    n->Add(n9);
-    n->Add(n10);
-    n->Add(n11);
-    n->Add(n12);
-    n->Add(n13);
-    return n;
-}
-
-static ACN sequenceBuilder(ACN n1, ACN n2)
-{
-    return n2 ? std::make_shared<Sequence>(n1, n2) : n1;
-}
-
-ACN sequence(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n9, ACN n10)
-{
-    return sequenceBuilder(n1, sequenceBuilder(n2, sequenceBuilder(n3, sequenceBuilder(n4, sequenceBuilder(n5, sequenceBuilder(n6, sequenceBuilder(n7, sequenceBuilder(n8, sequenceBuilder(n9, n10)))))))));
-}
-
 ACN text(const std::string s)
 {
     return std::make_shared<Text>(s, false);

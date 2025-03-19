@@ -447,7 +447,6 @@ void exec_networktest(autocomplete::ACState& s);
 void exec_fetchcreditcardinfo(autocomplete::ACState&);
 void exec_passwordmanager(autocomplete::ACState&);
 void exec_generatepassword(autocomplete::ACState&);
-void exec_importpasswordsfromgooglefile(autocomplete::ACState&);
 void exec_getpricing(autocomplete::ACState&);
 
 void exec_collectAndPrintTransferStats(autocomplete::ACState&);

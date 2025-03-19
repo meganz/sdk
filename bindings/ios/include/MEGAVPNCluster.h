@@ -42,9 +42,18 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Get the list of IPs for the current VPN Cluster.
  *
- * @return An NSArray containing the IPs for the current VPN Cluster, always not-null.
+ * @return An array containing the IPs for the current VPN Cluster, always not-null.
  */
 @property (nonatomic, readonly) NSArray<NSString *> *dns;
+
+/**
+ * @brief Get the list of ad-blocking DNS IPs.
+ *
+ * You take the ownership of the returned value
+ *
+ * @return A array containing the IPs for ad blocking DNS, always not-null
+ */
+@property (nonatomic, readonly) NSArray<NSString *> *adBlockingDns;
 
 @end
 

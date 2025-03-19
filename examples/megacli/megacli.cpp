@@ -28,8 +28,10 @@
 #include "mega/pwm_file_parser.h"
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
+#include "mega/totp.h"
 #include "mega/udp_socket.h"
 #include "mega/user_attribute.h"
+#include "mega/utils_optional.h"
 
 #include <bitset>
 #include <charconv>
@@ -1407,7 +1409,7 @@ void DemoApp::getua_result(unique_ptr<string_map> records, attr_t type)
 {
     if (!records)
     {
-        cout << "Error getting private user attribute" << endl;
+        cout << "Error getting private user attribute: No valid records in the attribute" << endl;
     }
     else if (!gVerboseMode)
     {
@@ -3921,6 +3923,33 @@ void exec_getmybackups(autocomplete::ACState&)
 }
 
 #ifdef ENABLE_SYNC
+std::string deviceCenterStateToString(CommandBackupPut::SPState state)
+{
+    switch (state)
+    {
+        case CommandBackupPut::SPState::STATE_NOT_INITIALIZED:
+            return "STATE_NOT_INITIALIZED";
+        case CommandBackupPut::SPState::ACTIVE:
+            return "ACTIVE";
+        case CommandBackupPut::SPState::FAILED:
+            return "FAILED";
+        case CommandBackupPut::SPState::TEMPORARY_DISABLED:
+            return "TEMPORARY_DISABLED";
+        case CommandBackupPut::SPState::DISABLED:
+            return "DISABLED";
+        case CommandBackupPut::SPState::PAUSE_UP:
+            return "PAUSE_UP";
+        case CommandBackupPut::SPState::PAUSE_DOWN:
+            return "PAUSE_DOWN";
+        case CommandBackupPut::SPState::PAUSE_FULL:
+            return "PAUSE_FULL";
+        case CommandBackupPut::SPState::DELETED:
+            return "DELETED";
+    }
+
+    return "UNKNOWN";
+}
+
 void exec_backupcentreUpdateState(const string& backupIdStr, CommandBackupPut::SPState newState)
 {
     handle backupId = 0;
@@ -3991,10 +4020,15 @@ void exec_backupcentre(autocomplete::ACState& s)
                         cout << "  local folder: " << d.localFolder << endl;
                         cout << "  device id: " << d.deviceId << endl;
                         cout << "  device user-agent: " << d.deviceUserAgent << endl;
-                        cout << "  sync state: " << d.syncState << endl;
-                        cout << "  sync substate: " << d.syncSubstate << endl;
+                        cout << "  sync state: "
+                             << deviceCenterStateToString(
+                                    static_cast<CommandBackupPut::SPState>(d.syncState))
+                             << endl;
+                        cout << "  sync substate: "
+                             << SyncConfig::syncErrorToStr(static_cast<SyncError>(d.syncSubstate))
+                             << endl;
                         cout << "  extra: " << d.extra << endl;
-                        cout << "    backup name: " << d.backupName << endl;
+                        cout << "  backup name: " << d.backupName << endl;
                         cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
                         cout << "  heartbeat status: " << d.hbStatus << endl;
                         cout << "  heartbeat progress: " << d.hbProgress << endl;
@@ -4338,27 +4372,25 @@ static void exec_fusemountadd(autocomplete::ACState& state)
         return;
     }
 
-    if (info.mFlags.mName.empty())
+    if (info.name().empty())
     {
-        info.mFlags.mName = sourceNode->displayname();
+        info.name(sourceNode->displayname());
 
         if (!sourceNode->parent)
-            info.mFlags.mName = "MEGA";
+            info.name("MEGA");
     }
 
-    auto targetPath = state.words[4].s;
-
     info.mHandle = sourceNode->nodeHandle();
-    info.mPath = localPathArg(targetPath);
+
+    if (state.words.size() > 4)
+        info.mPath = localPathArg(state.words[4].s);
 
     auto result = client->mFuseService.add(info);
 
     if (result != MOUNT_SUCCESS)
     {
-        std::cerr << "Failed to add mount against \""
-                  << sourcePath
-                  << "\" at \""
-                  << targetPath
+        std::cerr << "Failed to add mount \""
+                  << info.name()
                   << "\": "
                   << toString(result)
                   << std::endl;
@@ -4366,10 +4398,8 @@ static void exec_fusemountadd(autocomplete::ACState& state)
         return;
     }
 
-    std::cout << "Successfully added mount against \""
-              << sourcePath
-              << "\" at \""
-              << targetPath
+    std::cout << "Successfully added mount \""
+              << info.name()
               << "\"."
               << std::endl;
 }
@@ -4381,50 +4411,20 @@ static void exec_fusemountdisable(autocomplete::ACState& state)
 
     using namespace fuse;
 
-    auto name = std::string();
-    auto path = std::string();
-
-    if (state.extractflagparam("-name", name))
-    {
-        auto paths = client->mFuseService.paths(name);
-
-        if (paths.size() > 1)
-        {
-            std::cerr << "Multiple mounts are associated with the name \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        if (paths.empty())
-        {
-            std::cerr << "There are no mounts named \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        path = paths.front().toPath(false);
-    }
-
-    state.extractflagparam("-path", path);
+    auto name = state.words[3].s;
 
     auto callback = [=](MountResult result) {
         if (result == MOUNT_SUCCESS)
         {
             std::cout << "Successfully disabled mount \""
-                      << path
+                      << name
                       << "\"."
                       << std::endl;
             return;
         }
 
         std::cerr << "Failed to disable mount \""
-                  << path
+                  << name
                   << "\": "
                   << toString(result)
                   << std::endl;
@@ -4433,7 +4433,7 @@ static void exec_fusemountdisable(autocomplete::ACState& state)
     auto remember = state.extractflag("-remember");
 
     client->mFuseService.disable(std::move(callback),
-                                 localPathArg(path),
+                                 name,
                                  remember);
 }
 
@@ -4444,54 +4444,24 @@ static void exec_fusemountenable(autocomplete::ACState& state)
 
     using fuse::MOUNT_SUCCESS;
 
-    auto name = std::string();
-    auto path = std::string();
-
-    if (state.extractflagparam("-name", name))
-    {
-        auto paths = client->mFuseService.paths(name);
-
-        if (paths.size() > 1)
-        {
-            std::cerr << "Multiple mounts are associated with the name \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        if (paths.empty())
-        {
-            std::cerr << "There are no mounts named \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        path = paths.front().toPath(false);
-    }
-
-    state.extractflagparam("-path", path);
+    const auto& name = state.words[3].s;
 
     auto remember = state.extractflag("-remember");
 
-    auto result = client->mFuseService.enable(localPathArg(path), remember);
+    auto result = client->mFuseService.enable(name, remember);
 
     if (result == MOUNT_SUCCESS)
     {
-        std::cout << "Successfully enabled mount at \""
-                  << path
+        std::cout << "Successfully enabled mount \""
+                  << name 
                   << "\"."
                   << std::endl;
 
         return;
     }
 
-    std::cerr << "Failed to enable mount at \""
-              << path
+    std::cerr << "Failed to enable mount \""
+              << name 
               << "\": "
               << toString(result)
               << std::endl;
@@ -4502,44 +4472,14 @@ static void exec_fusemountflags(autocomplete::ACState& state)
     if (!isFullAccount("You must be logged in to alter FUSE mount flags."))
         return;
 
-    auto name = std::string();
-    auto path = std::string();
+    const auto& name = state.words[3].s;
 
-    if (state.extractflagparam("-by-name", name))
-    {
-        auto paths = client->mFuseService.paths(name);
-
-        if (paths.size() > 1)
-        {
-            std::cerr << "Multiple mounts are associated with the name \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        if (paths.empty())
-        {
-            std::cerr << "There are no mounts named \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        path = paths.front().toPath(false);
-    }
-
-    state.extractflagparam("-by-path", path);
-
-    auto flags = client->mFuseService.flags(localPathArg(path));
+    auto flags = client->mFuseService.flags(name);
 
     if (!flags)
     {
-        std::cerr << "Couldn't retrieve flags for mount at \""
-                  << path
+        std::cerr << "Couldn't retrieve flags for mount \""
+                  << name
                   << "\"."
                   << std::endl;
 
@@ -4591,7 +4531,7 @@ static void exec_fusemountflags(autocomplete::ACState& state)
     flags->mPersistent |= persistent;
     flags->mPersistent &= !transient;
 
-    auto result = client->mFuseService.flags(localPathArg(path), *flags);
+    auto result = client->mFuseService.flags(name, *flags);
 
     if (result != fuse::MOUNT_SUCCESS)
     {
@@ -4648,10 +4588,10 @@ static void exec_fusemountlist(autocomplete::ACState& state)
                   << (info.mFlags.mEnableAtStartup ? "Yes" : "No")
                   << "\n"
                   << "  Enabled: "
-                  << client->mFuseService.enabled(info.mPath)
+                  << client->mFuseService.enabled(info.name())
                   << "\n"
                   << "  Name: \""
-                  << info.mFlags.mName
+                  << info.name()
                   << "\"\n"
                   << "  Read "
                   << (info.mFlags.mReadOnly ? "Only" : "Write")
@@ -4681,52 +4621,22 @@ static void exec_fusemountremove(autocomplete::ACState& state)
 
     using namespace fuse;
 
-    auto name = std::string();
-    auto path = std::string();
+    const auto& name = state.words[3].s;
 
-    if (state.extractflagparam("-name", name))
-    {
-        auto paths = client->mFuseService.paths(name);
-
-        if (paths.size() > 1)
-        {
-            std::cerr << "Multiple mounts are associated with the name \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        if (paths.empty())
-        {
-            std::cerr << "There are no mounts named \""
-                      << name
-                      << "\"."
-                      << std::endl;
-
-            return;
-        }
-
-        path = paths.front().toPath(false);
-    }
-
-    state.extractflagparam("-path", path);
-
-    auto result = client->mFuseService.remove(localPathArg(path));
+    auto result = client->mFuseService.remove(name);
 
     if (result == MOUNT_SUCCESS)
     {
-        std::cout << "Successfully removed mount against \""
-                  << path
+        std::cout << "Successfully removed mount \""
+                  << name
                   << "\"."
                   << std::endl;
 
         return;
     }
 
-    std::cerr << "Failed to remove mount against \""
-              << path
+    std::cerr << "Failed to remove mount \""
+              << name
               << "\": "
               << toString(result)
               << std::endl;
@@ -5323,34 +5233,54 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_fetchcreditcardinfo, text("cci"));
 
-    p->Add(exec_passwordmanager,
-           sequence(text("pwdman"),
-                    either(text("list"),
-                           text("getbase"),
-                           text("createbase"),
-                           text("removebase"),
-                           sequence(text("newfolder"), param("parenthandle"), param("name")),
-                           sequence(text("renamefolder"), param("handle"), param("name")),
-                           sequence(text("removefolder"), param("handle")),
-                           sequence(text("newentry"),
-                                    param("parenthandle"),
-                                    param("name"),
-                                    param("pwd"),
-                                    opt(sequence(flag("-url"), param("url"))),
-                                    opt(sequence(flag("-u"), param("username"))),
-                                    opt(sequence(flag("-n"), param("notes")))),
-                           sequence(text("newentries"),
-                                    param("parenthandle"),
-                                    repeat(sequence(param("name"), param("uname"), param("pwd")))),
-                           sequence(text("getentrydata"), param("nodehandle")),
-                           sequence(text("renameentry"), param("nodehandle"), param("name")),
-                           sequence(text("updateentry"),
-                                    param("nodehandle"),
-                                    opt(sequence(flag("-p"), param("pwd"))),
-                                    opt(sequence(flag("-url"), param("url"))),
-                                    opt(sequence(flag("-u"), param("username"))),
-                                    opt(sequence(flag("-n"), param("note")))),
-                           sequence(text("removeentry"), param("nodehandle")))));
+    p->Add(
+        exec_passwordmanager,
+        sequence(
+            text("pwdman"),
+            either(text("list"),
+                   text("getbase"),
+                   text("createbase"),
+                   text("removebase"),
+                   sequence(text("newfolder"), param("parenthandle"), param("name")),
+                   sequence(text("renamefolder"), param("handle"), param("name")),
+                   sequence(text("removefolder"), param("handle")),
+                   sequence(text("newentry"),
+                            param("parenthandle"),
+                            param("name"),
+                            param("pwd"),
+                            opt(sequence(flag("-url"), param("url"))),
+                            opt(sequence(flag("-u"), param("username"))),
+                            opt(sequence(flag("-n"), param("notes"))),
+                            opt(sequence(flag("-totp-shse"), param("shared_secret"))),
+                            opt(sequence(flag("-totp-nd"), param("n_digits"))),
+                            opt(sequence(flag("-totp-expt"), param("expiration_time"))),
+                            opt(sequence(flag("-totp-alg"),
+                                         either(text("sha1"), text("sha256"), text("sha512"))))),
+                   sequence(text("newentries"),
+                            param("parenthandle"),
+                            repeat(sequence(param("name"), param("uname"), param("pwd")))),
+                   sequence(text("getentrydata"), param("nodehandle")),
+                   sequence(text("renameentry"), param("nodehandle"), param("name")),
+                   sequence(
+                       text("updateentry"),
+                       param("nodehandle"),
+                       opt(sequence(flag("-p"), param("pwd"))),
+                       opt(sequence(flag("-url"), param("url"))),
+                       opt(sequence(flag("-u"), param("username"))),
+                       opt(sequence(flag("-n"), param("note"))),
+                       opt(either(
+                           flag("-totp-remove"),
+                           sequence(opt(sequence(flag("-totp-shse"), param("shared_secret"))),
+                                    opt(sequence(flag("-totp-nd"), param("n_digits"))),
+                                    opt(sequence(flag("-totp-expt"), param("expiration_time"))),
+                                    opt(sequence(
+                                        flag("-totp-alg"),
+                                        either(text("sha1"), text("sha256"), text("sha512")))))))),
+                   sequence(text("removeentry"), param("nodehandle")),
+                   sequence(text("import"),
+                            sequence(flag("-source"), either(text("google"))),
+                            localFSPath("file"),
+                            param("parenthandle")))));
 
     p->Add(exec_generatepassword,
            sequence(text("generatepassword"),
@@ -5360,9 +5290,6 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(flag("-useDigits")),
                                     opt(flag("-useSymbols")))
                         )));
-
-    p->Add(exec_importpasswordsfromgooglefile,
-           sequence(text("importpasswordsgoogle"), localFSPath("file"), param("parenthandle")));
 
     p->Add(exec_fusedb,
            sequence(text("fuse"),
@@ -5412,36 +5339,27 @@ autocomplete::ACN autocompleteSyntax()
                                   flag("-persistent"),
                                   flag("-read-only"))),
                     remoteFSFolder(client, &cwd, "source"),
-                    localFSFolder("target")));
+                    opt(localFSFolder("target"))));
 
     p->Add(exec_fusemountdisable,
            sequence(text("fuse"),
                     text("mount"),
                     text("disable"),
-                    sequence(either(sequence(flag("-name"),
-                                             param("name")),
-                                    sequence(flag("-path"),
-                                             localFSFolder("target"))),
-                             opt(flag("-remember")))));
+                    param("name"),
+                    opt(flag("-remember"))));
 
     p->Add(exec_fusemountenable,
            sequence(text("fuse"),
                     text("mount"),
                     text("enable"),
-                    sequence(either(sequence(flag("-name"),
-                                             param("name")),
-                                    sequence(flag("-path"),
-                                             localFSFolder("target"))),
-                             opt(flag("-remember")))));
+                    param("name"),
+                    opt(flag("-remember"))));
 
     p->Add(exec_fusemountflags,
            sequence(text("fuse"),
                     text("mount"),
                     text("flags"),
-                    either(sequence(flag("-by-name"),
-                                    param("name")),
-                           sequence(flag("-by-path"),
-                                    localFSFolder("target"))),
+                    param("name"),
                     repeat(either(flag("-disabled-at-startup"),
                                   flag("-enabled-at-startup"),
                                   sequence(flag("-name"),
@@ -5461,10 +5379,7 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("fuse"),
                     text("mount"),
                     text("remove"),
-                    either(sequence(flag("-name"),
-                                    param("name")),
-                           sequence(flag("-path"),
-                                    localFSFolder("target")))));
+                    param("name")));
 
     p->Add(exec_getpricing, text("getpricing"));
 
@@ -6266,6 +6181,7 @@ void exec_du(autocomplete::ACState &s)
 
 void exec_get(autocomplete::ACState& s)
 {
+    static int dummyAppData = 0;
     std::shared_ptr<Node> n;
     string regularexpression;
     if (s.extractflag("-r"))
@@ -6421,7 +6337,7 @@ void exec_get(autocomplete::ACState& s)
                     pread_file_end = offset + count;
                 }
 
-                client->pread(n.get(), offset, count, NULL);
+                client->pread(n.get(), offset, count, &dummyAppData);
             }
             else
             {
@@ -6479,6 +6395,7 @@ static const m_off_t MORE_BYTES = 1024;
 
 void exec_more(autocomplete::ACState& s)
 {
+    static int dummyAppData = 0;
     if(s.words.size() > 1) // set up new node for pagination
     {
         more_offset = 0;
@@ -6489,7 +6406,7 @@ void exec_more(autocomplete::ACState& s)
         m_off_t count = (more_offset + MORE_BYTES <= more_node->size)
                 ? MORE_BYTES : (more_node->size - more_offset);
 
-        client->pread(more_node.get(), more_offset, count, NULL);
+        client->pread(more_node.get(), more_offset, count, &dummyAppData);
     }
 }
 
@@ -13227,6 +13144,33 @@ void exec_fetchcreditcardinfo(autocomplete::ACState&)
     });
 }
 
+static void importpasswordsfromgooglefile(const LocalPath& sourceFile,
+                                          const NodeHandle& parentHandle,
+                                          const pwm::import::FileSource source)
+{
+    if (parentHandle.isUndef())
+    {
+        std::cout << "Parent handle is undef\n";
+        return;
+    }
+
+    using namespace pwm::import;
+    const auto [err, badEntries, nGoodEntries] =
+        client->importPasswordsFromFile(sourceFile.platformEncoded(), source, parentHandle, 0);
+    if (err != API_OK)
+        std::cout << "Error importing file. Code " << err << "\n";
+    else
+        std::cout << "Successfully imported " << nGoodEntries << " entries\n";
+
+    std::for_each(begin(badEntries),
+                  end(badEntries),
+                  [](const auto& badEntry)
+                  {
+                      std::cout << "Error (" << toString(badEntry.second)
+                                << " ) importing line: " << badEntry.first;
+                  });
+}
+
 void exec_passwordmanager(autocomplete::ACState& s)
 {
     static const set<string> nonLoggedInCmds {};
@@ -13266,35 +13210,58 @@ void exec_passwordmanager(autocomplete::ACState& s)
         Base64::atob(s.words[paramPos].s.c_str(), (byte*)&nh, MegaClient::NODEHANDLE);
         return NodeHandle{}.set6byte(nh);
     };
+    const auto createPwdTotpData =
+        [](std::optional<std::string>&& shse,
+           std::optional<std::string>&& expt,
+           std::optional<std::string>&& hashAlgo,
+           std::optional<std::string>&& ndigits) -> std::optional<AttrMap>
+    {
+        if (!shse && !expt && !hashAlgo && !ndigits)
+            return std::nullopt;
+        AttrMap pwdData;
+        const auto addData =
+            [&pwdData](std::optional<std::string>&& data, const std::string_view key)
+        {
+            if (data)
+                pwdData.map[AttrMap::string2nameid(key)] = std::move(*data);
+        };
+        addData(std::move(shse), MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE);
+        addData(std::move(expt), MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT);
+        addData(std::move(hashAlgo), MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG);
+        addData(std::move(ndigits), MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS);
+        return pwdData;
+    };
+    static constexpr std::string_view DELETE_STR{"EMPTY"};
     const auto createPwdData = [](std::string&& pwd,
                                   std::string&& url,
                                   std::string&& userName,
-                                  std::string&& notes)
+                                  std::string&& notes,
+                                  std::string&& totpJson)
     {
-        // patch to allow setting to null taking into account that extractflag doesn't accept ""
-        const string EMPTY = "EMPTY";
         auto pwdData = std::make_unique<AttrMap>();
-        if (!pwd.empty())
+        const auto addData = [&pwdData](std::string&& data, const std::string_view key)
         {
-            if (pwd == EMPTY) pwd.clear();
-            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_PWD)] = std::move(pwd);
-        }
-        if (!url.empty())
-        {
-            if (url == EMPTY) url.clear();
-            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_URL)] = std::move(url);
-        }
-        if (!userName.empty())
-        {
-            if (userName == EMPTY) userName.clear();
-            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_USERNAME)] = std::move(userName);
-        }
-        if (!notes.empty())
-        {
-            if (notes == EMPTY) notes.clear();
-            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_NOTES)] = std::move(notes);
-        }
+            if (data.empty())
+                return;
+            // patch to allow setting to null taking into account that extractflag doesn't accept ""
+            if (data == DELETE_STR)
+                data.clear();
+            pwdData->map[AttrMap::string2nameid(key)] = std::move(data);
+        };
+        addData(std::move(pwd), MegaClient::PWM_ATTR_PASSWORD_PWD);
+        addData(std::move(url), MegaClient::PWM_ATTR_PASSWORD_URL);
+        addData(std::move(userName), MegaClient::PWM_ATTR_PASSWORD_USERNAME);
+        addData(std::move(notes), MegaClient::PWM_ATTR_PASSWORD_NOTES);
+        addData(std::move(totpJson), MegaClient::PWM_ATTR_PASSWORD_TOTP);
         return pwdData;
+    };
+    const auto doesNodeHaveTotpData = [](const Node& n) -> bool
+    {
+        if (!n.isPasswordNode())
+            return false;
+        const auto pwdData = n.attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        assert(pwdData.has_value());
+        return pwdData->getStringView(MegaClient::PWM_ATTR_PASSWORD_TOTP).has_value();
     };
     const auto printEntryDetails = [](NodeHandle nh)
     {
@@ -13302,19 +13269,62 @@ void exec_passwordmanager(autocomplete::ACState& s)
         assert(pwdNode);
         assert(pwdNode->isPasswordNode());
 
-        auto jsonPwdData = pwdNode->attrs.map[AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER)];
-        AttrMap pwdData;
-        pwdData.fromjson(jsonPwdData.c_str());
+        const auto pwdData =
+            pwdNode->attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        assert(pwdData.has_value());
         cout << "Password data for entry " << pwdNode->attrs.map['n'] << " (" << toNodeHandle(nh) << "):\n";
-        const auto printAttr = [&pwdData](const char* attr) -> void
+        const auto printAttr =
+            [](const std::string_view attr, const AttrMap& data, const unsigned nest = 1) -> void
         {
-            const auto nid = AttrMap::string2nameid(attr);
-            cout << "\t" << attr << ": " << (pwdData.map.contains(nid) ? pwdData.map[nid] : "") << "\n";
+            for (unsigned i = 0; i < nest; ++i)
+                std::cout << "\t";
+            std::cout << attr << ": " << data.getStringView(attr).value_or("") << "\n";
         };
-        printAttr(MegaClient::PWM_ATTR_PASSWORD_PWD);
-        printAttr(MegaClient::PWM_ATTR_PASSWORD_USERNAME);
-        printAttr(MegaClient::PWM_ATTR_PASSWORD_URL);
-        printAttr(MegaClient::PWM_ATTR_PASSWORD_NOTES);
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_PWD, *pwdData);
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_USERNAME, *pwdData);
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_URL, *pwdData);
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_NOTES, *pwdData);
+
+        const auto totpData = pwdData->getNestedJsonObject(MegaClient::PWM_ATTR_PASSWORD_TOTP);
+        std::cout << "\t" << MegaClient::PWM_ATTR_PASSWORD_TOTP << ": " << (totpData ? "" : "null")
+                  << "\n";
+        if (totpData)
+        {
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE, *totpData, 2);
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS, *totpData, 2);
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT, *totpData, 2);
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG, *totpData, 2);
+        }
+    };
+
+    const auto validateAndSetDefaultsForTotpInit = [](const std::optional<std::string>& shse,
+                                                      std::optional<std::string>& expt,
+                                                      std::optional<std::string>& algo,
+                                                      std::optional<std::string>& ndig) -> bool
+    {
+        if (!shse && (expt || algo || ndig))
+        {
+            std::cout << "Invalid input: totp parameters were provided but the shared secret "
+                         "(mandatory for initializing) was missing\n";
+            return false;
+        }
+        expt = expt | or_else(
+                          []
+                          {
+                              return std::optional{std::to_string(totp::DEF_EXP_TIME.count())};
+                          });
+        algo = algo | or_else(
+                          []
+                          {
+                              return std::optional{
+                                  std::string{totp::hashAlgorithmToStrView(totp::DEF_ALG)}};
+                          });
+        ndig = ndig | or_else(
+                          []
+                          {
+                              return std::optional{std::to_string(totp::DEF_NDIGITS)};
+                          });
+        return true;
     };
 
     if (command == "list")
@@ -13445,16 +13455,37 @@ void exec_passwordmanager(autocomplete::ACState& s)
         auto pwd = s.words[4].s.c_str();
         assert(*name && *pwd);
 
-        string url; s.extractflagparam("-url", url);
-        string userName; s.extractflagparam("-u", userName);
-        string notes; s.extractflagparam("-n", notes);
+        auto totpShse = s.extractflagparam("-totp-shse");
+        auto totpExpt = s.extractflagparam("-totp-expt");
+        auto totpAlg = s.extractflagparam("-totp-alg");
+        auto totpNdig = s.extractflagparam("-totp-nd");
+        if (!validateAndSetDefaultsForTotpInit(totpShse, totpExpt, totpAlg, totpNdig))
+            return;
+        const auto totpDataJson =
+            totpShse |
+            and_then(
+                [&createPwdTotpData,
+                 expt = std::move(totpExpt),
+                 alg = std::move(totpAlg),
+                 ndig = std::move(totpNdig)](const std::string& shse) mutable
+                {
+                    return createPwdTotpData(shse,
+                                             std::move(expt),
+                                             std::move(alg),
+                                             std::move(ndig));
+                }) |
+            transform((static_cast<std::string (AttrMap::*)() const>(&AttrMap::getjson)));
 
         auto pwdData = createPwdData(std::string{pwd},
-                                     std::move(url),
-                                     std::move(userName),
-                                     std::move(notes));
+                                     s.extractflagparam("-url").value_or(""),
+                                     s.extractflagparam("-u").value_or(""),
+                                     s.extractflagparam("-n").value_or(""),
+                                     totpDataJson.value_or(""));
 
-        client->createPasswordNode(name, std::move(pwdData), nParent, 0);
+        if (const auto errCode = client->createPasswordNode(name, std::move(pwdData), nParent, 0);
+            errCode != API_OK)
+            std::cout << "Error before sending the putnodes. Code: " << errorstring(errCode)
+                      << "\n";
     }
     else if (command == "newentries")
     {
@@ -13479,10 +13510,13 @@ void exec_passwordmanager(autocomplete::ACState& s)
             auto userName = s.words[currentReadIndex++].s.c_str();
             auto pwd = s.words[currentReadIndex++].s.c_str();
             assert(*name && *userName && *pwd);
-            auto pwdData = createPwdData(std::string{pwd}, "", std::string{userName}, "");
+            auto pwdData = createPwdData(std::string{pwd}, "", std::string{userName}, "", "");
             info[std::move(name)] = std::move(pwdData);
         }
-        client->createPasswordNodes(std::move(info), nParent, 0);
+        if (const auto errCode = client->createPasswordNodes(std::move(info), nParent, 0);
+            errCode != API_OK)
+            std::cout << "Error before sending the putnodes. Code: " << errorstring(errCode)
+                      << "\n";
     }
     else if (command == "getentrydata")
     {
@@ -13514,15 +13548,26 @@ void exec_passwordmanager(autocomplete::ACState& s)
             cout << "Wrong Password node handle provided " << toNodeHandle(nh) << "\n";
         }
 
-        string pwd; s.extractflagparam("-p", pwd);
-        string url; s.extractflagparam("-url", url);
-        string userName; s.extractflagparam("-u", userName);
-        string notes; s.extractflagparam("-n", notes);
-
-        auto pwdData = createPwdData(std::move(pwd),
-                                     std::move(url),
-                                     std::move(userName),
-                                     std::move(notes));
+        const bool removeTotp = s.extractflag("-totp-remove");
+        // If removeTotp is true, all this will be empty (guaranteed by the input parser)
+        auto totpShse = s.extractflagparam("-totp-shse");
+        auto totpExpt = s.extractflagparam("-totp-expt");
+        auto totpAlg = s.extractflagparam("-totp-alg");
+        auto totpNdig = s.extractflagparam("-totp-nd");
+        if (!doesNodeHaveTotpData(*n) &&
+            !validateAndSetDefaultsForTotpInit(totpShse, totpExpt, totpAlg, totpNdig))
+            return;
+        const auto totpData =
+            createPwdTotpData(std::move(totpShse),
+                              std::move(totpExpt),
+                              std::move(totpAlg),
+                              std::move(totpNdig)) |
+            transform((static_cast<std::string (AttrMap::*)() const>(&AttrMap::getjson)));
+        auto pwdData = createPwdData(s.extractflagparam("-p").value_or(""),
+                                     s.extractflagparam("-url").value_or(""),
+                                     s.extractflagparam("-u").value_or(""),
+                                     s.extractflagparam("-n").value_or(""),
+                                     totpData.value_or(removeTotp ? std::string{DELETE_STR} : ""));
 
         auto cb = [printEntryDetails](NodeHandle nh, Error e)
         {
@@ -13530,7 +13575,30 @@ void exec_passwordmanager(autocomplete::ACState& s)
             else std::cout << "Error: " << errorstring(e) << "\n";
         };
 
-        client->updatePasswordNode(nh, std::move(pwdData), std::move(cb));
+        if (const auto errCode = client->updatePasswordNode(nh, std::move(pwdData), std::move(cb));
+            errCode != API_OK)
+            std::cout << "Error before sending the setattr command. Code: " << errorstring(errCode)
+                      << "\n";
+    }
+    else if (command == "import")
+    {
+        // Example: (All mandatory)
+        // pwdman import -source google ./test_google.csv 12abcd
+        std::string sourceOriginStr;
+        s.extractflagparam("-source", sourceOriginStr);
+        pwm::import::FileSource sourceOrigin;
+        if (sourceOriginStr == "google")
+            sourceOrigin = pwm::import::FileSource::GOOGLE_PASSWORD;
+        else
+        {
+            assert(false && "Not all sources listed in the command signature are considered in the "
+                            "implementation");
+            return;
+        }
+
+        const auto sourceFile = localPathArg(s.words[2].s);
+        const auto parentHandle = getNodeHandleFromParam(3);
+        importpasswordsfromgooglefile(sourceFile, parentHandle, sourceOrigin);
     }
     else
     {
@@ -13568,50 +13636,6 @@ void exec_generatepassword(autocomplete::ACState& s)
 
         if (pwd.empty()) cout << "Error generating the password. Please check the logs (if active)\n";
         else cout << "Characers-based password successfully generated: " << pwd << "\n";
-    }
-}
-
-void exec_importpasswordsfromgooglefile(autocomplete::ACState& s)
-{
-    auto localname = localPathArg(s.words[1].s);
-    handle nh;
-    Base64::atob(s.words[2].s.c_str(), (byte*)&nh, MegaClient::NODEHANDLE);
-    NodeHandle parentHandle{};
-    parentHandle.set6byte(nh);
-
-    if (parentHandle.isUndef())
-    {
-        std::cout << "Parent handle is undef\n";
-        return;
-    }
-
-    using namespace pwm::import;
-    const auto [err, badEntries, nGoodEntries] =
-        client->importPasswordsFromFile(localname.platformEncoded(),
-                                        FileSource::GOOGLE_PASSWORD,
-                                        parentHandle,
-                                        0);
-    if (err != API_OK)
-        std::cout << "Error importing file. Code " << err << "\n";
-    else
-        std::cout << "Successfully imported " << nGoodEntries << " entries\n";
-
-    std::for_each(begin(badEntries),
-                  end(badEntries),
-                  [](const auto& badEntry)
-                  {
-                      std::cout << "Error (" << toString(badEntry.second)
-                                << " ) importing line: " << badEntry.first;
-                  });
-
-    if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
-    {
-        std::cout
-            << "\n*****\n"
-            << "* Password Manager commands executed in a non-Password Manager MegaClient type.\n"
-            << "* Be wary of implications regarding fetch nodes and action packets received.\n"
-            << "* Check megacli help to start it as a Password Manager MegaClient type.\n"
-            << "*****\n\n";
     }
 }
 

@@ -26,25 +26,25 @@ ErrorOr<MakeInodeResult> DirectoryInode::make(Maker&& maker, const std::string& 
 
     // Invalid name.
     if (name.empty())
-        return API_EARGS;
+        return unexpected(API_EARGS);
 
     // Name's too long.
     if (name.size() > MaxNameLength)
-        return API_FUSE_ENAMETOOLONG;
+        return unexpected(API_FUSE_ENAMETOOLONG);
 
     auto permissions = this->permissions();
 
     // Parent doesn't exist.
     if (permissions == ACCESS_UNKNOWN)
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     // Parent's read only.
     if (permissions != FULL)
-        return API_FUSE_EROFS;
+        return unexpected(API_FUSE_EROFS);
 
     // Parent already has a child with this name.
     if (hasChild(name))
-        return API_EEXIST;
+        return unexpected(API_EEXIST);
 
     // Try and make the new child.
     return maker(name);

@@ -582,6 +582,54 @@ void SyncConfig::renameDBToMatchTarget(const SyncConfig& targetConfig,
     std::filesystem::rename(*currentDbPath, newDbPath);
 }
 
+std::pair<error, SyncConfig> buildSyncConfig(const SyncConfig::Type syncType,
+                                             const std::string& localPath,
+                                             const std::string& name,
+                                             const std::string& drivePath,
+                                             const handle nodeHandle,
+                                             MegaClient& client)
+{
+    if (localPath.empty())
+    {
+        LOG_debug << "[buildSyncConfig] Error: empty local path";
+        return {API_EARGS, {}};
+    }
+
+    const auto syncLocalPath = LocalPath::fromAbsolutePath(localPath);
+
+    const auto [errNode, remoteNodeHandle, originalPathOfRemoteNode] = std::invoke(
+        [&syncType, &client, &nodeHandle]() -> std::tuple<error, NodeHandle, std::string>
+        {
+            if (syncType == SyncConfig::TYPE_BACKUP)
+                return {API_OK, {}, {}};
+
+            if (const auto node = client.nodebyhandle(nodeHandle); node && node->type != FILENODE)
+                return {API_OK, NodeHandle().set6byte(nodeHandle), node->displaypath()};
+
+            LOG_debug << "[buildSyncConfig] Node not found for sync add";
+            return {API_EARGS, {}, {}};
+        });
+
+    if (errNode != API_OK)
+        return {errNode, {}};
+
+    const auto syncName = name.empty() ? syncLocalPath.leafOrParentName() : name;
+    const auto syncDrivePath =
+        drivePath.empty() ? LocalPath() : LocalPath::fromAbsolutePath(drivePath);
+    const auto enabled = true;
+
+    const SyncConfig syncConfig{syncLocalPath,
+                                syncName,
+                                remoteNodeHandle,
+                                originalPathOfRemoteNode,
+                                fsfp_t(),
+                                syncDrivePath,
+                                enabled,
+                                syncType};
+
+    return {API_OK, syncConfig};
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const std::string& logname, SyncError& e):
@@ -6382,19 +6430,38 @@ Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
     return nullptr;
 }
 
-bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
+template<typename SyncConfigCallable>
+bool Syncs::ifFoundSyncConfigByBackupId(const handle backupId, SyncConfigCallable&& action) const
 {
-    // returns a copy for thread safety
     assert(!onSyncThread());
+    std::lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
-    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-    for (auto& s : mSyncVec)
+    auto findCondition = [&backupId](const auto& unifiedSync)
     {
-        if (s->mConfig.mBackupId == backupId)
-            return c = s->mConfig, true;
-    }
+        return unifiedSync && unifiedSync->mConfig.mBackupId == backupId;
+    };
 
+    if (const auto it = std::find_if(mSyncVec.begin(), mSyncVec.end(), std::move(findCondition));
+        it != mSyncVec.end())
+    {
+        std::forward<SyncConfigCallable>(action)((*it)->mConfig);
+        return true;
+    }
     return false;
+}
+
+bool Syncs::hasSyncConfigByBackupId(const handle backupId) const
+{
+    return ifFoundSyncConfigByBackupId(backupId, [](const auto&) {});
+}
+
+bool Syncs::syncConfigByBackupId(const handle backupId, SyncConfig& syncConfig) const
+{
+    auto withMatchedSyncConfigAction = [&syncConfig](const auto& matchedConfig)
+    {
+        syncConfig = matchedConfig;
+    };
+    return ifFoundSyncConfigByBackupId(backupId, std::move(withMatchedSyncConfigAction));
 }
 
 void Syncs::transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused)
@@ -10604,6 +10671,7 @@ bool Sync::resolve_downsync(SyncRow& row,
                                   << logTriplet(row, fullPath);
 
                         changestate(INSUFFICIENT_DISK_SPACE, false, true, true);
+                        syncs.mHeartBeatMonitor->updateOrRegisterSync(mUnifiedSync);
 
                         return false;
                     }
@@ -12787,6 +12855,7 @@ void Syncs::syncLoop()
                     {
                         LOG_err << "Sync local root folder is not a folder: " << sync->localroot->localname;
                         sync->changestate(INVALID_LOCAL_TYPE, false, true, true);
+                        mHeartBeatMonitor->updateOrRegisterSync(*us);
                         continue;
                     }
                     else if (fa->fsid != sync->localroot->fsid_lastSynced)
@@ -12794,6 +12863,7 @@ void Syncs::syncLoop()
                         LOG_err << "Sync local root folder fsid has changed for " << sync->localroot->localname << ": "
                                 << fa->fsid << " was: " << sync->localroot->fsid_lastSynced;
                         sync->changestate(MISMATCH_OF_ROOT_FSID, false, true, true);
+                        mHeartBeatMonitor->updateOrRegisterSync(*us);
                         continue;
                     }
                 }
@@ -12801,6 +12871,7 @@ void Syncs::syncLoop()
                 {
                     LOG_err << "Sync local root folder could not be opened: " << sync->localroot->localname;
                     sync->changestate(LOCAL_PATH_UNAVAILABLE, false, true, true);
+                    mHeartBeatMonitor->updateOrRegisterSync(*us);
                     continue;
                 }
 
@@ -12818,6 +12889,7 @@ void Syncs::syncLoop()
                                 << "  Current: "
                                 << computedFsfp.toString();
                         sync->changestate(LOCAL_FILESYSTEM_MISMATCH, false, true, true);
+                        mHeartBeatMonitor->updateOrRegisterSync(*us);
                         continue;
                     }
                 }
@@ -12842,6 +12914,11 @@ void Syncs::syncLoop()
                 else if (remoteRootHasChanged)
                 {
                     manageRemoteRootLocationChange(*sync);
+                }
+
+                if (!us->mConfig.mEnabled && us->mConfig.mError != NO_SYNC_ERROR)
+                {
+                    mHeartBeatMonitor->updateOrRegisterSync(*us);
                 }
             }
             else if (us->mConfig.mRunState == SyncRunState::Suspend &&
@@ -12966,6 +13043,7 @@ void Syncs::syncLoop()
                                 << ")";
 
                         sync->changestate(NOTIFICATION_SYSTEM_UNAVAILABLE, false, true, true);
+                        mHeartBeatMonitor->updateOrRegisterSync(*us);
                         continue;
                     }
                 }

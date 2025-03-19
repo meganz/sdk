@@ -47,10 +47,32 @@ public:
 
     struct TestSuite
     {
+        TestSuite(uint16_t loops, uint16_t shorts, uint16_t longs, uint16_t dnss, uint64_t userId);
+
         const uint16_t loopCount{};
         const uint16_t shortMessageCount{};
         const uint16_t longMessageCount{};
         const uint16_t dnsMessageCount{};
+
+        const std::string& getShortMessage() const
+        {
+            return mShortMessage;
+        }
+
+        const std::string& getLongMessage() const
+        {
+            return mLongMessage;
+        }
+
+        const std::string& getDnsIPv4Message() const
+        {
+            return mDnsIPv4Message;
+        }
+
+        const std::string& getDnsIPv6Message() const
+        {
+            return mDnsIPv6Message;
+        }
 
         enum class MessageType : char
         {
@@ -64,9 +86,15 @@ public:
             return static_cast<uint16_t>(loopCount *
                                          (shortMessageCount + longMessageCount + dnsMessageCount));
         }
+
+    private:
+        std::string mShortMessage;
+        std::string mLongMessage;
+        std::string mDnsIPv4Message;
+        std::string mDnsIPv6Message;
     };
 
-    bool startSuite(uint64_t userId, const TestSuite& suite);
+    bool startSuite(const TestSuite& suite);
 
     struct MessageResult
     {
@@ -89,8 +117,6 @@ private:
     void sendMessage(TestSuite::MessageType type, const std::string& message);
     static void sleepIfMultipleOf(uint16_t multiFactor, uint16_t factor);
     void confirmFirst(TestSuite::MessageType type);
-    static std::string getShortMessage(uint64_t userId);
-    static std::string getLongMessage(uint64_t userId);
 
     void log(std::string&& action, std::string&& error);
 

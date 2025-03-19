@@ -284,7 +284,8 @@ public:
             os << message;
         }
         // we can have the message AND the direct messages
-        for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
+        for (unsigned i = 0; i < numberMessages; ++i)
+            os.write(directMessages[i], static_cast<streamsize>(directMessagesSizes[i]));
 #else
         os << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message;
 #endif

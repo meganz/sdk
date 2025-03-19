@@ -160,6 +160,9 @@ public:
     // Translate a system-wide inode ID to a mount-specific inode ID.
     MountInodeID map(InodeID id) const override;
 
+    // What local path is this mount mapping from?
+    NormalizedPath path() const override;
+
     // Remove the mount from memory.
     MountResult remove();
 }; // Mount

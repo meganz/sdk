@@ -25,6 +25,8 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_INC}/date_time_forward.h
                              ${FUSE_COMMON_INC}/error_or.h
                              ${FUSE_COMMON_INC}/error_or_forward.h
+                             ${FUSE_COMMON_INC}/expected.h
+                             ${FUSE_COMMON_INC}/expected_forward.h
                              ${FUSE_COMMON_INC}/file_open_flag.h
                              ${FUSE_COMMON_INC}/file_open_flag_forward.h
                              ${FUSE_COMMON_INC}/inode_cache_flags.h
@@ -89,6 +91,8 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_INC}/transaction.h
                              ${FUSE_COMMON_INC}/transaction_forward.h
                              ${FUSE_COMMON_INC}/type_traits.h
+                             ${FUSE_COMMON_INC}/unexpected.h
+                             ${FUSE_COMMON_INC}/unexpected_forward.h
                              ${FUSE_COMMON_INC}/upload.h
                              ${FUSE_COMMON_INC}/upload_callbacks.h
                              ${FUSE_COMMON_INC}/upload_forward.h

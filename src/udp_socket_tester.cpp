@@ -20,6 +20,7 @@
 
 #include "mega/dns_lookup_pseudomessage.h"
 #include "mega/udp_socket.h"
+#include "mega/utils.h"
 
 #include <algorithm>
 #include <thread>
@@ -37,7 +38,7 @@ UdpSocketTester::UdpSocketTester(const string& ip, uint16_t port):
 
 UdpSocketTester::~UdpSocketTester() = default;
 
-bool UdpSocketTester::startSuite(uint64_t userId, const TestSuite& suite)
+bool UdpSocketTester::startSuite(const TestSuite& suite)
 {
     if (mRunning)
     {
@@ -49,12 +50,9 @@ bool UdpSocketTester::startSuite(uint64_t userId, const TestSuite& suite)
     mTestResults.messageResults.clear();
     mTestResults.messageResults.reserve(suite.totalMessageCount());
 
-    mShortMessage = getShortMessage(userId);
-    mLongMessage = getLongMessage(userId);
-    static constexpr uint16_t randomDnsMessageID = 1234;
-    mDnsMessage = mSocket->isIPv4() ?
-                      dns_lookup_pseudomessage::getForIPv4(userId, randomDnsMessageID) :
-                      dns_lookup_pseudomessage::getForIPv6(userId, randomDnsMessageID);
+    mShortMessage = suite.getShortMessage();
+    mLongMessage = suite.getLongMessage();
+    mDnsMessage = mSocket->isIPv4() ? suite.getDnsIPv4Message() : suite.getDnsIPv6Message();
 
     for (uint16_t lp = 0, current = 0; lp < suite.loopCount; ++lp)
     {
@@ -136,7 +134,10 @@ UdpSocketTester::SocketResults
             }
             else
             {
-                log("receiving reply", "Reply could not be matched with an original message");
+                // log this but don't count it
+                log("receiving reply",
+                    "Invalid message (hex): " + Utils::stringToHex(reply.message, true));
+                --i;
             }
         }
         else
@@ -164,26 +165,39 @@ void UdpSocketTester::confirmFirst(TestSuite::MessageType type)
     }
 }
 
-string UdpSocketTester::getShortMessage(uint64_t userId)
-{
-    static constexpr char magic = '\x33'; // ASCII 51
-    return magic + userIdToHex(userId);
-}
-
-string UdpSocketTester::getLongMessage(uint64_t userId)
-{
-    static constexpr char magic = '\x51'; // ASCII 85
-    string prefix = magic + userIdToHex(userId);
-    static constexpr size_t MAX_MESSAGE_LENGTH = 1400u;
-    return prefix + string(MAX_MESSAGE_LENGTH - prefix.size(), 'P');
-}
-
 void UdpSocketTester::log(string&& action, string&& error)
 {
     auto& counter =
         mTestResults.log["Error " + std::move(action) + ", IPv" + (mSocket->isIPv4() ? '4' : '6') +
                          ", port " + std::to_string(mTestResults.port) + ": " + std::move(error)];
     ++counter;
+}
+
+UdpSocketTester::TestSuite::TestSuite(uint16_t loops,
+                                      uint16_t shorts,
+                                      uint16_t longs,
+                                      uint16_t dnss,
+                                      uint64_t userId):
+    loopCount{loops},
+    shortMessageCount{shorts},
+    longMessageCount{longs},
+    dnsMessageCount{dnss}
+{
+    // short test message
+    static constexpr char magicS = '\x33'; // ASCII 51
+    mShortMessage = magicS + userIdToHex(userId);
+
+    // long test message
+    static constexpr char magicL = '\x51'; // ASCII 85
+    string prefix = magicL + userIdToHex(userId);
+    static constexpr size_t MAX_MESSAGE_LENGTH = 1400u;
+    static constexpr char RANDOM_PADDING_CHAR = 'P';
+    mLongMessage = prefix + string(MAX_MESSAGE_LENGTH - prefix.size(), RANDOM_PADDING_CHAR);
+
+    // DNS test message for IPv4
+    static constexpr uint16_t RANDOM_DNS_MESSAGE_ID = 1234;
+    mDnsIPv4Message = dns_lookup_pseudomessage::getForIPv4(userId, RANDOM_DNS_MESSAGE_ID);
+    mDnsIPv6Message = dns_lookup_pseudomessage::getForIPv6(userId, RANDOM_DNS_MESSAGE_ID);
 }
 
 } // namespace mega

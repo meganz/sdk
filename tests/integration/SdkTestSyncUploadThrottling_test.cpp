@@ -11,7 +11,7 @@
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
-#include "SdkTestSyncNodesOperations_test.h"
+#include "SdkTestSyncNodesOperations.h"
 
 #include <gmock/gmock.h>
 
@@ -180,6 +180,10 @@ void editFileAndWaitForUpload(std::promise<void>& uploadStarted,
                               const UploadWaitConfig& config = {})
 {
     // 1) Call the completion fileAction function to perform now edits or changes in the file.
+    LOG_verbose
+        << "[editFileAndWaitForUpload] Set timeBeforeFileAction to now [minWaitForTransferStart = "
+        << config.minWaitForTransferStart.count() << " secs, maxWaitForTransferStartFromMinWait = "
+        << config.maxWaitForTransferStartFromMinWait.count() << " secs]";
     const auto timeBeforeFileAction = std::chrono::steady_clock::now();
     fileAction();
 
@@ -758,9 +762,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadUnthrottledFile)
     const unsigned maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
 
     LOG_verbose << logPre << "Get the dir path node handle";
-    const auto dir1HandleOpt = getNodeHandleByPath("dir1");
-    ASSERT_TRUE(dir1HandleOpt);
-    const auto dir1Handle = *dir1HandleOpt;
+    const auto dir1Handle = getNodeHandleByPath("dir1");
+    ASSERT_NE(dir1Handle, UNDEF);
 
     LOG_verbose << logPre << "Prepare the new file locally";
     const std::string_view newFileName{"test_file_new.txt"};
@@ -807,9 +810,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
     const auto maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
 
     LOG_verbose << logPre << "Get the dir path node handle";
-    const auto dir1HandleOpt = getNodeHandleByPath("dir1");
-    ASSERT_TRUE(dir1HandleOpt);
-    const auto dir1Handle = *dir1HandleOpt;
+    const auto dir1Handle = getNodeHandleByPath("dir1");
+    ASSERT_NE(dir1Handle, UNDEF);
 
     LOG_verbose << logPre << "Prepare the new file locally";
     const std::string_view newFileName{"test_file_new.txt"};
@@ -819,6 +821,11 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
     LOG_verbose << logPre << "Edit and upload the file until reaching the maxUploadsBeforeThrottle("
                 << maxUploadsBeforeThrottle << ") threshold";
     doUnthrottledUploads(tempFile, newFileName, newFilePath, dir1Handle, maxUploadsBeforeThrottle);
+
+    LOG_verbose << logPre
+                << "Reset last processed time for throttling: next upload should happen "
+                   "approximately after updateRateSeconds";
+    uploadThrottlingManager->resetLastProcessedTime();
 
     for (const auto i: range(2))
     {
@@ -840,16 +847,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFile)
             });
 
         // Define the edit action to be executed within editFileAndWaitForUploadScoped().
-        const auto fileEditAction =
-            [&tempFile = std::as_const(tempFile), &uploadThrottlingManager, i]()
+        const auto fileEditAction = [&tempFile = std::as_const(tempFile)]()
         {
-            if (i == 0) // Only the first time
-            {
-                uploadThrottlingManager
-                    ->resetLastProcessedTime(); // This will ensure that the throttle time is
-                                                // more or less updateRateSeconds when calling
-                                                // resetLastProcessedTime().
-            }
             tempFile->appendData(100);
         };
 
@@ -894,9 +893,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
     const auto maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
 
     LOG_verbose << logPre << "Get the dir path node handle";
-    const auto dir1HandleOpt = getNodeHandleByPath("dir1");
-    ASSERT_TRUE(dir1HandleOpt);
-    const auto dir1Handle = *dir1HandleOpt;
+    const auto dir1Handle = getNodeHandleByPath("dir1");
+    ASSERT_NE(dir1Handle, UNDEF);
 
     LOG_verbose << logPre << "Prepare the new file1 locally";
     const std::string_view newFile1Name{"test_file1_new.txt"};
@@ -1056,9 +1054,8 @@ TEST_F(SdkTestSyncUploadThrottling, UploadThrottledFilePauseSyncAndUploadItUnthr
     const auto maxUploadsBeforeThrottle = uploadThrottlingManager->maxUploadsBeforeThrottle();
 
     LOG_verbose << logPre << "Get the dir path node handle";
-    const auto dir1HandleOpt = getNodeHandleByPath("dir1");
-    ASSERT_TRUE(dir1HandleOpt);
-    const auto dir1Handle = *dir1HandleOpt;
+    const auto dir1Handle = getNodeHandleByPath("dir1");
+    ASSERT_NE(dir1Handle, UNDEF);
 
     LOG_verbose << logPre << "Prepare the new file locally";
     const std::string_view newFileName{"test_file_new.txt"};

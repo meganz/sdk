@@ -2,7 +2,6 @@
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/directory.h>
 #include <mega/fuse/common/testing/mount_event_observer.h>
@@ -15,17 +14,18 @@ namespace fuse
 namespace testing
 {
 
-TEST_F(FUSEMountTests, add_fails_when_target_is_empty)
+TEST_F(FUSEMountTests, add_fails_when_target_is_unknown)
 {
     MountInfo info;
 
     info.mHandle = ClientW()->handle("/x/s");
-    info.mFlags.mName = "s";
+    info.name("s");
+    info.mPath = Path(MountPathW().path() / "bogus");
 
     auto observer = ClientW()->mountEventObserver();
 
     observer->expect({
-        info.mPath,
+        info.name(),
         MOUNT_LOCAL_UNKNOWN,
         MOUNT_ADDED
     });
@@ -37,18 +37,18 @@ TEST_F(FUSEMountTests, add_fails_when_target_is_empty)
     ASSERT_TRUE(ClientW()->mounts(false).empty());
 }
 
-TEST_F(FUSEMountTests, add_fails_when_target_is_unknown)
+TEST_F(FUSEMountTests, add_fails_when_target_is_unspecified)
 {
     MountInfo info;
 
     info.mHandle = ClientW()->handle("/x/s");
-    info.mFlags.mName = "s";
-    info.mPath = Path(MountPathW().path() / "bogus");
+    info.name("s");
+    info.mPath = NormalizedPath();
 
     auto observer = ClientW()->mountEventObserver();
 
     observer->expect({
-        info.mPath,
+        info.name(),
         MOUNT_LOCAL_UNKNOWN,
         MOUNT_ADDED
     });
@@ -69,12 +69,12 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_unknown)
     {
         Directory sd0("sd0", mScratchPath);
 
-        mount.mFlags.mName = "s";
+        mount.name("s");
         mount.mHandle = ClientW()->handle("/x/s");
         mount.mPath = sd0.path();
 
         observer->expect({
-            mount.mPath,
+            mount.name(),
             MOUNT_SUCCESS,
             MOUNT_ADDED
         });
@@ -83,12 +83,12 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_unknown)
     }
 
     observer->expect({
-        mount.mPath,
+        mount.name(),
         MOUNT_LOCAL_UNKNOWN,
         MOUNT_ENABLED
     });
 
-    ASSERT_EQ(ClientW()->enableMount(mount.mPath, false),
+    ASSERT_EQ(ClientW()->enableMount(mount.name(), false),
               MOUNT_LOCAL_UNKNOWN);
 
     ASSERT_TRUE(ClientW()->mounts(true).empty());

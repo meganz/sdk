@@ -46,20 +46,20 @@ class MountDB
         // Add a mount to the database.
         Query mAddMount;
 
-        // Get a mount by path.
-        Query mGetMountByPath;
+        // Get a mount by name.
+        Query mGetMountByName;
 
         // What are a mount's flags?
-        Query mGetMountFlagsByPath;
+        Query mGetMountFlagsByName;
 
         // What inode is the mount associated with?
-        Query mGetMountInodeByPath;
+        Query mGetMountInodeByName;
 
-        // What paths are associated with a given name?
-        Query mGetMountPathsByName;
+        // What path is associated with a given name?
+        Query mGetMountPathByName;
 
         // Get a mount's startup state.
-        Query mGetMountStartupStateByPath;
+        Query mGetMountStartupStateByName;
 
         // Get a list of all known mounts.
         Query mGetMounts;
@@ -68,16 +68,16 @@ class MountDB
         Query mGetMountsEnabledAtStartup;
 
         // Remove a specified mount.
-        Query mRemoveMountByPath;
+        Query mRemoveMountByName;
 
         // Remove transient mounts.
         Query mRemoveTransientMounts;
 
         // Set a mount's flags.
-        Query mSetMountFlagsByPath;
+        Query mSetMountFlagsByName;
 
         // Set a mount's startup state.
-        Query mSetMountStartupStateByPath;
+        Query mSetMountStartupStateByName;
     }; // Queries
 
     // Checks whether info is a valid description of a mount.
@@ -154,7 +154,7 @@ public:
 
     // Disable an enabled mount.
     void disable(MountDisabledCallback callback,
-                 const LocalPath& path,
+                 const std::string& name,
                  bool remember);
 
     // Disable all mounts associated with the specified node.
@@ -164,10 +164,10 @@ public:
     void each(std::function<void(platform::Mount&)> function);
 
     // Enable a disabled mount.
-    MountResult enable(const LocalPath& path, bool remember);
+    MountResult enable(const std::string& name, bool remember);
 
     // Query whether the specified mount is enabled.
-    bool enabled(const LocalPath& path) const;
+    bool enabled(const std::string& name) const;
 
     // Update executor flags.
     void executorFlags(const TaskExecutorFlags& flags);
@@ -176,26 +176,26 @@ public:
     TaskExecutorFlags executorFlags() const;
 
     // Update an existing mount's flags.
-    MountResult flags(const LocalPath& path,
+    MountResult flags(const std::string& name,
                       const MountFlags& flags);
 
     // Query an existing mount's flags.
-    MountFlagsPtr flags(const LocalPath& path) const;
+    MountFlagsPtr flags(const std::string& name) const;
 
     // Retrieve a description of an existing mount.
-    MountInfoPtr get(const LocalPath& path) const;
+    MountInfoPtr get(const std::string& name) const;
 
     // Retrieve a list of known mounts.
-    MountInfoVector get(bool enabled) const;
+    MountInfoVector get(bool onlyEnabled) const;
 
     // Query which path a named mount is associated with.
-    NormalizedPathVector paths(const std::string& name) const;
+    NormalizedPath path(const std::string& name) const;
 
     // Prune stale mount entries from the database.
     MountResult prune();
 
     // Remove a disabled mount from the database.
-    MountResult remove(const LocalPath& path);
+    MountResult remove(const std::string& name);
 
     // Check whether the specified path is "syncable."
     bool syncable(const NormalizedPath& path) const;

@@ -48,7 +48,7 @@ public:
 
     // Disable an enabled mount.
     virtual void disable(MountDisabledCallback callback,
-                         const LocalPath& path,
+                         const std::string& name,
                          bool remember) = 0;
 
     // Discard node events.
@@ -59,33 +59,33 @@ public:
                                   std::size_t target) = 0;
 
     // Enable a disabled mount.
-    virtual MountResult enable(const LocalPath& path,
+    virtual MountResult enable(const std::string& name,
                                bool remember) = 0;
 
     // Query whether a specified mount is enabled.
-    virtual bool enabled(const LocalPath& path) const = 0;
+    virtual bool enabled(const std::string& name) const = 0;
 
     // Execute a function on some thread.
     virtual Task execute(std::function<void(const Task&)> function) = 0;
 
     // Update a mount's flags.
-    virtual MountResult flags(const LocalPath& path,
+    virtual MountResult flags(const std::string& name,
                               const MountFlags& flags) = 0;
 
     // Query a mount's flags.
-    virtual MountFlagsPtr flags(const LocalPath& path) const = 0;
+    virtual MountFlagsPtr flags(const std::string& name) const = 0;
 
-    // Describe the mount associated with path.
-    virtual MountInfoPtr get(const LocalPath& path) const = 0;
+    // Describe the mount associated with name.
+    virtual MountInfoPtr get(const std::string& name) const = 0;
 
     // Describe all (enabled) mounts.
-    virtual MountInfoVector get(bool enabled) const = 0;
+    virtual MountInfoVector get(bool onlyEnabled) const = 0;
 
-    // Retrieve the path of all mounts associated with this name.
-    virtual NormalizedPathVector paths(const std::string& name) const = 0;
+    // Retrieve the path the mount associated with this name.
+    virtual NormalizedPath path(const std::string& name) const = 0;
 
     // Remove a disabled mount from the database.
-    virtual MountResult remove(const LocalPath& path) = 0;
+    virtual MountResult remove(const std::string& name) = 0;
 
     // Update the service's flags.
     virtual void serviceFlags(const ServiceFlags& flags);

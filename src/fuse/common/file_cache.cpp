@@ -52,11 +52,11 @@ ErrorOr<FileInfoRef> FileCache::create(const FileExtension& extension,
     // Open for reading only if create is false.
     // Open for writing only if create is true.
     if (!fileAccess_->fopen(path, !create, create, FSLogging::logOnError))
-        return API_EWRITE;
+        return unexpected(API_EWRITE);
 
     // Make sure the file's attributes have been loaded.
     if (!fileAccess_->fstat())
-        return API_EWRITE;
+        return unexpected(API_EWRITE);
 
     // Create and populate a new file description.
     auto info = this->info(extension, *fileAccess_, id);
@@ -70,7 +70,7 @@ ErrorOr<FileInfoRef> FileCache::create(const FileExtension& extension,
 
     // Couldn't reopen the file for reading and writing.
     if (!fileAccess_->fopen(path, true, true, FSLogging::logOnError))
-        return API_EWRITE;
+        return unexpected(API_EWRITE);
 
     // Transfer ownership of file access to caller.
     fileAccess->reset(fileAccess_.release());

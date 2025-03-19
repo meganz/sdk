@@ -33,7 +33,7 @@ bool TestBase::DoSetUp(const Parameters& parameters)
 
         // Try and add the mount.
         observer->expect({
-            mount.mPath,
+            mount.name(),
             MOUNT_SUCCESS,
             MOUNT_ADDED
         });
@@ -48,12 +48,12 @@ bool TestBase::DoSetUp(const Parameters& parameters)
 
         // Try and enable the mount.
         observer->expect({
-            mount.mPath,
+            mount.name(),
             MOUNT_SUCCESS,
             MOUNT_ENABLED
         });
 
-        EXPECT_EQ((result = client.enableMount(mount.mPath, false)),
+        EXPECT_EQ((result = client.enableMount(mount.name(), false)),
                   MOUNT_SUCCESS);
 
         // Couldn't enable the mount.
@@ -72,8 +72,17 @@ bool TestBase::DoSetUp(const Parameters& parameters)
         if (!emitted)
             return false;
 
+        // Get the mount's path.
+        auto path = client.mountPath(mount.name());
+
+        // Sanity.
+        EXPECT_FALSE(path.empty());
+
+        if (path.empty())
+            return false;
+
         // Wait for sentinel to be visible.
-        auto sentinel = Path(mount.mPath).path() / "sentinel";
+        auto sentinel = Path(path).path() / "sentinel";
         auto visible = false;
 
         EXPECT_TRUE((visible = waitFor([&]() {
@@ -96,7 +105,7 @@ bool TestBase::DoSetUp(const Parameters& parameters)
         m.mHandle = ClientW()->handle("/x/s");
 
         // Establish read-only mount.
-        m.mFlags.mName = "sr";
+        m.name("sr");
         m.mFlags.mReadOnly = true;
         m.mPath = MountPathR();
 
@@ -106,7 +115,7 @@ bool TestBase::DoSetUp(const Parameters& parameters)
             return false;
 
         // Establish read-write observer mount.
-        m.mFlags.mName = "so";
+        m.name("so");
         m.mFlags.mReadOnly = false;
         m.mPath = MountPathO();
 
@@ -116,7 +125,7 @@ bool TestBase::DoSetUp(const Parameters& parameters)
             return false;
 
         // Establish read-write actor mount.
-        m.mFlags.mName = "sw";
+        m.name("sw");
         m.mPath = MountPathW();
 
         EXPECT_TRUE((result = mount(*ClientW(), m)));
@@ -131,7 +140,7 @@ bool TestBase::DoSetUp(const Parameters& parameters)
 
         // Read-only mount.
         m.mHandle = ClientR()->handle("/x/s");
-        m.mFlags.mName = "Sr";
+        m.name("Sr");
         m.mPath = MountPathRS();
 
         EXPECT_TRUE((result = mount(*ClientS(), m)));
@@ -141,7 +150,7 @@ bool TestBase::DoSetUp(const Parameters& parameters)
 
         // Read-write observer mount.
         m.mHandle = ClientW()->handle("/x/s");
-        m.mFlags.mName = "So";
+        m.name("So");
         m.mPath = MountPathOS();
 
         EXPECT_TRUE((result = mount(*ClientS(), m)));
@@ -150,7 +159,7 @@ bool TestBase::DoSetUp(const Parameters& parameters)
             return false;
 
         // Read-write mount.
-        m.mFlags.mName = "Sw";
+        m.name("Sw");
         m.mPath = MountPathWS();
 
         EXPECT_TRUE((result = mount(*ClientS(), m)));

@@ -1,12 +1,15 @@
 /**
- * @file SdkTestSyncNodesOperations_test.h
+ * @file SdkTestSyncNodesOperations.h
  * @brief This file is expected to contain SdkTestSyncNodesOperations declaration.
  */
 
 #ifdef ENABLE_SYNC
 
+#ifndef INCLUDE_INTEGRATION_SDKTESTSYNCNODEOPERATIONS_H_
+#define INCLUDE_INTEGRATION_SDKTESTSYNCNODEOPERATIONS_H_
+
 #include "megautils.h"
-#include "SdkTestNodesSetUp_test.h"
+#include "SdkTestNodesSetUp.h"
 
 namespace sdk_test
 {
@@ -23,10 +26,16 @@ class SdkTestSyncNodesOperations: public SdkTestNodesSetUp
 {
 public:
     static constexpr auto COMMON_TIMEOUT = 3min;
+    static const std::string DEFAULT_SYNC_REMOTE_PATH;
 
     void SetUp() override;
 
     void TearDown() override;
+
+    virtual bool createSyncOnSetup() const
+    {
+        return true;
+    }
 
     /**
      * @brief Build a simple file tree
@@ -46,7 +55,12 @@ public:
     /**
      * @brief Where should we put our sync locally?
      */
-    static const fs::path& getLocalTmpDir();
+    const fs::path& getLocalTmpDir() const;
+
+    /**
+     * @brief Get a UTF-8 string from getLocalTmpDir().
+     */
+    std::string getLocalTmpDirU8string() const;
 
     /**
      * @brief Returns the identifier to get the sync from the megaApi
@@ -130,10 +144,16 @@ public:
     std::vector<std::string> getLocalFirstChildrenNames() const;
 
 protected:
-    LocalTempDir mTempLocalDir{getLocalTmpDir()};
+    /**
+     * @brief Constructs a tmp path using the thread id for thread safety.
+     */
+    static const fs::path& localTmpPath();
+
+    LocalTempDir mTempLocalDir{localTmpPath()};
     handle mBackupId{UNDEF};
 };
 
 } // namespace sdk_test
 
+#endif // INCLUDE_INTEGRATION_SDKTESTSYNCNODEOPERATIONS_H_
 #endif // ENABLE_SYNC

@@ -267,14 +267,14 @@ ErrorOr<LocalPath> Inode::path(InodeID parentID) const
 
         // We've hit the cloud root.
         if (!info.mParentID)
-            return API_ENOENT;
+            return unexpected(API_ENOENT);
 
         // Retrieve a reference to this inode's parent.
         auto ref = mInodeDB.get(info.mParentID);
 
         // Couldn't get a reference to this inode's parent.
         if (!ref)
-            return API_ENOENT;
+            return unexpected(API_ENOENT);
 
         // Retrieve the parent's description.
         info = ref->info();

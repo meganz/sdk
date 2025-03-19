@@ -1,11 +1,11 @@
 /**
- * @file SdkTestSyncNodesOperations_test.cpp
+ * @file SdkTestSyncNodesOperations.cpp
  * @brief This file is expected to contain SdkTestSyncNodesOperations class definition.
  */
 
 #ifdef ENABLE_SYNC
 
-#include "SdkTestSyncNodesOperations_test.h"
+#include "SdkTestSyncNodesOperations.h"
 
 #include "integration_test_utils.h"
 #include "mega/utils.h"
@@ -17,16 +17,25 @@
 using namespace sdk_test;
 using namespace testing;
 
+const std::string SdkTestSyncNodesOperations::DEFAULT_SYNC_REMOTE_PATH{"dir1"};
+
 void SdkTestSyncNodesOperations::SetUp()
 {
     SdkTestNodesSetUp::SetUp();
-    ASSERT_NO_FATAL_FAILURE(initiateSync(getLocalTmpDir().u8string(), "dir1/", mBackupId));
-    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    if (createSyncOnSetup())
+    {
+        ASSERT_NO_FATAL_FAILURE(
+            initiateSync(getLocalTmpDirU8string(), DEFAULT_SYNC_REMOTE_PATH, mBackupId));
+        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    }
 }
 
 void SdkTestSyncNodesOperations::TearDown()
 {
-    ASSERT_TRUE(removeSync(megaApi[0].get(), mBackupId));
+    if (mBackupId != UNDEF)
+    {
+        ASSERT_TRUE(removeSync(megaApi[0].get(), mBackupId));
+    }
     SdkTestNodesSetUp::TearDown();
 }
 
@@ -35,7 +44,7 @@ const std::vector<NodeInfo>& SdkTestSyncNodesOperations::getElements() const
     // To ensure "testCommonFile" is identical in both dirs
     static const auto currentTime = std::chrono::system_clock::now();
     static const std::vector<NodeInfo> ELEMENTS{
-        DirNodeInfo("dir1")
+        DirNodeInfo(DEFAULT_SYNC_REMOTE_PATH)
             .addChild(FileNodeInfo("testFile").setSize(1))
             .addChild(FileNodeInfo("testCommonFile").setMtime(currentTime))
             .addChild(FileNodeInfo("testFile1")),
@@ -52,12 +61,22 @@ const std::string& SdkTestSyncNodesOperations::getRootTestDir() const
     return dirName;
 }
 
-const fs::path& SdkTestSyncNodesOperations::getLocalTmpDir()
+const fs::path& SdkTestSyncNodesOperations::localTmpPath()
 {
     // Prevent parallel test from the same suite writing to the same dir
     thread_local const fs::path localTmpDir{"./SDK_TEST_SYNC_NODE_OPERATIONS_AUX_LOCAL_DIR_" +
                                             getThisThreadIdStr()};
     return localTmpDir;
+}
+
+const fs::path& SdkTestSyncNodesOperations::getLocalTmpDir() const
+{
+    return mTempLocalDir.getPath();
+}
+
+std::string SdkTestSyncNodesOperations::getLocalTmpDirU8string() const
+{
+    return getLocalTmpDir().u8string();
 }
 
 std::unique_ptr<MegaSync> SdkTestSyncNodesOperations::getSync() const
@@ -127,6 +146,7 @@ void SdkTestSyncNodesOperations::initiateSync(const std::string& localPath,
     LOG_verbose << "SdkTestSyncNodesOperations : Initiate sync";
     backupId =
         sdk_test::syncFolder(megaApi[0].get(), localPath, getNodeByPath(remotePath)->getHandle());
+    ASSERT_NE(backupId, UNDEF);
 }
 
 void SdkTestSyncNodesOperations::waitForSyncToMatchCloudAndLocal()

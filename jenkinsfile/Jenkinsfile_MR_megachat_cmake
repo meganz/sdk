@@ -1,3 +1,41 @@
+def setCommitStatus(String pStatus, String errorHint = '') {
+    switch (pStatus) {
+        case 'running':
+            pState = 'running'
+            pMessage = ""
+            break
+        case 'success':
+            pState = 'success'
+            pMessage = ":white_check_mark: ${env.JOB_NAME} :penguin: <b>MEGAchat</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'aborted':
+            pState = 'canceled'
+            pMessage = ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat</b> ABORTED :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'build_failure':
+            pState = 'failed'
+            pMessage = ":red_circle: ${env.JOB_NAME} :penguin: <b>MEGAchat</b> FAILURE :worried:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'tests_failure':
+            pState = 'failed'
+            pMessage = "🟠 ${env.JOB_NAME} :penguin: <b>MEGAchat</b> FAILURE :worried:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'unstable':
+            pState = 'failed'
+            pMessage = ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat</b> UNSTABLE :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        default:
+            pState = 'failed'
+            pMessage = ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat</b> UNKNOWN :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+    }
+    if (pMessage) {
+        if (errorHint) {
+            pMessage += '<br/> ' + errorHint
+        }
+        addGitLabMRComment(comment: pMessage)
+    }
+    updateGitlabCommitStatus(name: "${PIPELINE_NAME}", state: pState)
+}
 pipeline {
     agent none
     options {
@@ -6,6 +44,7 @@ pipeline {
     }
 
     environment {
+        PIPELINE_NAME = 'Build & test MEGAchat'
         BUILD_OPTIONS = ' '
         APIURL_TO_TEST = ' '
     }
@@ -105,6 +144,14 @@ pipeline {
                             sdk_sources_workspace = "${megachat_sources_workspace}/third-party/mega"
                         }
                     }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('build_failure', ':red_circle: Checkout failed')
+                            }
+                            error("Checkout stage failed")
+                        }
+                    }
                 }
 
                 stage('Build MEGAchat'){
@@ -121,6 +168,14 @@ pipeline {
                             sh "cmake -DENABLE_QT_BINDINGS=ON -DENABLE_CHATLIB_WERROR=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
                             -S ${megachat_sources_workspace} -B ${megachat_sources_workspace}/${BUILD_DIR}"
                             sh "cmake --build ${megachat_sources_workspace}/${BUILD_DIR} -j3"
+                        }
+                    }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('build_failure', ':red_circle: Build failed. Tests won`t run')
+                            }
+                            error("Build stage failed. Tests won't run.")
                         }
                     }
                 }
@@ -217,6 +272,14 @@ pipeline {
                             }
                         }
                     }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('tests_failure', ':warning: Build succeed. Tests failed')
+                            }
+                            error("Test stage failed")
+                        }
+                    }
                 }
             }
             post{
@@ -239,10 +302,6 @@ pipeline {
         aborted {
             updateGitlabCommitStatus(name: 'Build & test MEGAchat', state: 'canceled')
             addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>MEGAchat</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
-        }
-        failure {
-            updateGitlabCommitStatus(name: 'Build & test MEGAchat', state: 'failed')
-            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :penguin: <b>MEGAchat</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )                
         }
     }
 }

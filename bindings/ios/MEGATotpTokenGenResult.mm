@@ -1,5 +1,5 @@
 /**
- * @file MEGATotpTokenGenResult.h
+ * @file MEGATotpTokenGenResult.mm
  * @brief Object Data for TOTP token generation result
  *
  * (c) 2025- by Mega Limited, Auckland, New Zealand

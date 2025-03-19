@@ -482,6 +482,13 @@ auto Query::field(const char* name) -> Field
     return field(std::string(name));
 }
 
+std::uint64_t Query::lastID() const
+{
+    assert(mDB);
+
+    return static_cast<std::uint64_t>(sqlite3_last_insert_rowid(mDB));
+}
+
 auto Query::param(const std::string& name) -> Parameter
 {
     auto i = mParameters.find(name);

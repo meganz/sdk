@@ -11,7 +11,7 @@
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
-#include "SdkTestSyncNodesOperations_test.h"
+#include "SdkTestSyncNodesOperations.h"
 
 #include <gmock/gmock.h>
 
@@ -79,15 +79,15 @@ public:
 
     void changeRemoteRootNodeAndWaitForSyncUpdate(const std::string& destRemotePath)
     {
-        const auto newRootHandleOpt = getNodeHandleByPath(destRemotePath);
-        ASSERT_TRUE(newRootHandleOpt);
+        const auto newRootHandle = getNodeHandleByPath(destRemotePath);
+        ASSERT_NE(newRootHandle, UNDEF);
 
         // Expectations on the request listener
         NiceMock<MockRequestListener> mockReqListener{megaApi[0].get()};
         mockReqListener.setErrorExpectations(API_OK, _, MegaRequest::TYPE_CHANGE_SYNC_ROOT);
 
         // Code execution
-        megaApi[0]->changeSyncRemoteRoot(getBackupId(), *newRootHandleOpt, &mockReqListener);
+        megaApi[0]->changeSyncRemoteRoot(getBackupId(), newRootHandle, &mockReqListener);
 
         // Wait for everything to finish
         mockReqListener.waitForFinishOrTimeout(MAX_TIMEOUT);
@@ -187,9 +187,8 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootErrors)
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
 
-    const auto newRootHandleOpt{getNodeHandleByPath("dir2")};
-    ASSERT_TRUE(newRootHandleOpt);
-    const MegaHandle newRootHandle{*newRootHandleOpt};
+    const auto newRootHandle = getNodeHandleByPath("dir2");
+    ASSERT_NE(newRootHandle, UNDEF);
 
     {
         LOG_verbose << logPre << "Giving undef backupId and good remote handle";
@@ -212,8 +211,8 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootErrors)
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EACCESS, INVALID_REMOTE_TYPE);
         const auto fileHandle = getNodeHandleByPath("dir1/testFile");
-        ASSERT_TRUE(fileHandle);
-        megaApi[0]->changeSyncRemoteRoot(getBackupId(), *fileHandle, &mockListener);
+        ASSERT_NE(fileHandle, UNDEF);
+        megaApi[0]->changeSyncRemoteRoot(getBackupId(), fileHandle, &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
 
@@ -222,8 +221,8 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootErrors)
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EEXIST, ACTIVE_SYNC_SAME_PATH);
         const auto dir1Handle = getNodeHandleByPath("dir1");
-        ASSERT_TRUE(dir1Handle);
-        megaApi[0]->changeSyncRemoteRoot(getBackupId(), *dir1Handle, &mockListener);
+        ASSERT_NE(dir1Handle, UNDEF);
+        megaApi[0]->changeSyncRemoteRoot(getBackupId(), dir1Handle, &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
 
@@ -264,7 +263,7 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootErrorOnBackup)
     mockListener.setErrorExpectations(API_EARGS, UNKNOWN_ERROR);
     const auto dir1Handle = getNodeHandleByPath("dir2");
     ASSERT_TRUE(dir1Handle);
-    megaApi[0]->changeSyncRemoteRoot(backupId, *dir1Handle, &mockListener);
+    megaApi[0]->changeSyncRemoteRoot(backupId, dir1Handle, &mockListener);
     EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
 }
 
@@ -416,13 +415,13 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootWhenTransfersInProgress)
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir1"));
 
     LOG_verbose << logPre << "Setting up the mock listener";
-    const auto dir1HandleOpt = getNodeHandleByPath("dir1");
-    ASSERT_TRUE(dir1HandleOpt);
+    const auto dir1Handle = getNodeHandleByPath("dir1");
+    ASSERT_NE(dir1Handle, UNDEF);
     const std::string_view newFileName{"test_file_new.txt"};
 
     const auto isMyFile = Pointee(Property(&MegaTransfer::getPath, EndsWith(newFileName)));
     const auto isUpload = Pointee(Property(&MegaTransfer::getType, MegaTransfer::TYPE_UPLOAD));
-    const auto isBelowDir1 = Pointee(Property(&MegaTransfer::getParentHandle, *dir1HandleOpt));
+    const auto isBelowDir1 = Pointee(Property(&MegaTransfer::getParentHandle, dir1Handle));
     const auto isExpectedError = Pointee(Property(&MegaError::getErrorCode, API_EINCOMPLETE));
 
     NiceMock<MockTransferListener> mockListener{megaApi[0].get()};

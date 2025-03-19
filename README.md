@@ -121,7 +121,7 @@ Once the build is finished, binaries will be available in the `build_dir`
 
 ### Run megacli
 
-To run the example app `megacli`, go to the `examples` directory in the `build_dir` and execute the `megacli` binary.
+To run the example app `megacli`, go to the `examples/megacli` directory in the `build_dir` and execute the `megacli` binary.
 
 ## Minimum supported OS versions
 

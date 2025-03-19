@@ -27,6 +27,14 @@
 
 #include <mega/fuse/common/service.h>
 
+namespace
+{
+inline const char* nullToEmpty(const char* param)
+{
+    return param ? param : "";
+}
+}
+
 namespace mega {
 
 MegaProxy::MegaProxy()
@@ -3699,12 +3707,53 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(LocalPath::fromPlatformEncodedAbsolute(*path));
 }
 
-void MegaApi::syncFolder(MegaSync::SyncType syncType, const char* localFolder, const char* name, MegaHandle megaHandle, const char* driveRootIfExternal, MegaRequestListener* listener,
-                         const char* excludePath)
+void MegaApi::syncFolder(const MegaSync::SyncType syncType,
+                         const char* localSyncRootFolder,
+                         const char* name,
+                         const MegaHandle remoteSyncRootFolder,
+                         const char* driveRootIfExternal,
+                         MegaRequestListener* const listener,
+                         const char* /* excludePath */)
 {
-    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::Type(syncType), driveRootIfExternal, excludePath, listener);
+    syncFolder(syncType,
+               std::string(nullToEmpty(localSyncRootFolder)),
+               std::string(nullToEmpty(name)),
+               remoteSyncRootFolder,
+               std::string(nullToEmpty(driveRootIfExternal)),
+               listener);
 }
 
+void MegaApi::syncFolder(const MegaSync::SyncType syncType,
+                         const std::string& localSyncRootFolder,
+                         const std::string& name,
+                         const MegaHandle remoteSyncRootFolder,
+                         const std::string& driveRootIfExternal,
+                         MegaRequestListener* const listener)
+{
+    MegaRequestSyncFolderParams params{localSyncRootFolder,
+                                       name,
+                                       remoteSyncRootFolder,
+                                       static_cast<SyncConfig::Type>(syncType),
+                                       driveRootIfExternal};
+
+    pImpl->syncFolder(std::move(params), listener);
+}
+
+void MegaApi::prevalidateSyncFolder(const MegaSync::SyncType syncType,
+                                    const std::string& localSyncRootFolder,
+                                    const std::string& name,
+                                    const MegaHandle remoteSyncRootFolder,
+                                    const std::string& driveRootIfExternal,
+                                    MegaRequestListener* const listener)
+{
+    MegaRequestSyncFolderParams params{localSyncRootFolder,
+                                       name,
+                                       remoteSyncRootFolder,
+                                       static_cast<SyncConfig::Type>(syncType),
+                                       driveRootIfExternal};
+
+    pImpl->prevalidateSyncFolder(std::move(params), listener);
+}
 
 void MegaApi::loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
 {
@@ -5821,11 +5870,11 @@ MegaMount* MegaApi::getMountInfo(const char* path)
     return pImpl->getMountInfo(path);
 }
 
-MegaStringList* MegaApi::getMountPaths(const char* name)
+char* MegaApi::getMountPath(const char* name)
 {
     assert(name);
 
-    return pImpl->getMountPaths(name);
+    return pImpl->getMountPath(name);
 }
 
 MegaMountList* MegaApi::listMounts(bool enabled)
@@ -6250,7 +6299,13 @@ int MegaGfxProcessor::getHeight()
     return 0;
 }
 
-int MegaGfxProcessor::getBitmapDataSize(int /*width*/, int /*height*/, int /*px*/, int /*py*/, int /*rw*/, int /*rh*/)
+int MegaGfxProcessor::getBitmapDataSize(int /*width*/,
+                                        int /*height*/,
+                                        int /*px*/,
+                                        int /*py*/,
+                                        int /*rw*/,
+                                        int /*rh*/,
+                                        int /*hint*/)
 {
     return 0;
 }
@@ -8078,6 +8133,13 @@ MegaMount::~MegaMount() = default;
 MegaMount* MegaMount::create()
 {
     return new MegaMountPrivate();
+}
+
+const char* MegaMount::getResultDescription(int result)
+{
+    assert(result >= ABORTED && result <= UNSUPPORTED);
+
+    return fuse::toDescription(static_cast<fuse::MountResult>(result));
 }
 
 const char* MegaMount::getResultString(int result)

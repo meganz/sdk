@@ -9,7 +9,7 @@ bool MountEvent::operator==(const MountEvent& rhs) const
 {
     return mResult == rhs.mResult
            && mType == rhs.mType
-           && mPath == rhs.mPath;
+           && mName == rhs.mName;
 }
 
 bool MountEvent::operator!=(const MountEvent& rhs) const

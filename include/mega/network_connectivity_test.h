@@ -31,7 +31,6 @@ namespace mega
  * @brief Mechanism for running a network connectivity test and providing results in a predefined
  * format.
  * It includes:
- *  - define a test suite;
  *  - run the entire test suite on each socket;
  *  - gather test results from all sockets;
  *  - encapsulate the logic for further condensing and summarizing the results.
@@ -39,7 +38,8 @@ namespace mega
 class NetworkConnectivityTest
 {
 public:
-    bool start(uint64_t userId, const NetworkConnectivityTestServerInfo& serverInfo);
+    bool start(UdpSocketTester::TestSuite&& testSuite,
+               const NetworkConnectivityTestServerInfo& serverInfo);
 
     const NetworkConnectivityTestResults& getResults();
 

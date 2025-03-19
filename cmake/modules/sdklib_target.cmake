@@ -65,6 +65,7 @@ set(SDKLIB_HEADERS
     include/mega/syncinternals/syncuploadthrottlingmanager.h
     include/mega/heartbeats.h
     include/mega/utils.h
+    include/mega/utils_optional.h
     include/mega/account.h
     include/mega/transfer.h
     include/mega/transferstats.h
@@ -103,6 +104,7 @@ set(SDKLIB_HEADERS
 set(SDKLIB_SOURCES
     src/megaapi.cpp
     src/megaapi_impl.cpp
+    src/megaapi_impl_sync.cpp
     src/arguments.cpp
     src/attrmap.cpp
     src/autocomplete.cpp

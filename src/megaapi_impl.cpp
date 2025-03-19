@@ -5192,6 +5192,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES";
         case TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS:
             return "TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS";
+        case TYPE_ADD_SYNC_PREVALIDATION:
+            return "TYPE_ADD_SYNC_PREVALIDATION";
     }
     return "UNKNOWN";
 }
@@ -7068,35 +7070,60 @@ void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLog
     if (singleExclusiveLogger)
     {
         assert(!g_exclusiveLogger.exclusiveCallback);
-        g_exclusiveLogger.exclusiveCallback = [megaLogger](const char *time, int loglevel, const char *source, const char *message
+        g_exclusiveLogger.exclusiveCallback = [megaLogger](const char* time,
+                                                           int loglevel,
+                                                           const char* source,
+                                                           const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+                                                           ,
+                                                           const char** directMessages,
+                                                           size_t* directMessagesSizes,
+                                                           unsigned numberMessages
 #endif
-            ){
-                megaLogger->log(time, loglevel, source, message
+                                              )
+        {
+            megaLogger->log(time,
+                            loglevel,
+                            source,
+                            message
 #ifdef ENABLE_LOG_PERFORMANCE
-                    , directMessages, directMessagesSizes, numberMessages
+                            ,
+                            directMessages,
+                            directMessagesSizes,
+                            static_cast<int>(numberMessages)
 #endif
-                );
+            );
         };
 
         SimpleLogger::setOutputClass(&g_exclusiveLogger);
     }
     else
     {
-
-    g_externalLogger.addMegaLogger(megaLogger,
-        [megaLogger](const char *time, int loglevel, const char *source, const char *message
+        g_externalLogger.addMegaLogger(megaLogger,
+                                       [megaLogger](const char* time,
+                                                    int loglevel,
+                                                    const char* source,
+                                                    const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+                                                    ,
+                                                    const char** directMessages,
+                                                    size_t* directMessagesSizes,
+                                                    unsigned numberMessages
 #endif
-        ){
-            megaLogger->log(time, loglevel, source, message
+                                       )
+                                       {
+                                           megaLogger->log(time,
+                                                           loglevel,
+                                                           source,
+                                                           message
 #ifdef ENABLE_LOG_PERFORMANCE
-                , directMessages, directMessagesSizes, numberMessages
+                                                           ,
+                                                           directMessages,
+                                                           directMessagesSizes,
+                                                           static_cast<int>(numberMessages)
 #endif
-            );
-        });
+                                           );
+                                       });
     }
 }
 
@@ -14503,6 +14530,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr,
                      (request->getType() != MegaRequest::TYPE_MOVE) &&
                      (request->getType() != MegaRequest::TYPE_RESTORE) &&
                      (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
+                     (request->getType() != MegaRequest::TYPE_ADD_SYNC_PREVALIDATION) &&
                      (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD) &&
                      (request->getType() != MegaRequest::TYPE_IMPORT_PASSWORDS_FROM_FILE)))
         return;
@@ -22855,87 +22883,6 @@ void MegaApiImpl::startTimer(int64_t period, MegaRequestListener* listener)
 }
 
 #ifdef ENABLE_SYNC
-void MegaApiImpl::syncFolder(const char* localFolder, const char* name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal, const char* excludePath, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
-    request->setNodeHandle(megaHandle);
-    request->setFile(localFolder);
-
-    if (name || type == SyncConfig::TYPE_BACKUP)
-    {
-        request->setName(name);  // for TYPE_BACKUP, if empty, replacement name will be created when sending request
-    }
-    else if (localFolder)
-    {
-        request->setName(request->getFile());
-    }
-    request->setParamType(type);
-    request->setLink(driveRootIfExternal);
-
-    if (excludePath)
-    {
-        request->setText(excludePath);
-    }
-
-    request->performRequest = [this, request]()
-        {
-            SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
-
-            const string& localPath = request->getFile() ? request->getFile() : string();
-            if (localPath.empty())
-            {
-                LOG_debug << "Error: empty local path";
-                return API_EARGS;
-            }
-
-            std::shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
-            if (type != SyncConfig::TYPE_BACKUP &&
-                (!node || (node->type == FILENODE)))
-            {
-                LOG_debug << "Node not found for sync add";
-                return API_EARGS;
-            }
-
-            LocalPath localPathLP(LocalPath::fromAbsolutePath(localPath));
-            const char* name = request->getName();
-            const string& syncName = name ? name : localPathLP.leafOrParentName();
-            const auto& drivePath = request->getLink() ? LocalPath::fromAbsolutePath(request->getLink()) : LocalPath();
-
-            SyncConfig syncConfig(localPathLP,
-                syncName, NodeHandle(), "",
-                fsfp_t(), drivePath, true, type);
-
-
-            if (type == SyncConfig::TYPE_BACKUP)
-            {
-                // for backups, we create the node to sync to, then call addsync()
-                client->preparebackup(syncConfig, [this, request](Error e, SyncConfig backupConfig, MegaClient::UndoFunction revertOnError){
-                    if (e)
-                    {
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                    }
-                    else
-                    {
-                        request->setNodeHandle(backupConfig.mRemoteNode.as8byte());
-                        addSyncByRequest(request, backupConfig, revertOnError);
-                    }
-                });
-            }
-            else
-            {
-                // for syncs, the node to sync to already exists
-                syncConfig.mRemoteNode = NodeHandle().set6byte(request->getNodeHandle());
-                syncConfig.mOriginalPathOfRemoteRootNode = node->displaypath();
-                addSyncByRequest(request, syncConfig, nullptr);
-            }
-
-            return API_OK;
-        };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS, listener);
@@ -25814,49 +25761,6 @@ void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp s
 }
 #endif
 
-#ifdef ENABLE_SYNC
-void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncConfig, MegaClient::UndoFunction revertOnError)
-{
-    client->addsync(std::move(syncConfig),
-        [this, request, revertOnError](error e, SyncError se, handle backupId)
-        {
-            request->setNumDetails(se);
-
-            SyncConfig createdConfig;
-            bool found = client->syncs.syncConfigByBackupId(backupId, createdConfig);
-
-            if (!found)
-            {
-                if (!e)
-                {
-                    LOG_debug << "Correcting error to API_ENOENT for sync add";
-                    e = API_ENOENT;
-                }
-
-                if (revertOnError)
-                {
-                    // deletes backup root node, if we created one but then couldn't finish configuring
-                    revertOnError([this, request, e, se](){
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
-                    });
-                }
-                else
-                {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
-                }
-            }
-            else
-            {
-                request->setParentHandle(backupId);
-
-                auto sync = std::make_unique<MegaSyncPrivate>(createdConfig, client);
-
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
-            }
-        }, "", basePath);
-}
-#endif
-
 unsigned long long MegaApiImpl::getNumNodes()
 {
     return client->totalNodes.load();
@@ -26199,16 +26103,16 @@ void MegaApiImpl::addMount(const MegaMount* mount, MegaRequestListener* listener
     waiter->notify();
 }
 
-void MegaApiImpl::disableMount(const char* path,
+void MegaApiImpl::disableMount(const char* name,
                                MegaRequestListener* listener,
                                bool remember)
 {
     assert(listener);
-    assert(path);
+    assert(name);
 
     auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_DISABLE_MOUNT);
 
-    request->setFile(path);
+    request->setFile(name);
     request->setListener(listener);
 
     auto execute = [remember, this](MegaRequestPrivate& request) {
@@ -26220,12 +26124,12 @@ void MegaApiImpl::disableMount(const char* path,
             fireOnRequestFinish(&request, std::move(error));
         };
 
-        auto path = LocalPath::fromAbsolutePath(request.getFile());
+        std::string name = request.getFile();
 
         client->mFuseService.disable(std::bind(std::move(callback),
                                                std::ref(request),
                                                std::placeholders::_1),
-                                     path,
+                                     name,
                                      remember);
 
         return API_OK;
@@ -26239,21 +26143,21 @@ void MegaApiImpl::disableMount(const char* path,
     waiter->notify();
 }
 
-void MegaApiImpl::enableMount(const char* path,
+void MegaApiImpl::enableMount(const char* name,
                               MegaRequestListener* listener,
                               bool remember)
 {
     assert(listener);
-    assert(path);
+    assert(name);
 
     auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_ENABLE_MOUNT);
 
-    request->setFile(path);
+    request->setFile(name);
     request->setListener(listener);
 
     auto execute = [remember, this](MegaRequestPrivate& request) {
-        auto path = LocalPath::fromAbsolutePath(request.getFile());
-        auto result = client->mFuseService.enable(path, remember);
+        auto name = std::string(request.getFile());
+        auto result = client->mFuseService.enable(name, remember);
         auto error = std::make_unique<MegaErrorPrivate>(result);
 
         fireOnRequestFinish(&request, std::move(error));
@@ -26277,22 +26181,20 @@ void MegaApiImpl::fireOnFuseEvent(FuseEventHandler handler,
         return;
 
     // Latch path and result.
-    auto path = event.mPath.toPath(false);
     auto result = static_cast<int>(event.mResult);
 
     // Signal listeners.
     for (auto* listener : listeners)
-        (listener->*handler)(api, path.c_str(), result);
+        (listener->*handler)(api, event.mName.c_str(), result);
 }
 
-MegaMountFlags* MegaApiImpl::getMountFlags(const char* path)
+MegaMountFlags* MegaApiImpl::getMountFlags(const char* name)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    assert(path);
+    assert(name);
 
-    auto path_ = LocalPath::fromAbsolutePath(path);
-    auto flags = client->mFuseService.flags(path_);
+    auto flags = client->mFuseService.flags(name);
 
     if (flags)
         return new MegaMountFlagsPrivate(*flags);
@@ -26300,14 +26202,13 @@ MegaMountFlags* MegaApiImpl::getMountFlags(const char* path)
     return nullptr;
 }
 
-MegaMount* MegaApiImpl::getMountInfo(const char* path)
+MegaMount* MegaApiImpl::getMountInfo(const char* name)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    assert(path);
+    assert(name);
 
-    auto path_ = LocalPath::fromAbsolutePath(path);
-    auto info = client->mFuseService.get(path_);
+    auto info = client->mFuseService.get(std::string(name));
 
     if (info)
         return new MegaMountPrivate(*info);
@@ -26315,16 +26216,14 @@ MegaMount* MegaApiImpl::getMountInfo(const char* path)
     return nullptr;
 }
 
-MegaStringList* MegaApiImpl::getMountPaths(const char* name)
+char* MegaApiImpl::getMountPath(const char* name)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    std::vector<std::string> paths;
+    if (auto path = client->mFuseService.path(name); !path.empty())
+        return MegaApi::strdup(path.toPath(false).c_str());
 
-    for (const auto& path : client->mFuseService.paths(name))
-        paths.emplace_back(path.toPath(false));
-
-    return new MegaStringListPrivate(std::move(paths));
+    return nullptr;
 }
 
 MegaMountList* MegaApiImpl::listMounts(bool enabled)
@@ -26369,28 +26268,28 @@ bool MegaApiImpl::isFUSESupported()
     return client->mFuseService.supported();
 }
 
-bool MegaApiImpl::isMountEnabled(const char* path)
+bool MegaApiImpl::isMountEnabled(const char* name)
 {
-    assert(path);
+    assert(name);
 
     SdkMutexGuard gaurd(sdkMutex);
 
-    return client->mFuseService.enabled(LocalPath::fromAbsolutePath(path));
+    return client->mFuseService.enabled(name);
 }
 
-void MegaApiImpl::removeMount(const char* path, MegaRequestListener* listener)
+void MegaApiImpl::removeMount(const char* name, MegaRequestListener* listener)
 {
     assert(listener);
-    assert(path);
+    assert(name);
 
     auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_REMOVE_MOUNT);
 
-    request->setFile(path);
+    request->setFile(name);
     request->setListener(listener);
 
     auto execute = [this](MegaRequestPrivate& request) {
-        auto path = LocalPath::fromAbsolutePath(request.getFile());
-        auto result = client->mFuseService.remove(path);
+        auto name = std::string(request.getFile());
+        auto result = client->mFuseService.remove(name);
         auto error = std::make_unique<MegaErrorPrivate>(result);
 
         fireOnRequestFinish(&request, std::move(error));
@@ -26423,22 +26322,22 @@ MegaFuseFlags* MegaApiImpl::getFUSEFlags()
 }
 
 void MegaApiImpl::setMountFlags(const MegaMountFlags* flags,
-                                const char* path,
+                                const char* name,
                                 MegaRequestListener* listener)
 {
     assert(flags);
     assert(listener);
-    assert(path);
+    assert(name);
 
     auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_SET_MOUNT_FLAGS);
 
-    request->setFile(path);
+    request->setFile(name);
     request->setListener(listener);
 
     auto execute = [this](const fuse::MountFlags& flags,
                           MegaRequestPrivate& request) {
-        auto path = LocalPath::fromAbsolutePath(request.getFile());
-        auto result = client->mFuseService.flags(path, flags);
+        auto name = std::string(request.getFile());
+        auto result = client->mFuseService.flags(name, flags);
         auto error = std::make_unique<MegaErrorPrivate>(result);
 
         fireOnRequestFinish(&request, std::move(error));
@@ -27141,7 +27040,7 @@ static std::string totpToJson(const MegaNode::PasswordNodeData::TotpData& totp)
 {
     if (totp.markedToRemove())
     {
-        return std::string{MegaClient::REMOVAL_PWM_ATTR};
+        return "";
     }
 
     AttrMap attrMap{};
@@ -31818,11 +31717,11 @@ void StreamingBuffer::init(size_t newCapacity)
                   << " [file size = " << fileSize << " bytes"
                   << ", total duration = "
                   << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                  << (duration ?
-                          std::string(", estimated duration in buffer: ")
-                              .append(
-                                  std::to_string(partialDuration(newCapacity)).append(" secs")) :
-                          "")
+                  << (duration ? std::string(", estimated duration in buffer: ")
+                                     .append(std::to_string(
+                                                 partialDuration(static_cast<m_off_t>(newCapacity)))
+                                                 .append(" secs")) :
+                                 "")
                   << "]";
     }
 
@@ -32073,13 +31972,17 @@ std::string StreamingBuffer::bufferStatus() const
     bufferState.reserve(256);
     bufferState.append("[|Buffer status| buffered = ")
                .append(std::to_string(size));
-    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(size)).append( " secs)"));
-    bufferState.append(", free = ")
-               .append(std::to_string(free));
-    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(free)).append( " secs)"));
-    bufferState.append(", capacity = ")
-               .append(std::to_string(capacity));
-    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(capacity)).append( " secs)"));
+    if (duration)
+        bufferState.append(" (").append(
+            std::to_string(partialDuration(static_cast<m_off_t>(size))).append(" secs)"));
+    bufferState.append(", free = ").append(std::to_string(free));
+    if (duration)
+        bufferState.append(" (").append(
+            std::to_string(partialDuration(static_cast<m_off_t>(free))).append(" secs)"));
+    bufferState.append(", capacity = ").append(std::to_string(capacity));
+    if (duration)
+        bufferState.append(" (").append(
+            std::to_string(partialDuration(static_cast<m_off_t>(capacity))).append(" secs)"));
     bufferState.append("]");
     return bufferState;
 }
@@ -32087,12 +31990,17 @@ std::string StreamingBuffer::bufferStatus() const
 // http_parser settings
 http_parser_settings MegaTCPServer::parsercfg;
 
-MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, string certificatepath, string keypath, bool ipv6)
-    : useIPv6(ipv6)
+MegaTCPServer::MegaTCPServer(MegaApiImpl* megaApi,
+                             string basePath,
+                             [[maybe_unused]] bool tls,
+                             [[maybe_unused]] string certificatepath,
+                             [[maybe_unused]] string keypath,
+                             bool ipv6):
+    useIPv6(ipv6),
 #ifdef ENABLE_EVT_TLS
-    , useTLS(tls)
+    useTLS(tls)
 #else
-    , useTLS(false)
+    useTLS(false)
 #endif
 {
     this->megaApi = megaApi;
@@ -32162,6 +32070,8 @@ bool MegaTCPServer::start(int newPort, bool newLocalOnly)
 
     thread->start(threadEntryPoint, this);
     uv_sem_wait(&semaphoreStartup);
+    if (!started)
+        port = 0;
 
     LOG_verbose << "MegaTCPServer::start. port = " << newPort << ", returning " << started;
     return started;
@@ -32216,7 +32126,6 @@ void MegaTCPServer::run()
         if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
         {
             LOG_err << "Unable to init evt ctx";
-            port = 0;
             uv_sem_post(&semaphoreStartup);
             uv_sem_post(&semaphoreEnd);
             return;
@@ -32281,7 +32190,6 @@ void MegaTCPServer::run()
         || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
     {
         LOG_err << "TCP failed to bind/listen port = " << port;
-        port = 0;
 
         uv_close((uv_handle_t *)&exit_handle,NULL);
         uv_close((uv_handle_t *)&server,NULL);
@@ -32303,6 +32211,7 @@ void MegaTCPServer::run()
     LOG_info << "Starting uv loop ...";
     uv_run(&uv_loop, UV_RUN_DEFAULT);
 
+    // Can get here only after stop() has been called
     LOG_info << "UV loop ended";
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
@@ -32316,8 +32225,6 @@ void MegaTCPServer::run()
     {
         LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
     }
-    started = false;
-    port = 0;
     LOG_debug << "UV loop thread exit";
 }
 
@@ -32425,6 +32332,7 @@ void MegaTCPServer::stop(bool doNotWait)
     }
     LOG_debug << "Stopped MegaTCPServer port = " << port;
     started = false;
+    port = 0;
 }
 
 int MegaTCPServer::getPort()
@@ -33073,7 +32981,10 @@ void MegaHTTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, 
         }
         else
         {
-            parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
+            parsed = static_cast<ssize_t>(http_parser_execute(&httpctx->parser,
+                                                              &parsercfg,
+                                                              buf->base,
+                                                              static_cast<size_t>(nread)));
         }
     }
 
@@ -33132,8 +33043,10 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
         if (httpctx->streamingBuffer.availableSpace() >= DirectReadSlot::MAX_DELIVERY_CHUNK)
         {
             httpctx->pause = false;
-            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
-            m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
+            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten +
+                            static_cast<m_off_t>(httpctx->streamingBuffer.availableData());
+            m_off_t len = httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten -
+                          static_cast<m_off_t>(httpctx->streamingBuffer.availableData());
 
             LOG_debug << httpctx->getLogName() << "[Streaming] Resuming streaming from " << start
                       << " len: " << len << " " << httpctx->streamingBuffer.bufferStatus();
@@ -33291,7 +33204,7 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
                {
                    httpctx->nodesize = size;
                    LOG_debug << httpctx->getLogName() << "Link size: " << size;
-                   index += (endptr - startsize) + 1;
+                   index += static_cast<size_t>(endptr - startsize) + 1u;
                    if (url[index] == '!')
                    {
                        const char *typeauth = url + index + 1;
@@ -33299,7 +33212,7 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
 
                        const char *ptr = url + index + 1;
                        string auth;
-                       auth.assign(ptr, endsize - ptr);
+                       auth.assign(ptr, static_cast<size_t>(endsize - ptr));
                        if (*typeauth == 'p')
                        {
                            assert(auth.size() == 8);
@@ -33412,7 +33325,7 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
                 return 0;
             }
 
-            httpctx->rangeStart = number;
+            httpctx->rangeStart = static_cast<m_off_t>(number);
             if (length > (index + 1))
             {
                 number = strtoull(value.c_str() + index + 1, &endptr, 10);
@@ -33420,7 +33333,7 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
                 {
                     return 0;
                 }
-                httpctx->rangeEnd = number;
+                httpctx->rangeEnd = static_cast<m_off_t>(number);
             }
             LOG_debug << httpctx->getLogName() << "Range value parsed: " << httpctx->rangeStart
                       << " - " << httpctx->rangeEnd;
@@ -33459,7 +33372,9 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             }
         }
 
-        if (!httpctx->tmpFileAccess->fwrite((const byte*)b, static_cast<unsigned>(n), httpctx->messageBodySize))
+        if (!httpctx->tmpFileAccess->fwrite(reinterpret_cast<const byte*>(b),
+                                            static_cast<unsigned>(n),
+                                            static_cast<m_off_t>(httpctx->messageBodySize)))
         {
             returnHttpCode(httpctx, 500);
             return 0;
@@ -33697,7 +33612,7 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
             unsigned const long long TB = 1024 * GB;
 
             web << "</td><td><span class=\"text\">";
-            unsigned long long bytes = child->getSize();
+            unsigned long long bytes = static_cast<unsigned long long>(child->getSize());
             if (bytes > TB)
                 web << double(((unsigned long long)((100 * bytes) / TB)))/100.0 << " TB";
             else if (bytes > GB)
@@ -33915,8 +33830,10 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     LOG_debug << httpctx->getLogName() << "Message complete";
     httpctx->bytesWritten = 0;
     httpctx->size = 0;
-    httpctx->streamingBuffer.setMaxBufferSize(httpctx->server->getMaxBufferSize());
-    httpctx->streamingBuffer.setMaxOutputSize(httpctx->server->getMaxOutputSize());
+    httpctx->streamingBuffer.setMaxBufferSize(
+        static_cast<unsigned>(httpctx->server->getMaxBufferSize()));
+    httpctx->streamingBuffer.setMaxOutputSize(
+        static_cast<unsigned>(httpctx->server->getMaxOutputSize()));
 
     MegaHTTPServer* httpserver = dynamic_cast<MegaHTTPServer *>(httpctx->server);
 
@@ -34816,8 +34733,10 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     if (httpctx->parser.method != HTTP_HEAD)
     {
         httpctx->streamingBuffer.init(std::max(static_cast<size_t>(len), resstr.size()));
-        httpctx->server->setMaxBufferSize(httpctx->streamingBuffer.getMaxBufferSize());
-        httpctx->server->setMaxOutputSize(httpctx->streamingBuffer.getMaxOutputSize());
+        httpctx->server->setMaxBufferSize(
+            static_cast<int>(httpctx->streamingBuffer.getMaxBufferSize()));
+        httpctx->server->setMaxOutputSize(
+            static_cast<int>(httpctx->streamingBuffer.getMaxOutputSize()));
         httpctx->size = len;
     }
 
@@ -35085,11 +35004,12 @@ bool MegaHTTPContext::onTransferData(MegaApi*,
 
     // append the data to the buffer
     uv_mutex_lock(&mutex);
-    long long remaining =
-        dataSize + (httpTransfer->getTotalBytes() - httpTransfer->getTransferredBytes());
-    long long availableSpace = streamingBuffer.availableSpace();
+    long long remaining = static_cast<long long>(dataSize) +
+                          (httpTransfer->getTotalBytes() - httpTransfer->getTransferredBytes());
+    long long availableSpace = static_cast<long long>(streamingBuffer.availableSpace());
     if ((remaining > availableSpace) &&
-        ((availableSpace - dataSize) < static_cast<long long>(DirectReadSlot::MAX_DELIVERY_CHUNK)))
+        ((availableSpace - static_cast<long long>(dataSize)) <
+         static_cast<long long>(DirectReadSlot::MAX_DELIVERY_CHUNK)))
     {
         LOG_debug << logname << "[Streaming] Buffer full: Pausing streaming. "
                   << streamingBuffer.bufferStatus();
@@ -35732,7 +35652,7 @@ std::string MegaFTPServer::cdup(handle parentHandle, MegaFTPContext* ftpctx)
             ftpctx->cwdpath = shortenpath(ftpctx->cwdpath);
             ftpctx->athandle = false;
             ftpctx->atroot = false;
-            size_t seps = std::count(ftpctx->cwdpath.begin(), ftpctx->cwdpath.end(), '/');
+            ptrdiff_t seps = std::count(ftpctx->cwdpath.begin(), ftpctx->cwdpath.end(), '/');
             if (seps < 2)
             {
                 ftpctx->cwdpath = string("/") + megaApi->handleToBase64(newcwd->getHandle()) + "/" + newcwd->getName();
@@ -35844,7 +35764,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         const char *separators = " ";
         const char *crlf = "\r\n";
 
-        petition = string(buf->base, nread);
+        petition = string(buf->base, static_cast<size_t>(nread));
 
         LOG_verbose << "FTP Server received: " << petition << " at port = " << port;
 
@@ -35861,7 +35781,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         else
         {
-            parsed = petition.size();
+            parsed = static_cast<ssize_t>(petition.size());
             petition = petition.substr(0,psepend);
             command = petition.substr(0,psep);
             for (char& c : command) { c = static_cast<char>(toupper(c)); };
@@ -36682,7 +36602,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 unsigned long long number = strtoull(ftpctx->arg1.c_str(), NULL, 10);
                 if (number != ULLONG_MAX)
                 {
-                    ftpctx->ftpDataServer->rangeStartREST = number;
+                    ftpctx->ftpDataServer->rangeStartREST = static_cast<m_off_t>(number);
                     response = "350 Restarting at: ";
                     response.append(ftpctx->arg1);
                 }
@@ -36946,7 +36866,7 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
             else // This could be unexpected if CWD is removed elsewhere by the time this RequestFinish completes //TODO: decide upon revision: is this OK?
             {
                 MegaNode *n = megaApi->getNodeByHandle(cwd);
-                size_t seps = std::count(cwdpath.begin(), cwdpath.end(), '/');
+                size_t seps = static_cast<size_t>(std::count(cwdpath.begin(), cwdpath.end(), '/'));
                 unsigned int isep = 0;
                 string sup = cwdpath;
                 while (!n && (isep++ < seps))
@@ -37151,8 +37071,11 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
             if (ftpdatactx->streamingBuffer.availableSpace() > ftpdatactx->streamingBuffer.availableCapacity() / 2)
             {
                 ftpdatactx->pause = false;
-                m_off_t start = ftpdatactx->rangeStart + ftpdatactx->rangeWritten + ftpdatactx->streamingBuffer.availableData();
-                m_off_t len =  ftpdatactx->rangeEnd - ftpdatactx->rangeStart -  ftpdatactx->rangeWritten - ftpdatactx->streamingBuffer.availableData();
+                m_off_t start = ftpdatactx->rangeStart + ftpdatactx->rangeWritten +
+                                static_cast<m_off_t>(ftpdatactx->streamingBuffer.availableData());
+                m_off_t len = ftpdatactx->rangeEnd - ftpdatactx->rangeStart -
+                              ftpdatactx->rangeWritten -
+                              static_cast<m_off_t>(ftpdatactx->streamingBuffer.availableData());
 
                 LOG_debug << "[Streaming] Resuming streaming from " << start << " len: " << len
                           << " " << ftpdatactx->streamingBuffer.bufferStatus();
@@ -37257,13 +37180,15 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         if (nread > 0)
         {
             LOG_verbose << " Writing " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
-            if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, static_cast<unsigned>(nread), ftpdatactx->tmpFileSize) )
+            if (!ftpdatactx->tmpFileAccess->fwrite(reinterpret_cast<const byte*>(buf->base),
+                                                   static_cast<unsigned>(nread),
+                                                   static_cast<m_off_t>(ftpdatactx->tmpFileSize)))
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
                 closeConnection(tcpctx);
             }
-            ftpdatactx->tmpFileSize += nread;
+            ftpdatactx->tmpFileSize += static_cast<size_t>(nread);
         }
     }
     else
@@ -37358,8 +37283,10 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             rangeStartREST = 0;// so as not to start again
             ftpdatactx->bytesWritten = 0;
             ftpdatactx->size = 0;
-            ftpdatactx->streamingBuffer.setMaxBufferSize(ftpdatactx->server->getMaxBufferSize());
-            ftpdatactx->streamingBuffer.setMaxOutputSize(ftpdatactx->server->getMaxOutputSize());
+            ftpdatactx->streamingBuffer.setMaxBufferSize(
+                static_cast<unsigned>(ftpdatactx->server->getMaxBufferSize()));
+            ftpdatactx->streamingBuffer.setMaxOutputSize(
+                static_cast<unsigned>(ftpdatactx->server->getMaxOutputSize()));
 
             ftpdatactx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
 
@@ -37589,8 +37516,8 @@ bool MegaFTPDataContext::onTransferData(MegaApi*,
 {
     LOG_verbose << "Streaming data received: " << ftpDataTransfer->getTransferredBytes()
                 << " Size: " << dataSize << " Remaining from transfer: "
-                << (dataSize +
-                    (ftpDataTransfer->getTotalBytes() - ftpDataTransfer->getTransferredBytes()))
+                << (dataSize + static_cast<size_t>(ftpDataTransfer->getTotalBytes() -
+                                                   ftpDataTransfer->getTransferredBytes()))
                 << " Remaining to write TCP: " << (size - bytesWritten)
                 << " Queued: " << this->tcphandle.write_queue_size
                 << " Buffered: " << streamingBuffer.availableData()
@@ -37606,8 +37533,9 @@ bool MegaFTPDataContext::onTransferData(MegaApi*,
     // append the data to the buffer
     uv_mutex_lock(&mutex);
     long long remaining =
-        dataSize + (ftpDataTransfer->getTotalBytes() - ftpDataTransfer->getTransferredBytes());
-    long long availableSpace = streamingBuffer.availableSpace();
+        static_cast<long long>(dataSize) +
+        (ftpDataTransfer->getTotalBytes() - ftpDataTransfer->getTransferredBytes());
+    long long availableSpace = static_cast<long long>(streamingBuffer.availableSpace());
     if (remaining > availableSpace && availableSpace < (2 * m_off_t(dataSize)))
     {
         LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
@@ -40005,7 +39933,10 @@ MegaHandle MegaMountPrivate::getHandle() const
 
 const char* MegaMountPrivate::getPath() const
 {
-    return mPath.c_str();
+    if (!mPath.empty())
+        return mPath.c_str();
+
+    return nullptr;
 }
 
 void MegaMountPrivate::setFlags(const MegaMountFlags* flags)
