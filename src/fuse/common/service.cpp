@@ -186,10 +186,10 @@ MountInfoPtr Service::get(const std::string& name) const
     return nullptr;
 }
 
-MountInfoVector Service::get(bool enabled) const
+MountInfoVector Service::get(bool onlyEnabled) const
 {
     if (mContext)
-        return mContext->get(enabled);
+        return mContext->get(onlyEnabled);
 
     return MountInfoVector();
 }

@@ -830,10 +830,10 @@ Mount::Mount(const MountInfo& info,
              MountDB& mountDB)
   : fuse::Mount(info, mountDB)
   , mActivities()
-  , mDispatcher(*this)
+  , mDispatcher(*this, info.mPath)
   , mExecutor(mountDB.executorFlags())
 {
-    mDispatcher.start();
+    mDispatcher.start(info.mPath);
 
     FUSEDebugF("Mount constructed: %s",
                path().toPath(false).c_str());
@@ -869,6 +869,11 @@ InodeID Mount::map(MountInodeID id) const
 MountInodeID Mount::map(InodeID id) const
 {
     return MountInodeID(id);
+}
+
+NormalizedPath Mount::path() const
+{
+    return mDispatcher.path();
 }
 
 MountResult Mount::remove()

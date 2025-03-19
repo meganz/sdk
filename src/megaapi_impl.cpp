@@ -39933,7 +39933,10 @@ MegaHandle MegaMountPrivate::getHandle() const
 
 const char* MegaMountPrivate::getPath() const
 {
-    return mPath.c_str();
+    if (!mPath.empty())
+        return mPath.c_str();
+
+    return nullptr;
 }
 
 void MegaMountPrivate::setFlags(const MegaMountFlags* flags)

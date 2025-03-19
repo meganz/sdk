@@ -72,8 +72,17 @@ bool TestBase::DoSetUp(const Parameters& parameters)
         if (!emitted)
             return false;
 
+        // Get the mount's path.
+        auto path = client.mountPath(mount.name());
+
+        // Sanity.
+        EXPECT_FALSE(path.empty());
+
+        if (path.empty())
+            return false;
+
         // Wait for sentinel to be visible.
-        auto sentinel = Path(mount.mPath).path() / "sentinel";
+        auto sentinel = Path(path).path() / "sentinel";
         auto visible = false;
 
         EXPECT_TRUE((visible = waitFor([&]() {

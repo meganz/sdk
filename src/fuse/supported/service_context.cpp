@@ -186,9 +186,9 @@ MountInfoPtr ServiceContext::get(const std::string& name) const
     return mMountDB.get(name);
 }
 
-MountInfoVector ServiceContext::get(bool enabled) const
+MountInfoVector ServiceContext::get(bool onlyEnabled) const
 {
-    return mMountDB.get(enabled);
+    return mMountDB.get(onlyEnabled);
 }
 
 NormalizedPath ServiceContext::path(const std::string& name) const

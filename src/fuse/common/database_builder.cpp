@@ -182,19 +182,8 @@ void downgrade32(Query& query)
 
 void downgrade43(Query& query)
 {
-    struct MountInfoLess
-    {
-        bool operator()(const MountInfo& lhs, const MountInfo& rhs) const
-        {
-            return lhs.mPath < rhs.mPath;
-        }
-    }; // MountInfoLess
-    
-    // Convenience.
-    using MountInfoSet = std::set<MountInfo, MountInfoLess>;
-
     // Tracks which mounts we're migrating.
-    MountInfoSet mounts;
+    MountInfoSet<MountInfoPathLess> mounts;
 
     // Mounts become keyed on path rather than name.
     //

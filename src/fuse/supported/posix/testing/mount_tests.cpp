@@ -2,7 +2,6 @@
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/directory.h>
 #include <mega/fuse/common/testing/mount_event_observer.h>
@@ -15,12 +14,13 @@ namespace fuse
 namespace testing
 {
 
-TEST_F(FUSEMountTests, add_fails_when_target_is_empty)
+TEST_F(FUSEMountTests, add_fails_when_target_is_unknown)
 {
     MountInfo info;
 
     info.mHandle = ClientW()->handle("/x/s");
     info.name("s");
+    info.mPath = Path(MountPathW().path() / "bogus");
 
     auto observer = ClientW()->mountEventObserver();
 
@@ -37,13 +37,13 @@ TEST_F(FUSEMountTests, add_fails_when_target_is_empty)
     ASSERT_TRUE(ClientW()->mounts(false).empty());
 }
 
-TEST_F(FUSEMountTests, add_fails_when_target_is_unknown)
+TEST_F(FUSEMountTests, add_fails_when_target_is_unspecified)
 {
     MountInfo info;
 
     info.mHandle = ClientW()->handle("/x/s");
     info.name("s");
-    info.mPath = Path(MountPathW().path() / "bogus");
+    info.mPath = NormalizedPath();
 
     auto observer = ClientW()->mountEventObserver();
 

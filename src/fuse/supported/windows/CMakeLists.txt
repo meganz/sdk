@@ -65,6 +65,7 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_WINDOWS_TESTING_INC}/printers.h
                                 ${FUSE_WINDOWS_TESTING_INC}/wrappers.h
                                 ${FUSE_WINDOWS_TESTING_SRC}/directory_monitor.cpp
+                                ${FUSE_WINDOWS_TESTING_SRC}/mount_tests.cpp
                                 ${FUSE_WINDOWS_TESTING_SRC}/platform_tests.cpp
                                 ${FUSE_WINDOWS_TESTING_SRC}/printers.cpp
                                 ${FUSE_WINDOWS_TESTING_SRC}/utility.cpp

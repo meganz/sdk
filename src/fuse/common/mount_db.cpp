@@ -493,7 +493,7 @@ MountInfoPtr MountDB::contains(const LocalPath& path,
         *relativePath = path.subpathFrom(index);
 
     // Return description to caller.
-    return std::make_unique<MountInfo>(std::move(*mount));
+    return std::make_unique<MountInfo>(*mount);
 }
 
 void MountDB::disable(MountDisabledCallback callback,
@@ -767,7 +767,7 @@ try
     // Add the mount to the index.
     mByHandle[info.mHandle].emplace(mount);
     mByName[name] = mount;
-    mByPath[info.mPath] = mount;
+    mByPath[mount->path()] = mount;
 
     // Release lock.
     lock.unlock();
@@ -823,20 +823,23 @@ try
         return MOUNT_NO_NAME;
     }
 
-    // Make sure the mount's new name is unique.
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetMountByName);
 
-    query.param(":name") = flags.mName;
-    query.execute();
-
-    // Mount's new name isn't unique.
-    if (query)
+    // Make sure the mount's new name, if any, is unique.
+    if (currentName != flags.mName)
     {
-        FUSEErrorF("Name \"%s\" already taken by another mount.",
-                   flags.mName.c_str());
+        query.param(":name") = flags.mName;
+        query.execute();
 
-        return MOUNT_NAME_TAKEN;
+        // Mount's new name isn't unique.
+        if (query)
+        {
+            FUSEErrorF("Name \"%s\" already taken by another mount.",
+                       flags.mName.c_str());
+
+            return MOUNT_NAME_TAKEN;
+        }
     }
 
     // Update the mount's flags.
@@ -949,23 +952,29 @@ catch (std::runtime_error& exception)
     return nullptr;
 }
 
-MountInfoVector MountDB::get(bool enabled) const
+MountInfoVector MountDB::get(bool onlyEnabled) const
 try
 {
     auto guard = lockAll(mContext.mDatabase, *this);
 
-    MountInfoVector mounts;
+    MountInfoSet<MountInfoNameLess> mounts;
+
+    // Copy descriptions of enabled mounts.
+    //
+    // Note that we do this even when onlyEnabled is false.
+    //
+    // The reason is that some mounts may only have a defined path when they
+    // are enabled and we want to provide that path to the caller when
+    // possible.
+    //
+    // We rely on the set above to prevent entries from the database from
+    // overwriting what we've retrieved from memory.
+    for (auto& i : mByPath)
+        mounts.emplace(i.second->info());
 
     // Caller's interested only in mounts that are enabled.
-    if (enabled)
-    {
-        // Copy descriptions of enabled mounts.
-        for (auto& i : mByPath)
-            mounts.emplace_back(i.second->info());
-
-        // And return them to the caller.
-        return mounts;
-    }
+    if (onlyEnabled)
+        return MountInfoVector(mounts.begin(), mounts.end());
 
     // Retrieve descriptions of all known mounts from the database.
     auto transaction = mContext.mDatabase.transaction();
@@ -975,10 +984,10 @@ try
 
     // Deserialize each description.
     for ( ; query; ++query)
-        mounts.emplace_back(MountInfo::deserialize(query));
+        mounts.emplace(MountInfo::deserialize(query));
 
     // And return them all to the caller.
-    return mounts;
+    return MountInfoVector(mounts.begin(), mounts.end());
 }
 catch (std::runtime_error& exception)
 {
@@ -994,13 +1003,16 @@ try
 {
     auto guard = lockAll(mContext.mDatabase, *this);
 
+    if (auto mount = this->mount(name))
+        return mount->path();
+
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetMountPathByName);
 
     query.param(":name") = name;
     query.execute();
 
-    if (query)
+    if (query && !query.field("path").null())
         return query.field("path").path();
 
     return NormalizedPath();

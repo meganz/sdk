@@ -4380,19 +4380,17 @@ static void exec_fusemountadd(autocomplete::ACState& state)
             info.name("MEGA");
     }
 
-    auto targetPath = state.words[4].s;
-
     info.mHandle = sourceNode->nodeHandle();
-    info.mPath = localPathArg(targetPath);
+
+    if (state.words.size() > 4)
+        info.mPath = localPathArg(state.words[4].s);
 
     auto result = client->mFuseService.add(info);
 
     if (result != MOUNT_SUCCESS)
     {
-        std::cerr << "Failed to add mount against \""
-                  << sourcePath
-                  << "\" at \""
-                  << targetPath
+        std::cerr << "Failed to add mount \""
+                  << info.name()
                   << "\": "
                   << toString(result)
                   << std::endl;
@@ -4400,10 +4398,8 @@ static void exec_fusemountadd(autocomplete::ACState& state)
         return;
     }
 
-    std::cout << "Successfully added mount against \""
-              << sourcePath
-              << "\" at \""
-              << targetPath
+    std::cout << "Successfully added mount \""
+              << info.name()
               << "\"."
               << std::endl;
 }
@@ -5343,7 +5339,7 @@ autocomplete::ACN autocompleteSyntax()
                                   flag("-persistent"),
                                   flag("-read-only"))),
                     remoteFSFolder(client, &cwd, "source"),
-                    localFSFolder("target")));
+                    opt(localFSFolder("target"))));
 
     p->Add(exec_fusemountdisable,
            sequence(text("fuse"),

@@ -455,9 +455,9 @@ NormalizedPath Client::mountPath(const std::string& name) const
     return service().path(name);
 }
 
-MountInfoVector Client::mounts(bool enabled) const
+MountInfoVector Client::mounts(bool onlyEnabled) const
 {
-    return service().get(enabled);
+    return service().get(onlyEnabled);
 }
 
 Error Client::move(const std::string& name,

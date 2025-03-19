@@ -10,6 +10,16 @@ namespace mega
 namespace fuse
 {
 
+bool MountInfoNameLess::operator()(const MountInfo& lhs, const MountInfo& rhs) const
+{
+    return lhs.name() < rhs.name();
+}
+
+bool MountInfoPathLess::operator()(const MountInfo& lhs, const MountInfo& rhs) const
+{
+    return lhs.mPath < rhs.mPath;
+}
+
 bool MountInfo::operator==(const MountInfo& rhs) const
 {
     return mPath == rhs.mPath
@@ -39,7 +49,10 @@ try
 
     info.mFlags = MountFlags::deserialize(query);
     info.mHandle = query.field("id");
-    info.mPath = query.field("path");
+    info.mPath = NormalizedPath();
+
+    if (!query.field("path").null())
+        info.mPath = query.field("path");
 
     return info;
 }
@@ -61,7 +74,10 @@ try
     mFlags.serialize(query);
 
     query.param(":id") = mHandle;
-    query.param(":path") = mPath;
+    query.param(":path") = nullptr;
+
+    if (!mPath.empty())
+        query.param(":path") = mPath;
 }
 catch (std::runtime_error& exception)
 {

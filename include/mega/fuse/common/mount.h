@@ -11,7 +11,6 @@
 #include <mega/fuse/common/mount_forward.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_inode_id_forward.h>
-#include <mega/fuse/common/normalized_path.h>
 #include <mega/fuse/common/task_executor_flags_forward.h>
 #include <mega/fuse/platform/context_forward.h>
 #include <mega/fuse/platform/mount_db_forward.h>
@@ -49,9 +48,6 @@ class Mount
 
     // What cloud node are we mapping to?
     const NodeHandle mHandle;
-
-    // What local path are we mapping from?
-    const NormalizedPath mPath;
 
     // Used to keep (pin) inodes in memory.
     FromInodeIDMap<PinnedInodeInfo> mPins;
@@ -137,7 +133,7 @@ public:
     std::string name() const;
 
     // What local path is this mount mapping from?
-    const NormalizedPath& path() const;
+    virtual NormalizedPath path() const = 0;
 
     // Is this mount writable?
     bool writable() const;

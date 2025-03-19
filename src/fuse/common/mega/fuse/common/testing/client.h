@@ -233,7 +233,7 @@ public:
     NormalizedPath mountPath(const std::string& name) const;
 
     // Retrieve a description of each (enabled) mount.
-    MountInfoVector mounts(bool enabled) const;
+    MountInfoVector mounts(bool onlyEnabled) const;
 
     // Move a node in the cloud.
     Error move(const std::string& name,

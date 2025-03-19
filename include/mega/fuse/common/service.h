@@ -84,7 +84,7 @@ public:
     MountInfoPtr get(const std::string& name) const;
 
     // Describe all (enabled) mounts.
-    MountInfoVector get(bool enabled) const;
+    MountInfoVector get(bool onlyEnabled) const;
 
     // Initialize the service.
     MountResult initialize();

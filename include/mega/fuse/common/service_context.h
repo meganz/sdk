@@ -79,7 +79,7 @@ public:
     virtual MountInfoPtr get(const std::string& name) const = 0;
 
     // Describe all (enabled) mounts.
-    virtual MountInfoVector get(bool enabled) const = 0;
+    virtual MountInfoVector get(bool onlyEnabled) const = 0;
 
     // Retrieve the path the mount associated with this name.
     virtual NormalizedPath path(const std::string& name) const = 0;

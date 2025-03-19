@@ -37,7 +37,7 @@ MountResult MountDB::check(const Client& client,
     auto maxNameLength = MaxMountNameLength;
 
     // Path's suitable for mounting as a network device.
-    if (path.isRootPath())
+    if (path.empty() || path.isRootPath())
         maxNameLength = MaxVolumePrefixLength - UNCPrefix.size();
 
     // Make sure the mount's name is within limits.
@@ -51,7 +51,7 @@ MountResult MountDB::check(const Client& client,
         return MOUNT_NAME_TOO_LONG;
     }
 
-    // An empty path signals we should assign a drive letter.
+    // An unspecified path signals we should assign a drive letter.
     if (path.empty())
         return MOUNT_SUCCESS;
 
