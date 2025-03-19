@@ -37,6 +37,7 @@ def setCommitStatus(String pStatus, String errorHint = '') {
     updateGitlabCommitStatus(name: "${PIPELINE_NAME}", state: pState)
 }
 
+
 pipeline {
     agent none
     options {
