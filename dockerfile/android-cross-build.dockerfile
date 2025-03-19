@@ -77,8 +77,6 @@ CMD ["sh", "-c", "\
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DCMAKE_SYSTEM_NAME=Android \
         -DCMAKE_ANDROID_ARCH_ABI=${ANDROID_ARCH} \
-        -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} \
-        -DUSE_POLL=ON \
-        -DUSE_INOTIFY=ON && \
+        -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} && \
     cmake --build buildAndroid' && \
     exec /bin/bash"]
