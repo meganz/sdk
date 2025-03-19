@@ -16011,6 +16011,10 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     LOG_info << "___TEST Resumable Trasfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    // Make sure our clients are working with pro plans.
+    auto accountRestorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
     //  1. Create ~16 MB file
     //  2. Upload file, with speed limit
     //  3. Logout / Login
