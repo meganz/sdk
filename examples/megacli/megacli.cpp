@@ -6181,6 +6181,7 @@ void exec_du(autocomplete::ACState &s)
 
 void exec_get(autocomplete::ACState& s)
 {
+    static int dummyAppData = 0;
     std::shared_ptr<Node> n;
     string regularexpression;
     if (s.extractflag("-r"))
@@ -6336,7 +6337,7 @@ void exec_get(autocomplete::ACState& s)
                     pread_file_end = offset + count;
                 }
 
-                client->pread(n.get(), offset, count, NULL);
+                client->pread(n.get(), offset, count, &dummyAppData);
             }
             else
             {
@@ -6394,6 +6395,7 @@ static const m_off_t MORE_BYTES = 1024;
 
 void exec_more(autocomplete::ACState& s)
 {
+    static int dummyAppData = 0;
     if(s.words.size() > 1) // set up new node for pagination
     {
         more_offset = 0;
@@ -6404,7 +6406,7 @@ void exec_more(autocomplete::ACState& s)
         m_off_t count = (more_offset + MORE_BYTES <= more_node->size)
                 ? MORE_BYTES : (more_node->size - more_offset);
 
-        client->pread(more_node.get(), more_offset, count, NULL);
+        client->pread(more_node.get(), more_offset, count, &dummyAppData);
     }
 }
 
