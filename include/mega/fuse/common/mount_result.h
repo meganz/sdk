@@ -11,7 +11,6 @@ namespace fuse
     expander(MOUNT_ABORTED,             "The operation was aborted due to client shutdown") \
     expander(MOUNT_BACKEND_UNAVAILABLE, "FUSE is supported but the backend isn't installed") \
     expander(MOUNT_BUSY,                "The mount's busy and cannot be disabled") \
-    expander(MOUNT_EXISTS,              "A mount's already associated with the target path") \
     expander(MOUNT_FAILED,              "A mount has encountered an expected failure and has been disabled") \
     expander(MOUNT_LOCAL_EXISTS,        "Mount target already exists") \
     expander(MOUNT_LOCAL_FILE,          "Mount target doesn't denote a directory") \
