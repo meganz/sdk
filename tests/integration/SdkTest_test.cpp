@@ -7193,10 +7193,35 @@ namespace mega
  * periodically destrying the megaApi object, then recreating and Resuming (with session token)
  */
 #ifdef DEBUG
-TEST_F(SdkTest, DISABLED_SdkTestCloudraidTransfers)
+TEST_F(SdkTest, SdkTestCloudraidTransfers)
 {
     LOG_info << "___TEST Cloudraid transfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Try and retrieve the user's current account level.
+    auto accountLevel = getAccountLevel(*megaApi[0]);
+    // Couldn't retrieve account level.
+    if (auto result = ::result(accountLevel); result != API_OK)
+    {
+        // Leave a trail if we couldn't get the account level.
+        ASSERT_EQ(result, API_OK) << "Couldn't retrieve account level: " << result;
+    }
+
+    AccountLevel level = value(accountLevel);
+    // Try and elevate client to a pro pricing plan.
+    auto result = setAccountLevel(*megaApi[0], MegaAccountDetails::ACCOUNT_TYPE_PROI, 1, nullptr);
+    // Couldn't elevate client to a pro pricing plan.
+    ASSERT_EQ(result, API_OK) << "Unable to upgrade the account" << result;
+
+    // Restore the account back to normal once test completed.
+    std::shared_ptr<AccountLevel> restorer(
+        &level,
+        [this](AccountLevel* level)
+        {
+            // Try and restore the user's account level.
+            auto result = setAccountLevel(*megaApi[0], level->plan, level->months, nullptr);
+            EXPECT_EQ(result, API_OK) << "Couldn't restore account level: " << result;
+        });
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -7943,10 +7968,14 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 *
 */
 
-TEST_F(SdkTest, DISABLED_SdkTestCloudraidStreamingSoakTest)
+TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 {
     LOG_info << "___TEST SdkTestCloudraidStreamingSoakTest";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto accountRestorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -16006,6 +16035,10 @@ TEST_F(SdkTest, SdkResumableTrasfers)
 {
     LOG_info << "___TEST Resumable Trasfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto accountRestorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
 
     //  1. Create ~16 MB file
     //  2. Upload file, with speed limit

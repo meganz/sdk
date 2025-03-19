@@ -52,6 +52,8 @@ public:
 
     void reset();
 
+    Query& query();
+
     void swap(ScopedQuery& other);
 }; // ScopedQuery
 

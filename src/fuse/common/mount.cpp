@@ -74,7 +74,6 @@ Mount::Mount(const MountInfo& info, platform::MountDB& mountDB)
   , mDisabled()
   , mFlags(info.mFlags)
   , mHandle(info.mHandle)
-  , mPath(info.mPath)
   , mPins()
   , mPinsLock()
   , mMountDB(mountDB)
@@ -94,7 +93,7 @@ Mount::~Mount()
 
     // Broadcast a mount disabled event.
     mMountDB.client().emitEvent({
-        path(),
+        name(),
         MOUNT_SUCCESS,
         MOUNT_DISABLED
     });
@@ -246,7 +245,7 @@ MountInfo Mount::info() const
 
     info.mFlags = mFlags;
     info.mHandle = mHandle;
-    info.mPath = mPath;
+    info.mPath = path();
 
     return info;
 }
@@ -286,11 +285,6 @@ std::string Mount::name() const
     std::lock_guard<std::mutex> guard(mLock);
 
     return mFlags.mName;
-}
-
-const NormalizedPath& Mount::path() const
-{
-    return mPath;
 }
 
 bool Mount::writable() const

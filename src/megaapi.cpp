@@ -5870,11 +5870,11 @@ MegaMount* MegaApi::getMountInfo(const char* path)
     return pImpl->getMountInfo(path);
 }
 
-MegaStringList* MegaApi::getMountPaths(const char* name)
+char* MegaApi::getMountPath(const char* name)
 {
     assert(name);
 
-    return pImpl->getMountPaths(name);
+    return pImpl->getMountPath(name);
 }
 
 MegaMountList* MegaApi::listMounts(bool enabled)
@@ -6299,7 +6299,13 @@ int MegaGfxProcessor::getHeight()
     return 0;
 }
 
-int MegaGfxProcessor::getBitmapDataSize(int /*width*/, int /*height*/, int /*px*/, int /*py*/, int /*rw*/, int /*rh*/)
+int MegaGfxProcessor::getBitmapDataSize(int /*width*/,
+                                        int /*height*/,
+                                        int /*px*/,
+                                        int /*py*/,
+                                        int /*rw*/,
+                                        int /*rh*/,
+                                        int /*hint*/)
 {
     return 0;
 }
@@ -8127,6 +8133,13 @@ MegaMount::~MegaMount() = default;
 MegaMount* MegaMount::create()
 {
     return new MegaMountPrivate();
+}
+
+const char* MegaMount::getResultDescription(int result)
+{
+    assert(result >= ABORTED && result <= UNSUPPORTED);
+
+    return fuse::toDescription(static_cast<fuse::MountResult>(result));
 }
 
 const char* MegaMount::getResultString(int result)

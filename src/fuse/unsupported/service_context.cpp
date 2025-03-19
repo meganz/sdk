@@ -46,14 +46,14 @@ ErrorOr<InodeInfo> ServiceContext::describe(const NormalizedPath&) const
 }
 
 void ServiceContext::disable(MountDisabledCallback callback,
-                             const LocalPath& path,
-                             bool /*remember*/)
+                             const std::string& name,
+                             bool)
 {
     callback(MOUNT_UNKNOWN);
 
     MountEvent event;
 
-    event.mPath = path;
+    event.mName = name;
     event.mResult = MOUNT_UNKNOWN;
     event.mType = MOUNT_DISABLED;
 
@@ -70,12 +70,12 @@ MountResult ServiceContext::downgrade(const LocalPath&, std::size_t)
     return MOUNT_UNSUPPORTED;
 }
 
-MountResult ServiceContext::enable(const LocalPath&, bool)
+MountResult ServiceContext::enable(const std::string&, bool)
 {
     return MOUNT_UNKNOWN;
 }
 
-bool ServiceContext::enabled(const LocalPath&) const
+bool ServiceContext::enabled(const std::string&) const
 {
     return false;
 }
@@ -89,17 +89,17 @@ Task ServiceContext::execute(std::function<void(const Task&)> function)
     return task;
 }
 
-MountResult ServiceContext::flags(const LocalPath&, const MountFlags&)
+MountResult ServiceContext::flags(const std::string&, const MountFlags&)
 {
     return MOUNT_UNKNOWN;
 }
 
-MountFlagsPtr ServiceContext::flags(const LocalPath&) const
+MountFlagsPtr ServiceContext::flags(const std::string&) const
 {
     return nullptr;
 }
 
-MountInfoPtr ServiceContext::get(const LocalPath&) const
+MountInfoPtr ServiceContext::get(const std::string&) const
 {
     return nullptr;
 }
@@ -109,12 +109,12 @@ MountInfoVector ServiceContext::get(bool) const
     return MountInfoVector();
 }
 
-NormalizedPathVector ServiceContext::paths(const std::string&) const
+NormalizedPath ServiceContext::path(const std::string&) const
 {
-    return NormalizedPathVector();
+    return NormalizedPath();
 }
 
-MountResult ServiceContext::remove(const LocalPath&)
+MountResult ServiceContext::remove(const std::string&)
 {
     return MOUNT_UNKNOWN;
 }

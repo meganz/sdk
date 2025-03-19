@@ -7,11 +7,12 @@
 #include <mega/fuse/common/activity_monitor.h>
 #include <mega/fuse/common/inode_forward.h>
 #include <mega/fuse/common/inode_forward.h>
-#include <mega/fuse/common/mount_inode_id_forward.h>
 #include <mega/fuse/common/mount.h>
+#include <mega/fuse/common/mount_inode_id_forward.h>
+#include <mega/fuse/common/normalized_path.h>
 #include <mega/fuse/common/tags.h>
-#include <mega/fuse/common/task_executor_flags_forward.h>
 #include <mega/fuse/common/task_executor.h>
+#include <mega/fuse/common/task_executor_flags_forward.h>
 #include <mega/fuse/platform/inode_invalidator.h>
 #include <mega/fuse/platform/library.h>
 #include <mega/fuse/platform/mount_forward.h>
@@ -161,6 +162,9 @@ class Mount final
     // Responsible for performing requests.
     TaskExecutor mExecutor;
 
+    // Where is the mount mounted?
+    NormalizedPath mPath;
+
     // How this mount communicates with libfuse.
     Session mSession;
 
@@ -199,6 +203,9 @@ public:
 
     // Translate a system-wide inode ID to a mount-specific inode ID.
     MountInodeID map(InodeID id) const override;
+
+    // What local path is this mount mapping from?
+    NormalizedPath path() const override;
 }; // Mount
 
 } // platform

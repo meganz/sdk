@@ -26103,16 +26103,16 @@ void MegaApiImpl::addMount(const MegaMount* mount, MegaRequestListener* listener
     waiter->notify();
 }
 
-void MegaApiImpl::disableMount(const char* path,
+void MegaApiImpl::disableMount(const char* name,
                                MegaRequestListener* listener,
                                bool remember)
 {
     assert(listener);
-    assert(path);
+    assert(name);
 
     auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_DISABLE_MOUNT);
 
-    request->setFile(path);
+    request->setFile(name);
     request->setListener(listener);
 
     auto execute = [remember, this](MegaRequestPrivate& request) {
@@ -26124,12 +26124,12 @@ void MegaApiImpl::disableMount(const char* path,
             fireOnRequestFinish(&request, std::move(error));
         };
 
-        auto path = LocalPath::fromAbsolutePath(request.getFile());
+        std::string name = request.getFile();
 
         client->mFuseService.disable(std::bind(std::move(callback),
                                                std::ref(request),
                                                std::placeholders::_1),
-                                     path,
+                                     name,
                                      remember);
 
         return API_OK;
@@ -26143,21 +26143,21 @@ void MegaApiImpl::disableMount(const char* path,
     waiter->notify();
 }
 
-void MegaApiImpl::enableMount(const char* path,
+void MegaApiImpl::enableMount(const char* name,
                               MegaRequestListener* listener,
                               bool remember)
 {
     assert(listener);
-    assert(path);
+    assert(name);
 
     auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_ENABLE_MOUNT);
 
-    request->setFile(path);
+    request->setFile(name);
     request->setListener(listener);
 
     auto execute = [remember, this](MegaRequestPrivate& request) {
-        auto path = LocalPath::fromAbsolutePath(request.getFile());
-        auto result = client->mFuseService.enable(path, remember);
+        auto name = std::string(request.getFile());
+        auto result = client->mFuseService.enable(name, remember);
         auto error = std::make_unique<MegaErrorPrivate>(result);
 
         fireOnRequestFinish(&request, std::move(error));
@@ -26181,22 +26181,20 @@ void MegaApiImpl::fireOnFuseEvent(FuseEventHandler handler,
         return;
 
     // Latch path and result.
-    auto path = event.mPath.toPath(false);
     auto result = static_cast<int>(event.mResult);
 
     // Signal listeners.
     for (auto* listener : listeners)
-        (listener->*handler)(api, path.c_str(), result);
+        (listener->*handler)(api, event.mName.c_str(), result);
 }
 
-MegaMountFlags* MegaApiImpl::getMountFlags(const char* path)
+MegaMountFlags* MegaApiImpl::getMountFlags(const char* name)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    assert(path);
+    assert(name);
 
-    auto path_ = LocalPath::fromAbsolutePath(path);
-    auto flags = client->mFuseService.flags(path_);
+    auto flags = client->mFuseService.flags(name);
 
     if (flags)
         return new MegaMountFlagsPrivate(*flags);
@@ -26204,14 +26202,13 @@ MegaMountFlags* MegaApiImpl::getMountFlags(const char* path)
     return nullptr;
 }
 
-MegaMount* MegaApiImpl::getMountInfo(const char* path)
+MegaMount* MegaApiImpl::getMountInfo(const char* name)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    assert(path);
+    assert(name);
 
-    auto path_ = LocalPath::fromAbsolutePath(path);
-    auto info = client->mFuseService.get(path_);
+    auto info = client->mFuseService.get(std::string(name));
 
     if (info)
         return new MegaMountPrivate(*info);
@@ -26219,16 +26216,14 @@ MegaMount* MegaApiImpl::getMountInfo(const char* path)
     return nullptr;
 }
 
-MegaStringList* MegaApiImpl::getMountPaths(const char* name)
+char* MegaApiImpl::getMountPath(const char* name)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    std::vector<std::string> paths;
+    if (auto path = client->mFuseService.path(name); !path.empty())
+        return MegaApi::strdup(path.toPath(false).c_str());
 
-    for (const auto& path : client->mFuseService.paths(name))
-        paths.emplace_back(path.toPath(false));
-
-    return new MegaStringListPrivate(std::move(paths));
+    return nullptr;
 }
 
 MegaMountList* MegaApiImpl::listMounts(bool enabled)
@@ -26273,28 +26268,28 @@ bool MegaApiImpl::isFUSESupported()
     return client->mFuseService.supported();
 }
 
-bool MegaApiImpl::isMountEnabled(const char* path)
+bool MegaApiImpl::isMountEnabled(const char* name)
 {
-    assert(path);
+    assert(name);
 
     SdkMutexGuard gaurd(sdkMutex);
 
-    return client->mFuseService.enabled(LocalPath::fromAbsolutePath(path));
+    return client->mFuseService.enabled(name);
 }
 
-void MegaApiImpl::removeMount(const char* path, MegaRequestListener* listener)
+void MegaApiImpl::removeMount(const char* name, MegaRequestListener* listener)
 {
     assert(listener);
-    assert(path);
+    assert(name);
 
     auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_REMOVE_MOUNT);
 
-    request->setFile(path);
+    request->setFile(name);
     request->setListener(listener);
 
     auto execute = [this](MegaRequestPrivate& request) {
-        auto path = LocalPath::fromAbsolutePath(request.getFile());
-        auto result = client->mFuseService.remove(path);
+        auto name = std::string(request.getFile());
+        auto result = client->mFuseService.remove(name);
         auto error = std::make_unique<MegaErrorPrivate>(result);
 
         fireOnRequestFinish(&request, std::move(error));
@@ -26327,22 +26322,22 @@ MegaFuseFlags* MegaApiImpl::getFUSEFlags()
 }
 
 void MegaApiImpl::setMountFlags(const MegaMountFlags* flags,
-                                const char* path,
+                                const char* name,
                                 MegaRequestListener* listener)
 {
     assert(flags);
     assert(listener);
-    assert(path);
+    assert(name);
 
     auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_SET_MOUNT_FLAGS);
 
-    request->setFile(path);
+    request->setFile(name);
     request->setListener(listener);
 
     auto execute = [this](const fuse::MountFlags& flags,
                           MegaRequestPrivate& request) {
-        auto path = LocalPath::fromAbsolutePath(request.getFile());
-        auto result = client->mFuseService.flags(path, flags);
+        auto name = std::string(request.getFile());
+        auto result = client->mFuseService.flags(name, flags);
         auto error = std::make_unique<MegaErrorPrivate>(result);
 
         fireOnRequestFinish(&request, std::move(error));
@@ -39938,7 +39933,10 @@ MegaHandle MegaMountPrivate::getHandle() const
 
 const char* MegaMountPrivate::getPath() const
 {
-    return mPath.c_str();
+    if (!mPath.empty())
+        return mPath.c_str();
+
+    return nullptr;
 }
 
 void MegaMountPrivate::setFlags(const MegaMountFlags* flags)

@@ -55,7 +55,7 @@ public:
 
     // Disable an enabled mount.
     void disable(MountDisabledCallback callback,
-                 const NormalizedPath& path,
+                 const std::string& name,
                  bool remember);
 
     // Discard node events.
@@ -65,26 +65,26 @@ public:
     MountResult downgrade(const NormalizedPath& path, std::size_t target);
 
     // Enable a disabled mount.
-    MountResult enable(const NormalizedPath& path, bool remember);
+    MountResult enable(const std::string& name, bool remember);
 
     // Query whether a specified mount is enabled.
-    bool enabled(const NormalizedPath& path) const;
+    bool enabled(const std::string& name) const;
 
     // Execute a function on some thread.
     Task execute(std::function<void(const Task&)> function);
 
     // Update a mount's flags.
-    MountResult flags(const NormalizedPath& path,
+    MountResult flags(const std::string& name,
                       const MountFlags& flags);
 
     // Query a mount's flags.
-    MountFlagsPtr flags(const NormalizedPath& path) const;
+    MountFlagsPtr flags(const std::string& name) const;
 
     // Describe the mount associated with path.
-    MountInfoPtr get(const NormalizedPath& path) const;
+    MountInfoPtr get(const std::string& name) const;
 
     // Describe all (enabled) mounts.
-    MountInfoVector get(bool enabled) const;
+    MountInfoVector get(bool onlyEnabled) const;
 
     // Initialize the service.
     MountResult initialize();
@@ -95,11 +95,11 @@ public:
     // How verbose is our logging?
     LogLevel logLevel() const;
 
-    // Retrieve the path of all mounts associated with this name.
-    NormalizedPathVector paths(const std::string& name) const;
+    // Retrieve the path the mount associated with name.
+    NormalizedPath path(const std::string& name) const;
 
     // Remove a disabled mount from the database.
-    MountResult remove(const NormalizedPath& path);
+    MountResult remove(const std::string& name);
 
     // Update the service's flags.
     void serviceFlags(const ServiceFlags& flags);

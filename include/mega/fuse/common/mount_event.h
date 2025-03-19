@@ -17,7 +17,7 @@ struct MountEvent
 
     bool operator!=(const MountEvent& rhs) const;
 
-    LocalPath mPath;
+    std::string mName;
     MountResult mResult;
     MountEventType mType;
 }; // MountEvent

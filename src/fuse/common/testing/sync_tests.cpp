@@ -24,7 +24,7 @@ struct FUSESyncTests
 class ScopedMount
 {
     Client& mClient;
-    NormalizedPath mPath;
+    std::string mName;
     MountResult mResult;
 
 public:
@@ -137,13 +137,13 @@ ScopedMount::ScopedMount(ClientPtr& client,
                          Path sourcePath,
                          CloudPath targetPath)
   : mClient(*client)
-  , mPath(sourcePath.localPath())
+  , mName(sourcePath.localPath().leafName().toPath(false))
   , mResult()
 {
     MountInfo info;
 
     // Describe our new mount.
-    info.mFlags.mName = mPath.leafName().toPath(false);
+    info.name(mName);
     info.mHandle = targetPath.resolve(mClient);
     info.mPath = sourcePath;
 
@@ -155,7 +155,7 @@ ScopedMount::ScopedMount(ClientPtr& client,
         return;
 
     // Try and enable mount.
-    mResult = mClient.enableMount(sourcePath, false);
+    mResult = mClient.enableMount(mName, false);
 }
 
 ScopedMount::~ScopedMount()
@@ -165,14 +165,14 @@ ScopedMount::~ScopedMount()
         return;
 
     // Try and disable mount.
-    mResult = mClient.disableMount(mPath, false);
+    mResult = mClient.disableMount(mName, false);
 
     // Couldn't disable mount.
     if (mResult != MOUNT_SUCCESS)
         return;
 
     // Try and remove mount.
-    mResult = mClient.removeMount(mPath);
+    mResult = mClient.removeMount(mName);
 }
 
 MountResult ScopedMount::result() const

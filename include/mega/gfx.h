@@ -127,8 +127,8 @@ public: // read and store bitmap
 
     enum class Hint
     {
-        NONE,
-        FORMAT_PNG, // Format can be in PNG
+        NONE = 0,
+        FORMAT_PNG = 1, // Format can be in PNG
     };
 
 private:
