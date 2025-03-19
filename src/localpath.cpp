@@ -1873,7 +1873,7 @@ std::string PathURI::serialize() const
     std::string aux;
     LocalPath::local2path(&mUri, &aux, false);
     w.serializestring(aux);
-    uint32_t numElements = mAuxPath.size(); // URI + leaves
+    uint32_t numElements = static_cast<uint32_t>(mAuxPath.size()); // URI + leaves
     w.serializeu32(numElements);
     for (const auto& leaf: mAuxPath)
     {
@@ -1890,7 +1890,7 @@ bool PathURI::unserialize(const std::string& data)
     CacheableReader r(data);
     uint8_t type;
     r.unserializeu8(type);
-    assert(type == PathType::URI_PATH);
+    assert(type == static_cast<uint8_t>(PathType::URI_PATH));
     std::string aux;
     success = r.unserializestring(aux);
     LocalPath::path2local(&aux, &mUri);

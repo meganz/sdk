@@ -10,7 +10,6 @@ namespace mega
 {
 
 AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
-LRUCache<std::string, std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::mRepository(100);
 
 std::mutex AndroidFileWrapper::mMutex;
 
@@ -476,7 +475,21 @@ std::shared_ptr<AndroidFileWrapper>
     }
     else
     {
-        return AndroidFileWrapper::getAndroidFileWrapper(localPath.toPath(false));
+        if (create)
+        {
+            LocalPath parentPath = localPath.parentPath();
+            auto parentFileWrapper =
+                AndroidFileWrapper::getAndroidFileWrapper(parentPath.toPath(false));
+            if (parentFileWrapper->exists())
+            {
+                return parentFileWrapper->createChild(localPath.leafName().toPath(false),
+                                                      lastIsFolder);
+            }
+        }
+        else
+        {
+            return AndroidFileWrapper::getAndroidFileWrapper(localPath.toPath(false));
+        }
     }
 
     return nullptr;
@@ -491,14 +504,7 @@ std::shared_ptr<AndroidFileWrapper>
     AndroidFileWrapper::getAndroidFileWrapper(const std::string& uri)
 {
     std::lock_guard<std::mutex> g(mMutex);
-    auto androidFileWrapper = mRepository.get(uri);
-    if (androidFileWrapper.has_value())
-    {
-        return androidFileWrapper.value();
-    }
-
     std::shared_ptr<AndroidFileWrapper> androidFileWrapperNew{new AndroidFileWrapper(uri)};
-    mRepository.put(uri, androidFileWrapperNew);
     return androidFileWrapperNew;
 }
 

@@ -96,7 +96,6 @@ private:
     static constexpr char DELETE_EMPTY_FOLDER[] = "deleteFolderIfEmpty";
     static constexpr char RENAME[] = "rename";
 
-    static LRUCache<std::string, std::shared_ptr<AndroidFileWrapper>> mRepository;
     static std::mutex mMutex;
 };
 
