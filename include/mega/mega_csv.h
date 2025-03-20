@@ -4836,7 +4836,7 @@ namespace csv {
         using ParseFlagMap = std::array<ParseFlags, std::numeric_limits<unsigned char>::max() + 1>;
 
         /** An array which maps UTF-8 chars to a flag indicating if it is whitespace */
-        using WhitespaceMap = std::bitset<std::numeric_limits<unsigned char>::max() + 1>;
+        using WhitespaceMap = std::array<bool, std::numeric_limits<unsigned char>::max() + 1>;
     }
 
     /** Integer indicating a requested column wasn't found. */
@@ -5864,8 +5864,8 @@ namespace csv {
         HEDLEY_CONST CONSTEXPR_17 Out container_to_default(T&& value)
         {
             Out a{};
-            for (size_t i = 0; i < a.size(); ++i)
-                a[i] = value;
+            for (auto& e: a)
+                e = value;
             return a;
         }
 

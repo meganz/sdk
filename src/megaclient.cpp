@@ -14497,7 +14497,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encKey.resize(linkKeySize);
         for (unsigned int i = 0; i < linkKeySize; i++)
         {
-            encKey[i] = derivedKey[i] ^ linkKey[i];
+            encKey[i] = static_cast<char>(derivedKey[i] ^ linkKey[i]);
         }
 
         // Preapare payload to derive encryption key
