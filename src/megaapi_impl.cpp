@@ -2233,6 +2233,20 @@ bool MegaNodePrivate::isForeign()
 
 bool MegaNodePrivate::isPasswordNode() const
 {
+    if (!isPasswordManagerNode())
+        return false;
+
+    const auto passNodeAttr = getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+    assert(passNodeAttr);
+
+    AttrMap attrMap;
+    attrMap.fromjson(passNodeAttr);
+    return MegaClient::toPwmEntryType(attrMap.getStringView(MegaClient::PWM_ATTR_NODE_TYPE)) ==
+           MegaClient::PwmEntryType::PASSWORD;
+}
+
+bool MegaNodePrivate::isPasswordManagerNode() const
+{
     return (type == FOLDERNODE &&
             getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER) != nullptr);
 }
@@ -27025,7 +27039,7 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
     waiter->notify();
 }
 
-bool MegaApiImpl::isPasswordNodeFolder(MegaHandle h) const
+bool MegaApiImpl::isPasswordManagerNodeFolder(MegaHandle h) const
 {
     if (h == UNDEF)
         return false;
@@ -27033,7 +27047,7 @@ bool MegaApiImpl::isPasswordNodeFolder(MegaHandle h) const
     SdkMutexGuard g{sdkMutex};
     const auto n = client->nodebyhandle(h);
     assert(n && "Node not found by handle");
-    return n && n->isPasswordNodeFolder();
+    return n && n->isPasswordManagerNodeFolder();
 }
 
 static std::string totpToJson(const MegaNode::PasswordNodeData::TotpData& totp)

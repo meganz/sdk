@@ -9729,7 +9729,7 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
     assert(name && *name);
 
     std::vector<NewNode> nn(1);
-    bool canChangeVault = parent->isPasswordNodeFolder();
+    bool canChangeVault = parent->isPasswordManagerNodeFolder();
     NewNode& newPasswordNode = nn.front();
     putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault);
     const char* cauth = nullptr;
@@ -9760,7 +9760,8 @@ error MegaClient::renameNode(NodeHandle nh, const char* newName, CommandSetAttr:
 
     if (!(newName && *newName)) return API_EARGS;
 
-    const bool canChangeVault = node->isPasswordNodeFolder() || node->isPasswordNode();
+    const bool canChangeVault =
+        node->isPasswordManagerNodeFolder() || node->isPasswordManagerNode();
     string sname = newName;
     LocalPath::utf8_normalize(&sname);
     return setattr(node, attr_map('n', sname), std::move(cbRequest), canChangeVault);
@@ -9774,8 +9775,8 @@ error MegaClient::removeNode(NodeHandle nh, bool keepVersions, int rTag)
     if (keepVersions && node->type != FILENODE) return API_EARGS;
 
     bool canChangeVault = false;
-    const bool isPNFolder = node->isPasswordNodeFolder();
-    if (isPNFolder || node->isPasswordNode())
+    const bool isPNFolder = node->isPasswordManagerNodeFolder();
+    if (isPNFolder || node->isPasswordManagerNode())
     {
         if (isPNFolder && node->nodeHandle() == getPasswordManagerBase())
         {
@@ -21747,7 +21748,7 @@ error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_pt
                                       int rTag)
 {
     assert(nParent);
-    if (!nParent->isPasswordNodeFolder())
+    if (!nParent->isPasswordManagerNodeFolder())
     {
         LOG_err << "Password Manager: failed Password Node creation wrong parameters: Password "
                    "Node Folder parent handle";
@@ -21820,7 +21821,7 @@ MegaClient::ImportPaswordResult
         return {err, {}, 0};
     };
     std::shared_ptr<Node> parent = nodeByHandle(parentHandle);
-    if (!parent || !parent->isPasswordNodeFolder())
+    if (!parent || !parent->isPasswordManagerNodeFolder())
         return logReturnErr(API_EARGS, "parent node doesn't exist");
 
     PassFileParseResult parserResult = readPasswordImportFile(filePath, source);

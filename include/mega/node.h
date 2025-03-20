@@ -506,7 +506,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool isPhotoWithFileAttributes(bool checkPreview) const;
 
     bool isPasswordNode() const;
-    bool isPasswordNodeFolder() const;
+    bool isPasswordManagerNode() const;
+    bool isPasswordManagerNodeFolder() const;
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
