@@ -465,7 +465,7 @@ public:
 
     virtual bool serialize(string*) const = 0;
 
-    uint32_t dbid = 0;
+    uint32_t dbid = 0; // exposed for active transfers via MegaTransfer::getUniqueId
     bool notified = false;
 };
 

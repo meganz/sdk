@@ -6234,6 +6234,7 @@ bool MegaFile::serialize(string *d) const
         return false;
     }
 
+    megaTransfer->dbid = dbid;
     if (!megaTransfer->serialize(d))
     {
         return false;
@@ -6263,6 +6264,10 @@ MegaFile *MegaFile::unserialize(string *d)
     {
         delete megaFile;
         return NULL;
+    }
+    else
+    {
+        transfer->dbid = megaFile->dbid;
     }
 
     const char* ptr = d->data();
@@ -13175,7 +13180,7 @@ void MegaApiImpl::transfer_update(Transfer *t)
     }
 }
 
-File *MegaApiImpl::file_resume(string *d, direction_t *type)
+File* MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid)
 {
     if (!d || d->size() < sizeof(char))
     {
@@ -13227,7 +13232,9 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
 
     if (file)
     {
+        file->dbid = dbid;
         currentTransfer = file->getTransfer();
+        currentTransfer->dbid = file->dbid;
         waiter->notify();
     }
     return file;

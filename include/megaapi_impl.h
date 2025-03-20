@@ -30,6 +30,7 @@
 #include "megaapi.h"
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 
 #define CRON_USE_LOCAL_TIME 1
@@ -4750,7 +4751,7 @@ public:
         void transfer_complete(Transfer *) override;
         void transfer_removed(Transfer *) override;
 
-        File* file_resume(string*, direction_t *type) override;
+        File* file_resume(string*, direction_t* type, uint32_t) override;
 
         void transfer_prepare(Transfer*) override;
         void transfer_failed(Transfer*, const Error& error, dstime timeleft) override;
