@@ -96,7 +96,7 @@ public:
 
     bool related(const LocalPath& other) const override;
 
-    PathType getPathType() const
+    PathType getPathType() const override
     {
         return mPathType;
     }
@@ -124,8 +124,10 @@ public:
 
 private:
     string_type mLocalpath;
+    // Track whether this LocalPath is from the root of a filesystem (ie, an absolute path)
+    // It makes a big difference for windows, where we must prepend \\?\ prefix
+    // to be able to access long paths, paths ending with space or `.`, etc
     PathType mPathType{PathType::RELATIVE_PATH};
-
     void removeTrailingSeparators();
     void truncate(size_t bytePos);
     LocalPath subpathTo(size_t bytePos) const;
@@ -173,6 +175,11 @@ public:
 
     bool isRootPath() const override;
 
+    PathType getPathType() const override
+    {
+        return PathType::URI_PATH;
+    }
+
     bool extension(std::string& extension) const override;
     std::string extension() const override;
 
@@ -219,23 +226,49 @@ public:
         return dynamic_cast<Path*>(p.getImpl());
     }
 
-    static LocalPath buildLocalPath(const Path& path)
+    template<typename T>
+    static LocalPath buildLocalPath(const T& source)
     {
+        static_assert(std::is_base_of<AbstractLocalPath, T>::value,
+                      "T must be derived from AbstractLocalPath");
+
         LocalPath localPath;
-        auto aux = std::make_unique<Path>(path);
-        aux->setPathType(path.getPathType());
+        auto aux = std::make_unique<T>(source);
+
+        if constexpr (std::is_same_v<T, Path>)
+        {
+            aux->setPathType(source.getPathType());
+        }
+
         localPath.setImpl(std::move(aux));
-        localPath.setPath(path.getPathType());
         return localPath;
     }
 
-    static LocalPath buildLocalPath(const PathURI& pathUri)
+    template<typename StringT>
+    static LocalPath buildFromPlatformEncoded(StringT&& encodedPath,
+                                              const PathType pathType,
+                                              const bool normalize)
     {
-        LocalPath localPath;
-        auto aux = std::make_unique<PathURI>(pathUri);
-        localPath.setImpl(std::move(aux));
-        localPath.setPath(PathType::URI_PATH);
-        return localPath;
+        LocalPath p;
+
+        auto aux = std::make_unique<Path>(std::forward<StringT>(encodedPath));
+        if (normalize)
+            aux->normalizeAbsolute();
+        aux->setPathType(pathType);
+
+        p.mImplementation = std::move(aux);
+        return p;
+    }
+
+    static string_type convertPlatformEncoded(const std::string& path)
+    {
+#ifdef _WIN32
+        assert((path.size() % sizeof(wchar_t) == 0) && "size is not a multiple of wchar_t !!!");
+        return std::wstring(reinterpret_cast<const wchar_t*>(path.data()),
+                            path.size() / sizeof(wchar_t));
+#else
+        return path;
+#endif
     }
 };
 
@@ -356,7 +389,6 @@ LocalPath LocalPath::fromAbsolutePath(const std::string& path)
         aux->normalizeAbsolute();
         aux->setPathType(PathType::ABSOLUTE_PATH);
         p.mImplementation = std::move(aux);
-        p.mPathType = PathType::ABSOLUTE_PATH;
     }
 
     return p;
@@ -371,7 +403,6 @@ LocalPath LocalPath::fromRelativePath(const std::string& path)
     aux->setPathType(PathType::RELATIVE_PATH);
     p.mImplementation = std::move(aux);
     assert(p.invariant());
-    p.mPathType = PathType::RELATIVE_PATH;
     return p;
 }
 
@@ -382,15 +413,19 @@ LocalPath LocalPath::fromURIPath(const string_type& path)
     LocalPath::local2path(&path, &auxStr, false);
     std::unique_ptr<PathURI> aux;
     p.mImplementation = std::make_unique<PathURI>(path);
-    p.mPathType = PathType::URI_PATH;
     return p;
+}
+
+string_type LocalPath::toStringType(const std::string& path)
+{
+    string_type converted;
+    LocalPath::path2local(&path, &converted);
+    return converted;
 }
 
 bool LocalPath::isURIPath(const std::string& path)
 {
-    string_type stringTypePath;
-    LocalPath::path2local(&path, &stringTypePath);
-    return URIHandler::isURI(stringTypePath);
+    return URIHandler::isURI(toStringType(path));
 }
 
 LocalPath LocalPath::fromRelativeName(std::string path,
@@ -403,70 +438,42 @@ LocalPath LocalPath::fromRelativeName(std::string path,
 
 LocalPath LocalPath::fromPlatformEncodedAbsolute(const std::string& path)
 {
-    if (LocalPath::isURIPath(path))
+    using helper = LocalPathImplementationHelper;
+    if (const auto stringTypePath = toStringType(path); URIHandler::isURI(stringTypePath))
     {
-        string_type aux;
-        LocalPath::path2local(&path, &aux);
-        return fromURIPath(aux);
+        return fromURIPath(stringTypePath);
     }
 
-    LocalPath p;
-    string_type newPath;
-#if defined(_WIN32)
-    assert(!(path.size() % 2));
-    newPath.resize(path.size() / sizeof(wchar_t));
-    memcpy(const_cast<wchar_t*>(newPath.data()), path.data(), newPath.size() * sizeof(wchar_t));
-#else
-    newPath = std::move(path);
-#endif
-
-    auto aux = std::make_unique<Path>(newPath);
-    aux->normalizeAbsolute();
-    aux->setPathType(PathType::ABSOLUTE_PATH);
-    p.mImplementation = std::move(aux);
-    p.mPathType = PathType::ABSOLUTE_PATH;
-    return p;
+    return helper::buildFromPlatformEncoded(helper::convertPlatformEncoded(path),
+                                            PathType::ABSOLUTE_PATH,
+                                            true);
 }
 
 #if defined(_WIN32)
 LocalPath LocalPath::fromPlatformEncodedRelative(wstring&& wpath)
 {
-    LocalPath p;
-    auto aux = std::make_unique<Path>(wpath);
-    aux->setPathType(PathType::RELATIVE_PATH);
-    p.mImplementation = std::move(aux);
-    p.mPathType = PathType::RELATIVE_PATH;
-    return p;
+    using helper = LocalPathImplementationHelper;
+    return helper::buildFromPlatformEncoded(std::move(wpath), PathType::RELATIVE_PATH, false);
 }
 
 LocalPath LocalPath::fromPlatformEncodedAbsolute(wstring&& wpath)
 {
-    LocalPath p;
-    auto aux = std::make_unique<Path>(wpath);
-    aux->normalizeAbsolute();
-    aux->setPathType(PathType::ABSOLUTE_PATH);
-    p.mImplementation = std::move(aux);
-    p.mPathType = PathType::ABSOLUTE_PATH;
-    return p;
+    using helper = LocalPathImplementationHelper;
+    if (const auto stringTypePath = toStringType(path); URIHandler::isURI(stringTypePath))
+    {
+        return fromURIPath(stringTypePath);
+    }
+
+    return helper::buildFromPlatformEncoded(std::move(wpath), PathType::ABSOLUTE_PATH, true);
 }
 #endif
 
 LocalPath LocalPath::fromPlatformEncodedRelative(const std::string& path)
 {
-    LocalPath p;
-    string_type auxPath;
-#if defined(_WIN32)
-    assert(!(path.size() % 2));
-    auxPath.resize(path.size() / sizeof(wchar_t));
-    memcpy(const_cast<wchar_t*>(auxPath.data()), path.data(), auxPath.size() * sizeof(wchar_t));
-#else
-    auxPath = std::move(path);
-#endif
-    auto aux = std::make_unique<Path>(auxPath);
-    aux->setPathType(PathType::RELATIVE_PATH);
-    p.mImplementation = std::move(aux);
-    p.mPathType = PathType::RELATIVE_PATH;
-    return p;
+    using helper = LocalPathImplementationHelper;
+    return helper::buildFromPlatformEncoded(helper::convertPlatformEncoded(path),
+                                            PathType::RELATIVE_PATH,
+                                            false);
 }
 
 void LocalPath::utf8_normalize(std::string* filename)
@@ -567,7 +574,6 @@ bool LocalPath::empty() const
 void LocalPath::clear()
 {
     mImplementation.reset();
-    mPathType = PathType::RELATIVE_PATH;
 }
 
 LocalPath LocalPath::leafName() const
@@ -608,7 +614,7 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, const bool 
 
 void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
 {
-    if (mPathType == PathType::ABSOLUTE_PATH || mPathType == PathType::URI_PATH)
+    if (isAbsolute() || isURI())
     {
         LOG_err << "Invalid parameter type (prependWithSeparator)";
         assert(false);
@@ -621,7 +627,6 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
         mImplementation =
             std::make_unique<PathURI>(*LocalPathImplementationHelper::getPathURI(*this));
         mImplementation->appendWithSeparator(LocalPath::fromRelativePath(previousPath), true);
-        mPathType = PathType::URI_PATH;
         return;
     }
     else if (!mImplementation)
@@ -630,7 +635,6 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
     }
 
     mImplementation->prependWithSeparator(additionalPath);
-    mPathType = additionalPath.isAbsolute() ? PathType::ABSOLUTE_PATH : PathType::RELATIVE_PATH;
 }
 
 LocalPath LocalPath::prependNewWithSeparator(const LocalPath& additionalPath) const

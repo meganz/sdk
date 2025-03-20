@@ -723,9 +723,9 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
         {
             LocalPath filename = namePath.leafName();
 
-            auto filenameStr = filename.asPlatformEncoded(false);
-            if (filenameStr != wstring(fad.cFileName) &&
-                filenameStr != wstring(fad.cAlternateFileName) && filenameStr != L"." &&
+            if (const auto filenameStr = filename.asPlatformEncoded(false);
+                filenameStr != std::wstring(fad.cFileName) &&
+                filenameStr != std::wstring(fad.cAlternateFileName) && filenameStr != L"." &&
                 filenameStr != L"..")
             {
                 LOG_warn << "fopen failed due to invalid case: '" << filename

@@ -101,6 +101,7 @@ public:
     virtual bool invariant() const = 0;
 
     virtual std::unique_ptr<AbstractLocalPath> clone() const = 0;
+    virtual PathType getPathType() const = 0;
 };
 
 /**
@@ -163,7 +164,6 @@ public:
         if (p.mImplementation)
         {
             mImplementation = p.mImplementation->clone();
-            mPathType = p.mPathType;
         }
     }
 
@@ -174,12 +174,10 @@ public:
             if (p.mImplementation)
             {
                 mImplementation = p.mImplementation->clone();
-                mPathType = p.mPathType;
             }
             else
             {
                 mImplementation.reset();
-                mPathType = PathType::RELATIVE_PATH;
             }
         }
 
@@ -196,11 +194,6 @@ public:
     void setImpl(std::unique_ptr<AbstractLocalPath>&& imp)
     {
         mImplementation = std::move(imp);
-    }
-
-    void setPath(const PathType p)
-    {
-        mPathType = p;
     }
 
     // path2local / local2path are much more natural here than in FileSystemAccess
@@ -257,22 +250,32 @@ public:
 
     bool isAbsolute() const
     {
-        return mPathType == PathType::ABSOLUTE_PATH;
+        if (mImplementation)
+        {
+            return mImplementation->getPathType() == PathType::ABSOLUTE_PATH;
+        }
+        return false;
     }
 
     bool isURI() const
     {
-        return mPathType == PathType::URI_PATH;
+        if (mImplementation)
+        {
+            return mImplementation->getPathType() == PathType::URI_PATH;
+        }
+        return false;
     }
 
     bool operator==(const LocalPath& p) const;
     bool operator!=(const LocalPath& p) const;
     bool operator<(const LocalPath& p) const;
 
-    // Returns a reference to the string's internal representation.
+    // Returns a string_type (wstring in windows) to the string's internal representation.
     //
     // Mostly useful when we need to call platform-specific functions and
     // don't want to incur the cost of a copy.
+    // Call this function with stripPrefix to false if you don't want any modification in string's
+    // internal representation, otherwise prefix will be stripped in Windows (except for URI PATHS)
     auto asPlatformEncoded(const bool stripPrefix) const -> string_type;
     std::string platformEncoded() const;
 
@@ -333,6 +336,8 @@ public:
 
     // Return a utf8 representation of the LocalPath
     // No escaping or unescaping is done.
+    // If this function is called with normalize false, utf8 representation of the LocalPath won't
+    // be modified. Otherwise utf8 representation will be normalized
     std::string toPath(const bool normalize) const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
@@ -366,12 +371,8 @@ public:
     bool invariant() const;
 
 private:
+    static string_type toStringType(const std::string& path);
     std::unique_ptr<AbstractLocalPath> mImplementation;
-
-    // Track whether this LocalPath is from the root of a filesystem (ie, an absolute path)
-    // It makes a big difference for windows, where we must prepend \\?\ prefix
-    // to be able to access long paths, paths ending with space or `.`, etc
-    PathType mPathType{PathType::RELATIVE_PATH};
 };
 } // mega namespace
 
