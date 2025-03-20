@@ -10402,6 +10402,10 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     LOG_info << "___TEST RecursiveDownloadWithLogout";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+
     // this one used to cause a double-delete
 
     // make new folders (and files) in the local filesystem - approx 130 - we must upload in order to have something to download
