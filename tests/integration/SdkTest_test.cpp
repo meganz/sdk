@@ -29,10 +29,15 @@
 #include "mega/testhooks.h"
 #include "mega/types.h"
 #include "megautils.h"
+#include "mock_listeners.h"
 #include "sdk_test_utils.h"
+
+#include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
+#include <cstdint>
 
 #if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
 #include "mega/posix/gfx/worker/socket_utils.h"
@@ -3082,6 +3087,20 @@ TEST_F(SdkTest, SdkTestTransfers)
     ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
     ASSERT_EQ(API_EINCOMPLETE, ttc.waitForResult());
 
+    // --- Setup a global listener to capture dbid and tag on next transfer ---
+    testing::NiceMock<MockTransferListener> mockGlobalListener{megaApi[0].get()};
+    std::promise<std::tuple<uint32_t, int>> dbidAndTagOnStart;
+    EXPECT_CALL(mockGlobalListener, onTransferStart)
+        .WillOnce(
+            [&dbidAndTagOnStart](MegaApi*, MegaTransfer* transfer)
+            {
+                if (transfer)
+                    dbidAndTagOnStart.set_value({transfer->getUniqueId(), transfer->getTag()});
+                else
+                    dbidAndTagOnStart.set_value({0, -1});
+            });
+    megaApi[0]->addListener(&mockGlobalListener);
+
     // --- Upload a file (part 1) ---
     TransferTracker tt(megaApi[0].get());
     mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
@@ -3106,6 +3125,19 @@ TEST_F(SdkTest, SdkTestTransfers)
     EXPECT_EQ(API_OK, mApi[0].lastError) << "Cannot pause transfer (error: " << mApi[0].lastError << ")";
     EXPECT_TRUE(megaApi[0]->areTransfersPaused(MegaTransfer::TYPE_UPLOAD)) << "Upload transfer not paused";
 
+    // --- Get dbid and tag of first transfer since started listening ---
+    auto transferListerResult = dbidAndTagOnStart.get_future();
+    ASSERT_EQ(transferListerResult.wait_for(std::chrono::seconds(maxTimeout)),
+              std::future_status::ready)
+        << "Timeout for the start upload";
+    megaApi[0]->removeListener(&mockGlobalListener); // not needed any longer
+    const auto [transferUniqueId, transferTag] = transferListerResult.get();
+    ASSERT_NE(transferTag, -1) << "Missing transfer param for onTransferStart event";
+    std::unique_ptr<MegaTransfer> transferByUniqueId{
+        megaApi[0]->getTransferByUniqueId(transferUniqueId)};
+    ASSERT_TRUE(transferByUniqueId) << "No transfer found with unique Id " << transferUniqueId;
+    EXPECT_EQ(transferTag, transferByUniqueId->getTag())
+        << "Retrieved transfer doesn't match expected tag";
 
     // --- Resume a transfer ---
 

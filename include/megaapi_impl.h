@@ -1570,6 +1570,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         int getMaxRetries() const override;
         unsigned getStage() const override;
         virtual int64_t getTime() const;
+        uint32_t getUniqueId() const override;
         int getTag() const override;
         long long getSpeed() const override;
         long long getMeanSpeed() const override;
@@ -3807,6 +3808,7 @@ class MegaApiImpl : public MegaApp
         void notifyTransfer(int transferTag, MegaTransferListener *listener = NULL);
         MegaTransferList *getTransfers();
         MegaTransferList *getStreamingTransfers();
+        MegaTransfer* getTransferByUniqueId(uint32_t transferUniqueId) const;
         MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
         MegaTransferList *getChildTransfers(int transferTag);

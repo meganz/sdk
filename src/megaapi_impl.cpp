@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <cstdint>
 #include <functional>
 #include <iomanip>
 #include <locale>
@@ -3133,6 +3134,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->listener = transfer->getListener();
     this->transfer = transfer->getTransfer();
     this->type = transfer->getType();
+    this->dbid = transfer->getUniqueId();
     this->setState(transfer->getState());
     this->setPriority(transfer->getPriority());
     this->setTag(transfer->getTag());
@@ -3187,6 +3189,11 @@ void MegaTransferPrivate::setTransfer(Transfer* newTransfer)
 Transfer* MegaTransferPrivate::getTransfer() const
 {
     return transfer;
+}
+
+uint32_t MegaTransferPrivate::getUniqueId() const
+{
+    return dbid;
 }
 
 int MegaTransferPrivate::getTag() const
@@ -9687,6 +9694,19 @@ MegaTransferList *MegaApiImpl::getStreamingTransfers()
         }
     }
     return new MegaTransferListPrivate(transfers.data(), int(transfers.size()));
+}
+
+MegaTransfer* MegaApiImpl::getTransferByUniqueId(uint32_t transferUniqueId) const
+{
+    SdkMutexGuard g(sdkMutex);
+    const auto it = std::find_if(begin(transferMap),
+                                 end(transferMap),
+                                 [&id = transferUniqueId](const auto& p)
+                                 {
+                                     return p.second->getUniqueId() == id;
+                                 });
+
+    return it != end(transferMap) ? it->second->copy() : nullptr;
 }
 
 MegaTransfer *MegaApiImpl::getTransferByTag(int transferTag)
