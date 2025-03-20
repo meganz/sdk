@@ -58,11 +58,6 @@ Field::operator BindHandle() const
     return bindHandle();
 }
 
-Field::operator bool() const
-{
-    return boolean();
-}
-
 Field::operator NodeHandle() const
 {
     return handle();
@@ -78,19 +73,9 @@ Field::operator InodeID() const
     return inode();
 }
 
-Field::operator std::int64_t() const
-{
-    return int64();
-}
-
 Field::operator std::string() const
 {
     return string();
-}
-
-Field::operator std::uint64_t() const
-{
-    return uint64();
 }
 
 BindHandle Field::bindHandle() const
@@ -138,6 +123,11 @@ LocalPath Field::path() const
     return LocalPath::fromAbsolutePath(string());
 }
 
+std::size_t Field::size() const
+{
+    return static_cast<std::size_t>(uint64());
+}
+
 std::string Field::string() const
 {
     match(SQLITE_TEXT);
@@ -174,11 +164,6 @@ auto Parameter::operator=(const BindHandle& value) -> Parameter&
     return bindHandle(value);
 }
 
-auto Parameter::operator=(const bool value) -> Parameter&
-{
-    return boolean(value);
-}
-
 auto Parameter::operator=(const NodeHandle& value) -> Parameter&
 {
     return handle(value);
@@ -192,11 +177,6 @@ auto Parameter::operator=(const InodeID& value) -> Parameter&
 auto Parameter::operator=(const LocalPath& value) -> Parameter&
 {
     return path(value);
-}
-
-auto Parameter::operator=(const std::int64_t value) -> Parameter&
-{
-    return int64(value);
 }
 
 auto Parameter::operator=(const std::nullptr_t) -> Parameter&
@@ -214,11 +194,6 @@ auto Parameter::operator=(const char* value) -> Parameter&
     assert(value);
 
     return string(std::string(value));
-}
-
-auto Parameter::operator=(const std::uint64_t value) -> Parameter&
-{
-    return uint64(value);
 }
 
 auto Parameter::bindHandle(const BindHandle& value) -> Parameter&
@@ -241,6 +216,11 @@ auto Parameter::inode(const InodeID& value) -> Parameter&
     return uint64(value.get());
 }
 
+auto Parameter::int32(const std::int32_t value) -> Parameter&
+{
+    return int64(value);
+}
+
 auto Parameter::int64(const std::int64_t value) -> Parameter&
 {
     return uint64(static_cast<std::uint64_t>(value));
@@ -260,6 +240,11 @@ auto Parameter::null() -> Parameter&
 auto Parameter::path(const LocalPath& value) -> Parameter&
 {
     return string(value.toPath(false));
+}
+
+auto Parameter::size(const std::size_t value) -> Parameter&
+{
+    return uint64(value);
 }
 
 auto Parameter::string(const std::string& value) -> Parameter&
@@ -290,6 +275,11 @@ auto Parameter::string(const char* value) -> Parameter&
 
     throw FUSEErrorF("Unable to bind parameter: %s",
                      sqlite3_errmsg(mQuery.mDB));
+}
+
+auto Parameter::uint32(const std::uint32_t value) -> Parameter&
+{
+    return uint64(value);
 }
 
 auto Parameter::uint64(const std::uint64_t value) -> Parameter&
