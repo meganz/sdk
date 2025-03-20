@@ -68,7 +68,7 @@ public:
     // Returns FileWrapper parent
     std::shared_ptr<AndroidFileWrapper> getParent() const;
     // Returns the path if it's possible (/local/..)
-    std::optional<std::string> getPath() const;
+    std::optional<std::string> getPath();
     bool isURI();
 
     static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const std::string& path);
