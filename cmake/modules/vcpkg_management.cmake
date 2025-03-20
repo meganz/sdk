@@ -53,6 +53,8 @@ macro(process_vcpkg_libraries overlays_path)
         else() # Linux
             if (CMAKE_SYSTEM_PROCESSOR MATCHES "armv7l" OR (NOT CMAKE_SYSTEM_PROCESSOR AND HOST_ARCH MATCHES "armv7l"))
                 set(VCPKG_TARGET_TRIPLET "arm-linux")
+            elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64" OR (NOT CMAKE_SYSTEM_PROCESSOR AND HOST_ARCH MATCHES "aarch64|arm64"))
+                set(VCPKG_TARGET_TRIPLET "arm64-linux-mega")
             else()
                 set(VCPKG_TARGET_TRIPLET "x64-linux-mega")
             endif()
