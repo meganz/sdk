@@ -21,6 +21,7 @@ public:
     static constexpr auto MAX_TIMEOUT{3min};
 
     void SetUp() override;
+    void TearDown() override;
 
     handle getBaseHandle() const
     {
@@ -37,6 +38,7 @@ protected:
     MegaApi* mApi{};
 
     void initPasswordManagerBase();
+    void removePWMNodes();
 };
 
 #endif // INCLUDE_PASSWORDMANAGER_SDKTESTPASSWORDMANAGER_H_
