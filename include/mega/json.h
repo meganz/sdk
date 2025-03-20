@@ -102,6 +102,7 @@ public:
     static bool extractstringvalue(const string & json, const string & name, string* value);
 
     // convenience functions, which avoid warnings and casts
+    // Note: they should check for the value returned by the underlying function in case of error.
     inline int      getint32()  { return int(getint()); }
     inline unsigned getuint32() { return unsigned(getint()); }
     inline bool     getbool()   { return bool(getint()); }

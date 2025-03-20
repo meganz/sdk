@@ -450,6 +450,11 @@ m_off_t JSON::getint()
     if ((*ptr < '0' || *ptr > '9') && *ptr != '-')
     {
         LOG_err << "Parse error (getint)";
+        // An event about failing to parse the json cannot be sent because no MegaClient instance is
+        // accessible from here.
+        assert(false && "JSON::getint(): Unexpected value in JSON");
+        // It should probably return something less common in this case, like
+        // std::numeric_limits<m_off_t>::min().
         return -1;
     }
 
