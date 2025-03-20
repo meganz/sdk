@@ -7797,10 +7797,14 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 */
 
 #ifdef DEBUG
-TEST_F(SdkTest, DISABLED_SdkTestOverquotaCloudraid)
+TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
     LOG_info << "___TEST SdkTestOverquotaCloudraid";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto accountRestorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
