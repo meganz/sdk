@@ -279,8 +279,8 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::s
         return nullptr;
     }
 
-    jstring jname = env->NewStringUTF(childName.c_str());
-    jobject temporalObject = env->CallObjectMethod(mAndroidFileObject, methodID, jname, isFolder);
+    jstring jname{env->NewStringUTF(childName.c_str())};
+    jobject temporalObject{env->CallObjectMethod(mAndroidFileObject, methodID, jname, isFolder)};
     env->DeleteLocalRef(jname);
     jobject globalObject{nullptr};
     if (temporalObject != nullptr)
@@ -299,7 +299,7 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::s
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getChildByName(const std::string& name)
 {
-    auto children = getChildren();
+    auto children{getChildren()};
     for (auto& child: children)
     {
         if (child->getName() == name)
@@ -343,8 +343,13 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getParent() const
     return std::make_shared<AndroidFileWrapper>(globalObject);
 }
 
-std::optional<std::string> AndroidFileWrapper::getPath() const
+std::optional<std::string> AndroidFileWrapper::getPath()
 {
+    if (!isURI())
+    {
+        return mURI;
+    }
+
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetMethodID(fileWrapper, GET_PATH, "()Ljava/lang/String;");
@@ -515,11 +520,10 @@ AndroidPlatformURIHelper::AndroidPlatformURIHelper()
 
 bool AndroidPlatformURIHelper::isURI(const std::string& uri)
 {
-    std::shared_ptr<AndroidFileWrapper> fileWrapper =
-        AndroidFileWrapper::getAndroidFileWrapper(uri);
-    if (fileWrapper->exists())
+    auto androidFileWrapper{AndroidFileWrapper::getAndroidFileWrapper(uri)};
+    if (androidFileWrapper->exists())
     {
-        return fileWrapper->isURI();
+        return androidFileWrapper->isURI();
     }
 
     return false;
@@ -527,11 +531,10 @@ bool AndroidPlatformURIHelper::isURI(const std::string& uri)
 
 std::optional<std::string> AndroidPlatformURIHelper::getName(const std::string& uri)
 {
-    std::shared_ptr<AndroidFileWrapper> fileWrapper =
-        AndroidFileWrapper::getAndroidFileWrapper(uri);
-    if (fileWrapper->exists())
+    auto androidFileWrapper{AndroidFileWrapper::getAndroidFileWrapper(uri)};
+    if (androidFileWrapper->exists())
     {
-        return fileWrapper->getName();
+        return androidFileWrapper->getName();
     }
 
     return std::nullopt;
@@ -539,12 +542,11 @@ std::optional<std::string> AndroidPlatformURIHelper::getName(const std::string& 
 
 std::optional<std::string> AndroidPlatformURIHelper::getParentURI(const std::string& uri)
 {
-    std::shared_ptr<AndroidFileWrapper> fileWrapper =
-        AndroidFileWrapper::getAndroidFileWrapper(uri);
+    auto androidFileWrapper{AndroidFileWrapper::getAndroidFileWrapper(uri)};
 
-    if (fileWrapper->exists())
+    if (androidFileWrapper->exists())
     {
-        std::shared_ptr<AndroidFileWrapper> parentWrapper = fileWrapper->getParent();
+        std::shared_ptr<AndroidFileWrapper> parentWrapper{androidFileWrapper->getParent()};
         return parentWrapper ? std::optional<std::string>{parentWrapper->getURI()} : std::nullopt;
     }
 
@@ -553,12 +555,11 @@ std::optional<std::string> AndroidPlatformURIHelper::getParentURI(const std::str
 
 std::optional<std::string> AndroidPlatformURIHelper::getPath(const std::string& uri)
 {
-    std::shared_ptr<AndroidFileWrapper> fileWrapper =
-        AndroidFileWrapper::getAndroidFileWrapper(uri);
+    auto androidFileWrapper{AndroidFileWrapper::getAndroidFileWrapper(uri)};
 
-    if (fileWrapper->exists())
+    if (androidFileWrapper->exists())
     {
-        return fileWrapper->getPath();
+        return androidFileWrapper->getPath();
     }
 
     return std::nullopt;
@@ -589,23 +590,20 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
     }
 
     bool statCalculated = false;
-    std::optional<std::string> path = mFileWrapper->getPath();
+    std::optional<std::string> path{mFileWrapper->getPath()};
     struct stat statbuf;
-    if (path.has_value())
+    if (path.has_value() && stat(path->c_str(), &statbuf) != -1)
     {
         statCalculated = true;
-        if (stat(path->c_str(), &statbuf) != -1)
+        if (S_ISDIR(statbuf.st_mode))
         {
-            if (S_ISDIR(statbuf.st_mode))
-            {
-                type = FOLDERNODE;
-                size = 0;
-                mtime = statbuf.st_mtime;
-                fsid = static_cast<handle>(statbuf.st_ino);
-                fsidvalid = true;
-                fopenSucceeded = true;
-                return true;
-            }
+            type = FOLDERNODE;
+            size = 0;
+            mtime = statbuf.st_mtime;
+            fsid = static_cast<handle>(statbuf.st_ino);
+            fsidvalid = true;
+            fopenSucceeded = true;
+            return true;
         }
     }
 
@@ -1016,7 +1014,7 @@ bool AndroidFileSystemAccess::renamelocal(const LocalPath& oldname,
                                           const LocalPath& newname,
                                           bool overwrite)
 {
-    if (oldname.isURI() && newname.isURI())
+    if (oldname.isURI() || newname.isURI())
     {
         auto oldNameWrapper = AndroidFileWrapper::getAndroidFileWrapper(oldname, false, false);
         if (oldname.parentPath() == newname.parentPath())
@@ -1054,7 +1052,7 @@ bool AndroidFileSystemAccess::copylocal(const LocalPath& oldname,
                                         const LocalPath& newname,
                                         m_time_t time)
 {
-    if (oldname.isURI() && newname.isURI())
+    if (oldname.isURI() || newname.isURI())
     {
         if (!copy(oldname, newname))
         {
@@ -1070,7 +1068,7 @@ bool AndroidFileSystemAccess::copylocal(const LocalPath& oldname,
 
 bool AndroidFileSystemAccess::unlinklocal(const LocalPath& p1)
 {
-    auto wrapper = AndroidFileWrapper::getAndroidFileWrapper(p1, false, false);
+    auto wrapper{AndroidFileWrapper::getAndroidFileWrapper(p1, false, false)};
     if (!wrapper)
     {
         return false;
@@ -1088,13 +1086,13 @@ bool AndroidFileSystemAccess::rmdirlocal(const LocalPath& p1)
 {
     emptydirlocal(p1);
 
-    auto fileWrapper = AndroidFileWrapper::getAndroidFileWrapper(p1, false, false);
-    if (!fileWrapper || fileWrapper->getChildren().size())
+    auto androidFileWrapper{AndroidFileWrapper::getAndroidFileWrapper(p1, false, false)};
+    if (!androidFileWrapper || androidFileWrapper->getChildren().size())
     {
         return false;
     }
 
-    return fileWrapper->deleteEmptyFolder();
+    return androidFileWrapper->deleteEmptyFolder();
 }
 
 bool AndroidFileSystemAccess::mkdirlocal(const LocalPath& name,
@@ -1405,10 +1403,10 @@ void AndroidFileSystemAccess::emptydirlocal(const LocalPath& path, dev_t)
 
 LocalPath AndroidFileSystemAccess::getStandartPathFromURIPath(const LocalPath& localPath) const
 {
-    auto fileWrapper = AndroidFileWrapper::getAndroidFileWrapper(localPath, false, false);
-    if (fileWrapper)
+    auto androidFileWrapper{AndroidFileWrapper::getAndroidFileWrapper(localPath, false, false)};
+    if (androidFileWrapper)
     {
-        if (auto path = fileWrapper->getPath(); path.has_value())
+        if (auto path = androidFileWrapper->getPath(); path.has_value())
         {
             LocalPath auxPath = LocalPath::fromAbsolutePath(path->c_str());
             return auxPath;
@@ -1420,8 +1418,7 @@ LocalPath AndroidFileSystemAccess::getStandartPathFromURIPath(const LocalPath& l
 
 bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& newname)
 {
-    std::shared_ptr<AndroidFileWrapper> androidfileWrapper =
-        AndroidFileWrapper::getAndroidFileWrapper(oldname, false, false);
+    auto androidfileWrapper{AndroidFileWrapper::getAndroidFileWrapper(oldname, false, false)};
 
     if (!androidfileWrapper)
     {
@@ -1434,10 +1431,10 @@ bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& ne
         {
             for (const auto& child: androidfileWrapper->getChildren())
             {
-                LocalPath childNewPath = newname;
+                LocalPath childNewPath{newname};
                 childNewPath.appendWithSeparator(LocalPath::fromRelativePath(child->getName()),
                                                  false);
-                LocalPath childOldPath = oldname;
+                LocalPath childOldPath{oldname};
                 childOldPath.appendWithSeparator(LocalPath::fromRelativePath(child->getName()),
                                                  false);
                 copy(childOldPath, childNewPath);
@@ -1447,19 +1444,20 @@ bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& ne
         return true;
     }
 
-    unique_ptr<FileAccess> oldFile = newfileaccess();
-    unique_ptr<FileAccess> newFile = newfileaccess();
+    unique_ptr<FileAccess> oldFile{newfileaccess()};
+    unique_ptr<FileAccess> newFile{newfileaccess()};
     if (oldFile->fopen(oldname, true, false, FSLogging::logOnError) &&
         newFile->fopen(newname, true, true, FSLogging::logOnError))
     {
-        unsigned char buffer[16384];
-        size_t pos = 0;
+        constexpr uint32_t BUFFER_SIZE{16384};
+        unsigned char buffer[BUFFER_SIZE];
+        size_t pos{0};
         bool followRead = true;
         // Set true when last pacake isn't complete,
         bool moreData = true;
         do
         {
-            unsigned bytesToRead = sizeof buffer;
+            unsigned bytesToRead{BUFFER_SIZE};
             if (pos + static_cast<m_off_t>(bytesToRead) > oldFile->size)
             {
                 bytesToRead = oldFile->size - pos;
@@ -1497,7 +1495,7 @@ AddWatchResult AndroidDirNotify::addWatch(LocalNode& node, const LocalPath& path
     if (auxPath.isURI())
     {
         auto androidFileWrapper{AndroidFileWrapper::getAndroidFileWrapper(auxPath, false, false)};
-        auto pathStr = androidFileWrapper->getPath();
+        auto pathStr{androidFileWrapper->getPath()};
         if (pathStr.has_value())
         {
             auxPath = LocalPath::fromAbsolutePath(pathStr.value());
