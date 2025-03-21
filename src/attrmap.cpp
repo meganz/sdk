@@ -131,8 +131,7 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
     unsigned short ll;
     nameid id;
 
-    l = static_cast<unsigned char>(*ptr++);
-    while ((ptr < end) && l)
+    while ((ptr < end) && (l = static_cast<unsigned char>(*ptr++)) != 0)
     {
         id = 0;
 
@@ -156,7 +155,6 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
 
         map[id].assign(ptr, ll);
         ptr += ll;
-        l = static_cast<unsigned char>(*ptr++);
     }
 
     return ptr;
