@@ -40,7 +40,7 @@ static const std::string pathSep{LocalPath::localPathSeparator_utf8};
  * a local file path
  * - Test6: Create relative LocalPath from a string that was already converted to be appropriate for
  * a local file path
- *
+ * - Test7: Create absolute LocalPath from platform encoded string
  */
 TEST(LocalPathTest, LocalPathCreation)
 {
@@ -139,6 +139,19 @@ TEST(LocalPathTest, LocalPathCreation)
 #endif
         auto outputLocalPath = LocalPath::fromRelativePath(input);
         EXPECT_FALSE(outputLocalPath.isAbsolute());
+        EXPECT_EQ(outputLocalPath.toPath(false), expected);
+    }
+
+    LOG_debug << "#### Test7: Create absolute LocalPath from platform encoded string ####";
+    {
+#if defined(WIN32)
+        std::wstring input{L"D:\\home\\user\\leaf.txt"};
+        std::string expected{"D:\\home\\user\\leaf.txt"};
+#else
+        std::string input{"/home/userleaf.txt"};
+        std::string expected = input;
+#endif
+        auto outputLocalPath = LocalPath::fromPlatformEncodedAbsolute(std::move(input));
         EXPECT_EQ(outputLocalPath.toPath(false), expected);
     }
 }

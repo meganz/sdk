@@ -416,6 +416,13 @@ LocalPath LocalPath::fromURIPath(const string_type& path)
     return p;
 }
 
+#ifdef _WIN32
+string_type LocalPath::toStringType(const std::wstring& path)
+{
+    return path;
+}
+#endif
+
 string_type LocalPath::toStringType(const std::string& path)
 {
     string_type converted;
@@ -459,7 +466,7 @@ LocalPath LocalPath::fromPlatformEncodedRelative(wstring&& wpath)
 LocalPath LocalPath::fromPlatformEncodedAbsolute(wstring&& wpath)
 {
     using helper = LocalPathImplementationHelper;
-    if (const auto stringTypePath = toStringType(path); URIHandler::isURI(stringTypePath))
+    if (const auto stringTypePath = toStringType(wpath); URIHandler::isURI(stringTypePath))
     {
         return fromURIPath(stringTypePath);
     }
