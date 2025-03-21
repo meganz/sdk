@@ -1752,6 +1752,12 @@ using namespace mega;
     }
 }
 
+- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude {
+    if (self.megaApi) {
+        self.megaApi->setUnshareableNodeCoordinates(node.getCPtr, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE));
+    }
+}
+
 - (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->exportNode(node.getCPtr, 0, false, false, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
