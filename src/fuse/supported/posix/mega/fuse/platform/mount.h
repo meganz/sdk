@@ -30,6 +30,7 @@ class Mount final
   : public fuse::Mount
 {
     friend class Session;
+    friend class SessionBase;
 
     void access(Request request,
                 MountInodeID inode,

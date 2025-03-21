@@ -30,6 +30,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_POSIX_INC}/request.h
                              ${FUSE_POSIX_INC}/request_forward.h
                              ${FUSE_POSIX_INC}/session.h
+                             ${FUSE_POSIX_INC}/session_base.h
                              ${FUSE_POSIX_INC}/session_forward.h
                              ${FUSE_POSIX_INC}/signal.h
                              ${FUSE_POSIX_INC}/utility.h
@@ -43,6 +44,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_POSIX_SRC}/request.cpp
                              ${FUSE_POSIX_SRC}/service.cpp
                              ${FUSE_POSIX_SRC}/session.cpp
+                             ${FUSE_POSIX_SRC}/session_base.cpp
                              ${FUSE_POSIX_SRC}/signal.cpp
                              ${FUSE_POSIX_SRC}/unmounter.cpp
                              ${FUSE_POSIX_SRC}/utility.cpp

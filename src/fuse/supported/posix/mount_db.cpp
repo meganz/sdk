@@ -200,15 +200,8 @@ void MountDB::dispatch()
             if (!descriptors.set(*session))
                 continue;
 
-            // Retrieve the latest request from the session.
-            auto request = session->nextRequest();
-
-            // Invalid request.
-            if (request.empty())
-                continue;
-
             // Dispatch the request.
-            session->dispatch(std::move(request));
+            session->dispatch();
         }
     }
 }
