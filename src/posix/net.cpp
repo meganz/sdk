@@ -1965,9 +1965,10 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     req->httpiohandle = (void*)httpctx;
 
     bool validrequest = true;
-    validrequest = crackurl(&req->posturl, &httpctx->scheme, &httpctx->hostname, &httpctx->port);
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
-        || !validrequest) // invalid request
+        || (validrequest =
+                crackurl(&req->posturl, &httpctx->scheme, &httpctx->hostname, &httpctx->port)) !=
+               true) // invalid request
     {
         if (validrequest)
         {
@@ -2290,8 +2291,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
     CURLMsg* msg;
     bool result;
 
-    msg = curl_multi_info_read(curlmhandle, &dummy);
-    while (msg)
+    while ((msg = curl_multi_info_read(curlmhandle, &dummy)) != nullptr)
     {
         HttpReq* req = NULL;
         if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, (char**)&req) == CURLE_OK && req)
@@ -2585,7 +2585,6 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
             }
         }
-        msg = curl_multi_info_read(curlmhandle, &dummy);
     }
 
     result = statechange;
