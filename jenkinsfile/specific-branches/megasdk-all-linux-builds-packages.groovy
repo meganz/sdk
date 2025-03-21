@@ -98,7 +98,7 @@ pipeline {
                                 'Debian_11','Debian_12','Debian_testing',
                                 'DEB_Arch_Extra',
                                 'Raspbian_11', 'Raspbian_12',
-                                'Fedora_40','Fedora_41', 'Fedora_42',
+                                'Fedora_40', 'Fedora_42',
                                 'openSUSE_Leap_15.5','openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
                     }
                 }
