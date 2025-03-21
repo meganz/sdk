@@ -145,8 +145,7 @@ void GfxProc::loop()
     {
         waiter.init(NEVER);
         waiter.wait();
-        job = requests.pop();
-        while (job)
+        while ((job = requests.pop()) != nullptr)
         {
             if (finished)
             {
@@ -164,26 +163,21 @@ void GfxProc::loop()
 
             responses.push(job);
             client->waiter->notify();
-            job = requests.pop();
         }
     }
 
-    job = requests.pop();
-    while (job)
+    while ((job = requests.pop()) != nullptr)
     {
         delete job;
-        job = requests.pop();
     }
 
-    job = responses.pop();
-    while (job)
+    while ((job = responses.pop()) != nullptr)
     {
         for (unsigned i = 0; i < job->imagetypes.size(); i++)
         {
             delete job->images[i];
         }
         delete job;
-        job = responses.pop();
     }
 }
 
@@ -196,8 +190,7 @@ int GfxProc::checkevents(Waiter *)
 
     GfxJob *job = NULL;
     bool needexec = false;
-    job = responses.pop();
-    while (job)
+    while ((job = responses.pop()) != nullptr)
     {
         for (unsigned i = 0; i < job->images.size(); i++)
         {
@@ -247,7 +240,6 @@ int GfxProc::checkevents(Waiter *)
             needexec = true;
         }
         delete job;
-        job = responses.pop();
     }
 
     return needexec ? Waiter::NEEDEXEC : 0;
