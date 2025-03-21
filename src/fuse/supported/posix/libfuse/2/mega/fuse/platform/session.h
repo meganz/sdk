@@ -39,9 +39,6 @@ public:
     // Dispatch a request received from FUSE.
     void dispatch() override;
 
-    // Has this session exited?
-    bool exited() const override;
-
     // Invalidate an inode's data.
     void invalidateData(MountInodeID id,
                         off_t offset,

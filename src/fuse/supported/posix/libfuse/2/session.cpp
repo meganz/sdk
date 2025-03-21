@@ -74,7 +74,8 @@ std::string Session::nextRequest()
         if (result == -EINTR)
             continue;
 
-        throw FUSEErrorF("Unable to read request from session: %d", -result);
+        throw FUSEErrorF("Unable to read request from session: %d",
+                         std::strerror(-result));
     }
 }
 
@@ -173,13 +174,6 @@ void Session::dispatch()
                              request.data(),
                              request.size(),
                              mChannel);
-}
-
-bool Session::exited() const
-{
-    assert(mSession);
-
-    return fuse_session_exited(mSession);
 }
 
 void Session::invalidateData(MountInodeID id, off_t offset, off_t length)
