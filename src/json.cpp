@@ -1446,8 +1446,7 @@ bool JSONSplitter::isStarting()
 int JSONSplitter::strEnd()
 {
     const char* ptr = mPos;
-    ptr = strchr(ptr + 1, '"');
-    while (ptr)
+    while ((ptr = strchr(ptr + 1, '"')) != nullptr)
     {
         const char *e = ptr;
         while (*(--e) == '\\')
