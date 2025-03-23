@@ -153,7 +153,7 @@ public:
         std::string mContent;
         
         // How large is this file?
-        std::uintmax_t mSize;
+        std::uint64_t mSize;
     }; // FileNode
 
     Model();

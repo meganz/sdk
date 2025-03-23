@@ -338,7 +338,7 @@ auto Model::FileNode::from(const Client&, NodeInfo info) -> NodePtr
     file->mModified = info.mModified;
 
     // Latch size.
-    file->mSize = static_cast<std::uintmax_t>(info.mSize);
+    file->mSize = static_cast<std::uint64_t>(info.mSize);
 
     // Return file to caller.
     return file;
@@ -366,7 +366,7 @@ auto Model::FileNode::from(const fs::path& path) -> NodePtr
     std::ifstream istream(path.u8string(), std::ios::binary);
 
     // Expand buffer.
-    file->mContent.resize(file->mSize);
+    file->mContent.resize(static_cast<std::size_t>(file->mSize));
 
     // Convenience.
     auto size_ = static_cast<std::streamsize>(file->mSize);
