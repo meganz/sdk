@@ -335,7 +335,7 @@ auto Model::FileNode::from(const Client&, NodeInfo info) -> NodePtr
     using std::chrono::system_clock;
 
     // Latch modification time.
-    file->mModified = system_clock::from_time_t(info.mModified);
+    file->mModified = info.mModified;
 
     // Latch size.
     file->mSize = static_cast<std::uintmax_t>(info.mSize);

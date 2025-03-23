@@ -21,9 +21,15 @@ target_include_directories(${SDK_TARGET} PRIVATE
                                          ${FUSE_POSIX_SRC}
 )
 
+# Apple and 32bit UNIX systems have a time_t distinct time m_time_t.
+if (APPLE OR CMAKE_SIZEOF_VOID_P EQUAL 4)
+    target_compile_definitions(${SDK_TARGET} PUBLIC HAS_DISTINCT_TIME_T)
+endif()
+
 # Add sources required by libfuse backend.
 target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_POSIX_INC}/constants.h
+                             ${FUSE_POSIX_INC}/date_time.h
                              ${FUSE_POSIX_INC}/directory_context.h
                              ${FUSE_POSIX_INC}/file_descriptor.h
                              ${FUSE_POSIX_INC}/file_descriptor_forward.h
@@ -70,7 +76,6 @@ set(FUSE_UNIX_INC ${FUSE_UNIX_SRC}/mega/fuse/platform)
 
 # Add UNIX-specific sources.
 target_sources(${SDK_TARGET} PRIVATE
-                             ${FUSE_UNIX_INC}/date_time.h
                              ${FUSE_UNIX_INC}/platform.h
                              ${FUSE_UNIX_SRC}/utility.cpp
 )
