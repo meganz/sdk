@@ -51,7 +51,7 @@ protected:
 
     static void forget(fuse_req_t request,
                        fuse_ino_t inode,
-                       std::size_t num);
+                       std::uint64_t num);
 
     static void forget_multi(fuse_req_t request,
                              std::size_t count,

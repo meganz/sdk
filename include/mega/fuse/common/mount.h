@@ -67,7 +67,7 @@ protected:
     void pin(InodeRef inode, const InodeInfo& info);
 
     // Unpin a pinned inode.
-    void unpin(InodeRef inode, std::size_t num);
+    void unpin(InodeRef inode, std::uint64_t num);
 
 public:
     // Add a context to our context set.

@@ -119,11 +119,11 @@ void SessionBase::flush(fuse_req_t request,
 
 void SessionBase::forget(fuse_req_t request,
                          fuse_ino_t inode,
-                         std::size_t num)
+                         std::uint64_t num)
 {
     MountInodeID inode_(inode);
 
-    FUSEDebugF("forget: inode: %s, num: %zu, request: %p",
+    FUSEDebugF("forget: inode: %s, num: %lu, request: %p",
                toString(inode_).c_str(),
                num,
                request);

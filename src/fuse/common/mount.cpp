@@ -43,7 +43,7 @@ struct Mount::PinnedInodeInfo
     const InodeID mParentID;
 
     // How many times the inode has been pinned.
-    size_t mPinCount;
+    std::uint64_t mPinCount;
 }; /* PinnedInodeInfo */
 
 void Mount::invalidatePin(PinnedInodeInfo& info,
@@ -141,7 +141,7 @@ void Mount::pin(InodeRef inode, const InodeInfo& info)
                position->second.mPinCount);
 }
 
-void Mount::unpin(InodeRef inode, std::size_t num)
+void Mount::unpin(InodeRef inode, std::uint64_t num)
 {
     assert(inode);
 
