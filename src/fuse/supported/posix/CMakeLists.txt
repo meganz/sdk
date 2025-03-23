@@ -26,6 +26,9 @@ if (APPLE OR CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_compile_definitions(${SDK_TARGET} PUBLIC HAS_DISTINCT_TIME_T)
 endif()
 
+# Make sure dependent applications support 64bit inodes.
+target_compile_definitions(${SDK_TARGET} PUBLIC _FILE_OFFSET_BITS=64)
+
 # Add sources required by libfuse backend.
 target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_POSIX_INC}/constants.h
