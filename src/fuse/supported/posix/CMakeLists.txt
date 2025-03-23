@@ -8,6 +8,11 @@ list(APPEND CMAKE_MODULE_PATH ${FUSE_POSIX_SRC}/cmake)
 # Make sure libfuse is present.
 find_package(FUSE REQUIRED)
 
+# Make sure 32bit UNIX platforms are building against libfuse3.
+if (CMAKE_SIZEOF_VOID_P EQUAL 4 AND FUSE_VERSION_MAJOR LESS 3)
+    message(FATAL_ERROR "32bit UNIX platforms must link against libfuse3.")
+endif()
+
 # Convenience.
 set(FUSE_LIBFUSE_SRC ${FUSE_POSIX_SRC}/libfuse/${FUSE_VERSION_MAJOR})
 set(FUSE_LIBFUSE_INC ${FUSE_LIBFUSE_SRC}/mega/fuse/platform)
