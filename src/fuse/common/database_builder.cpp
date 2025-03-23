@@ -150,7 +150,7 @@ static std::size_t currentVersion(Query& query)
 
     query.execute();
 
-    return query.field("version").uint64();
+    return query.field("version").size();
 }
 
 void downgrade10(Query& query)
