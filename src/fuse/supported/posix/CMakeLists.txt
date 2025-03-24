@@ -43,6 +43,15 @@ if (HAS_OPEN_PATH)
     target_compile_definitions(${SDK_TARGET} PUBLIC HAS_OPEN_PATH)
 endif()
 
+# Check if the target supports the RENAME_(EXCHANGE|NOREPLACE) flags.
+try_compile(HAS_RENAME_FLAGS
+            "${CMAKE_BINARY_DIR}"
+            "${FUSE_POSIX_SRC}/cmake/checks/has_rename_flags.cpp")
+
+if (HAS_RENAME_FLAGS)
+    target_compile_definitions(${SDK_TARGET} PUBLIC HAS_RENAME_FLAGS)
+endif()
+
 # Add sources required by libfuse backend.
 target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_POSIX_INC}/constants.h
