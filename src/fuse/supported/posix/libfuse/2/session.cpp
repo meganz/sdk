@@ -110,7 +110,8 @@ void Session::rename(fuse_req_t request,
                            parent_,
                            std::string(name),
                            newParent_,
-                           std::string(newName));
+                           std::string(newName),
+                           0);
 }
 
 Session::Session(Mount& mount)

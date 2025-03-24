@@ -83,7 +83,7 @@ void Session::rename(fuse_req_t request,
                      const char* name,
                      fuse_ino_t newParent,
                      const char* newName,
-                     unsigned int)
+                     unsigned int flags)
 {
     MountInodeID parent_(parent);
     MountInodeID newParent_(newParent);
@@ -102,7 +102,8 @@ void Session::rename(fuse_req_t request,
                            parent_,
                            std::string(name),
                            newParent_,
-                           std::string(newName));
+                           std::string(newName),
+                           flags);
 }
 
 Session::Session(Mount& mount)

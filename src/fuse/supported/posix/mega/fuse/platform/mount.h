@@ -133,7 +133,8 @@ class Mount final
                 MountInodeID sourceParent,
                 const std::string& sourceName,
                 MountInodeID targetParent,
-                const std::string& targetName);
+                const std::string& targetName,
+                unsigned int flags);
 
     void rmdir(Request request,
                MountInodeID parent,
