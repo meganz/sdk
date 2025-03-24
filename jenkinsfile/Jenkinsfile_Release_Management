@@ -11,8 +11,6 @@ pipeline {
         string(name: 'TARGET_APPS', defaultValue: '', description: 'e.g. Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1 (only required for creating releases, not for closing)')
         string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Define release version (ie. 8.5.0). Optional for Create Release, mandatory for other actions.')
         string(name: 'TICKETS', defaultValue: '', description: 'Comma separated tickets. Required for Patch release or Create RC.')
-        string(name: 'BRANCH_FOR_MR', defaultValue: '', description: 'Fix branch for creating the MR to release branch. Optional for Create RC, useless for other actions.')
-        string(name: 'MR_DESCRIPTION', defaultValue: '', description: 'MR description for creating the MR to release branch. Optional for Create RC, useless for other actions.')
         password(name: 'GPG_PASSWORD', defaultValue: '', description: 'Enter the password. Only required for creating new releases and patched releases.')
     }
     environment {
@@ -57,8 +55,6 @@ pipeline {
                             sed -i 's|github_push_remote_url = ""|github_push_remote_url = "${env.github_push_remote_url}"|' config.toml
                             sed -i 's|confluence_url = ""|confluence_url = "${env.confluence_url}"|' config.toml
                             sed -i 's|tickets = ""|tickets = "${params.TICKETS}"|' config.toml
-                            sed -i 's|branch_for_mr = ""|branch_for_mr = "${params.BRANCH_FOR_MR}"|' config.toml
-                            sed -i 's|mr_description = ""|mr_description = "${params.MR_DESCRIPTION}"|' config.toml
                         """
                     }
                 }
