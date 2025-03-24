@@ -6917,6 +6917,45 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated)) // at the target side (auxiliar account)
         << "Chat update not received after " << maxTimeout << " seconds";
 }
+
+TEST_F(SdkTest, SdkTestFolderInfo)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    auto root = megaApi[0]->getRootNode();
+    ASSERT_TRUE(root);
+    auto f1node = createDirectory(*megaApi[0], *root, "folder1");
+    ASSERT_TRUE(value(f1node));
+    auto node = createDirectory(*megaApi[0], *value(f1node), "folder1.1");
+    ASSERT_TRUE(value(node));
+    ASSERT_TRUE(createFile(UPFILE, false));
+    MegaHandle uploadedNodeHande = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &uploadedNodeHande,
+                            UPFILE.c_str(),
+                            value(node).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/));
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &uploadedNodeHande,
+                            UPFILE.c_str(),
+                            value(f1node).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/));
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, value(f1node).get()));
+    auto info = mApi[0].mFolderInfo.get();
+    ASSERT_EQ(info->getNumFiles(), 2);
+    ASSERT_EQ(info->getNumFolders(), 1);
+}
 #endif
 
 class myMIS : public MegaInputStream

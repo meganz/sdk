@@ -24796,7 +24796,12 @@ void MegaApiImpl::getFolderInfo(MegaNode* node, MegaRequestListener* listener)
             }
 
             NodeCounter nc = node->getCounter();
-            std::unique_ptr<MegaFolderInfo> folderInfo = std::make_unique<MegaFolderInfoPrivate>((int)nc.files, (int)nc.folders, (int)nc.versions, nc.storage, nc.versionStorage);
+            std::unique_ptr<MegaFolderInfo> folderInfo =
+                std::make_unique<MegaFolderInfoPrivate>((int)nc.files,
+                                                        (int)nc.folders - 1,
+                                                        (int)nc.versions,
+                                                        nc.storage,
+                                                        nc.versionStorage);
             request->setMegaFolderInfo(folderInfo.get());
 
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
