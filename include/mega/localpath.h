@@ -366,11 +366,12 @@ public:
     // - They are effectively identical.
     // - One path contains another.
     bool related(const LocalPath& other) const;
-
-    friend class LocalPathImplementationHelper;
     bool invariant() const;
 
 private:
+#ifdef _WIN32
+    static string_type toStringType(const std::wstring& path);
+#endif
     static string_type toStringType(const std::string& path);
     std::unique_ptr<AbstractLocalPath> mImplementation;
 };

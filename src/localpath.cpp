@@ -234,12 +234,6 @@ public:
 
         LocalPath localPath;
         auto aux = std::make_unique<T>(source);
-
-        if constexpr (std::is_same_v<T, Path>)
-        {
-            aux->setPathType(source.getPathType());
-        }
-
         localPath.setImpl(std::move(aux));
         return localPath;
     }
@@ -256,7 +250,7 @@ public:
             aux->normalizeAbsolute();
         aux->setPathType(pathType);
 
-        p.mImplementation = std::move(aux);
+        p.setImpl(std::move(aux));
         return p;
     }
 
@@ -388,7 +382,7 @@ LocalPath LocalPath::fromAbsolutePath(const std::string& path)
         auto aux = std::make_unique<Path>(newPath);
         aux->normalizeAbsolute();
         aux->setPathType(PathType::ABSOLUTE_PATH);
-        p.mImplementation = std::move(aux);
+        p.setImpl(std::move(aux));
     }
 
     return p;
@@ -401,7 +395,7 @@ LocalPath LocalPath::fromRelativePath(const std::string& path)
     path2local(&path, &newPath);
     auto aux = std::make_unique<Path>(newPath);
     aux->setPathType(PathType::RELATIVE_PATH);
-    p.mImplementation = std::move(aux);
+    p.setImpl(std::move(aux));
     assert(p.invariant());
     return p;
 }
