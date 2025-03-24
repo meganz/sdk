@@ -364,9 +364,11 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
     std::unique_ptr<FileAccess> fileAccess = fsAccess.newfileaccess();
 
 #if !(TARGET_OS_IPHONE)
-    auto suffix = LocalPath::fromRelativePath("-shm");
-    auto from = legacyPath + suffix;
-    auto to = dbPath + suffix;
+    std::string suffix{"-shm"};
+    auto from = legacyPath;
+    from.insertFilenameSuffix(suffix);
+    auto to = dbPath;
+    to.insertFilenameSuffix(suffix);
 
     // -shm could or couldn't be present
     if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
@@ -376,9 +378,11 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
         return false;
     }
 
-    suffix = LocalPath::fromRelativePath("-wal");
-    from = legacyPath + suffix;
-    to = dbPath + suffix;
+    suffix = std::string{"-wal"};
+    from = legacyPath;
+    from.insertFilenameSuffix(suffix);
+    to = dbPath;
+    to.insertFilenameSuffix(suffix);
 
     // -wal could or couldn't be present
     if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
@@ -411,12 +415,12 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
     fsAccess.unlinklocal(dbPath);
 
 #if !(TARGET_OS_IPHONE)
-    auto suffix = LocalPath::fromRelativePath("-shm");
-    auto fileToRemove = dbPath + suffix;
+    auto fileToRemove = dbPath;
+    fileToRemove.insertFilenameSuffix("-shm");
     fsAccess.unlinklocal(fileToRemove);
 
-    suffix = LocalPath::fromRelativePath("-wal");
-    fileToRemove = dbPath + suffix;
+    fileToRemove = dbPath;
+    fileToRemove.insertFilenameSuffix("-wal");
     fsAccess.unlinklocal(fileToRemove);
 #else
     // iOS doesn't use WAL mode, but Journal

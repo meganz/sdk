@@ -1,0 +1,383 @@
+/**
+ * @brief Manage local paths (standars and URIs)
+ */
+
+#ifndef LOCALPATH_H
+#define LOCALPATH_H
+
+#include "mega/types.h"
+
+#include <memory>
+#include <optional>
+#include <string>
+
+namespace mega
+{
+
+// Enumeration for filesystem families
+enum FileSystemType
+{
+    FS_UNKNOWN = -1,
+    FS_APFS = 0,
+    FS_HFS = 1,
+    FS_EXT = 2,
+    FS_FAT32 = 3,
+    FS_EXFAT = 4,
+    FS_NTFS = 5,
+    FS_FUSE = 6,
+    FS_SDCARDFS = 7,
+    FS_F2FS = 8,
+    FS_XFS = 9,
+    FS_CIFS = 10,
+    FS_NFS = 11,
+    FS_SMB = 12,
+    FS_SMB2 = 13,
+    FS_LIFS = 14,
+};
+
+#ifdef WIN32
+using string_type = std::wstring;
+#else // _WIN32
+using string_type = std::string;
+#endif // ! _WIN32
+
+class LocalPath;
+
+enum class PathType
+{
+    ABSOLUTE_PATH,
+    RELATIVE_PATH,
+    URI_PATH,
+};
+
+class AbstractLocalPath
+{
+public:
+    virtual ~AbstractLocalPath() {}
+
+    virtual auto asPlatformEncoded(bool stripPrefix) const -> string_type = 0;
+    virtual std::string platformEncoded() const = 0;
+
+    virtual bool empty() const = 0;
+    virtual void clear() = 0;
+    virtual LocalPath leafName() const = 0;
+    virtual std::string leafOrParentName() const = 0;
+    virtual void append(const LocalPath& additionalPath) = 0;
+    virtual void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways) = 0;
+    virtual void prependWithSeparator(const LocalPath& additionalPath) = 0;
+    virtual LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const = 0;
+    virtual void trimNonDriveTrailingSeparator() = 0;
+    virtual bool findPrevSeparator(size_t& separatorBytePos,
+                                   const FileSystemAccess& fsaccess) const = 0;
+    virtual bool endsInSeparator() const = 0;
+
+    virtual size_t getLeafnameByteIndex() const = 0;
+    virtual LocalPath subpathFrom(size_t bytePos) const = 0;
+
+    virtual void changeLeaf(const LocalPath& newLeaf) = 0;
+
+    virtual LocalPath parentPath() const = 0;
+
+    virtual LocalPath insertFilenameSuffix(const std::string& suffix) const = 0;
+
+    virtual bool isContainingPathOf(const LocalPath& path,
+                                    size_t* subpathIndex = nullptr) const = 0;
+    virtual bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const = 0;
+    virtual bool hasNextPathComponent(size_t index) const = 0;
+
+    virtual std::string toPath(bool normalize) const = 0;
+
+    virtual std::string toName(const FileSystemAccess& fsaccess) const = 0;
+
+    virtual bool isRootPath() const = 0;
+
+    virtual const string_type rawValue() const = 0;
+    virtual bool extension(std::string& extension) const = 0;
+    virtual std::string extension() const = 0;
+
+    virtual bool related(const LocalPath& other) const = 0;
+
+    virtual bool invariant() const = 0;
+
+    virtual std::unique_ptr<AbstractLocalPath> clone() const = 0;
+};
+
+/**
+ * @brief Abstract base class providing platform-dependent URI handling
+ *
+ * Each platform should implement this interface to determine whether a given string
+ * is recognized as a URI and to retrieve a representative name from that URI.
+ */
+class MEGA_API PlatformURIHelper
+{
+public:
+    virtual ~PlatformURIHelper(){};
+    // Returns true if string is an URI
+    virtual bool isURI(const string_type& URI) = 0;
+    // Returns the name of file/directory pointed by the URI
+    virtual std::optional<string_type> getName(const string_type& uri) = 0;
+    // Returns parent URI if it's available
+    virtual std::optional<string_type> getParentURI(const string_type& uri) = 0;
+    virtual std::optional<string_type> getPath(const string_type& uri) = 0;
+};
+
+/**
+ * @brief Provides an interface to handle URIs as an identifier for files and directories.
+ *
+ * The URIHandler class offers static methods to detect if a given string is a URI and to extract a
+ * name from that URI. This functionality should be implemented by a platform specific
+ * implementation PlatformURIHelper
+ */
+class MEGA_API URIHandler
+{
+public:
+    // Check if a path is recognized as a URI
+    static bool isURI(const string_type& uri);
+
+    // Retrieve the name for a given path or URI
+    static std::optional<string_type> getName(const string_type& uri);
+
+    // Retrieve the name for a given path or URI
+    static std::optional<string_type> getParentURI(const string_type& uri);
+
+    static std::optional<string_type> getPath(const string_type& uri);
+
+    // platformHelper should be kept alive during all program execution and ownership isn't taken
+    static void setPlatformHelper(PlatformURIHelper* platformHelper);
+
+private:
+    static PlatformURIHelper* mPlatformHelper;
+};
+
+class LocalPath: public AbstractLocalPath
+{
+public:
+    LocalPath() = default;
+    LocalPath(LocalPath&&) noexcept = default;
+    LocalPath& operator=(LocalPath&&) noexcept = default;
+
+    LocalPath(const LocalPath& p)
+    {
+        if (p.mImplementation)
+        {
+            mImplementation = p.mImplementation->clone();
+            mPathType = p.mPathType;
+        }
+    }
+
+    LocalPath operator=(const LocalPath& p)
+    {
+        if (this != &p)
+        {
+            if (p.mImplementation)
+            {
+                mImplementation = p.mImplementation->clone();
+                mPathType = p.mPathType;
+            }
+            else
+            {
+                mImplementation.reset();
+                mPathType = PathType::RELATIVE_PATH;
+            }
+        }
+
+        return *this;
+    }
+
+    ~LocalPath() override {}
+
+    std::unique_ptr<AbstractLocalPath> clone() const override
+    {
+        auto p = std::make_unique<LocalPath>();
+        if (mImplementation)
+        {
+            p->mImplementation = mImplementation->clone();
+            p->mPathType = mPathType;
+        }
+
+        return p;
+    }
+
+    // path2local / local2path are much more natural here than in FileSystemAccess
+    // convert MEGA path (UTF-8) to local format
+    // there is still at least one use from outside this class
+    static void path2local(const std::string*, std::string*);
+    static void local2path(const std::string*, std::string*, bool normalize);
+#if defined(_WIN32)
+    static void local2path(const std::wstring*, std::string*, bool normalize);
+    static void path2local(const std::string*, std::wstring*);
+#endif
+
+    // Create a Localpath from a utf8 string where no character conversions or escaping is
+    // necessary.
+    static LocalPath fromAbsolutePath(const std::string& path);
+    static LocalPath fromRelativePath(const std::string& path);
+    // Build LocalPath from URI, path can have following structure
+    // URI#subFolde1#subFolder2#file
+    // Example:
+    // "content://com.android.externalstorage.documents/tree/primary%3Adescarga%2Fvarias/#F1#"
+    static LocalPath fromURIPath(const string_type& path);
+    static bool isURIPath(const string_type& path);
+
+    // Create a LocalPath from a utf8 string, making any character conversions (escaping) necessary
+    // for characters that are disallowed on that filesystem.  fsaccess is used to do the
+    // conversion.
+    static LocalPath fromRelativeName(std::string path,
+                                      const FileSystemAccess& fsaccess,
+                                      FileSystemType fsType);
+
+    // Create a LocalPath from a string that was already converted to be appropriate for a local
+    // file path.
+    static LocalPath fromPlatformEncodedAbsolute(std::string localname);
+    static LocalPath fromPlatformEncodedRelative(std::string localname);
+#ifdef WIN32
+    static LocalPath fromPlatformEncodedAbsolute(std::wstring&& localname);
+    static LocalPath fromPlatformEncodedRelative(std::wstring&& localname);
+#endif
+    // UTF-8 normalization
+    static void utf8_normalize(std::string*);
+
+    // Generates a name for a temporary file
+    static LocalPath tmpNameLocal();
+
+#ifdef _WIN32
+    typedef wchar_t separator_t;
+    const static separator_t localPathSeparator = L'\\';
+    const static char localPathSeparator_utf8 = '\\';
+#else
+    typedef char separator_t;
+    const static separator_t localPathSeparator = '/';
+    const static char localPathSeparator_utf8 = '/';
+#endif
+
+    bool isAbsolute() const
+    {
+        return mPathType == PathType::ABSOLUTE_PATH;
+    }
+
+    bool isURI() const
+    {
+        return mPathType == PathType::URI_PATH;
+    }
+
+    std::string serialize() const;
+    static std::optional<LocalPath> unserialize(const std::string& d, bool isURI);
+
+    bool operator==(const LocalPath& p) const;
+    bool operator!=(const LocalPath& p) const;
+    bool operator<(const LocalPath& p) const;
+
+    // Returns a reference to the string's internal representation.
+    //
+    // Mostly useful when we need to call platform-specific functions and
+    // don't want to incur the cost of a copy.
+    auto asPlatformEncoded(bool stripPrefix) const -> string_type override;
+    std::string platformEncoded() const override;
+
+    bool empty() const override;
+    void clear() override;
+
+    LocalPath leafName() const override;
+
+    /*
+     * Return the last component of the path (internally uses absolute path, no matter how the
+     * instance was initialized) that could be used as an actual name.
+     *
+     * Examples:
+     *   "D:\\foo\\bar.txt"  "bar.txt"
+     *   "D:\\foo\\"         "foo"
+     *   "D:\\foo"           "foo"
+     *   "D:\\"              "D"
+     *   "D:"                "D"
+     *   "D"                 "D"
+     *   "D:\\.\\"           "D"
+     *   "D:\\."             "D"
+     *   ".\\foo\\"          "foo"
+     *   ".\\foo"            "foo"
+     *   ".\\"               (as in "C:\\foo\\bar\\.\\")                             "bar"
+     *   "."                 (as in "C:\\foo\\bar\\.")                               "bar"
+     *   "..\\..\\"          (as in "C:\\foo\\bar\\..\\..\\")                        "C"
+     *   "..\\.."            (as in "C:\\foo\\bar\\..\\..")                          "C"
+     *   "..\\..\\.."        (as in "C:\\foo\\bar\\..\\..\\..", thus too far back)   "C"
+     *   "/" (*nix)          ""
+     */
+    std::string leafOrParentName() const override;
+
+    void append(const LocalPath& additionalPath) override;
+    void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways) override;
+    void prependWithSeparator(const LocalPath& additionalPath) override;
+    LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const override;
+    void trimNonDriveTrailingSeparator() override;
+    bool findPrevSeparator(size_t& separatorBytePos,
+                           const FileSystemAccess& fsaccess) const override;
+    bool endsInSeparator() const override;
+
+    // get the index of the leaf name.  A trailing separator is considered part of the leaf.
+    size_t getLeafnameByteIndex() const override;
+    LocalPath subpathFrom(size_t bytePos) const override;
+
+    void changeLeaf(const LocalPath& newLeaf) override;
+
+    // Return a path denoting this path's parent.
+    //
+    // Result is undefined if this path is a "root."
+    LocalPath parentPath() const override;
+
+    LocalPath insertFilenameSuffix(const std::string& suffix) const override;
+
+    bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const override;
+    bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const override;
+    bool hasNextPathComponent(size_t index) const override;
+
+    // Return a utf8 representation of the LocalPath
+    // No escaping or unescaping is done.
+    std::string toPath(bool normalize) const override;
+
+    // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
+    // may contain escaped characters that are disallowed for the filesystem.
+    // Those characters are converted back (unescaped).  fsaccess is used to do the conversion.
+    std::string toName(const FileSystemAccess& fsaccess) const override;
+
+    // Does this path represent a filesystem root?
+    //
+    // Relative paths are never considered to be a root path.
+    //
+    // On UNIX systems, this predicate returns true if and only if the
+    // path denotes /.
+    //
+    // On Windows systems, this predicate returns true if and only if the
+    // path specifies a drive such as C:\.
+    bool isRootPath() const override;
+
+    // Try to avoid using this function as much as you can.
+    //
+    // It's present for efficiency reasons and is really only meant for
+    // specific cases when we are using a LocalPath instance in a system
+    // call.
+    const string_type rawValue() const override;
+
+    bool extension(std::string& extension) const override;
+
+    std::string extension() const override;
+
+    // Check if this path is "related" to another.
+    //
+    // Two paths are related if:
+    // - They are effectively identical.
+    // - One path contains another.
+    bool related(const LocalPath& other) const override;
+
+    friend class LocalPathImplementationHelper;
+    bool invariant() const override;
+
+private:
+    std::unique_ptr<AbstractLocalPath> mImplementation;
+
+    // Track whether this LocalPath is from the root of a filesystem (ie, an absolute path)
+    // It makes a big difference for windows, where we must prepend \\?\ prefix
+    // to be able to access long paths, paths ending with space or `.`, etc
+    PathType mPathType{PathType::RELATIVE_PATH};
+};
+} // mega namespace
+
+#endif // LOCALPATH_H

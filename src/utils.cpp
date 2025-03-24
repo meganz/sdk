@@ -181,18 +181,20 @@ string backupTypeToStr(BackupType type)
 void AddHiddenFileAttribute([[maybe_unused]] mega::LocalPath& path)
 {
 #ifdef _WIN32
+    auto pathStr{path.asPlatformEncoded(false)};
     WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (GetFileAttributesExW(path.localpath.data(), GetFileExInfoStandard, &fad))
-        SetFileAttributesW(path.localpath.data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
+    if (GetFileAttributesExW(pathStr.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW(pathStr.data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
 #endif
 }
 
 void RemoveHiddenFileAttribute([[maybe_unused]] mega::LocalPath& path)
 {
 #ifdef _WIN32
+    auto pathStr{path.asPlatformEncoded(false)};
     WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (GetFileAttributesExW(path.localpath.data(), GetFileExInfoStandard, &fad))
-        SetFileAttributesW(path.localpath.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+    if (GetFileAttributesExW(pathStr.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW(pathStr.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
 #endif
 }
 

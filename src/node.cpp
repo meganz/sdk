@@ -2045,9 +2045,9 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     for (auto& c : children) workingList.push_back(c.second);
     for (auto& c : workingList)
     {
-        auto restoreLen = makeScopedSizeRestorer(fullPath);
-        fullPath.appendWithSeparator(c->localname, true);
-        c->setnameparent(ln, fullPath.leafName(), sync->syncs.fsaccess->fsShortname(fullPath));
+        LocalPath newpath{fullPath};
+        newpath.appendWithSeparator(c->localname, true);
+        c->setnameparent(ln, newpath.leafName(), sync->syncs.fsaccess->fsShortname(newpath));
 
         // if moving between syncs, removal from old sync db is already done
         ln->sync->statecacheadd(c);

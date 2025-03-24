@@ -184,18 +184,6 @@ void FileSystemAccess::setMinimumFilePermissions(int permissions)
     mMinimumFilePermissions = permissions & 07777;
 }
 
-auto LocalPath::asPlatformEncoded(bool) const -> string_type
-{
-    return localpath;
-}
-bool LocalPath::isRootPath() const
-{
-    if (isAbsolute())
-        return localpath.size() == 1 && localpath.back() == '/';
-
-    return false;
-}
-
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, false);
@@ -1165,17 +1153,18 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
                  || *d->d_name != '.'
                  || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
                 {
-                    auto restorer = makeScopedSizeRestorer(name);
+                    LocalPath newpath{name};
 
-                    name.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
+                    newpath.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name),
+                                                true);
 
-                    AdjustBasePathResult nameStr = adjustBasePath(name);
+                    AdjustBasePathResult nameStr = adjustBasePath(newpath);
 
                     if (!lstat(nameStr.c_str(), &statbuf))
                     {
                         if (!S_ISLNK(statbuf.st_mode) && S_ISDIR(statbuf.st_mode) && statbuf.st_dev == basedev)
                         {
-                            emptydirlocal(name, basedev);
+                            emptydirlocal(newpath, basedev);
                             removed |= !rmdir(nameStr.c_str());
                         }
                         else
@@ -1301,7 +1290,7 @@ bool PosixFileSystemAccess::expanselocalpath(const LocalPath& source, LocalPath&
     if (!source.isAbsolute())
     {
         // Sanity.
-        assert(source.localpath[0] != '/');
+        assert(source.toPath(false)[0] != '/');
 
         // Retrieve current working directory.
         if (!cwd(destination))
@@ -1315,18 +1304,18 @@ bool PosixFileSystemAccess::expanselocalpath(const LocalPath& source, LocalPath&
 
     // Sanity.
     assert(destination.isAbsolute());
-    assert(destination.localpath[0] == '/');
+    assert(destination.toPath(false)[0] == '/');
 
     // Canonicalize the path.
     char buffer[PATH_MAX];
 
-    if (!realpath(destination.localpath.c_str(), buffer))
+    if (!realpath(destination.toPath(false).c_str(), buffer))
     {
         destination = source;
         return false;
     }
 
-    destination.localpath.assign(buffer);
+    destination = LocalPath::fromAbsolutePath(buffer);
 
     return true;
 }
@@ -1679,16 +1668,10 @@ AddWatchResult LinuxDirNotify::addWatch(LocalNode& node,
 
     auto handle =
         inotify_add_watch(mOwner.mNotifyFd,
-            path.localpath.c_str(),
-            IN_ATTRIB
-            | IN_CLOSE_WRITE
-            | IN_CREATE
-            | IN_DELETE
-            | IN_DELETE_SELF
-            | IN_EXCL_UNLINK
-            | IN_MOVED_FROM // event->cookie set as IN_MOVED_TO
-            | IN_MOVED_TO
-            | IN_ONLYDIR);
+                          path.toPath(false).c_str(),
+                          IN_ATTRIB | IN_CLOSE_WRITE | IN_CREATE | IN_DELETE | IN_DELETE_SELF |
+                              IN_EXCL_UNLINK | IN_MOVED_FROM // event->cookie set as IN_MOVED_TO
+                              | IN_MOVED_TO | IN_ONLYDIR);
 
     if (handle >= 0)
     {
@@ -1701,11 +1684,8 @@ AddWatchResult LinuxDirNotify::addWatch(LocalNode& node,
     }
 
     LOG_warn << "Unable to monitor path for filesystem notifications: "
-        << path.localpath.c_str()
-        << ": Descriptor: "
-        << mOwner.mNotifyFd
-        << ": Error: "
-        << errno;
+             << path.toPath(false).c_str() << ": Descriptor: " << mOwner.mNotifyFd
+             << ": Error: " << errno;
 
     if (errno == ENOMEM || errno == ENOSPC)
         return make_pair(watches.end(), WR_FATAL);
@@ -1865,7 +1845,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
     // Try and get information about the scan target.
     bool scanTarget_followSymLink = true; // Follow symlink for the parent directory, so we retrieve the stats of the path that the symlinks points to
-    if (!stat(targetPath.localpath.c_str(), metadata, &scanTarget_followSymLink))
+    if (!stat(targetPath.toPath(false).c_str(), metadata, &scanTarget_followSymLink))
     {
         LOG_warn << "Failed to directoryScan: "
                  << "Unable to stat(...) scan target: "
@@ -1899,7 +1879,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     }
 
     // Try and open the directory for iteration.
-    auto directory = opendir(targetPath.localpath.c_str());
+    auto directory = opendir(targetPath.toPath(false).c_str());
 
     if (!directory)
     {
@@ -1935,18 +1915,15 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         result.localname = LocalPath::fromPlatformEncodedRelative(entry->d_name);
 
         // Compute this entry's absolute name.
-        auto restorer = makeScopedSizeRestorer(path);
+        LocalPath newpath{path};
 
-        path.appendWithSeparator(result.localname, false);
+        newpath.appendWithSeparator(result.localname, false);
 
         // Try and get information about this entry.
-        if (!stat(path.localpath.c_str(), metadata))
+        if (!stat(newpath.toPath(false).c_str(), metadata))
         {
             LOG_warn << "directoryScan: "
-                     << "Unable to stat(...) file: "
-                     << path
-                     << ". Error code was: "
-                     << errno;
+                     << "Unable to stat(...) file: " << newpath << ". Error code was: " << errno;
 
             // Entry's unknown if we can't determine otherwise.
             result.type = TYPE_UNKNOWN;
@@ -1973,7 +1950,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
                 // Leave a trail for debuggers.
                 LOG_warn << "directoryScan: "
-                         << "Encountered a nested mount: " << path << ". Expected device "
+                         << "Encountered a nested mount: " << newpath << ". Expected device "
                          << major(static_cast<unsigned>(device)) << ":"
                          << minor(static_cast<unsigned>(device)) << ", got device "
                          << major(static_cast<unsigned>(metadata.st_dev)) << ":"
@@ -1989,10 +1966,8 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         if (!S_ISREG(metadata.st_mode))
         {
             LOG_warn << "directoryScan: "
-                     << "Encountered a special file: "
-                     << path
-                     << ". Mode flags were: "
-                     << (metadata.st_mode & S_IFMT);
+                     << "Encountered a special file: " << newpath
+                     << ". Mode flags were: " << (metadata.st_mode & S_IFMT);
 
             result.isSymlink = S_ISLNK(metadata.st_mode);
             result.type = result.isSymlink ? TYPE_SYMLINK: TYPE_SPECIAL;
@@ -2020,8 +1995,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         if (result.isBlocked)
         {
             LOG_warn << "directoryScan: "
-                     << "Finder has marked this file as busy: "
-                     << path;
+                     << "Finder has marked this file as busy: " << newpath;
             continue;
         }
 #endif // __MACH__
@@ -2037,17 +2011,14 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         }
 
         // Try and open the file for reading.
-        UnixStreamAccess isAccess(path.localpath.c_str(),
-                                  result.fingerprint.size);
+        UnixStreamAccess isAccess(newpath.toPath(false).c_str(), result.fingerprint.size);
 
         // Only fingerprint the file if we could actually open it.
         if (!isAccess)
         {
             LOG_warn << "directoryScan: "
-                     << "Unable to open file for fingerprinting: "
-                     << path
-                     << ". Error was: "
-                     << errno;
+                     << "Unable to open file for fingerprinting: " << newpath
+                     << ". Error was: " << errno;
             continue;
         }
 
@@ -2341,14 +2312,14 @@ static std::string uuidOf(const std::string& device)
 fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
     // Try and compute legacy filesystem fingerprint.
-    auto fingerprint = fingerprintOf(path.localpath);
+    auto fingerprint = fingerprintOf(path.toPath(false));
 
     // Couldn't compute legacy fingerprint.
     if (!fingerprint)
         return fsfp_t();
 
     // What device contains the specified path?
-    auto device = deviceOf(path.localpath);
+    auto device = deviceOf(path.toPath(false));
 
     // We know what device contains path.
     if (!device.empty())
@@ -2473,7 +2444,7 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
 #if defined(__linux__) || defined(__ANDROID__)
     struct statfs statbuf;
 
-    if (!statfs(path.localpath.c_str(), &statbuf))
+    if (!statfs(path.toPath(false).c_str(), &statbuf))
     {
         switch (static_cast<unsigned long>(statbuf.f_type))
         {
@@ -2542,7 +2513,7 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
 
     struct statfs statbuf;
 
-    if (!statfs(path.localpath.c_str(), &statbuf))
+    if (!statfs(path.asPlatformEncoded(false).c_str(), &statbuf))
     {
         auto it = filesystemTypes.find(statbuf.f_fstypename);
 
@@ -2624,13 +2595,13 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
     while ((d = readdir(dp)))
     {
-        auto restorer = makeScopedSizeRestorer(path);
+        LocalPath newpath{path};
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
+            newpath.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
-            AdjustBasePathResult pathStr = adjustBasePath(path);
+            AdjustBasePathResult pathStr = adjustBasePath(newpath);
 
             bool statOk = !lstat(pathStr.c_str(), &statbuf);
             if (followsymlinks && statOk && S_ISLNK(statbuf.st_mode))

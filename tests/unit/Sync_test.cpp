@@ -411,20 +411,20 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
         {
             using std::to_string;
 
-            auto restorer = makeScopedSizeRestorer(configPath);
+            LocalPath newPath = configPath;
 
             // Generate suffix.
             LocalPath suffixPath =
               LocalPath::fromRelativePath("." + to_string(i));
 
             // Complete config path.
-            configPath.append(suffixPath);
+            newPath.append(suffixPath);
 
             // Populate the file.
-            EXPECT_TRUE(Utilities::randomFile(configPath));
+            EXPECT_TRUE(Utilities::randomFile(newPath));
 
             // Set the modification time.
-            EXPECT_TRUE(fsAccess().setmtimelocal(configPath, static_cast<m_time_t>(i * 1000)));
+            EXPECT_TRUE(fsAccess().setmtimelocal(newPath, static_cast<m_time_t>(i * 1000)));
         }
     }
 
@@ -465,20 +465,20 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
         {
             using std::to_string;
 
-            auto restorer = makeScopedSizeRestorer(configPath);
+            LocalPath newPath = configPath;
 
             // Generate suffix.
             LocalPath suffixPath =
               LocalPath::fromRelativePath("." + to_string(i));
 
             // Complete config path.
-            configPath.append(suffixPath);
+            newPath.append(suffixPath);
 
             // Populate the file.
-            EXPECT_TRUE(Utilities::randomFile(configPath));
+            EXPECT_TRUE(Utilities::randomFile(newPath));
 
             // Set the modification time.
-            EXPECT_TRUE(fsAccess().setmtimelocal(configPath, 0));
+            EXPECT_TRUE(fsAccess().setmtimelocal(newPath, 0));
         }
     }
 

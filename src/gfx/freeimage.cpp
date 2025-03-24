@@ -396,7 +396,7 @@ GfxProviderFreeImage::~GfxProviderFreeImage()
 #ifdef USE_MEDIAINFO
 bool GfxProviderFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
 {
-    const StringPair& cover = MediaProperties::getCoverFromId3v2(imagePath.localpath);
+    const StringPair& cover = MediaProperties::getCoverFromId3v2(imagePath.toPath(false));
     if (cover.first.empty())
     {
         return false;
@@ -440,9 +440,8 @@ bool GfxProviderFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
 
 bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int size)
 {
-
     // FIXME: race condition, need to use open file instead of filename
-    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX(imagePath.localpath.c_str());
+    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX(imagePath.asPlatformEncoded(false).c_str());
 
     if (fif == FIF_UNKNOWN)
     {
@@ -464,7 +463,7 @@ bool GfxProviderFreeImage::readbitmapFreeimage(const LocalPath& imagePath, int s
     }();
 
     // Load
-    dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(), flag);
+    dib = FreeImage_LoadX(fif, imagePath.asPlatformEncoded(false).c_str(), flag);
     if (!dib)
     {
         return false;

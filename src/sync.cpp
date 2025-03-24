@@ -97,13 +97,6 @@ string changeDetectionMethodToString(const ChangeDetectionMethod method)
     }
 }
 
-auto makeScopedSyncPathRestorer(SyncPath& path)
-{
-    return std::make_tuple(makeScopedSizeRestorer(path.cloudPath),
-                           makeScopedSizeRestorer(path.localPath),
-                           makeScopedSizeRestorer(path.syncPath));
-}
-
 bool SyncPath::appendRowNames(const SyncRow& row, FileSystemType filesystemType)
 {
     if (row.isNoName())
@@ -892,9 +885,9 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             // l will be added in its place.  Later entries were the ones used by the old algorithm
         }
 
-        auto restoreLen = makeScopedSizeRestorer(localpath);
+        LocalPath newpath{localpath};
 
-        localpath.appendWithSeparator(l->localname, true);
+        newpath.appendWithSeparator(l->localname, true);
 
         handle fsid = l->fsid_lastSynced;
         m_off_t size = l->syncedFingerprint.size;
@@ -911,10 +904,10 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         }
         else
         {
-            shortname = syncs.fsaccess->fsShortname(localpath);
+            shortname = syncs.fsaccess->fsShortname(newpath);
         }
 
-        l->init(l->type, p, localpath, nullptr);
+        l->init(l->type, p, newpath, nullptr);
 
         l->syncedFingerprint.size = size;
         l->setSyncedFsid(fsid, syncs.localnodeBySyncedFsid, l->localname, std::move(shortname));
@@ -933,7 +926,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 
         if (maxdepth)
         {
-            addstatecachechildren(l->dbid, tmap, localpath, l, maxdepth - 1);
+            addstatecachechildren(l->dbid, tmap, newpath, l, maxdepth - 1);
         }
     }
 }
@@ -7430,17 +7423,17 @@ void Sync::recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<
         // recurse after dealing with all items, so any renames within the folder have been completed
         if (childRow.syncNode && childRow.syncNode->type == FOLDERNODE)
         {
-            auto syncPathRestore = makeScopedSyncPathRestorer(fullPath);
+            SyncPath newPath{fullPath};
 
-            if (!fullPath.appendRowNames(childRow, mFilesystemType) ||
-                localdebris.isContainingPathOf(fullPath.localPath))
+            if (!newPath.appendRowNames(childRow, mFilesystemType) ||
+                localdebris.isContainingPathOf(newPath.localPath))
             {
                 // This is a legitimate case; eg. we only had a syncNode and it is removed in resolve_delSyncNode
                 // Or if this is the debris folder, ignore it
                 continue;
             }
 
-            recursiveCollectNameConflicts(childRow, fullPath, ncs, count, limit);
+            recursiveCollectNameConflicts(childRow, newPath, ncs, count, limit);
         }
     }
 }
@@ -8305,10 +8298,10 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         }
                     }
 
-                    auto syncPathRestore = makeScopedSyncPathRestorer(fullPath);
+                    SyncPath newPath{fullPath};
 
-                    if (!fullPath.appendRowNames(childRow, mFilesystemType) ||
-                        localdebris.isContainingPathOf(fullPath.localPath))
+                    if (!newPath.appendRowNames(childRow, mFilesystemType) ||
+                        localdebris.isContainingPathOf(newPath.localPath))
                     {
                         // This is a legitimate case; eg. we only had a syncNode and it is removed in resolve_delSyncNode
                         // Or if this is the debris folder, ignore it
@@ -8319,9 +8312,10 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     {
                         #ifdef DEBUG
                             auto p = childRow.syncNode->getLocalPath();
-                            assert(0 == compareUtf(p, true, fullPath.localPath, true, mCaseInsensitive));
-                        #endif
-                        childRow.syncNode->reassignUnstableFsidsOnceOnly(childRow.fsNode);
+                            assert(0 ==
+                                   compareUtf(p, true, newPath.localPath, true, mCaseInsensitive));
+#endif
+                            childRow.syncNode->reassignUnstableFsidsOnceOnly(childRow.fsNode);
                     }
 
                     switch (step)
@@ -8333,7 +8327,11 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         // attached to the wrong node, resulting in node versions
                         if (syncHere || belowRemovedCloudNode || belowRemovedFsNode)
                         {
-                            if (!syncItem_checkMoves(childRow, row, fullPath, belowRemovedCloudNode, belowRemovedFsNode))
+                            if (!syncItem_checkMoves(childRow,
+                                                     row,
+                                                     newPath,
+                                                     belowRemovedCloudNode,
+                                                     belowRemovedFsNode))
                             {
                                 if (childRow.itemProcessed)
                                 {
@@ -8348,7 +8346,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
                         // moved from the end of syncItem_checkMoves.  So we can check ignore files also, as those skip move processing
                         if ((syncHere || belowRemovedCloudNode || belowRemovedFsNode) &&
-                            syncItem_checkFilenameClashes(childRow, row, fullPath))
+                            syncItem_checkFilenameClashes(childRow, row, newPath))
                         {
                             row.syncNode->setSyncAgain(false, true, false);
                             break;
@@ -8361,7 +8359,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // in particular contradictory moves.
                             if (childRow.type() == SRT_XXF && row.exclusionState(*childRow.fsNode) == ES_INCLUDED)
                             {
-                                makeSyncNode_fromFS(childRow, row, fullPath, false);
+                                makeSyncNode_fromFS(childRow, row, newPath, false);
                             }
                         }
                         else if (belowRemovedFsNode)
@@ -8371,13 +8369,13 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // in particular contradictroy moves.
                             if (childRow.type() == SRT_CXX && row.exclusionState(*childRow.cloudNode) == ES_INCLUDED)
                             {
-                                resolve_makeSyncNode_fromCloud(childRow, row, fullPath, false);
+                                resolve_makeSyncNode_fromCloud(childRow, row, newPath, false);
                             }
                         }
                         else if (syncHere && !childRow.itemProcessed)
                         {
                             // normal case: consider all the combinations
-                            if (!syncItem(childRow, row, fullPath, pflsc))
+                            if (!syncItem(childRow, row, newPath, pflsc))
                             {
                                 if (childRow.syncNode && childRow.syncNode->type != FOLDERNODE)
                                 {
@@ -8416,14 +8414,20 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // Add watches as necessary.
                             if (childRow.fsNode)
                             {
-                                auto result = childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
+                                auto result = childRow.syncNode->watch(newPath.localPath,
+                                                                       childRow.fsNode->fsid);
 
                                 // Any fatal errors while adding the watch?
                                 if (result == WR_FATAL)
                                     changestate(UNABLE_TO_ADD_WATCH, false, true, true);
                             }
 
-                            if (!recursiveSync(childRow, fullPath, belowRemovedCloudNode || childRow.recurseBelowRemovedCloudNode, belowRemovedFsNode || childRow.recurseBelowRemovedFsNode, depth+1))
+                            if (!recursiveSync(
+                                    childRow,
+                                    newPath,
+                                    belowRemovedCloudNode || childRow.recurseBelowRemovedCloudNode,
+                                    belowRemovedFsNode || childRow.recurseBelowRemovedFsNode,
+                                    depth + 1))
                             {
                                 earlyExit = true;
                             }

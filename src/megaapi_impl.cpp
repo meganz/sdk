@@ -6439,10 +6439,7 @@ void MegaFileGet::prepare(FileSystemAccess&)
     {
         transfer->localfilename = getLocalname();
         assert(transfer->localfilename.isAbsolute());
-
-        size_t leafIndex = transfer->localfilename.getLeafnameByteIndex();
-        transfer->localfilename.truncate(leafIndex);
-        transfer->localfilename.appendWithSeparator(LocalPath::tmpNameLocal(), false);
+        transfer->localfilename.changeLeaf(LocalPath::tmpNameLocal());
     }
 }
 
@@ -29962,7 +29959,6 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
 
         megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_SCAN, foldercount, 0, filecount, &localPath, &localname);
 
-        auto restoreLen = makeScopedSizeRestorer(localPath);
         if (!childPath.isURI())
         {
             childPath.appendWithSeparator(localname, false);
@@ -30855,15 +30851,15 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
         {
             FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
 
-            while (da->dnext(localPath, localname, false))
+            LocalPath childPath = localPath;
+            while (da->dnext(childPath, localname, false))
             {
-                auto restoreLen = makeScopedSizeRestorer(localPath);
-                localPath.appendWithSeparator(localname, false);
+                childPath.appendWithSeparator(localname, false);
 
                 //TODO: add exclude filters here
 
                 auto fa = client->fsaccess->newfileaccess();
-                if(fa->fopen(localPath, true, false, FSLogging::logOnError))
+                if (fa->fopen(childPath, true, false, FSLogging::logOnError))
                 {
                     string name = localname.toName(*client->fsaccess);
                     if(fa->type == FILENODE)
@@ -30871,26 +30867,39 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                         pendingTransfers++;
 
                         totalFiles++;
-                        megaApi->startUpload(false, localPath.toPath(false).c_str(),
-                                                            parent, nullptr, nullptr, -1,folderTransferTag, true,
-                                                            nullptr, false, false, fsType, CancelToken(), this);
+                        megaApi->startUpload(false,
+                                             childPath.toPath(false).c_str(),
+                                             parent,
+                                             nullptr,
+                                             nullptr,
+                                             -1,
+                                             folderTransferTag,
+                                             true,
+                                             nullptr,
+                                             false,
+                                             false,
+                                             fsType,
+                                             CancelToken(),
+                                             this);
                     }
                     else
                     {
                         MegaNode *child = megaApi->getChildNode(parent, name.c_str());
                         if(!child || !child->isFolder())
                         {
-                            pendingFolders.push_back(localPath);
+                            pendingFolders.push_back(childPath);
                             megaApi->createFolder(name.c_str(), parent, this);
                         }
                         else
                         {
-                            pendingFolders.push_front(localPath);
+                            pendingFolders.push_front(childPath);
                             onFolderAvailable(child->getHandle());
                         }
                         delete child;
                     }
                 }
+
+                childPath = localPath;
             }
         }
     }
@@ -31533,9 +31542,11 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
         }
         else
         {
-            auto restoreLen = makeScopedSizeRestorer(localpath);
-            localpath.appendWithSeparator(LocalPath::fromRelativeName(child->getName(), *fsaccess, fsType), true);
-            scanFolder_result result = scanFolder(child, localpath, fsType, fileAddedCount);
+            LocalPath newpath{localpath};
+            newpath.appendWithSeparator(
+                LocalPath::fromRelativeName(child->getName(), *fsaccess, fsType),
+                true);
+            scanFolder_result result = scanFolder(child, newpath, fsType, fileAddedCount);
 
             if (result != scanFolder_succeeded)
             {
@@ -31634,8 +31645,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(
         }
 
         // get file local path
-        auto& fileLocalPath = folder.localPath;
-        auto restoreLen = makeScopedSizeRestorer(fileLocalPath);
+        auto fileLocalPath = folder.localPath;
         fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
 
         auto decision = CollisionChecker::Result::Download;

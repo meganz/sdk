@@ -326,14 +326,12 @@ void FileCache::current()
         if (mContext.mInodeDB.exists(id))
             continue;
 
-        auto restorer = makeScopedSizeRestorer(path);
-
-        path.appendWithSeparator(name, true);
+        LocalPath newPath{path};
+        newPath.appendWithSeparator(name, true);
 
         // Try and remove the file.
-        if (!fsAccess.unlinklocal(path))
-            FUSEWarningF("Couldn't remove stale cache file: %s",
-                         path.toPath(false).c_str());
+        if (!fsAccess.unlinklocal(newPath))
+            FUSEWarningF("Couldn't remove stale cache file: %s", newPath.toPath(false).c_str());
     }
 }
 
