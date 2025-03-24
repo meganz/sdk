@@ -27,9 +27,9 @@ namespace fuse
 namespace testing
 {
 
-#ifndef O_PATH
+#ifndef HAS_OPEN_PATH
 #define O_PATH O_RDONLY
-#endif // !O_PATH
+#endif // !HAS_OPEN_PATH
 
 TEST_P(FUSEPlatformTests, access_at_fails_when_below_file)
 {

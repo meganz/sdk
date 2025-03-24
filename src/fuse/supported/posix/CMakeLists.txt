@@ -34,6 +34,15 @@ endif()
 # Make sure dependent applications support 64bit inodes.
 target_compile_definitions(${SDK_TARGET} PUBLIC _FILE_OFFSET_BITS=64)
 
+# Check if the target supports the O_PATH flag.
+try_compile(HAS_OPEN_PATH
+            "${CMAKE_BINARY_DIR}"
+            "${FUSE_POSIX_SRC}/cmake/checks/has_open_path.cpp")
+
+if (HAS_OPEN_PATH)
+    target_compile_definitions(${SDK_TARGET} PUBLIC HAS_OPEN_PATH)
+endif()
+
 # Add sources required by libfuse backend.
 target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_POSIX_INC}/constants.h
