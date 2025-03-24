@@ -15,6 +15,10 @@ class Session
 {
     static void init(void* context, fuse_conn_info* connection);
 
+    static void forget(fuse_req_t request,
+                       fuse_ino_t inode,
+                       unsigned long num);
+
     // Retrieve the next request from FUSE.
     std::string nextRequest();
 

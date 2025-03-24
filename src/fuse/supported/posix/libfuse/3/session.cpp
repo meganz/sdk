@@ -74,6 +74,7 @@ void Session::populateOperations(fuse_lowlevel_ops& operations)
 {
     SessionBase::populateOperations(operations);
 
+    operations.forget = &Session::forget;
     operations.init   = &Session::init;
     operations.rename = &Session::rename;
 }

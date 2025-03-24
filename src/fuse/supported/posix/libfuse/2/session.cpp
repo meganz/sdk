@@ -50,6 +50,13 @@ void Session::init(void*, fuse_conn_info* connection)
     }
 }
 
+void Session::forget(fuse_req_t request,
+                     fuse_ino_t inode,
+                     unsigned long num)
+{
+    SessionBase::forget(request, inode, num);
+}
+
 std::string Session::nextRequest()
 {
     assert(mChannel);
@@ -83,6 +90,7 @@ void Session::populateOperations(fuse_lowlevel_ops& operations)
 {
     SessionBase::populateOperations(operations);
 
+    operations.forget = &Session::forget;
     operations.init   = &Session::init;
     operations.rename = &Session::rename;
 }

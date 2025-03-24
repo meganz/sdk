@@ -293,7 +293,6 @@ void SessionBase::populateOperations(fuse_lowlevel_ops& operations)
 {
     operations.access       = &SessionBase::access;
     operations.flush        = &SessionBase::flush;
-    operations.forget       = &SessionBase::forget;
     operations.forget_multi = &SessionBase::forget_multi;
     operations.fsync        = &SessionBase::fsync;
     operations.getattr      = &SessionBase::getattr;
