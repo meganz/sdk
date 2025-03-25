@@ -22,15 +22,13 @@
  * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#if defined(HAVE_CONFIG_H) || !(defined _WIN32)
 // platform dependent constants
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(HAVE_SDK_CONFIG_H)
 #include "mega/config-android.h"
 #else
 #ifndef MEGA_GENERATED_CONFIG_H
 #include "mega/config.h"
 #define MEGA_GENERATED_CONFIG_H
-#endif
 #endif
 #endif
 

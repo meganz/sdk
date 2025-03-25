@@ -1,4 +1,4 @@
-/* include/mega/config.h.  Generated from config.h.in.cmake by cmake.  */
+/* Generated from config.h.in.cmake by cmake. */
 
 /* Define to enable chat */
 #ifndef ENABLE_CHAT

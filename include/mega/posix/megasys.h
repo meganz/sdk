@@ -23,7 +23,7 @@
 #define MEGA_POSIX_OS_H 1
 
 // platform dependent constants
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(HAVE_SDK_CONFIG_H)
 #include "mega/config-android.h"
 #else
 #ifndef MEGA_GENERATED_CONFIG_H

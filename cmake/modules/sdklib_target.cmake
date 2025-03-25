@@ -70,7 +70,6 @@ set(SDKLIB_HEADERS
     include/mega/transfer.h
     include/mega/transferstats.h
     include/mega/totp.h
-    include/mega/config-android.h
     include/mega/treeproc.h
     include/mega/arguments.h
     include/mega/attrmap.h
@@ -335,8 +334,6 @@ target_include_directories(SDKlib
 
 if (WIN32)
     target_compile_definitions(SDKlib
-        PUBLIC # TODO: Private for SDK core
-            HAVE_CONFIG_H # To include the config.h file in Windows builds
         PRIVATE
             _CRT_SECURE_NO_WARNINGS # warning in ccronexpr
             $<$<BOOL:${USE_CPPTHREAD}>:USE_CPPTHREAD>
@@ -360,6 +357,7 @@ target_compile_definitions(SDKlib
     $<$<PLATFORM_ID:iOS>:USE_IOS>
     $<$<PLATFORM_ID:Android>:USE_POLL>
     $<$<PLATFORM_ID:Android>:USE_INOTIFY>
+    $<$<PLATFORM_ID:Android>:HAVE_SDK_CONFIG_H>
 )
 
 set_target_properties(SDKlib PROPERTIES
