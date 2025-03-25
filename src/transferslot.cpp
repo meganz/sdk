@@ -386,7 +386,7 @@ void TransferSlot::processTransferStats()
                 << ". TransferSlotStats: FailedRequestRatio = " << tsStats.failedRequestRatio()
                 << ". Average connect time: " << tsStats.averageConnectTime()
                 << " ms. Average start transfer time: " << tsStats.averageStartTransferTime()
-                << ". Total requests = " << tsStats.mNumTotalRequests
+                << " ms. Total requests = " << tsStats.mNumTotalRequests
                 << " (with calculated latency: " << tsStats.mNumRequestsWithCalculatedLatency
                 << "). Failed requests = " << tsStats.mNumFailedRequests
                 << ". [Transfer->name = " << transfer->localfilename << "]"
