@@ -6917,21 +6917,24 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated)) // at the target side (auxiliar account)
         << "Chat update not received after " << maxTimeout << " seconds";
 }
+#endif
 
 TEST_F(SdkTest, SdkTestFolderInfo)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    auto root = megaApi[0]->getRootNode();
-    ASSERT_TRUE(root);
-    auto f1node = createDirectory(*megaApi[0], *root, "folder1");
+    std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode);
+    auto f1node = createDirectory(*megaApi[0], *rootNode, "folder1");
+    ASSERT_EQ(result(f1node), API_OK);
     ASSERT_TRUE(value(f1node));
     auto node = createDirectory(*megaApi[0], *value(f1node), "folder1.1");
+    ASSERT_EQ(result(node), API_OK);
     ASSERT_TRUE(value(node));
-    ASSERT_TRUE(createFile(UPFILE, false));
-    MegaHandle uploadedNodeHande = INVALID_HANDLE;
+    ASSERT_TRUE(createFile(UPFILE, false)); // local file
+    MegaHandle fileHande = INVALID_HANDLE;
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
-                            &uploadedNodeHande,
+                            &fileHande,
                             UPFILE.c_str(),
                             value(node).get(),
                             nullptr /*fileName*/,
@@ -6942,7 +6945,7 @@ TEST_F(SdkTest, SdkTestFolderInfo)
                             nullptr /*cancelToken*/));
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
-                            &uploadedNodeHande,
+                            &fileHande,
                             UPFILE.c_str(),
                             value(f1node).get(),
                             nullptr /*fileName*/,
@@ -6956,7 +6959,6 @@ TEST_F(SdkTest, SdkTestFolderInfo)
     ASSERT_EQ(info->getNumFiles(), 2);
     ASSERT_EQ(info->getNumFolders(), 1);
 }
-#endif
 
 class myMIS : public MegaInputStream
 {
