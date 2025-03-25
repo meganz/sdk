@@ -50,6 +50,7 @@ set(SDKLIB_HEADERS
     include/mega/db/sqlite.h
     include/mega/types.h
     include/mega/filefingerprint.h
+    include/mega/localpath.h
     include/mega/filesystem.h
     include/mega/backofftimer.h
     include/mega/raid.h
@@ -124,6 +125,7 @@ set(SDKLIB_SOURCES
     src/http.cpp
     src/json.cpp
     src/logging.cpp
+    src/localpath.cpp
     src/mediafileattribute.cpp
     src/mega_http_parser.cpp
     src/mega_utf8proc.cpp

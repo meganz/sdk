@@ -47,8 +47,7 @@ namespace mega {
 
 namespace detail {
 
-using AdjustBasePathResult =
-  IOS_OR_POSIX(std::string, const std::string&);
+using AdjustBasePathResult = std::string;
 
 AdjustBasePathResult adjustBasePath(const LocalPath& path);
 

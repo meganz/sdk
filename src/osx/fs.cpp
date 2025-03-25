@@ -339,10 +339,9 @@ MacDirNotify::MacDirNotify(MacFileSystemAccess& owner,
     // Create the event stream.
     mEventStream = ([&rootPath, this]{
         // What path are we monitoring?
-        auto path = CFStringCreateWithCString(
-                      nullptr,
-                      rootPath.localpath.c_str(),
-                      kCFStringEncodingUTF8);
+        auto path = CFStringCreateWithCString(nullptr,
+                                              rootPath.toPath(false).c_str(),
+                                              kCFStringEncodingUTF8);
 
         // What paths are we monitoring?
         auto paths = CFArrayCreate(
@@ -390,10 +389,11 @@ MacDirNotify::MacDirNotify(MacFileSystemAccess& owner,
     LocalPath expanseRootPath;
     if (!FSACCESS_CLASS().expanselocalpath(rootPath, expanseRootPath))
     {
-        LOG_err << "Fail to expanseRootPath:" << rootPath.localpath;
+        LOG_err << "Fail to expanseRootPath:" << rootPath.toPath(false).c_str();
         return;
     }
-    mRootPathLength = expanseRootPath.endsInSeparator() ? expanseRootPath.localpath.size() - 1 : expanseRootPath.localpath.size();
+    mRootPathLength = expanseRootPath.endsInSeparator() ? expanseRootPath.toPath(false).size() - 1 :
+                                                          expanseRootPath.toPath(false).size();
 
     // Specify who should process our filesystem events.
     FSEventStreamSetDispatchQueue(mEventStream, mOwner.mDispatchQueue);
