@@ -6305,7 +6305,7 @@ class MegaTransfer
         virtual unsigned getStage() const;
 
         /**
-         * @brief Returns an identifier or this transfer as long as it is in-flight (i.e. not
+         * @brief Returns an identifier of this transfer as long as it is in-flight (i.e. not
          * completed or cancelled).
          *
          * @note The identifiers may not be consecutive and can be reused once the transfer is
