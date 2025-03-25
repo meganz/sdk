@@ -28,6 +28,7 @@
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/types.h"
+#include "megaapi.h"
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
@@ -3030,7 +3031,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  *
  * - Uploads an empty directory
  * - Starts an upload transfer and cancel it
- * - Starts an upload transfer, pause it, resume it and complete it
+ * - Starts an upload transfer, pause it, check the unique id, resume it and complete it
  * - Get node by fingerprint
  * - Get size of a node
  * - Download a file
@@ -3138,6 +3139,9 @@ TEST_F(SdkTest, SdkTestTransfers)
     ASSERT_TRUE(transferByUniqueId) << "No transfer found with unique Id " << transferUniqueId;
     EXPECT_EQ(transferTag, transferByUniqueId->getTag())
         << "Retrieved transfer doesn't match expected tag";
+    transferByUniqueId.reset(megaApi[0]->getTransferByUniqueId(transferUniqueId + 1));
+    EXPECT_FALSE(transferByUniqueId)
+        << "This use case doesn't expect any other active or in pause transfers";
 
     // --- Resume a transfer ---
 
