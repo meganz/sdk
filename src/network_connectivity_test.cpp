@@ -97,9 +97,9 @@ NetworkConnectivityTestIpResults
         for (const auto& m: socketResults.messageResults)
         {
             if (m.messageType == UdpSocketTester::TestSuite::MessageType::DNS)
-                updateStatus(m.errorCode, testResults.dnsLookupMessages);
+                updateStatus(m.errorCode, testResults.dns);
             else
-                updateStatus(m.errorCode, testResults.udpMessages);
+                updateStatus(m.errorCode, testResults.messages);
         }
 
         // keep unique log entries (and occurrence count)

@@ -50,16 +50,16 @@ using namespace mega;
     return self.megaNetworkConnectivityTestResults;
 }
 
-- (MEGANetworkConnectivityTestResult)ipv4UDP {
-    return (MEGANetworkConnectivityTestResult) (self.megaNetworkConnectivityTestResults ? self.megaNetworkConnectivityTestResults->getIPv4UDP() : -1);
+- (MEGANetworkConnectivityTestResult)ipv4 {
+    return (MEGANetworkConnectivityTestResult) (self.megaNetworkConnectivityTestResults ? self.megaNetworkConnectivityTestResults->getIPv4() : -1);
 }
 
 - (MEGANetworkConnectivityTestResult)ipv4DNS {
     return (MEGANetworkConnectivityTestResult) (self.megaNetworkConnectivityTestResults ? self.megaNetworkConnectivityTestResults->getIPv4DNS() : -1);
 }
 
-- (MEGANetworkConnectivityTestResult)ipv6UDP {
-    return (MEGANetworkConnectivityTestResult) (self.megaNetworkConnectivityTestResults ? self.megaNetworkConnectivityTestResults->getIPv6UDP() : -1);
+- (MEGANetworkConnectivityTestResult)ipv6 {
+    return (MEGANetworkConnectivityTestResult) (self.megaNetworkConnectivityTestResults ? self.megaNetworkConnectivityTestResults->getIPv6() : -1);
 }
 
 - (MEGANetworkConnectivityTestResult)ipv6DNS {

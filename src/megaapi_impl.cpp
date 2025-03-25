@@ -27003,10 +27003,10 @@ void MegaApiImpl::runNetworkConnectivityTest(MegaRequestListener* listener)
 
                     request->setMegaNetworkConnectivityTestResults(
                         new MegaNetworkConnectivityTestResultsPrivate(
-                            toPublicNetworkConnectivityTestStatus(results.ipv4.udpMessages),
-                            toPublicNetworkConnectivityTestStatus(results.ipv4.dnsLookupMessages),
-                            toPublicNetworkConnectivityTestStatus(results.ipv6.udpMessages),
-                            toPublicNetworkConnectivityTestStatus(results.ipv6.dnsLookupMessages)));
+                            toPublicNetworkConnectivityTestStatus(results.ipv4.messages),
+                            toPublicNetworkConnectivityTestStatus(results.ipv4.dns),
+                            toPublicNetworkConnectivityTestStatus(results.ipv6.messages),
+                            toPublicNetworkConnectivityTestStatus(results.ipv6.dns)));
                 }
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             });
@@ -39686,7 +39686,7 @@ MegaNodeTreePrivate::MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
 
 MegaNetworkConnectivityTestResultsPrivate* MegaNetworkConnectivityTestResultsPrivate::copy() const
 {
-    return new MegaNetworkConnectivityTestResultsPrivate(mIPv4UDP, mIPv4DNS, mIPv6UDP, mIPv6DNS);
+    return new MegaNetworkConnectivityTestResultsPrivate(mIPv4, mIPv4DNS, mIPv6, mIPv6DNS);
 }
 
 MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const

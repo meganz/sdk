@@ -21662,13 +21662,13 @@ void MegaClient::runNetworkConnectivityTest(
 void MegaClient::sendNetworkConnectivityTestEvent(const NetworkConnectivityTestResults& results)
 {
     string resultString;
-    if (results.ipv4.udpMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
-        results.ipv4.dnsLookupMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
+    if (results.ipv4.messages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
+        results.ipv4.dns != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
     {
         resultString = results.ipv4.summary;
     }
-    if (results.ipv6.udpMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
-        results.ipv6.dnsLookupMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
+    if (results.ipv6.messages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
+        results.ipv6.dns != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
     {
         if (!resultString.empty())
             resultString += ' ';
