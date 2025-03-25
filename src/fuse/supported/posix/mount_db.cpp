@@ -361,7 +361,9 @@ void DescriptorSet::wait()
     while (true)
     {
         // Wait for one of our descriptors to become readable.
-        auto result = poll(mDescriptors.data(), mDescriptors.size(), -1);
+        auto result = poll(mDescriptors.data(),
+                           static_cast<nfds_t>(mDescriptors.size()),
+                           -1);
 
         // No descriptors were readable.
         if (!result)
