@@ -67,7 +67,7 @@ bool DbTable::put(uint32_t type, Cacheable* record, SymmCipher* key)
 
     if (!PaddedCBC::encrypt(rng, &data, key))
     {
-        LOG_err << "Failed to CBC encrypt data"; // continue with unencrypted data or return false ?
+        LOG_err << "Failed to CBC encrypt data"; // continue with unencrypted data intentionally
     }
 
     return put(record->dbid, &data);
