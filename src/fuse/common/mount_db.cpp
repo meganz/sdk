@@ -772,8 +772,8 @@ try
     // Release lock.
     lock.unlock();
 
-    // Let the mount know it's been enabled.
-    mount->enabled();
+    // Flush any files modified by this mount.
+    fileCache().flush(*mount, inodeDB().modified(mount->handle()));
 
     // Mount's enabled.
     return MOUNT_SUCCESS;

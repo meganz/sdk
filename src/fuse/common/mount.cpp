@@ -3,7 +3,6 @@
 #include <utility>
 
 #include <mega/fuse/common/client.h>
-#include <mega/fuse/common/file_cache.h>
 #include <mega/fuse/common/inode.h>
 #include <mega/fuse/common/inode_db.h>
 #include <mega/fuse/common/inode_info.h>
@@ -206,12 +205,6 @@ std::future<void> Mount::disabled()
 
 void Mount::enabled()
 {
-    // Convenience.
-    auto& fileCache = mMountDB.mContext.mFileCache;
-    auto& inodeDB   = mMountDB.mContext.mInodeDB;
-
-    // Flush any modified files contained by this mount.
-    fileCache.flush(*this, inodeDB.modified(mHandle));
 }
 
 void Mount::executorFlags(const TaskExecutorFlags&)
