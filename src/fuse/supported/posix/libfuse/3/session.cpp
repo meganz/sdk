@@ -13,6 +13,7 @@
 #include <mega/fuse/platform/request.h>
 #include <mega/fuse/platform/service_context.h>
 #include <mega/fuse/platform/session.h>
+#include <mega/fuse/platform/utility.h>
 #include <mega/scoped_helpers.h>
 
 namespace mega
@@ -126,6 +127,8 @@ Session::Session(Mount& mount)
         throw FUSEErrorF("Unable to bind session to mount point: %s: %s",
                          path.c_str(),
                          std::strerror(-result));
+
+    nonblocking(fuse_session_fd(session.get()), true);
 
     mSession = std::move(session);
 

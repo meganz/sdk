@@ -13,6 +13,7 @@
 #include <mega/fuse/platform/request.h>
 #include <mega/fuse/platform/service_context.h>
 #include <mega/fuse/platform/session.h>
+#include <mega/fuse/platform/utility.h>
 
 namespace mega
 {
@@ -150,6 +151,8 @@ Session::Session(Mount& mount)
     ChannelPtr channel(fuse_mount(path.c_str(), arguments.get()), mount);
     if (!channel)
         throw FUSEErrorF("Unable to construct channel: %s", path.c_str());
+
+    nonblocking(fuse_chan_fd(channel.get()), true);
 
     SessionPtr session(fuse_lowlevel_new(arguments.get(),
                                          &operations(),
