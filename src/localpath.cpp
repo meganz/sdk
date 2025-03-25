@@ -13,6 +13,8 @@
 #elif TARGET_OS_MAC
 #include <mega/osx/megafs.h>
 #include <mega/osx/osxutils.h>
+#elif __ANDROID__
+#include "mega/android/androidFileSystem.h"
 #else
 #include <mega/posix/megafs.h>
 #endif
@@ -144,6 +146,9 @@ public:
         mPathType = type;
     }
 
+    std::string serialize() const override;
+    bool unserialize(const std::string& data) override;
+
 private:
     string_type mLocalpath;
     // Track whether this LocalPath is from the root of a filesystem (ie, an absolute path)
@@ -216,10 +221,15 @@ public:
         mUri(path)
     {}
 
+    PathURI() = default;
+
     std::unique_ptr<AbstractLocalPath> clone() const override
     {
         return std::make_unique<PathURI>(*this);
     }
+
+    std::string serialize() const override;
+    bool unserialize(const std::string& data) override;
 
 private:
     string_type mUri;
@@ -610,6 +620,39 @@ LocalPath LocalPath::tmpNameLocal()
              mega::getCurrentPid(),
              ++LocalPath_tmpNameLocal_counter);
     return LocalPath::fromRelativePath(buf);
+}
+
+std::string LocalPath::serialize() const
+{
+    if (mImplementation)
+    {
+        return mImplementation->serialize();
+    }
+
+    return std::string{};
+}
+
+std::optional<LocalPath> LocalPath::unserialize(const std::string& d)
+{
+    CacheableReader r(d);
+    uint8_t type;
+    r.unserializeu8(type);
+    LocalPath p{};
+    if (static_cast<PathType>(type) == PathType::URI_PATH)
+    {
+        p.mImplementation = std::make_unique<PathURI>();
+    }
+    else
+    {
+        p.mImplementation = std::make_unique<Path>();
+    }
+
+    if (p.mImplementation->unserialize(d))
+    {
+        return p;
+    }
+
+    return std::nullopt;
 }
 
 bool LocalPath::operator==(const LocalPath& p) const
@@ -1603,6 +1646,24 @@ bool Path::findNextSeparator(size_t& separatorBytePos) const
     return separatorBytePos != std::string::npos;
 }
 
+std::string Path::serialize() const
+{
+    std::string d;
+    CacheableWriter w(d);
+    w.serializeu8(static_cast<uint8_t>(mPathType));
+    w.serializestring(mLocalpath);
+    return d;
+}
+
+bool Path::unserialize(const std::string& data)
+{
+    CacheableReader r(data);
+    uint8_t type;
+    r.unserializeu8(type);
+    mPathType = static_cast<PathType>(type);
+    return r.unserializestring(mLocalpath);
+}
+
 auto PathURI::asPlatformEncoded(const bool) const -> string_type
 {
     return getRealPath();
@@ -1720,9 +1781,7 @@ bool PathURI::beginsWithSeparator() const
 
 bool PathURI::endsInSeparator() const
 {
-    LOG_err << "Invalid operation for URI Path (endsInSeparator)";
-    assert(false);
-    return false;
+    return mAuxPath.empty();
 }
 
 size_t PathURI::getLeafnameByteIndex() const
@@ -1812,7 +1871,7 @@ std::string PathURI::toName(const FileSystemAccess&) const
 
 bool PathURI::isRootPath() const
 {
-    return false;
+    return mAuxPath.empty();
 }
 
 bool PathURI::extension(std::string& extension) const
@@ -1863,5 +1922,48 @@ void PathURI::removeLastElement()
             mUri = parentPath.value();
         }
     }
+}
+
+std::string PathURI::serialize() const
+{
+    std::string d;
+    CacheableWriter w(d);
+    uint8_t type = static_cast<uint8_t>(PathType::URI_PATH);
+    w.serializeu8(type);
+    std::string aux;
+    LocalPath::local2path(&mUri, &aux, false);
+    w.serializestring(aux);
+    uint32_t numElements = mAuxPath.size(); // URI + leaves
+    w.serializeu32(numElements);
+    for (const auto& leaf: mAuxPath)
+    {
+        LocalPath::local2path(&leaf, &aux, false);
+        w.serializestring(aux);
+    }
+
+    return d;
+}
+
+bool PathURI::unserialize(const std::string& data)
+{
+    bool success = true;
+    CacheableReader r(data);
+    uint8_t type;
+    r.unserializeu8(type);
+    assert(type == PathType::URI_PATH);
+    std::string aux;
+    success = r.unserializestring(aux);
+    LocalPath::path2local(&aux, &mUri);
+    uint32_t numElements;
+    success = r.unserializeu32(numElements);
+    for (uint32_t i = 0; i < numElements; i++)
+    {
+        success = r.unserializestring(aux);
+        string_type leaf;
+        LocalPath::path2local(&aux, &leaf);
+        mAuxPath.emplace_back(leaf);
+    }
+
+    return success;
 }
 }

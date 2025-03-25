@@ -105,6 +105,9 @@ public:
 
     virtual std::unique_ptr<AbstractLocalPath> clone() const = 0;
     virtual PathType getPathType() const = 0;
+
+    virtual std::string serialize() const = 0;
+    virtual bool unserialize(const std::string& data) = 0;
 };
 
 /**
@@ -256,7 +259,7 @@ public:
     }
 
     std::string serialize() const;
-    static std::optional<LocalPath> unserialize(const std::string& d, bool isURI);
+    static std::optional<LocalPath> unserialize(const std::string& d);
 
     bool operator==(const LocalPath& p) const;
     bool operator!=(const LocalPath& p) const;
@@ -307,6 +310,8 @@ public:
     void trimNonDriveTrailingSeparator();
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     bool beginsWithSeparator() const;
+
+    // For URIS, returns true if it's only a URI without any appended leaf
     bool endsInSeparator() const;
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
@@ -346,6 +351,7 @@ public:
     //
     // On Windows systems, this predicate returns true if and only if the
     // path specifies a drive such as C:\.
+    // For URIs, root path is consider if LocalPath doesn't contain any leaf
     bool isRootPath() const;
 
     bool extension(std::string& extension) const;

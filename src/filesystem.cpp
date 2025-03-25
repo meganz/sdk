@@ -39,6 +39,10 @@
 #include "mega/osx/osxutils.h"
 #endif
 
+#ifdef __ANDROID__
+#include "mega/android/androidFileSystem.h"
+#endif
+
 namespace mega
 {
 std::atomic<int> FileSystemAccess::mMinimumDirectoryPermissions{0700};

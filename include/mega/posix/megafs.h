@@ -196,7 +196,11 @@ private:
 
 #ifdef __linux__
 
+#ifndef __ANDROID__
 #define FSACCESS_CLASS LinuxFileSystemAccess
+#else
+#define FSACCESS_CLASS AndroidFileSystemAccess
+#endif
 
 class LinuxFileSystemAccess
   : public PosixFileSystemAccess

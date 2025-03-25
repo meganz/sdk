@@ -41,13 +41,40 @@ public:
     void close();
     std::string getName();
     std::vector<std::shared_ptr<AndroidFileWrapper>> getChildren();
+    // Check if tree exists
+    bool pathExists(const std::vector<std::string>& subPaths);
+    // Returns last level file wrapper
+    // if some level doesn't exist, it is created
+    std::shared_ptr<AndroidFileWrapper>
+        returnOrCreateByPath(const std::vector<std::string>& subPaths, bool lastIsFolder);
+    // Create child (only first level)
+    std::shared_ptr<AndroidFileWrapper> createChild(const std::string& childName, bool isFolder);
+    // Returns child by name (only first level)
+    std::shared_ptr<AndroidFileWrapper> getChildByName(const std::string& name);
+    // Remove the file associated
+    // this FileWrapper shouldn't be used after call this method
+    bool deleteFile();
+    // Remove the associated folder if it's empty
+    // If it isn't a folder or it isn't empty, it will return false
+    // this FileWrapper shouldn't be used after call this method
+    bool deleteEmptyFolder();
+    // Rename an element. It is kept at same folder
+    std::shared_ptr<AndroidFileWrapper> rename(const std::string& newName);
+
+    // Returns true if it's a folder
     bool isFolder();
+    // Returns the URI
     std::string getURI() const;
+    // Returns FileWrapper parent
     std::shared_ptr<AndroidFileWrapper> getParent() const;
+    // Returns the path if it's possible (/local/..)
     std::optional<std::string> getPath() const;
     bool isURI();
 
     static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const std::string& path);
+    static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const LocalPath& localPath,
+                                                                     bool create,
+                                                                     bool lastIsFolder);
 
 private:
     AndroidFileWrapper(const std::string& path);
@@ -61,8 +88,13 @@ private:
     static constexpr char IS_FOLDER[] = "isFolder";
     static constexpr char GET_NAME[] = "getName";
     static constexpr char GET_CHILDREN_URIS[] = "getChildrenUris";
+    static constexpr char CHILD_EXISTS[] = "childFileExists";
+    static constexpr char CREATE_CHILD[] = "createChildFile";
     static constexpr char GET_PARENT[] = "getParentFile";
     static constexpr char GET_PATH[] = "getPath";
+    static constexpr char DELETE_FILE[] = "deleteFile";
+    static constexpr char DELETE_EMPTY_FOLDER[] = "deleteFolderIfEmpty";
+    static constexpr char RENAME[] = "rename";
 
     static LRUCache<std::string, std::shared_ptr<AndroidFileWrapper>> mRepository;
     static std::mutex mMutex;
@@ -77,8 +109,8 @@ public:
     bool isURI(const std::string& path) override;
     std::optional<std::string> getName(const std::string& path) override;
     // Returns parent URI if it's available
-    virtual std::optional<string_type> getParentURI(const string_type& uri);
-    virtual std::optional<string_type> getPath(const string_type& uri);
+    virtual std::optional<string_type> getParentURI(const string_type& uri) override;
+    virtual std::optional<string_type> getPath(const string_type& uri) override;
 
 private:
     /**
@@ -157,6 +189,95 @@ private:
     size_t mIndex{0};
 
     std::unique_ptr<PosixDirAccess> mGlobbing;
+};
+
+class MEGA_API AndroidFileSystemAccess: public FileSystemAccess
+{
+public:
+    using FileSystemAccess::getlocalfstype;
+    std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
+    std::unique_ptr<DirAccess> newdiraccess() override;
+
+#ifdef ENABLE_SYNC
+    DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter) override;
+#endif
+
+    bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
+    bool getsname(const LocalPath&, LocalPath&) const override;
+    bool renamelocal(const LocalPath&, const LocalPath&, bool = true) override;
+    bool copylocal(const LocalPath&, const LocalPath&, m_time_t) override;
+    bool unlinklocal(const LocalPath&) override;
+    bool rmdirlocal(const LocalPath&) override;
+    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
+    bool setmtimelocal(const LocalPath&, m_time_t) override;
+    bool chdirlocal(LocalPath&) const override;
+    bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
+    bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
+    int getdefaultfilepermissions() override;
+    void setdefaultfilepermissions(int) override;
+
+    int getdefaultfolderpermissions() override;
+    void setdefaultfolderpermissions(int) override;
+
+    // append local operating system version information to string.
+    // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is
+    // via the WOW subsystem)
+    void osversion(string*, bool /*includeArchExtraInfo*/) const override;
+
+    void statsid(string*) const override;
+
+    AndroidFileSystemAccess() {}
+
+    MEGA_DISABLE_COPY_MOVE(AndroidFileSystemAccess);
+
+    ~AndroidFileSystemAccess() override {}
+
+    bool cwd(LocalPath& path) const override;
+
+#ifdef ENABLE_SYNC
+    // True if the filesystem indicated by the specified path has stable FSIDs.
+    bool fsStableIDs(const LocalPath& path) const override;
+
+    bool initFilesystemNotificationSystem() override;
+#endif // ENABLE_SYNC
+
+    ScanResult directoryScan(const LocalPath& path,
+                             handle expectedFsid,
+                             map<LocalPath, FSNode>& known,
+                             std::vector<FSNode>& results,
+                             bool followSymLinks,
+                             unsigned& nFingerprinted) override;
+
+    bool hardLink(const LocalPath& source, const LocalPath& target) override;
+
+    m_off_t availableDiskSpace(const LocalPath& drivePath) override;
+
+    void addevents(Waiter*, int) override;
+
+    static void emptydirlocal(const LocalPath&, dev_t = 0);
+
+    LinuxFileSystemAccess& getLinuxFileSystemAccess()
+    {
+        return mLinuxFileSystemAccess;
+    }
+
+private:
+    LocalPath getStandartPathFromURIPath(const LocalPath& localPath) const;
+    bool copy(const LocalPath& oldname, const LocalPath& newName);
+    LinuxFileSystemAccess mLinuxFileSystemAccess;
+};
+
+class AndroidDirNotify: public DirNotify
+{
+public:
+    AndroidDirNotify(AndroidFileSystemAccess& owner, LocalNode& root, const LocalPath& rootPath);
+
+    ~AndroidDirNotify() override {}
+
+    AddWatchResult addWatch(LocalNode& node, const LocalPath& path, handle fsid);
+
+private:
+    LinuxDirNotify mLinuxDirNotify;
 };
 }
 
