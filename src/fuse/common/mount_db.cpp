@@ -159,8 +159,8 @@ void MountDB::doDeinitialize()
 void MountDB::enable()
 try
 {
-    mContext.mInodeDB.current();
-    mContext.mFileCache.current();
+    inodeDB().current();
+    fileCache().current();
 
     // What mounts should we try and enable?
     std::vector<std::string> mounts;
@@ -809,6 +809,11 @@ TaskExecutorFlags MountDB::executorFlags() const
     return mContext.serviceFlags().mMountExecutorFlags;
 }
 
+FileCache& MountDB::fileCache()
+{
+    return mContext.mFileCache;
+}
+
 MountResult MountDB::flags(const std::string& currentName,
                            const MountFlags& flags)
 try
@@ -996,6 +1001,11 @@ catch (std::runtime_error& exception)
                exception.what());
 
     return MountInfoVector();
+}
+
+InodeDB& MountDB::inodeDB()
+{
+    return mContext.mInodeDB;
 }
 
 NormalizedPath MountDB::path(const std::string& name) const
