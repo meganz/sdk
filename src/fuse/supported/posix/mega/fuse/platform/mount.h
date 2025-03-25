@@ -43,27 +43,32 @@ class Mount final
                   std::function<Error(InodeRef)> predicate,
                   const std::string& name);
 
-    template<typename... Arguments, typename... Parameters>
-    void execute(void (Mount::*callback)(Parameters...),
+    template<typename Callback, typename... Arguments>
+    static constexpr auto IsMountCallbackV =
+      std::is_invocable_r_v<void, Callback, Mount*, Arguments...>;
+
+    template<typename... Arguments,
+             typename Callback,
+             typename... Parameters>
+    auto execute(Callback callback,
                  bool spawnWorker,
                  Arguments&&... arguments)
+      -> std::enable_if_t<IsMountCallbackV<Callback, Arguments...>>
     {
-        using Callback = std::function<void()>;
-        using Wrapper = std::function<void(const Task&)>;
-
-        Callback callback_ =
+        std::function<void()> callback_ =
           std::bind(callback,
                     this,
                     std::forward<Arguments>(arguments)...);
 
-        auto wrapper = [](Activity, Callback& callback, const Task&) {
+        auto wrapper = [](Activity, auto& callback, const Task&) {
             callback();
         }; // wrapper
 
-        Wrapper wrapper_ = std::bind(std::move(wrapper),
-                                     mActivities.begin(),
-                                     std::move(callback_),
-                                     std::placeholders::_1);
+        std::function<void(const Task&)> wrapper_ =
+            std::bind(std::move(wrapper),
+                      mActivities.begin(),
+                      std::move(callback_),
+                      std::placeholders::_1);
 
         mExecutor.execute(std::move(wrapper_), spawnWorker);
     }
