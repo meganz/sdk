@@ -52,6 +52,7 @@ static const unsigned int defaultTimeout = 60;      // Normal time for most oper
 static const unsigned int defaultTimeoutMs = defaultTimeout * 1000;
 static const unsigned int waitForSyncsMs = 4000;    // Time to wait after a sync has been created and before adding new files to it
 
+#ifdef ENABLE_SYNC
 /**
  * @brief Wrapper struct of MegaListener to get all information related to a MEGA account
  *  - make sure callbacks are consistent - added() first, nothing after deleted(), etc.
@@ -206,6 +207,7 @@ struct MegaListenerDeregisterer
         api->removeListener(listener);
     }
 };
+#endif
 
 struct TransferTracker : public ::mega::MegaTransferListener
 {

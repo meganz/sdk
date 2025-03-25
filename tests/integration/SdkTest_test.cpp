@@ -42,9 +42,7 @@ using ::mega::gfx::SocketUtils;
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
         (  std::ostringstream() << std::dec << x ) ).str()
 
-
 using namespace std;
-using sdk_test::waitForSyncState;
 
 static const string APP_KEY     = "8QxzVRxD";
 static const string PUBLICFILE  = "file.txt";
@@ -1282,7 +1280,7 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
         << "Fetchnodes failed or took more than " << timeout << " seconds";
 }
 
-void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
+void SdkTest::logout(unsigned int apiIndex, [[maybe_unused]] bool keepSyncConfigs, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT] = false;
 #ifdef ENABLE_SYNC
@@ -1483,7 +1481,16 @@ bool SdkTest::createFile(string filename, bool largeFile, string content)
         temp.append(content);
 
     // Write the file to disk.
-    return ::createFile(fs::u8path(filename), temp);
+    try
+    {
+        sdk_test::createFile(fs::u8path(filename), temp);
+        return true;
+    }
+    catch (const std::runtime_error& err)
+    {
+        LOG_err << err.what();
+        return false;
+    }
 }
 
 int64_t SdkTest::getFilesize(string filename)
@@ -9182,7 +9189,7 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // look for Device Name attr
     string deviceName;
-    bool deviceNameWasSetByCurrentTest = false;
+    [[maybe_unused]] bool deviceNameWasSetByCurrentTest = false;
     if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
         deviceName = "Jenkins " + timestamp;
@@ -10603,10 +10610,9 @@ TEST_F(SdkTest, FetchAds)
     // TODO: LOG_debug << "\t# Test suite 2: Fetching ads with containing-ads account";
 }
 
-#ifdef ENABLE_SYNC
-
 void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 {
+#ifdef ENABLE_SYNC
     unique_ptr<MegaSyncList> allSyncs{ megaApi->getSyncs() };
     for (int i = 0; i < allSyncs->size(); ++i)
     {
@@ -10621,6 +10627,7 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
             ASSERT_EQ(API_OK, rt2.waitForResult());
         }
     }
+#endif
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
     if (baseNode)
@@ -10646,6 +10653,10 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
     fs::remove_all(basePath, ignoredEc);
 
 }
+
+#ifdef ENABLE_SYNC
+
+using sdk_test::waitForSyncState;
 
 TEST_F(SdkTest, SyncBasicOperations)
 {

@@ -14497,7 +14497,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encKey.resize(linkKeySize);
         for (unsigned int i = 0; i < linkKeySize; i++)
         {
-            encKey[i] = derivedKey[i] ^ linkKey[i];
+            encKey[i] = static_cast<char>(derivedKey[i] ^ linkKey[i]);
         }
 
         // Preapare payload to derive encryption key
@@ -15456,8 +15456,14 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
-        auto onuserdataCompletion = [this, fetchnodesTag, loadSyncs](string*, string*, string*, error e) {
-
+        auto onuserdataCompletion = [this,
+                                     fetchnodesTag
+#ifdef ENABLE_SYNC // maybe_unused not allowed for lambda captures
+                                     ,
+                                     loadSyncs
+#endif
+        ](string*, string*, string*, error e)
+        {
             restag = fetchnodesTag;
 
             // upon ug completion

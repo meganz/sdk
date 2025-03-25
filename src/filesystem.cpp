@@ -2140,7 +2140,14 @@ FileDistributor::~FileDistributor()
     assert(numTargets == 0);
 }
 
-bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetNameExistsResolution method, FileSystemAccess& fsAccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris, const FileFingerprint& confirmFingerprint)
+bool FileDistributor::moveTo(const LocalPath& source,
+                             LocalPath& target,
+                             TargetNameExistsResolution method,
+                             FileSystemAccess& fsAccess,
+                             bool& transient_error,
+                             bool& name_too_long,
+                             [[maybe_unused]] Sync* syncForDebris,
+                             [[maybe_unused]] const FileFingerprint& confirmFingerprint)
 {
     assert (!!syncForDebris == (method == MoveReplacedFileToSyncDebris));
 
@@ -2366,7 +2373,15 @@ bool FileDistributor::copyToForMethod_OverwriteTarget(
     }
 }
 
-bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_t mtime, TargetNameExistsResolution method, FileSystemAccess& fsAccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris, const FileFingerprint& confirmFingerprint)
+bool FileDistributor::copyTo(const LocalPath& source,
+                             LocalPath& target,
+                             m_time_t mtime,
+                             TargetNameExistsResolution method,
+                             FileSystemAccess& fsAccess,
+                             bool& transient_error,
+                             bool& name_too_long,
+                             [[maybe_unused]] Sync* syncForDebris,
+                             const FileFingerprint& confirmFingerprint)
 {
     assert (!!syncForDebris == (method == MoveReplacedFileToSyncDebris));
     assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, source, confirmFingerprint));

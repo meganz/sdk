@@ -7329,7 +7329,7 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
     }
 
 #ifdef USE_OPENSSL
-    RAND_seed(data, size);
+    RAND_seed(data, static_cast<int>(size));
 #endif
 }
 
@@ -27742,9 +27742,10 @@ void MegaApiImpl::deleteUserAttribute(int type, MegaRequestListener* listener)
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_DEL_ATTR_USER, listener);
     request->setParamType(type);
 
-    request->performRequest = [this, request]()
-    {
+    request->performRequest =
 #ifdef DEBUG
+        [this, request]()
+    {
         attr_t type = static_cast<attr_t>(request->getParamType());
         string attributeName = MegaApiImpl::userAttributeToString(type);
         if (attributeName.empty())
@@ -27753,10 +27754,13 @@ void MegaApiImpl::deleteUserAttribute(int type, MegaRequestListener* listener)
         }
         client->delua(attributeName.c_str());
         return API_OK;
-#else
-        return API_EACCESS;
-#endif
     };
+#else
+        []()
+    {
+        return API_EACCESS;
+    };
+#endif
 
     requestQueue.push(request);
     waiter->notify();
