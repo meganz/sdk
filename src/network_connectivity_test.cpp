@@ -28,6 +28,7 @@
 #endif
 
 #include <map>
+#include <unordered_set>
 
 using namespace std;
 using namespace std::chrono;
@@ -46,10 +47,19 @@ bool NetworkConnectivityTest::start(UdpSocketTester::TestSuite&& testSuite,
     mTestsPerSocket = testSuite.totalMessageCount();
     mResults = {};
 
+    // Build a list of unique ports and keep DNS port separate
+    unordered_set<int> ports(serverInfo.ports.begin(), serverInfo.ports.end());
+    static constexpr int DNS_PORT = 53;
+    ports.erase(DNS_PORT);
+
     // Initiate test suite on all sockets
-    mSocketTestersIPv4.reserve(serverInfo.ports.size());
-    mSocketTestersIPv6.reserve(serverInfo.ports.size());
-    for (int p: serverInfo.ports)
+    mSocketTesterIPv4Dns = std::make_shared<UdpSocketTester>(serverInfo.ipv4, DNS_PORT);
+    mSocketTesterIPv4Dns->startSuite(testSuite);
+    mSocketTesterIPv6Dns = std::make_shared<UdpSocketTester>(serverInfo.ipv6, DNS_PORT);
+    mSocketTesterIPv6Dns->startSuite(testSuite);
+    mSocketTestersIPv4.reserve(ports.size());
+    mSocketTestersIPv6.reserve(ports.size());
+    for (int p: ports)
     {
         mSocketTestersIPv4.emplace_back(std::make_shared<UdpSocketTester>(serverInfo.ipv4, p))
             ->startSuite(testSuite);
@@ -65,30 +75,46 @@ const NetworkConnectivityTestResults& NetworkConnectivityTest::getResults()
     mTimeoutOfReceive = high_resolution_clock::now() + 1s;
 
     // IPv4 results
-    if (!mSocketTestersIPv4.empty())
-    {
-        mResults.ipv4 = getTestResults(mSocketTestersIPv4, '4');
-        mSocketTestersIPv4.clear();
-    }
+    mResults.ipv4 = getTestResults(mSocketTesterIPv4Dns, mSocketTestersIPv4, '4');
+    mSocketTestersIPv4.clear();
 
     // IPv6 results
-    if (!mSocketTestersIPv6.empty())
-    {
-        mResults.ipv6 = getTestResults(mSocketTestersIPv6, '6');
-        mSocketTestersIPv6.clear();
-    }
+    mResults.ipv6 = getTestResults(mSocketTesterIPv6Dns, mSocketTestersIPv6, '6');
+    mSocketTestersIPv6.clear();
 
     return mResults;
 }
 
 NetworkConnectivityTestIpResults
-    NetworkConnectivityTest::getTestResults(vector<shared_ptr<UdpSocketTester>>& testers,
+    NetworkConnectivityTest::getTestResults(shared_ptr<UdpSocketTester> dnsTester,
+                                            vector<shared_ptr<UdpSocketTester>>& testers,
                                             char summaryPrefix)
 {
     NetworkConnectivityTestIpResults testResults;
     vector<UdpSocketTester::SocketResults> allSocketResults;
     allSocketResults.reserve(testers.size() * mTestsPerSocket);
     map<string, uint16_t> uniqueLogEntries;
+
+    // DNS test
+    if (dnsTester)
+    {
+        const auto& dnsResults = dnsTester->getSocketResults(mTimeoutOfReceive);
+
+        // extract status for each message type
+        for (const auto& m: dnsResults.messageResults)
+        {
+            updateStatus(m.errorCode, testResults.dns);
+        }
+
+        // keep unique log entries (and occurrence count)
+        for (const auto& l: dnsResults.log)
+        {
+            uniqueLogEntries[l.first] += l.second;
+        }
+
+        allSocketResults.push_back(dnsResults);
+    }
+
     for (auto& t: testers)
     {
         const auto& socketResults = t->getSocketResults(mTimeoutOfReceive);
@@ -96,10 +122,7 @@ NetworkConnectivityTestIpResults
         // extract status for each message type
         for (const auto& m: socketResults.messageResults)
         {
-            if (m.messageType == UdpSocketTester::TestSuite::MessageType::DNS)
-                updateStatus(m.errorCode, testResults.dns);
-            else
-                updateStatus(m.errorCode, testResults.messages);
+            updateStatus(m.errorCode, testResults.messages);
         }
 
         // keep unique log entries (and occurrence count)
