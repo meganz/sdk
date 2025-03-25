@@ -13,6 +13,19 @@ namespace platform
 class Session
     : public SessionBase
 {
+    class ChannelDeleter
+    {
+        Mount* mMount;
+
+    public:
+        ChannelDeleter(Mount& mount);
+
+        void operator()(fuse_chan* channel);
+    }; // ChannelDeleter
+
+    using ChannelPtr =
+      std::unique_ptr<fuse_chan, ChannelDeleter>;
+
     static void init(void* context, fuse_conn_info* connection);
 
     static void forget(fuse_req_t request,
@@ -30,12 +43,12 @@ class Session
                        fuse_ino_t targetParent,
                        const char* targetName);
 
-    fuse_chan* mChannel;
+    ChannelPtr mChannel;
 
 public:
     Session(Mount& mount);
 
-    ~Session();
+    ~Session() = default;
 
     // What descriptor is the session using to communicate with FUSE?
     int descriptor() const override;

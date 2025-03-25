@@ -21,6 +21,20 @@ namespace fuse
 namespace platform
 {
 
+Session::ChannelDeleter::ChannelDeleter(Mount& mount)
+  : mMount(&mount)
+{
+}
+
+void Session::ChannelDeleter::operator()(fuse_chan* channel)
+{
+    if (!channel)
+        return;
+
+    fuse_session_remove_chan(channel);
+    fuse_unmount(mMount->path().toPath(false).c_str(), channel);
+}
+
 void Session::init(void*, fuse_conn_info* connection)
 {
 #define ENTRY(name) {#name, name}
@@ -62,11 +76,12 @@ std::string Session::nextRequest()
     assert(mChannel);
     assert(mSession);
 
-    std::string buffer(fuse_chan_bufsize(mChannel), '\0');
+    auto channel = mChannel.get();
+    std::string buffer(fuse_chan_bufsize(channel), '\0');
 
     while (true)
     {
-        auto result = fuse_chan_recv(&mChannel, &buffer[0], buffer.size());
+        auto result = fuse_chan_recv(&channel, &buffer[0], buffer.size());
 
         if (!result)
             return std::string();
@@ -77,6 +92,9 @@ std::string Session::nextRequest()
 
             return buffer;
         }
+
+        if (result == -EAGAIN)
+            return std::string();
 
         if (result == -EINTR)
             continue;
@@ -124,51 +142,35 @@ void Session::rename(fuse_req_t request,
 
 Session::Session(Mount& mount)
   : SessionBase(mount)
-  , mChannel(nullptr)
+  , mChannel(nullptr, mount)
 {
     auto arguments = Arguments(mount.name());
     auto path = mMount.path().toPath(false);
 
-    mChannel = fuse_mount(path.c_str(), arguments.get());
-    if (!mChannel)
+    ChannelPtr channel(fuse_mount(path.c_str(), arguments.get()), mount);
+    if (!channel)
         throw FUSEErrorF("Unable to construct channel: %s", path.c_str());
 
-    mSession = fuse_lowlevel_new(arguments.get(),
-                                 &operations(),
-                                 sizeof(fuse_lowlevel_ops),
-                                 &mMount);
-    if (!mSession)
-    {
-        fuse_unmount(path.c_str(), mChannel);
-
+    SessionPtr session(fuse_lowlevel_new(arguments.get(),
+                                         &operations(),
+                                         sizeof(fuse_lowlevel_ops),
+                                         &mMount));
+    if (!session)
         throw FUSEErrorF("Unable to construct session: %s", path.c_str());
-    }
 
-    fuse_session_add_chan(mSession, mChannel);
+    fuse_session_add_chan(session.get(), channel.get());
+
+    mChannel = std::move(channel);
+    mSession = std::move(session);
 
     FUSEDebugF("Session constructed: %s", path.c_str());
-}
-
-Session::~Session()
-{
-    assert(mChannel);
-    assert(mSession);
-
-    fuse_session_remove_chan(mChannel);
-    fuse_session_destroy(mSession);
-
-    auto path = mMount.path().toPath(false);
-
-    fuse_unmount(path.c_str(), mChannel);
-
-    FUSEDebugF("Session destroyed: %s", path.c_str());
 }
 
 int Session::descriptor() const
 {
     assert(mChannel);
 
-    return fuse_chan_fd(mChannel);
+    return fuse_chan_fd(mChannel.get());
 }
 
 void Session::dispatch()
@@ -179,10 +181,10 @@ void Session::dispatch()
 
     // Dispatch the request.
     if (auto request = nextRequest(); !request.empty())
-        fuse_session_process(mSession,
+        fuse_session_process(mSession.get(),
                              request.data(),
                              request.size(),
-                             mChannel);
+                             mChannel.get());
 }
 
 void Session::invalidateData(MountInodeID id, off_t offset, off_t length)
@@ -190,9 +192,9 @@ void Session::invalidateData(MountInodeID id, off_t offset, off_t length)
     assert(mChannel);
     assert(mSession);
 
-    while (!fuse_session_exited(mSession))
+    while (!exited())
     {
-        auto result = fuse_lowlevel_notify_inval_inode(mChannel,
+        auto result = fuse_lowlevel_notify_inval_inode(mChannel.get(),
                                                        id.get(),
                                                        offset,
                                                        length);
@@ -217,9 +219,9 @@ void Session::invalidateEntry(const std::string& name,
     assert(mChannel);
     assert(mSession);
 
-    while (!fuse_session_exited(mSession))
+    while (!exited())
     {
-        auto result = fuse_lowlevel_notify_delete(mChannel,
+        auto result = fuse_lowlevel_notify_delete(mChannel.get(),
                                                   parent.get(),
                                                   child.get(),
                                                   name.c_str(),
@@ -245,9 +247,9 @@ void Session::invalidateEntry(const std::string& name, MountInodeID parent)
     assert(mChannel);
     assert(mSession);
 
-    while (!fuse_session_exited(mSession))
+    while (!exited())
     {
-        auto result = fuse_lowlevel_notify_inval_entry(mChannel,
+        auto result = fuse_lowlevel_notify_inval_entry(mChannel.get(),
                                                        parent.get(),
                                                        name.c_str(),
                                                        name.size());

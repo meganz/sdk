@@ -27,7 +27,7 @@ class Session
 public:
     Session(Mount& mount);
 
-    ~Session();
+    ~Session() = default;
 
     // What descriptor is the session using to communicate with FUSE?
     int descriptor() const override;

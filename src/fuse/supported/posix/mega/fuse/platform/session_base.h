@@ -33,6 +33,13 @@ protected:
         fuse_args* get();
     }; // Arguments
 
+    struct SessionDeleter
+    {
+        void operator()(fuse_session* session);
+    }; // SessionDeleter
+
+    using SessionPtr = std::unique_ptr<fuse_session, SessionDeleter>;
+
     SessionBase(Mount& mount);
 
     ~SessionBase();
@@ -138,7 +145,7 @@ protected:
                       fuse_file_info* info);
 
     Mount& mMount;
-    fuse_session* mSession;
+    SessionPtr mSession;
 
 public:
     // What descriptor is the session using to communicate with FUSE?

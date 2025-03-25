@@ -113,45 +113,30 @@ Session::Session(Mount& mount)
     auto arguments = Arguments(mount.name());
     auto path = mMount.path().toPath(false);
 
-    mSession = fuse_session_new(arguments.get(),
-                                &operations(),
-                                sizeof(fuse_lowlevel_ops),
-                                &mMount);
-
-    if (!mSession)
+    SessionPtr session(fuse_session_new(arguments.get(),
+                                        &operations(),
+                                        sizeof(fuse_lowlevel_ops),
+                                        &mMount));
+    if (!session)
         throw FUSEErrorF("Unable to construct session: %s", path.c_str());
 
-    auto result = fuse_session_mount(mSession, path.c_str());
+    auto result = fuse_session_mount(session.get(), path.c_str());
 
     if (result < 0)
-    {
-        fuse_session_destroy(mSession);
-
         throw FUSEErrorF("Unable to bind session to mount point: %s: %s",
                          path.c_str(),
                          std::strerror(-result));
-    }
+
+    mSession = std::move(session);
 
     FUSEDebugF("Session constructed: %s", path.c_str());
-}
-
-Session::~Session()
-{
-    assert(mSession);
-
-    fuse_session_unmount(mSession);
-    fuse_session_destroy(mSession);
-
-    auto path = mMount.path().toPath(false);
-
-    FUSEDebugF("Session destroyed: %s", path.c_str());
 }
 
 int Session::descriptor() const
 {
     assert(mSession);
 
-    return fuse_session_fd(mSession);
+    return fuse_session_fd(mSession.get());
 }
 
 void Session::dispatch()
@@ -169,7 +154,7 @@ void Session::dispatch()
     // Try and read a request from libfuse.
     while (true)
     {
-        auto result = fuse_session_receive_buf(mSession, &buffer);
+        auto result = fuse_session_receive_buf(mSession.get(), &buffer);
 
         // Ignore zero length requests.
         if (!result)
@@ -178,6 +163,10 @@ void Session::dispatch()
         // We've got a request.
         if (result > 0)
             break;
+
+        // Spurious wakeup.
+        if (result == -EAGAIN)
+            return;
 
         // Call was interrupted, retry.
         if (result == -EINTR)
@@ -189,16 +178,16 @@ void Session::dispatch()
     }
 
     // Dispatch the request.
-    fuse_session_process_buf(mSession, &buffer);
+    fuse_session_process_buf(mSession.get(), &buffer);
 }
 
 void Session::invalidateData(MountInodeID id, off_t offset, off_t length)
 {
     assert(mSession);
 
-    while (!fuse_session_exited(mSession))
+    while (!exited())
     {
-        auto result = fuse_lowlevel_notify_inval_inode(mSession,
+        auto result = fuse_lowlevel_notify_inval_inode(mSession.get(),
                                                        id.get(),
                                                        offset,
                                                        length);
@@ -222,9 +211,9 @@ void Session::invalidateEntry(const std::string& name,
     assert(!name.empty());
     assert(mSession);
 
-    while (!fuse_session_exited(mSession))
+    while (!exited())
     {
-        auto result = fuse_lowlevel_notify_delete(mSession,
+        auto result = fuse_lowlevel_notify_delete(mSession.get(),
                                                   parent.get(),
                                                   child.get(),
                                                   name.c_str(),
@@ -249,9 +238,9 @@ void Session::invalidateEntry(const std::string& name, MountInodeID parent)
     assert(!name.empty());
     assert(mSession);
 
-    while (!fuse_session_exited(mSession))
+    while (!exited())
     {
-        auto result = fuse_lowlevel_notify_inval_entry(mSession,
+        auto result = fuse_lowlevel_notify_inval_entry(mSession.get(),
                                                        parent.get(),
                                                        name.c_str(),
                                                        name.size());

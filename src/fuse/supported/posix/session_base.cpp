@@ -51,16 +51,6 @@ fuse_args* SessionBase::Arguments::get()
     return &mArguments;
 }
 
-SessionBase::SessionBase(Mount& mount)
-  : mMount(mount)
-  , mSession(nullptr)
-{
-}
-
-SessionBase::~SessionBase()
-{
-}
-
 fuse_lowlevel_ops SessionBase::mOperations{};
 std::once_flag SessionBase::mOperationsInitialized;
 
@@ -508,19 +498,31 @@ void SessionBase::write(fuse_req_t request,
                            *info);
 }
 
-void SessionBase::destroy()
+SessionBase::SessionBase(Mount& mount)
+  : mMount(mount)
+  , mSession()
 {
-    // Sanity.
-    assert(exited());
+}
 
-    mMount.destroy();
+SessionBase::~SessionBase()
+{
+    FUSEDebugF("Session destroyed: %s",
+               mMount.path().toPath(false).c_str());
 }
 
 bool SessionBase::exited() const
 {
     assert(mSession);
 
-    return fuse_session_exited(mSession);
+    return fuse_session_exited(mSession.get());
+}
+
+void SessionBase::destroy()
+{
+    // Sanity.
+    assert(exited());
+
+    mMount.destroy();
 }
 
 void SessionBase::invalidateAttributes(MountInodeID id)

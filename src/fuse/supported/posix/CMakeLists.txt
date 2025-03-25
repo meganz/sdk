@@ -91,6 +91,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_LIBFUSE_INC}/library.h
                              ${FUSE_LIBFUSE_INC}/session.h
                              ${FUSE_LIBFUSE_SRC}/session.cpp
+                             ${FUSE_LIBFUSE_SRC}/session_base.cpp
 )
 
 # What kind of UNIX are we building for?
