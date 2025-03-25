@@ -23,7 +23,7 @@ namespace fuse
 namespace platform
 {
 
-void Session::init(void*, fuse_conn_info* connection)
+void Session::init(void* context, fuse_conn_info* connection)
 {
 #define ENTRY(name) {#name, name}
     const std::map<std::string, unsigned int> capabilities = {
@@ -69,6 +69,8 @@ void Session::init(void*, fuse_conn_info* connection)
 
         FUSEDebugF("init: %u%u %s", capable, wanted, entry.first.c_str());
     }
+
+    mount(context).execute(&Mount::enabled, true);
 }
 
 void Session::populateOperations(fuse_lowlevel_ops& operations)

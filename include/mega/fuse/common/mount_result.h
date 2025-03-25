@@ -25,8 +25,7 @@ namespace fuse
     expander(MOUNT_SUCCESS,             "Mount was successful") \
     expander(MOUNT_UNEXPECTED,          "Encountered an unexpected error while mounting") \
     expander(MOUNT_UNKNOWN,             "No mount is associated with the specified handle or path") \
-    expander(MOUNT_UNSUPPORTED,         "FUSE isn't supported on this platform") \
-
+    expander(MOUNT_UNSUPPORTED,         "FUSE isn't supported on this platform")
 
 enum MountResult : unsigned int
 {

@@ -205,6 +205,11 @@ std::future<void> Mount::disabled()
 
 void Mount::enabled()
 {
+    mMountDB.client().emitEvent({
+        name(),
+        MOUNT_SUCCESS,
+        MOUNT_ENABLED
+    });
 }
 
 void Mount::executorFlags(const TaskExecutorFlags&)

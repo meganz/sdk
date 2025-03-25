@@ -191,8 +191,9 @@ try
         // Try and enable the mount.
         event.mResult = enable(name, false);
 
-        // Emit event.
-        client().emitEvent(event);
+        // Couldn't enable the mount.
+        if (event.mResult != MOUNT_SUCCESS)
+            client().emitEvent(event);
 
         // Couldn't enable the mount.
         if (event.mResult != MOUNT_SUCCESS)
@@ -674,8 +675,8 @@ try
     auto lock = lockAll(mContext.mDatabase, *this);
 
     // The mount associated with this path is already enabled.
-    if (mount(name))
-        return MOUNT_SUCCESS;
+    if (auto mount = this->mount(name))
+        return mount->enabled(), MOUNT_SUCCESS;
 
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetMountByName);

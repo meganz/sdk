@@ -13,7 +13,10 @@
 #include <mega/fuse/common/inode_id.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/logging.h>
+#include <mega/fuse/common/mount_event.h>
+#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_inode_id.h>
+#include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/service.h>
 #include <mega/fuse/platform/constants.h>
 #include <mega/fuse/platform/directory_context.h>
