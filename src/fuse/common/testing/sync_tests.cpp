@@ -1,10 +1,13 @@
 #include <mega/fuse/common/logging.h>
+#include <mega/fuse/common/mount_event.h>
+#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/normalized_path.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/directory.h>
+#include <mega/fuse/common/testing/mount_event_observer.h>
 #include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/platform/platform.h>
@@ -154,8 +157,25 @@ ScopedMount::ScopedMount(ClientPtr& client,
     if (mResult != MOUNT_SUCCESS)
         return;
 
+    // So we can wait until the mount is actually active.
+    auto observer = mClient.mountEventObserver();
+
+    observer->expect({
+        mName,
+        MOUNT_SUCCESS,
+        MOUNT_ENABLED
+    });
+
     // Try and enable mount.
     mResult = mClient.enableMount(mName, false);
+
+    // Couldn't enable the mount.
+    if (mResult != MOUNT_SUCCESS)
+        return;
+
+    // Never received enabled event.
+    if (!observer->wait(Test::mDefaultTimeout))
+        mResult = MOUNT_UNEXPECTED;
 }
 
 ScopedMount::~ScopedMount()
