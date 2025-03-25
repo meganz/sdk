@@ -1591,7 +1591,9 @@ std::string Path::serialize() const
     std::string d;
     CacheableWriter w(d);
     w.serializeu8(static_cast<uint8_t>(mPathType));
-    w.serializestring(mLocalpath);
+    std::string aux;
+    LocalPath::local2path(&mLocalpath, &aux, false);
+    w.serializestring(aux);
     return d;
 }
 
@@ -1601,7 +1603,10 @@ bool Path::unserialize(const std::string& data)
     uint8_t type;
     r.unserializeu8(type);
     mPathType = static_cast<PathType>(type);
-    return r.unserializestring(mLocalpath);
+    std::string aux;
+    bool unserilizeValue = r.unserializestring(aux);
+    LocalPath::path2local(&aux, &mLocalpath);
+    return unserilizeValue;
 }
 
 auto PathURI::asPlatformEncoded(const bool) const -> string_type
@@ -1629,14 +1634,18 @@ LocalPath PathURI::leafName() const
 {
     if (mAuxPath.size())
     {
-        return LocalPath::fromRelativePath(mAuxPath.back());
+        std::string aux;
+        LocalPath::local2path(&mAuxPath.back(), &aux, false);
+        return LocalPath::fromRelativePath(aux);
     }
     else
     {
         std::optional<string_type> optionalName = URIHandler::getName(mUri);
         if (optionalName.has_value())
         {
-            return LocalPath::fromRelativePath(optionalName.value());
+            std::string aux;
+            LocalPath::local2path(&optionalName.value(), &aux, false);
+            return LocalPath::fromRelativePath(aux);
         }
     }
 
@@ -1645,9 +1654,9 @@ LocalPath PathURI::leafName() const
 
 std::string PathURI::leafOrParentName() const
 {
-    std::string aux;
     if (mAuxPath.size())
     {
+        std::string aux;
         LocalPath::local2path(&mAuxPath.back(), &aux, false);
         return aux;
     }
