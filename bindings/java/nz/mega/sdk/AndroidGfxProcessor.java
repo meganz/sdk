@@ -287,7 +287,6 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         boolean isError = false;
         while ((i < 5) && (orientation == ExifInterface.ORIENTATION_UNDEFINED)) {
             try {
-                InputStream inputStream = getInputStreamFromPath(srcPath);
                 ExifInterface exif = new ExifInterface(inputStream);
                 orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, orientation);
                 isError = false;
