@@ -22,9 +22,10 @@
 #ifndef MEGAAPI_H
 #define MEGAAPI_H
 
+#include <cstdint>
+#include <inttypes.h>
 #include <string>
 #include <vector>
-#include <inttypes.h>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -6303,17 +6304,28 @@ class MegaTransfer
          */
         virtual unsigned getStage() const;
 
-		/**
-		 * @brief Returns an integer that identifies this transfer
-		 * @return Integer that identifies this transfer
-		 */
-		virtual int getTag() const;
+        /**
+         * @brief Returns an identifier of this transfer as long as it is in-flight (i.e. not
+         * completed or cancelled).
+         *
+         * @note The identifiers may not be consecutive and can be reused once the transfer is
+         * completed or cancelled.
+         *
+         * @return 32-bits unsigned integer that identifies this transfer
+         */
+        virtual uint32_t getUniqueId() const;
 
-		/**
+        /**
+         * @brief Returns an integer that identifies this transfer
+         * @return Integer that identifies this transfer
+         */
+        virtual int getTag() const;
+
+        /**
          * @brief Returns the current speed of this transfer
          * @return Current speed of this transfer
-		 */
-		virtual long long getSpeed() const;
+         */
+        virtual long long getSpeed() const;
 
         /**
          * @brief Returns the average speed of this transfer
@@ -6322,22 +6334,22 @@ class MegaTransfer
         virtual long long getMeanSpeed() const;
 
         /**
-		 * @brief Returns the number of bytes transferred since the previous callback
-		 * @return Number of bytes transferred since the previous callback
-		 * @see MegaListener::onTransferUpdate, MegaTransferListener::onTransferUpdate
-		 */
-		virtual long long getDeltaSize() const;
+         * @brief Returns the number of bytes transferred since the previous callback
+         * @return Number of bytes transferred since the previous callback
+         * @see MegaListener::onTransferUpdate, MegaTransferListener::onTransferUpdate
+         */
+        virtual long long getDeltaSize() const;
 
-		/**
-		 * @brief Returns the timestamp when the last data was received (in deciseconds)
-		 *
-		 * This timestamp doesn't have a defined starting point. Use the difference between
-		 * the return value of this function and MegaTransfer::getStartTime to know how
-		 * much time the transfer has been running.
-		 *
-		 * @return Timestamp when the last data was received (in deciseconds)
-		 */
-		virtual int64_t getUpdateTime() const;
+        /**
+         * @brief Returns the timestamp when the last data was received (in deciseconds)
+         *
+         * This timestamp doesn't have a defined starting point. Use the difference between
+         * the return value of this function and MegaTransfer::getStartTime to know how
+         * much time the transfer has been running.
+         *
+         * @return Timestamp when the last data was received (in deciseconds)
+         */
+        virtual int64_t getUpdateTime() const;
 
         /**
          * @brief Returns a public node related to the transfer
@@ -16689,6 +16701,20 @@ class MegaApi
          * @see MegaApi::startStreaming
          */
         MegaTransferList *getStreamingTransfers();
+
+        /**
+         * @brief Get the transfer with a unique id
+         *
+         * That unique identifier of a transfer can be retrieved using MegaTransfer::getUniqueId
+         *
+         * You take the ownership of the returned value
+         *
+         * @param transferUniqueId unique Id to find
+         * @return MegaTransfer object with that unique Id, or nullptr if there isn't any
+         * active transfer with it
+         *
+         */
+        MegaTransfer* getTransferByUniqueId(uint32_t transferUniqueId) const;
 
         /**
          * @brief Get the transfer with a transfer tag

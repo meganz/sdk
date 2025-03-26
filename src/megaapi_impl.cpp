@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <cstdint>
 #include <functional>
 #include <iomanip>
 #include <locale>
@@ -3133,6 +3134,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->listener = transfer->getListener();
     this->transfer = transfer->getTransfer();
     this->type = transfer->getType();
+    this->dbid = transfer->getUniqueId();
     this->setState(transfer->getState());
     this->setPriority(transfer->getPriority());
     this->setTag(transfer->getTag());
@@ -3187,6 +3189,11 @@ void MegaTransferPrivate::setTransfer(Transfer* newTransfer)
 Transfer* MegaTransferPrivate::getTransfer() const
 {
     return transfer;
+}
+
+uint32_t MegaTransferPrivate::getUniqueId() const
+{
+    return dbid;
 }
 
 int MegaTransferPrivate::getTag() const
@@ -6234,6 +6241,7 @@ bool MegaFile::serialize(string *d) const
         return false;
     }
 
+    megaTransfer->dbid = dbid;
     if (!megaTransfer->serialize(d))
     {
         return false;
@@ -6263,6 +6271,10 @@ MegaFile *MegaFile::unserialize(string *d)
     {
         delete megaFile;
         return NULL;
+    }
+    else
+    {
+        transfer->dbid = megaFile->dbid;
     }
 
     const char* ptr = d->data();
@@ -9679,6 +9691,19 @@ MegaTransferList *MegaApiImpl::getStreamingTransfers()
         }
     }
     return new MegaTransferListPrivate(transfers.data(), int(transfers.size()));
+}
+
+MegaTransfer* MegaApiImpl::getTransferByUniqueId(uint32_t transferUniqueId) const
+{
+    SdkMutexGuard g(sdkMutex);
+    const auto it = std::find_if(begin(transferMap),
+                                 end(transferMap),
+                                 [&id = transferUniqueId](const auto& p)
+                                 {
+                                     return p.second->getUniqueId() == id;
+                                 });
+
+    return it != end(transferMap) ? it->second->copy() : nullptr;
 }
 
 MegaTransfer *MegaApiImpl::getTransferByTag(int transferTag)
@@ -13172,7 +13197,7 @@ void MegaApiImpl::transfer_update(Transfer *t)
     }
 }
 
-File *MegaApiImpl::file_resume(string *d, direction_t *type)
+File* MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid)
 {
     if (!d || d->size() < sizeof(char))
     {
@@ -13224,7 +13249,9 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
 
     if (file)
     {
+        file->dbid = dbid;
         currentTransfer = file->getTransfer();
+        currentTransfer->dbid = file->dbid;
         waiter->notify();
     }
     return file;

@@ -7595,6 +7595,22 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the transfer with a unique id
+     * <p>
+     * That unique identifier of a transfer can be retrieved using MegaTransfer::getUniqueId
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param transferUniqueId unique Id to find
+     * @return MegaTransfer object with that unique Id, or nullptr if there isn't any
+     * active transfer with it
+     */
+    @Nullable
+    public MegaTransfer getTransferByUniqueId(long transferUniqueId) {
+        return megaApi.getTransferByUniqueId(transferUniqueId);
+    }
+
+    /**
      * Get all active transfers
      * <p>
      * You take the ownership of the returned value

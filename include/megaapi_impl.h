@@ -30,6 +30,7 @@
 #include "megaapi.h"
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 
 #define CRON_USE_LOCAL_TIME 1
@@ -1569,6 +1570,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         int getMaxRetries() const override;
         unsigned getStage() const override;
         virtual int64_t getTime() const;
+        uint32_t getUniqueId() const override;
         int getTag() const override;
         long long getSpeed() const override;
         long long getMeanSpeed() const override;
@@ -3806,6 +3808,7 @@ class MegaApiImpl : public MegaApp
         void notifyTransfer(int transferTag, MegaTransferListener *listener = NULL);
         MegaTransferList *getTransfers();
         MegaTransferList *getStreamingTransfers();
+        MegaTransfer* getTransferByUniqueId(uint32_t transferUniqueId) const;
         MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
         MegaTransferList *getChildTransfers(int transferTag);
@@ -4750,7 +4753,7 @@ public:
         void transfer_complete(Transfer *) override;
         void transfer_removed(Transfer *) override;
 
-        File* file_resume(string*, direction_t *type) override;
+        File* file_resume(string*, direction_t* type, uint32_t) override;
 
         void transfer_prepare(Transfer*) override;
         void transfer_failed(Transfer*, const Error& error, dstime timeleft) override;

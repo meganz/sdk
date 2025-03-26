@@ -5196,13 +5196,14 @@ bool MegaClient::procsc()
                             for (unsigned int i = 0; i < cachedfiles.size(); i++)
                             {
                                 direction_t type = NONE;
-                                File *file = app->file_resume(&cachedfiles.at(i), &type);
+                                File* file = app->file_resume(&cachedfiles.at(i),
+                                                              &type,
+                                                              cachedfilesdbids.at(i));
                                 if (!file || (type != GET && type != PUT))
                                 {
                                     tctable->del(cachedfilesdbids.at(i));
                                     continue;
                                 }
-                                file->dbid = cachedfilesdbids.at(i);
                                 if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag, nullptr, nextreqtag()))  // TODO: should we have serialized these flags and restored them?
                                 {
                                     tctable->del(cachedfilesdbids.at(i));
@@ -15266,13 +15267,12 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         for (unsigned int i = 0; i < cachedfiles.size(); i++)
         {
             direction_t type = NONE;
-            File *file = app->file_resume(&cachedfiles.at(i), &type);
+            File* file = app->file_resume(&cachedfiles.at(i), &type, cachedfilesdbids.at(i));
             if (!file || (type != GET && type != PUT))
             {
                 tctable->del(cachedfilesdbids.at(i));
                 continue;
             }
-            file->dbid = cachedfilesdbids.at(i);
             if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag, nullptr, nextreqtag()))  // TODO: should we have serialized these flags and reused them here?
             {
                 tctable->del(cachedfilesdbids.at(i));

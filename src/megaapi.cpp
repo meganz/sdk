@@ -27,6 +27,8 @@
 
 #include <mega/fuse/common/service.h>
 
+#include <cstdint>
+
 namespace
 {
 inline const char* nullToEmpty(const char* param)
@@ -1325,6 +1327,11 @@ int MegaTransfer::getMaxRetries() const
 }
 
 unsigned MegaTransfer::getStage() const
+{
+    return 0;
+}
+
+uint32_t MegaTransfer::getUniqueId() const
 {
     return 0;
 }
@@ -3559,6 +3566,11 @@ MegaTransferList *MegaApi::getTransfers()
 MegaTransferList *MegaApi::getStreamingTransfers()
 {
     return pImpl->getStreamingTransfers();
+}
+
+MegaTransfer* MegaApi::getTransferByUniqueId(uint32_t transferUniqueId) const
+{
+    return pImpl->getTransferByUniqueId(transferUniqueId);
 }
 
 MegaTransfer *MegaApi::getTransferByTag(int transferTag)
