@@ -8863,8 +8863,6 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
                         c.push_back(s);
                         break;
                     }
-
-                    path++;
                     continue;
                 }
 
