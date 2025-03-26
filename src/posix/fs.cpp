@@ -1029,7 +1029,7 @@ bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPat
 
     target_exists = existingandcare  || errno == EEXIST || errno == EISDIR || errno == ENOTEMPTY || errno == ENOTDIR;
     target_name_too_long = errno == ENAMETOOLONG;
-    transient_error = !existingandcare && (errno == ETXTBSY || errno == EBUSY);
+    transient_error = !existingandcare && isTransient(errno);
 
     int e = errno;
     if (e != EEXIST  || !skip_targetexists_errorreport)
@@ -1078,7 +1078,7 @@ bool PosixFileSystemAccess::copylocal(const LocalPath& oldname, const LocalPath&
             umask(mode);
             target_exists = errno == EEXIST;
             target_name_too_long = errno == ENAMETOOLONG;
-            transient_error = errno == ETXTBSY || errno == EBUSY;
+            transient_error = isTransient(errno);
 
             int e = errno;
             LOG_warn << "Unable to copy file. Error code: " << e;
@@ -1112,9 +1112,14 @@ bool PosixFileSystemAccess::unlinklocal(const LocalPath& name)
         return true;
     }
 
-    transient_error = errno == ETXTBSY || errno == EBUSY;
+    transient_error = isTransient(errno);
 
     return false;
+}
+
+bool PosixFileSystemAccess::isTransient(const int e)
+{
+    return e == ETXTBSY || e == EBUSY;
 }
 
 // delete all files, folders and symlinks contained in the specified folder
@@ -1222,7 +1227,7 @@ bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
         return true;
     }
 
-    transient_error = errno == ETXTBSY || errno == EBUSY;
+    transient_error = isTransient(errno);
 
     return false;
 }
@@ -1251,7 +1256,7 @@ bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlre
         {
             LOG_err << "Error creating local directory: " << nameStr << " errno: " << errno;
         }
-        transient_error = errno == ETXTBSY || errno == EBUSY;
+        transient_error = isTransient(errno);
     }
 
     return r;
@@ -1267,7 +1272,7 @@ bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
     if (!success)
     {
         LOG_err << "Error setting mtime: " << nameStr <<" mtime: "<< mtime << " errno: " << errno;
-        transient_error = errno == ETXTBSY || errno == EBUSY;
+        transient_error = isTransient(errno);
     }
 
     return success;

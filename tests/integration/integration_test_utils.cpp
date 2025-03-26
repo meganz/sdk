@@ -11,11 +11,7 @@
 namespace sdk_test
 {
 using namespace mega;
-using namespace std::chrono_literals;
 using namespace testing;
-
-static constexpr auto MAX_TIMEOUT = 3min; // Timeout for operations in this file
-
 #ifdef ENABLE_SYNC
 
 /**
@@ -236,6 +232,68 @@ void ensureAccountDeviceName(MegaApi* megaApi)
     rl.setErrorExpectations(API_OK);
     megaApi->setUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, devices.get(), &rl);
     ASSERT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
+}
+
+fs::path createLocalFolder(const fs::path& p)
+{
+    if (fs::exists(p) && !fs::remove(p))
+    {
+        LOG_err << "createLocalFolder: " << p.u8string() << " already exists and cannot be removed";
+        return fs::path{};
+    }
+    if (!fs::create_directory(p))
+    {
+        LOG_err << "createLocalFolder: " << p.u8string() << " cannot be created";
+        return fs::path{};
+    }
+    return p;
+}
+
+std::optional<int> downloadFile(MegaApi* megaApi,
+                                MegaNode* node,
+                                const std::filesystem::path& fsPath,
+                                const char* customName,
+                                const char* appData,
+                                const bool startFirst,
+                                MegaCancelToken* cancelToken,
+                                const int collisionCheck,
+                                const int collisionResolution,
+                                const bool undelete,
+                                const std::chrono::seconds timeoutInSecs)
+{
+    if (!megaApi || !node)
+    {
+        LOG_err << "test_utils(downloadFile): EARGS";
+        return std::nullopt;
+    }
+
+    std::optional<int> err{std::nullopt};
+    testing::NiceMock<MockMegaTransferListener> mtl{megaApi};
+    EXPECT_CALL(mtl, onTransferFinish)
+        .WillOnce(
+            [&mtl, &err](::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* error)
+            {
+                err = error ? error->getErrorCode() : API_EARGS;
+                mtl.markAsFinished();
+            });
+
+    megaApi->startDownload(node,
+                           fsPath.u8string().c_str(),
+                           customName,
+                           appData,
+                           startFirst,
+                           cancelToken,
+                           collisionCheck,
+                           collisionResolution,
+                           undelete,
+                           &mtl);
+
+    if (!mtl.waitForFinishOrTimeout(timeoutInSecs))
+    {
+        LOG_err << "test_utils(downloadFile): waitForFinishOrTimeout timeout expired";
+        return std::nullopt;
+    }
+    return err;
 }
 
 std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
