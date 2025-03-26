@@ -197,6 +197,8 @@ pipeline {
                                         if [ -f \"\$GFXWORKER_TEST_PATH\" ]; then
                                             \$GFXWORKER_TEST_PATH || FAILED=2
                                         fi
+                                        gzip -c gfxworker_test_integration.log > gfxworker_test_integration_${BUILD_ID}.log.gz || :
+                                        rm gfxworker_test_integration.log || :
                                     fi
 
                                     if [ -z \"\$FAILED\" ]; then
@@ -289,7 +291,7 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'test_integration*, core.tar.gz', fingerprint: true
+                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz', fingerprint: true
                     deleteDir()
                 }
             }
