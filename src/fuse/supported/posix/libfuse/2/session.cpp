@@ -102,7 +102,7 @@ std::string Session::nextRequest()
         if (result == -EINTR)
             continue;
 
-        throw FUSEErrorF("Unable to read request from session: %d",
+        throw FUSEErrorF("Unable to read request from session: %s",
                          std::strerror(-result));
     }
 }

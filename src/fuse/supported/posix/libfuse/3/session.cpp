@@ -178,7 +178,7 @@ void Session::dispatch()
             continue;
 
         // Couldn't get a request.
-        throw FUSEErrorF("Unable to read request from session: %d",
+        throw FUSEErrorF("Unable to read request from session: %s",
                          std::strerror(-result));
     }
 
