@@ -24,7 +24,7 @@ bool MountFlags::operator!=(const MountFlags& rhs) const
     return !(*this == rhs);
 }
 
-MountFlags MountFlags::deserialize(ScopedQuery& query)
+MountFlags MountFlags::deserialize(Query& query)
 try
 {
     MountFlags flags;
@@ -46,7 +46,12 @@ catch (std::runtime_error& exception)
    throw;
 }
 
-void MountFlags::serialize(ScopedQuery& query) const
+MountFlags MountFlags::deserialize(ScopedQuery& query)
+{
+    return deserialize(query.query());
+}
+
+void MountFlags::serialize(Query& query) const
 try
 {
     // Sanity.
@@ -62,6 +67,11 @@ catch (std::runtime_error& exception)
     FUSEErrorF("Unable to serialize mount flags: %s", exception.what());
 
     throw;
+}
+
+void MountFlags::serialize(ScopedQuery& query) const
+{
+    serialize(query.query());
 }
 
 } // fuse

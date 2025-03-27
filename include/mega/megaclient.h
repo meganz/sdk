@@ -872,6 +872,17 @@ public:
     void setBlocked(bool value);
 
     // enqueue/abort direct read
+    void pread(Node*, m_off_t, m_off_t, DirectRead::Callback&& callback);
+    void pread(handle,
+               SymmCipher* cypher,
+               int64_t,
+               m_off_t,
+               m_off_t,
+               DirectRead::Callback&& callback,
+               bool = false,
+               const char* = NULL,
+               const char* = NULL,
+               const char* = NULL);
     void pread(Node*, m_off_t, m_off_t, void*);
     void pread(handle,
                SymmCipher* cypher,
@@ -1859,6 +1870,17 @@ public:
     bool isprivatehandle(handle*);
 
     // add direct read
+    void queueread(handle,
+                   bool,
+                   SymmCipher*,
+                   int64_t,
+                   m_off_t,
+                   m_off_t,
+                   DirectRead::Callback&& callback,
+                   const char* = NULL,
+                   const char* = NULL,
+                   const char* = NULL);
+
     void queueread(handle, bool, SymmCipher*, int64_t, m_off_t, m_off_t, void*, const char* = NULL, const char* = NULL, const char* = NULL);
 
     // execute pending direct reads
@@ -1904,7 +1926,7 @@ public:
     // NodeManager instance to wrap all access to Node objects
     NodeManager mNodeManager;
 
-    mutex nodeTreeMutex;
+    recursive_mutex nodeTreeMutex;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;
@@ -2220,6 +2242,9 @@ public:
     shared_ptr<Node> nodebyhandle(handle);
 
     shared_ptr<Node> nodeByPath(const char* path, std::shared_ptr<Node> node = nullptr, nodetype_t type = TYPE_UNKNOWN);
+
+    using TotpTokenResult = std::pair<int, std::pair<std::string, unsigned>>;
+    TotpTokenResult generateTotpTokenFromNode(const handle h);
 
 #if ENABLE_SYNC
     std::shared_ptr<Node> nodebyfingerprint(LocalNode*);
@@ -2960,20 +2985,24 @@ private:
     // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (MegaClient::putVpnCredential)
     StringKeyPair generateVpnKeyPair();
 
-    std::pair<bool, error> checkRenameNodePrecons(std::shared_ptr<Node> n);
-
     /**
-     * @brief Prepares the password node data and stores in attributes map (in JSON format).
+     * @brief Stores json serialized `data` into the  `attrs` `NODE_ATTR_PASSWORD_MANAGER` field
      *
-     * This function verifies that the provided `data` map is not empty, ensures that
-     * TOTP data fields are properly set using `ensureTotpDataIsFilled`, and then
-     * converts the `data` map to a JSON string. The resulting JSON data is stored
-     * in the `attrs` map under the key corresponding to `NODE_ATTR_PASSWORD_MANAGER`.
-     *
-     * @param attrs The attribute map where the processed password node data will be stored.
+     * @param attrs The node attribute map to write the serialized password data
      * @param data The attribute map containing password-related information.
      */
-    void preparePasswordNodeData(attr_map& attrs, AttrMap& data) const;
+    void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+
+    /**
+     * @brief Checks preconditions for node rename operations on the given node.
+     *
+     * @return  Possible returned error codes:
+     * - API_EPAYWALL: If over disk quota paywall
+     * - API_EARGS: If the given node is nullptr
+     * - API_EACCESS: If the node is not full accessible
+     * - API_OK: No problems to rename the node
+     */
+    error checkRenameNodePrecons(std::shared_ptr<Node> n);
 
     // Get a string to complete sc/wsc url and receive partial action packages
     // It's used from clients of type PWD and VPN
@@ -3038,43 +3067,39 @@ public:
 
     // Password Manager
     static const char* const NODE_ATTR_PASSWORD_MANAGER;
-    static const char* const PWM_ATTR_PASSWORD_NOTES;
-    static const char* const PWM_ATTR_PASSWORD_URL;
-    static const char* const PWM_ATTR_PASSWORD_USERNAME;
-    static const char* const PWM_ATTR_PASSWORD_PWD;
-    static const char* const PWM_ATTR_PASSWORD_TOTP;
-    static const char* const PWM_ATTR_PASSWORD_TOTP_SHSE;
-    static const char* const PWM_ATTR_PASSWORD_TOTP_EXPT;
-    static const char* const PWM_ATTR_PASSWORD_TOTP_HASH;
-    static const char* const PWM_ATTR_PASSWORD_TOTP_NDIGITS;
+    static constexpr std::string_view PWM_ATTR_PASSWORD_NOTES{"n"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_URL{"url"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_USERNAME{"u"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_PWD{"pwd"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP{"totp"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_SHSE{"shse"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_EXPT{"t"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_HASH_ALG{"alg"};
+    static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_NDIGITS{"nd"};
 
-    // Special value to mark nested data attribute to be removed
-    static constexpr std::string_view REMOVAL_PWM_ATTR{"PWM_REMOVE"};
-
-    /**
-     * @brief Ensures that TotpData attr in map is properly filled with all required fields.
-     *
-     * This function checks if the TOTP attribute exists in the provided `data` map.
-     * If it exists and contains ill-formed data, it removes it.
-     * Additionally, it verifies the presence of essential TOTP parameters such as:
-     * - Number of digits (`PWM_ATTR_PASSWORD_TOTP_NDIGITS`)
-     * - Expiry time (`PWM_ATTR_PASSWORD_TOTP_EXPT`)
-     * - Hash algorithm (`PWM_ATTR_PASSWORD_TOTP_HASH`)
-     *
-     * If any of these fields are missing, they are added with default values.
-     *
-     * @param data The attribute map containing TOTP-related information.
-     *
-     * @note If TOTP attribute value is equal to `REMOVAL_PWM_ATTR`, an assertion failure is
-     * triggered. At this point we should already have removed TOTP attr if it has been marked to be
-     * removed.
-     */
-    void ensureTotpDataIsFilled(AttrMap& data) const;
     NodeHandle getPasswordManagerBase();
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
     error createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
                              std::shared_ptr<Node> nParent, int rtag);
-    error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
+
+    /**
+     * @brief Updates the password node data stored in the node with the given `nh` with the
+     * provided `newData`
+     *
+     * @param nh Handle of the node to update
+     * @param newData Map with the new data. Notice that fields set to empty strings will cause the
+     * data of that field to be removed.
+     * @param cb The callback to forward to the `setattr` call.
+     * @return An error code that can be:
+     * - API_EARGS, if:
+     *   + newData is empty or nullptr
+     *   + The node to update is not a password node
+     *   + The updates leave the node in an invalid state
+     * - All the possible codes returned by MegaClient::checkRenameNodePrecons
+     * - All the possible codes returned by MegaClient::setattr
+     */
+    error updatePasswordNode(const NodeHandle nh,
+                             std::unique_ptr<AttrMap> newData,
                              CommandSetAttr::Completion&& cb);
 
     // Data type to call putnodes and create password nodes
@@ -3162,6 +3187,9 @@ public:
      * @param data The attribute map containing TOTP data attr map.
      * @return PasswordEntryError An error code indicating validation status:
      * - `MISSING_TOTP_SHARED_SECRET` if the shared secret is missing.
+     * - `MISSING_TOTP_NDIGITS` if the number of digits is missing.
+     * - `MISSING_TOTP_EXPT` if the expiration time is missing.
+     * - `MISSING_TOTP_HASH_ALG` if the hashing algorithm is missing.
      * - The result of `validateTotpDataFormat(data)`, which checks other fields.
      */
     static PasswordEntryError validateNewNodeTotpData(const AttrMap& data);

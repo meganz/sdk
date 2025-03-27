@@ -1,7 +1,7 @@
 # MEGA SDK - Client Access Engine
 
-MEGA --- _The Privacy Company_ --- is a Secure Cloud Storage
-provider that protects your data thanks to end-to-end encryption. We call it User Controlled Encryption,
+MEGA --- _The Privacy Company_ --- is a Secure Cloud Storage provider
+that protects your data thanks to end-to-end encryption. We call it User Controlled Encryption,
 or UCE, and all our clients automatically manage it.
 
 All files stored on MEGA are encrypted. All data transfers from and to MEGA are encrypted. And while
@@ -9,22 +9,22 @@ most cloud storage providers can and do claim the same, MEGA is different – un
 where the cloud storage provider holds the decryption key, with MEGA, you control the encryption,
 you hold the keys, and you decide who you grant or deny access to your files.
 
-This SDK brings you all the power of our client applications and let you create
+This SDK brings you all the power of our client applications and lets you create
 your own or analyze the security of our products. Are you ready to start? Please continue reading.
 
 ## SDK Contents
 
 In this SDK, you can find our low level SDK, that was already released few months after the MEGA launch,
 a new intermediate layer to make it easier to use and to bind with other programming languages, and
-example apps for all our currently supported platforms (Windows, Linux, OSX, Android and iOS).
+example apps for all our currently supported platforms (Android, GNU/Linux, iOS, macOS and Windows).
 
-In the `examples` folder you can find example apps using:
+In the [examples](examples) folder you can find example apps using:
 
 1. The low level SDK:
   - megacli (a powerful command line tool that allows to use all SDK features)
 
-2. The intermediate layer:
-  - An example app for Visual Studio in `examples/win32`
+2. The public API:
+  - A plain C++ example app in `examples/simple_client`
   - An example app for Android (using Java bindings based on SWIG) in `examples/android`
   - An example app for iOS (using Objective-C bindings) in `examples/iOS`
 
@@ -32,9 +32,7 @@ In the `examples` folder you can find example apps using:
 
 ## How to build the SDK library
 
-For the SDK development and compilation we mainly use CMake as the cross-platform project configuration tool. We also use VCPKG to manage the required dependencies to build the SDK in most platforms: Windows, MacOS and Linux.
-
-The prior autotools and qmake build systems are still available but obsolete, so their usage is discouraged.
+For the SDK development and compilation we use CMake as the cross-platform project configuration tool. We also use VCPKG to manage the required dependencies to build the SDK in most platforms: GNU/Linux, macOS and Windows.
 
 ### Building tools
 
@@ -47,7 +45,7 @@ Some common development tools should be available in the system to be able to bu
 
 Ensure you have installed Visual Studio, with the necessary components for building C++ sources, and the Windows SDK on your system:
 
- - [Visual Studio 2019](https://visualstudio.microsoft.com/vs/older-downloads/)
+ - [Visual Studio 2022](https://visualstudio.microsoft.com/vs/)
  - MSVC v142
  - Windows 10 SDK (10.0.19041.0)
 
@@ -123,7 +121,7 @@ Once the build is finished, binaries will be available in the `build_dir`
 
 ### Run megacli
 
-To run the example app `megacli`, go to the `examples` directory in the `build_dir` and execute the `megacli` binary.
+To run the example app `megacli`, go to the `examples/megacli` directory in the `build_dir` and execute the `megacli` binary.
 
 ## Minimum supported OS versions
 

@@ -279,7 +279,7 @@ ErrorOr<platform::FileContextPtr> FileInode::open(Mount& mount,
 
     // File's read-only.
     if (writable && permissions() != FULL)
-        return API_FUSE_EROFS;
+        return unexpected(API_FUSE_EROFS);
 
     // Get a reference to ourself.
     auto ref = FileInodeRef(this);
@@ -298,7 +298,7 @@ ErrorOr<platform::FileContextPtr> FileInode::open(Mount& mount,
 
     // Couldn't open the file.
     if (result != API_OK)
-        return result;
+        return unexpected(result);
 
     // File's open.
     return std::make_unique<platform::FileContext>(std::move(context),

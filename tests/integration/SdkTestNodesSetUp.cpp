@@ -1,4 +1,4 @@
-#include "SdkTestNodesSetUp_test.h"
+#include "SdkTestNodesSetUp.h"
 
 void SdkTestNodesSetUp::SetUp()
 {
@@ -34,12 +34,12 @@ std::unique_ptr<MegaNode> SdkTestNodesSetUp::getNodeByPath(const std::string& pa
     return std::unique_ptr<MegaNode>(megaApi[0]->getNodeByPath(testPath.c_str()));
 }
 
-std::optional<MegaHandle> SdkTestNodesSetUp::getNodeHandleByPath(const std::string& path) const
+MegaHandle SdkTestNodesSetUp::getNodeHandleByPath(const std::string& path) const
 {
-    const auto testPath = convertToTestPath(path);
-    if (std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(testPath.c_str())); node)
-        return node->getHandle();
-    return {};
+    if (const auto megaNode = getNodeByPath(path); megaNode)
+        return megaNode->getHandle();
+
+    return UNDEF;
 }
 
 void SdkTestNodesSetUp::createRootTestDir()

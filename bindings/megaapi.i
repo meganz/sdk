@@ -440,4 +440,6 @@ typedef long long int64_t;
 typedef long long uint32_t;
 typedef long long int32_t;
 
+%include "std_string.i"
+
 %include "megaapi.h"

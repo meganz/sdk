@@ -1,3 +1,42 @@
+def setCommitStatus(String pStatus, String errorHint = '') {
+    switch (pStatus) {
+        case 'running':
+            pState = 'running'
+            pMessage = ""
+            break
+        case 'success':
+            pState = 'success'
+            pMessage = ":white_check_mark: ${env.JOB_NAME} :penguin: <b>Linux</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'aborted':
+            pState = 'canceled'
+            pMessage = ":interrobang: ${env.JOB_NAME} :penguin: <b>Linux</b> ABORTED :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'build_failure':
+            pState = 'failed'
+            pMessage = ":red_circle: ${env.JOB_NAME} :penguin: <b>Linux</b> FAILURE :worried:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'tests_failure':
+            pState = 'failed'
+            pMessage = "🟠 ${env.JOB_NAME} :penguin: <b>Linux</b> FAILURE :worried:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'unstable':
+            pState = 'failed'
+            pMessage = ":interrobang: ${env.JOB_NAME} :penguin: <b>Linux</b> UNSTABLE :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        default:
+            pState = 'failed'
+            pMessage = ":interrobang: ${env.JOB_NAME} :penguin: <b>Linux</b> UNKNOWN :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+    }
+    if (pMessage) {
+        if (errorHint) {
+            pMessage += '<br/> ' + errorHint
+        }
+        addGitLabMRComment(comment: pMessage)
+    }
+    updateGitlabCommitStatus(name: "${PIPELINE_NAME}", state: pState)
+}
+
 pipeline {
     agent none
     options {
@@ -6,6 +45,7 @@ pipeline {
     }
 
     environment {
+        PIPELINE_NAME = 'Build & test linux'
         BUILD_OPTIONS = ''
         TESTS_PARALLEL = ''
         APIURL_TO_TEST = ''
@@ -82,6 +122,14 @@ pipeline {
                             //linux_build_agent = "${NODE_NAME}"
                         }
                     }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('build_failure', ':warning: Checkout failed')
+                            }
+                            error("Checkout stage failed")
+                        }
+                    }
                 }
                 stage('Build Linux'){
                     options{
@@ -99,6 +147,14 @@ pipeline {
                             sh "cmake -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_CHAT=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
                             -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${BUILD_DIR}"
                             sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j3"
+                        }
+                    }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('build_failure', ':warning: Build failed. Tests won`t run')
+                            }
+                            error("Build stage failed. Tests won't run.")
                         }
                     }
                 }
@@ -215,14 +271,19 @@ pipeline {
                             }
                         }
                     }
-
                     post {
                         always {
                             dir("${env.WORKSPACE}/src/fuse/supported/posix/scripts") {
                                 println "Attempting to clean up any stale MEGA-FS mounts"
                                 sh "./cleanup.sh '${env.WORKSPACE}'"
                             }
-                        } 
+                        }
+                        failure {
+                            script {
+                                setCommitStatus('tests_failure', ':warning: Build succeed. Tests failed')
+                            }
+                            error("Test stage failed")
+                        }
                     }
                 }
             }
@@ -246,10 +307,6 @@ pipeline {
         aborted {
             updateGitlabCommitStatus(name: 'Build & test linux', state: 'canceled')
             addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :penguin: <b>Linux</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
-        }
-        failure {
-            updateGitlabCommitStatus(name: 'Build & test linux', state: 'failed')
-            addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :penguin: <b>Linux</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )                
         }
     }
 }

@@ -4,8 +4,9 @@ target_sources(test_integration
     PRIVATE
     env_var_accounts.h
     SdkTest_test.h
-    SdkTestNodesSetUp_test.h
-    SdkTestSyncNodesOperations_test.h
+    SdkTestNodesSetUp.h
+    SdkTestSyncNodesOperations.h
+    SdkTestSyncPrevalidation.h
     test.h
     integration_test_utils.h
     mock_listeners.h
@@ -13,8 +14,8 @@ target_sources(test_integration
     env_var_accounts.cpp
     main.cpp
     SdkTest_test.cpp
-    SdkTestNodesSetUp_test.cpp
-    SdkTestSyncNodesOperations_test.cpp
+    SdkTestNodesSetUp.cpp
+    SdkTestSyncNodesOperations.cpp
     SdkTestFilter_test.cpp
     SdkTestCreateAccount_test.cpp
     SdkTestTransferStats_test.cpp
@@ -22,12 +23,15 @@ target_sources(test_integration
     SdkTestSyncRootOperations_test.cpp
     SdkTestSyncUploadThrottling_test.cpp
     SdkTestChangeLocalSyncRoot_test.cpp
+    SdkTestSyncPrevalidation.cpp
+    SdkTestSyncPrevalidation_test.cpp
     Sync_test.cpp
     one_question_survey_test.cpp
     share_test.cpp
     integration_test_utils.cpp
     DisableBackupSync_test.cpp
     SdkTestTransferMaxSpeeds_test.cpp
+    sdk_test_http_server.cpp
     sdk_test_node_tags.cpp
     sdk_test_node_tags.h
     sdk_test_network.cpp

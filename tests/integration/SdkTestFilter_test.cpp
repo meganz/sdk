@@ -10,7 +10,7 @@
 #include "megaapi.h"
 #include "megautils.h"
 #include "sdk_test_utils.h"
-#include "SdkTestNodesSetUp_test.h"
+#include "SdkTestNodesSetUp.h"
 
 #include <gmock/gmock.h>
 

@@ -22,6 +22,7 @@
 #import "megaapi.h"
 #import "PasswordNodeData.h"
 #import "MEGAStringList+init.h"
+#import "MEGATOTPData+init.h"
 
 using namespace mega;
 
@@ -94,8 +95,9 @@ using namespace mega;
     NSString *notes = data->notes() ? [NSString stringWithUTF8String:data->notes()] : nil;
     NSString *url = data->url() ? [NSString stringWithUTF8String:data->url()] : nil;
     NSString *un = data->userName() ? [NSString stringWithUTF8String:data->userName()] : nil;
-
-    PasswordNodeData *passwordNodeData = [[PasswordNodeData alloc] initWithPassword:pwd notes:notes url:url userName:un];
+    MEGATOTPData *totp = data->totpData() ? [[MEGATOTPData alloc] initWithMegaTotpData:data->totpData()->copy() cMemoryOwn:YES] : nil;
+    
+    PasswordNodeData *passwordNodeData = [[PasswordNodeData alloc] initWithPassword:pwd notes:notes url:url userName:un totp:totp];
 
     return passwordNodeData;
 }

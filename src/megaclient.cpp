@@ -27,6 +27,7 @@
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
 #include "mega/totp.h"
+#include "mega/transfer.h"
 #include "mega/user_attribute.h"
 #include "mega/utils.h"
 
@@ -5047,7 +5048,7 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 bool MegaClient::procsc()
 {
     // prevent the sync thread from looking things up while we change the tree
-    std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
+    std::unique_lock<recursive_mutex> nodeTreeIsChanging(nodeTreeMutex);
 
     bool originalAC = actionpacketsCurrent;
     actionpacketsCurrent = false;
@@ -6267,7 +6268,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                 if (reqs.cmdsInflight())
                 {
                     LOG_verbose << clientname << "st tag " << tag << ". Wait for cs response to arrive";
-                    return false;  // we can't tell yet if a command will give us a tag to wait for
+                    break; // we can't tell yet if a command will give us a tag to wait for
                 }
                 else
                 {
@@ -6308,9 +6309,10 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                     return true;
                 }
             }
-            break;
         }
     }
+
+    return false;
 }
 
 // Looks for the "st" in the action packet, if any.
@@ -8217,7 +8219,13 @@ void MegaClient::sc_scheduledmeetings()
                 if (res)
                 {
                     if (isNewSchedMeeting) createNewSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides);
-                    else createUpdatedSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides, std::move(cs));
+                    else
+                        createUpdatedSMAlert(ou,
+                                             chat->getChatId(),
+                                             schedId,
+                                             parentSchedId,
+                                             overrides,
+                                             decltype(cs){cs});
                 }
             }
         }
@@ -8748,6 +8756,79 @@ shared_ptr<Node> MegaClient::nodeByHandle(NodeHandle h)
     if (h.isUndef()) return nullptr;
 
     return mNodeManager.getNodeByHandle(h);
+}
+
+/**
+ * @brief Helper function to convert AttrMap containing totp data. If any of the fields is missing,
+ * nullopt will be returned.
+ */
+static std::optional<totp::TotpParameters> toTotpParameters(const AttrMap& totpAttrs)
+{
+    const auto shse = totpAttrs.getString(MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE);
+    if (!shse)
+        return {};
+    const auto exptStr = totpAttrs.getStringView(MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT);
+    const auto exptOpt = convertIfPositive<std::chrono::seconds>(
+        stringToNumber<int>(exptStr.value_or("")).value_or(-1));
+    if (!exptOpt)
+        return {};
+    const auto ndigitsStr = totpAttrs.getStringView(MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS);
+    const auto ndigitsOpt =
+        convertIfPositive<unsigned>(stringToNumber<int>(ndigitsStr.value_or("")).value_or(-1));
+    if (!ndigitsOpt)
+        return {};
+    const auto hashAlgoStr = totpAttrs.getStringView(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG);
+    const auto hashAlgoOpt = totp::charTohashAlgorithm(hashAlgoStr.value_or(""));
+    if (!hashAlgoOpt)
+        return {};
+    return totp::TotpParameters{*shse, *ndigitsOpt, *exptOpt, *hashAlgoOpt};
+}
+
+MegaClient::TotpTokenResult MegaClient::generateTotpTokenFromNode(const handle h)
+{
+    static const auto logAndError = generateLogAndReturnError(
+        [](const error e) -> TotpTokenResult
+        {
+            return {e, {"", 0}};
+        });
+
+    if (h == UNDEF)
+        return logAndError(API_EARGS, "Invalid handle (UNDEF) to generate TotpToken");
+
+    const auto node = nodebyhandle(h);
+    if (!node)
+        return logAndError(API_ENOENT, "No node found with the given handle");
+    if (!node->isPasswordNode())
+        return logAndError(API_ENOENT, "No password node found with the given handle");
+
+    const auto pwdData = node->attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+    if (!pwdData)
+    {
+        assert(false && "All password nodes must have the pwm field");
+        return logAndError(API_ENOENT,
+                           "No password node with valid pwm data found with the given handle");
+    }
+
+    const auto totpData = pwdData->getNestedJsonObject(MegaClient::PWM_ATTR_PASSWORD_TOTP);
+    if (!totpData)
+        return logAndError(API_EKEY, "Trying to generate totp token for a node with no totp data");
+
+    const auto totpParams = toTotpParameters(*totpData);
+    if (!totpParams)
+    {
+        assert(false && "If present in a password node, totp data must be well formatted");
+        return logAndError(API_EINTERNAL,
+                           "Trying to generate totp token for a node with incomplete totp data");
+    }
+
+    const auto [token, lifetime] = totp::generateTOTP(*totpParams);
+    if (token.empty())
+    {
+        assert(false && "If present in a password node, totp data must be well formatted");
+        return logAndError(API_EINTERNAL,
+                           "Trying to generate totp token for a node with ill-formed totp data");
+    }
+    return {API_OK, {token, static_cast<unsigned>(lifetime.count())}};
 }
 
 shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> node, nodetype_t type)
@@ -9660,24 +9741,22 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
     return API_OK;
 }
 
-std::pair<bool, error> MegaClient::checkRenameNodePrecons(std::shared_ptr<Node> n)
+error MegaClient::checkRenameNodePrecons(std::shared_ptr<Node> n)
 {
-    if (ststatus == STORAGE_PAYWALL) return std::make_pair(false, API_EPAYWALL);
-
-    if (!n) return std::make_pair(false, API_EARGS);
-
-    if (!checkaccess(n.get(), FULL)) return std::make_pair(false, API_EACCESS);
-
-    return std::make_pair(true, API_OK);
+    if (ststatus == STORAGE_PAYWALL)
+        return API_EPAYWALL;
+    if (!n)
+        return API_EARGS;
+    if (!checkaccess(n.get(), FULL))
+        return API_EACCESS;
+    return API_OK;
 }
 
 error MegaClient::renameNode(NodeHandle nh, const char* newName, CommandSetAttr::Completion&& cbRequest)
 {
     auto node = nodeByHandle(nh);
-    const auto aux = checkRenameNodePrecons(node);
-    const bool& preconsOK = aux.first;
-    const error& code = aux.second;
-    if (!preconsOK) return code;
+    if (const auto err = checkRenameNodePrecons(node); err != API_OK)
+        return err;
 
     if (!(newName && *newName)) return API_EARGS;
 
@@ -15362,7 +15441,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         sctable->truncate();
     }
 
-    std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
+    std::unique_lock<recursive_mutex> nodeTreeIsChanging(nodeTreeMutex);
 
     // only initial load from local cache
     if (!forceLoadFromServers &&
@@ -16701,6 +16780,40 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 }
 
 // request direct read by node pointer
+void MegaClient::pread(Node* n, m_off_t offset, m_off_t count, DirectRead::Callback&& callback)
+{
+    queueread(n->nodehandle,
+              true,
+              n->nodecipher(),
+              MemAccess::get<int64_t>((const char*)n->nodekey().data() + SymmCipher::KEYLENGTH),
+              offset,
+              count,
+              std::move(callback));
+}
+
+void MegaClient::pread(handle ph,
+                       SymmCipher* cypher,
+                       int64_t ctriv,
+                       m_off_t offset,
+                       m_off_t count,
+                       DirectRead::Callback&& callback,
+                       bool isforeign,
+                       const char* privauth,
+                       const char* pubauth,
+                       const char* cauth)
+{
+    queueread(ph,
+              isforeign,
+              cypher,
+              ctriv,
+              offset,
+              count,
+              std::move(callback),
+              privauth,
+              pubauth,
+              cauth);
+}
+
 void MegaClient::pread(Node* n, m_off_t offset, m_off_t count, void* appdata)
 {
     queueread(n->nodehandle, true, n->nodecipher(),
@@ -16748,6 +16861,56 @@ void MegaClient::queueread(handle h,
                            const char* pubauth,
                            const char* cauth)
 {
+    assert(appdata);
+    auto callback = [this, appdata](DirectRead::CallbackParam& param) mutable
+    {
+        std::visit(overloaded{[&](DirectRead::Data& data)
+                              {
+                                  data.ret = app->pread_data(data.buffer,
+                                                             data.len,
+                                                             data.offset,
+                                                             data.speed,
+                                                             data.meanSpeed,
+                                                             appdata);
+                              },
+                              [&](DirectRead::Failure& failure)
+                              {
+                                  failure.ret = app->pread_failure(failure.e,
+                                                                   failure.retry,
+                                                                   appdata,
+                                                                   failure.timeLeft);
+                              },
+                              [&](DirectRead::Revoke& revoke)
+                              {
+                                  if (appdata == revoke.appdata)
+                                  {
+                                      appdata = nullptr;
+                                      revoke.ret = true;
+                                  }
+                              },
+                              [&](DirectRead::IsValid& isValid)
+                              {
+                                  isValid.ret = appdata != nullptr;
+                              }},
+                   param);
+    };
+
+    queueread(h, p, cypher, ctriv, offset, count, std::move(callback), privauth, pubauth, cauth);
+}
+
+void MegaClient::queueread(handle h,
+                           bool p,
+                           SymmCipher* cypher,
+                           int64_t ctriv,
+                           m_off_t offset,
+                           m_off_t count,
+                           DirectRead::Callback&& callback,
+                           const char* privauth,
+                           const char* pubauth,
+                           const char* cauth)
+{
+    assert(callback);
+
     handledrn_map::iterator it;
 
     encodehandletype(&h, p);
@@ -16763,12 +16926,12 @@ void MegaClient::queueread(handle h,
                 h,
                 new DirectReadNode(this, h, p, cypher, ctriv, privauth, pubauth, cauth)));
         it->second->hdrn_it = it;
-        it->second->enqueue(offset, count, reqtag, appdata);
+        auto directRead = it->second->enqueue(offset, count, reqtag, std::move(callback));
 
         if (overquotauntil && overquotauntil > Waiter::ds)
         {
             dstime timeleft = dstime(overquotauntil - Waiter::ds);
-            app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
+            directRead->onFailure(API_EOVERQUOTA, 0, timeleft);
             it->second->schedule(timeleft);
         }
         else
@@ -16778,11 +16941,11 @@ void MegaClient::queueread(handle h,
     }
     else
     {
-        it->second->enqueue(offset, count, reqtag, appdata);
+        auto directRead = it->second->enqueue(offset, count, reqtag, std::move(callback));
         if (overquotauntil && overquotauntil > Waiter::ds)
         {
             dstime timeleft = dstime(overquotauntil - Waiter::ds);
-            app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
+            directRead->onFailure(API_EOVERQUOTA, 0, timeleft);
             it->second->schedule(timeleft);
         }
     }
@@ -16796,10 +16959,8 @@ void MegaClient::removeAppData(void* t)
         for(auto it2 = dreads.begin(); it2 != dreads.end(); ++it2)
         {
             DirectRead* dr = *it2;
-            if (dr && dr->appdata == t)
-            {
-                dr->appdata = nullptr;
-            }
+            if (dr)
+                dr->revokeCallback(t);
         }
     }
 }
@@ -16832,7 +16993,7 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
             if ((offset < 0 || offset == (*itRead)->offset) &&
                 (count < 0 || count == (*itRead)->count))
             {
-                app->pread_failure(API_EINCOMPLETE, (*itRead)->drn->retries, (*itRead)->appdata, 0);
+                (*itRead)->onFailure(API_EINCOMPLETE, (*itRead)->drn->retries, 0);
 
                 delete *(itRead++);
             }
@@ -17081,6 +17242,9 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
 
 SyncErrorInfo MegaClient::checkSyncConfig(const SyncConfig& syncConfig)
 {
+    assert(syncConfig.mExternalDrivePath.empty() || syncConfig.mExternalDrivePath.isAbsolute());
+    assert(syncConfig.mLocalPath.isAbsolute());
+
     // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
     // until the account is reloaded (or the app restarts)
     if (accountShouldBeReloadedOrRestarted())
@@ -17283,8 +17447,6 @@ void MegaClient::setSyncUploadThrottlingManager(
 void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);
-    assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
-    assert(config.mLocalPath.isAbsolute());
 
     error e;
     std::tie(e, config.mError, config.mWarning) = checkSyncConfig(config);
@@ -21442,16 +21604,33 @@ void MegaClient::runNetworkConnectivityTest(
         {
             if (e)
             {
-                LOG_err
-                    << "Failed to retrieve Network Connectivity test server. Test will not run.";
+                LOG_err << "NetworkConnectivityTest: failed to retrieve server info.";
                 testCompletion(e, {});
                 return;
             }
 
+            UdpSocketTester::TestSuite testSuite{10, // loop count
+                                                 3, // short message count
+                                                 3, // long message count
+                                                 3, // DNS message count
+                                                 me}; // user id
+            LOG_debug << "NetworkConnectivityTest: messages to be sent (hex):";
+            LOG_debug << "NetworkConnectivityTest: S: "
+                      << Utils::stringToHex(testSuite.getShortMessage(), true);
+            LOG_debug << "NetworkConnectivityTest: L: "
+                      << Utils::stringToHex(testSuite.getLongMessage(), true);
+            LOG_debug << "NetworkConnectivityTest: D (IPV4): "
+                      << Utils::stringToHex(testSuite.getDnsIPv4Message(), true);
+            LOG_debug << "NetworkConnectivityTest: D (IPV6): "
+                      << Utils::stringToHex(testSuite.getDnsIPv6Message(), true);
+
+            using namespace std::chrono;
+            auto netTestStart = high_resolution_clock::now();
+
             NetworkConnectivityTest test;
-            if (!test.start(me, std::move(serverInfo)))
+            if (!test.start(std::move(testSuite), std::move(serverInfo)))
             {
-                LOG_err << "Failed to start Network Connectivity test (already running?).";
+                LOG_err << "NetworkConnectivityTest: failed to start test (already running?).";
                 testCompletion(API_EINTERNAL, {});
                 return;
             }
@@ -21460,9 +21639,14 @@ void MegaClient::runNetworkConnectivityTest(
 
             // Log errors from socket communication
             for (const auto& singleError: testResults.ipv4.socketErrors)
-                LOG_err << singleError;
+                LOG_err << "NetworkConnectivityTest: " << singleError;
             for (const auto& singleError: testResults.ipv6.socketErrors)
-                LOG_err << singleError;
+                LOG_err << "NetworkConnectivityTest: " << singleError;
+
+            LOG_info
+                << "NetworkConnectivityTest: test ran for "
+                << duration_cast<milliseconds>(high_resolution_clock::now() - netTestStart).count()
+                << " ms.";
 
             testCompletion(API_OK, std::move(testResults));
         });
@@ -21497,15 +21681,6 @@ void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion
 }
 
 const char* const MegaClient::NODE_ATTR_PASSWORD_MANAGER = "pwm";
-const char* const MegaClient::PWM_ATTR_PASSWORD_NOTES = "n";
-const char* const MegaClient::PWM_ATTR_PASSWORD_URL = "url";
-const char* const MegaClient::PWM_ATTR_PASSWORD_USERNAME = "u";
-const char* const MegaClient::PWM_ATTR_PASSWORD_PWD = "pwd";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP = "totp";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE = "shse";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT = "t";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH = "alg";
-const char* const MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS = "nd";
 
 NodeHandle MegaClient::getPasswordManagerBase()
 {
@@ -21517,73 +21692,10 @@ NodeHandle MegaClient::getPasswordManagerBase()
                NodeHandle{};
 }
 
-void MegaClient::ensureTotpDataIsFilled(AttrMap& data) const
-{
-    auto totpIt = data.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
-    if (totpIt == data.map.end())
-    {
-        return;
-    }
-
-    if (totpIt->second == REMOVAL_PWM_ATTR)
-    {
-        assert(false);
-        LOG_err << "Ill-formed Totp data";
-        data.map.erase(totpIt);
-        return;
-    }
-
-    AttrMap totpMap;
-    totpMap.fromjson(data.map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
-
-    assert(totpMap.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_SHSE)));
-
-    bool hasChanged{false};
-    if (const auto nDigitsIt =
-            (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_NDIGITS)));
-        nDigitsIt == totpMap.map.end())
-    {
-        hasChanged = true;
-        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_NDIGITS)] =
-            std::to_string(totp::DEF_NDIGITS);
-    }
-
-    if (const auto expTimeIt =
-            (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_EXPT)));
-        expTimeIt == totpMap.map.end())
-    {
-        hasChanged = true;
-        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_EXPT)] =
-            std::to_string(totp::DEF_EXP_TIME.count());
-    }
-
-    if (const auto algIt = (totpMap.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH)));
-        algIt == totpMap.map.end())
-    {
-        hasChanged = true;
-        totpMap.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_HASH)] =
-            totp::hashAlgorithmToStrView(totp::DEF_ALG);
-    }
-
-    if (!hasChanged)
-    {
-        return;
-    }
-
-    LOG_info << "Adding missing fields to Totp attr map";
-    std::string attrJson;
-    totpMap.getjson(&attrJson);
-    data.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)] = attrJson;
-}
-
-void MegaClient::preparePasswordNodeData(attr_map& attrs, AttrMap& data) const
+void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const
 {
     assert(!data.map.empty());
-
-    ensureTotpDataIsFilled(data);
-    std::string jsonData;
-    data.getjson(&jsonData);
-    attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = std::move(jsonData);
+    attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = data.getjson();
 }
 
 std::string MegaClient::getPartialAPs()
@@ -21739,17 +21851,17 @@ MegaClient::ImportPaswordResult
 
 PasswordEntryError MegaClient::validateTotpDataFormat(const AttrMap& data)
 {
-    const auto shse = charPtrToStrViewOpt(data.read(PWM_ATTR_PASSWORD_TOTP_SHSE));
+    const auto shse = data.getStringView(PWM_ATTR_PASSWORD_TOTP_SHSE);
 
     std::optional<unsigned> nDigitsNum;
-    if (const auto nDigits = data.read(PWM_ATTR_PASSWORD_TOTP_NDIGITS); nDigits)
-        nDigitsNum = static_cast<unsigned>(std::atoi(nDigits));
+    if (const auto nDigits = data.getStringView(PWM_ATTR_PASSWORD_TOTP_NDIGITS); nDigits)
+        nDigitsNum = static_cast<unsigned>(stringToNumber<int>(*nDigits).value_or(0));
 
     std::optional<std::chrono::seconds> expTime;
-    if (const auto expirationTime = data.read(PWM_ATTR_PASSWORD_TOTP_EXPT); expirationTime)
-        expTime = std::chrono::seconds(std::atoi(expirationTime));
+    if (const auto expirationTime = data.getStringView(PWM_ATTR_PASSWORD_TOTP_EXPT); expirationTime)
+        expTime = std::chrono::seconds(stringToNumber<int>(*expirationTime).value_or(0));
 
-    const auto alg = charPtrToStrViewOpt(data.read(PWM_ATTR_PASSWORD_TOTP_HASH));
+    const auto alg = data.getStringView(PWM_ATTR_PASSWORD_TOTP_HASH_ALG);
 
     const auto errors = totp::validateFields(shse, nDigitsNum, expTime, alg);
     if (errors.none())
@@ -21762,19 +21874,22 @@ PasswordEntryError MegaClient::validateTotpDataFormat(const AttrMap& data)
     if (errors[totp::INVALID_TOTP_EXPT])
         return PasswordEntryError::INVALID_TOTP_EXPT;
     if (errors[totp::INVALID_TOTP_ALG])
-        return PasswordEntryError::INVALID_TOTP_ALG;
+        return PasswordEntryError::INVALID_TOTP_HASH_ALG;
 
     static_assert(errors.size() == totp::INVALID_TOTP_ALG + 1, "Missing validation error ");
-    return PasswordEntryError::INVALID_TOTP_ALG;
+    return PasswordEntryError::INVALID_TOTP_HASH_ALG;
 }
 
 PasswordEntryError MegaClient::validateNewNodeTotpData(const AttrMap& data)
 {
-    if (!data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP_SHSE)))
-    {
+    if (!data.getStringView(PWM_ATTR_PASSWORD_TOTP_SHSE))
         return PasswordEntryError::MISSING_TOTP_SHARED_SECRET;
-    }
-
+    if (!data.getStringView(PWM_ATTR_PASSWORD_TOTP_NDIGITS))
+        return PasswordEntryError::MISSING_TOTP_NDIGITS;
+    if (!data.getStringView(PWM_ATTR_PASSWORD_TOTP_EXPT))
+        return PasswordEntryError::MISSING_TOTP_EXPT;
+    if (!data.getStringView(PWM_ATTR_PASSWORD_TOTP_HASH_ALG))
+        return PasswordEntryError::MISSING_TOTP_HASH_ALG;
     return validateTotpDataFormat(data);
 }
 
@@ -21822,7 +21937,7 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
         }
 
         auto attrMap = std::make_unique<AttrMap>();
-        auto addField = [&attrMap](std::string&& field, const char* const fieldKey)
+        auto addField = [&attrMap](std::string&& field, const std::string_view fieldKey)
         {
             if (!field.empty())
                 attrMap->map[AttrMap::string2nameid(fieldKey)] = std::move(field);
@@ -21843,76 +21958,38 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
     return result;
 }
 
-error MegaClient::updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
+error MegaClient::updatePasswordNode(const NodeHandle nh,
+                                     std::unique_ptr<AttrMap> newData,
                                      CommandSetAttr::Completion&& cb)
 {
     auto pwdNode = nodeByHandle(nh);
-    const auto aux = checkRenameNodePrecons(pwdNode);
-    const bool& preconsOK = aux.first;
-    const error& code = aux.second;
-    if (!preconsOK) return code;
+    if (const auto err = checkRenameNodePrecons(pwdNode); err != API_OK)
+        return err;
+    if (!newData || newData->map.empty())
+        return logAndReturnError(
+            API_EARGS,
+            "Password Manager: calling updatePasswordNode with nothing to update");
+    if (!pwdNode->isPasswordNode())
+        return logAndReturnError(
+            API_EARGS,
+            "Password Manager: calling updatePasswordNode with not a Password node handle");
 
-    if (!(newData && !newData->map.empty() && pwdNode->isPasswordNode()))
-    {
-        LOG_err << "Password Manager: failed Password Node update wrong parameters "
-                << (pwdNode->isPasswordNode() ? "" : "Node provided is not Password Node ")
-                << (newData && !newData->map.empty() ? "" : "nothing to update ");
-        return API_EARGS;
-    }
+    AttrMap mergedData =
+        pwdNode->attrs.getNestedJsonObject(NODE_ATTR_PASSWORD_MANAGER).value_or(AttrMap{});
+    mergedData.applyUpdatesWithNestedFields(*newData, std::array{PWM_ATTR_PASSWORD_TOTP});
 
-    const auto itNewDataTotp = newData->map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
-    AttrMap newTotpData;
-    const bool containsNewDataTotp = itNewDataTotp != newData->map.end();
-    const bool removeTotpData = containsNewDataTotp && itNewDataTotp->second == REMOVAL_PWM_ATTR;
-    if (containsNewDataTotp && !removeTotpData)
-    {
-        newTotpData.fromjson(itNewDataTotp->second.c_str());
-        if (validateTotpDataFormat(newTotpData) != PasswordEntryError::OK)
-        {
-            LOG_err << "Password Manager: invalid TotpData";
-            return API_EAPPKEY;
-        }
-    }
-
-    AttrMap mergedData;
-    mergedData.fromjson(
-        pwdNode->attrs.map[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)].c_str());
-
-    const auto itMergedTotp = mergedData.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
-    AttrMap mergedTotpData;
-    if (itMergedTotp != mergedData.map.end())
-    {
-        mergedTotpData.fromjson(itMergedTotp->second.c_str());
-    }
-
-    mergedTotpData.applyUpdates(newTotpData.map);
-
-    mergedData.applyUpdates(newData->map);
-    if (auto itNewMergedTotp = mergedData.map.find(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
-        itNewMergedTotp != mergedData.map.end())
-    {
-        if (removeTotpData)
-        {
-            mergedData.map.erase(itNewMergedTotp);
-        }
-        else
-        {
-            if (validateNewNodeTotpData(mergedTotpData) != PasswordEntryError::OK)
-            {
-                LOG_err << "Password Manager: invalid TotpData after merging updates";
-                return API_EAPPKEY;
-            }
-            std::string totpStr;
-            mergedTotpData.getjson(&totpStr);
-            itNewMergedTotp->second = totpStr;
-        }
-    }
+    if (const auto validCode = validateNewPasswordNodeData(mergedData);
+        validCode != PasswordEntryError::OK)
+        return logAndReturnError(API_EAPPKEY,
+                                 "Password Manager: calling updatePasswordNode with data that "
+                                 "leaves the node in an invalid state. Validation error: " +
+                                     std::string{toString(validCode)});
 
     attr_map updates;
     preparePasswordNodeData(updates, mergedData);
 
-    const bool canChangeVault = true;
-    return setattr(pwdNode, std::move(updates), std::move(cb), canChangeVault);
+    static constexpr bool CAN_CHANGE_VAULT{true};
+    return setattr(std::move(pwdNode), std::move(updates), std::move(cb), CAN_CHANGE_VAULT);
 }
 
 std::string MegaClient::generatePasswordChars(const bool useUpper,
@@ -23890,6 +23967,12 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     if (result != API_OK)
     {
         return callback({}, result);
+    }
+    else if (mLastErrorDetected == ErrorReason::REASON_ERROR_REGENERATE_JSCD)
+    {
+        LOG_debug << "JSON SYNC configuration has been correctly regenerated.";
+        // Cleanup error to allow syncs to be configured
+        mLastErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
     }
 
     JSCData data;

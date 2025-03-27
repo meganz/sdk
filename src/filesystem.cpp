@@ -1795,7 +1795,8 @@ string LocalPath::toName(const FileSystemAccess& fsaccess) const
 
 LocalPath LocalPath::fromAbsolutePath(const string& path)
 {
-    assert(!path.empty());
+    auto x = path.empty();
+    assert(!x);
     if (LocalPath::isURIPath(path))
     {
         return LocalPath::fromURIPath(path);

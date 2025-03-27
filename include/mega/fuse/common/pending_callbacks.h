@@ -1,15 +1,14 @@
 #pragma once
 
+#include <mega/fuse/common/error_or.h>
+#include <mega/fuse/common/type_traits.h>
+#include <mega/types.h>
+
 #include <cassert>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <set>
-
-#include <mega/fuse/common/error_or_forward.h>
-#include <mega/fuse/common/type_traits.h>
-
-#include <mega/types.h>
 
 namespace mega
 {
@@ -70,7 +69,10 @@ class PendingCallbacks
         // Cancels the callback represented by this context.
         void cancel() override
         {
-            invoke(API_EINCOMPLETE);
+            if constexpr (IsErrorOr<T>::value)
+                invoke(unexpected(API_EINCOMPLETE));
+            else
+                invoke(API_EINCOMPLETE);
         }
 
         // Invoke the callback represented by this context.

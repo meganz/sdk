@@ -94,11 +94,11 @@ void Client::makeDirectory(MakeDirectoryCallback callback,
                           const Task& task) {
             // Client's being torn down.
             if (task.cancelled())
-                return callback(API_EINCOMPLETE);
+                return callback(unexpected(API_EINCOMPLETE));
 
             // Couldn't make the directory.
             if (!result)
-                return callback(result.error());
+                return callback(unexpected(result.error()));
 
             // Directory's been made.
             callback(result->mHandle);
@@ -228,7 +228,7 @@ void Client::desynchronize(::mega::handle id)
     client().desynchronize(id);
 }
 
-MountResult Client::disableMount(const Path& path, bool remember)
+MountResult Client::disableMount(const std::string& name, bool remember)
 {
     // So we can wait for the mount to be disabled.
     std::promise<MountResult> notifier;
@@ -240,7 +240,7 @@ MountResult Client::disableMount(const Path& path, bool remember)
 
     // Try and disable the mount.
     service().disable(std::move(disabled),
-                      path.localPath(),
+                      name,
                       remember);
 
     // Wait for the mount to be disabled.
@@ -249,7 +249,7 @@ MountResult Client::disableMount(const Path& path, bool remember)
     // Couldn't disable the mount.
     if (result != MOUNT_SUCCESS)
         FUSEErrorF("Couldn't disable mount: %s: %s",
-                   path.string().c_str(),
+                   name.c_str(),
                    toString(result));
 
     // Return the result to the caller.
@@ -284,7 +284,7 @@ MountResult Client::disableMounts(bool remember)
         }; // disabled
 
         // Try and disable the mount.
-        auto result = disableMount(mount.mPath, remember);
+        auto result = disableMount(mount.name(), remember);
 
         // Keep trying to disable the mount if necessary.
         for (auto attempts = 0;
@@ -295,7 +295,7 @@ MountResult Client::disableMounts(bool remember)
             std::this_thread::sleep_for(idleTime);
 
             // Try and disable the mount again.
-            result = disableMount(mount.mPath, remember);
+            result = disableMount(mount.name(), remember);
         }
 
         // Try and disable the next mount.
@@ -315,9 +315,9 @@ MountResult Client::discard(bool discard)
     return service().discard(discard);
 }
 
-MountResult Client::enableMount(const Path& path, bool remember)
+MountResult Client::enableMount(const std::string& name, bool remember)
 {
-    return service().enable(path.localPath(), remember);
+    return service().enable(name, remember);
 }
 
 Task Client::execute(std::function<void(const Task&)> function)
@@ -337,7 +337,7 @@ ErrorOr<NodeInfo> Client::get(CloudPath parentPath,
 
     // Parent doens't exist.
     if (parentHandle.isUndef())
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     // Try and get info about the specified child.
     return client().get(parentHandle, name);
@@ -350,7 +350,7 @@ ErrorOr<NodeInfo> Client::get(CloudPath path) const
     if (!handle.isUndef())
         return client().get(handle);
 
-    return API_ENOENT;
+    return unexpected(API_ENOENT);
 }
 
 NodeHandle Client::handle(CloudPath parentPath,
@@ -409,14 +409,14 @@ ErrorOr<NodeHandle> Client::makeDirectory(const std::string& name,
     auto parentHandle = parent.resolve(*this);
 
     if (parentHandle.isUndef())
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     auto result = client().makeDirectory(name, parentHandle);
 
     if (result)
         return result->mHandle;
 
-    return result.error();
+    return unexpected(result.error());
 }
 
 MountEventObserverPtr Client::mountEventObserver()
@@ -430,34 +430,34 @@ MountEventObserverPtr Client::mountEventObserver()
     return observer;
 }
 
-bool Client::mountEnabled(const Path& path) const
+bool Client::mountEnabled(const std::string& name) const
 {
-    return service().enabled(path.localPath());
+    return service().enabled(name);
 }
 
-MountResult Client::mountFlags(const Path& path, const MountFlags& flags)
+MountResult Client::mountFlags(const std::string& name, const MountFlags& flags)
 {
-    return service().flags(path.localPath(), flags);
+    return service().flags(name, flags);
 }
 
-MountFlagsPtr Client::mountFlags(const Path& path) const
+MountFlagsPtr Client::mountFlags(const std::string& name) const
 {
-    return service().flags(path.localPath());
+    return service().flags(name);
 }
 
-MountInfoPtr Client::mountInfo(const Path& path) const
+MountInfoPtr Client::mountInfo(const std::string& name) const
 {
-    return service().get(path.localPath());
+    return service().get(name);
 }
 
-NormalizedPathVector Client::mountPaths(const std::string& name) const
+NormalizedPath Client::mountPath(const std::string& name) const
 {
-    return service().paths(name);
+    return service().path(name);
 }
 
-MountInfoVector Client::mounts(bool enabled) const
+MountInfoVector Client::mounts(bool onlyEnabled) const
 {
-    return service().get(enabled);
+    return service().get(onlyEnabled);
 }
 
 Error Client::move(const std::string& name,
@@ -498,15 +498,15 @@ Error Client::removeAll(CloudPath path)
     return API_ENOENT;
 }
 
-MountResult Client::removeMount(const Path& path)
+MountResult Client::removeMount(const std::string& name)
 {
     // Try and remove the mount.
-    auto result = service().remove(path.localPath());
+    auto result = service().remove(name);
 
     // Couldn't remove the mount.
     if (result != MOUNT_SUCCESS)
         FUSEErrorF("Unable to remove mount: %s: %s",
-                   path.string().c_str(),
+                   name.c_str(),
                    toString(result));
 
     // Return result to caller.
@@ -535,7 +535,7 @@ MountResult Client::removeMounts(bool disable)
         auto& mount = mounts.back();
 
         // Try and remove the mount.
-        auto result = removeMount(mount.mPath);
+        auto result = removeMount(mount.name());
 
         // Couldn't remove the mount.
         if (result != MOUNT_SUCCESS)
@@ -591,7 +591,7 @@ ErrorOr<NodeHandle> Client::upload(const std::string& name,
 
     // Parent doesn't exist.
     if (parentHandle.isUndef())
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     std::error_code error;
 
@@ -600,7 +600,7 @@ ErrorOr<NodeHandle> Client::upload(const std::string& name,
 
     // Couldn't determine type of entity.
     if (error)
-        return API_EREAD;
+        return unexpected(API_EREAD);
 
     // Upload the entity.
     switch (status.type())
@@ -614,7 +614,7 @@ ErrorOr<NodeHandle> Client::upload(const std::string& name,
     }
 
     // Can't upload something that isn't a directory or file.
-    return API_EARGS;
+    return unexpected(API_EARGS);
 }
 
 ErrorOr<NodeHandle> Client::upload(CloudPath parent,
@@ -702,7 +702,7 @@ void Client::Uploader::made(Path& path, ErrorOr<NodeHandle> result)
 
     // Couldn't open directory for iteration.
     if (error)
-        return completed(API_EREAD);
+        return completed(unexpected(API_EREAD));
 
     // Upload this directory's content.
     for ( ; i != j; ++i)
@@ -818,7 +818,7 @@ ErrorOr<NodeHandle> Client::Uploader::operator()(const std::string& name,
 
     // Couldn't upload the root's contents.
     if (mResult != API_OK)
-        return Error(mResult);
+        return unexpected(mResult.load());
 
     // The root's content has been uploaded.
     return handle;

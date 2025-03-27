@@ -617,7 +617,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
             public:
                 bool sharedSecretExist() const override
                 {
-                    return mSharedSecretExists;
+                    return mFieldsPresence[INDEX_SHSE];
                 }
 
                 bool sharedSecretValid() const override
@@ -625,14 +625,29 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                     return !mValidationErrors[totp::INVALID_TOTP_SHARED_SECRET];
                 }
 
+                bool algorithmExist() const override
+                {
+                    return mFieldsPresence[INDEX_HASH];
+                }
+
                 bool algorithmValid() const override
                 {
                     return !mValidationErrors[totp::INVALID_TOTP_ALG];
                 }
 
+                bool expirationTimeExist() const override
+                {
+                    return mFieldsPresence[INDEX_EXPT];
+                }
+
                 bool expirationTimeValid() const override
                 {
                     return !mValidationErrors[totp::INVALID_TOTP_EXPT];
+                }
+
+                bool nDigitsExist() const override
+                {
+                    return mFieldsPresence[INDEX_NDIG];
                 }
 
                 bool nDigitsValid() const override
@@ -642,7 +657,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 
                 bool isValidForCreate() const override
                 {
-                    return mSharedSecretExists && isValidForUpdate();
+                    return mFieldsPresence.all() && isValidForUpdate();
                 }
 
                 bool isValidForUpdate() const override
@@ -653,9 +668,13 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                 ValidationPrivate(std::optional<std::string_view> sharedSecret,
                                   std::optional<std::chrono::seconds> expirationTimeSecs,
                                   std::optional<unsigned> hashAlgorithm,
-                                  std::optional<unsigned> ndigits):
-                    mSharedSecretExists(sharedSecret.has_value())
+                                  std::optional<unsigned> ndigits)
                 {
+                    mFieldsPresence[INDEX_SHSE] = sharedSecret.has_value();
+                    mFieldsPresence[INDEX_EXPT] = expirationTimeSecs.has_value();
+                    mFieldsPresence[INDEX_HASH] = hashAlgorithm.has_value();
+                    mFieldsPresence[INDEX_NDIG] = ndigits.has_value();
+
                     const auto alg = hashAlgorithm ? std::optional{totp::hashAlgorithmPubToStrView(
                                                          static_cast<int>(*hashAlgorithm))} :
                                                      std::nullopt;
@@ -664,7 +683,12 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                 }
 
             protected:
-                bool mSharedSecretExists{false};
+                static constexpr size_t INDEX_SHSE{0};
+                static constexpr size_t INDEX_EXPT{1};
+                static constexpr size_t INDEX_HASH{2};
+                static constexpr size_t INDEX_NDIG{3};
+                std::bitset<4> mFieldsPresence{};
+
                 totp::TotpValidationErrors mValidationErrors{};
             };
 
@@ -759,8 +783,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                 }
 
                 int alg = TOTPNULLOPT;
-                if (const auto itAlg =
-                        m.map.find(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH));
+                if (const auto itAlg = m.map.find(
+                        AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG));
                     itAlg != m.map.end())
                 {
                     alg = totp::charToPubhashAlgorithm(itAlg->second);
@@ -3448,6 +3472,24 @@ private:
     uint32_t mGroup;
 };
 
+#ifdef ENABLE_SYNC
+/**
+ * @brief Struct containing the necessary params for syncFolder() or prevalidateSyncFolder()
+ * requests.
+ *
+ * @see MegaApiImpl::syncFolder()
+ * @see MegaApiImpl::prevalidateSyncFolder()
+ */
+struct MegaRequestSyncFolderParams
+{
+    std::string localFolder;
+    std::string name;
+    MegaHandle megaHandle{UNDEF};
+    SyncConfig::Type type{};
+    std::string driveRootIfExternal;
+};
+#endif // ENABLE_SYNC
+
 class MegaApiImpl : public MegaApp
 {
     public:
@@ -3798,8 +3840,8 @@ class MegaApiImpl : public MegaApp
         // Retrieve a mount's description.
         MegaMount* getMountInfo(const char* path);
 
-        // Retrieve the path of all mounts associated with a given name.
-        MegaStringList* getMountPaths(const char* name);
+        // Retrieve the path of the mounts associated with name.
+        char* getMountPath(const char* name);
 
         // Retrieve a list of all (enabled) mounts.
         MegaMountList* listMounts(bool enabled);
@@ -3880,7 +3922,10 @@ class MegaApiImpl : public MegaApp
 
         int syncPathState(string *path);
         MegaNode *getSyncedNode(const LocalPath& path);
-        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal = NULL, const char* excludePath = NULL, MegaRequestListener* listener = NULL);
+        void syncFolder(MegaRequestSyncFolderParams&& params,
+                        MegaRequestListener* const listener = nullptr);
+        void prevalidateSyncFolder(MegaRequestSyncFolderParams&&,
+                                   MegaRequestListener* const listener = nullptr);
         void loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
         void closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -3983,6 +4028,7 @@ class MegaApiImpl : public MegaApp
         MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
         MegaNode *getNodeByPathOfType(const char* path, MegaNode* n, int type);
         MegaNode *getNodeByHandle(handle handler);
+        MegaTotpTokenGenResult generateTotpTokenFromNode(const MegaHandle handle);
         MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();
         MegaUser* getContact(const char* uid);
@@ -4933,7 +4979,73 @@ public:
 
         void multiFactorAuthEnableOrDisable(const char* pin, bool enable, MegaRequestListener* listener);
 #ifdef ENABLE_SYNC
-        void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
+        /**
+         * @brief A sync folder request completion function that should call one the specific
+         * completeRequest methods.
+         *
+         * @see syncFolder()
+         * @see prevalidateSyncFolder()
+         */
+        using SyncFolderRequestCompletion = std::function<
+            void(MegaRequestPrivate* const, SyncConfig&&, MegaClient::UndoFunction&&)>;
+
+        /**
+         * @brief Creates and enqueues a MegaRequestPrivate of the given requestType and populates
+         * its fields with the MegaRequestSyncFolderParams data.
+         *
+         * @param megaRequestType The related request type: MegaRequest::TYPE_ADD_SYNC or
+         * MegaRequest::TYPE_ADD_SYNC_PREVALIDATION.
+         * @param params The MegaRequestSyncFolderParams passed from the public request method.
+         * @param completion The SyncFolderRequestCompletion function passed from the public request
+         * method.
+         *
+         * @see syncFolder()
+         * @see prevalidateSyncFolder()
+         */
+        void addRequest_syncFolder(const int megaRequestType,
+                                   MegaRequestSyncFolderParams&& params,
+                                   MegaRequestListener* const listener,
+                                   SyncFolderRequestCompletion&& completion);
+
+        /**
+         * @brief Prepares the sync configuration using the related request fields and invokes the
+         * completion function.
+         *
+         * If it is a backup it needs to be prepared by calling the corresponding client method.
+         * This typically includes creating the deviceName if does not exist yet, as well as the
+         * remote node used as root for the backup folder.
+         *
+         * @param completion The SyncFolderRequestCompletion function passed from the addRequest
+         * step.
+         */
+        error performRequest_syncFolder(MegaRequestPrivate* const request,
+                                        SyncFolderRequestCompletion&& completion);
+
+        /**
+         * @brief Calls the related client method to add a new sync and finishes the request.
+         *
+         * @param syncConfig The initial sync config which should have been created when performing
+         * the request.
+         * @param revertForBackup An undo function to delete the remote backup root node in case it
+         * was created but there was an error when adding the new backup.
+         */
+        void completeRequest_syncFolder_AddSync(MegaRequestPrivate* const request,
+                                                SyncConfig&& syncConfig,
+                                                MegaClient::UndoFunction&& revertOnError);
+
+        /**
+         * @brief Calls the related client method to prevalidate a sync addition and finishes the
+         * request.
+         *
+         * @param syncConfig The initial sync config which should have been created when performing
+         * the request.
+         * @param revertForBackup An undo function to delete the remote backup root node, if it was
+         * created during the request for prevalidating a new backup.
+         */
+        void completeRequest_syncFolder_PrevalidateAddSync(
+            MegaRequestPrivate* const request,
+            SyncConfig&& syncConfig,
+            MegaClient::UndoFunction&& revertForBackup);
 #endif
         void CompleteFileDownloadBySkip(MegaTransferPrivate* transfer, m_off_t size, uint64_t nodehandle, int nextTag, const LocalPath& localPath);
 
@@ -5116,7 +5228,7 @@ protected:
     int maxOutputSize;
     int restrictedMode;
     bool localOnly;
-    bool started;
+    std::atomic_bool started;
     int port;
     bool closing;
     int remainingcloseevents;

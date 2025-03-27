@@ -19,7 +19,8 @@
 #ifndef MEGA_UDP_SOCKET_H
 #define MEGA_UDP_SOCKET_H
 
-#include <future>
+#include <chrono>
+#include <memory>
 #include <stdint.h>
 #include <string>
 #include <variant>
@@ -44,12 +45,10 @@ public:
         std::string message;
     };
 
-    std::future<Communication> sendAsyncMessage(const std::string& message);
-    std::future<Communication> receiveAsyncMessage(int timeout);
+    Communication sendSyncMessage(const std::string& message);
+    Communication receiveSyncMessage(const std::chrono::high_resolution_clock::time_point& timeout);
 
 private:
-    Communication sendSyncMessage(const std::string& message);
-    Communication receiveSyncMessage(int timeout);
     bool createRemoteAddress(const std::string& remoteIP, int remotePort);
     sockaddr* getSockaddr();
 
@@ -62,10 +61,12 @@ private:
     //
     bool initializeSocketSupport();
     void cleanupSocketSupport();
-    bool openBlockingSocket();
+    bool openNonblockingSocket();
     intmax_t sendtoWrapper(const std::string& message);
+    static bool noDataYet();
     void closeSocket();
     static Communication getSocketError();
+    static int getSocketErrorCode();
 };
 
 } // namespace mega

@@ -46,11 +46,11 @@ auto Client::lookup(const T& path, NodeHandle parent)
 
     // Parent doesn't exist.
     if (!info)
-        return info.error();
+        return unexpected(info.error());
 
     // Parent isn't a directory.
     if (!info->mIsDirectory)
-        return API_FUSE_ENOTDIR;
+        return unexpected(API_FUSE_ENOTDIR);
 
     Path name;
     std::size_t index = 0;
@@ -60,11 +60,11 @@ auto Client::lookup(const T& path, NodeHandle parent)
     {
         // Node doesn't exist.
         if (!info)
-            return info.error();
+            return unexpected(info.error());
 
         // Node isn't a directory.
         if (!info->mIsDirectory)
-            return API_FUSE_ENOTDIR;
+            return unexpected(API_FUSE_ENOTDIR);
 
         // Try and locate the next node in the path.
         info = get(info->mHandle, name.toName(fsAccess));
@@ -72,7 +72,7 @@ auto Client::lookup(const T& path, NodeHandle parent)
 
     // Node doesn't exist.
     if (!info)
-        return info.error();
+        return unexpected(info.error());
 
     // Node exists.
     return info;

@@ -17,7 +17,7 @@ namespace platform
 {
 
 void Unmounter::emitEvent(MountDisabledCallback callback,
-                          LocalPath path,
+                          const std::string& name,
                           MountResult result)
 {
 
@@ -29,7 +29,7 @@ void Unmounter::emitEvent(MountDisabledCallback callback,
     {
         MountEvent event;
 
-        event.mPath = path;
+        event.mName = name;
         event.mResult = result;
         event.mType = MOUNT_DISABLED;
 
@@ -50,29 +50,24 @@ void Unmounter::emitEvent(MountDisabledCallback callback,
 
 void Unmounter::unmount(MountDisabledCallback callback,
                         MountWeakPtr mount,
-                        LocalPath path)
+                        const std::string& name,
+                        const LocalPath& path)
 {
-    auto path_ = path.toPath(false);
-
-    FUSEDebugF("Attempting to unmount mount: %s", path_.c_str());
+    FUSEDebugF("Attempting to unmount mount: %s", name.c_str());
 
     auto mount_ = mount.lock();
 
     if (!mount_)
     {
-        FUSEDebugF("Mount no longer exists: %s", path_.c_str());
+        FUSEDebugF("Mount no longer exists: %s", name.c_str());
 
-        return emitEvent(std::move(callback),
-                         std::move(path),
-                         MOUNT_UNKNOWN);
+        return emitEvent(std::move(callback), name, MOUNT_UNKNOWN);
     }
 
-    auto result = this->unmount(*mount_, path_, false);
+    auto result = this->unmount(*mount_, path.toPath(false), false);
 
     if (result != MOUNT_SUCCESS)
-        return emitEvent(std::move(callback),
-                         std::move(path),
-                         result);
+        return emitEvent(std::move(callback), name, result);
 
     auto disabled = mount_->disabled();
 
@@ -80,11 +75,9 @@ void Unmounter::unmount(MountDisabledCallback callback,
 
     disabled.get();
 
-    FUSEDebugF("Mount %s has been unmounted", path_.c_str());
+    FUSEDebugF("Mount %s has been unmounted", name.c_str());
 
-    emitEvent(std::move(callback),
-              std::move(path),
-              MOUNT_SUCCESS);
+    emitEvent(std::move(callback), name, MOUNT_SUCCESS);
 }
 
 Unmounter::Unmounter(platform::ServiceContext& context)
@@ -104,21 +97,26 @@ void Unmounter::unmount(MountDisabledCallback callback, MountPtr mount)
     auto wrapper = [this](Activity&,
                           MountDisabledCallback& callback,
                           MountWeakPtr mount,
-                          LocalPath& path,
+                          const std::string& name,
+                          const LocalPath& path,
                           const Task& task)
     {
         // Don't bother unmounting as we're being torn down.
         if (task.cancelled())
-            return emitEvent(std::move(callback), path, MOUNT_ABORTED);
+            return emitEvent(std::move(callback),
+                             name,
+                             MOUNT_ABORTED);
 
         // Try and unmount the specified mount.
-        unmount(std::move(callback), std::move(mount), std::move(path));
+        unmount(std::move(callback),
+                std::move(mount),
+                name,
+                path);
     }; // wrapper
 
-    auto path = mount->path();
+    auto name = mount->name();
 
-    FUSEDebugF("Queuing unmount of mount %s",
-               path.toPath(false).c_str());
+    FUSEDebugF("Queuing unmount of mount %s", name.c_str());
 
     // Queue unmount for execution.
     mContext.mExecutor.execute(
@@ -126,7 +124,8 @@ void Unmounter::unmount(MountDisabledCallback callback, MountPtr mount)
                 mActivities.begin(),
                 std::move(callback),
                 MountWeakPtr(mount),
-                std::move(path),
+                std::move(name),
+                mount->path(),
                 std::placeholders::_1),
       true);
 }

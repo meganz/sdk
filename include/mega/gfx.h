@@ -125,11 +125,23 @@ public: // read and store bitmap
     virtual std::vector<std::string> generateImages(const LocalPath& localfilepath,
                                                     const std::vector<GfxDimension>& dimensions) override;
 
+    enum class Hint
+    {
+        NONE = 0,
+        FORMAT_PNG = 1, // Format can be in PNG
+    };
+
 private:
     virtual bool readbitmap(const LocalPath&, int) = 0;
 
-    // resize stored bitmap and store result as JPEG
-    virtual bool resizebitmap(int, int, string* result) = 0;
+    // Resize stored bitmap and store result as JPEG by default or PNG if the bitmap has
+    // transparency and the requested width and height is for the thumbnail.
+    //
+    // @param rw The requested width
+    // @param rh The requested height
+    // @param result The pointer to string where the resized bitmap is stored
+    // @param hint Gives the hint about behaviour.
+    virtual bool resizebitmap(int rw, int rh, string* result, Hint hint) = 0;
 
     // free stored bitmap
     virtual void freebitmap() = 0;

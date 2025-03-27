@@ -1451,18 +1451,22 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
     return true;
 }
 
-std::string Utils::stringToHex(const std::string &input)
+std::string Utils::stringToHex(const std::string& input, bool spaceBetweenBytes)
 {
     static const char* const lut = "0123456789ABCDEF";
     size_t len = input.length();
 
     std::string output;
-    output.reserve(2 * len);
+    output.reserve(2 * len + (spaceBetweenBytes ? len : 0));
     for (size_t i = 0; i < len; ++i)
     {
         const unsigned char c = static_cast<unsigned char>(input[i]);
         output.push_back(lut[c >> 4]);
         output.push_back(lut[c & 15]);
+        if (spaceBetweenBytes && i + 1 < len)
+        {
+            output.push_back(' ');
+        }
     }
     return output;
 }
@@ -1800,7 +1804,7 @@ m_time_t m_mktime_UTC(const struct tm *src)
 {
     struct tm dst = *src;
     m_time_t t = 0;
-#if _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+)
+#if defined(_MSC_VER) || defined(__MINGW32__)
     t = mktime(&dst);
     TIME_ZONE_INFORMATION TimeZoneInfo;
     GetTimeZoneInformation(&TimeZoneInfo);
@@ -2984,12 +2988,18 @@ std::string_view toString(const PasswordEntryError err)
             return "Missing totp shared secret";
         case PasswordEntryError::INVALID_TOTP_SHARED_SECRET:
             return "Invalid totp shared secret";
+        case PasswordEntryError::MISSING_TOTP_NDIGITS:
+            return "Missing totp ndigits";
         case PasswordEntryError::INVALID_TOTP_NDIGITS:
             return "Invalid totp ndigits";
+        case PasswordEntryError::MISSING_TOTP_EXPT:
+            return "Missing totp expt";
         case PasswordEntryError::INVALID_TOTP_EXPT:
             return "Invalid totp expt";
-        case PasswordEntryError::INVALID_TOTP_ALG:
-            return "Invalid totp alg";
+        case PasswordEntryError::MISSING_TOTP_HASH_ALG:
+            return "Missing totp hash alg";
+        case PasswordEntryError::INVALID_TOTP_HASH_ALG:
+            return "Invalid totp hash alg";
     }
     assert(false);
     return "Unknown error";
@@ -3524,4 +3534,5 @@ std::string getThisThreadIdStr()
     ss << std::this_thread::get_id();
     return ss.str();
 }
+
 } // namespace mega

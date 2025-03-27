@@ -165,10 +165,14 @@ public:
  *    3.2 Collect metrics for downloads including the CloudRAID file.
  *    3.3 Define expected metrics after RAID download and compare results.
  */
-TEST_F(SdkTestTransferStats, DISABLED_SdkTestTransferStats)
+TEST_F(SdkTestTransferStats, SdkTestTransferStats)
 {
     LOG_info << "___TEST SdkTestTransferStats";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto accountRestorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
 
     std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootNode);

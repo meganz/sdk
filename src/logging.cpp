@@ -144,7 +144,8 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 #ifdef ENABLE_LOG_PERFORMANCE
         for (unsigned i = 0; i < numberMessages; ++i)
         {
-            std::cout.write(directMessages[i], directMessagesSizes[i]);
+            std::cout.write(directMessages[i],
+                            static_cast<std::streamsize>(directMessagesSizes[i]));
         }
 #endif
         std::cout << std::endl;

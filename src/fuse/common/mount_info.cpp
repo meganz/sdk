@@ -10,6 +10,16 @@ namespace mega
 namespace fuse
 {
 
+bool MountInfoNameLess::operator()(const MountInfo& lhs, const MountInfo& rhs) const
+{
+    return lhs.name() < rhs.name();
+}
+
+bool MountInfoPathLess::operator()(const MountInfo& lhs, const MountInfo& rhs) const
+{
+    return lhs.mPath < rhs.mPath;
+}
+
 bool MountInfo::operator==(const MountInfo& rhs) const
 {
     return mPath == rhs.mPath
@@ -22,14 +32,27 @@ bool MountInfo::operator!=(const MountInfo& rhs) const
     return !(*this == rhs);
 }
 
-MountInfo MountInfo::deserialize(ScopedQuery& query)
+void MountInfo::name(const std::string& name)
+{
+    mFlags.mName = name;
+}
+
+const std::string& MountInfo::name() const
+{
+    return mFlags.mName;
+}
+
+MountInfo MountInfo::deserialize(Query& query)
 try
 {
     MountInfo info;
 
     info.mFlags = MountFlags::deserialize(query);
     info.mHandle = query.field("id");
-    info.mPath = query.field("path");
+    info.mPath = NormalizedPath();
+
+    if (!query.field("path").null())
+        info.mPath = query.field("path");
 
     return info;
 }
@@ -40,19 +63,32 @@ catch (std::runtime_error& exception)
     throw;
 }
 
-void MountInfo::serialize(ScopedQuery& query) const
+MountInfo MountInfo::deserialize(ScopedQuery& query)
+{
+    return deserialize(query.query());
+}
+
+void MountInfo::serialize(Query& query) const
 try
 {
     mFlags.serialize(query);
 
     query.param(":id") = mHandle;
-    query.param(":path") = mPath;
+    query.param(":path") = nullptr;
+
+    if (!mPath.empty())
+        query.param(":path") = mPath;
 }
 catch (std::runtime_error& exception)
 {
     FUSEErrorF("Unable to serialize mount info: %s", exception.what());
 
     throw;
+}
+
+void MountInfo::serialize(ScopedQuery& query) const
+{
+    serialize(query.query());
 }
 
 } // fuse

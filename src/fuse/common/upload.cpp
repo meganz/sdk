@@ -17,7 +17,7 @@ void Upload::begin(BoundCallback callback)
                        ErrorOr<UploadResult> result) {
         // Couldn't upload the file's content.
         if (!result)
-            return bound(result.error());
+            return bound(unexpected(result.error()));
 
         // Extract bind callback.
         auto bind = std::move(std::get<0>(*result));

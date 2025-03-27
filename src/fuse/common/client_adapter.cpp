@@ -276,7 +276,7 @@ std::set<std::string> ClientAdapter::childNames(NodeHandle parent) const
         return std::set<std::string>();
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Try and locate specified parent.
     auto parent_ = mClient.nodeByHandle(parent);
@@ -463,7 +463,7 @@ void ClientAdapter::each(std::function<void(NodeInfo)> function,
         return;
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Try and locate the specified node.
     auto node = mClient.nodeByHandle(handle);
@@ -558,7 +558,7 @@ bool ClientAdapter::exists(NodeHandle handle) const
         return false;
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Check if the node exists.
     return !!mClient.nodeByHandle(handle);
@@ -576,17 +576,17 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle handle) const
 
     // Client's being torn down.
     if (mDeinitialized)
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Try and locate the specified node.
     auto node = mClient.nodeByHandle(handle);
 
     // Node doesn't exist.
     if (!node)
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     // Return description to caller.
     return describe(*node);
@@ -600,17 +600,17 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle parent,
 
     // Client's being torn down.
     if (mDeinitialized)
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Retrieve the child's description.
     if (auto node = child(mClient, parent, name))
         return describe(*node);
 
     // Parent or child doesn't exist.
-    return API_ENOENT;
+    return unexpected(API_ENOENT);
 }
 
 NodeHandle ClientAdapter::handle(NodeHandle parent,
@@ -625,7 +625,7 @@ NodeHandle ClientAdapter::handle(NodeHandle parent,
         return NodeHandle();
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Retrieve the child's handle.
     if (auto node = child(mClient, parent, name))
@@ -652,7 +652,7 @@ ErrorOr<bool> ClientAdapter::hasChildren(NodeHandle parent) const
         return API_ENOENT;
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Try and locate the specified parent.
     auto parent_ = mClient.nodeByHandle(parent);
@@ -683,7 +683,7 @@ void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
                    const Task& task) {
         // Client's being torn down.
         if (task.cancelled())
-            return callback(API_EINCOMPLETE);
+            return callback(unexpected(API_EINCOMPLETE));
 
         NewNodeVector nodes(1);
 
@@ -697,7 +697,7 @@ void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
                           Error result) {
             // Couldn't make the directory.
             if (result != API_OK)
-                return callback(result);
+                return callback(unexpected(result));
 
             // Convenience.
             auto handle = NodeHandle().set6byte(nodes[0].mAddedHandle);
@@ -707,7 +707,7 @@ void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
 
             // Node doesn't exist.
             if (!node)
-                return callback(API_EINTERNAL);
+                return callback(unexpected(API_EINTERNAL));
 
             // Transmit node's description to caller.
             callback(describe(*node));
@@ -796,7 +796,7 @@ NodeHandle ClientAdapter::parentHandle(NodeHandle handle) const
         return NodeHandle();
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Locate specified node.
     auto node = mClient.nodeByHandle(handle);
@@ -819,7 +819,7 @@ accesslevel_t ClientAdapter::permissions(NodeHandle handle) const
         return RDONLY;
 
     // Acquire RNT lock.
-    std::lock_guard<std::mutex> guard(mClient.nodeTreeMutex);
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
     // Try and locate the specified node.
     auto node = mClient.nodeByHandle(handle);
@@ -934,14 +934,14 @@ void ClientAdapter::storageInfo(StorageInfoCallback callback)
                               const Task& task) {
         // Client's being torn down.
         if (task.cancelled())
-            return callback(API_EINCOMPLETE);
+            return callback(unexpected(API_EINCOMPLETE));
 
         // Forward result to user callback.
         auto retrieved = [=](StorageInfoCallback& callback,
                             const StorageInfo& info,
                             Error result) {
             if (result != API_OK)
-                return callback(result);
+                return callback(unexpected(result));
 
             callback(info);
         }; // retrieved
@@ -1395,7 +1395,7 @@ void ClientUpload::bound(BoundCallback callback,
                          Error result)
 {
     // Assume we couldn't bind the content to a name.
-    ErrorOr<NodeHandle> handle = result;
+    ErrorOr<NodeHandle> handle = unexpected(result);
 
     // Mark upload as having been completed.
     mStatus.store(SF_COMPLETED);
@@ -1480,7 +1480,7 @@ void ClientUpload::terminated(mega::error result)
     mStatus |= SF_COMPLETED;
 
     // Let the user know the upload failed.
-    mCallback(mResult);
+    mCallback(unexpected(mResult));
 
     // Let ourselves be destroyed.
     mSelf.reset();
