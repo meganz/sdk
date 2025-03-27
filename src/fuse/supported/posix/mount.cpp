@@ -562,7 +562,7 @@ void Mount::rename(Request request,
         moveFlags |= FILE_MOVE_EXCHANGE;
 
     // Make sure the user's flags are sane.
-    if ((flags & (flags - 1)))
+    if ((moveFlags & (moveFlags - 1)))
         return request.replyError(EINVAL);
 
     // Perform the move.
