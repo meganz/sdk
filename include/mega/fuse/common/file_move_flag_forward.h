@@ -9,6 +9,8 @@ enum FileMoveFlag : unsigned int;
 
 using FileMoveFlags = unsigned int;
 
+bool valid(FileMoveFlags flags);
+
 } // fuse
 } // mega
 

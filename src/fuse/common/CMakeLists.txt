@@ -106,6 +106,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_SRC}/client_adapter.cpp
                              ${FUSE_COMMON_SRC}/database.cpp
                              ${FUSE_COMMON_SRC}/date_time.cpp
+                             ${FUSE_COMMON_SRC}/file_move_flag.cpp
                              ${FUSE_COMMON_SRC}/inode_id.cpp
                              ${FUSE_COMMON_SRC}/inode_info.cpp
                              ${FUSE_COMMON_SRC}/log_level.cpp
