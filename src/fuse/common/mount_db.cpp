@@ -673,6 +673,15 @@ try
     auto lock = lockAll(mContext.mDatabase, *this);
 
     // The mount associated with this path is already enabled.
+    //
+    // NOTE: We're calling enabled() manually to force the generation of a
+    // MOUNT_ENABLED event. This is necessary because we want to generate
+    // this event whenever enabling a mount succeeds but normally, a mount
+    // will only generate the event when it becomes functional.
+    //
+    // That is, when you enable a mount that's already enabled, it's not
+    // transitioning into a functional state so, we have to generate the
+    // event manually.
     if (auto mount = this->mount(name))
         return mount->enabled(), MOUNT_SUCCESS;
 
