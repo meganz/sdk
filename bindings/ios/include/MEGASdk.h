@@ -3976,6 +3976,29 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
 - (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(nullable NSNumber *)latitude longitude:(nullable NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Set the GPS coordinates of image files as a node attribute.
+ *
+ * To remove the existing coordinates, set both the latitude and longitude to nil.
+ *
+ * The 'unshareable' variant of this function stores the coordinates with an extra
+ * layer of encryption which only this user can decrypt, so that even if this node is shared
+ * with others, they cannot read the coordinates.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
+ * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
+ * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
+ *
+ * @param node MEGANode that will receive the information.
+ * @param latitude Latitude in signed decimal degrees notation.
+ * @param longitude Longitude in signed decimal degrees notation.
+ */
+- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(nullable NSNumber *)latitude longitude:(nullable NSNumber *)longitude;
+
+/**
  * @brief Generate a public link of a file/folder in MEGA.
  *
  * The associated request type with this request is MEGARequestTypeExport.
