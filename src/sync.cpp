@@ -10460,6 +10460,7 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                     TransferDbCommitter&)
                 {
                     std::shared_ptr<Node> displaceNode = mc.nodeByHandle(displaceHandle);
+                    existingUpload->previousNode = displaceNode;
                     if (displaceNode && mc.versions_disabled)
                     {
                         MegaClient* c = &mc;
