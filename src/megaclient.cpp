@@ -21747,6 +21747,8 @@ error MegaClient::createPasswordEntry(const char* name,
                                       std::shared_ptr<Node> nParent,
                                       int rTag)
 {
+    if (!name || !data)
+        return API_EARGS;
     std::map<std::string, std::unique_ptr<AttrMap>> aux;
     aux[name] = std::move(data);
     return createPasswordEntries(std::move(aux), dataValidator, nParent, rTag);
