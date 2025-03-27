@@ -2,9 +2,9 @@
 
 #include <cassert>
 
+#include <mega/common/error_or.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/directory_inode.h>
-#include <mega/fuse/common/error_or.h>
 #include <mega/fuse/common/file_inode.h>
 #include <mega/fuse/common/file_io_context.h>
 #include <mega/fuse/common/file_move_flag.h>
@@ -41,6 +41,8 @@ namespace platform
 #define RENAME_EXCHANGE  0
 #define RENAME_NOREPLACE 0
 #endif // !HAS_RENAME_FLAGS
+
+using namespace common;
 
 void Mount::access(Request request,
                    MountInodeID inode,
@@ -807,7 +809,7 @@ void Mount::write(Request request,
 Mount::Mount(const MountInfo& info, MountDB& mountDB)
   : fuse::Mount(info, mountDB)
   , mActivities()
-  , mExecutor(mountDB.executorFlags())
+  , mExecutor(mountDB.executorFlags(), logger())
   , mPath(info.mPath)
   , mSession(*this)
   , mInvalidator(mSession)

@@ -6,9 +6,9 @@
 
 #include <cerrno>
 
+#include <mega/common/utility.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/utility.h>
 #include <mega/fuse/platform/file_descriptor.h>
 #include <mega/fuse/platform/process.h>
 #include <mega/fuse/platform/utility.h>
@@ -19,6 +19,8 @@ namespace fuse
 {
 namespace platform
 {
+
+using namespace common;
 
 bool abort(const std::string& path)
 {

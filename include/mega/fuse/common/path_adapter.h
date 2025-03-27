@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <string>
 
+#include <mega/common/type_traits.h>
 #include <mega/fuse/common/path_adapter_forward.h>
-#include <mega/fuse/common/type_traits.h>
 
 #include <mega/filesystem.h>
 

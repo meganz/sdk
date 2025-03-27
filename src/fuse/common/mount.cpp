@@ -2,6 +2,7 @@
 #include <tuple>
 #include <utility>
 
+#include <mega/common/badge.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/inode.h>
 #include <mega/fuse/common/inode_db.h>
@@ -21,6 +22,8 @@ namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 struct Mount::PinnedInodeInfo
 {
@@ -91,7 +94,7 @@ Mount::~Mount()
         delete context;
 
     // Broadcast a mount disabled event.
-    mMountDB.client().emitEvent({
+    emitEvent(mMountDB.client(), {
         name(),
         MOUNT_SUCCESS,
         MOUNT_DISABLED
@@ -205,7 +208,7 @@ std::future<void> Mount::disabled()
 
 void Mount::enabled()
 {
-    mMountDB.client().emitEvent({
+    emitEvent(mMountDB.client(), {
         name(),
         MOUNT_SUCCESS,
         MOUNT_ENABLED

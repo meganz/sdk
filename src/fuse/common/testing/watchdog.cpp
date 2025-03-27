@@ -10,12 +10,15 @@ namespace fuse
 namespace testing
 {
 
+using common::Task;
+using common::TaskExecutorFlags;
+
 Watchdog::Watchdog()
   : mExecutor([]() {
         TaskExecutorFlags flags;
         flags.mMaxWorkers = 1;
         return flags;
-    }())
+    }(), logger())
 {
 }
 

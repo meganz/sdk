@@ -5923,7 +5923,7 @@ public:
     {
         SdkTestBase::SetUp();
 
-        SimpleLogger::setLogLevel(logMax);
+        SimpleLogger::setLogLevel(logVerbose);
 
         ASSERT_TRUE(client0->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "d", 1, 2));
         ASSERT_TRUE(client1->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
@@ -6146,7 +6146,7 @@ public:
 
         LOG_info << "____TEST SetUp: " << ::testing::UnitTest::GetInstance()->current_test_info()->name();
 
-        SimpleLogger::setLogLevel(logMax);
+        SimpleLogger::setLogLevel(logVerbose);
     }
 
     // Tears down the test case.

@@ -2,12 +2,12 @@
 #include <future>
 #include <utility>
 
-#include <mega/fuse/common/error_or.h>
-#include <mega/fuse/common/log_level.h>
+#include <mega/common/error_or.h>
+#include <mega/log_level.h>
+#include <mega/common/utility.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/real_client.h>
-#include <mega/fuse/common/utility.h>
 
 #include <mega/db/sqlite.h>
 #include <mega/logging.h>
@@ -21,6 +21,8 @@ namespace fuse
 {
 namespace testing
 {
+
+using namespace common;
 
 class RealClient::RealContact
   : public Contact
@@ -78,7 +80,7 @@ public:
     Error decline() override;
 }; // RealInvite
 
-fuse::Client& RealClient::client() const
+common::Client& RealClient::client() const
 {
     return mClient->mFuseClientAdapter;
 }
@@ -451,7 +453,7 @@ RealClient::RealClient(const std::string& clientName,
     mClient->clientname = clientName + " ";
 
     // Make sure FUSE logs *everything*.
-    mClient->mFuseService.logLevel(LOG_LEVEL_DEBUG);
+    mClient->mFuseService.logLevel(logDebug);
 
     // Instantiate the client's worker thread.
     mClientThread = std::thread(&RealClient::loop, this);

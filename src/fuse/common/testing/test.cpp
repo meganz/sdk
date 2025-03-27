@@ -1,7 +1,7 @@
-#include <mega/fuse/common/error_or.h>
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_info.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/directory.h>
 #include <mega/fuse/common/testing/model.h>

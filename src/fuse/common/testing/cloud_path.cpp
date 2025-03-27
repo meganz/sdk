@@ -1,4 +1,4 @@
-#include <mega/fuse/common/error_or.h>
+#include <mega/common/error_or.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 

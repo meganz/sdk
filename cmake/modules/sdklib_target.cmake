@@ -2,6 +2,112 @@
 add_library(SDKlib)
 add_library(MEGA::SDKlib ALIAS SDKlib)
 
+# Convenience.
+set(SDKLIB_COMMON_INC include/mega/common)
+set(SDKLIB_COMMON_SRC src/common)
+
+set(SDKLIB_COMMON_HEADERS
+    ${SDKLIB_COMMON_INC}/activity_monitor.h
+    ${SDKLIB_COMMON_INC}/activity_monitor_forward.h
+    ${SDKLIB_COMMON_INC}/badge.h
+    ${SDKLIB_COMMON_INC}/badge_forward.h
+    ${SDKLIB_COMMON_INC}/bind_handle.h
+    ${SDKLIB_COMMON_INC}/bind_handle_forward.h
+    ${SDKLIB_COMMON_INC}/client.h
+    ${SDKLIB_COMMON_INC}/client_adapter.h
+    ${SDKLIB_COMMON_INC}/client_callbacks.h
+    ${SDKLIB_COMMON_INC}/client_forward.h
+    ${SDKLIB_COMMON_INC}/database.h
+    ${SDKLIB_COMMON_INC}/database_builder.h
+    ${SDKLIB_COMMON_INC}/database_forward.h
+    ${SDKLIB_COMMON_INC}/database_utilities.h
+    ${SDKLIB_COMMON_INC}/error_or.h
+    ${SDKLIB_COMMON_INC}/error_or_forward.h
+    ${SDKLIB_COMMON_INC}/expected.h
+    ${SDKLIB_COMMON_INC}/expected_forward.h
+    ${SDKLIB_COMMON_INC}/lock.h
+    ${SDKLIB_COMMON_INC}/lock_forward.h
+    ${SDKLIB_COMMON_INC}/lockable.h
+    ${SDKLIB_COMMON_INC}/lockable_forward.h
+    ${SDKLIB_COMMON_INC}/logger.h
+    ${SDKLIB_COMMON_INC}/logger_forward.h
+    ${SDKLIB_COMMON_INC}/logging.h
+    ${SDKLIB_COMMON_INC}/node_event.h
+    ${SDKLIB_COMMON_INC}/node_event_forward.h
+    ${SDKLIB_COMMON_INC}/node_event_observer.h
+    ${SDKLIB_COMMON_INC}/node_event_observer_forward.h
+    ${SDKLIB_COMMON_INC}/node_event_queue.h
+    ${SDKLIB_COMMON_INC}/node_event_queue_forward.h
+    ${SDKLIB_COMMON_INC}/node_event_type.h
+    ${SDKLIB_COMMON_INC}/node_event_type_forward.h
+    ${SDKLIB_COMMON_INC}/node_info.h
+    ${SDKLIB_COMMON_INC}/node_info_forward.h
+    ${SDKLIB_COMMON_INC}/normalized_path.h
+    ${SDKLIB_COMMON_INC}/normalized_path_forward.h
+    ${SDKLIB_COMMON_INC}/pending_callbacks.h
+    ${SDKLIB_COMMON_INC}/query.h
+    ${SDKLIB_COMMON_INC}/query_forward.h
+    ${SDKLIB_COMMON_INC}/scoped_query.h
+    ${SDKLIB_COMMON_INC}/scoped_query_forward.h
+    ${SDKLIB_COMMON_INC}/shared_mutex.h
+    ${SDKLIB_COMMON_INC}/shared_mutex_forward.h
+    ${SDKLIB_COMMON_INC}/subsystem_logger.h
+    ${SDKLIB_COMMON_INC}/task_executor.h
+    ${SDKLIB_COMMON_INC}/task_executor_flags.h
+    ${SDKLIB_COMMON_INC}/task_executor_flags_forward.h
+    ${SDKLIB_COMMON_INC}/task_executor_forward.h
+    ${SDKLIB_COMMON_INC}/task_queue.h
+    ${SDKLIB_COMMON_INC}/task_queue_forward.h
+    ${SDKLIB_COMMON_INC}/transaction.h
+    ${SDKLIB_COMMON_INC}/transaction_forward.h
+    ${SDKLIB_COMMON_INC}/type_traits.h
+    ${SDKLIB_COMMON_INC}/unexpected.h
+    ${SDKLIB_COMMON_INC}/unexpected_forward.h
+    ${SDKLIB_COMMON_INC}/upload.h
+    ${SDKLIB_COMMON_INC}/upload_callbacks.h
+    ${SDKLIB_COMMON_INC}/upload_forward.h
+    ${SDKLIB_COMMON_INC}/utility.h
+)
+
+set(SDKLIB_COMMON_SOURCES
+    ${SDKLIB_COMMON_SRC}/activity_monitor.cpp
+    ${SDKLIB_COMMON_SRC}/bind_handle.cpp
+    ${SDKLIB_COMMON_SRC}/client.cpp
+    ${SDKLIB_COMMON_SRC}/client_adapter.cpp
+    ${SDKLIB_COMMON_SRC}/database.cpp
+    ${SDKLIB_COMMON_SRC}/database_builder.cpp
+    ${SDKLIB_COMMON_SRC}/logger.cpp
+    ${SDKLIB_COMMON_SRC}/node_event_type.cpp
+    ${SDKLIB_COMMON_SRC}/normalized_path.cpp
+    ${SDKLIB_COMMON_SRC}/pending_callbacks.cpp
+    ${SDKLIB_COMMON_SRC}/query.cpp
+    ${SDKLIB_COMMON_SRC}/scoped_query.cpp
+    ${SDKLIB_COMMON_SRC}/shared_mutex.cpp
+    ${SDKLIB_COMMON_SRC}/subsystem_logger.cpp
+    ${SDKLIB_COMMON_SRC}/task_executor.cpp
+    ${SDKLIB_COMMON_SRC}/task_queue.cpp
+    ${SDKLIB_COMMON_SRC}/transaction.cpp
+    ${SDKLIB_COMMON_SRC}/upload.cpp
+    ${SDKLIB_COMMON_SRC}/utility.cpp
+)
+
+# Assume the sync engine isn't being built.
+set(CLIENT_ADAPTER_FILE client_adapter_without_sync)
+
+# Sync engine is being built.
+if (ENABLE_SYNC)
+    set(CLIENT_ADAPTER_FILE client_adapter_with_sync)
+endif()
+
+# Add sync-specific client adapter sources.
+set(SDKLIB_COMMON_SOURCES
+    ${SDKLIB_COMMON_SOURCES}
+    ${SDKLIB_COMMON_SRC}/${CLIENT_ADAPTER_FILE}.cpp
+)
+
+# Cleanup.
+unset(CLIENT_ADAPTER_FILE)
+
 set(SDKLIB_PUB_HEADERS
     include/megaapi.h
 )
@@ -96,9 +202,13 @@ set(SDKLIB_HEADERS
     include/mega/user_attribute_definition.h
     include/mega/user_attribute_manager.h
     include/mega/user_attribute_types.h
+    include/mega/log_level.h
+    include/mega/log_level_forward.h
 
     # megaapi_impl related headers
     include/impl/share.h
+
+    ${SDKLIB_COMMON_HEADERS}
 )
 
 set(SDKLIB_SOURCES
@@ -174,9 +284,12 @@ set(SDKLIB_SOURCES
     src/user_attribute_definition.cpp
     src/user_attribute_manager.cpp
     src/megautils.cpp
+    src/log_level.cpp
 
     # megaapi_impl related sources
     src/impl/share.cpp
+
+    ${SDKLIB_COMMON_SOURCES}
 )
 
 target_sources(SDKlib

@@ -8,7 +8,7 @@
 #include <string>
 #include <thread>
 
-#include <mega/fuse/common/activity_monitor_forward.h>
+#include <mega/common/activity_monitor_forward.h>
 #include <mega/fuse/common/mount_inode_id.h>
 #include <mega/fuse/platform/session_forward.h>
 
@@ -33,7 +33,7 @@ class InodeInvalidator
     using InvalidationQueue = std::deque<InvalidationMap::iterator>;
 
     // Get the invalidation associated with an inode.
-    auto invalidation(ActivityMonitor& activities,
+    auto invalidation(common::ActivityMonitor& activities,
                       MountInodeID id) -> Invalidation&;
 
     // Processes invalidation requests.
@@ -66,22 +66,22 @@ public:
     ~InodeInvalidator();
 
     // Invalidate the attributes of a specific inode.
-    void invalidateAttributes(ActivityMonitor& activities,
+    void invalidateAttributes(common::ActivityMonitor& activities,
                               MountInodeID id);
 
     // Invalidate the data of a specific inode.
-    void invalidateData(ActivityMonitor& activities,
+    void invalidateData(common::ActivityMonitor& activities,
                         MountInodeID id,
                         m_off_t offset,
                         m_off_t size);
 
     // Invalidate a directory entry in a specific inode.
-    void invalidateEntry(ActivityMonitor& activities,
+    void invalidateEntry(common::ActivityMonitor& activities,
                          MountInodeID child,
                          const std::string& name,
                          MountInodeID parent);
 
-    void invalidateEntry(ActivityMonitor& activities,
+    void invalidateEntry(common::ActivityMonitor& activities,
                          MountInodeID id,
                          const std::string& name);
 }; // InodeInvalidator

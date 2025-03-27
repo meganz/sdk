@@ -1,9 +1,10 @@
 #include <cassert>
 
-#include <mega/fuse/common/badge.h>
+#include <mega/common/badge.h>
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/directory_inode.h>
-#include <mega/fuse/common/error_or.h>
 #include <mega/fuse/common/file_cache.h>
 #include <mega/fuse/common/file_info.h>
 #include <mega/fuse/common/file_inode.h>
@@ -13,7 +14,6 @@
 #include <mega/fuse/common/inode_db.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/logging.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/ref.h>
 #include <mega/fuse/platform/file_context.h>
 
@@ -21,6 +21,8 @@ namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 void FileInode::remove(RefBadge, InodeDBLock lock)
 {

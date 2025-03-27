@@ -111,6 +111,7 @@
 #endif
 #endif
 
+#include "mega/log_level.h"
 #include "mega/utils.h"
 
 #if ((defined(ANDROID) || defined(__ANDROID__)) && defined(ENABLE_CRASHLYTICS))
@@ -118,17 +119,6 @@
 #endif
 
 namespace mega {
-
-// available log levels
-enum LogLevel
-{
-    logFatal = 0, // Very severe error event that will presumably lead the application to abort.
-    logError,     // Error information but will continue application to keep running.
-    logWarning,   // Information representing errors in application but application will keep running
-    logInfo,      // Mainly useful to represent current progress of application.
-    logDebug,     // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
-    logMax
-};
 
 // Output Log Interface
 class Logger
@@ -492,12 +482,12 @@ public:
     {
         switch (ll)
         {
-            case logMax: return "verbose";
             case logDebug: return "debug";
             case logInfo: return "info";
             case logWarning: return "warn";
             case logError: return "err";
             case logFatal: return "FATAL";
+            case logVerbose: return "verbose";
         }
         assert(false);
         return "";
@@ -706,7 +696,7 @@ struct LoggerVoidify
 
 #define LOG_verbose \
     ::mega::SimpleLogger::getLogLevel() < ::mega::logMax ? (void)0 : \
-        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logMax, ::mega::log_file_leafname(__FILE__), __LINE__)
+        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logVerbose, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_debug \
     ::mega::SimpleLogger::getLogLevel() < ::mega::logDebug ? (void)0 : \
@@ -757,7 +747,7 @@ inline bool isWithinActivePeriod(const TimeUnit sleepDuration, const TimeUnit ac
     ::mega::LoggerVoidify() & \
         ::mega::SimpleLogger(LOG_LEVEL, ::mega::log_file_leafname(__FILE__), __LINE__)
 
-#define LOG_verbose_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logMax, SLEEP, ACTIVE)
+#define LOG_verbose_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logVerbose, SLEEP, ACTIVE)
 #define LOG_debug_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logDebug, SLEEP, ACTIVE)
 #define LOG_info_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logInfo, SLEEP, ACTIVE)
 #define LOG_warn_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logWarning, SLEEP, ACTIVE)

@@ -2,19 +2,19 @@
 
 #include <cstddef>
 
-#include <mega/fuse/common/client_forward.h>
-#include <mega/fuse/common/error_or_forward.h>
+#include <mega/common/client_forward.h>
+#include <mega/common/error_or_forward.h>
+#include <mega/common/node_event_queue_forward.h>
+#include <mega/common/normalized_path_forward.h>
+#include <mega/common/task_queue_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount_flags_forward.h>
 #include <mega/fuse/common/mount_info_forward.h>
 #include <mega/fuse/common/mount_result_forward.h>
-#include <mega/fuse/common/node_event_queue_forward.h>
-#include <mega/fuse/common/normalized_path_forward.h>
 #include <mega/fuse/common/service_callbacks.h>
 #include <mega/fuse/common/service_context_forward.h>
 #include <mega/fuse/common/service_flags.h>
 #include <mega/fuse/common/service_forward.h>
-#include <mega/fuse/common/task_queue_forward.h>
 
 #include <mega/types.h>
 
@@ -35,16 +35,16 @@ public:
     virtual MountResult add(const MountInfo& info) = 0;
 
     // Check if a file exists in the cache.
-    virtual bool cached(NormalizedPath path) const = 0;
+    virtual bool cached(common::NormalizedPath path) const = 0;
 
     // Retrieve the client that owns this context.
-    Client& client() const;
+    common::Client& client() const;
 
     // Called by the client when its view of the cloud is current.
     virtual void current() = 0;
 
     // Describe the inode representing the file at the specified path.
-    virtual ErrorOr<InodeInfo> describe(const NormalizedPath& path) const = 0;
+    virtual common::ErrorOr<InodeInfo> describe(const common::NormalizedPath& path) const = 0;
 
     // Disable an enabled mount.
     virtual void disable(MountDisabledCallback callback,
@@ -66,7 +66,7 @@ public:
     virtual bool enabled(const std::string& name) const = 0;
 
     // Execute a function on some thread.
-    virtual Task execute(std::function<void(const Task&)> function) = 0;
+    virtual common::Task execute(std::function<void(const common::Task&)> function) = 0;
 
     // Update a mount's flags.
     virtual MountResult flags(const std::string& name,
@@ -82,7 +82,7 @@ public:
     virtual MountInfoVector get(bool onlyEnabled) const = 0;
 
     // Retrieve the path the mount associated with this name.
-    virtual NormalizedPath path(const std::string& name) const = 0;
+    virtual common::NormalizedPath path(const std::string& name) const = 0;
 
     // Remove a disabled mount from the database.
     virtual MountResult remove(const std::string& name) = 0;
@@ -94,10 +94,10 @@ public:
     ServiceFlags serviceFlags() const;
 
     // Check whether the specified path is "syncable."
-    virtual bool syncable(const NormalizedPath& path) const = 0;
+    virtual bool syncable(const common::NormalizedPath& path) const = 0;
 
     // Called by the client when nodes have been changed in the cloud.
-    virtual void updated(NodeEventQueue& events) = 0;
+    virtual void updated(common::NodeEventQueue& events) = 0;
 
     // Update the FUSE database to the specified version.
     virtual MountResult upgrade(const LocalPath& path,

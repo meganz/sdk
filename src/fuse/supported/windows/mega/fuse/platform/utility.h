@@ -2,8 +2,8 @@
 
 #include <string>
 
+#include <mega/common/utility.h>
 #include <mega/fuse/common/inode_info_forward.h>
-#include <mega/fuse/common/utility.h>
 #include <mega/fuse/platform/library.h>
 #include <mega/fuse/platform/mount_forward.h>
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <mega/fuse/common/activity_monitor.h>
+#include <mega/common/activity_monitor.h>
 #include <mega/fuse/common/mount_result_forward.h>
 #include <mega/fuse/common/service_callbacks.h>
 #include <mega/fuse/platform/mount_forward.h>
@@ -34,7 +34,7 @@ class Unmounter final
                         bool abort);
 
     // Tracks whether we have any unmounts in progress.
-    ActivityMonitor mActivities;
+    common::ActivityMonitor mActivities;
 
     // Which context contains our mounts?
     platform::ServiceContext& mContext;

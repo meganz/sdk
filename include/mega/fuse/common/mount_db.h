@@ -2,19 +2,19 @@
 
 #include <functional>
 
-#include <mega/fuse/common/activity_monitor.h>
-#include <mega/fuse/common/client_forward.h>
+#include <mega/common/activity_monitor.h>
+#include <mega/common/client_forward.h>
+#include <mega/common/lockable.h>
+#include <mega/common/normalized_path_forward.h>
+#include <mega/common/query.h>
+#include <mega/common/task_executor_flags_forward.h>
 #include <mega/fuse/common/file_cache_forward.h>
 #include <mega/fuse/common/inode_db_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
-#include <mega/fuse/common/lockable.h>
 #include <mega/fuse/common/mount_db_forward.h>
 #include <mega/fuse/common/mount_flags_forward.h>
 #include <mega/fuse/common/mount_info_forward.h>
-#include <mega/fuse/common/normalized_path_forward.h>
-#include <mega/fuse/common/query.h>
 #include <mega/fuse/common/service_callbacks.h>
-#include <mega/fuse/common/task_executor_flags_forward.h>
 #include <mega/fuse/platform/mount_forward.h>
 #include <mega/fuse/platform/service_context_forward.h>
 
@@ -22,71 +22,76 @@
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 
 template<>
-struct LockableTraits<MountDB>
-  : public LockableTraitsCommon<MountDB, std::mutex>
+struct LockableTraits<fuse::MountDB>
+  : public LockableTraitsCommon<fuse::MountDB, std::mutex>
 {
-}; // LockableTraits<MountDB>
+}; // LockableTraits<fuse::MountDB>
+
+} // common
+
+namespace fuse
+{
 
 // Manages mappings between the cloud and the local disk.
 //
 // Each mapping is like a one-way portal: They can manipulate
 // entities in the cloud through that mapping's local path.
 class MountDB
-  : public Lockable<MountDB>
+  : public common::Lockable<MountDB>
 {
     friend class platform::Mount;
 
     // Bundles up all of the MountDB's queries.
     struct Queries
     {
-        Queries(Database& database);
+        Queries(common::Database& database);
 
         // Add a mount to the database.
-        Query mAddMount;
+        common::Query mAddMount;
 
         // Get a mount by name.
-        Query mGetMountByName;
+        common::Query mGetMountByName;
 
         // What are a mount's flags?
-        Query mGetMountFlagsByName;
+        common::Query mGetMountFlagsByName;
 
         // What inode is the mount associated with?
-        Query mGetMountInodeByName;
+        common::Query mGetMountInodeByName;
 
         // What path is associated with a given name?
-        Query mGetMountPathByName;
+        common::Query mGetMountPathByName;
 
         // Get a mount's startup state.
-        Query mGetMountStartupStateByName;
+        common::Query mGetMountStartupStateByName;
 
         // Get a list of all known mounts.
-        Query mGetMounts;
+        common::Query mGetMounts;
 
         // What mounts should be enabled at startup?
-        Query mGetMountsEnabledAtStartup;
+        common::Query mGetMountsEnabledAtStartup;
 
         // Remove a specified mount.
-        Query mRemoveMountByName;
+        common::Query mRemoveMountByName;
 
         // Remove transient mounts.
-        Query mRemoveTransientMounts;
+        common::Query mRemoveTransientMounts;
 
         // Set a mount's flags.
-        Query mSetMountFlagsByName;
+        common::Query mSetMountFlagsByName;
 
         // Set a mount's startup state.
-        Query mSetMountStartupStateByName;
+        common::Query mSetMountStartupStateByName;
     }; // Queries
 
     // Checks whether info is a valid description of a mount.
     MountResult check(const MountInfo& info);
 
     // Checks whether a mount's local path is valid.
-    virtual MountResult check(const Client& client,
+    virtual MountResult check(const common::Client& client,
                               const MountInfo& info) const = 0;
 
     // Perform platform-specific deinitialization.
@@ -134,14 +139,14 @@ protected:
     void disable();
 
     // Tracks whether we have any callbacks in progress.
-    ActivityMonitor mActivities;
+    common::ActivityMonitor mActivities;
 
 public:
     // Add a new mount to the database.
     MountResult add(const MountInfo& info);
 
     // Retrieve the client that contains this Mount DB.
-    Client& client() const;
+    common::Client& client() const;
 
     // What mount contains the specified path?
     MountInfoPtr contains(const LocalPath& path,
@@ -172,10 +177,10 @@ public:
     bool enabled(const std::string& name) const;
 
     // Update executor flags.
-    void executorFlags(const TaskExecutorFlags& flags);
+    void executorFlags(const common::TaskExecutorFlags& flags);
 
     // Query executor flags.
-    TaskExecutorFlags executorFlags() const;
+    common::TaskExecutorFlags executorFlags() const;
 
     // Retrieve a reference to the file cache.
     FileCache& fileCache();
@@ -197,7 +202,7 @@ public:
     InodeDB& inodeDB();
 
     // Query which path a named mount is associated with.
-    NormalizedPath path(const std::string& name) const;
+    common::NormalizedPath path(const std::string& name) const;
 
     // Prune stale mount entries from the database.
     MountResult prune();
@@ -206,7 +211,7 @@ public:
     MountResult remove(const std::string& name);
 
     // Check whether the specified path is "syncable."
-    bool syncable(const NormalizedPath& path) const;
+    bool syncable(const common::NormalizedPath& path) const;
 
     // The context this database belongs to.
     platform::ServiceContext& mContext;

@@ -1,8 +1,8 @@
 #include <cassert>
 #include <cstring>
 
+#include <mega/common/normalized_path.h>
 #include <mega/fuse/common/logging.h>
-#include <mega/fuse/common/normalized_path.h>
 #include <mega/fuse/platform/constants.h>
 #include <mega/fuse/platform/dispatcher.h>
 #include <mega/fuse/platform/mount.h>
@@ -16,6 +16,8 @@ namespace fuse
 {
 namespace platform
 {
+
+using namespace common;
 
 static Dispatcher& dispatcher(FSP_FILE_SYSTEM& filesystem);
 

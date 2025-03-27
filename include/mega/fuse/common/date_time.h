@@ -6,8 +6,8 @@
 
 #include <mega/types.h>
 
+#include <mega/common/type_traits.h>
 #include <mega/fuse/common/date_time_forward.h>
-#include <mega/fuse/common/type_traits.h>
 
 namespace mega
 {
@@ -16,12 +16,9 @@ namespace fuse
 namespace detail
 {
 
-template<bool value>
-using BoolConstant = std::integral_constant<bool, value>;
-
 template<typename T, typename... Ts>
 struct AreTimeValues
-  : BoolConstant<IsTimeValue<T>::value && IsTimeValue<Ts...>::value>
+  : std::bool_constant<IsTimeValue<T>::value && IsTimeValue<Ts...>::value>
 {
 }; // AreTimeValues<T, Ts...>
 
@@ -72,7 +69,9 @@ public:
         return operator!=(DateTime(rhs));
     }
 
-    template<typename T>
+    template<typename T,
+             typename U = IsTimeValue<T>,
+             typename V = typename std::enable_if<U::value>::type>
     operator T() const
     {
         return asValue<T>();
@@ -89,7 +88,7 @@ public:
 
 template<typename T>
 struct IsTimeValue
-  : IsComplete<TimeValueTraits<T>>
+  : common::IsComplete<TimeValueTraits<T>>
 {
 }; // IsTimeValue<T>
 

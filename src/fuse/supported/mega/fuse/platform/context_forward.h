@@ -3,7 +3,7 @@
 #include <memory>
 #include <set>
 
-#include <mega/fuse/common/badge_forward.h>
+#include <mega/common/badge_forward.h>
 
 namespace mega
 {
@@ -13,7 +13,7 @@ namespace platform
 {
 
 class Context;
-using ContextBadge = Badge<Context>;
+using ContextBadge = common::Badge<Context>;
 using ContextPtr = std::unique_ptr<Context>;
 using ContextRawPtrSet = std::set<Context*>;
 

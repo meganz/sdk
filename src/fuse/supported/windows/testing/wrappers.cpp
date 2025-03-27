@@ -1,5 +1,5 @@
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/inode_info.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/platform/date_time.h>
 #include <mega/fuse/platform/handle.h>
@@ -34,9 +34,25 @@ bool operator==(const WIN32_FILE_ATTRIBUTE_DATA& lhs,
 
 namespace mega
 {
+namespace common
+{
+
+template<typename T>
+auto operator==(const NodeInfo& lhs, const T& rhs)
+  -> std::enable_if_t<IsNativeInfoLike<T>::value, bool>
+{
+    return fuse::operator==(lhs, rhs);
+}
+
+template bool operator==(const NodeInfo&,  const BY_HANDLE_FILE_INFORMATION&);
+template bool operator==(const NodeInfo&,  const WIN32_FILE_ATTRIBUTE_DATA&);
+
+} // common
+
 namespace fuse
 {
 
+using namespace common;
 using namespace platform;
 
 template<typename T>

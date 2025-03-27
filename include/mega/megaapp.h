@@ -22,6 +22,7 @@
 #ifndef MEGA_APP_H
 #define MEGA_APP_H 1
 
+#include <mega/account.h>
 #include <mega/types.h>
 
 #include <cstdint>
@@ -40,7 +41,6 @@ struct AccountDetails;
 class MegaClient;
 class LocalPath;
 struct BusinessPlan;
-struct CurrencyData;
 struct AchievementsDetails;
 class Sync;
 struct Product;

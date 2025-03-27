@@ -1,14 +1,16 @@
 #include <stdexcept>
 
+#include <mega/common/query.h>
+#include <mega/common/scoped_query.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_info.h>
-#include <mega/fuse/common/query.h>
-#include <mega/fuse/common/scoped_query.h>
 
 namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 bool MountInfoNameLess::operator()(const MountInfo& lhs, const MountInfo& rhs) const
 {
@@ -48,11 +50,11 @@ try
     MountInfo info;
 
     info.mFlags = MountFlags::deserialize(query);
-    info.mHandle = query.field("id");
+    info.mHandle = query.field("id").get<NodeHandle>();
     info.mPath = NormalizedPath();
 
     if (!query.field("path").null())
-        info.mPath = query.field("path");
+        info.mPath = query.field("path").get<LocalPath>();
 
     return info;
 }
@@ -73,11 +75,11 @@ try
 {
     mFlags.serialize(query);
 
-    query.param(":id") = mHandle;
-    query.param(":path") = nullptr;
+    query.param(":id").set(mHandle);
+    query.param(":path").set(nullptr);
 
     if (!mPath.empty())
-        query.param(":path") = mPath;
+        query.param(":path").set<LocalPath>(mPath);
 }
 catch (std::runtime_error& exception)
 {

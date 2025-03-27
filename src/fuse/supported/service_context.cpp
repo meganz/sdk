@@ -1,14 +1,14 @@
 #include <algorithm>
 #include <cassert>
 
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/database_builder.h>
-#include <mega/fuse/common/error_or.h>
-#include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/inode.h>
+#include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/ref.h>
 #include <mega/fuse/common/service.h>
 #include <mega/fuse/platform/service_context.h>
@@ -22,6 +22,8 @@ namespace fuse
 namespace platform
 {
 
+using namespace common;
+
 static Database dbInit(const Client& client);
 
 static MountResult dbOperation(void (DatabaseBuilder::*op)(std::size_t),
@@ -33,7 +35,7 @@ static LocalPath dbPath(const Client& client);
 ServiceContext::ServiceContext(const ServiceFlags& flags, Service& service)
   : fuse::ServiceContext(service)
   , mDatabase(dbInit(service.mClient))
-  , mExecutor(flags.mServiceExecutorFlags)
+  , mExecutor(flags.mServiceExecutorFlags, logger())
   , mFileExtensionDB()
   , mInodeDB(*this)
   , mFileCache(*this)
@@ -230,7 +232,7 @@ MountResult ServiceContext::upgrade(const LocalPath& path,
 
 Database dbInit(const Client& client)
 {
-    Database database(dbPath(client));
+    Database database(logger(), dbPath(client));
 
     DatabaseBuilder(database).build();
 
@@ -244,7 +246,7 @@ try
 {
     assert(op);
 
-    Database database(path);
+    Database database(logger(), path);
     DatabaseBuilder builder(database);
 
     (builder.*op)(target);

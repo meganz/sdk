@@ -50,6 +50,7 @@ target_sources(test_unit
     LRUCache_test.cpp
     totp_test.cpp
     localpath_test.cpp
+    shared_mutex_tests.cpp
 )
 
 target_sources_conditional(test_unit

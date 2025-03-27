@@ -1,9 +1,9 @@
-#include <mega/fuse/common/error_or.h>
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/directory.h>

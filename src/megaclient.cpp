@@ -32,7 +32,7 @@
 #include "mega/utils.h"
 
 #include <cryptopp/hkdf.h> // required for derive key of master key
-#include <mega/fuse/common/normalized_path.h>
+#include <mega/common/normalized_path.h>
 
 #include <algorithm>
 #include <cctype>

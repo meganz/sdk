@@ -6148,10 +6148,10 @@ private:
 class MegaFuseExecutorFlagsPrivate
   : public MegaFuseExecutorFlags
 {
-    fuse::TaskExecutorFlags& mFlags;
+    common::TaskExecutorFlags& mFlags;
 
 public:
-    MegaFuseExecutorFlagsPrivate(fuse::TaskExecutorFlags& flags);
+    MegaFuseExecutorFlagsPrivate(common::TaskExecutorFlags& flags);
 
     size_t getMinThreadCount() const override;
 
