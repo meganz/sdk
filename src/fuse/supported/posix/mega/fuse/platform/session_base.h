@@ -73,6 +73,8 @@ protected:
                         fuse_ino_t inode,
                         fuse_file_info* info);
 
+    static void init(void* context, fuse_conn_info* connection);
+
     static void mkdir(fuse_req_t request,
                       fuse_ino_t parent,
                       const char* name,
@@ -97,6 +99,8 @@ protected:
                         fuse_file_info* info);
 
     const fuse_lowlevel_ops& operations();
+
+    virtual void populateCapabilities(fuse_conn_info* connection);
 
     virtual void populateOperations(fuse_lowlevel_ops& operations);
 
@@ -123,6 +127,10 @@ protected:
     static void rmdir(fuse_req_t request,
                       fuse_ino_t parent,
                       const char* name);
+
+    static SessionBase& session(fuse_req_t request);
+
+    static SessionBase& session(void* context);
 
     static void setattr(fuse_req_t request,
                         fuse_ino_t inode,

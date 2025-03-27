@@ -178,6 +178,27 @@ void SessionBase::getattr(fuse_req_t request,
                            inode_);
 }
 
+void SessionBase::init(void* context, fuse_conn_info* connection)
+{
+#define ENTRY(name) {#name, name},
+    static const std::map<std::string, unsigned int> capabilities = {
+#include <mega/fuse/platform/capability_flags.i>
+    }; // capabilities
+#undef ENTRY
+
+    session(context).populateCapabilities(connection);
+
+    for (auto& entry : capabilities)
+    {
+        auto capable = (connection->capable & entry.second) > 0;
+        auto wanted  = (connection->want & entry.second) > 0;
+
+        FUSEDebugF("init: %u%u %s", capable, wanted, entry.first.c_str());
+    }
+
+    mount(context).execute(&Mount::enabled, true);
+}
+
 void SessionBase::mkdir(fuse_req_t request,
                         fuse_ino_t parent,
                         const char* name,
@@ -228,9 +249,7 @@ Mount& SessionBase::mount(fuse_req_t request)
 
 Mount& SessionBase::mount(void* context)
 {
-    assert(context);
-
-    return *static_cast<Mount*>(context);
+    return session(context).mMount;
 }
 
 void SessionBase::open(fuse_req_t request,
@@ -279,6 +298,11 @@ const fuse_lowlevel_ops& SessionBase::operations()
     return mOperations;
 }
 
+void SessionBase::populateCapabilities(fuse_conn_info* connection)
+{
+    connection->want |= FUSE_CAP_ATOMIC_O_TRUNC;
+}
+
 void SessionBase::populateOperations(fuse_lowlevel_ops& operations)
 {
     operations.access       = &SessionBase::access;
@@ -286,6 +310,7 @@ void SessionBase::populateOperations(fuse_lowlevel_ops& operations)
     operations.forget_multi = &SessionBase::forget_multi;
     operations.fsync        = &SessionBase::fsync;
     operations.getattr      = &SessionBase::getattr;
+    operations.init         = &SessionBase::init;
     operations.lookup       = &SessionBase::lookup;
     operations.mkdir        = &SessionBase::mkdir;
     operations.mknod        = &SessionBase::mknod;
@@ -400,6 +425,18 @@ void SessionBase::rmdir(fuse_req_t request,
                            Request(request),
                            parent_,
                            std::string(name));
+}
+
+SessionBase& SessionBase::session(fuse_req_t request)
+{
+    return session(fuse_req_userdata(request));
+}
+
+SessionBase& SessionBase::session(void* context)
+{
+    assert(context);
+
+    return *static_cast<SessionBase*>(context);
 }
 
 void SessionBase::setattr(fuse_req_t request,

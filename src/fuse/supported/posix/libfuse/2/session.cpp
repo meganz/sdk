@@ -36,37 +36,6 @@ void Session::ChannelDeleter::operator()(fuse_chan* channel)
     fuse_unmount(mMount->path().toPath(false).c_str(), channel);
 }
 
-void Session::init(void* context, fuse_conn_info* connection)
-{
-#define ENTRY(name) {#name, name}
-    const std::map<std::string, unsigned int> capabilities = {
-        ENTRY(FUSE_CAP_ASYNC_READ),
-        ENTRY(FUSE_CAP_ATOMIC_O_TRUNC),
-        ENTRY(FUSE_CAP_BIG_WRITES),
-        ENTRY(FUSE_CAP_DONT_MASK),
-        ENTRY(FUSE_CAP_EXPORT_SUPPORT),
-        ENTRY(FUSE_CAP_FLOCK_LOCKS),
-        ENTRY(FUSE_CAP_IOCTL_DIR),
-        ENTRY(FUSE_CAP_POSIX_LOCKS),
-        ENTRY(FUSE_CAP_SPLICE_MOVE),
-        ENTRY(FUSE_CAP_SPLICE_READ),
-        ENTRY(FUSE_CAP_SPLICE_WRITE)
-    }; // capabilities
-#undef ENTRY
-
-    connection->want |= FUSE_CAP_ATOMIC_O_TRUNC;
-
-    for (auto& entry : capabilities)
-    {
-        auto capable = (connection->capable & entry.second) > 0;
-        auto wanted  = (connection->want & entry.second) > 0;
-
-        FUSEDebugF("init: %u%u %s", capable, wanted, entry.first.c_str());
-    }
-
-    mount(context).execute(&Mount::enabled, true);
-}
-
 void Session::forget(fuse_req_t request,
                      fuse_ino_t inode,
                      unsigned long num)
@@ -116,7 +85,6 @@ void Session::populateOperations(fuse_lowlevel_ops& operations)
     SessionBase::populateOperations(operations);
 
     operations.forget = &Session::forget;
-    operations.init   = &Session::init;
     operations.rename = &Session::rename;
 }
 
@@ -163,7 +131,7 @@ Session::Session(Mount& mount)
     SessionPtr session(fuse_lowlevel_new(arguments.get(),
                                          &operations(),
                                          sizeof(fuse_lowlevel_ops),
-                                         &mMount));
+                                         this));
     if (!session)
         throw FUSEErrorF("Unable to construct session: %s", path.c_str());
 

@@ -14,6 +14,46 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 4 AND FUSE_VERSION_MAJOR LESS 3)
 endif()
 
 # Convenience.
+set(CAPABILITY_HEADER_PATH "${PROJECT_BINARY_DIR}/mega/fuse/platform")
+set(CAPABILITY_HEADER_FILE "${CAPABILITY_HEADER_PATH}/capability_flags.i")
+
+# Do we need to generate a list of known capability flags?
+if (NOT EXISTS "${CAPABILITY_HEADER_FILE}")
+    # Convenience.
+    set(CAPABILITY_PATTERN "^#define (FUSE_CAP_[^ \t]+).*$")
+
+    # Extract capability flag definitions.
+    file(STRINGS "${FUSE_INCLUDE_DIR}/fuse_common.h"
+                 CAPABILITY_DEFINITIONS
+                 REGEX "${CAPABILITY_PATTERN}")
+
+    # Create mega/fuse/platform if necessary.
+    file(MAKE_DIRECTORY "${CAPABILITY_HEADER_PATH}")
+
+    # Write capability flag entries to a header.
+    foreach (CAPABILITY_DEFINITION ${CAPABILITY_DEFINITIONS})
+        # Generate an entry for this capability flag.
+        string(REGEX REPLACE "${CAPABILITY_PATTERN}"
+                             "ENTRY(\\1)\n"
+                             CAPABILITY_ENTRY
+                             "${CAPABILITY_DEFINITION}")
+
+        # Write the entry to our header.
+        file(APPEND "${CAPABILITY_HEADER_FILE}" "${CAPABILITY_ENTRY}")
+    endforeach()
+
+    # Cleanup.
+    unset(CAPABILITY_ENTRY)
+    unset(CAPABILITY_DEFINITION)
+    unset(CAPABILITY_DEFINITIONS)
+    unset(CAPABILITY_PATTERN)
+endif()
+
+# Cleanup.
+unset(CAPABILITY_HEADER_FILE)
+unset(CAPABILITY_HEADER_PATH)
+
+# Convenience.
 set(FUSE_LIBFUSE_SRC ${FUSE_POSIX_SRC}/libfuse/${FUSE_VERSION_MAJOR})
 set(FUSE_LIBFUSE_INC ${FUSE_LIBFUSE_SRC}/mega/fuse/platform)
 

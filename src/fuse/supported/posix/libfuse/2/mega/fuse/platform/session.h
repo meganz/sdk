@@ -26,8 +26,6 @@ class Session
     using ChannelPtr =
       std::unique_ptr<fuse_chan, ChannelDeleter>;
 
-    static void init(void* context, fuse_conn_info* connection);
-
     static void forget(fuse_req_t request,
                        fuse_ino_t inode,
                        unsigned long num);

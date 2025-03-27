@@ -13,7 +13,7 @@ namespace platform
 class Session
     : public SessionBase
 {
-    static void init(void* context, fuse_conn_info* connection);
+    void populateCapabilities(fuse_conn_info* connection) override;
 
     void populateOperations(fuse_lowlevel_ops& operations) override;
 
