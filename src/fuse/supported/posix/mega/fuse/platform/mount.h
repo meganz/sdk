@@ -48,8 +48,7 @@ class Mount final
       std::is_invocable_r_v<void, Callback, Mount*, Arguments...>;
 
     template<typename... Arguments,
-             typename Callback,
-             typename... Parameters>
+             typename Callback>
     auto execute(Callback callback,
                  bool spawnWorker,
                  Arguments&&... arguments)
