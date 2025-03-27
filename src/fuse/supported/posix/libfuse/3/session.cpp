@@ -89,6 +89,13 @@ void Session::rename(fuse_req_t request,
                      const char* newName,
                      unsigned int flags)
 {
+#define ENTRY(name) {#name, name}
+    static const std::map<std::string, int> names = {
+        ENTRY(RENAME_EXCHANGE),
+        ENTRY(RENAME_NOREPLACE)
+    }; // names
+#undef ENTRY
+
     MountInodeID parent_(parent);
     MountInodeID newParent_(newParent);
 
@@ -99,6 +106,12 @@ void Session::rename(fuse_req_t request,
                toString(newParent_).c_str(),
                newName,
                request);
+
+    for (const auto& i : names)
+    {
+        if ((flags & i.second))
+            FUSEDebugF("rename: flag: %s", i.first.c_str());
+    }
 
     mount(request).execute(&Mount::rename,
                            true,
