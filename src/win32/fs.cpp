@@ -886,13 +886,8 @@ bool WinFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& tar
 
 bool WinFileSystemAccess::istransient(DWORD e)
 {
-    return e == ERROR_ACCESS_DENIED
-        || e == ERROR_TOO_MANY_OPEN_FILES
-        || e == ERROR_NOT_ENOUGH_MEMORY
-        || e == ERROR_OUTOFMEMORY
-        || e == ERROR_WRITE_PROTECT
-        || e == ERROR_LOCK_VIOLATION
-        || e == ERROR_SHARING_VIOLATION;
+    return e == ERROR_TOO_MANY_OPEN_FILES || e == ERROR_NOT_ENOUGH_MEMORY ||
+           e == ERROR_OUTOFMEMORY || e == ERROR_LOCK_VIOLATION || e == ERROR_SHARING_VIOLATION;
 }
 
 bool WinFileSystemAccess::istransientorexists(DWORD e)

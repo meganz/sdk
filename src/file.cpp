@@ -515,8 +515,7 @@ void File::terminated(error)
 
 }
 
-// do not retry crypto errors or administrative takedowns; retry other types of
-// failuresup to 16 times, except I/O errors (6 times)
+// do not retry crypto errors or administrative takedowns
 bool File::failed(error e, MegaClient*)
 {
     if (e == API_EKEY)
@@ -524,15 +523,17 @@ bool File::failed(error e, MegaClient*)
         return false; // mac error; do not retry
     }
 
-    return  // Non fatal errors, up to 16 retries
-            ((e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && e != API_ETOOMANY && transfer->failcount < 16)
-            // I/O errors up to 6 retries
-            && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6))
-            // Retry sync transfers up to 8 times for erros that doesn't have a specific management
-            // to prevent immediate retries triggered by the sync engine
-            || (syncxfer && e != API_EBLOCKED && e != API_EKEY && transfer->failcount <= 8)
-            // Infinite retries for storage overquota errors
-            || e == API_EOVERQUOTA || e == API_EGOINGOVERQUOTA;
+    return // Non fatal errors, up to FILE_MAX_RETRIES retries
+        ((e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS &&
+          e != API_ETOOMANY && transfer->failcount < FILE_MAX_RETRIES)
+         // I/O errors up to FILE_IO_MAX_RETRIES retries
+         && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > FILE_IO_MAX_RETRIES))
+        // Retry sync transfers up to FILE_SYNC_MAX_RETRIES times for erros that doesn't have a
+        // specific management to prevent immediate retries triggered by the sync engine
+        || (syncxfer && e != API_EBLOCKED && e != API_EKEY &&
+            transfer->failcount <= FILE_SYNC_MAX_RETRIES)
+        // Infinite retries for storage overquota errors
+        || e == API_EOVERQUOTA || e == API_EGOINGOVERQUOTA;
 }
 
 void File::displayname(string* dname)
