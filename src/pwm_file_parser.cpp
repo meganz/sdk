@@ -3,6 +3,7 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wtype-limits"
 #endif
 #ifdef _MSC_VER
 #pragma warning(push)
