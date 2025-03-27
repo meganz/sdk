@@ -96,6 +96,10 @@ std::string Session::nextRequest()
             return buffer;
         }
 
+        // We can hit this case when poll(...) tells us that our channel
+        // has data available for reading but it really doesn't.
+        //
+        // Put differently, this is here to guard against spurious wakeups.
         if (result == -EAGAIN)
             return std::string();
 
