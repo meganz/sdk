@@ -124,7 +124,7 @@ bool File::serialize(string *d) const
     d->append((char*)&mCollisionResolution, 1);
 
     bool pathSerializedAsLocalPath = true;
-    d->append((const char*)&pathSerializedAsLocalPath, sizeof(bool));
+    d->append(reinterpret_cast<const char*>(&pathSerializedAsLocalPath), sizeof(bool));
 
     d->append("\0\0\0\0\0\0", 7);
 

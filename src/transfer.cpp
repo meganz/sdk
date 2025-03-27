@@ -331,8 +331,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
 
     if (!filepath.empty())
     {
-        // expansionflags[1] == 1 => filepath should be unserialize as LocalPath
-        if (expansionflags[1])
+        if (const bool isLocalPath = expansionflags[1] == 1; isLocalPath)
         {
             auto localPath = LocalPath::unserialize(filepath);
             if (localPath.has_value())

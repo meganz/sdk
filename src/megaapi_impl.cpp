@@ -3516,7 +3516,7 @@ bool MegaTransferPrivate::serialize(string *d) const
 
     d->append((const char*)&folderTransferTag, sizeof(folderTransferTag));
     bool hasLocalPath = true;
-    d->append((const char*)&hasLocalPath, sizeof(bool));
+    d->append(reinterpret_cast<const char*>(&hasLocalPath), sizeof(bool));
     d->append("\0\0\0\0\0", 6);
 
     ll = (unsigned short)(appData ? strlen(appData) + 1 : 0);
@@ -3534,8 +3534,8 @@ bool MegaTransferPrivate::serialize(string *d) const
 
     auto localPathSerialized = mLocalPath.serialize();
     ll = static_cast<unsigned short>(localPathSerialized.size());
-    d->append((char*)&ll, sizeof(ll));
-    d->append(localPathSerialized.data(), ll);
+    d->append(reinterpret_cast<char*>(&ll), sizeof(ll));
+    d->append(localPathSerialized);
 
     MegaNodePrivate *node = dynamic_cast<MegaNodePrivate *>(publicNode);
     bool isPublic = (node != NULL);
@@ -4004,7 +4004,10 @@ void MegaTransferPrivate::setLocalPath(const LocalPath& newPath)
     LocalPath name = mLocalPath.leafName();
     setFileName(name.toPath(false).c_str());
     LocalPath parent = mLocalPath.parentPath();
-    setParentPath(parent.toPath(false).c_str());
+    if (!parent.empty())
+    {
+        setParentPath(parent.toPath(false).c_str());
+    }
 }
 
 void MegaTransferPrivate::setParentPath(const char* newParentPath)

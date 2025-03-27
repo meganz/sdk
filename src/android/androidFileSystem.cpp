@@ -2,6 +2,7 @@
 #include <mega/filesystem.h>
 #include <mega/logging.h>
 
+#include <numeric>
 JavaVM* MEGAjvm = nullptr;
 jclass applicationClass = nullptr;
 jmethodID deviceListMID = nullptr;
@@ -245,23 +246,27 @@ std::shared_ptr<AndroidFileWrapper>
     AndroidFileWrapper::returnOrCreateByPath(const std::vector<std::string>& subPaths,
                                              bool lastIsFolder)
 {
-    std::shared_ptr<AndroidFileWrapper> previousParent;
-    for (const auto& childName: subPaths)
+    const auto moveParentForward =
+        [this, lastIsFolder, nElements = subPaths.size(), nVisited = 0u](
+            std::shared_ptr<AndroidFileWrapper> parent,
+            const std::string& childName) mutable -> std::shared_ptr<AndroidFileWrapper>
     {
-        // First iteration child undef (check own children), rest iteration use child
-        auto child =
-            !previousParent ? getChildByName(childName) : previousParent->getChildByName(childName);
+        ++nVisited;
+        std::shared_ptr<AndroidFileWrapper> child =
+            parent ? parent->getChildByName(childName) : getChildByName(childName);
         if (!child)
         {
-            // Intermediate leaves are always folders (childName != subPaths.back())
-            bool isFolder = childName != subPaths.back() || lastIsFolder;
-            child = !previousParent ? createChild(childName, isFolder) :
-                                      previousParent->createChild(childName, isFolder);
+            const bool isFolder = nVisited != nElements || lastIsFolder;
+            child = parent ? parent->createChild(childName, isFolder) :
+                             createChild(childName, isFolder);
         }
-        previousParent = child;
-    }
+        return child;
+    };
 
-    return previousParent;
+    return std::accumulate(begin(subPaths),
+                           end(subPaths),
+                           std::shared_ptr<AndroidFileWrapper>{},
+                           moveParentForward);
 }
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::string& childName,
@@ -297,21 +302,18 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::s
         return nullptr;
     }
 
-    return std::make_shared<AndroidFileWrapper>(globalObject);
+    return std::shared_ptr<AndroidFileWrapper>(new AndroidFileWrapper(globalObject));
 }
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getChildByName(const std::string& name)
 {
-    auto children{getChildren()};
-    for (auto& child: children)
+    const auto sameName = [&name](const auto& child) -> bool
     {
-        if (child->getName() == name)
-        {
-            return child;
-        }
-    }
-
-    return {};
+        return child->getName() == name;
+    };
+    const auto children{getChildren()};
+    const auto it = std::find_if(begin(children), end(children), sameName);
+    return it == std::end(children) ? nullptr : *it;
 }
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getParent() const
@@ -343,7 +345,7 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getParent() const
         return nullptr;
     }
 
-    return std::make_shared<AndroidFileWrapper>(globalObject);
+    return std::shared_ptr<AndroidFileWrapper>(new AndroidFileWrapper(globalObject));
 }
 
 std::optional<std::string> AndroidFileWrapper::getPath()
@@ -409,7 +411,7 @@ bool AndroidFileWrapper::deleteEmptyFolder()
     return env->CallBooleanMethod(mAndroidFileObject, methodID);
 }
 
-std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::rename(const std::string& newName)
+bool AndroidFileWrapper::rename(const std::string& newName)
 {
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
@@ -422,25 +424,21 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::rename(const std::string
         env->ExceptionDescribe();
         env->ExceptionClear();
         LOG_err << "Error: AndroidFileWrapper::rename";
-        return nullptr;
+        return false;
     }
 
     jstring jnewName = env->NewStringUTF(newName.c_str());
     jobject temporalObject = env->CallObjectMethod(mAndroidFileObject, methodID, jnewName);
     env->DeleteLocalRef(jnewName);
-    jobject globalObject{nullptr};
     if (temporalObject != nullptr)
     {
-        globalObject = env->NewGlobalRef(temporalObject);
+        env->DeleteGlobalRef(mAndroidFileObject);
+        mAndroidFileObject = env->NewGlobalRef(temporalObject);
         env->DeleteLocalRef(temporalObject);
+        return true;
     }
 
-    if (!globalObject)
-    {
-        return nullptr;
-    }
-
-    return std::make_shared<AndroidFileWrapper>(globalObject);
+    return false;
 }
 
 std::shared_ptr<AndroidFileWrapper>
@@ -592,22 +590,18 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
         return false;
     }
 
-    bool statCalculated = false;
     std::optional<std::string> path{mFileWrapper->getPath()};
     struct stat statbuf;
-    if (path.has_value() && stat(path->c_str(), &statbuf) != -1)
+    const bool statCalculated = path.has_value() && stat(path->c_str(), &statbuf) != -1;
+    if (statCalculated && S_ISDIR(statbuf.st_mode))
     {
-        statCalculated = true;
-        if (S_ISDIR(statbuf.st_mode))
-        {
-            type = FOLDERNODE;
-            size = 0;
-            mtime = statbuf.st_mtime;
-            fsid = static_cast<handle>(statbuf.st_ino);
-            fsidvalid = true;
-            fopenSucceeded = true;
-            return true;
-        }
+        type = FOLDERNODE;
+        size = 0;
+        mtime = statbuf.st_mtime;
+        fsid = static_cast<handle>(statbuf.st_ino);
+        fsidvalid = true;
+        fopenSucceeded = true;
+        return true;
     }
 
     assert(fd < 0 && "There should be no opened file descriptor at this point");
@@ -621,16 +615,13 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
         return false;
     }
 
-    if (!statCalculated)
+    if (!statCalculated && ::fstat(fd, &statbuf) == -1)
     {
-        if (::fstat(fd, &statbuf) == -1)
-        {
-            errorcode = errno;
-            LOG_err << "Failled to call fstat: " << errorcode << "  " << strerror(errorcode);
-            close(fd);
-            fd = -1;
-            return false;
-        }
+        errorcode = errno;
+        LOG_err << "Failled to call fstat: " << errorcode << "  " << strerror(errorcode);
+        close(fd);
+        fd = -1;
+        return false;
     }
 
     if (S_ISLNK(statbuf.st_mode))
@@ -968,11 +959,11 @@ std::unique_ptr<DirAccess> AndroidFileSystemAccess::newdiraccess()
 {
     if (fileWrapper != nullptr)
     {
-        return unique_ptr<DirAccess>(new AndroidDirAccess());
+        return std::unique_ptr<DirAccess>(new AndroidDirAccess());
     }
     else
     {
-        return unique_ptr<DirAccess>(new PosixDirAccess());
+        return std::unique_ptr<DirAccess>(new PosixDirAccess());
     }
 }
 
@@ -987,30 +978,13 @@ DirNotify* AndroidFileSystemAccess::newdirnotify(LocalNode& root,
 
 bool AndroidFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& type) const
 {
-    LocalPath auxPath{path};
-    if (path.isURI())
-    {
-        auxPath = getStandartPathFromURIPath(path);
-    }
-
-    return mLinuxFileSystemAccess.getlocalfstype(auxPath, type);
+    return mLinuxFileSystemAccess.getlocalfstype(getStandartPath(path), type);
 }
 
 bool AndroidFileSystemAccess::getsname(const LocalPath& p1, LocalPath& p2) const
 {
-    LocalPath auxP1{p1};
-    if (p1.isURI())
-    {
-        auxP1 = getStandartPathFromURIPath(p1);
-    }
-
-    LocalPath auxP2{p2};
-    if (p2.isURI())
-    {
-        auxP2 = getStandartPathFromURIPath(p2);
-    }
-
-    return mLinuxFileSystemAccess.getsname(auxP1, auxP2);
+    p2 = getStandartPath(p2);
+    return mLinuxFileSystemAccess.getsname(getStandartPath(p1), p2);
 }
 
 bool AndroidFileSystemAccess::renamelocal(const LocalPath& oldname,
@@ -1020,14 +994,14 @@ bool AndroidFileSystemAccess::renamelocal(const LocalPath& oldname,
     if (oldname.isURI() || newname.isURI())
     {
         auto oldNameWrapper = AndroidFileWrapper::getAndroidFileWrapper(oldname, false, false);
+        if (!oldNameWrapper)
+        {
+            return false;
+        }
+
         if (oldname.parentPath() == newname.parentPath())
         {
-            if (!oldNameWrapper)
-            {
-                return false;
-            }
-
-            return oldNameWrapper->rename(newname.leafName().toPath(false)) != nullptr;
+            return oldNameWrapper->rename(newname.leafName().toPath(false));
         }
         else
         {
@@ -1071,18 +1045,13 @@ bool AndroidFileSystemAccess::copylocal(const LocalPath& oldname,
 
 bool AndroidFileSystemAccess::unlinklocal(const LocalPath& p1)
 {
-    auto wrapper{AndroidFileWrapper::getAndroidFileWrapper(p1, false, false)};
-    if (!wrapper)
+    if (auto wrapper{AndroidFileWrapper::getAndroidFileWrapper(p1, false, false)};
+        wrapper && !wrapper->isFolder())
     {
-        return false;
+        return wrapper->deleteFile();
     }
 
-    if (wrapper->isFolder())
-    {
-        return false;
-    }
-
-    return wrapper->deleteFile();
+    return false;
 }
 
 bool AndroidFileSystemAccess::rmdirlocal(const LocalPath& p1)
@@ -1098,27 +1067,20 @@ bool AndroidFileSystemAccess::rmdirlocal(const LocalPath& p1)
     return androidFileWrapper->deleteEmptyFolder();
 }
 
-bool AndroidFileSystemAccess::mkdirlocal(const LocalPath& name,
-                                         bool hidden,
-                                         bool logAlreadyExistsError)
+bool AndroidFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool)
 {
     return AndroidFileWrapper::getAndroidFileWrapper(name, true, true) != nullptr;
 }
 
-bool AndroidFileSystemAccess::setmtimelocal(const LocalPath& path, m_time_t time)
+bool AndroidFileSystemAccess::setmtimelocal(const LocalPath&, m_time_t)
 {
     return true;
 }
 
 bool AndroidFileSystemAccess::chdirlocal(LocalPath& path) const
 {
-    LocalPath auxPath{path};
-    if (path.isURI())
-    {
-        auxPath = getStandartPathFromURIPath(path);
-    }
-
-    return mLinuxFileSystemAccess.chdirlocal(auxPath);
+    path = getStandartPath(path);
+    return mLinuxFileSystemAccess.chdirlocal(path);
 }
 
 bool AndroidFileSystemAccess::issyncsupported(const LocalPath& path,
@@ -1126,13 +1088,10 @@ bool AndroidFileSystemAccess::issyncsupported(const LocalPath& path,
                                               SyncError& syncError,
                                               SyncWarning& syncWarning)
 {
-    LocalPath auxPath{path};
-    if (path.isURI())
-    {
-        auxPath = getStandartPathFromURIPath(path);
-    }
-
-    return mLinuxFileSystemAccess.issyncsupported(auxPath, isnetwork, syncError, syncWarning);
+    return mLinuxFileSystemAccess.issyncsupported(getStandartPath(path),
+                                                  isnetwork,
+                                                  syncError,
+                                                  syncWarning);
 }
 
 bool AndroidFileSystemAccess::expanselocalpath(const LocalPath& path, LocalPath& absolutepath)
@@ -1179,26 +1138,15 @@ void AndroidFileSystemAccess::statsid(string* id) const
 
 bool AndroidFileSystemAccess::cwd(LocalPath& path) const
 {
-    LocalPath auxPath{path};
-    if (path.isURI())
-    {
-        auxPath = getStandartPathFromURIPath(path);
-    }
-
-    return mLinuxFileSystemAccess.cwd(auxPath);
+    path = getStandartPath(path);
+    return mLinuxFileSystemAccess.cwd(path);
 }
 
 #ifdef ENABLE_SYNC
 // True if the filesystem indicated by the specified path has stable FSIDs.
 bool AndroidFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
-    LocalPath auxPath{path};
-    if (path.isURI())
-    {
-        auxPath = getStandartPathFromURIPath(path);
-    }
-
-    return mLinuxFileSystemAccess.fsStableIDs(auxPath);
+    return mLinuxFileSystemAccess.fsStableIDs(getStandartPath(path));
 }
 
 bool AndroidFileSystemAccess::initFilesystemNotificationSystem()
@@ -1209,7 +1157,7 @@ bool AndroidFileSystemAccess::initFilesystemNotificationSystem()
 
 ScanResult AndroidFileSystemAccess::directoryScan(const LocalPath& targetPath,
                                                   handle expectedFsid,
-                                                  map<LocalPath, FSNode>& known,
+                                                  std::map<LocalPath, FSNode>& known,
                                                   std::vector<FSNode>& results,
                                                   bool followSymLinks,
                                                   unsigned& nFingerprinted)
@@ -1356,20 +1304,14 @@ ScanResult AndroidFileSystemAccess::directoryScan(const LocalPath& targetPath,
     return SCAN_SUCCESS;
 }
 
-bool AndroidFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& target)
+bool AndroidFileSystemAccess::hardLink(const LocalPath&, const LocalPath&)
 {
     return false;
 }
 
 m_off_t AndroidFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
 {
-    LocalPath auxPath{drivePath};
-    if (drivePath.isURI())
-    {
-        auxPath = getStandartPathFromURIPath(drivePath);
-    }
-
-    return mLinuxFileSystemAccess.availableDiskSpace(auxPath);
+    return mLinuxFileSystemAccess.availableDiskSpace(getStandartPath(drivePath));
 }
 
 void AndroidFileSystemAccess::addevents(Waiter* w, int flag)
@@ -1380,32 +1322,34 @@ void AndroidFileSystemAccess::addevents(Waiter* w, int flag)
 void AndroidFileSystemAccess::emptydirlocal(const LocalPath& path, dev_t)
 {
     auto wrapper = AndroidFileWrapper::getAndroidFileWrapper(path, false, false);
-    if (!wrapper)
+    if (!wrapper || !wrapper->isFolder())
     {
         return;
     }
 
-    if (wrapper->isFolder())
+    for (const auto& child: wrapper->getChildren())
     {
-        for (const auto& child: wrapper->getChildren())
+        if (child->isFolder())
         {
-            if (child->isFolder())
-            {
-                LocalPath childPath = path;
-                childPath.appendWithSeparator(LocalPath::fromRelativePath(child->getName()), false);
-                emptydirlocal(childPath);
-                child->deleteEmptyFolder();
-            }
-            else
-            {
-                child->deleteFile();
-            }
+            LocalPath childPath = path;
+            childPath.appendWithSeparator(LocalPath::fromRelativePath(child->getName()), false);
+            emptydirlocal(childPath);
+            child->deleteEmptyFolder();
+        }
+        else
+        {
+            child->deleteFile();
         }
     }
 }
 
-LocalPath AndroidFileSystemAccess::getStandartPathFromURIPath(const LocalPath& localPath) const
+LocalPath AndroidFileSystemAccess::getStandartPath(const LocalPath& localPath) const
 {
+    if (!localPath.isURI())
+    {
+        return localPath;
+    }
+
     auto androidFileWrapper{AndroidFileWrapper::getAndroidFileWrapper(localPath, false, false)};
     if (androidFileWrapper)
     {
@@ -1461,17 +1405,20 @@ bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& ne
         do
         {
             unsigned bytesToRead{BUFFER_SIZE};
-            if (pos + static_cast<m_off_t>(bytesToRead) > oldFile->size)
+            if (static_cast<m_off_t>(pos + bytesToRead) > oldFile->size)
             {
-                bytesToRead = oldFile->size - pos;
+                bytesToRead = static_cast<unsigned>(oldFile->size) - static_cast<unsigned>(pos);
                 moreData = false;
             }
             followRead = oldFile->frawread(static_cast<byte*>(buffer),
                                            bytesToRead,
-                                           pos,
+                                           static_cast<m_off_t>(pos),
                                            true,
                                            FSLogging::logOnError);
-            newFile->fwrite(static_cast<const byte*>(buffer), bytesToRead, pos);
+            newFile->fwrite(static_cast<const byte*>(buffer),
+                            bytesToRead,
+                            static_cast<m_off_t>(pos));
+
             pos += bytesToRead;
         }
         while (followRead && moreData);

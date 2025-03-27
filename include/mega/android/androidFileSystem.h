@@ -34,7 +34,6 @@ public:
     AndroidFileWrapper& operator=(const AndroidFileWrapper&) = delete;
     AndroidFileWrapper(AndroidFileWrapper&& other) = delete;
     AndroidFileWrapper& operator=(AndroidFileWrapper&& other) = delete;
-    AndroidFileWrapper(jobject fileWrapper);
 
     bool exists();
     int getFileDescriptor(bool write);
@@ -59,7 +58,7 @@ public:
     // this FileWrapper shouldn't be used after call this method
     bool deleteEmptyFolder();
     // Rename an element. It is kept at same folder
-    std::shared_ptr<AndroidFileWrapper> rename(const std::string& newName);
+    bool rename(const std::string& newName);
 
     // Returns true if it's a folder
     bool isFolder();
@@ -78,6 +77,7 @@ public:
 
 private:
     AndroidFileWrapper(const std::string& path);
+    AndroidFileWrapper(jobject fileWrapper);
     jobject mAndroidFileObject{nullptr};
     std::string mURI;
     std::optional<std::string> mName;
@@ -261,7 +261,7 @@ public:
     }
 
 private:
-    LocalPath getStandartPathFromURIPath(const LocalPath& localPath) const;
+    LocalPath getStandartPath(const LocalPath& localPath) const;
     bool copy(const LocalPath& oldname, const LocalPath& newName);
     LinuxFileSystemAccess mLinuxFileSystemAccess;
 };
