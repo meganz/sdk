@@ -1228,8 +1228,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
             nc.storage += nodeSize;
         }
     }
-    else if (nodeType == FOLDERNODE || nodeType == ROOTNODE || nodeType == RUBBISHNODE ||
-             nodeType == VAULTNODE)
+    else if (nodeType == FOLDERNODE)
     {
         nc.folders++;
     }
