@@ -193,14 +193,12 @@ try
 
         // Couldn't enable the mount.
         if (event.mResult != MOUNT_SUCCESS)
-            client().emitEvent(event);
-
-        // Couldn't enable the mount.
-        if (event.mResult != MOUNT_SUCCESS)
         {
             FUSEWarningF("Unable to enable persistent mount \"%s\" due to error: %s",
                          name.c_str(),
                          toString(event.mResult));
+
+            client().emitEvent(event);
 
             // Try and enable the next mount.
             continue;
