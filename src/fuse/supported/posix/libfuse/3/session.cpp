@@ -26,31 +26,25 @@ namespace platform
 void Session::init(void* context, fuse_conn_info* connection)
 {
 #define ENTRY(name) {#name, name}
-    const std::map<std::string, unsigned int> capabilities = {
+    static const std::map<std::string, unsigned int> capabilities = {
         ENTRY(FUSE_CAP_ASYNC_DIO),
         ENTRY(FUSE_CAP_ASYNC_READ),
         ENTRY(FUSE_CAP_ATOMIC_O_TRUNC),
         ENTRY(FUSE_CAP_AUTO_INVAL_DATA),
         ENTRY(FUSE_CAP_CACHE_SYMLINKS),
-        ENTRY(FUSE_CAP_DIRECT_IO_ALLOW_MMAP),
         ENTRY(FUSE_CAP_DONT_MASK),
-        ENTRY(FUSE_CAP_EXPIRE_ONLY),
         ENTRY(FUSE_CAP_EXPLICIT_INVAL_DATA),
         ENTRY(FUSE_CAP_EXPORT_SUPPORT),
         ENTRY(FUSE_CAP_FLOCK_LOCKS),
         ENTRY(FUSE_CAP_HANDLE_KILLPRIV),
-        ENTRY(FUSE_CAP_HANDLE_KILLPRIV_V2),
         ENTRY(FUSE_CAP_IOCTL_DIR),
-        ENTRY(FUSE_CAP_NO_EXPORT_SUPPORT),
         ENTRY(FUSE_CAP_NO_OPENDIR_SUPPORT),
         ENTRY(FUSE_CAP_NO_OPEN_SUPPORT),
         ENTRY(FUSE_CAP_PARALLEL_DIROPS),
-        ENTRY(FUSE_CAP_PASSTHROUGH),
         ENTRY(FUSE_CAP_POSIX_ACL),
         ENTRY(FUSE_CAP_POSIX_LOCKS),
         ENTRY(FUSE_CAP_READDIRPLUS),
         ENTRY(FUSE_CAP_READDIRPLUS_AUTO),
-        ENTRY(FUSE_CAP_SETXATTR_EXT),
         ENTRY(FUSE_CAP_SPLICE_MOVE),
         ENTRY(FUSE_CAP_SPLICE_READ),
         ENTRY(FUSE_CAP_SPLICE_WRITE),
@@ -60,7 +54,6 @@ void Session::init(void* context, fuse_conn_info* connection)
 
     connection->want |= FUSE_CAP_ATOMIC_O_TRUNC;
     connection->want |= FUSE_CAP_EXPLICIT_INVAL_DATA;
-    connection->want |= FUSE_CAP_NO_EXPORT_SUPPORT;
 
     for (auto& entry : capabilities)
     {
