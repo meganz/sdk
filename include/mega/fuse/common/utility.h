@@ -16,9 +16,9 @@ namespace fuse
 
 std::chrono::minutes defaultTimeout();
 
-std::string format(std::va_list arguments, const char* format);
-
 std::string format(const char* format, ...);
+
+std::string formatv(std::va_list arguments, const char* format);
 
 template<typename T>
 using SharedPromise = std::shared_ptr<std::promise<T>>;

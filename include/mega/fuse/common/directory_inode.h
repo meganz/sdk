@@ -7,6 +7,7 @@
 #include <mega/fuse/common/directory_inode_forward.h>
 #include <mega/fuse/common/directory_inode_results.h>
 #include <mega/fuse/common/error_or_forward.h>
+#include <mega/fuse/common/file_move_flag_forward.h>
 #include <mega/fuse/common/inode.h>
 #include <mega/fuse/platform/mount_forward.h>
 
@@ -72,7 +73,8 @@ public:
     // Move a child to a new directory.
     Error move(const std::string& name,
                const std::string& newName,
-               DirectoryInodeRef newParent);
+               DirectoryInodeRef newParent,
+               FileMoveFlags flags);
 
     // Move (or rename) this directory.
     Error move(InodeBadge badge,

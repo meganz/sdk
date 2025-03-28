@@ -3,7 +3,6 @@
 #include <utility>
 
 #include <mega/fuse/common/client.h>
-#include <mega/fuse/common/file_cache.h>
 #include <mega/fuse/common/inode.h>
 #include <mega/fuse/common/inode_db.h>
 #include <mega/fuse/common/inode_info.h>
@@ -43,7 +42,7 @@ struct Mount::PinnedInodeInfo
     const InodeID mParentID;
 
     // How many times the inode has been pinned.
-    size_t mPinCount;
+    std::uint64_t mPinCount;
 }; /* PinnedInodeInfo */
 
 void Mount::invalidatePin(PinnedInodeInfo& info,
@@ -141,7 +140,7 @@ void Mount::pin(InodeRef inode, const InodeInfo& info)
                position->second.mPinCount);
 }
 
-void Mount::unpin(InodeRef inode, std::size_t num)
+void Mount::unpin(InodeRef inode, std::uint64_t num)
 {
     assert(inode);
 
@@ -206,12 +205,11 @@ std::future<void> Mount::disabled()
 
 void Mount::enabled()
 {
-    // Convenience.
-    auto& fileCache = mMountDB.mContext.mFileCache;
-    auto& inodeDB   = mMountDB.mContext.mInodeDB;
-
-    // Flush any modified files contained by this mount.
-    fileCache.flush(*this, inodeDB.modified(mHandle));
+    mMountDB.client().emitEvent({
+        name(),
+        MOUNT_SUCCESS,
+        MOUNT_ENABLED
+    });
 }
 
 void Mount::executorFlags(const TaskExecutorFlags&)

@@ -200,15 +200,8 @@ void MountDB::dispatch()
             if (!descriptors.set(*session))
                 continue;
 
-            // Retrieve the latest request from the session.
-            auto request = session->nextRequest();
-
-            // Invalid request.
-            if (request.empty())
-                continue;
-
             // Dispatch the request.
-            session->dispatch(std::move(request));
+            session->dispatch();
         }
     }
 }
@@ -368,7 +361,9 @@ void DescriptorSet::wait()
     while (true)
     {
         // Wait for one of our descriptors to become readable.
-        auto result = poll(mDescriptors.data(), mDescriptors.size(), -1);
+        auto result = poll(mDescriptors.data(),
+                           static_cast<nfds_t>(mDescriptors.size()),
+                           -1);
 
         // No descriptors were readable.
         if (!result)

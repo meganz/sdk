@@ -29,12 +29,6 @@ public:
                                     ...);
 
     // Emit a log message.
-    static void log(std::va_list arguments,
-                    const char* filename,
-                    const char* format,
-                    unsigned int line,
-                    unsigned int severity);
-
     static void log(const char* filename,
                     const std::string& message,
                     unsigned int line,
@@ -45,6 +39,12 @@ public:
                     unsigned int line,
                     unsigned int severity,
                     ...);
+
+    static void logv(std::va_list arguments,
+                     const char* filename,
+                     const char* format,
+                     unsigned int line,
+                     unsigned int severity);
 
     // Set the logger's log level.
     static void logLevel(LogLevel level);

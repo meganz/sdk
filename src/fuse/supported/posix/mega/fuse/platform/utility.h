@@ -26,6 +26,8 @@ bool abort(const std::string& path);
 
 PathVector filesystems(FilesystemPredicate predicate = nullptr);
 
+void nonblocking(int descriptor, bool enabled);
+
 FileDescriptorPair pipe(bool closeReaderOnFork,
                         bool closeWriterOnFork);
 

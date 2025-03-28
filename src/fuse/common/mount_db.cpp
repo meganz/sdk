@@ -159,8 +159,8 @@ void MountDB::doDeinitialize()
 void MountDB::enable()
 try
 {
-    mContext.mInodeDB.current();
-    mContext.mFileCache.current();
+    inodeDB().current();
+    fileCache().current();
 
     // What mounts should we try and enable?
     std::vector<std::string> mounts;
@@ -191,15 +191,14 @@ try
         // Try and enable the mount.
         event.mResult = enable(name, false);
 
-        // Emit event.
-        client().emitEvent(event);
-
         // Couldn't enable the mount.
         if (event.mResult != MOUNT_SUCCESS)
         {
             FUSEWarningF("Unable to enable persistent mount \"%s\" due to error: %s",
                          name.c_str(),
                          toString(event.mResult));
+
+            client().emitEvent(event);
 
             // Try and enable the next mount.
             continue;
@@ -674,8 +673,17 @@ try
     auto lock = lockAll(mContext.mDatabase, *this);
 
     // The mount associated with this path is already enabled.
-    if (mount(name))
-        return MOUNT_SUCCESS;
+    //
+    // NOTE: We're calling enabled() manually to force the generation of a
+    // MOUNT_ENABLED event. This is necessary because we want to generate
+    // this event whenever enabling a mount succeeds but normally, a mount
+    // will only generate the event when it becomes functional.
+    //
+    // That is, when you enable a mount that's already enabled, it's not
+    // transitioning into a functional state so, we have to generate the
+    // event manually.
+    if (auto mount = this->mount(name))
+        return mount->enabled(), MOUNT_SUCCESS;
 
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetMountByName);
@@ -772,8 +780,8 @@ try
     // Release lock.
     lock.unlock();
 
-    // Let the mount know it's been enabled.
-    mount->enabled();
+    // Flush any files modified by this mount.
+    fileCache().flush(*mount, inodeDB().modified(mount->handle()));
 
     // Mount's enabled.
     return MOUNT_SUCCESS;
@@ -807,6 +815,11 @@ void MountDB::executorFlags(const TaskExecutorFlags& flags)
 TaskExecutorFlags MountDB::executorFlags() const
 {
     return mContext.serviceFlags().mMountExecutorFlags;
+}
+
+FileCache& MountDB::fileCache()
+{
+    return mContext.mFileCache;
 }
 
 MountResult MountDB::flags(const std::string& currentName,
@@ -996,6 +1009,11 @@ catch (std::runtime_error& exception)
                exception.what());
 
     return MountInfoVector();
+}
+
+InodeDB& MountDB::inodeDB()
+{
+    return mContext.mInodeDB;
 }
 
 NormalizedPath MountDB::path(const std::string& name) const

@@ -5,10 +5,12 @@
 #include <mega/fuse/common/error_or.h>
 #include <mega/fuse/common/file_inode.h>
 #include <mega/fuse/common/file_open_flag.h>
+#include <mega/fuse/common/inode.h>
 #include <mega/fuse/common/inode_id.h>
 #include <mega/fuse/common/inode_info.h>
-#include <mega/fuse/common/inode.h>
 #include <mega/fuse/common/logging.h>
+#include <mega/fuse/common/mount_event.h>
+#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_inode_id.h>
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/node_info.h>
@@ -18,8 +20,8 @@
 #include <mega/fuse/platform/directory_context.h>
 #include <mega/fuse/platform/file_context.h>
 #include <mega/fuse/platform/library.h>
-#include <mega/fuse/platform/mount_db.h>
 #include <mega/fuse/platform/mount.h>
+#include <mega/fuse/platform/mount_db.h>
 #include <mega/fuse/platform/path_adapter.h>
 #include <mega/fuse/platform/service_context.h>
 #include <mega/fuse/platform/utility.h>
@@ -834,6 +836,9 @@ Mount::Mount(const MountInfo& info,
   , mExecutor(mountDB.executorFlags())
 {
     mDispatcher.start(info.mPath);
+
+    // Let observers know the mount's functional.
+    enabled();
 
     FUSEDebugF("Mount constructed: %s",
                path().toPath(false).c_str());

@@ -10,6 +10,7 @@
 #include <mega/fuse/common/testing/cloud_path_forward.h>
 #include <mega/fuse/common/testing/model_forward.h>
 #include <mega/fuse/common/testing/path_forward.h>
+#include <mega/fuse/platform/date_time.h>
 
 #include <tests/stdfs.h>
 
@@ -65,7 +66,7 @@ public:
         virtual void populate(fs::path path) const = 0;
 
         // When was this node last modified?
-        std::chrono::system_clock::time_point mModified;
+        DateTime mModified;
 
         // The name of the node.
         std::string mName;
@@ -152,7 +153,7 @@ public:
         std::string mContent;
         
         // How large is this file?
-        std::uintmax_t mSize;
+        std::uint64_t mSize;
     }; // FileNode
 
     Model();
