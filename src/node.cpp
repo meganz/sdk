@@ -2402,6 +2402,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
             LOG_verbose << sync->syncname << "Recovered from being scan blocked: " << getLocalPath();
 
             type = fsNode->type; // original scan may not have been able to discern type, fix it now
+            realScannedFingerprint = FileFingerprint();
             setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode->localname, FileFingerprint());
             sync->statecacheadd(this);
 
@@ -3336,11 +3337,17 @@ bool LocalNodeCore::write(string& destination, uint32_t parentID) const
 
     // first flag indicates we are storing slocalname.
     // Storing it is much, much faster than looking it up on startup.
-    w.serializeexpansionflags(1, 1);
+    w.serializeexpansionflags(1, 1, 1);
     auto tmpstr = slocalname ? slocalname->platformEncoded() : string();
     w.serializepstr(slocalname ? &tmpstr : nullptr);
 
     w.serializebool(namesSynchronized);
+
+    if (type == FILENODE)
+    {
+        // Difference between realScannedFingerprint and scannedFingerprint is only mtime
+        w.serializecompressedi64(realScannedFingerprint.mtime);
+    }
 
     return true;
 }
@@ -3444,15 +3451,17 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     byte syncable = 1;
     unsigned char expansionflags[8] = { 0 };
     bool ns = false;
+    m_time_t extraMtime = 0;
 
     if (!r.unserializehandle(fsid) || !r.unserializeu32(parentID) || !r.unserializenodehandle(h) ||
         !r.unserializestring(name) ||
         (nodeType == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
         (nodeType == FILENODE && !r.unserializecompressedi64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
-        (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 2)) ||
+        (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 3)) ||
         (expansionflags[0] && !r.unserializecstr(shortname, false)) ||
-        (expansionflags[1] && !r.unserializebool(ns)))
+        (expansionflags[1] && !r.unserializebool(ns)) ||
+        (expansionflags[2] && nodeType == FILENODE && !r.unserializecompressedi64(extraMtime)))
     {
         LOG_err << "LocalNode unserialization failed at field " << r.fieldnum;
         assert(false);
@@ -3475,6 +3484,15 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
 
     // previously we scanned and created the LocalNode, but we had not set syncedFingerprint
     this->syncedCloudNodeHandle.set6byte(h);
+
+    bool hasRealScannedFingerprint = expansionflags[2];
+    if (hasRealScannedFingerprint)
+    {
+        memcpy(this->realScannedFingerprint.crc.data(), crc, sizeof crc);
+        this->realScannedFingerprint.mtime = extraMtime;
+        this->realScannedFingerprint.isvalid = extraMtime != 0;
+        this->realScannedFingerprint.size = size;
+    }
 
     return true;
 }

@@ -190,7 +190,7 @@ private:
     std::unique_ptr<PosixDirAccess> mGlobbing;
 };
 
-class MEGA_API AndroidFileSystemAccess: public FileSystemAccess
+class MEGA_API AndroidFileSystemAccess: public LinuxFileSystemAccess
 {
 public:
     using FileSystemAccess::getlocalfstype;
@@ -253,30 +253,23 @@ public:
 
     void addevents(Waiter*, int) override;
 
-    static void emptydirlocal(const LocalPath&, dev_t = 0);
+    fsfp_t fsFingerprint(const LocalPath& path) const override;
 
-    LinuxFileSystemAccess& getLinuxFileSystemAccess()
-    {
-        return mLinuxFileSystemAccess;
-    }
+    static void emptydirlocal(const LocalPath&, dev_t = 0);
 
 private:
     LocalPath getStandartPath(const LocalPath& localPath) const;
     bool copy(const LocalPath& oldname, const LocalPath& newName);
-    LinuxFileSystemAccess mLinuxFileSystemAccess;
 };
 
-class AndroidDirNotify: public DirNotify
+class AndroidDirNotify: public LinuxDirNotify
 {
 public:
     AndroidDirNotify(AndroidFileSystemAccess& owner, LocalNode& root, const LocalPath& rootPath);
 
     ~AndroidDirNotify() override {}
 
-    AddWatchResult addWatch(LocalNode& node, const LocalPath& path, handle fsid);
-
-private:
-    LinuxDirNotify mLinuxDirNotify;
+    AddWatchResult addWatch(LocalNode& node, const LocalPath& path, handle fsid) override;
 };
 }
 

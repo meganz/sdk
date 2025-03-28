@@ -105,10 +105,6 @@ public:
 
     LocalPath insertFilenameSuffix(const std::string& suffix) const override;
 
-    bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const override;
-    bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const override;
-    bool hasNextPathComponent(const size_t index) const override;
-
     std::string toPath(const bool normalize) const override;
 
     std::string toName(const FileSystemAccess& fsaccess) const override;
@@ -149,6 +145,8 @@ public:
     std::string serialize() const override;
     bool unserialize(const std::string& data) override;
 
+    string_type getRealPath() const override;
+
 private:
     string_type mLocalpath;
     // Track whether this LocalPath is from the root of a filesystem (ie, an absolute path)
@@ -158,7 +156,7 @@ private:
     void removeTrailingSeparators();
     void truncate(size_t bytePos);
     LocalPath subpathTo(size_t bytePos) const;
-    bool findNextSeparator(size_t& separatorBytePos) const;
+    bool findNextSeparator(size_t& separatorBytePos) const override;
 };
 
 class PathURI: public mega::AbstractLocalPath
@@ -194,10 +192,6 @@ public:
 
     LocalPath insertFilenameSuffix(const std::string& suffix) const override;
 
-    bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const override;
-    bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const override;
-    bool hasNextPathComponent(const size_t index) const override;
-
     std::string toPath(const bool normalize) const override;
 
     std::string toName(const FileSystemAccess& fsaccess) const override;
@@ -214,7 +208,6 @@ public:
 
     bool related(const LocalPath& other) const override;
 
-    string_type getRealPath() const;
     bool invariant() const override;
 
     PathURI(const string_type& path):
@@ -230,6 +223,7 @@ public:
 
     std::string serialize() const override;
     bool unserialize(const std::string& data) override;
+    string_type getRealPath() const override;
 
 private:
     // String allows to identify a file or folder
@@ -239,6 +233,7 @@ private:
     // They are stored as elements in a vector
     std::vector<string_type> mAuxPath;
     void removeLastElement();
+    bool findNextSeparator(size_t& separatorBytePos) const override;
 };
 } // end anonymous namespace
 
@@ -972,6 +967,16 @@ bool LocalPath::invariant() const
     return false;
 }
 
+string_type LocalPath::getRealPath() const
+{
+    if (mImplementation)
+    {
+        return mImplementation->getRealPath();
+    }
+
+    return {};
+}
+
 auto Path::asPlatformEncoded([[maybe_unused]] const bool skipPrefix) const -> string_type
 {
 #ifdef WIN32
@@ -1267,40 +1272,31 @@ LocalPath Path::insertFilenameSuffix(const std::string& suffix) const
     return LocalPathImplementationHelper::buildLocalPath(result);
 }
 
-bool Path::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
+bool AbstractLocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
 {
-    string_type parameterLocalPath;
-    if (path.isURI())
-    {
-        const PathURI* uri = LocalPathImplementationHelper::getPathURI(path);
-        assert(uri);
-        parameterLocalPath = uri->getRealPath();
-    }
-    else
-    {
-        parameterLocalPath = path.asPlatformEncoded(false);
-    }
+    string_type parameterLocalPath{path.getRealPath()};
+    string_type thisLocalPath{getRealPath()};
 
-    if (parameterLocalPath.size() >= mLocalpath.size() &&
-        !Utils::pcasecmp(parameterLocalPath, mLocalpath, mLocalpath.size()))
+    if (parameterLocalPath.size() >= thisLocalPath.size() &&
+        !Utils::pcasecmp(parameterLocalPath, thisLocalPath, thisLocalPath.size()))
     {
-        if (parameterLocalPath.size() == mLocalpath.size())
+        if (parameterLocalPath.size() == thisLocalPath.size())
         {
             if (subpathIndex)
-                *subpathIndex = mLocalpath.size();
+                *subpathIndex = thisLocalPath.size();
             return true;
         }
-        else if (parameterLocalPath[mLocalpath.size()] == LocalPath::localPathSeparator)
+        else if (parameterLocalPath[thisLocalPath.size()] == LocalPath::localPathSeparator)
         {
             if (subpathIndex)
-                *subpathIndex = mLocalpath.size() + 1;
+                *subpathIndex = thisLocalPath.size() + 1;
             return true;
         }
-        else if (!mLocalpath.empty() &&
-                 parameterLocalPath[mLocalpath.size() - 1] == LocalPath::localPathSeparator)
+        else if (!thisLocalPath.empty() &&
+                 parameterLocalPath[thisLocalPath.size() - 1] == LocalPath::localPathSeparator)
         {
             if (subpathIndex)
-                *subpathIndex = mLocalpath.size();
+                *subpathIndex = thisLocalPath.size();
             return true;
         }
     }
@@ -1308,53 +1304,45 @@ bool Path::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
     return false;
 }
 
-bool Path::nextPathComponent(size_t& subpathIndex, LocalPath& component) const
+bool AbstractLocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component) const
 {
-    string_type parameterLocalPath;
-    if (component.isURI())
-    {
-        const PathURI* uri = LocalPathImplementationHelper::getPathURI(component);
-        assert(uri);
-        parameterLocalPath = uri->getRealPath();
-    }
-    else
-    {
-        parameterLocalPath = component.asPlatformEncoded(false);
-    }
+    string_type parameterLocalPath{component.getRealPath()};
+    string_type thisLocalPath{getRealPath()};
 
-    while (subpathIndex < mLocalpath.size() &&
-           mLocalpath[subpathIndex] == LocalPath::localPathSeparator)
+    while (subpathIndex < thisLocalPath.size() &&
+           thisLocalPath[subpathIndex] == LocalPath::localPathSeparator)
     {
         ++subpathIndex;
     }
 
     const auto start = subpathIndex;
-    if (start >= mLocalpath.size())
+    if (start >= thisLocalPath.size())
     {
         return false;
     }
     else if (findNextSeparator(subpathIndex))
     {
-        parameterLocalPath = mLocalpath.substr(start, subpathIndex - start);
+        parameterLocalPath = thisLocalPath.substr(start, subpathIndex - start);
         component = LocalPath::fromPlatformEncodedRelative(std::move(parameterLocalPath));
         assert(component.invariant());
         return true;
     }
     else
     {
-        parameterLocalPath = mLocalpath.substr(start, mLocalpath.size() - start);
+        parameterLocalPath = thisLocalPath.substr(start, thisLocalPath.size() - start);
         component.clear();
         component = LocalPath::fromPlatformEncodedRelative(std::move(parameterLocalPath));
-        subpathIndex = mLocalpath.size();
+        subpathIndex = thisLocalPath.size();
         assert(component.invariant());
         return true;
     }
 }
 
-bool Path::hasNextPathComponent(size_t index) const
+bool AbstractLocalPath::hasNextPathComponent(size_t index) const
 {
     assert(invariant());
-    return index < mLocalpath.size();
+    string_type thisLocalPath{getRealPath()};
+    return index < thisLocalPath.size();
 }
 
 std::string Path::toPath(const bool normalize) const
@@ -1673,9 +1661,22 @@ bool Path::unserialize(const std::string& data)
     return unserilizeValue;
 }
 
+string_type Path::getRealPath() const
+{
+    return asPlatformEncoded(false);
+}
+
 auto PathURI::asPlatformEncoded(const bool) const -> string_type
 {
-    return getRealPath();
+    string_type path{mUri};
+
+    for (const auto& leaf: mAuxPath)
+    {
+        path.push_back(LocalPath::localPathSeparator);
+        path.append(leaf);
+    }
+
+    return path;
 }
 
 string PathURI::platformEncoded() const
@@ -1851,31 +1852,10 @@ LocalPath PathURI::insertFilenameSuffix(const std::string& suffix) const
     return LocalPathImplementationHelper::buildLocalPath(newPathUri);
 }
 
-bool PathURI::isContainingPathOf(const LocalPath&, size_t*) const
-{
-    LOG_err << "Invalid operation for URI Path (isContainingPathOf)";
-    assert(false);
-    return false;
-}
-
-bool PathURI::nextPathComponent(size_t&, LocalPath&) const
-{
-    LOG_err << "Invalid operation for URI Path (nextPathComponent)";
-    assert(false);
-    return false;
-}
-
-bool PathURI::hasNextPathComponent(const size_t) const
-{
-    LOG_err << "Invalid operation for URI Path (hasNextPathComponent)";
-    assert(false);
-    return false;
-}
-
 std::string PathURI::toPath(const bool) const
 {
     std::string aux;
-    string_type name = getRealPath();
+    string_type name = asPlatformEncoded(false);
     LocalPath::local2path(&name, &aux, false);
     return aux;
 }
@@ -1905,18 +1885,6 @@ bool PathURI::related(const LocalPath&) const
     LOG_err << "Invalid operation for URI Path (related)";
     assert(false);
     return false;
-}
-
-string_type PathURI::getRealPath() const
-{
-    string_type path{mUri};
-    for (const auto& leaf: mAuxPath)
-    {
-        path.push_back(LocalPath::localPathSeparator);
-        path.append(leaf);
-    }
-
-    return path;
 }
 
 bool PathURI::invariant() const
@@ -1978,5 +1946,29 @@ bool PathURI::unserialize(const std::string& data)
     }
 
     return success;
+}
+
+bool PathURI::findNextSeparator(size_t& separatorBytePos) const
+{
+    separatorBytePos = getRealPath().find(LocalPath::localPathSeparator, separatorBytePos);
+    return separatorBytePos != std::string::npos;
+}
+
+string_type PathURI::getRealPath() const
+{
+    string_type path{mUri};
+    auto pathOptional = URIHandler::getPath(mUri);
+    if (pathOptional.has_value())
+    {
+        LocalPath::path2local(&pathOptional.value(), &path);
+    }
+
+    for (const auto& leaf: mAuxPath)
+    {
+        path.push_back(LocalPath::localPathSeparator);
+        path.append(leaf);
+    }
+
+    return path;
 }
 }

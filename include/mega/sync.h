@@ -430,6 +430,8 @@ struct SyncRow
 
     // Does this row represent a "no name" triplet?
     bool isNoName() const;
+
+    void reassignFingerprints();
 };
 
 struct SyncPath

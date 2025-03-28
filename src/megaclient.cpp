@@ -17357,7 +17357,7 @@ std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& new
 SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
                                                const handle backupIdToExclude) const
 {
-    if (!localPath.isAbsolute())
+    if (!localPath.isAbsolute() && !localPath.isURI())
         return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
 
     const auto rootPathWithoutEndingSeparator = std::invoke(

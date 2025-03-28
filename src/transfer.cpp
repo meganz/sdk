@@ -825,7 +825,14 @@ void Transfer::complete(TransferDbCommitter& committer)
         if (!fixedfingerprint && success && fa->fopen(localfilename, true, false, FSLogging::logOnError))
         {
             fingerprint.genfingerprint(fa.get());
-            if (isvalid && !(fingerprint == *(FileFingerprint*)this))
+            bool sameFingerprint = (fingerprint == *(FileFingerprint*)this);
+#ifdef __ANDROID__
+            // In Android maybe we can't set mtime at download
+            sameFingerprint =
+                sameFingerprint || (fingerprint.size == size &&
+                                    memcmp(fingerprint.crc.data(), crc.data(), sizeof crc) == 0);
+#endif
+            if (isvalid && !sameFingerprint)
             {
                 LOG_err << "Fingerprint mismatch";
 

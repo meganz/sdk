@@ -51,7 +51,11 @@ NodeMatchByFSIDResult
     }
 
     // IMPORTANT: Ensure that we are not mixing two different files whose FSIDs have been reused.
-    if (source.nodetype == FILENODE && target.fingerprint != source.fingerprint)
+#ifndef __ANDROID__
+    assert(source.realFingerprint == source.fingerprint);
+#endif
+    if (source.nodetype == FILENODE && target.fingerprint != source.fingerprint &&
+        target.fingerprint != source.realFingerprint)
         return NodeMatchByFSIDResult::DifferentFingerprint;
 
     return NodeMatchByFSIDResult::Matched;
@@ -65,7 +69,8 @@ bool FindLocalNodeByFSIDPredicate::operator()(LocalNode& localNode)
     const NodeMatchByFSIDAttributes sourceNodeAttributes{localNode.type,
                                                          localNode.sync->fsfp(),
                                                          localNode.sync->cloudRootOwningUser,
-                                                         getFingerprint(localNode)};
+                                                         getFingerprint(localNode),
+                                                         localNode.realScannedFingerprint};
     const SourceNodeMatchByFSIDContext sourceContext{isFsidReused(localNode),
                                                      localNode.exclusionState()};
 

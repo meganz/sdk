@@ -250,9 +250,7 @@ public:
 
     ~LinuxDirNotify();
 
-    AddWatchResult addWatch(LocalNode& node,
-                            const LocalPath& path,
-                            handle fsid);
+    virtual AddWatchResult addWatch(LocalNode& node, const LocalPath& path, handle fsid);
 
     void removeWatch(WatchMapIterator entry);
 

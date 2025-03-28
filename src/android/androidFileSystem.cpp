@@ -943,14 +943,14 @@ std::unique_ptr<FileAccess> AndroidFileSystemAccess::newfileaccess(bool followSy
     {
         return std::unique_ptr<FileAccess>{
             new AndroidFileAccess{waiter,
-                                  mLinuxFileSystemAccess.getdefaultfilepermissions(),
+                                  LinuxFileSystemAccess::getdefaultfilepermissions(),
                                   followSymLinks}};
     }
     else
     {
         return std::unique_ptr<FileAccess>{
             new PosixFileAccess{waiter,
-                                mLinuxFileSystemAccess.getdefaultfilepermissions(),
+                                LinuxFileSystemAccess::getdefaultfilepermissions(),
                                 followSymLinks}};
     }
 }
@@ -978,13 +978,13 @@ DirNotify* AndroidFileSystemAccess::newdirnotify(LocalNode& root,
 
 bool AndroidFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& type) const
 {
-    return mLinuxFileSystemAccess.getlocalfstype(getStandartPath(path), type);
+    return LinuxFileSystemAccess::getlocalfstype(getStandartPath(path), type);
 }
 
 bool AndroidFileSystemAccess::getsname(const LocalPath& p1, LocalPath& p2) const
 {
     p2 = getStandartPath(p2);
-    return mLinuxFileSystemAccess.getsname(getStandartPath(p1), p2);
+    return LinuxFileSystemAccess::getsname(getStandartPath(p1), p2);
 }
 
 bool AndroidFileSystemAccess::renamelocal(const LocalPath& oldname,
@@ -1022,7 +1022,7 @@ bool AndroidFileSystemAccess::renamelocal(const LocalPath& oldname,
         }
     }
 
-    return mLinuxFileSystemAccess.renamelocal(oldname, newname, overwrite);
+    return LinuxFileSystemAccess::renamelocal(oldname, newname, overwrite);
 }
 
 bool AndroidFileSystemAccess::copylocal(const LocalPath& oldname,
@@ -1040,7 +1040,7 @@ bool AndroidFileSystemAccess::copylocal(const LocalPath& oldname,
         return true;
     }
 
-    return mLinuxFileSystemAccess.copylocal(oldname, newname, time);
+    return LinuxFileSystemAccess::copylocal(oldname, newname, time);
 }
 
 bool AndroidFileSystemAccess::unlinklocal(const LocalPath& p1)
@@ -1080,7 +1080,7 @@ bool AndroidFileSystemAccess::setmtimelocal(const LocalPath&, m_time_t)
 bool AndroidFileSystemAccess::chdirlocal(LocalPath& path) const
 {
     path = getStandartPath(path);
-    return mLinuxFileSystemAccess.chdirlocal(path);
+    return LinuxFileSystemAccess::chdirlocal(path);
 }
 
 bool AndroidFileSystemAccess::issyncsupported(const LocalPath& path,
@@ -1088,7 +1088,7 @@ bool AndroidFileSystemAccess::issyncsupported(const LocalPath& path,
                                               SyncError& syncError,
                                               SyncWarning& syncWarning)
 {
-    return mLinuxFileSystemAccess.issyncsupported(getStandartPath(path),
+    return LinuxFileSystemAccess::issyncsupported(getStandartPath(path),
                                                   isnetwork,
                                                   syncError,
                                                   syncWarning);
@@ -1096,62 +1096,61 @@ bool AndroidFileSystemAccess::issyncsupported(const LocalPath& path,
 
 bool AndroidFileSystemAccess::expanselocalpath(const LocalPath& path, LocalPath& absolutepath)
 {
-    // TODO ARV androdid sync implement
     if (path.isURI())
     {
         absolutepath = path;
         return true;
     }
 
-    return mLinuxFileSystemAccess.expanselocalpath(path, absolutepath);
+    return LinuxFileSystemAccess::expanselocalpath(path, absolutepath);
 }
 
 int AndroidFileSystemAccess::getdefaultfilepermissions()
 {
-    return mLinuxFileSystemAccess.getdefaultfilepermissions();
+    return LinuxFileSystemAccess::getdefaultfilepermissions();
 }
 
 void AndroidFileSystemAccess::setdefaultfilepermissions(int permissions)
 {
-    mLinuxFileSystemAccess.setdefaultfilepermissions(permissions);
+    LinuxFileSystemAccess::setdefaultfilepermissions(permissions);
 }
 
 int AndroidFileSystemAccess::getdefaultfolderpermissions()
 {
-    return mLinuxFileSystemAccess.getdefaultfolderpermissions();
+    return LinuxFileSystemAccess::getdefaultfolderpermissions();
 }
 
 void AndroidFileSystemAccess::setdefaultfolderpermissions(int permissions)
 {
-    mLinuxFileSystemAccess.setdefaultfolderpermissions(permissions);
+    LinuxFileSystemAccess::setdefaultfolderpermissions(permissions);
 }
 
 void AndroidFileSystemAccess::osversion(string* u, bool includeArchExtraInfo) const
 {
-    mLinuxFileSystemAccess.osversion(u, includeArchExtraInfo);
+    LinuxFileSystemAccess::osversion(u, includeArchExtraInfo);
 }
 
 void AndroidFileSystemAccess::statsid(string* id) const
 {
-    mLinuxFileSystemAccess.statsid(id);
+    LinuxFileSystemAccess::statsid(id);
 }
 
 bool AndroidFileSystemAccess::cwd(LocalPath& path) const
 {
     path = getStandartPath(path);
-    return mLinuxFileSystemAccess.cwd(path);
+    return LinuxFileSystemAccess::cwd(path);
 }
 
 #ifdef ENABLE_SYNC
 // True if the filesystem indicated by the specified path has stable FSIDs.
 bool AndroidFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
-    return mLinuxFileSystemAccess.fsStableIDs(getStandartPath(path));
+    return LinuxFileSystemAccess::fsStableIDs(getStandartPath(path));
 }
 
 bool AndroidFileSystemAccess::initFilesystemNotificationSystem()
 {
-    return mLinuxFileSystemAccess.initFilesystemNotificationSystem();
+    return LinuxFileSystemAccess::initFilesystemNotificationSystem();
 }
 #endif
 
@@ -1311,12 +1310,28 @@ bool AndroidFileSystemAccess::hardLink(const LocalPath&, const LocalPath&)
 
 m_off_t AndroidFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
 {
-    return mLinuxFileSystemAccess.availableDiskSpace(getStandartPath(drivePath));
+    return LinuxFileSystemAccess::availableDiskSpace(getStandartPath(drivePath));
 }
 
 void AndroidFileSystemAccess::addevents(Waiter* w, int flag)
 {
-    mLinuxFileSystemAccess.addevents(w, flag);
+    LinuxFileSystemAccess::addevents(w, flag);
+}
+
+fsfp_t AndroidFileSystemAccess::fsFingerprint(const LocalPath& path) const
+{
+    LocalPath auxPath{path};
+    if (auxPath.isURI())
+    {
+        auto wrapper = AndroidFileWrapper::getAndroidFileWrapper(path, false, false);
+        auto p = wrapper ? wrapper->getPath() : std::nullopt;
+        if (p.has_value())
+        {
+            auxPath = LocalPath::fromAbsolutePath(p.value());
+        }
+    }
+
+    return LinuxFileSystemAccess::fsFingerprint(auxPath);
 }
 
 void AndroidFileSystemAccess::emptydirlocal(const LocalPath& path, dev_t)
@@ -1435,8 +1450,7 @@ bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& ne
 AndroidDirNotify::AndroidDirNotify(AndroidFileSystemAccess& owner,
                                    LocalNode& root,
                                    const LocalPath& rootPath):
-    DirNotify(rootPath),
-    mLinuxDirNotify(owner.getLinuxFileSystemAccess(), root, rootPath)
+    LinuxDirNotify(owner, root, rootPath)
 {}
 
 AddWatchResult AndroidDirNotify::addWatch(LocalNode& node, const LocalPath& path, handle fsid)
@@ -1456,6 +1470,6 @@ AddWatchResult AndroidDirNotify::addWatch(LocalNode& node, const LocalPath& path
         }
     }
 
-    return mLinuxDirNotify.addWatch(node, auxPath, fsid);
+    return LinuxDirNotify::addWatch(node, auxPath, fsid);
 }
 } // namespace

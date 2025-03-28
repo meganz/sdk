@@ -84,11 +84,9 @@ public:
 
     virtual LocalPath insertFilenameSuffix(const std::string& suffix) const = 0;
 
-    virtual bool isContainingPathOf(const LocalPath& path,
-                                    size_t* subpathIndex = nullptr) const = 0;
-
-    virtual bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const = 0;
-    virtual bool hasNextPathComponent(const size_t index) const = 0;
+    virtual bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
+    virtual bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
+    virtual bool hasNextPathComponent(const size_t index) const;
 
     virtual std::string toPath(const bool normalize) const = 0;
 
@@ -108,6 +106,11 @@ public:
 
     virtual std::string serialize() const = 0;
     virtual bool unserialize(const std::string& data) = 0;
+
+    virtual string_type getRealPath() const = 0;
+
+private:
+    virtual bool findNextSeparator(size_t& separatorBytePos) const = 0;
 };
 
 /**
@@ -365,6 +368,10 @@ public:
     // - One path contains another.
     bool related(const LocalPath& other) const;
     bool invariant() const;
+
+    // Useful for path from type URI, it tries to convert URI in a path
+    // For standard paths returns the as LocalPath::asPlatformEncoded
+    string_type getRealPath() const;
 
 private:
 #ifdef _WIN32
