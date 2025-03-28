@@ -1746,7 +1746,7 @@ void PathURI::appendWithSeparator(const LocalPath& additionalPath, const bool)
 {
     const auto auxPath = additionalPath.toPath(false);
     auto leaves =
-        splitString<std::vector<string_type>>(auxPath, LocalPath::localPathSeparator_utf8);
+        splitString<std::vector<std::string>>(auxPath, LocalPath::localPathSeparator_utf8);
     for (const auto& leaf: leaves)
     {
         string_type auxLeaf;
