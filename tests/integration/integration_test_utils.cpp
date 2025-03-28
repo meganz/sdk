@@ -291,4 +291,24 @@ handle createPasswordNode(MegaApi* megaApi,
         << "Password node not properly generated. Name: " << name;
     return newPwdNodeHandle;
 }
+
+handle createCreditCardNode(::mega::MegaApi* megaApi,
+                            const std::string& name,
+                            const ::mega::MegaNode::CreditCardNodeData* data,
+                            const ::mega::handle parentNodeHandle)
+{
+    NiceMock<MockRequestListener> rl;
+    handle newPwdNodeHandle{UNDEF};
+    rl.setErrorExpectations(API_OK,
+                            _,
+                            MegaRequest::TYPE_CREATE_PASSWORD_NODE,
+                            [&newPwdNodeHandle](const MegaRequest& req)
+                            {
+                                newPwdNodeHandle = req.getNodeHandle();
+                            });
+    megaApi->createCreditCardNode(name.c_str(), data, parentNodeHandle, &rl);
+    EXPECT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT))
+        << "CreditCard node not properly generated. Name: " << name;
+    return newPwdNodeHandle;
+}
 }

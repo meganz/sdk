@@ -3002,6 +3002,14 @@ std::string_view toString(const PasswordEntryError err)
             return "Missing totp hash alg";
         case PasswordEntryError::INVALID_TOTP_HASH_ALG:
             return "Invalid totp hash alg";
+        case PasswordEntryError::MISSING_CREDIT_CARD_NUMBER:
+            return "Missing credit card number";
+        case PasswordEntryError::INVALID_CREDIT_CARD_NUMBER:
+            return "Invalid credit card number";
+        case PasswordEntryError::INVALID_CREDIT_CARD_CVV:
+            return "Invalid credit card cvv (card validation value)";
+        case PasswordEntryError::INVALID_CREDIT_CARD_EXPIRATION_DATE:
+            return "Invalid credit card expiration date";
     }
     assert(false);
     return "Unknown error";

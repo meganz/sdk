@@ -23,6 +23,7 @@
 #define MEGA_UTILS_H 1
 #include "types.h"
 
+#include <algorithm>
 #include <charconv>
 #include <condition_variable>
 #include <mutex>
@@ -1660,6 +1661,15 @@ inline const char* getConstCharPtr(const std::optional<std::string>& opt)
     return opt.has_value() ? opt->c_str() : nullptr;
 }
 
+inline bool isAllDigits(const std::string_view s)
+{
+    return std::all_of(begin(s),
+                       end(s),
+                       [](const auto c)
+                       {
+                           return std::isdigit(c);
+                       });
+}
 } // namespace mega
 
 #endif // MEGA_UTILS_H

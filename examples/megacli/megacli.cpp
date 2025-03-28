@@ -13485,7 +13485,12 @@ void exec_passwordmanager(autocomplete::ACState& s)
                                      s.extractflagparam("-n").value_or(""),
                                      totpDataJson.value_or(""));
 
-        if (const auto errCode = client->createPasswordNode(name, std::move(pwdData), nParent, 0);
+        if (const auto errCode =
+                client->createPasswordEntry(name,
+                                            std::move(pwdData),
+                                            MegaClient::validateNewPasswordNodeData,
+                                            nParent,
+                                            0);
             errCode != API_OK)
             std::cout << "Error before sending the putnodes. Code: " << errorstring(errCode)
                       << "\n";
@@ -13516,7 +13521,11 @@ void exec_passwordmanager(autocomplete::ACState& s)
             auto pwdData = createPwdData(std::string{pwd}, "", std::string{userName}, "", "");
             info[std::move(name)] = std::move(pwdData);
         }
-        if (const auto errCode = client->createPasswordNodes(std::move(info), nParent, 0);
+        if (const auto errCode =
+                client->createPasswordEntries(std::move(info),
+                                              MegaClient::validateNewPasswordNodeData,
+                                              nParent,
+                                              0);
             errCode != API_OK)
             std::cout << "Error before sending the putnodes. Code: " << errorstring(errCode)
                       << "\n";

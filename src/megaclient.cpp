@@ -21699,7 +21699,7 @@ NodeHandle MegaClient::getPasswordManagerBase()
                NodeHandle{};
 }
 
-void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const
+void MegaClient::preparePasswordManagerNodeData(attr_map& attrs, const AttrMap& data) const
 {
     assert(!data.map.empty());
     attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = data.getjson();
@@ -21741,22 +21741,29 @@ void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManage
     reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rTag, std::move(cbRequest)));
 }
 
-error MegaClient::createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
-                                     std::shared_ptr<Node> nParent, int rTag)
-{
-    std::map<std::string, std::unique_ptr<AttrMap>> aux;
-    aux[name] = std::move(data);
-    return createPasswordNodes(std::move(aux), nParent, rTag);
-}
-
-error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_ptr<AttrMap>>& data,
+error MegaClient::createPasswordEntry(const char* name,
+                                      std::unique_ptr<AttrMap> data,
+                                      PasswordDataValidator dataValidator,
                                       std::shared_ptr<Node> nParent,
                                       int rTag)
+{
+    if (!name || !data)
+        return API_EARGS;
+    std::map<std::string, std::unique_ptr<AttrMap>> aux;
+    aux[name] = std::move(data);
+    return createPasswordEntries(std::move(aux), dataValidator, nParent, rTag);
+}
+
+error MegaClient::createPasswordEntries(
+    ValidPasswordData&& data,
+    std::function<PasswordEntryError(const AttrMap&)> dataValidator,
+    std::shared_ptr<Node> nParent,
+    int rTag)
 {
     assert(nParent);
     if (!nParent->isPasswordManagerNodeFolder())
     {
-        LOG_err << "Password Manager: failed Password Node creation wrong parameters: Password "
+        LOG_err << "Password Manager: failed Password entry creation wrong parameters: Password "
                    "Node Folder parent handle";
         return API_EARGS;
     }
@@ -21771,18 +21778,21 @@ error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_pt
             assert(false);
             continue;
         }
-        if (const auto validCode = validateNewPasswordNodeData(*dataAttrMap);
-            validCode != PasswordEntryError::OK)
+
+        // Prevent storing password entry fields with empty strings
+        dataAttrMap->removeEmptyValues();
+
+        if (const auto validCode = dataValidator(*dataAttrMap); validCode != PasswordEntryError::OK)
         {
-            std::string errMsg = "Password Manager: Wrong parameters. Failed Password Node "
+            std::string errMsg = "Password Manager: Wrong parameters. Failed Password Entry "
                                  "creation for entry with name \"" +
                                  name + "\": ";
             LOG_err << errMsg << toString(validCode);
-            return API_EARGS;
+            return API_EAPPKEY;
         }
         const auto addAttrs = [this, d = dataAttrMap.get()](AttrMap& attrs)
         {
-            preparePasswordNodeData(attrs.map, *d);
+            preparePasswordManagerNodeData(attrs.map, *d);
         };
         NewNode& newPasswordNode = nn[nodeToFillIndex++];
         putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
@@ -21846,14 +21856,19 @@ MegaClient::ImportPaswordResult
     }
 
     ncoll::NameCollisionSolver collisionSolver{getNodesNames(getChildren(parent.get()))};
-    const auto [badEntries, goodEntries] =
+    auto [badEntries, goodEntries] =
         MegaClient::validatePasswordEntries(std::move(parserResult.mResults), collisionSolver);
 
     const auto nGoodEntries = goodEntries.size();
     if (nGoodEntries == 0)
         return {API_OK, badEntries, nGoodEntries};
 
-    return {createPasswordNodes(std::move(goodEntries), parent, rTag), badEntries, nGoodEntries};
+    return {createPasswordEntries(std::move(goodEntries),
+                                  MegaClient::validateNewPasswordNodeData,
+                                  parent,
+                                  rTag),
+            badEntries,
+            nGoodEntries};
 }
 
 PasswordEntryError MegaClient::validateTotpDataFormat(const AttrMap& data)
@@ -21902,6 +21917,9 @@ PasswordEntryError MegaClient::validateNewNodeTotpData(const AttrMap& data)
 
 PasswordEntryError MegaClient::validateNewPasswordNodeData(const AttrMap& data)
 {
+    if (!isPwmDataOfType(data, PwmEntryType::PASSWORD))
+        return PasswordEntryError::PARSE_ERROR;
+
     if (const bool pwdPresent = (data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
         !pwdPresent)
     {
@@ -21920,6 +21938,37 @@ PasswordEntryError MegaClient::validateNewPasswordNodeData(const AttrMap& data)
             return res;
         }
     }
+    return PasswordEntryError::OK;
+}
+
+PasswordEntryError MegaClient::validateNewCreditCardNodeData(const AttrMap& data)
+{
+    auto isValidExpDateFormat = [](const std::string_view s)
+    {
+        if ((s.size() != 5) || (s.at(2) != '/'))
+            return false;
+        if (const auto month = stringToNumber<int>(s.substr(0, 2)); !month || *month > 12)
+            return false;
+        if (!isAllDigits(s.substr(3)))
+            return false;
+
+        return true;
+    };
+
+    if (!isPwmDataOfType(data, PwmEntryType::CREDIT_CARD))
+        return PasswordEntryError::PARSE_ERROR;
+
+    const auto creditCardNumber = data.getStringView(PWM_ATTR_CREDIT_CARD_NUMBER);
+    if (!creditCardNumber || creditCardNumber->empty())
+        return PasswordEntryError::MISSING_CREDIT_CARD_NUMBER;
+    if (!isAllDigits(*creditCardNumber))
+        return PasswordEntryError::INVALID_CREDIT_CARD_NUMBER;
+    if (const auto cvv = data.getStringView(PWM_ATTR_CREDIT_CVV); cvv && !isAllDigits(*cvv))
+        return PasswordEntryError::INVALID_CREDIT_CARD_CVV;
+    if (const auto exp = data.getStringView(PWM_ATTR_CREDIT_EXP_DATE);
+        exp && !isValidExpDateFormat(*exp))
+        return PasswordEntryError::INVALID_CREDIT_CARD_EXPIRATION_DATE;
+
     return PasswordEntryError::OK;
 }
 
@@ -21965,6 +22014,41 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
     return result;
 }
 
+error MegaClient::updateCreditCardNode(const NodeHandle nh,
+                                       std::unique_ptr<AttrMap> newData,
+                                       CommandSetAttr::Completion&& cb)
+{
+    auto pwdNode = nodeByHandle(nh);
+    if (const auto err = checkRenameNodePrecons(pwdNode); err != API_OK)
+        return err;
+    if (!newData || newData->map.empty() ||
+        (newData->map.size() == 1 && newData->getStringView(PWM_ATTR_NODE_TYPE)))
+        return logAndReturnError(
+            API_EARGS,
+            "Password Manager: calling updateCreditCardNode with nothing to update");
+    if (!pwdNode->isCreditCardNode())
+        return logAndReturnError(
+            API_EARGS,
+            "Password Manager: calling updateCreditCardNode with not a Credit Card Node handle");
+
+    AttrMap mergedData =
+        pwdNode->attrs.getNestedJsonObject(NODE_ATTR_PASSWORD_MANAGER).value_or(AttrMap{});
+    mergedData.applyUpdates(newData->map);
+
+    if (const auto validCode = validateNewCreditCardNodeData(mergedData);
+        validCode != PasswordEntryError::OK)
+        return logAndReturnError(API_EAPPKEY,
+                                 "Password Manager: calling updateCreditCardNode with data that "
+                                 "leaves the node in an invalid state. Validation error: " +
+                                     std::string{toString(validCode)});
+
+    attr_map updates;
+    preparePasswordManagerNodeData(updates, mergedData);
+
+    static constexpr bool CAN_CHANGE_VAULT{true};
+    return setattr(std::move(pwdNode), std::move(updates), std::move(cb), CAN_CHANGE_VAULT);
+}
+
 error MegaClient::updatePasswordNode(const NodeHandle nh,
                                      std::unique_ptr<AttrMap> newData,
                                      CommandSetAttr::Completion&& cb)
@@ -21993,7 +22077,7 @@ error MegaClient::updatePasswordNode(const NodeHandle nh,
                                      std::string{toString(validCode)});
 
     attr_map updates;
-    preparePasswordNodeData(updates, mergedData);
+    preparePasswordManagerNodeData(updates, mergedData);
 
     static constexpr bool CAN_CHANGE_VAULT{true};
     return setattr(std::move(pwdNode), std::move(updates), std::move(cb), CAN_CHANGE_VAULT);

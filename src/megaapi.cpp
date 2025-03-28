@@ -630,6 +630,11 @@ bool MegaNode::isForeign()
     return false;
 }
 
+bool MegaNode::isCreditCardNode() const
+{
+    return false;
+}
+
 bool MegaNode::isPasswordNode() const
 {
     return false;
@@ -638,6 +643,20 @@ bool MegaNode::isPasswordNode() const
 bool MegaNode::isPasswordManagerNode() const
 {
     return false;
+}
+
+MegaNode::CreditCardNodeData*
+    MegaNode::CreditCardNodeData::createInstance(const char* cardNumber,
+                                                 const char* notes,
+                                                 const char* cardHolderName,
+                                                 const char* cvv,
+                                                 const char* expirationDate)
+{
+    return new MegaNodePrivate::CCNDataPrivate(cardNumber,
+                                               notes,
+                                               cardHolderName,
+                                               cvv,
+                                               expirationDate);
 }
 
 MegaNode::PasswordNodeData::TotpData* MegaNode::PasswordNodeData::TotpData::createRemovalInstance()
@@ -664,6 +683,11 @@ MegaNode::PasswordNodeData* MegaNode::PasswordNodeData::createInstance(const cha
                                                                        const TotpData* totpData)
 {
     return new MegaNodePrivate::PNDataPrivate(pwd, notes, url, userName, totpData);
+}
+
+MegaNode::CreditCardNodeData* MegaNode::getCreditCardData() const
+{
+    return NULL;
 }
 
 MegaNode::PasswordNodeData* MegaNode::getPasswordData() const
@@ -2564,10 +2588,25 @@ bool MegaApi::isPasswordManagerNodeFolder(MegaHandle node) const
     return pImpl->isPasswordManagerNodeFolder(node);
 }
 
+void MegaApi::createCreditCardNode(const char* name,
+                                   const MegaNode::CreditCardNodeData* data,
+                                   MegaHandle parent,
+                                   MegaRequestListener* listener)
+{
+    pImpl->createCreditCardNode(name, data, parent, listener);
+}
+
 void MegaApi::createPasswordNode(const char* name, const MegaNode::PasswordNodeData* data,
                                  MegaHandle parent, MegaRequestListener* listener)
 {
     pImpl->createPasswordNode(name, data, parent, listener);
+}
+
+void MegaApi::updateCreditCardNode(MegaHandle node,
+                                   const MegaNode::CreditCardNodeData* newData,
+                                   MegaRequestListener* listener)
+{
+    pImpl->updateCreditCardNode(node, newData, listener);
 }
 
 void MegaApi::updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,

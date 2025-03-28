@@ -1446,13 +1446,22 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
     }
 }
 
+bool Node::isCreditCardNode() const
+{
+    if (!isPasswordManagerNode())
+        return false;
+
+    const auto pwmData = attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+    return pwmData && MegaClient::isPwmDataOfType(*pwmData, MegaClient::PwmEntryType::CREDIT_CARD);
+}
+
 bool Node::isPasswordNode() const
 {
     if (!isPasswordManagerNode())
         return false;
 
-    return MegaClient::toPwmEntryType(attrs.getStringView(MegaClient::PWM_ATTR_NODE_TYPE)) ==
-           MegaClient::PwmEntryType::PASSWORD;
+    const auto pwmData = attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+    return pwmData && MegaClient::isPwmDataOfType(*pwmData, MegaClient::PwmEntryType::PASSWORD);
 }
 
 bool Node::isPasswordManagerNode() const
