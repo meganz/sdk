@@ -754,8 +754,13 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
     {
         const auto previousPath = this->toPath(false);
         mImplementation =
-            std::make_unique<PathURI>(*LocalPathImplementationHelper::getPathURI(*this));
-        mImplementation->appendWithSeparator(LocalPath::fromRelativePath(previousPath), true);
+            std::make_unique<PathURI>(*LocalPathImplementationHelper::getPathURI(additionalPath));
+        auto leaves = splitString<std::vector<string>>(previousPath, localPathSeparator);
+        for (auto& leaf: leaves)
+        {
+            mImplementation->appendWithSeparator(LocalPath::fromRelativePath(leaf), true);
+        }
+
         return;
     }
     else if (!mImplementation)
@@ -1737,15 +1742,16 @@ void PathURI::append(const LocalPath& additionalPath)
     mAuxPath.back().append(additionalPath.asPlatformEncoded(false));
 }
 
-void PathURI::appendWithSeparator(const LocalPath& additionalPath, const bool withSeparator)
+void PathURI::appendWithSeparator(const LocalPath& additionalPath, const bool)
 {
-    if (withSeparator)
+    const auto auxPath = additionalPath.toPath(false);
+    auto leaves =
+        splitString<std::vector<string_type>>(auxPath, LocalPath::localPathSeparator_utf8);
+    for (const auto& leaf: leaves)
     {
-        mAuxPath.emplace_back(additionalPath.asPlatformEncoded(false));
-    }
-    else
-    {
-        append(additionalPath);
+        string_type auxLeaf;
+        LocalPath::path2local(&leaf, &auxLeaf);
+        mAuxPath.emplace_back(auxLeaf);
     }
 }
 
