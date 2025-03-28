@@ -67,5 +67,8 @@ release.create_rc_tag(last_rc + 1)
 
 # STEP 2: Slack: step #8 from make_release:
 # Post release notes to Slack
-apps = [a.strip() for a in app_descr.split("/")]
+if args["target_apps"]:
+    apps = [a.strip() for a in args["target_apps"].split("/")]
+else:
+    apps = [a.strip() for a in app_descr.split("/")]
 release.post_notes(apps, releaseType="releaseCandidate", tickets=tickets)
