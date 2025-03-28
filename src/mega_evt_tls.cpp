@@ -8,13 +8,11 @@
 //
 //%///////////////////////////////////////////////////////////////////////////
 
-#if defined(HAVE_CONFIG_H) || !(defined _WIN32)
 // platform dependent constants
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(HAVE_SDK_CONFIG_H)
 #include "mega/config-android.h"
 #else
 #include "mega/config.h"
-#endif
 #endif
 
 #if defined(HAVE_LIBUV)
