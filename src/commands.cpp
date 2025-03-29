@@ -2041,6 +2041,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
 
                 client->openStatusTable(true);
                 client->loadJourneyIdCacheValues();
+                client->setSyncUploadThrottleParamsFromAPI();
 
                 { // scope for local variable
                     MegaClient* cl = client; // make a copy, because 'this' will be gone by the time lambda will execute
@@ -12859,6 +12860,97 @@ bool CommandGetMyIP::procresult(Command::Result r, JSON& json)
                     std::move(countryCode),
                     std::move(ipAddress));
     }
+    return true;
+}
+
+CommandSetThrottlingParams::CommandSetThrottlingParams(const MegaClient& client,
+                                                       Completion&& completion):
+    mCompletion(std::move(completion))
+{
+    assert(mCompletion);
+    cmd("stp");
+
+    tag = client.reqtag;
+}
+
+std::pair<bool, std::optional<CommandSetThrottlingParams::ThrottlingParamsFromAPI>>
+    CommandSetThrottlingParams::parseJson(JSON& json)
+{
+    std::optional<m_off_t> updateRateInSeconds;
+    std::optional<m_off_t> maxUploadsBeforeThrottle;
+    std::optional<m_off_t> uploadCounterInactivityTime;
+
+    for (bool finished = false; !finished;)
+    {
+        switch (json.getnameid())
+        {
+            case makeNameid("ur"):
+            {
+                updateRateInSeconds = json.getint();
+                break;
+            }
+
+            case makeNameid("uc"):
+            {
+                maxUploadsBeforeThrottle = json.getint();
+                break;
+            }
+
+            case makeNameid("ucr"):
+            {
+                uploadCounterInactivityTime = json.getint();
+                break;
+            }
+
+            case EOO:
+            {
+                finished = true;
+                break;
+            }
+
+            default:
+            {
+                if (!json.storeobject())
+                {
+                    LOG_err
+                        << "[CommandSetThrottlingParams::procresult] Failed to parse throttling "
+                           "parameters inside the array";
+                    return {false, {}};
+                }
+                break;
+            }
+        }
+    }
+
+    if (!updateRateInSeconds || !maxUploadsBeforeThrottle || !uploadCounterInactivityTime)
+    {
+        return {true, {}};
+    }
+
+    return {true,
+            CommandSetThrottlingParams::ThrottlingParamsFromAPI{*updateRateInSeconds,
+                                                                *maxUploadsBeforeThrottle,
+                                                                *uploadCounterInactivityTime}};
+}
+
+bool CommandSetThrottlingParams::procresult(Result r, JSON& json)
+{
+    if (!r.hasJsonObject())
+    {
+        const auto wasErrorOrOk = r.wasErrorOrOK();
+        mCompletion(wasErrorOrOk ? r.errorOrOK() : static_cast<Error>(API_EINTERNAL));
+        return wasErrorOrOk;
+    }
+
+    auto [parseOk, throttlingParams] = parseJson(json);
+
+    if (!parseOk || !throttlingParams)
+    {
+        mCompletion(parseOk ? API_EARGS : API_EINTERNAL);
+        return parseOk;
+    }
+
+    mCompletion(*throttlingParams);
     return true;
 }
 
