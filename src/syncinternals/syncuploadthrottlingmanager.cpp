@@ -61,10 +61,8 @@ bool UploadThrottlingManager::checkProcessDelayedUploads() const
     }
 
     // Calculate adjusted interval
-    const auto adjustedThrottleUpdateRate = std::chrono::duration_cast<std::chrono::seconds>(
-        mThrottleUpdateRate / std::sqrt(static_cast<double>(mDelayedQueue.size())));
     const auto throttleUpdateRate = std::max(std::chrono::seconds(THROTTLE_UPDATE_RATE_LOWER_LIMIT),
-                                             adjustedThrottleUpdateRate);
+                                             dynamicThrottleUpdateRate());
 
     if (const auto timeSinceLastProcessedUploadInSeconds = timeSinceLastProcessedUpload();
         timeSinceLastProcessedUploadInSeconds < throttleUpdateRate)
@@ -107,6 +105,16 @@ void UploadThrottlingManager::processDelayedUploads(
         resetLastProcessedTime();
         completion(std::move(delayedUpload));
     }
+}
+
+std::chrono::seconds calcDynamicThrottleUpdateRate(const std::chrono::seconds updateRateSeconds,
+                                                   const size_t delayedUploadsSize)
+{
+    if (!delayedUploadsSize)
+        return std::chrono::seconds{0};
+
+    return std::chrono::duration_cast<std::chrono::seconds>(
+        updateRateSeconds / std::sqrt(static_cast<double>(delayedUploadsSize)));
 }
 
 } // namespace mega
