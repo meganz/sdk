@@ -42,9 +42,8 @@ enum class NetworkConnectivityTestMessageStatus : int
 
 struct NetworkConnectivityTestIpResults
 {
-    NetworkConnectivityTestMessageStatus udpMessages{NetworkConnectivityTestMessageStatus::NOT_RUN};
-    NetworkConnectivityTestMessageStatus dnsLookupMessages{
-        NetworkConnectivityTestMessageStatus::NOT_RUN};
+    NetworkConnectivityTestMessageStatus messages{NetworkConnectivityTestMessageStatus::NOT_RUN};
+    NetworkConnectivityTestMessageStatus dns{NetworkConnectivityTestMessageStatus::NOT_RUN};
     std::string summary;
     std::vector<std::string> socketErrors;
 };

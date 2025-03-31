@@ -45,13 +45,17 @@ public:
 
 private:
     NetworkConnectivityTestIpResults
-        getTestResults(std::vector<std::shared_ptr<UdpSocketTester>>& testers, char summaryPrefix);
+        getTestResults(std::shared_ptr<UdpSocketTester> dnsTester,
+                       std::vector<std::shared_ptr<UdpSocketTester>>& testers,
+                       char summaryPrefix);
     static void updateStatus(int error, NetworkConnectivityTestMessageStatus& status);
     static bool isNetworkUnreachable(int errorCode);
     std::string getSummary(char ipPrefix,
                            const std::vector<UdpSocketTester::SocketResults>& results);
 
+    std::shared_ptr<UdpSocketTester> mSocketTesterIPv4Dns;
     std::vector<std::shared_ptr<UdpSocketTester>> mSocketTestersIPv4;
+    std::shared_ptr<UdpSocketTester> mSocketTesterIPv6Dns;
     std::vector<std::shared_ptr<UdpSocketTester>> mSocketTestersIPv6;
     uint16_t mTestsPerSocket{};
     std::chrono::high_resolution_clock::time_point mTimeoutOfReceive;

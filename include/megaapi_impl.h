@@ -5921,16 +5921,16 @@ private:
 class MegaNetworkConnectivityTestResultsPrivate: public MegaNetworkConnectivityTestResults
 {
 public:
-    MegaNetworkConnectivityTestResultsPrivate(int ipv4udp, int ipv4dns, int ipv6udp, int ipv6dns):
-        mIPv4UDP(ipv4udp),
+    MegaNetworkConnectivityTestResultsPrivate(int ipv4, int ipv4dns, int ipv6, int ipv6dns):
+        mIPv4(ipv4),
         mIPv4DNS(ipv4dns),
-        mIPv6UDP(ipv6udp),
+        mIPv6(ipv6),
         mIPv6DNS(ipv6dns)
     {}
 
     int getIPv4UDP() const override
     {
-        return mIPv4UDP;
+        return mIPv4;
     }
 
     int getIPv4DNS() const override
@@ -5940,7 +5940,7 @@ public:
 
     int getIPv6UDP() const override
     {
-        return mIPv6UDP;
+        return mIPv6;
     }
 
     int getIPv6DNS() const override
@@ -5951,9 +5951,9 @@ public:
     MegaNetworkConnectivityTestResultsPrivate* copy() const override;
 
 private:
-    const int mIPv4UDP;
+    const int mIPv4;
     const int mIPv4DNS;
-    const int mIPv6UDP;
+    const int mIPv6;
     const int mIPv6DNS;
 };
 

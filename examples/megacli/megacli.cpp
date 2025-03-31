@@ -13106,16 +13106,14 @@ void exec_networktest(autocomplete::ACState&)
             if (e == API_OK)
             {
                 cout << "Network connectivity test:\n"
-                     << "\tIPv4 UDP: "
-                     << NetworkConnectivityTestStatusToString(results.ipv4.udpMessages) << '\n'
-                     << "\tIPv4 DNS: "
-                     << NetworkConnectivityTestStatusToString(results.ipv4.dnsLookupMessages)
+                     << "\tIPv4: " << NetworkConnectivityTestStatusToString(results.ipv4.messages)
+                     << '\n'
+                     << "\tIPv4 DNS: " << NetworkConnectivityTestStatusToString(results.ipv4.dns)
                      << '\n'
                      << "\tIPv4 summary: " << results.ipv4.summary << '\n'
-                     << "\tIPv6 UDP: "
-                     << NetworkConnectivityTestStatusToString(results.ipv6.udpMessages) << '\n'
-                     << "\tIPv6 DNS: "
-                     << NetworkConnectivityTestStatusToString(results.ipv6.dnsLookupMessages)
+                     << "\tIPv6: " << NetworkConnectivityTestStatusToString(results.ipv6.messages)
+                     << '\n'
+                     << "\tIPv6 DNS: " << NetworkConnectivityTestStatusToString(results.ipv6.dns)
                      << '\n'
                      << "\tIPv6 summary: " << results.ipv6.summary << endl;
             }

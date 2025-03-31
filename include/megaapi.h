@@ -25717,7 +25717,7 @@ public:
     };
 
     /**
-     * @brief Get the result of testing UDP communication over IPv4
+     * @brief Get the result of testing communication over IPv4
      *
      * @return The type of the flag. Possible values are any of the NETWORK_CONNECTIVITY_TEST_x
      * values.
@@ -25733,7 +25733,7 @@ public:
     virtual int getIPv4DNS() const = 0;
 
     /**
-     * @brief Get the result of testing UDP communication over IPv6
+     * @brief Get the result of testing communication over IPv6
      *
      * @return The type of the flag. Possible values are any of the NETWORK_CONNECTIVITY_TEST_x
      * values.
