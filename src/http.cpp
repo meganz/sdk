@@ -244,10 +244,10 @@ Proxy *HttpIO::getautoproxy()
     {
         GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
     }
-#endif
-
-#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
+#elif defined(__APPLE__) && !(TARGET_OS_IPHONE)
     getOSXproxy(proxy);
+#elif !defined(__APPLE__) && !defined(__ANDROID__)
+    getEnvProxy(proxy);
 #endif
 
     return proxy;
