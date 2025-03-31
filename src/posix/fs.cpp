@@ -42,7 +42,7 @@
 #include <mega/android/androidFileSystem.h>
 
 #include <jni.h>
-extern JavaVM *MEGAjvm;
+extern JavaVM* MEGAjvm;
 extern jclass fileWrapper;
 #endif
 

@@ -274,6 +274,13 @@ target_sources_conditional(SDKlib
 )
 
 target_sources_conditional(SDKlib
+    FLAG ANDROID
+    PRIVATE
+    include/mega/android/androidFileSystem.h
+    src/android/androidFileSystem.cpp
+)
+
+target_sources_conditional(SDKlib
     FLAG ENABLE_DRIVE_NOTIFICATIONS
     PRIVATE
     include/mega/drivenotify.h

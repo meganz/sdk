@@ -19,7 +19,7 @@
 #endif
 
 #ifdef SWIGJAVA
-JavaVM *MEGAjvm = NULL;
+extern JavaVM* MEGAjvm;
 jstring strEncodeUTF8 = NULL;
 jclass clsString = NULL;
 jmethodID ctorString = NULL;
@@ -29,8 +29,8 @@ jmethodID startVideoCaptureMID = NULL;
 jmethodID stopVideoCaptureMID = NULL;
 jmethodID deviceListMID = NULL;
 jobject surfaceTextureHelper = NULL;
-jclass fileWrapper = NULL;
-jclass integerClass = NULL;
+extern jclass fileWrapper;
+extern jclass integerClass;
 
 
 extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
