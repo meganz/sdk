@@ -234,32 +234,17 @@ void ensureAccountDeviceName(MegaApi* megaApi)
     ASSERT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
 }
 
-fs::path createLocalFolder(const fs::path& p)
-{
-    if (fs::exists(p) && !fs::remove(p))
-    {
-        LOG_err << "createLocalFolder: " << p.u8string() << " already exists and cannot be removed";
-        return fs::path{};
-    }
-    if (!fs::create_directory(p))
-    {
-        LOG_err << "createLocalFolder: " << p.u8string() << " cannot be created";
-        return fs::path{};
-    }
-    return p;
-}
-
-std::optional<int> downloadFile(MegaApi* megaApi,
+std::optional<int> downloadNode(MegaApi* megaApi,
                                 MegaNode* node,
                                 const std::filesystem::path& fsPath,
+                                const std::chrono::seconds timeoutInSecs,
+                                const int collisionCheck,
+                                const int collisionResolution,
                                 const char* customName,
                                 const char* appData,
                                 const bool startFirst,
                                 MegaCancelToken* cancelToken,
-                                const int collisionCheck,
-                                const int collisionResolution,
-                                const bool undelete,
-                                const std::chrono::seconds timeoutInSecs)
+                                const bool undelete)
 {
     if (!megaApi || !node)
     {
@@ -271,9 +256,9 @@ std::optional<int> downloadFile(MegaApi* megaApi,
     testing::NiceMock<MockMegaTransferListener> mtl{megaApi};
     EXPECT_CALL(mtl, onTransferFinish)
         .WillOnce(
-            [&mtl, &err](::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* error)
+            [&mtl, &err](MegaApi*, MegaTransfer*, MegaError* error)
             {
-                err = error ? error->getErrorCode() : API_EARGS;
+                err = error ? error->getErrorCode() : API_EINTERNAL;
                 mtl.markAsFinished();
             });
 

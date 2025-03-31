@@ -23,8 +23,6 @@ namespace sdk_test
 {
 using namespace std::chrono_literals;
 static constexpr auto MAX_TIMEOUT = 3min; // Timeout for operations in this file
-static constexpr auto MAX_TIMEOUT_IN_SECS =
-    MAX_TIMEOUT * 60; // Timeout for operations in this file in secs
 #ifdef ENABLE_SYNC
 
 /**
@@ -163,31 +161,24 @@ bool checkAndExpectThat(const T& value, const MatcherT& matcher)
 }
 
 /**
- * @brief createLocalFolder creates a folder in local filesystem
- *
- * @param p input filesystem path
- * @return a filesystem path with the path of created folder, or an empty filesystem path if it
- * couldn't create it
- */
-fs::path createLocalFolder(const fs::path& p);
-
-/**
  * @brief Downloads a file from MEGA
  * @see MegaApi::startDownload for more details
  * @return a Numeric errCode corresponding to MegaError received at
  * MegaTransferListener::onTransferFinish, or nullopt if onTransferFinish is never called.
+ * Note: If onTransferFinish is called but MegaError is not valid API_EINTERNAL will be returned.
  */
-std::optional<int> downloadFile(::mega::MegaApi* megaApi,
-                                ::mega::MegaNode* node,
-                                const std::filesystem::path& fsPath,
-                                const char* customName,
-                                const char* appData,
-                                const bool startFirst,
-                                ::mega::MegaCancelToken* cancelToken,
-                                const int collisionCheck,
-                                const int collisionResolution,
-                                const bool undelete,
-                                const std::chrono::seconds timeoutInSecs = MAX_TIMEOUT_IN_SECS);
+std::optional<int> downloadNode(
+    ::mega::MegaApi* megaApi,
+    ::mega::MegaNode* node,
+    const std::filesystem::path& fsPath,
+    const std::chrono::seconds timeoutInSecs = MAX_TIMEOUT,
+    const int collisionCheck = mega::MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+    const int collisionResolution = mega::MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+    const char* customName = nullptr,
+    const char* appData = nullptr,
+    const bool startFirst = false,
+    ::mega::MegaCancelToken* cancelToken = nullptr,
+    const bool undelete = false);
 
 /**
  * @brief Uploads the file in the given path to the given parentNode.

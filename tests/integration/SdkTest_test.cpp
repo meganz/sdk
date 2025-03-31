@@ -3052,7 +3052,7 @@ TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
     std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
 
     LOG_debug << "#### TEST1: Create Folder in local FS ####";
-    ASSERT_FALSE(sdk_test::createLocalFolder(basePath / itemName).empty());
+    sdk_test::LocalTempDir d(basePath / itemName);
 
     LOG_debug << "#### TEST2: Create File in cloud drive ####";
     const auto newNode =
@@ -3062,17 +3062,12 @@ TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
     ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
 
     LOG_debug << "#### TEST3: Download file at dir with Folder with same name ####";
-    const auto errCode = sdk_test::downloadFile(megaApi[0].get(),
+    const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
                                                 newNode.get(),
                                                 basePath / itemName,
-                                                nullptr /*customName*/,
-                                                nullptr /*appData*/,
-                                                false /*startFirst*/,
-                                                nullptr /*cancelToken*/,
+                                                180s /*timeout*/,
                                                 MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
-                                                MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
-                                                false /*undelete*/,
-                                                180s /*timeout*/);
+                                                MegaTransfer::COLLISION_RESOLUTION_OVERWRITE);
 
     ASSERT_TRUE(errCode.has_value()) << "test_utils(downloadFile) has returned nullopt";
     ASSERT_EQ(*errCode, API_EWRITE)
