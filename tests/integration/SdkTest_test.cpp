@@ -6962,6 +6962,47 @@ TEST_F(SdkTest, SdkTestChat)
 }
 #endif
 
+TEST_F(SdkTest, SdkTestFolderInfo)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode);
+    auto f1node = createDirectory(*megaApi[0], *rootNode, "folder1");
+    ASSERT_EQ(result(f1node), API_OK);
+    ASSERT_TRUE(value(f1node));
+    auto node = createDirectory(*megaApi[0], *value(f1node), "folder1.1");
+    ASSERT_EQ(result(node), API_OK);
+    ASSERT_TRUE(value(node));
+    ASSERT_TRUE(createFile(UPFILE, false)); // local file
+    MegaHandle fileHande = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHande,
+                            UPFILE.c_str(),
+                            value(node).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/));
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHande,
+                            UPFILE.c_str(),
+                            value(f1node).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/));
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, value(f1node).get()));
+    auto info = mApi[0].mFolderInfo.get();
+    ASSERT_EQ(info->getNumFiles(), 2);
+    ASSERT_EQ(info->getNumFolders(), 1);
+}
+
 class myMIS : public MegaInputStream
 {
 public:
@@ -13227,7 +13268,9 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(),
+              numberTotalOfFolders - (removedFolder->getNumFolders() + 1))
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
 
     waitForResponse(&check2); // Wait until receive nodes updated at client 2
@@ -13240,7 +13283,9 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     // --- UserB Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(),
+              numberTotalOfFolders - (removedFolder->getNumFolders() + 1))
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
 
     unique_ptr<MegaNode> nodeToMove(megaApi[0]->getNodeByHandle(handleFolderToMove));
@@ -13268,19 +13313,26 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles() - movedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders() - movedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(),
+              numberTotalOfFolders - (removedFolder->getNumFolders() + 1) -
+                  (movedFolder->getNumFolders() + 1))
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize() - movedFolder->getCurrentSize()) << "Incorrect account Size";
 
     // --- UserB Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles() - movedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders() - movedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(),
+              numberTotalOfFolders - (removedFolder->getNumFolders() + 1) -
+                  (movedFolder->getNumFolders() + 1))
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize() - movedFolder->getCurrentSize()) << "Incorrect account Size";
 
     // --- UserA Check folder info from rubbish node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rubbishBinA.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), movedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), movedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), movedFolder->getNumFolders() + 1)
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), movedFolder->getCurrentSize()) << "Incorrect account Size";
 
     // --- UserB Check folder info from rubbish node ---
@@ -13288,7 +13340,8 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_TRUE(rubbishBinB);
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rubbishBinB.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), movedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), movedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), movedFolder->getNumFolders() + 1)
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), movedFolder->getCurrentSize()) << "Incorrect account Size";
 
     ASSERT_NO_FATAL_FAILURE(locallogout());
