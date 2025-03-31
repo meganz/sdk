@@ -45,7 +45,7 @@ TEST_F(SdkTest, NetworkConnectivityTest)
     auto* testResults = tracker.request->getMegaNetworkConnectivityTestResults();
     ASSERT_THAT(testResults, ::testing::NotNull());
 
-    ASSERT_THAT(testResults->getIPv4(),
+    ASSERT_THAT(testResults->getIPv4UDP(),
                 ::testing::AnyOf(
                     MegaNetworkConnectivityTestResults::NETWORK_CONNECTIVITY_TEST_PASS,
                     MegaNetworkConnectivityTestResults::NETWORK_CONNECTIVITY_TEST_NET_UNREACHABLE));
@@ -55,7 +55,7 @@ TEST_F(SdkTest, NetworkConnectivityTest)
                     MegaNetworkConnectivityTestResults::NETWORK_CONNECTIVITY_TEST_PASS,
                     MegaNetworkConnectivityTestResults::NETWORK_CONNECTIVITY_TEST_NET_UNREACHABLE));
 
-    ASSERT_THAT(testResults->getIPv6(),
+    ASSERT_THAT(testResults->getIPv6UDP(),
                 ::testing::AnyOf(
                     MegaNetworkConnectivityTestResults::NETWORK_CONNECTIVITY_TEST_PASS,
                     MegaNetworkConnectivityTestResults::NETWORK_CONNECTIVITY_TEST_NET_UNREACHABLE));

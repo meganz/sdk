@@ -5848,7 +5848,7 @@ public:
         mIPv6DNS(ipv6dns)
     {}
 
-    int getIPv4() const override
+    int getIPv4UDP() const override
     {
         return mIPv4;
     }
@@ -5858,7 +5858,7 @@ public:
         return mIPv4DNS;
     }
 
-    int getIPv6() const override
+    int getIPv6UDP() const override
     {
         return mIPv6;
     }

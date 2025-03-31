@@ -25480,7 +25480,7 @@ public:
      * @return The type of the flag. Possible values are any of the NETWORK_CONNECTIVITY_TEST_x
      * values.
      */
-    virtual int getIPv4() const = 0;
+    virtual int getIPv4UDP() const = 0;
 
     /**
      * @brief Get the result of testing DNS resolution over IPv4
@@ -25496,7 +25496,7 @@ public:
      * @return The type of the flag. Possible values are any of the NETWORK_CONNECTIVITY_TEST_x
      * values.
      */
-    virtual int getIPv6() const = 0;
+    virtual int getIPv6UDP() const = 0;
 
     /**
      * @brief Get the result of testing DNS resolution over IPv6
