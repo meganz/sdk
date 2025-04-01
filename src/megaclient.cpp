@@ -47,6 +47,10 @@
 #undef min // avoid issues with std::min and std::max
 #undef max
 
+#ifdef __ANDROID__
+#include "mega/android/androidFileSystem.h"
+#endif
+
 namespace mega {
 
 // FIXME: generate cr element for file imports

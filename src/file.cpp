@@ -86,7 +86,7 @@ bool File::serialize(string *d) const
     d->append((char*)&ll, sizeof(ll));
     d->append(name.data(), ll);
 
-    auto tmpstr = getLocalname().platformEncoded();
+    auto tmpstr = getLocalname().serialize();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
@@ -123,7 +123,10 @@ bool File::serialize(string *d) const
 
     d->append((char*)&mCollisionResolution, 1);
 
-    d->append("\0\0\0\0\0\0\0", 8);
+    bool pathSerializedAsLocalPath = true;
+    d->append(reinterpret_cast<const char*>(&pathSerializedAsLocalPath), sizeof(bool));
+
+    d->append("\0\0\0\0\0\0", 7);
 
     if (hasChatAuth)
     {
@@ -230,7 +233,6 @@ File *File::unserialize(string *d)
     fp.reset();
 
     file->name.assign(name, namelen);
-    file->setLocalname(LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen)));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
@@ -266,13 +268,33 @@ File *File::unserialize(string *d)
     }
     file->setCollisionResolution(static_cast<CollisionResolution>(collisionResolutionUint8));
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    bool pathSerializedAsLocalPath = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    if (pathSerializedAsLocalPath)
+    {
+        auto localPath = LocalPath::unserialize(std::string(localname, localnamelen));
+        if (!localPath.has_value())
+        {
+            LOG_err << "File unserialization failed - invalid LocalPath";
+            delete file;
+            return NULL;
+        }
+        file->setLocalname(localPath.value());
+    }
+    else
+    {
+        file->setLocalname(
+            LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen)));
+    }
+
+    if (memcmp(ptr, "\0\0\0\0\0\0", 7))
     {
         LOG_err << "File unserialization failed - invalid version";
         delete file;
         return NULL;
     }
-    ptr += 8;
+    ptr += 7;
 
     if (hasChatAuth)
     {

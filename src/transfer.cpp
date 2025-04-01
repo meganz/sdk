@@ -183,7 +183,7 @@ bool Transfer::serialize(string *d) const
 
     d->append((const char*)&type, sizeof(type));
 
-    const auto& tmpstr = localfilename.platformEncoded();
+    const auto& tmpstr = localfilename.serialize();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
@@ -241,8 +241,9 @@ bool Transfer::serialize(string *d) const
     // version. Originally, 0.  Version 1 adds expansion flags, which then work in the usual way
     cw.serializeu8(1);
 
-    // 8 expansion flags, in the normal manner.  First flag is for whether downloadFileHandle is present
-    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1);
+    // 8 expansion flags, in the normal manner.  First flag is for whether downloadFileHandle is
+    // present Second Flag is for marking if localfilename is serialized as LocalPath
+    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1, 1);
 
     if (!downloadFileHandle.isUndef())
     {
@@ -284,10 +285,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     }
 
     unique_ptr<Transfer> t(new Transfer(client, type));
-    if (!filepath.empty())
-    {
-        t->localfilename = LocalPath::fromPlatformEncodedAbsolute(filepath);
-    }
 
     int8_t hasUltoken;  // value 1 was for OLDUPLOADTOKENLEN, but that was from 2016
 
@@ -316,17 +313,31 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     int8_t state;
     int8_t version;
     if ((hasUltoken && !r.unserializebinary(t->ultoken->data(), UPLOADTOKENLEN)) ||
-        !r.unserializestring(combinedUrls) ||
-        !r.unserializei8(state) ||
-        !r.unserializeu64(t->priority) ||
-        !r.unserializei8(version) ||
-        (version > 0 && !r.unserializeexpansionflags(expansionflags, 1)) ||
+        !r.unserializestring(combinedUrls) || !r.unserializei8(state) ||
+        !r.unserializeu64(t->priority) || !r.unserializei8(version) ||
+        (version > 0 && !r.unserializeexpansionflags(expansionflags, 2)) ||
         (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)))
     {
         LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
         return nullptr;
     }
     assert(!r.hasdataleft());
+
+    if (!filepath.empty())
+    {
+        if (const bool isLocalPath = expansionflags[1] == 1; isLocalPath)
+        {
+            auto localPath = LocalPath::unserialize(filepath);
+            if (localPath.has_value())
+            {
+                t->localfilename = localPath.value();
+            }
+        }
+        else
+        {
+            t->localfilename = LocalPath::fromPlatformEncodedAbsolute(filepath);
+        }
+    }
 
     size_t ll = combinedUrls.size();
     for (size_t p = 0; p < ll; )
