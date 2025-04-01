@@ -1,0 +1,44 @@
+{
+    "version": 1,
+    "configurePresets": [
+        {
+            "name": "megasync-ninja",
+            "description": "Preset for configuring MEGAsync with Ninja",
+            "hidden": false,
+            "generator": "Ninja",
+            "binaryDir": "${sourceParentDir}/build_dir",
+            "cacheVariables": {
+                "USE_LIBUV": "ON", 
+                "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_QT_BINDINGS": "ON",
+                "ENABLE_ISOLATED_GFX": "ON"
+            }
+        },
+        {
+            "name": "megasync-unix",
+            "description": "Preset for configuring MEGAsync with Unix Makefiles",
+            "hidden": false,
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceParentDir}/build_dir",
+            "cacheVariables": {
+                "USE_LIBUV": "ON", 
+                "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_QT_BINDINGS": "ON",
+                "ENABLE_ISOLATED_GFX": "ON"
+            }
+        },
+        {
+            "name": "megasync-vs",
+            "description": "Preset for configuring MEGAsync with Visual Studio",
+            "hidden": false,
+            "generator": "Visual Studio 17 2022",
+            "binaryDir": "${sourceParentDir}/build_dir",
+            "cacheVariables": {
+                "USE_LIBUV": "ON", 
+                "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_QT_BINDINGS": "ON",
+                "ENABLE_ISOLATED_GFX": "ON"
+            }
+        }
+    ]
+}
