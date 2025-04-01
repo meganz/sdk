@@ -74,11 +74,12 @@ CMD ["sh", "-c", "\
     case ${BUILD_SHARED_LIBS} in \
       ON) \
         export DEFINE_BUILD_SHARED_LIBS_ON=-DBUILD_SHARED_LIBS=ON;; \
-      OFF) \
+      OFF|'') \
         ;; \
       *) \
-        echo 'Unsupported value for BUILD_SHARED_LIBS:' ${BUILD_SHARED_LIBS} && \
-        echo 'Valid values are: ON|OFF' && exit 1;; \
+        echo 'error: Unsupported value for BUILD_SHARED_LIBS:' ${BUILD_SHARED_LIBS} && \
+        echo 'Valid values are: ON | OFF' && \
+        echo 'Build stopped.' && exit 1;; \
     esac && \
     su - me -w 'ANDROID_NDK_HOME,PATH,JAVA_HOME,VCPKG_TRIPLET,ANDROID_ARCH,DEFINE_BUILD_SHARED_LIBS_ON' -c ' \
     cmake -B buildAndroid -S sdk \
