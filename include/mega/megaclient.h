@@ -1262,6 +1262,31 @@ public:
                         const char* const newLocalRootPath,
                         std::function<void(error, SyncError)>&& completion);
 
+private:
+    static constexpr std::chrono::seconds TIMEOUT_TO_SET_SYNC_UPLOAD_THROTTLE_PARAMS_FROM_API{
+        86400};
+
+    std::chrono::steady_clock::time_point mSetSyncUploadThrottleParamsFromAPILastTime;
+
+    std::chrono::seconds timeSinceLastSetSyncUploadThrottleParamsFromAPI() const
+    {
+        return std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - mSetSyncUploadThrottleParamsFromAPILastTime);
+    }
+
+    void setSyncUploadThrottleParamsFromAPIAfterTimeout();
+
+    void handleSetThrottleResult(const CommandSetThrottlingParams::ResultVariant& result);
+
+public:
+    /**
+     * @brief Sets the upload throttling configurable values retrieved directly from API.
+     *
+     * @see Syncs::setThrottleUpdateRate()
+     * @see Syncs::setMaxUploadBeforeThrottle()
+     */
+    void setSyncUploadThrottleParamsFromAPI();
+
     /**
      * @brief Sets the upload throttling configurable value throttleUpdateRate.
      *
@@ -1310,8 +1335,9 @@ public:
         std::function<void(const error)>&& completion);
 
 public:
-
-#endif  // ENABLE_SYNC
+#else
+    void setSyncUploadThrottleParamsFromAPI() {}
+#endif // ENABLE_SYNC
 
     /**
      * @brief creates a tlv with one record and returns it encrypted with master key

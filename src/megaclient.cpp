@@ -3289,6 +3289,8 @@ void MegaClient::exec()
             getOrCreateSyncdebrisFolder();
         }
 
+        setSyncUploadThrottleParamsFromAPIAfterTimeout();
+
         if (!syncs.clientThreadActions.empty())
         {
             CodeCounter::ScopeTimer clientActionTime(performanceStats.clientThreadActions);
@@ -17242,6 +17244,77 @@ void MegaClient::changeSyncRoot(const handle backupId,
     }
 
     syncs.changeSyncRemoteRoot(backupId, std::move(newRootNode), std::move(completion));
+}
+
+void MegaClient::setSyncUploadThrottleParamsFromAPIAfterTimeout()
+{
+    if (mSetSyncUploadThrottleParamsFromAPILastTime == std::chrono::steady_clock::time_point{})
+        return;
+
+    if (const auto timeSinceLastSetSyncUploadThrottleParamsFromAPIInSeconds =
+            timeSinceLastSetSyncUploadThrottleParamsFromAPI();
+        timeSinceLastSetSyncUploadThrottleParamsFromAPIInSeconds >=
+        TIMEOUT_TO_SET_SYNC_UPLOAD_THROTTLE_PARAMS_FROM_API)
+    {
+        LOG_debug << "[MegaClient::setSyncUploadThrottleParamsFromAPIAfterTimeout] call "
+                     "setSyncUploadThrottleParamsFromAPI "
+                     "after "
+                  << timeSinceLastSetSyncUploadThrottleParamsFromAPIInSeconds.count()
+                  << " secs [timeout: "
+                  << TIMEOUT_TO_SET_SYNC_UPLOAD_THROTTLE_PARAMS_FROM_API.count() << " secs]";
+
+        setSyncUploadThrottleParamsFromAPI();
+    }
+}
+
+void MegaClient::handleSetThrottleResult(const CommandSetThrottlingParams::ResultVariant& result)
+{
+    const auto handleError = [](const Error& err)
+    {
+        LOG_debug << "[MegaClient::handleSetThrottleResult] Command failed with error: " << err;
+    };
+
+    const auto handleParams =
+        [this](const CommandSetThrottlingParams::ThrottlingParamsFromAPI& params)
+    {
+        setSyncUploadThrottleUpdateRate(std::chrono::seconds(params.updateRateInSeconds),
+                                        [](const error) {});
+
+        setSyncMaxUploadsBeforeThrottle(static_cast<unsigned>(params.maxUploadsBeforeThrottle),
+                                        [](const error) {});
+
+        LOG_warn << "[MegaClient::handleSetThrottleResult] Ignoring "
+                    "uploadCounterInactivityTime: "
+                 << params.uploadCounterInactivityTime;
+    };
+
+    std::visit(overloaded{handleError, handleParams}, result);
+}
+
+void MegaClient::setSyncUploadThrottleParamsFromAPI()
+{
+    LOG_verbose
+        << "[MegaClient::setSyncUploadThrottleParamsFromAPI] call [last time since last call: " <<
+        [this]
+    {
+        if ((mSetSyncUploadThrottleParamsFromAPILastTime ==
+             std::chrono::steady_clock::time_point{}))
+        {
+            return std::string("first call");
+        }
+        return std::to_string(timeSinceLastSetSyncUploadThrottleParamsFromAPI().count()) + " secs";
+    }() << "]";
+
+    auto commandSetThrottlingParamsCompletion =
+        [this](const CommandSetThrottlingParams::ResultVariant& result)
+    {
+        handleSetThrottleResult(result);
+    };
+
+    reqs.add(
+        new CommandSetThrottlingParams(*this, std::move(commandSetThrottlingParamsCompletion)));
+
+    mSetSyncUploadThrottleParamsFromAPILastTime = std::chrono::steady_clock::now();
 }
 
 void MegaClient::setSyncUploadThrottleUpdateRate(const std::chrono::seconds updateRateInSeconds,
