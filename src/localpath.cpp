@@ -232,7 +232,11 @@ public:
     bool unserialize(const std::string& data) override;
 
 private:
+    // String allows to identify a file or folder
     string_type mUri;
+    // Chain of elements that identify leaves from the tree
+    // It isn't possible concat element as in a standard path
+    // They are stored as elements in a vector
     std::vector<string_type> mAuxPath;
     void removeLastElement();
 };
@@ -565,12 +569,7 @@ LocalPath LocalPath::tmpNameLocal()
 
 std::string LocalPath::serialize() const
 {
-    if (mImplementation)
-    {
-        return mImplementation->serialize();
-    }
-
-    return std::string{};
+    return mImplementation ? mImplementation->serialize() : std::string{};
 }
 
 std::optional<LocalPath> LocalPath::unserialize(const std::string& d)
@@ -1638,15 +1637,12 @@ LocalPath PathURI::leafName() const
         LocalPath::local2path(&mAuxPath.back(), &aux, false);
         return LocalPath::fromRelativePath(aux);
     }
-    else
+    else if (std::optional<string_type> optionalName = URIHandler::getName(mUri);
+             optionalName.has_value())
     {
-        std::optional<string_type> optionalName = URIHandler::getName(mUri);
-        if (optionalName.has_value())
-        {
-            std::string aux;
-            LocalPath::local2path(&optionalName.value(), &aux, false);
-            return LocalPath::fromRelativePath(aux);
-        }
+        std::string aux;
+        LocalPath::local2path(&optionalName.value(), &aux, false);
+        return LocalPath::fromRelativePath(aux);
     }
 
     return {};
@@ -1749,20 +1745,25 @@ LocalPath PathURI::subpathFrom(const size_t) const
 
 void PathURI::changeLeaf(const LocalPath& newLeaf)
 {
+    if (newLeaf.isAbsolute() || newLeaf.isURI())
+    {
+        LOG_err << "Invalid parameter type (appendWithSeparator)";
+        assert(false);
+        return;
+    }
+
     if (mAuxPath.size())
     {
         mAuxPath.pop_back();
     }
+    else if (const auto uri = URIHandler::getParentURI(mUri); !uri.has_value())
+    {
+        mUri = uri.value();
+    }
     else
     {
-        if (auto uri = URIHandler::getParentURI(mUri); !uri.has_value())
-        {
-            mUri = uri.value();
-        }
-        else
-        {
-            assert(false && "Error change leaf with uri");
-        }
+        LOG_err << "Error change leaf with uri";
+        assert(false && "Error change leaf with uri");
     }
 
     mAuxPath.emplace_back(newLeaf.asPlatformEncoded(false));
@@ -1863,13 +1864,10 @@ void PathURI::removeLastElement()
     {
         mAuxPath.pop_back();
     }
-    else
+    else if (std::optional<string_type> parentPath = URIHandler::getParentURI(mUri);
+             parentPath.has_value())
     {
-        std::optional<string_type> parentPath = URIHandler::getParentURI(mUri);
-        if (parentPath.has_value())
-        {
-            mUri = parentPath.value();
-        }
+        mUri = parentPath.value();
     }
 }
 
@@ -1905,7 +1903,7 @@ bool PathURI::unserialize(const std::string& data)
     LocalPath::path2local(&aux, &mUri);
     uint32_t numElements;
     success = r.unserializeu32(numElements);
-    for (uint32_t i = 0; i < numElements; i++)
+    for (uint32_t i = 0; i < numElements; ++i)
     {
         success = r.unserializestring(aux);
         string_type leaf;
