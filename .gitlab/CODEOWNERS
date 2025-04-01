@@ -26,3 +26,7 @@
 # (it requires 2 approvals, 1 from MEGAsync team, 1 from SDK team)
 /.clang-format @SDK/tls-owning-clang-format [2]
 
+# Changes to monodic optional should keep compatibility with C++23 ifaces
+/include/mega/utils_optional.h @SDK/sdk_monodic_optional_owners
+/tests/unit/utils_optional_test.cpp @SDK/sdk_monodic_optional_owners
+
