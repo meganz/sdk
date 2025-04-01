@@ -392,13 +392,17 @@ std::shared_ptr<Node> NodeManager::getNodeByHandle_internal(NodeHandle handle)
     return node;
 }
 
-sharedNode_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
+sharedNode_list NodeManager::getChildren(const Node* parent,
+                                         CancelToken cancelToken,
+                                         bool includeVersions)
 {
     LockGuard g(mMutex);
-    return getChildren_internal(parent, cancelToken);
+    return getChildren_internal(parent, cancelToken, includeVersions);
 }
 
-sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToken cancelToken)
+sharedNode_list NodeManager::getChildren_internal(const Node* parent,
+                                                  CancelToken cancelToken,
+                                                  bool includeVersions)
 {
     assert(mMutex.owns_lock());
 
@@ -457,6 +461,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
 
         std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
         NodeSearchFilter nf;
+        nf.includeVersions(includeVersions);
         nf.byAncestors({parent->nodehandle, UNDEF, UNDEF});
         mTable->getChildren(nf,
                             0 /*Order none*/,
