@@ -39,7 +39,7 @@ For the SDK development and compilation we use CMake as the cross-platform proje
 Some common development tools should be available in the system to be able to build the MEGA SDK and the needed dependencies:
 
 - Git: Use the one from your system package manager or install it from https://git-scm.com
-- CMake 3.18 or higher: Use the one from your system package manager or install it from https://cmake.org
+- CMake 3.19 or higher: Use the one from your system package manager or install it from https://cmake.org
 
 #### Windows
 
