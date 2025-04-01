@@ -1808,9 +1808,16 @@ void NodeManager::initCompleted_internal()
     }
 
     sharedNode_vector rootNodes = getRootNodesAndInshares();
-    for (auto& node : rootNodes)
+    for (auto& node: rootNodes)
     {
-        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node, node->type == RUBBISHNODE);
+        if (node)
+        {
+            calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node, node->type == RUBBISHNODE);
+        }
+        else
+        {
+            reportNullRootNodes(rootNodes.size());
+        }
     }
 
     mTable->createIndexes();
@@ -1877,9 +1884,16 @@ NodeCounter NodeManager::getCounterOfRootNodes_internal()
     }
 
     sharedNode_vector rootNodes = getRootNodes_internal();
-    for (auto& node : rootNodes)
+    for (auto& node: rootNodes)
     {
-        c += node->getCounter();
+        if (node)
+        {
+            c += node->getCounter();
+        }
+        else
+        {
+            reportNullRootNodes(rootNodes.size());
+        }
     }
 
     return c;
