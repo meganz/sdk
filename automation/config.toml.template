@@ -28,6 +28,7 @@ public_remote_name = "public"
 
 [patch_release]
 project_name = "" # "SDK", "MEGAchat" etc. (case sensitive), same as the entry in [make_release]
+target_apps = "" # "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1"
 release_version = "" # "1.0.1", resulting version after patch
 tickets = "" # "SDK-123,SDK-1234"
 gitlab_url = "" # "https://code.foo.bar", same as the entry in [make_release]
@@ -40,6 +41,7 @@ private_branch = "develop" # same as the entry in [make_release]
 
 [make_another_rc]
 project_name = "" # "SDK", "MEGAchat" etc. (case sensitive), same as the entry in [make_release]
+target_apps = "" # "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1"
 release_version = "" # "1.0.0", the version to receive a new RC
 tickets = "" # "SDK-123,SDK-1234"
 gitlab_url = "" # "https://code.foo.bar", same as the entry in [make_release]
