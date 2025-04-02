@@ -14,6 +14,12 @@ namespace mega
 {
 
 /**
+ * @brief Calculates the adjusted throttle update rate depending on a given size.
+ */
+std::chrono::seconds calcDynamicThrottleUpdateRate(const std::chrono::seconds updateRateSeconds,
+                                                   const size_t delayedUploadsSize);
+
+/**
  * @class UploadThrottlingManager
  * @brief Manages throttling, delayed processing of uploads and configurable values.
  *
@@ -111,16 +117,15 @@ private:
     // Limits
     static constexpr std::chrono::seconds TIMEOUT_TO_RESET_UPLOAD_COUNTERS{
         86400}; // Timeout to reset upload counters due to inactivity.
-    static constexpr std::chrono::seconds THROTTLE_UPDATE_RATE_LOWER_LIMIT{60};
+    static constexpr std::chrono::seconds THROTTLE_UPDATE_RATE_LOWER_LIMIT{1};
     static constexpr std::chrono::seconds THROTTLE_UPDATE_RATE_UPPER_LIMIT{
         TIMEOUT_TO_RESET_UPLOAD_COUNTERS - std::chrono::seconds(1)};
-    static constexpr unsigned MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT{2};
-    static constexpr unsigned MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT{5};
+    static constexpr unsigned MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT{1};
+    static constexpr unsigned MAX_UPLOADS_BEFORE_THROTTLE_UPPER_LIMIT{10000000};
 
     // Default values
     static constexpr std::chrono::seconds DEFAULT_THROTTLE_UPDATE_RATE{1800};
-    static constexpr unsigned DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE{
-        MAX_UPLOADS_BEFORE_THROTTLE_LOWER_LIMIT};
+    static constexpr unsigned DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE{2};
 
     // Members
     std::queue<DelayedSyncUpload> mDelayedQueue;
@@ -144,6 +149,11 @@ private:
      * @return True if the next upload should be processed, otherwise false.
      */
     bool checkProcessDelayedUploads() const;
+
+    std::chrono::seconds dynamicThrottleUpdateRate() const
+    {
+        return calcDynamicThrottleUpdateRate(mThrottleUpdateRate, mDelayedQueue.size());
+    }
 };
 
 } // namespace mega
