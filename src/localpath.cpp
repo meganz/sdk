@@ -270,6 +270,54 @@ LocalPath::LocalPath():
     mImplementation(std::make_unique<Path>())
 {}
 
+LocalPath::LocalPath(LocalPath&& p) noexcept:
+    mImplementation(std::move(p.mImplementation))
+{}
+
+LocalPath& LocalPath::operator=(LocalPath&& p) noexcept
+{
+    if (this != &p)
+    {
+        if (p.mImplementation)
+        {
+            mImplementation = std::move(p.mImplementation);
+        }
+        else
+        {
+            mImplementation.reset(new Path());
+        }
+    }
+    return *this;
+}
+
+LocalPath::LocalPath(const LocalPath& p)
+{
+    if (p.mImplementation)
+    {
+        mImplementation = p.mImplementation->clone();
+    }
+    else
+    {
+        mImplementation.reset(new Path());
+    }
+}
+
+LocalPath LocalPath::operator=(const LocalPath& p)
+{
+    if (this != &p)
+    {
+        if (p.mImplementation)
+        {
+            mImplementation = p.mImplementation->clone();
+        }
+        else
+        {
+            mImplementation.reset(new Path());
+        }
+    }
+    return *this;
+}
+
 #if defined(_WIN32)
 // convert UTF-8 to Windows Unicode
 void LocalPath::path2local(const std::string* path, std::string* local)
@@ -578,7 +626,7 @@ bool LocalPath::empty() const
 
 void LocalPath::clear()
 {
-    mImplementation.reset();
+    mImplementation.reset(new Path());
 }
 
 LocalPath LocalPath::leafName() const

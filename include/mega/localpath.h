@@ -156,33 +156,10 @@ class LocalPath
 {
 public:
     LocalPath();
-    LocalPath(LocalPath&&) noexcept = default;
-    LocalPath& operator=(LocalPath&&) noexcept = default;
-
-    LocalPath(const LocalPath& p)
-    {
-        if (p.mImplementation)
-        {
-            mImplementation = p.mImplementation->clone();
-        }
-    }
-
-    LocalPath operator=(const LocalPath& p)
-    {
-        if (this != &p)
-        {
-            if (p.mImplementation)
-            {
-                mImplementation = p.mImplementation->clone();
-            }
-            else
-            {
-                mImplementation.reset();
-            }
-        }
-
-        return *this;
-    }
+    LocalPath(LocalPath&&) noexcept;
+    LocalPath& operator=(LocalPath&&) noexcept;
+    LocalPath(const LocalPath& p);
+    LocalPath operator=(const LocalPath& p);
 
     ~LocalPath() {}
 
