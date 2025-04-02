@@ -322,7 +322,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
                                 node->client->setkey(&c, node->client->unshareablekey.data());
                                 c.ctr_crypt(data, SymmCipher::BLOCKSIZE, 0, 0, NULL, false);
-                                ok = !memcmp(data, "unshare/", 8);
+                                ok = Utils::startswith(reinterpret_cast<const char*>(data),
+                                                       "unshare/");
                                 if (ok)
                                 {
                                     coords = string((char*)data + 8, 8);
@@ -26457,7 +26458,7 @@ MegaMountList* MegaApiImpl::listMounts(bool enabled)
     return new MegaMountListPrivate(std::move(mounts));
 }
 
-void MegaApiImpl::onFuseEvent(const fuse::MountEvent& event) 
+void MegaApiImpl::onFuseEvent(const fuse::MountEvent& event)
 {
     static const FuseEventHandler handlers[] = {
         &MegaListener::onMountAdded,
@@ -33620,7 +33621,7 @@ int MegaHTTPServer::onHeaderField(http_parser *parser, const char *at, size_t le
     httpctx->lastheader = string(at, length);
     tolower_string(httpctx->lastheader);
 
-    if (length == 5 && !memcmp(at, "Range", 5))
+    if (Utils::startswith(at, "Range"))
     {
         httpctx->range = true;
         LOG_debug << httpctx->getLogName() << "Range header detected";
@@ -33658,8 +33659,7 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
     {
         LOG_debug << httpctx->getLogName() << "Range header value: " << value;
         httpctx->range = false;
-        if (length > 7 && !memcmp(at, "bytes=", 6)
-                && ((index = value.find_first_of('-')) != string::npos))
+        if (Utils::startswith(at, "bytes=") && ((index = value.find_first_of('-')) != string::npos))
         {
             endptr = (char *)value.c_str();
             unsigned long long number = strtoull(value.c_str() + 6, &endptr, 10);

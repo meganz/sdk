@@ -1723,16 +1723,37 @@ std::string Utils::join(const std::vector<std::string>& items, const std::string
     return r;
 }
 
-bool Utils::startswith(const std::string& str, const std::string& start)
+template<typename T>
+bool Utils::startswith(const std::basic_string<T>& str, const std::basic_string<T>& start)
 {
     if (str.length() < start.length()) return false;
-    return memcmp(str.data(), start.data(), start.length()) == 0;
+    return memcmp(str.data(), start.data(), start.length() * sizeof(T)) == 0;
 }
 
-bool Utils::startswith(const std::string &str, char chr)
+template bool Utils::startswith<char>(const std::string&, const std::string&);
+template bool Utils::startswith<wchar_t>(const std::wstring&, const std::wstring&);
+
+template<typename T>
+const T* Utils::startswith(const T* str, const T* start)
 {
-    return str.length() >= 1 && chr == str.front();
+    if (!str || !start)
+    {
+        return nullptr;
+    }
+    while (*str == *start)
+    {
+        if (*str == 0)
+        {
+            return str;
+        }
+        str++;
+        start++;
+    }
+    return *start == 0 ? str : nullptr;
 }
+
+template const char* Utils::startswith<char>(const char*, const char*);
+template const wchar_t* Utils::startswith<wchar_t>(const wchar_t*, const wchar_t*);
 
 bool Utils::endswith(const std::string &str, char chr)
 {
