@@ -266,6 +266,10 @@ public:
     }
 };
 
+LocalPath::LocalPath():
+    mImplementation(std::make_unique<Path>())
+{}
+
 #if defined(_WIN32)
 // convert UTF-8 to Windows Unicode
 void LocalPath::path2local(const std::string* path, std::string* local)

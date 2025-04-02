@@ -27,6 +27,16 @@ static const std::string rootDrive;
 #endif
 static const std::string pathSep{LocalPath::localPathSeparator_utf8};
 
+TEST(LocalPathTest, AppendEmptyLocalPathWithSeparator)
+{
+    const std::string input{"/home/user/myFolder"};
+    const std::string expected{"/home/user/myFolder" + pathSep};
+    LocalPath auxLocalPath = LocalPath::fromAbsolutePath(input);
+    ASSERT_FALSE(auxLocalPath.endsInSeparator());
+    auxLocalPath.appendWithSeparator(LocalPath(), true);
+    EXPECT_EQ(auxLocalPath.toPath(false), expected);
+}
+
 TEST(LocalPathTest, LocalPathStrToMegaPathStr)
 {
 #ifdef WIN32

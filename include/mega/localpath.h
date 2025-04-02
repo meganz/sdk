@@ -155,7 +155,7 @@ private:
 class LocalPath
 {
 public:
-    LocalPath() = default;
+    LocalPath();
     LocalPath(LocalPath&&) noexcept = default;
     LocalPath& operator=(LocalPath&&) noexcept = default;
 
