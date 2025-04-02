@@ -268,11 +268,15 @@ public:
 
 LocalPath::LocalPath():
     mImplementation(std::make_unique<Path>())
-{}
+{
+    assert(invariant());
+}
 
 LocalPath::LocalPath(LocalPath&& p) noexcept:
     mImplementation(std::move(p.mImplementation))
-{}
+{
+    assert(invariant());
+}
 
 LocalPath& LocalPath::operator=(LocalPath&& p) noexcept
 {
@@ -287,6 +291,7 @@ LocalPath& LocalPath::operator=(LocalPath&& p) noexcept
             mImplementation.reset(new Path());
         }
     }
+    assert(invariant());
     return *this;
 }
 
@@ -300,6 +305,7 @@ LocalPath::LocalPath(const LocalPath& p)
     {
         mImplementation.reset(new Path());
     }
+    assert(invariant());
 }
 
 LocalPath LocalPath::operator=(const LocalPath& p)
@@ -315,6 +321,7 @@ LocalPath LocalPath::operator=(const LocalPath& p)
             mImplementation.reset(new Path());
         }
     }
+    assert(invariant());
     return *this;
 }
 
@@ -627,6 +634,7 @@ bool LocalPath::empty() const
 void LocalPath::clear()
 {
     mImplementation.reset(new Path());
+    assert(invariant());
 }
 
 LocalPath LocalPath::leafName() const
