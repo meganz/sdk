@@ -2011,6 +2011,7 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
         NET_verbose << req->getLogName() << "Header: " << string(ptr, len - 2);
     }
     assert(ptr[len - 2] == '\r' && ptr[len - 1] == '\n');
+    const char* val = nullptr;
     if (Utils::startswith(ptr, "HTTP/"))
     {
         if (req->contentlength >= 0)
@@ -2024,26 +2025,26 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
 
         return size * nmemb;
     }
-    else if (auto val = Utils::startswith(ptr, "Content-Length:"))
+    else if ((val = Utils::startswith(ptr, "Content-Length:")))
     {
         if (req->contentlength < 0)
         {
             req->setcontentlength(atoll(val));
         }
     }
-    else if (auto val = Utils::startswith(ptr, "Original-Content-Length:"))
+    else if ((val = Utils::startswith(ptr, "Original-Content-Length:")))
     {
         req->setcontentlength(atoll(val));
     }
-    else if (auto val = Utils::startswith(ptr, "X-MEGA-Time-Left:"))
+    else if ((val = Utils::startswith(ptr, "X-MEGA-Time-Left:")))
     {
         req->timeleft = atol(val);
     }
-    else if (auto val = Utils::startswith(ptr, "Content-Type:"))
+    else if ((val = Utils::startswith(ptr, "Content-Type:")))
     {
         req->contenttype.assign(val, len - 15); // length of "Content-Type:" + 2
     }
-    else if (auto val = Utils::startswith(ptr, "X-Hashcash:"))
+    else if ((val = Utils::startswith(ptr, "X-Hashcash:")))
     {
         const char* end = ptr + len - 3; // point to the char before CRLF terminator
         if (end - val < 4) // minimum hashcash len is 5
