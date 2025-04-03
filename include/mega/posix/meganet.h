@@ -110,7 +110,7 @@ protected:
 
     static size_t read_data(void*, size_t, size_t, void*);
     static size_t write_data(void*, size_t, size_t, void*);
-    static size_t check_header(void*, size_t, size_t, void*);
+    static size_t check_header(const char*, size_t, size_t, void*);
     static int seek_data(void*, curl_off_t, int);
 
     static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp, direction_t d);

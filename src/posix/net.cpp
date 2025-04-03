@@ -2002,16 +2002,15 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 }
 
 // set contentlength according to Original-Content-Length header
-size_t CurlHttpIO::check_header(void* vptr, size_t size, size_t nmemb, void* target)
+size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void* target)
 {
     HttpReq *req = (HttpReq*)target;
     size_t len = size * nmemb;
-    const auto& ptr = static_cast<const char*>(vptr);
     if (len > 2)
     {
         NET_verbose << req->getLogName() << "Header: " << string(ptr, len - 2);
     }
-    const char* val = nullptr;
+    assert(ptr[len - 2] == '\r' && ptr[len - 1] == '\n');
     if (Utils::startswith(ptr, "HTTP/"))
     {
         if (req->contentlength >= 0)
@@ -2025,29 +2024,34 @@ size_t CurlHttpIO::check_header(void* vptr, size_t size, size_t nmemb, void* tar
 
         return size * nmemb;
     }
-    else if ((val = Utils::startswith(ptr, "Content-Length:")))
+    else if (auto val = Utils::startswith(ptr, "Content-Length:"))
     {
         if (req->contentlength < 0)
         {
             req->setcontentlength(atoll(val));
         }
     }
-    else if ((val = Utils::startswith(ptr, "Original-Content-Length:")))
+    else if (auto val = Utils::startswith(ptr, "Original-Content-Length:"))
     {
         req->setcontentlength(atoll(val));
     }
-    else if ((val = Utils::startswith(ptr, "X-MEGA-Time-Left:")))
+    else if (auto val = Utils::startswith(ptr, "X-MEGA-Time-Left:"))
     {
         req->timeleft = atol(val);
     }
-    else if ((val = Utils::startswith(ptr, "Content-Type:")))
+    else if (auto val = Utils::startswith(ptr, "Content-Type:"))
     {
-        req->contenttype.assign(val, len - 15);
+        req->contenttype.assign(val, len - 15); // length of "Content-Type:" + 2
     }
-    else if (len >= (11 + 7) && (val = Utils::startswith(ptr, "X-Hashcash:")))
+    else if (auto val = Utils::startswith(ptr, "X-Hashcash:"))
     {
+        const char* end = ptr + len - 3; // point to the char before CRLF terminator
+        if (end - val < 4) // minimum hashcash len is 5
+        {
+            LOG_warn << "Ignoring too short X-Hashcash header";
+            return len;
+        }
         // trim trailing CRLF, from right to left, up to end of "X-Hashcash:"
-        const char* end = ptr + len - 1;
         while (end > val && *end < ' ')
             end--;
         assert(end - val >= 0);
