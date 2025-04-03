@@ -49,6 +49,8 @@ set(SDKLIB_COMMON_HEADERS
     ${SDKLIB_COMMON_INC}/query_forward.h
     ${SDKLIB_COMMON_INC}/scoped_query.h
     ${SDKLIB_COMMON_INC}/scoped_query_forward.h
+    ${SDKLIB_COMMON_INC}/serialization_traits.h
+    ${SDKLIB_COMMON_INC}/serialization_traits_forward.h
     ${SDKLIB_COMMON_INC}/shared_mutex.h
     ${SDKLIB_COMMON_INC}/shared_mutex_forward.h
     ${SDKLIB_COMMON_INC}/subsystem_logger.h
