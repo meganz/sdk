@@ -2025,26 +2025,26 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
 
         return size * nmemb;
     }
-    else if ((val = Utils::startswith(ptr, "Content-Length:")))
+    else if ((val = Utils::startswith(ptr, "Content-Length:")) != nullptr)
     {
         if (req->contentlength < 0)
         {
             req->setcontentlength(atoll(val));
         }
     }
-    else if ((val = Utils::startswith(ptr, "Original-Content-Length:")))
+    else if ((val = Utils::startswith(ptr, "Original-Content-Length:")) != nullptr)
     {
         req->setcontentlength(atoll(val));
     }
-    else if ((val = Utils::startswith(ptr, "X-MEGA-Time-Left:")))
+    else if ((val = Utils::startswith(ptr, "X-MEGA-Time-Left:")) != nullptr)
     {
         req->timeleft = atol(val);
     }
-    else if ((val = Utils::startswith(ptr, "Content-Type:")))
+    else if ((val = Utils::startswith(ptr, "Content-Type:")) != nullptr)
     {
         req->contenttype.assign(val, len - 15); // length of "Content-Type:" + 2
     }
-    else if ((val = Utils::startswith(ptr, "X-Hashcash:")))
+    else if ((val = Utils::startswith(ptr, "X-Hashcash:")) != nullptr)
     {
         const char* end = ptr + len - 3; // point to the char before CRLF terminator
         if (end - val < 4) // minimum hashcash len is 5
