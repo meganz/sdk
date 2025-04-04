@@ -2286,11 +2286,16 @@ MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData() const
     {
         AttrMap aux;
         aux.fromjson(getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER));
+        constexpr auto totpNameid = AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP);
 
         std::optional<PNDataPrivate::TotpDataPrivate> totp{};
-        if (const auto auxTotp = aux.getNestedJsonObject(MegaClient::PWM_ATTR_PASSWORD_TOTP);
-            auxTotp)
-            totp = PNDataPrivate::TotpDataPrivate::fromMap(*auxTotp);
+        if (aux.map.contains(totpNameid))
+        {
+            AttrMap auxTotp;
+            auxTotp.fromjsonObject(
+                aux.map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP)));
+            totp = PNDataPrivate::TotpDataPrivate::fromMap(auxTotp);
+        }
 
         return new PNDataPrivate{
             getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_PASSWORD_PWD)),
@@ -27282,8 +27287,7 @@ static std::string totpToJson(const MegaNode::PasswordNodeData::TotpData& totp)
         attrMap.map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS)] =
             std::to_string(nDigits);
 
-    std::string result;
-    attrMap.getjson(&result);
+    auto result = attrMap.getJsonObject();
     return result;
 }
 

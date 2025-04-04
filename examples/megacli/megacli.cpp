@@ -5280,6 +5280,7 @@ autocomplete::ACN autocompleteSyntax()
                                         flag("-totp-alg"),
                                         either(text("sha1"), text("sha256"), text("sha512")))))))),
                    sequence(text("removeentry"), param("nodehandle")),
+                   sequence(text("generatetotptoken"), param("nodehandle")),
                    sequence(text("import"),
                             sequence(flag("-source"), either(text("google"))),
                             localFSPath("file"),
@@ -13270,9 +13271,12 @@ void exec_passwordmanager(autocomplete::ACState& s)
         assert(pwdNode);
         assert(pwdNode->isPasswordNode());
 
-        const auto pwdData =
-            pwdNode->attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        auto pwdData = pwdNode->attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
         assert(pwdData.has_value());
+        const auto nRemoved =
+            pwdData->map.erase(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP));
+        assert(nRemoved <= 1);
+
         cout << "Password data for entry " << pwdNode->attrs.map['n'] << " (" << toNodeHandle(nh) << "):\n";
         const auto printAttr =
             [](const std::string_view attr, const AttrMap& data, const unsigned nest = 1) -> void
@@ -13286,15 +13290,21 @@ void exec_passwordmanager(autocomplete::ACState& s)
         printAttr(MegaClient::PWM_ATTR_PASSWORD_URL, *pwdData);
         printAttr(MegaClient::PWM_ATTR_PASSWORD_NOTES, *pwdData);
 
-        const auto totpData = pwdData->getNestedJsonObject(MegaClient::PWM_ATTR_PASSWORD_TOTP);
+        const auto totpData =
+            pwdNode->attrs.getComplexNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER,
+                                                      MegaClient::PWM_ATTR_PASSWORD_TOTP);
         std::cout << "\t" << MegaClient::PWM_ATTR_PASSWORD_TOTP << ": " << (totpData ? "" : "null")
                   << "\n";
         if (totpData)
         {
-            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE, *totpData, 2);
-            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS, *totpData, 2);
-            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT, *totpData, 2);
-            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG, *totpData, 2);
+            AttrMap totpMap;
+            totpMap.fromjsonObject(
+                totpData->map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP))
+                    .c_str());
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE, totpMap, 2);
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS, totpMap, 2);
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT, totpMap, 2);
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG, totpMap, 2);
         }
     };
 
@@ -13475,7 +13485,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
                                              std::move(alg),
                                              std::move(ndig));
                 }) |
-            transform((static_cast<std::string (AttrMap::*)() const>(&AttrMap::getjson)));
+            transform((static_cast<std::string (AttrMap::*)() const>(&AttrMap::getJsonObject)));
 
         auto pwdData = createPwdData(std::string{pwd},
                                      s.extractflagparam("-url").value_or(""),
@@ -13573,7 +13583,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
                               std::move(totpExpt),
                               std::move(totpAlg),
                               std::move(totpNdig)) |
-            transform((static_cast<std::string (AttrMap::*)() const>(&AttrMap::getjson)));
+            transform((static_cast<std::string (AttrMap::*)() const>(&AttrMap::getJsonObject)));
         auto pwdData = createPwdData(s.extractflagparam("-p").value_or(""),
                                      s.extractflagparam("-url").value_or(""),
                                      s.extractflagparam("-u").value_or(""),
@@ -13610,6 +13620,21 @@ void exec_passwordmanager(autocomplete::ACState& s)
         const auto sourceFile = localPathArg(s.words[2].s);
         const auto parentHandle = getNodeHandleFromParam(3);
         importpasswordsfromgooglefile(sourceFile, parentHandle, sourceOrigin);
+    }
+    else if (command == "generatetotptoken")
+    {
+        if (!moreParamsThan(2))
+            return;
+
+        const auto nh = getNodeHandleFromParam(2);
+        const auto [err, tokenResult] = client->generateTotpTokenFromNode(nh.as8byte());
+        if (err == API_OK)
+        {
+            conlock(cout) << "Totp token generated.\n\t* Token: " << tokenResult.first
+                          << "\n\t* Lifetime: " << tokenResult.second << "(secs)\n";
+            return;
+        }
+        cout << command << ". Error generating Totp token: Error(" << err << ")\n";
     }
     else
     {

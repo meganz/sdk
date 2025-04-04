@@ -8808,19 +8808,16 @@ MegaClient::TotpTokenResult MegaClient::generateTotpTokenFromNode(const handle h
     if (!node->isPasswordNode())
         return logAndError(API_ENOENT, "No password node found with the given handle");
 
-    const auto pwdData = node->attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
-    if (!pwdData)
-    {
-        assert(false && "All password nodes must have the pwm field");
-        return logAndError(API_ENOENT,
-                           "No password node with valid pwm data found with the given handle");
-    }
-
-    const auto totpData = pwdData->getNestedJsonObject(MegaClient::PWM_ATTR_PASSWORD_TOTP);
+    const auto totpData =
+        node->attrs.getComplexNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER,
+                                               MegaClient::PWM_ATTR_PASSWORD_TOTP);
     if (!totpData)
         return logAndError(API_EKEY, "Trying to generate totp token for a node with no totp data");
 
-    const auto totpParams = toTotpParameters(*totpData);
+    AttrMap totpMap;
+    totpMap.fromjsonObject(
+        totpData->map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
+    const auto totpParams = toTotpParameters(totpMap);
     if (!totpParams)
     {
         assert(false && "If present in a password node, totp data must be well formatted");
@@ -21779,7 +21776,20 @@ NodeHandle MegaClient::getPasswordManagerBase()
 void MegaClient::preparePasswordManagerNodeData(attr_map& attrs, const AttrMap& data) const
 {
     assert(!data.map.empty());
-    attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = data.getjson();
+    auto auxstr = data.getjson();
+    auto auxDataAttrMap = data;
+    if (auxDataAttrMap.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)))
+    {
+        const auto totp =
+            auxDataAttrMap.map.extract(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
+        auxstr = auxDataAttrMap.getjson();
+        if (!auxDataAttrMap.map.empty())
+        {
+            auxstr += ",\"" + AttrMap::nameid2string(totp.key()) + "\":" + totp.mapped();
+        }
+    }
+
+    attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = auxstr;
 }
 
 std::string MegaClient::getPartialAPs()
@@ -22008,7 +22018,7 @@ PasswordEntryError MegaClient::validateNewPasswordNodeData(const AttrMap& data)
         totpPresent)
     {
         AttrMap totpMap;
-        totpMap.fromjson(data.map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
+        totpMap.fromjsonObject(data.map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
 
         if (const auto res = validateNewNodeTotpData(totpMap); res != PasswordEntryError::OK)
         {
@@ -22144,6 +22154,20 @@ error MegaClient::updatePasswordNode(const NodeHandle nh,
 
     AttrMap mergedData =
         pwdNode->attrs.getNestedJsonObject(NODE_ATTR_PASSWORD_MANAGER).value_or(AttrMap{});
+
+    mergedData.removeEmptyValues();
+
+    // complex Json Objects inside another AttrMap value (like totp) must be extracted using
+    // getComplexNestedJsonObject
+    auto totpData =
+        pwdNode->attrs.getComplexNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER,
+                                                  MegaClient::PWM_ATTR_PASSWORD_TOTP);
+    if (totpData && totpData->map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)))
+    {
+        mergedData.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)] =
+            totpData->map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)];
+    }
+
     mergedData.applyUpdatesWithNestedFields(*newData, std::array{PWM_ATTR_PASSWORD_TOTP});
 
     if (const auto validCode = validateNewPasswordNodeData(mergedData);
