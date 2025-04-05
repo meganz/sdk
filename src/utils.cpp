@@ -1762,6 +1762,10 @@ bool Utils::endswith(const T* str, size_t strLen, const T* suffix, size_t sfxLen
     {
         return false;
     }
+    if (!str || !suffix)
+    {
+        return false;
+    }
     const T* end = str + strLen;
     const T* start = end - sfxLen;
     while (start < end)
