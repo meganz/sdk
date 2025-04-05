@@ -2010,7 +2010,7 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
     {
         NET_verbose << req->getLogName() << "Header: " << string(ptr, len - 2);
     }
-    assert(ptr[len - 2] == '\r' && ptr[len - 1] == '\n');
+    assert(Utils::endswith(ptr, len, "\r\n", 2));
     const char* val = nullptr;
     if (Utils::startswith(ptr, "HTTP/"))
     {

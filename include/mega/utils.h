@@ -400,6 +400,9 @@ public:
     {
         return startswith(str.c_str(), start);
     }
+
+    template<typename T>
+    static bool endswith(const T* str, size_t strLen, const T* suffix, size_t suffixLen);
     static bool endswith(const std::string& str, char chr);
     static const std::string _trimDefaultChars;
     // return string with trimchrs removed from front and back of given string str

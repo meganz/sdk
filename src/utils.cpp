@@ -1755,6 +1755,30 @@ const T* Utils::startswith(const T* str, const T* start)
 template const char* Utils::startswith<char>(const char*, const char*);
 template const wchar_t* Utils::startswith<wchar_t>(const wchar_t*, const wchar_t*);
 
+template<typename T>
+bool Utils::endswith(const T* str, size_t strLen, const T* suffix, size_t sfxLen)
+{
+    if (strLen < sfxLen)
+    {
+        return false;
+    }
+    const T* end = str + strLen;
+    const T* start = end - sfxLen;
+    while (start < end)
+    {
+        if (*start != *suffix)
+        {
+            return false;
+        }
+        start++;
+        suffix++;
+    }
+    return true;
+}
+
+template bool Utils::endswith(const char*, size_t, const char*, size_t);
+template bool Utils::endswith(const wchar_t*, size_t, const wchar_t*, size_t);
+
 bool Utils::endswith(const std::string &str, char chr)
 {
     return str.length() >= 1 && chr == str.back();
