@@ -367,9 +367,6 @@ public:
      * - PROXY_AUTO means automatic detection (default)
      * - PROXY_CUSTOM means a proxy using user-provided data
      *
-     * PROXY_AUTO is currently supported on Windows only, for other platforms
-     * PROXY_NONE will be used as the automatic detected value.
-     *
      * @param newProxyType Sets the type of the proxy
      */
     void setProxyType(int newProxyType);
@@ -12418,22 +12415,29 @@ class MegaApi
          *
          * The SDK will start using the provided proxy settings as soon as this function returns.
          *
-         * @param proxySettings Proxy settings
+         * @param proxySettings Proxy settings. PROXY_AUTO is not supported and will be treated as
+         * PROXY_NONE
          * @param listener MegaRequestListener to track this request
          * @see MegaProxy
          */
         void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Try to detect the system's proxy settings
+         * @brief Detect the system's proxy settings.
          *
-         * Automatic proxy detection is currently supported on Windows only.
-         * On other platforms, this fuction will return a MegaProxy object
-         * of type MegaProxy::PROXY_NONE
+         * This function attempts to automatically detect the system's proxy settings.
+         * Proxy detection is currently supported on Windows, macOS, and Linux.
+         * On unsupported platforms, it returns a `MegaProxy` object of type
+         * `MegaProxy::PROXY_NONE`.
          *
-         * You take the ownership of the returned value.
+         * - **Windows**: Retrieves the Internet Explorer proxy configuration for the current user.
+         * - **macOS**: Retrieves the current internet proxy settings.
+         * - **Linux**: Checks environment variables `http_proxy`, `HTTP_PROXY`, `https_proxy`, and
+         * `HTTPS_PROXY` for proxy configuration.
          *
-         * @return MegaProxy object with the detected proxy settings
+         * The caller takes ownership of the returned `MegaProxy` object.
+         *
+         * @return A `MegaProxy` object containing the detected proxy settings.
          */
         MegaProxy *getAutoProxySettings();
 
