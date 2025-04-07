@@ -2,6 +2,7 @@
 #include <mega/file_service/file_service.h>
 #include <mega/file_service/file_service_context.h>
 #include <mega/file_service/file_service_result.h>
+#include <mega/file_service/logging.h>
 
 #include <stdexcept>
 
@@ -32,15 +33,23 @@ try
     UniqueLock<SharedMutex> guard(mContextLock);
 
     if (mContext)
+    {
+        FSError1("File Service has already been initialized");
+
         return FILE_SERVICE_ALREADY_INITIALIZED;
+    }
 
     mContext = std::make_unique<FileServiceContext>(client);
+
+    FSInfo1("File Service initialized");
 
     return FILE_SERVICE_SUCCESS;
 }
 
-catch (std::runtime_error&)
+catch (std::runtime_error& exception)
 {
+    FSErrorF("Unable to initialize File Service: %s", exception.what());
+
     return FILE_SERVICE_UNEXPECTED;
 }
 
