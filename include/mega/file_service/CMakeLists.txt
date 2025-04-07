@@ -1,6 +1,8 @@
 target_sources(SDKlib PRIVATE
                       construction_logger.h
                       destruction_logger.h
+                      file_id.h
+                      file_id_forward.h
                       file_service_context_badge.h
                       file_service_context_badge_forward.h
                       file_service_context_forward.h

@@ -13,6 +13,7 @@ target_sources(SDKlib PRIVATE
                       construction_logger.cpp
                       database_builder.cpp
                       destruction_logger.cpp
+                      file_id.cpp
                       file_service.cpp
                       file_service_context.cpp
                       file_service_result.cpp
