@@ -579,6 +579,9 @@ public:
      */
     void resetConnSwitchesCountersIfTimeoutExpired();
 
+    // Returns true if any raided Req has failed, otherwise returns false
+    bool isAnyRaidedPartFailed() const;
+
     /**
     *   @brief Main i/o loop (process every HTTP req from req vector).
     *
@@ -799,6 +802,12 @@ public:
      * @return a pair of [transfer min speed, transfer mean speed]
      */
     std::pair<int, m_off_t> getMinAndMeanSpeed(const dstime dsSinceLastWatch);
+
+    /**
+     * @brief Resets the watchdog associated variables that are used to perform some checkups based
+     * on elapsed time since last check and received data
+     */
+    void resetWatchdogPartialValues();
 
     /**
     *   @brief Calculate speed and mean speed for DirectRead aggregated operations.

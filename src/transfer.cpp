@@ -1701,8 +1701,11 @@ std::pair<std::set<size_t>, size_t> DirectReadSlot::searchSlowConnsUnderThreshol
             continue;
         }
 
+        LOG_debug << "searchSlowConnsUnderThreshold [" << i
+                  << "] Throughput: " << getThroughput(i) * 1000
+                  << " B/s, minSpeedPerConn: " << minSpeedPerConnBytesPerSec << " B/s";
+
         if (const auto isConnSpeedBelowMinThreshold =
-                isMinComparableThroughputForThisConnection(i) &&
                 getThroughput(i) * 1000 < minSpeedPerConnBytesPerSec;
             isConnSpeedBelowMinThreshold)
         {
@@ -1953,6 +1956,7 @@ bool DirectReadSlot::increaseReqsInflight()
             assert(!mWaitForParts);
             LOG_verbose << "Wait for parts set to true" << " [this = " << this << "]";
             mWaitForParts = true;
+            resetWatchdogPartialValues();
         }
         return true;
     }
@@ -1987,6 +1991,12 @@ std::pair<int, m_off_t> DirectReadSlot::getMinAndMeanSpeed(const dstime dsSinceL
     return {minspeed, meanspeed};
 }
 
+void DirectReadSlot::resetWatchdogPartialValues()
+{
+    mDr->drn->partiallen = 0;
+    mDr->drn->partialstarttime = Waiter::ds;
+};
+
 bool DirectReadSlot::watchOverDirectReadPerformance()
 {
     auto dsSinceLastWatch = Waiter::ds - mDr->drn->partialstarttime;
@@ -1996,7 +2006,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
     }
 
     const auto [minTransferspeed, transferMeanspeed] = getMinAndMeanSpeed(dsSinceLastWatch);
-    if (!mDr->appdata)
+    if (!mDr->hasValidCallback())
     {
         LOG_err << "DirectReadSlot: Watchdog -> Transfer is already deleted."
                 << (transferMeanspeed >= minTransferspeed ?
@@ -2008,35 +2018,42 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         return false;
     }
 
-    auto onAcceptableDirectReadPerformance = [this]() -> bool
-    {
-        mDr->drn->partiallen = 0;
-        mDr->drn->partialstarttime = Waiter::ds;
-        return false;
-    };
-
     if (!minTransferspeed)
     {
         // no limits set by client, so no performance check is required
-        return onAcceptableDirectReadPerformance();
+        resetWatchdogPartialValues();
+        return false;
+    }
+
+    if (isAnyRaidedPartFailed())
+    {
+        resetWatchdogPartialValues();
+        return false;
     }
 
     const auto [slowConns, slowestConnectionIndex] = searchSlowConnsUnderThreshold();
+    LOG_debug << "watchOverDirectReadPerformance: number of detected slow connections"
+              << slowConns.size();
     if (slowConns.empty())
     {
         assert(getMinSpeedPerConnBytesPerSec() &&
                "If no minstrate is set, we should have already exited");
 
-        if (transferMeanspeed >= minTransferspeed)
+        if (transferMeanspeed < minTransferspeed)
         {
-            return onAcceptableDirectReadPerformance();
+            LOG_debug << "watchOverDirectReadPerformance: slowConns empty and transferMeanspeed: "
+                      << transferMeanspeed << " B/s < "
+                      << " minTransferspeed: " << minTransferspeed << " B/s";
+            assert(false && "slowConns empty and transferMeanspeed < minTransferspeed");
+            retryEntireTransfer(API_EAGAIN);
+            return true;
         }
 
-        retryEntireTransfer(API_EAGAIN);
-        return true;
+        resetWatchdogPartialValues();
+        return false;
     }
 
-    if (slowConns.size() == MAX_SIMULTANEOUS_SLOW_RAIDED_CONNS)
+    if (slowConns.size() <= MAX_SIMULTANEOUS_SLOW_RAIDED_CONNS)
     {
         if (const auto unusedConnNotReusable =
                 !unusedConnectionCanBeReused() ||
@@ -2051,6 +2068,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
                                           UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD,
                                           UnusedConn::UN_NOT_ERR);
 
+        resetWatchdogPartialValues();
         return false;
     }
 
@@ -2069,6 +2087,21 @@ void DirectReadSlot::resetConnSwitchesCountersIfTimeoutExpired()
         mNumConnDetectedBelowSpeedThreshold.clear();
         mConnectionSwitchesLimitLastReset = now;
     }
+}
+
+bool DirectReadSlot::isAnyRaidedPartFailed() const
+{
+    if (!isRaidedTransfer())
+    {
+        return false;
+    }
+
+    return std::any_of(std::begin(mReqs),
+                       std::end(mReqs),
+                       [](const std::unique_ptr<HttpReq>& req)
+                       {
+                           return req && req->status == REQ_FAILURE;
+                       });
 }
 
 bool DirectReadSlot::doio()
