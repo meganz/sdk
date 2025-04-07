@@ -2053,8 +2053,12 @@ MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNo
 
     megaApi[apiIndex]->createFolder(name, parent, &tracker);
 
-    if (tracker.waitForResult(timeout) != API_OK)
+    if (auto createfolderResult = tracker.waitForResult(timeout); createfolderResult != API_OK)
+    {
+        EXPECT_EQ(API_OK, createfolderResult)
+            << "API " << apiIndex << ": Failed to create folder " << name;
         return UNDEF;
+    }
 
     return tracker.request->getNodeHandle();
 }
