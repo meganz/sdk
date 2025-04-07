@@ -7,8 +7,12 @@ namespace file_service
 
 using namespace common;
 
+static const char* kName = "FileServiceContext";
+
 FileServiceContext::FileServiceContext(Client& client):
-    mClient(client)
+    DestructionLogger(kName),
+    mClient(client),
+    mConstructionLogger(kName)
 {}
 
 } // file_service

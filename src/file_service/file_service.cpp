@@ -13,9 +13,13 @@ namespace file_service
 
 using namespace common;
 
+static const char* kName = "FileService";
+
 FileService::FileService():
+    DestructionLogger(kName),
     mContext(),
-    mContextLock()
+    mContextLock(),
+    mConstructionLogger(kName)
 {}
 
 FileService::~FileService() = default;
