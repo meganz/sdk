@@ -31,6 +31,7 @@ FileServiceContext::FileServiceContext(Client& client):
     mClient(client),
     mStorage(mClient),
     mDatabase(createDatabase(mStorage.databasePath())),
+    mQueries(mDatabase),
     mInfoContexts(),
     mLock(),
     mActivities(),

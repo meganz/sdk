@@ -10,6 +10,7 @@
 #include <mega/file_service/file_info_context_badge_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_service_context_forward.h>
+#include <mega/file_service/file_service_queries.h>
 #include <mega/file_service/file_storage.h>
 #include <mega/file_service/from_file_id_map.h>
 
@@ -26,6 +27,7 @@ class FileServiceContext: DestructionLogger
     common::Client& mClient;
     FileStorage mStorage;
     common::Database mDatabase;
+    FileServiceQueries mQueries;
 
     FromFileIDMap<FileInfoContextWeakPtr> mInfoContexts;
     common::SharedMutex mLock;
