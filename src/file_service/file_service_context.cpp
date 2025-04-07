@@ -11,7 +11,7 @@ using namespace common;
 
 static Database createDatabase(const LocalPath& databasePath);
 
-static const char* kName = "FileServiceContext";
+static const std::string kName = "FileServiceContext";
 
 FileServiceContext::FileServiceContext(Client& client):
     DestructionLogger(kName),

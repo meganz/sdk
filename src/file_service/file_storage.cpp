@@ -11,7 +11,7 @@ namespace file_service
 
 using namespace common;
 
-static const char* kName = "FileStorage";
+static const std::string kName = "FileStorage";
 
 FileStorage::FileStorage(const Client& client):
     DestructionLogger(kName),

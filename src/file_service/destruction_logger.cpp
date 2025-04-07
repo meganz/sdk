@@ -6,15 +6,15 @@ namespace mega
 namespace file_service
 {
 
-DestructionLogger::DestructionLogger(const char* name):
+DestructionLogger::DestructionLogger(const std::string& name):
     mName(name)
 {
-    FSInfoF("Constructing %s...", mName);
+    FSInfoF("Constructing %s...", mName.c_str());
 }
 
 DestructionLogger::~DestructionLogger()
 {
-    FSInfoF("%s destroyed", mName);
+    FSInfoF("%s destroyed", mName.c_str());
 }
 
 } // file_service

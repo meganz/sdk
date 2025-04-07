@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 namespace mega
 {
 namespace file_service
@@ -7,10 +9,10 @@ namespace file_service
 
 class ConstructionLogger
 {
-    const char* mName;
+    std::string mName;
 
 public:
-    ConstructionLogger(const char* name);
+    ConstructionLogger(const std::string& name);
 
     ~ConstructionLogger();
 }; // ConstructionLogger

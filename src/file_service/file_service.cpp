@@ -13,7 +13,7 @@ namespace file_service
 
 using namespace common;
 
-static const char* kName = "FileService";
+static const std::string kName = "FileService";
 
 FileService::FileService():
     DestructionLogger(kName),
