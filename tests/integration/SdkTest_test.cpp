@@ -5610,6 +5610,109 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 }
 
 /**
+ * @brief TEST_F SdkTest.LoginToWritableFolderThenCreateSubfolder
+ *
+ * - Login 1 account
+ * - Create a folder
+ * - Create a public writable link to folder
+ * - Setup guest account without login for accessing the public link
+ * - Login guest account to public link
+ * - Check for user alerts (should not be any, including from sc50)
+ * - Create subfolder in the folder with writable link
+ * - Confirm that guest account has seen the newly created subfolder
+ * - Check again for user alerts (should still not be any)
+ */
+TEST_F(SdkTest, LoginToWritableFolderThenCreateSubfolder)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Host: create a folder
+    std::unique_ptr<MegaNode> hostRoot{megaApi[0]->getRootNode()};
+    static constexpr char folderName[] = "Writable-link-folder";
+    MegaHandle folderHandle = createFolder(0, folderName, hostRoot.get());
+    ASSERT_NE(UNDEF, folderHandle) << "API 0: Failed to create " << folderName;
+    std::unique_ptr<MegaNode> folderNode{megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_THAT(folderNode, ::testing::NotNull());
+
+    // Host: get acount details for Pro level
+    RequestTracker accountDetailsTracker{megaApi[0].get()};
+    megaApi[0]->getSpecificAccountDetails(false, false, true, -1, &accountDetailsTracker);
+    ASSERT_EQ(API_OK, accountDetailsTracker.waitForResult())
+        << "API 0: Failed to get account details";
+
+    // Host: create a writable link to folder
+    const bool isFreeAccount =
+        mApi[0].accountDetails->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE;
+    string nodeLink =
+        createPublicLink(0, folderNode.get(), 0, maxTimeout, isFreeAccount, true /*writable*/);
+
+    // Guest: setup without login for accessing the public link
+    unsigned guestIdx = 1;
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(guestIdx);
+    ASSERT_FALSE(email.empty() || pass.empty());
+    mApi.resize(guestIdx + 1);
+    megaApi.resize(guestIdx + 1);
+    configureTestInstance(guestIdx, email, pass);
+
+    // Guest: login to writable folder
+    RequestTracker loginToFolderTracker{megaApi[guestIdx].get()};
+    megaApi[guestIdx]->loginToFolder(nodeLink.c_str(), &loginToFolderTracker);
+    ASSERT_EQ(API_OK, loginToFolderTracker.waitForResult())
+        << "API 1 (guest): Failed to login to folder " << nodeLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(guestIdx));
+
+    // Guest: make sure it got no user alerts, including any from sc50
+    unsigned sc50Timeout = 10; // seconds
+    ASSERT_FALSE(waitForResponse(&mApi[guestIdx].userAlertsUpdated, sc50Timeout))
+        << "API 1 (guest): sc50 alerts after login received";
+    ASSERT_EQ(mApi[guestIdx].userAlertList, nullptr) << "sc50 of guest logged into folder";
+    unique_ptr<MegaUserAlertList> userAlerts(megaApi[guestIdx]->getUserAlerts());
+    ASSERT_TRUE(userAlerts);
+    ASSERT_EQ(userAlerts->size(), 0);
+
+    // Guest: confirm root node of folder link
+    std::unique_ptr<MegaNode> guestRoot{megaApi[guestIdx]->getRootNode()};
+    ASSERT_EQ(folderHandle, guestRoot->getHandle());
+
+    // Guest: attempt to create subfolder in writable folder
+    static constexpr char subfolderName[] = "Writable-link-subfolder";
+    RequestTracker createSubfolderTracker(megaApi[guestIdx].get());
+    megaApi[guestIdx]->createFolder(subfolderName, guestRoot.get(), &createSubfolderTracker);
+    ASSERT_EQ(API_EACCESS, createSubfolderTracker.waitForResult())
+        << "API 1 (guest): Managed to create " << subfolderName;
+
+    // Guest: reset node updates
+    mApi[guestIdx].nodeUpdated = false;
+    mApi[guestIdx].mOnNodesUpdateCompletion =
+        [guestIdx, &guest = mApi[guestIdx]](size_t apiIndex, MegaNodeList*)
+    {
+        if (guestIdx == apiIndex)
+            guest.nodeUpdated = true;
+    };
+
+    // Host: create subfolder in writable folder
+    MegaHandle subfolderHandle = createFolder(0, subfolderName, folderNode.get());
+    ASSERT_NE(UNDEF, subfolderHandle) << "API 0: Failed to create " << subfolderName;
+
+    // Guest: Wait for node update (replacement for fetchnodes())
+    ASSERT_TRUE(waitForResponse(&mApi[guestIdx].nodeUpdated))
+        << "API 1 (guest): Node update not received after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+
+    // Guest: confirm the newly created node
+    std::unique_ptr<MegaNode> subfolder{megaApi[guestIdx]->getNodeByHandle(subfolderHandle)};
+    ASSERT_THAT(subfolder, ::testing::NotNull())
+        << "API 1 (guest): Failed to find " << subfolderName;
+
+    // Guest: check again that it got no user alerts
+    ASSERT_FALSE(mApi[guestIdx].userAlertsUpdated) << "API 1 (guest): alerts received";
+    ASSERT_EQ(mApi[guestIdx].userAlertList, nullptr) << "sc50";
+    userAlerts.reset(megaApi[guestIdx]->getUserAlerts());
+    ASSERT_TRUE(userAlerts);
+    ASSERT_EQ(userAlerts->size(), 0);
+}
+
+/**
  * @brief TEST_F TestPublicFolderLinksWithShares
  *
  * 1 - create share
