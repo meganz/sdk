@@ -4,6 +4,7 @@
 #include <mega/file_service/construction_logger.h>
 #include <mega/file_service/destruction_logger.h>
 #include <mega/file_service/file_service_context_forward.h>
+#include <mega/file_service/file_storage.h>
 
 namespace mega
 {
@@ -13,6 +14,7 @@ namespace file_service
 class FileServiceContext: DestructionLogger
 {
     common::Client& mClient;
+    FileStorage mStorage;
     ConstructionLogger mConstructionLogger;
 
 public:

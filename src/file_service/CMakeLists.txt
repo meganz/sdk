@@ -15,6 +15,7 @@ target_sources(SDKlib PRIVATE
                       file_service.cpp
                       file_service_context.cpp
                       file_service_result.cpp
+                      file_storage.cpp
                       logger.cpp
 )
 

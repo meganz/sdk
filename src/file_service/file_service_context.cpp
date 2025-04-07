@@ -12,6 +12,7 @@ static const char* kName = "FileServiceContext";
 FileServiceContext::FileServiceContext(Client& client):
     DestructionLogger(kName),
     mClient(client),
+    mStorage(mClient),
     mConstructionLogger(kName)
 {}
 
