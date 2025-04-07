@@ -1324,6 +1324,7 @@ void SdkTest::resumeSession(const char *session, unsigned apiIndex)
 
 void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
 {
+    MegaHandle owner = megaApi[apiIndex]->getMyUserHandleBinary();
     std::unique_ptr<MegaNodeList> children{megaApi[apiIndex]->getChildren(p)};
 
     for (int i = 0; i < children->size(); i++)
@@ -1334,6 +1335,9 @@ void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
         if (depthfirst && n->isFolder())
             purgeTree(apiIndex, n);
 
+        if (owner != n->getOwner())
+            continue;
+
         string nodepath = n->getName() ? n->getName() : "<no name>";
         auto result = synchronousRemove(apiIndex, n);
         if (result == API_EEXIST || result == API_ENOENT)
@@ -1342,7 +1346,7 @@ void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
             result = API_OK;
         }
 
-        ASSERT_EQ(API_OK, result) << "Remove node operation failed (error: " << mApi[apiIndex].lastError << ")";
+        ASSERT_EQ(API_OK, result) << "API " << apiIndex << ": Failed to remove node " << nodepath;
     }
 }
 
