@@ -1,9 +1,4 @@
-#include <atomic>
-#include <cassert>
-#include <functional>
-#include <mutex>
-#include <sstream>
-
+#include <mega/base64.h>
 #include <mega/common/client_adapter.h>
 #include <mega/common/error_or.h>
 #include <mega/common/logging.h>
@@ -15,11 +10,16 @@
 #include <mega/common/normalized_path.h>
 #include <mega/common/upload.h>
 #include <mega/common/utility.h>
-
-#include <mega/megaapp.h>
 #include <mega/file.h>
+#include <mega/megaapp.h>
 #include <mega/megaclient.h>
 #include <mega/node.h>
+
+#include <atomic>
+#include <cassert>
+#include <functional>
+#include <mutex>
+#include <sstream>
 
 namespace mega
 {
@@ -912,7 +912,7 @@ std::string ClientAdapter::sessionID() const
     auto id = mClient.sid.substr(sizeof(mClient.key.key));
 
     // Return ID to caller.
-    return id;
+    return Base64::btoa(id);
 }
 
 void ClientAdapter::storageInfo(StorageInfoCallback callback)

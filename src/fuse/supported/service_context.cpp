@@ -1,8 +1,6 @@
-#include <algorithm>
-#include <cassert>
-
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/utility.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/database_builder.h>
 #include <mega/fuse/common/inode.h>
@@ -13,7 +11,8 @@
 #include <mega/fuse/common/service.h>
 #include <mega/fuse/platform/service_context.h>
 
-#include <mega/base64.h>
+#include <algorithm>
+#include <cassert>
 
 namespace mega
 {
@@ -263,12 +262,7 @@ catch (...)
 
 LocalPath dbPath(const Client& client)
 {
-    std::ostringstream ostream;
-
-    ostream << "fuse00_"
-            << Base64::btoa(client.sessionID());
-
-    return client.dbPath(ostream.str());
+    return client.dbPath(format("fuse00_%s", client.sessionID().c_str()));
 }
 
 } // platform
