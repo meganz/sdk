@@ -154,10 +154,8 @@ pipeline {
                                     ]
                             ])
                         }
-                        sh "git submodule update --init iMEGA/Vendor/SVProgressHUD"
-                        sh "git submodule update --init iMEGA/Vendor/LTHPasscodeViewController"
                         withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
-                            sh "git submodule update --init Modules/MEGASharedRepo"
+                            sh "git submodule update --init --recursive"
                         }
                         script{
                             ios_sources_workspace = WORKSPACE
