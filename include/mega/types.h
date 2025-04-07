@@ -1302,6 +1302,7 @@ using fsfp_ptr_t = std::shared_ptr<fsfp_t>;
 using FileAccessPtr = std::unique_ptr<FileAccess>;
 using FileAccessSharedPtr = std::shared_ptr<FileAccess>;
 using FileAccessWeakPtr = std::weak_ptr<FileAccess>;
+using FileSystemAccessPtr = std::unique_ptr<FileSystemAccess>;
 
 template<typename T>
 using FromNodeHandleMap = std::map<NodeHandle, T>;
