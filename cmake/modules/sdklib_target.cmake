@@ -19,6 +19,7 @@ set(SDKLIB_COMMON_HEADERS
     ${SDKLIB_COMMON_INC}/database_builder.h
     ${SDKLIB_COMMON_INC}/database_forward.h
     ${SDKLIB_COMMON_INC}/database_utilities.h
+    ${SDKLIB_COMMON_INC}/directory.h
     ${SDKLIB_COMMON_INC}/error_or.h
     ${SDKLIB_COMMON_INC}/error_or_forward.h
     ${SDKLIB_COMMON_INC}/expected.h
@@ -75,6 +76,7 @@ set(SDKLIB_COMMON_SOURCES
     ${SDKLIB_COMMON_SRC}/client_adapter.cpp
     ${SDKLIB_COMMON_SRC}/database.cpp
     ${SDKLIB_COMMON_SRC}/database_builder.cpp
+    ${SDKLIB_COMMON_SRC}/directory.cpp
     ${SDKLIB_COMMON_SRC}/logger.cpp
     ${SDKLIB_COMMON_SRC}/node_event_type.cpp
     ${SDKLIB_COMMON_SRC}/normalized_path.cpp
