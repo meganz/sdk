@@ -1956,6 +1956,7 @@ MegaClient::MegaClient(MegaApp* a,
     mClientType(clientType),
     mJourneyId(),
     mClientAdapter(*this),
+    mFileService(),
     mFuseService(mClientAdapter)
 {
 #ifdef __ANDROID__
@@ -5216,6 +5217,9 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
 
     freeq(GET);  // freeq after closetc due to optimizations
     freeq(PUT);
+
+    // Deinitialize the File Service.
+    mFileService.deinitialize();
 
     // Deinitialize the FUSE Service.
     mFuseService.deinitialize();

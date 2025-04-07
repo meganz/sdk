@@ -4,6 +4,7 @@ add_subdirectory(
 )
 
 target_sources(SDKlib PRIVATE
+                      file_service.cpp
                       file_service_result.cpp
 )
 

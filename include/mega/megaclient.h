@@ -49,6 +49,7 @@
 
 // FUSE support.
 #include <mega/common/client_adapter.h>
+#include <mega/file_service/file_service.h>
 #include <mega/fuse/common/service.h>
 
 #include <optional>
@@ -3396,6 +3397,9 @@ public:
 
     // Client adapter.
     common::ClientAdapter mClientAdapter;
+
+    // File Service.
+    file_service::FileService mFileService;
 
     // FUSE service.
     fuse::Service mFuseService;

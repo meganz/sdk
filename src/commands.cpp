@@ -2042,6 +2042,9 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 // Initialize the client adapter.
                 client->mClientAdapter.initialize();
 
+                // Initialize File Service.
+                client->mFileService.initialize(client->mClientAdapter);
+
                 // Initialize FUSE subsystem.
                 client->mFuseService.initialize();
 
