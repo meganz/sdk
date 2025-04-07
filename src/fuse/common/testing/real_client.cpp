@@ -97,7 +97,7 @@ public:
 
 common::Client& RealClient::client() const
 {
-    return mClient->mFuseClientAdapter;
+    return mClient->mClientAdapter;
 }
 
 std::string RealClient::email() const

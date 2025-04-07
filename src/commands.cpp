@@ -2039,8 +2039,10 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
+                // Initialize the client adapter.
+                client->mClientAdapter.initialize();
+
                 // Initialize FUSE subsystem.
-                client->mFuseClientAdapter.initialize();
                 client->mFuseService.initialize();
 
                 client->openStatusTable(true);

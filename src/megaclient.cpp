@@ -1955,8 +1955,8 @@ MegaClient::MegaClient(MegaApp* a,
     mKeyManager(*this),
     mClientType(clientType),
     mJourneyId(),
-    mFuseClientAdapter(*this),
-    mFuseService(mFuseClientAdapter)
+    mClientAdapter(*this),
+    mFuseService(mClientAdapter)
 {
 #ifdef __ANDROID__
     if (!AndroidFileSystemAccess::isFileWrapperActive(fsaccess.get()))
@@ -3678,8 +3678,8 @@ void MegaClient::exec()
 
 #endif
 
-        // Dispatch FUSE client-side requests.
-        mFuseClientAdapter.dispatch();
+        // Dispatch client-side requests.
+        mClientAdapter.dispatch();
 
         notifypurge();
 
@@ -5134,7 +5134,7 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     //
     // Threads blocked on some request like putnodes will be awoken below
     // when all pending requests are "abandoned."
-    mFuseClientAdapter.deinitialize();
+    mClientAdapter.deinitialize();
 
     // Make sure the application hides any progress bars thay may have been visible.
     if (std::exchange(mRequestProgressNotified, false))

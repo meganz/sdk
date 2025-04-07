@@ -3394,8 +3394,8 @@ public:
         unsigned int gatewayId,
         CommandGetSubscriptionCancellationDetails::CompletionCallback&& completion);
 
-    // FUSE client adapter.
-    common::ClientAdapter mFuseClientAdapter;
+    // Client adapter.
+    common::ClientAdapter mClientAdapter;
 
     // FUSE service.
     fuse::Service mFuseService;
