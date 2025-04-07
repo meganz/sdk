@@ -11,6 +11,7 @@ target_include_directories(SDKlib PRIVATE
 
 target_sources(SDKlib PRIVATE
                       construction_logger.cpp
+                      database_builder.cpp
                       destruction_logger.cpp
                       file_service.cpp
                       file_service_context.cpp
