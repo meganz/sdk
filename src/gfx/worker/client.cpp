@@ -136,13 +136,14 @@ GfxClient GfxClient::create(const std::string& endpointName)
 }
 
 //
-// CommError::NOT_EXIST is returned when server is not running, this could due to server is restarted
+// CommError::NOT_EXIST is returned when server is not running, this could due to server is
+// restarted CommError::CLOSED is returned when server closed the handle such as it is crashed, only
+// on Windows
 //
-bool GfxClient::isRetryError(CommError error) const
+bool GfxClient::isConnectRetryError(CommError error) const
 {
-    static const std::unordered_set<CommError> retryErrors = {
-        CommError::NOT_EXIST
-    };
+    static const std::unordered_set<CommError> retryErrors = {CommError::NOT_EXIST,
+                                                              CommError::CLOSED};
 
     return retryErrors.find(error) != retryErrors.end();
 }
@@ -165,7 +166,7 @@ std::unique_ptr<IEndpoint> GfxClient::connectWithRetry(milliseconds backoff, uns
             return nullptr;
         }
 
-        if (isRetryError(error))
+        if (isConnectRetryError(error))
         {
             std::this_thread::sleep_for(backoff);
             continue;

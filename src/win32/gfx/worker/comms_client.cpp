@@ -44,19 +44,28 @@ std::pair<CommError, HANDLE> GfxCommunicationsClient::doConnect(LPCTSTR pipeName
         }
 
         // Exit if an error other than ERROR_PIPE_BUSY occurs.
-        auto lastError = GetLastError();
-        if (lastError != ERROR_PIPE_BUSY)
+        if (const auto lastError = GetLastError(); lastError != ERROR_PIPE_BUSY)
         {
             LOG_err << "Could not open pipe. Error Code=" << lastError << " " << mega::winErrorMessage(lastError);
             error = toCommError(lastError);
             break;
         }
 
-        // All pipe instances are busy, so wait for 10 seconds.
-        if (!WaitNamedPipe(pipeName, 10000))
+        // Server is busy. Wait and get one instance in 3 seconds. Continue to connect
+        if (WaitNamedPipe(pipeName, 3000))
+            continue;
+
+        if (const auto lastError = GetLastError(); lastError == ERROR_SEM_TIMEOUT)
         {
-            LOG_warn << "Could not open pipe: 10 second wait timed out.";
+            LOG_warn << "WaitNamedPipe: 3 second wait timed out.";
             error = CommError::TIMEOUT;
+            break;
+        }
+        else
+        {
+            LOG_err << "WaitNamedPipe Error Code=" << lastError << " "
+                    << mega::winErrorMessage(lastError);
+            error = toCommError(lastError);
             break;
         }
     }
@@ -88,6 +97,8 @@ CommError GfxCommunicationsClient::toCommError(DWORD winError) const
         return CommError::OK;
     case ERROR_FILE_NOT_FOUND:
         return CommError::NOT_EXIST;
+    case ERROR_BROKEN_PIPE: // Usually mean the other side closed the handle
+        return CommError::CLOSED;
     default:
         return CommError::ERR;
     }
