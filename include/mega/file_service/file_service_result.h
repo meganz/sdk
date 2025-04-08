@@ -11,6 +11,7 @@ namespace file_service
     expander(ALREADY_INITIALIZED, "The File Service has already been initialized") \
     expander(SUCCESS, "The File Service completed the operation successfully") \
     expander(UNEXPECTED, "The File Service encountered an unexpected error") \
+    expander(UNINITIALIZED, "The File Service has not been initialized") \
     expander(UNKNOWN_FILE, "The specified file isn't known by the File Service")
 
 enum FileServiceResult : unsigned int

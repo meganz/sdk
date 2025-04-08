@@ -41,7 +41,7 @@ auto FileService::info(FileID id) -> FileServiceResultOr<FileInfo>
     if (mContext)
         return mContext->info(id);
 
-    return unexpected(FILE_SERVICE_UNEXPECTED);
+    return unexpected(FILE_SERVICE_UNINITIALIZED);
 }
 
 auto FileService::initialize(Client& client) -> FileServiceResult
