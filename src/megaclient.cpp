@@ -15000,7 +15000,11 @@ bool MegaClient::fetchsc(DbTable* stateCacheTable)
 
             case CACHEDALERT:
             {
-                if (!loggedIntoFolder() && !useralerts.unserializeAlert(&data, id))
+                if (loggedIntoFolder())
+                {
+                    stateCacheTable->del(id); // delete record from old DB table 'statecache'
+                }
+                else if (!useralerts.unserializeAlert(&data, id))
                 {
                     LOG_err << "Failed - user notification read error";
                     // don't break execution, just ignore it
