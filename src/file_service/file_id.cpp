@@ -1,3 +1,4 @@
+#include <mega/common/query.h>
 #include <mega/file_service/file_id.h>
 #include <mega/types.h>
 #include <mega/utils.h>
@@ -7,6 +8,28 @@
 
 namespace mega
 {
+namespace common
+{
+
+using namespace file_service;
+
+auto SerializationTraits<FileID>::from(const Field& field) -> FileID
+{
+    auto value = field.get<std::uint64_t>();
+
+    if (synthetic(value))
+        return FileID::from(value);
+
+    return FileID::from(NodeHandle().set6byte(value));
+}
+
+auto SerializationTraits<FileID>::to(Parameter& parameter, FileID id) -> void
+{
+    parameter.set(id.toU64());
+}
+
+} // common
+
 namespace file_service
 {
 
