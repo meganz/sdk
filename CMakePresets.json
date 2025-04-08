@@ -1,0 +1,48 @@
+{
+    "version": 1,
+    "configurePresets": [
+        {
+            "name": "default",
+            "hidden": true,
+            "binaryDir": "${sourceParentDir}/build-${sourceDirName}-${presetName}",
+            "cacheVariables": {
+                "VCPKG_ROOT": "${sourceParentDir}/vcpkg"
+            }
+        },
+        {
+            "name": "unix",
+            "hidden": true,
+            "generator": "Unix Makefiles"
+        },
+        {
+            "name": "windows",
+            "hidden": true,
+            "generator": "Visual Studio 17 2022"
+        },
+        {
+            "name": "megasync",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_ISOLATED_GFX": "ON",
+                "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_QT_BINDINGS": "ON",
+                "USE_LIBUV": "ON"
+            }
+        },
+        {
+            "name": "megasync-unix",
+            "inherits": [
+                "unix",
+                "megasync"
+            ]
+        },
+        {
+            "name": "megasync-windows",
+            "inherits": [
+                "windows",
+                "megasync"
+            ]
+        }
+    ]
+}

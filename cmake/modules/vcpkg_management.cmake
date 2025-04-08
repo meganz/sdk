@@ -2,6 +2,10 @@ macro(process_vcpkg_libraries overlays_path)
 
     set(VCPKG_TOOLCHAIN_PATH "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 
+    if (NOT EXISTS ${VCPKG_TOOLCHAIN_PATH})
+        message(FATAL_ERROR "Invalid VCPKG_ROOT path: ${VCPKG_ROOT}")
+    endif()
+
     # Use internal VCPKG tools
     set(VCPKG_BOOTSTRAP_OPTIONS "-disableMetrics")
     foreach(path IN ITEMS ${overlays_path})
