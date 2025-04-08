@@ -1,5 +1,6 @@
 target_sources(SDKlib PRIVATE
                       database_builder.h
+                      file_context.h
                       file_context_badge.h
                       file_context_badge_forward.h
                       file_info_context.h

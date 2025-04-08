@@ -2,6 +2,7 @@
 #include <mega/common/scoped_query.h>
 #include <mega/common/transaction.h>
 #include <mega/file_service/database_builder.h>
+#include <mega/file_service/file_context_badge.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
@@ -24,6 +25,18 @@ using namespace common;
 static Database createDatabase(const LocalPath& databasePath);
 
 static const std::string kName = "FileServiceContext";
+
+template<typename T>
+auto FileServiceContext::getFromIndex(FileID id, FromFileIDMap<std::weak_ptr<T>>& map)
+    -> std::shared_ptr<T>
+{
+    SharedLock<SharedMutex> guard(mLock);
+
+    if (auto entry = map.find(id); entry != map.end())
+        return entry->second.lock();
+
+    return nullptr;
+}
 
 auto FileServiceContext::infoFromDatabase(FileID id) -> FileInfoContextPtr
 {
@@ -65,12 +78,7 @@ auto FileServiceContext::infoFromDatabase(FileID id) -> FileInfoContextPtr
 
 auto FileServiceContext::infoFromIndex(FileID id) -> FileInfoContextPtr
 {
-    SharedLock<SharedMutex> guard(mLock);
-
-    if (auto entry = mInfoContexts.find(id); entry != mInfoContexts.end())
-        return entry->second.lock();
-
-    return nullptr;
+    return getFromIndex(id, mInfoContexts);
 }
 
 template<typename T>
@@ -88,6 +96,7 @@ FileServiceContext::FileServiceContext(Client& client):
     mStorage(mClient),
     mDatabase(createDatabase(mStorage.databasePath())),
     mQueries(mDatabase),
+    mFileContexts(),
     mInfoContexts(),
     mLock(),
     mActivities(),
@@ -113,6 +122,11 @@ catch (std::runtime_error& exception)
     FSErrorF("Unable to get file information: %s: %s", toString(id).c_str(), exception.what());
 
     return unexpected(FILE_SERVICE_UNEXPECTED);
+}
+
+auto FileServiceContext::removeFromIndex(FileContextBadge, FileID id) -> void
+{
+    removeFromIndex(id, mFileContexts);
 }
 
 auto FileServiceContext::removeFromIndex(FileInfoContextBadge, FileID id) -> void

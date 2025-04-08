@@ -6,6 +6,8 @@
 #include <mega/common/shared_mutex.h>
 #include <mega/file_service/construction_logger.h>
 #include <mega/file_service/destruction_logger.h>
+#include <mega/file_service/file_context_badge_forward.h>
+#include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_context_badge_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
@@ -23,6 +25,9 @@ namespace file_service
 
 class FileServiceContext: DestructionLogger
 {
+    template<typename T>
+    auto getFromIndex(FileID id, FromFileIDMap<std::weak_ptr<T>>& map) -> std::shared_ptr<T>;
+
     auto infoFromDatabase(FileID id) -> FileInfoContextPtr;
 
     auto infoFromIndex(FileID id) -> FileInfoContextPtr;
@@ -35,6 +40,7 @@ class FileServiceContext: DestructionLogger
     common::Database mDatabase;
     FileServiceQueries mQueries;
 
+    FromFileIDMap<FileContextWeakPtr> mFileContexts;
     FromFileIDMap<FileInfoContextWeakPtr> mInfoContexts;
     common::SharedMutex mLock;
     common::ActivityMonitor mActivities;
@@ -47,6 +53,8 @@ public:
     ~FileServiceContext();
 
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
+
+    auto removeFromIndex(FileContextBadge badge, FileID id) -> void;
 
     auto removeFromIndex(FileInfoContextBadge badge, FileID id) -> void;
 }; // FileServiceContext
