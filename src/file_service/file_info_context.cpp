@@ -12,8 +12,6 @@ namespace file_service
 
 using namespace common;
 
-static std::string name(FileID id);
-
 template<typename T>
 auto FileInfoContext::get(T FileInfoContext::* const property) const
 {
@@ -27,15 +25,13 @@ FileInfoContext::FileInfoContext(Activity activity,
                                  NodeHandle handle,
                                  FileID id,
                                  FileServiceContext& service):
-    DestructionLogger(name(id)),
     mActivity(std::move(activity)),
     mHandle(handle),
     mID(id),
     mLock(),
     mModified(file.mtime),
     mService(service),
-    mSize(static_cast<std::uint64_t>(file.size)),
-    mConstructionLogger(name(id))
+    mSize(static_cast<std::uint64_t>(file.size))
 {}
 
 FileInfoContext::~FileInfoContext()
@@ -61,11 +57,6 @@ auto FileInfoContext::modified() const -> std::int64_t
 auto FileInfoContext::size() const -> std::uint64_t
 {
     return get(&FileInfoContext::mSize);
-}
-
-std::string name(FileID id)
-{
-    return format("File Info Context %s", toString(id).c_str());
 }
 
 } // file_service

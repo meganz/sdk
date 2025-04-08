@@ -12,8 +12,6 @@ namespace file_service
 
 using namespace common;
 
-static const std::string kName = "FileStorage";
-
 auto FileStorage::openFile(FileID id, bool mustCreate) -> FileAccessPtr
 {
     auto file = mFilesystem->newfileaccess(false);
@@ -38,11 +36,9 @@ auto FileStorage::userFilePath(FileID id) const -> LocalPath
 }
 
 FileStorage::FileStorage(const Client& client):
-    DestructionLogger(kName),
     mFilesystem(std::make_unique<FSACCESS_CLASS>()),
     mStorageDirectory(*mFilesystem, logger(), "file-service", client.dbRootPath()),
-    mUserStorageDirectory(*mFilesystem, logger(), client.sessionID(), mStorageDirectory),
-    mConstructionLogger(kName)
+    mUserStorageDirectory(*mFilesystem, logger(), client.sessionID(), mStorageDirectory)
 {}
 
 FileStorage::~FileStorage() = default;

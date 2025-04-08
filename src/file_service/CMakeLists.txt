@@ -10,9 +10,7 @@ target_include_directories(SDKlib PRIVATE
 )
 
 target_sources(SDKlib PRIVATE
-                      construction_logger.cpp
                       database_builder.cpp
-                      destruction_logger.cpp
                       file.cpp
                       file_context.cpp
                       file_id.cpp

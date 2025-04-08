@@ -8,13 +8,9 @@ namespace file_service
 
 using namespace common;
 
-static const std::string kName = "FileServiceQueries";
-
 FileServiceQueries::FileServiceQueries(Database& database):
-    DestructionLogger(kName),
     mAddFile(database.query()),
-    mGetFile(database.query()),
-    mConstructionLogger(kName)
+    mGetFile(database.query())
 {
     mAddFile = "insert into files values ( "
                "  :handle, "

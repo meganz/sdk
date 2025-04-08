@@ -4,8 +4,6 @@
 #include <mega/common/client_forward.h>
 #include <mega/common/database.h>
 #include <mega/common/shared_mutex.h>
-#include <mega/file_service/construction_logger.h>
-#include <mega/file_service/destruction_logger.h>
 #include <mega/file_service/file_context_badge_forward.h>
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_forward.h>
@@ -24,7 +22,7 @@ namespace mega
 namespace file_service
 {
 
-class FileServiceContext: DestructionLogger
+class FileServiceContext
 {
     template<typename T>
     auto getFromIndex(FileID id, FromFileIDMap<std::weak_ptr<T>>& map) -> std::shared_ptr<T>;
@@ -53,8 +51,6 @@ class FileServiceContext: DestructionLogger
     FromFileIDMap<FileInfoContextWeakPtr> mInfoContexts;
     common::SharedMutex mLock;
     common::ActivityMonitor mActivities;
-
-    ConstructionLogger mConstructionLogger;
 
 public:
     FileServiceContext(common::Client& client);

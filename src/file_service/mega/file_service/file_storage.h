@@ -2,8 +2,6 @@
 
 #include <mega/common/client_forward.h>
 #include <mega/common/directory.h>
-#include <mega/file_service/construction_logger.h>
-#include <mega/file_service/destruction_logger.h>
 #include <mega/types.h>
 
 namespace mega
@@ -11,7 +9,7 @@ namespace mega
 namespace file_service
 {
 
-class FileStorage: DestructionLogger
+class FileStorage
 {
     auto openFile(FileID id, bool mustCreate) -> FileAccessPtr;
 
@@ -20,7 +18,6 @@ class FileStorage: DestructionLogger
     FileSystemAccessPtr mFilesystem;
     common::Directory mStorageDirectory;
     common::Directory mUserStorageDirectory;
-    ConstructionLogger mConstructionLogger;
 
 public:
     explicit FileStorage(const common::Client& client);

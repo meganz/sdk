@@ -1,7 +1,5 @@
 #include <mega/common/activity_monitor.h>
 #include <mega/common/shared_mutex.h>
-#include <mega/file_service/construction_logger.h>
-#include <mega/file_service/destruction_logger.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info_context_forward.h>
 #include <mega/file_service/file_service_context_forward.h>
@@ -12,7 +10,7 @@ namespace mega
 namespace file_service
 {
 
-class FileInfoContext: DestructionLogger
+class FileInfoContext
 {
     template<typename T>
     auto get(T FileInfoContext::* const property) const;
@@ -24,7 +22,6 @@ class FileInfoContext: DestructionLogger
     std::int64_t mModified;
     FileServiceContext& mService;
     std::uint64_t mSize;
-    ConstructionLogger mConstructionLogger;
 
 public:
     FileInfoContext(common::Activity activity,

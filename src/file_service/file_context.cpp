@@ -13,28 +13,19 @@ namespace file_service
 
 using namespace common;
 
-static std::string name(FileID id);
-
 FileContext::FileContext(Activity activity,
                          FileAccessPtr file,
                          FileInfoContextPtr info,
                          FileServiceContext& service):
-    DestructionLogger(name(info->id())),
     mActivity(std::move(activity)),
     mFile(std::move(file)),
     mInfo(std::move(info)),
-    mService(service),
-    mConstructionLogger(name(info->id()))
+    mService(service)
 {}
 
 FileContext::~FileContext()
 {
     mService.removeFromIndex(FileContextBadge(), mInfo->id());
-}
-
-std::string name(FileID id)
-{
-    return format("File Context %s", toString(id).c_str());
 }
 
 } // file_service

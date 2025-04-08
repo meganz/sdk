@@ -28,8 +28,6 @@ using namespace common;
 
 static Database createDatabase(const LocalPath& databasePath);
 
-static const std::string kName = "FileServiceContext";
-
 template<typename T>
 auto FileServiceContext::getFromIndex(FileID id, FromFileIDMap<std::weak_ptr<T>>& map)
     -> std::shared_ptr<T>
@@ -184,7 +182,6 @@ auto FileServiceContext::removeFromIndex(FileID id, FromFileIDMap<T>& map) -> vo
 }
 
 FileServiceContext::FileServiceContext(Client& client):
-    DestructionLogger(kName),
     mClient(client),
     mStorage(mClient),
     mDatabase(createDatabase(mStorage.databasePath())),
@@ -192,8 +189,7 @@ FileServiceContext::FileServiceContext(Client& client):
     mFileContexts(),
     mInfoContexts(),
     mLock(),
-    mActivities(),
-    mConstructionLogger(kName)
+    mActivities()
 {}
 
 FileServiceContext::~FileServiceContext() = default;

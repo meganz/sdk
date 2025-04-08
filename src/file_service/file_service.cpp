@@ -17,13 +17,9 @@ namespace file_service
 
 using namespace common;
 
-static const std::string kName = "FileService";
-
 FileService::FileService():
-    DestructionLogger(kName),
     mContext(),
-    mContextLock(),
-    mConstructionLogger(kName)
+    mContextLock()
 {}
 
 FileService::~FileService() = default;
