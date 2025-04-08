@@ -4,6 +4,7 @@
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_service_context.h>
+#include <mega/filesystem.h>
 
 namespace mega
 {
@@ -14,9 +15,13 @@ using namespace common;
 
 static std::string name(FileID id);
 
-FileContext::FileContext(Activity activity, FileInfoContextPtr info, FileServiceContext& service):
+FileContext::FileContext(Activity activity,
+                         FileAccessPtr file,
+                         FileInfoContextPtr info,
+                         FileServiceContext& service):
     DestructionLogger(name(info->id())),
     mActivity(std::move(activity)),
+    mFile(std::move(file)),
     mInfo(std::move(info)),
     mService(service),
     mConstructionLogger(name(info->id()))

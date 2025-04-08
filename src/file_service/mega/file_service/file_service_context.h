@@ -8,6 +8,7 @@
 #include <mega/file_service/destruction_logger.h>
 #include <mega/file_service/file_context_badge_forward.h>
 #include <mega/file_service/file_context_pointer.h>
+#include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_context_badge_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
@@ -28,9 +29,17 @@ class FileServiceContext: DestructionLogger
     template<typename T>
     auto getFromIndex(FileID id, FromFileIDMap<std::weak_ptr<T>>& map) -> std::shared_ptr<T>;
 
-    auto infoFromDatabase(FileID id) -> FileInfoContextPtr;
+    auto infoFromDatabase(FileID id, bool open) -> std::pair<FileInfoContextPtr, FileAccessPtr>;
 
-    auto infoFromIndex(FileID id) -> FileInfoContextPtr;
+    auto infoFromIndex(FileID id, bool open) -> std::pair<FileInfoContextPtr, FileAccessPtr>;
+
+    auto info(FileID id, bool open) -> std::pair<FileInfoContextPtr, FileAccessPtr>;
+
+    auto openFromCloud(FileID id) -> FileServiceResultOr<FileContextPtr>;
+
+    auto openFromDatabase(FileID id) -> FileServiceResultOr<FileContextPtr>;
+
+    auto openFromIndex(FileID id) -> FileContextPtr;
 
     template<typename T>
     auto removeFromIndex(FileID id, FromFileIDMap<T>& map) -> void;
@@ -53,6 +62,8 @@ public:
     ~FileServiceContext();
 
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
+
+    auto open(FileID id) -> FileServiceResultOr<File>;
 
     auto removeFromIndex(FileContextBadge badge, FileID id) -> void;
 

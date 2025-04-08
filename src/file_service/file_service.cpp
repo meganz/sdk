@@ -1,4 +1,5 @@
 #include <mega/common/lock.h>
+#include <mega/file_service/file.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_service.h>
@@ -40,6 +41,16 @@ auto FileService::info(FileID id) -> FileServiceResultOr<FileInfo>
 
     if (mContext)
         return mContext->info(id);
+
+    return unexpected(FILE_SERVICE_UNINITIALIZED);
+}
+
+auto FileService::open(FileID id) -> FileServiceResultOr<File>
+{
+    SharedLock<SharedMutex> guard(mContextLock);
+
+    if (mContext)
+        return mContext->open(id);
 
     return unexpected(FILE_SERVICE_UNINITIALIZED);
 }

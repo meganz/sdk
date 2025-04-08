@@ -14,6 +14,7 @@ struct FileServiceQueries: DestructionLogger
 {
     explicit FileServiceQueries(common::Database& database);
 
+    common::Query mAddFile;
     common::Query mGetFile;
     ConstructionLogger mConstructionLogger;
 }; // FileServiceQueries

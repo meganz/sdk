@@ -14,6 +14,19 @@ using namespace common;
 
 static const std::string kName = "FileStorage";
 
+auto FileStorage::openFile(FileID id, bool mustCreate) -> FileAccessPtr
+{
+    auto file = mFilesystem->newfileaccess(false);
+    auto path = userFilePath(id);
+
+    if (file->isfile(path) == !mustCreate && file->fopen(path, true, true, FSLogging::noLogging))
+        return file;
+
+    throw FSErrorF("Couldn't %s file: %s",
+                   mustCreate ? "create" : "open",
+                   path.toPath(false).c_str());
+}
+
 auto FileStorage::userFilePath(FileID id) const -> LocalPath
 {
     auto name = LocalPath::fromRelativePath(toString(id));
@@ -34,6 +47,11 @@ FileStorage::FileStorage(const Client& client):
 
 FileStorage::~FileStorage() = default;
 
+auto FileStorage::addFile(FileID id) -> FileAccessPtr
+{
+    return openFile(id, true);
+}
+
 auto FileStorage::databasePath() const -> LocalPath
 {
     static const auto name = LocalPath::fromRelativePath("metadata");
@@ -47,13 +65,7 @@ auto FileStorage::databasePath() const -> LocalPath
 
 auto FileStorage::getFile(FileID id) -> FileAccessPtr
 {
-    auto file = mFilesystem->newfileaccess(false);
-    auto path = userFilePath(id);
-
-    if (file->isfile(path) && file->fopen(path, true, true, FSLogging::noLogging))
-        return file;
-
-    throw FSErrorF("Couldn't open the file at: %s", path.toPath(false).c_str());
+    return openFile(id, false);
 }
 
 auto FileStorage::storageDirectory() const -> const LocalPath&

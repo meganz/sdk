@@ -12,9 +12,16 @@ static const std::string kName = "FileServiceQueries";
 
 FileServiceQueries::FileServiceQueries(Database& database):
     DestructionLogger(kName),
+    mAddFile(database.query()),
     mGetFile(database.query()),
     mConstructionLogger(kName)
 {
+    mAddFile = "insert into files values ( "
+               "  :handle, "
+               "  :id, "
+               "  0 "
+               ")";
+
     mGetFile = "select * "
                "  from files "
                " where (:handle is not null and handle = :handle) "
