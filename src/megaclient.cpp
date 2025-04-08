@@ -2872,6 +2872,9 @@ void MegaClient::exec()
             case REQ_SUCCESS:
                 if (*pendingscUserAlerts->in.c_str() == '{')
                 {
+                    // there should be no User Alerts when logged into folder
+                    assert(!loggedIntoFolder());
+
                     JSON json;
                     json.begin(pendingscUserAlerts->in.c_str());
                     json.enterobject();
@@ -5376,10 +5379,12 @@ bool MegaClient::procsc()
                                 bool isMoveOperation = false;
                                 // node addition
                                 {
-                                    useralerts.beginNotingSharedNodes();
+                                    if (!loggedIntoFolder())
+                                        useralerts.beginNotingSharedNodes();
                                     handle originatingUser = sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode.get(), isMoveOperation);
                                     mergenewshares(1);
-                                    useralerts.convertNotedSharedNodes(true, originatingUser);
+                                    if (!loggedIntoFolder())
+                                        useralerts.convertNotedSharedNodes(true, originatingUser);
                                 }
                                 lastAPDeletedNode = nullptr;
                             }
@@ -6778,26 +6783,40 @@ bool MegaClient::sc_shares()
                         }
                     }
 
-                    if (r == ACCESS_UNKNOWN)
+                    if (!loggedIntoFolder()) // ignore User Alerts when logged into folder
                     {
-                        handle peer = outbound ? uh : oh;
-                        if (peer != me && peer && !ISUNDEF(peer) && statecurrent && ou != me)
+                        if (r == ACCESS_UNKNOWN)
                         {
-                            User* u = finduser(peer);
-                            useralerts.add(new UserAlert::DeletedShare(peer, u ? u->email : "", oh, h, ts == 0 ? m_time() : ts, useralerts.nextId()));
-                        }
-                    }
-                    else
-                    {
-                        if (!outbound && statecurrent)
-                        {
-                            User* u = finduser(oh);
-                            // only new shares should be notified (skip permissions changes)
-                            bool newShare = u && u->sharing.find(h) == u->sharing.end();
-                            if (newShare)
+                            handle peer = outbound ? uh : oh;
+                            if (peer != me && peer && !ISUNDEF(peer) && statecurrent && ou != me)
                             {
-                                useralerts.add(new UserAlert::NewShare(h, oh, u->email, ts, useralerts.nextId()));
-                                useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
+                                User* u = finduser(peer);
+                                useralerts.add(new UserAlert::DeletedShare(peer,
+                                                                           u ? u->email : "",
+                                                                           oh,
+                                                                           h,
+                                                                           ts == 0 ? m_time() : ts,
+                                                                           useralerts.nextId()));
+                            }
+                        }
+                        else
+                        {
+                            if (!outbound && statecurrent)
+                            {
+                                User* u = finduser(oh);
+                                // only new shares should be notified (skip permissions changes)
+                                bool newShare = u && u->sharing.find(h) == u->sharing.end();
+                                if (newShare)
+                                {
+                                    useralerts.add(new UserAlert::NewShare(h,
+                                                                           oh,
+                                                                           u->email,
+                                                                           ts,
+                                                                           useralerts.nextId()));
+                                    // no need to alert on nodes already in the new share, which are
+                                    // delivered next
+                                    useralerts.ignoreNextSharedNodesUnder(h);
+                                }
                             }
                         }
                     }
@@ -6827,7 +6846,7 @@ bool MegaClient::sc_shares()
 
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        if (!outbound && statecurrent)
+                        if (!outbound && statecurrent && !loggedIntoFolder())
                         {
                             User* u = finduser(oh);
                             // only new shares should be notified (skip permissions changes)
@@ -6893,7 +6912,7 @@ bool MegaClient::sc_upgrade(nameid paymentType)
             case EOO:
                 // No User Alert for 'ftr' and features
                 if (paymentType != makeNameid("ftr") && (itemclass == 0 || itemclass == 1) &&
-                    statecurrent)
+                    statecurrent && !loggedIntoFolder())
                 {
                     useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId(), paymentType));
                 }
@@ -6921,7 +6940,7 @@ void MegaClient::sc_paymentreminder()
             break;
 
         case EOO:
-            if (statecurrent)
+            if (statecurrent && !loggedIntoFolder())
             {
                 useralerts.add(new UserAlert::PaymentReminder(expiryts ? expiryts : m_time(), useralerts.nextId()));
             }
@@ -7312,7 +7331,7 @@ void MegaClient::sc_ipc()
                     break;
                 }
 
-                if (m && statecurrent)
+                if (m && statecurrent && !loggedIntoFolder())
                 {
                     string email;
                     JSON::copystring(&email, m);
@@ -7558,7 +7577,7 @@ void MegaClient::sc_upc(bool incoming)
                     pcr->uts = uts;
                 }
 
-                if (statecurrent && ou != me && (incoming || s != 2))
+                if (statecurrent && ou != me && (incoming || s != 2) && !loggedIntoFolder())
                 {
                     string email;
                     JSON::copystring(&email, m);
@@ -7656,7 +7675,7 @@ void MegaClient::sc_ph()
             n = nodebyhandle(h);
             if (n)
             {
-                if ((takendown || reinstated) && !ISUNDEF(h) && statecurrent)
+                if ((takendown || reinstated) && !ISUNDEF(h) && statecurrent && !loggedIntoFolder())
                 {
                     useralerts.add(new UserAlert::Takedown(takendown, reinstated, n->type, h, m_time(), useralerts.nextId()));
                 }
@@ -9081,7 +9100,10 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                 if (n)
                 {
                     TreeProcDel td;
-                    useralerts.beginNotingSharedNodes();
+                    if (!loggedIntoFolder())
+                    {
+                        useralerts.beginNotingSharedNodes();
+                    }
 
                     int creqtag = reqtag;
                     reqtag = 0;
@@ -9089,7 +9111,10 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
 
-                    useralerts.stashDeletedNotedSharedNodes(originatingUser);
+                    if (!loggedIntoFolder())
+                    {
+                        useralerts.stashDeletedNotedSharedNodes(originatingUser);
+                    }
 #ifdef ENABLE_SYNC
                     // None sync operation is required if version is removed
                     if (n->parent && n->parent->type != FILENODE)
@@ -9097,7 +9122,10 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                         syncs.triggerSync(n->parent->nodeHandle());
                     }
 #endif
-                    useralerts.convertNotedSharedNodes(false, originatingUser);
+                    if (!loggedIntoFolder())
+                    {
+                        useralerts.convertNotedSharedNodes(false, originatingUser);
+                    }
                 }
 
                 return n;
@@ -10453,7 +10481,7 @@ int MegaClient::readnode(JSON* j,
                     }
                 }
 
-                if (u != me && !ISUNDEF(u) && !fetchingnodes)
+                if (u != me && !ISUNDEF(u) && !fetchingnodes && !loggedIntoFolder())
                 {
                     useralerts.noteSharedNode(u, t, ts, n.get(), name_id::put);
                 }
@@ -10484,7 +10512,7 @@ int MegaClient::readnode(JSON* j,
             n = nullptr;    // ownership is taken by NodeManager upon addNode()
 
             // update-alerts for shared-nodes management
-            if (!ISUNDEF(ph))
+            if (!ISUNDEF(ph) && !loggedIntoFolder())
             {
                 if (useralerts.isHandleInAlertsAsRemoved(h) && ISUNDEF(previousHandleForAlert))
                 {
@@ -11209,7 +11237,7 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
 
         if (!warnlevel())
         {
-            if (actionpackets && v >= 0 && v <= 3 && statecurrent)
+            if (actionpackets && v >= 0 && v <= 3 && statecurrent && !loggedIntoFolder())
             {
                 string email;
                 JSON::copystring(&email, m);
@@ -14972,7 +15000,11 @@ bool MegaClient::fetchsc(DbTable* stateCacheTable)
 
             case CACHEDALERT:
             {
-                if (!useralerts.unserializeAlert(&data, id))
+                if (loggedIntoFolder())
+                {
+                    stateCacheTable->del(id); // delete record from old DB table 'statecache'
+                }
+                else if (!useralerts.unserializeAlert(&data, id))
                 {
                     LOG_err << "Failed - user notification read error";
                     // don't break execution, just ignore it

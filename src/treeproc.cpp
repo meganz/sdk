@@ -58,7 +58,7 @@ void TreeProcDel::proc(MegaClient* client, std::shared_ptr<Node> n)
     client->mNodeManager.notifyNode(n);
     handle userHandle = ISUNDEF(mOriginatingUser) ? n->owner : mOriginatingUser;
 
-    if (userHandle != client->me)
+    if (userHandle != client->me && !client->loggedIntoFolder())
     {
         client->useralerts.noteSharedNode(userHandle, n->type, 0, n.get());
     }
