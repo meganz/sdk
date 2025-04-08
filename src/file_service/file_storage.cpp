@@ -1,4 +1,5 @@
 #include <mega/common/client.h>
+#include <mega/file_service/file_id.h>
 #include <mega/file_service/file_storage.h>
 #include <mega/file_service/logging.h>
 
@@ -12,6 +13,16 @@ namespace file_service
 using namespace common;
 
 static const std::string kName = "FileStorage";
+
+auto FileStorage::userFilePath(FileID id) const -> LocalPath
+{
+    auto name = LocalPath::fromRelativePath(toString(id));
+    auto path = userStorageDirectory();
+
+    path.appendWithSeparator(name, false);
+
+    return path;
+}
 
 FileStorage::FileStorage(const Client& client):
     DestructionLogger(kName),
@@ -32,6 +43,17 @@ auto FileStorage::databasePath() const -> LocalPath
     path.appendWithSeparator(name, true);
 
     return path;
+}
+
+auto FileStorage::getFile(FileID id) -> FileAccessPtr
+{
+    auto file = mFilesystem->newfileaccess(false);
+    auto path = userFilePath(id);
+
+    if (file->isfile(path) && file->fopen(path, true, true, FSLogging::noLogging))
+        return file;
+
+    throw FSErrorF("Couldn't open the file at: %s", path.toPath(false).c_str());
 }
 
 auto FileStorage::storageDirectory() const -> const LocalPath&

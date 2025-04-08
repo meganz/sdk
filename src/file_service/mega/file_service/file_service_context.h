@@ -9,8 +9,10 @@
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_context_badge_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
+#include <mega/file_service/file_info_forward.h>
 #include <mega/file_service/file_service_context_forward.h>
 #include <mega/file_service/file_service_queries.h>
+#include <mega/file_service/file_service_result_or_forward.h>
 #include <mega/file_service/file_storage.h>
 #include <mega/file_service/from_file_id_map.h>
 
@@ -21,6 +23,10 @@ namespace file_service
 
 class FileServiceContext: DestructionLogger
 {
+    auto infoFromDatabase(FileID id) -> FileInfoContextPtr;
+
+    auto infoFromIndex(FileID id) -> FileInfoContextPtr;
+
     template<typename T>
     auto remove(FileID id, FromFileIDMap<T>& map) -> void;
 
@@ -39,6 +45,8 @@ public:
     FileServiceContext(common::Client& client);
 
     ~FileServiceContext();
+
+    auto info(FileID id) -> FileServiceResultOr<FileInfo>;
 
     auto remove(FileInfoContextBadge badge, FileID id) -> void;
 }; // FileServiceContext

@@ -13,6 +13,8 @@ namespace file_service
 
 class FileStorage: DestructionLogger
 {
+    auto userFilePath(FileID id) const -> LocalPath;
+
     FileSystemAccessPtr mFilesystem;
     common::Directory mStorageDirectory;
     common::Directory mUserStorageDirectory;
@@ -24,6 +26,8 @@ public:
     ~FileStorage();
 
     auto databasePath() const -> LocalPath;
+
+    auto getFile(FileID id) -> FileAccessPtr;
 
     auto storageDirectory() const -> const LocalPath&;
 

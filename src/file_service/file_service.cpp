@@ -1,7 +1,10 @@
 #include <mega/common/lock.h>
+#include <mega/file_service/file_id.h>
+#include <mega/file_service/file_info.h>
 #include <mega/file_service/file_service.h>
 #include <mega/file_service/file_service_context.h>
 #include <mega/file_service/file_service_result.h>
+#include <mega/file_service/file_service_result_or.h>
 #include <mega/file_service/logging.h>
 
 #include <stdexcept>
@@ -29,6 +32,16 @@ auto FileService::deinitialize() -> void
     UniqueLock<SharedMutex> guard(mContextLock);
 
     mContext.reset();
+}
+
+auto FileService::info(FileID id) -> FileServiceResultOr<FileInfo>
+{
+    SharedLock<SharedMutex> guard(mContextLock);
+
+    if (mContext)
+        return mContext->info(id);
+
+    return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
 auto FileService::initialize(Client& client) -> FileServiceResult

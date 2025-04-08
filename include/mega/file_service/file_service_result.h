@@ -10,7 +10,8 @@ namespace file_service
 #define DEFINE_FILE_SERVICE_RESULTS(expander) \
     expander(ALREADY_INITIALIZED, "The File Service has already been initialized") \
     expander(SUCCESS, "The File Service completed the operation successfully") \
-    expander(UNEXPECTED, "The File Service encountered an unexpected error")
+    expander(UNEXPECTED, "The File Service encountered an unexpected error") \
+    expander(UNKNOWN_FILE, "The specified file isn't known by the File Service")
 
 enum FileServiceResult : unsigned int
 {
