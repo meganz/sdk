@@ -22,23 +22,23 @@ class SdkTestPath: public SdkTestNodesSetUp
 public:
     const std::vector<NodeInfo>& getElements() const override
     {
-        static const std::vector<NodeInfo> TEST_NODES
-        {
+        static const std::vector<NodeInfo> TEST_NODES{
             FileNodeInfo("rootTestFile"),
-                DirNodeInfo("dir1")
-                    .addChild(FileNodeInfo("testFile1"))
+            DirNodeInfo("dir1")
+                .addChild(FileNodeInfo("testFile1"))
 #if !defined(WIN32) // Windows does not allow ':' character in file names
-                    .addChild(FileNodeInfo("testFile1:"))
-                    .addChild(FileNodeInfo("test:File1"))
-                    .addChild(FileNodeInfo(":testFile1")),
-                FileNodeInfo("rootTestFile:"), FileNodeInfo("rootTest:File"),
-                FileNodeInfo(":rootTestFile"),
-                DirNodeInfo("dir2:")
-                    .addChild(DirNodeInfo("dir3:").addChild(FileNodeInfo("testFile3:")))
-                    .addChild(FileNodeInfo("testFile2:"))
-                    .addChild(FileNodeInfo("test:File2"))
-                    .addChild(FileNodeInfo(":testFile2"))
-                    .addChild(FileNodeInfo("testFile2")),
+                .addChild(FileNodeInfo("testFile1:"))
+                .addChild(FileNodeInfo("test:File1"))
+                .addChild(FileNodeInfo(":testFile1")),
+            FileNodeInfo("rootTestFile:"),
+            FileNodeInfo("rootTest:File"),
+            FileNodeInfo(":rootTestFile"),
+            DirNodeInfo("dir2:")
+                .addChild(DirNodeInfo("dir3:").addChild(FileNodeInfo("testFile3:")))
+                .addChild(FileNodeInfo("testFile2:"))
+                .addChild(FileNodeInfo("test:File2"))
+                .addChild(FileNodeInfo(":testFile2"))
+                .addChild(FileNodeInfo("testFile2")),
 #endif
         };
         return TEST_NODES;
