@@ -28,7 +28,7 @@ class FileServiceContext: DestructionLogger
     auto infoFromIndex(FileID id) -> FileInfoContextPtr;
 
     template<typename T>
-    auto remove(FileID id, FromFileIDMap<T>& map) -> void;
+    auto removeFromIndex(FileID id, FromFileIDMap<T>& map) -> void;
 
     common::Client& mClient;
     FileStorage mStorage;
@@ -48,7 +48,7 @@ public:
 
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
 
-    auto remove(FileInfoContextBadge badge, FileID id) -> void;
+    auto removeFromIndex(FileInfoContextBadge badge, FileID id) -> void;
 }; // FileServiceContext
 
 } // file_service

@@ -74,7 +74,7 @@ auto FileServiceContext::infoFromIndex(FileID id) -> FileInfoContextPtr
 }
 
 template<typename T>
-auto FileServiceContext::remove(FileID id, FromFileIDMap<T>& map) -> void
+auto FileServiceContext::removeFromIndex(FileID id, FromFileIDMap<T>& map) -> void
 {
     UniqueLock<SharedMutex> guard(mLock);
 
@@ -115,9 +115,9 @@ catch (std::runtime_error& exception)
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
-auto FileServiceContext::remove(FileInfoContextBadge, FileID id) -> void
+auto FileServiceContext::removeFromIndex(FileInfoContextBadge, FileID id) -> void
 {
-    remove(id, mInfoContexts);
+    removeFromIndex(id, mInfoContexts);
 }
 
 Database createDatabase(const LocalPath& databasePath)

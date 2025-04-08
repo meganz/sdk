@@ -40,7 +40,7 @@ FileInfoContext::FileInfoContext(Activity activity,
 
 FileInfoContext::~FileInfoContext()
 {
-    mService.remove({}, mID);
+    mService.removeFromIndex({}, mID);
 }
 
 auto FileInfoContext::handle() const -> NodeHandle
