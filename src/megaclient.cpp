@@ -1919,6 +1919,19 @@ MegaClient::MegaClient(MegaApp* a,
     mFuseClientAdapter(*this),
     mFuseService(mFuseClientAdapter)
 {
+#ifdef __ANDROID__
+    if (auto fsa = fsaccess->newfileaccess();
+        dynamic_cast<AndroidFileSystemAccess*>(fsaccess.get()) &&
+        !dynamic_cast<AndroidFileAccess*>(fsa.get()))
+    {
+        LOG_verbose << "[MegaClient::MegaClient] replacing AndroidFileSystemAccess by "
+                       "LinuxFileSystemAccess due to missing FileWrapper in JNI";
+        fsaccess = std::make_unique<LinuxFileSystemAccess>();
+    }
+#endif
+    mJourneyId =
+        std::make_unique<JourneyID>(fsaccess, dbaccess ? dbaccess->rootPath() : LocalPath());
+
     mNodeManager.reset();
     sctable.reset();
     pendingsccommit = false;
