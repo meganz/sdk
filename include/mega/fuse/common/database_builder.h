@@ -1,9 +1,7 @@
 #pragma once
 
-#include <cstddef>
-
-#include <mega/fuse/common/database_forward.h>
-#include <mega/fuse/common/query.h>
+#include <mega/common/database_builder.h>
+#include <mega/common/database_forward.h>
 
 namespace mega
 {
@@ -11,23 +9,13 @@ namespace fuse
 {
 
 class DatabaseBuilder
+  : public common::DatabaseBuilder
 {
-    template<typename Function>
-    void withQuery(Function&& function);
-
-    Database& mDatabase;
+    // What versions exist for this database?
+    const common::DatabaseVersionVector& versions() const override;
 
 public:
-    DatabaseBuilder(Database& database);
-
-    // Create or update the database to the latest version.
-    void build();
-
-    // Downgrade the database to the specified version.
-    void downgrade(std::size_t target);
-
-    // Upgrade the database to the specified version.
-    void upgrade(std::size_t target);
+    explicit DatabaseBuilder(common::Database& database);
 }; // DatabaseBuilder
 
 } // fuse

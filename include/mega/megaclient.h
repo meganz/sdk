@@ -47,7 +47,7 @@
 #include "useralerts.h"
 
 // FUSE support.
-#include <mega/fuse/common/client_adapter.h>
+#include <mega/common/client_adapter.h>
 #include <mega/fuse/common/service.h>
 
 #include <optional>
@@ -3353,7 +3353,7 @@ public:
     void getMyIp(CommandGetMyIP::Cb&& completion);
 
     // FUSE client adapter.
-    fuse::ClientAdapter mFuseClientAdapter;
+    common::ClientAdapter mFuseClientAdapter;
 
     // FUSE service.
     fuse::Service mFuseService;

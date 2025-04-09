@@ -22,6 +22,8 @@ namespace fuse
 namespace platform
 {
 
+using namespace common;
+
 MountResult MountDB::check(const Client& client,
                            const MountInfo& info) const
 {

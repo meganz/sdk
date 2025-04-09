@@ -2,10 +2,13 @@
 #include <cassert>
 #include <stdexcept>
 
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
+#include <mega/common/scoped_query.h>
+#include <mega/common/transaction.h>
 #include <mega/fuse/common/any_lock.h>
 #include <mega/fuse/common/any_lock_set.h>
 #include <mega/fuse/common/client.h>
-#include <mega/fuse/common/error_or.h>
 #include <mega/fuse/common/inode.h>
 #include <mega/fuse/common/inode_id.h>
 #include <mega/fuse/common/logging.h>
@@ -14,10 +17,7 @@
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/ref.h>
-#include <mega/fuse/common/scoped_query.h>
-#include <mega/fuse/common/transaction.h>
 #include <mega/fuse/platform/mount.h>
 #include <mega/fuse/platform/mount_db.h>
 #include <mega/fuse/platform/service_context.h>
@@ -28,6 +28,8 @@ namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 MountDB::Queries::Queries(Database& mDatabase)
   : mAddMount(mDatabase.query())
@@ -177,7 +179,7 @@ try
 
         // Collect names of enabled mounts.
         for ( ; query; ++query)
-            mounts.emplace_back(query.field("name"));
+            mounts.emplace_back(query.field("name").get<std::string>());
     }
 
     // Try and enable each mount.
@@ -198,7 +200,7 @@ try
                          name.c_str(),
                          toString(event.mResult));
 
-            client().emitEvent(event);
+            emitEvent(client(), event);
 
             // Try and enable the next mount.
             continue;
@@ -381,7 +383,7 @@ try
     auto query = transaction.query(mQueries.mGetMountInodeByName);
 
     // Make sure the name isn't already associated with a mount.
-    query.param(":name") = info.name();
+    query.param(":name").set(info.name());
     query.execute();
 
     // A mount's already associated with this name.
@@ -512,7 +514,7 @@ void MountDB::disable(MountDisabledCallback callback,
         event.mResult = result;
 
         // Emit the event.
-        client().emitEvent(event);
+        fuse::emitEvent(client(), event);
 
         // Forward result to callback.
         auto wrapper = [result](MountDisabledCallback& callback,
@@ -533,7 +535,7 @@ void MountDB::disable(MountDisabledCallback callback,
         auto query = transaction.query(mQueries.mGetMountStartupStateByName);
 
         // Query the mount's startup state.
-        query.param(":name") = name;
+        query.param(":name").set(name);
         query.execute();
 
         // No mount associated with specified path.
@@ -545,8 +547,8 @@ void MountDB::disable(MountDisabledCallback callback,
         }
 
         // Latch startup state.
-        bool enableAtStartup = query.field("enable_at_startup");
-        bool persistent = query.field("persistent");
+        bool enableAtStartup = query.field("enable_at_startup").get<bool>();
+        bool persistent = query.field("persistent").get<bool>();
 
         enableAtStartup = enableAtStartup && !remember;
         persistent = persistent || remember;
@@ -554,9 +556,9 @@ void MountDB::disable(MountDisabledCallback callback,
         // Update the mount's startup state.
         query = transaction.query(mQueries.mSetMountStartupStateByName);
 
-        query.param(":enable_at_startup") = enableAtStartup;
-        query.param(":name") = name;
-        query.param(":persistent") = persistent;
+        query.param(":enable_at_startup").set(enableAtStartup);
+        query.param(":name").set(name);
+        query.param(":persistent").set(persistent);
 
         query.execute();
 
@@ -689,7 +691,7 @@ try
     auto query = transaction.query(mQueries.mGetMountByName);
 
     // Check if the mount's present in the database.
-    query.param(":name") = name;
+    query.param(":name").set(name);
     query.execute();
 
     // Mount's not in the database.
@@ -712,9 +714,9 @@ try
     // Update the mount's startup state.
     query = transaction.query(mQueries.mSetMountStartupStateByName);
 
-    query.param(":enable_at_startup") = flags.mEnableAtStartup;
-    query.param(":name") = name;
-    query.param(":persistent") = flags.mPersistent;
+    query.param(":enable_at_startup").set(flags.mEnableAtStartup);
+    query.param(":name").set(name);
+    query.param(":persistent").set(flags.mPersistent);
 
     query.execute();
 
@@ -842,7 +844,7 @@ try
     // Make sure the mount's new name, if any, is unique.
     if (currentName != flags.mName)
     {
-        query.param(":name") = flags.mName;
+        query.param(":name").set(flags.mName);
         query.execute();
 
         // Mount's new name isn't unique.
@@ -860,7 +862,7 @@ try
 
     flags.serialize(query);
 
-    query.param(":current_name") = currentName;
+    query.param(":current_name").set(currentName);
     query.execute();
 
     // No mount is associated with this path.
@@ -906,7 +908,7 @@ try
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetMountFlagsByName);
 
-    query.param(":name") = name;
+    query.param(":name").set(name);
     query.execute();
 
     // No mount's associated with the specified path.
@@ -942,7 +944,7 @@ try
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetMountByName);
 
-    query.param(":name") = name;
+    query.param(":name").set(name);
     query.execute();
 
     // No mount associated with the specified path.
@@ -1027,11 +1029,11 @@ try
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetMountPathByName);
 
-    query.param(":name") = name;
+    query.param(":name").set(name);
     query.execute();
 
     if (query && !query.field("path").null())
-        return query.field("path").path();
+        return query.field("path").get<LocalPath>();
 
     return NormalizedPath();
 }
@@ -1079,7 +1081,7 @@ try
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mRemoveMountByName);
 
-    query.param(":name") = name;
+    query.param(":name").set(name);
     query.execute();
 
     transaction.commit();

@@ -1,14 +1,16 @@
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/date_time.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/testing/printers.h>
 
 namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 static std::ostream& operator<<(std::ostream& ostream, accesslevel_t permissions);
 

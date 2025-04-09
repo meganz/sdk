@@ -4,48 +4,53 @@
 #include <mutex>
 #include <string>
 
-#include <mega/fuse/common/client_callbacks.h>
-#include <mega/fuse/common/error_or.h>
+#include <mega/common/client_callbacks.h>
+#include <mega/common/error_or.h>
+#include <mega/common/lock_forward.h>
+#include <mega/common/lockable.h>
+#include <mega/common/shared_mutex.h>
+#include <mega/common/task_queue.h>
+#include <mega/common/utility.h>
 #include <mega/fuse/common/file_cache_forward.h>
 #include <mega/fuse/common/file_info_forward.h>
 #include <mega/fuse/common/file_inode_forward.h>
 #include <mega/fuse/common/file_io_context_forward.h>
 #include <mega/fuse/common/inode_db_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
-#include <mega/fuse/common/lock_forward.h>
-#include <mega/fuse/common/lockable.h>
 #include <mega/fuse/common/mount_forward.h>
 #include <mega/fuse/common/ref.h>
-#include <mega/fuse/common/shared_mutex.h>
-#include <mega/fuse/common/task_queue.h>
-#include <mega/fuse/common/utility.h>
 
 #include <mega/filesystem.h>
 #include <mega/types.h>
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 
 template<>
-struct LockableTraits<FileIOContext>
+struct LockableTraits<fuse::FileIOContext>
 {
     using LockType = SharedMutex;
 
-    static void acquired(const FileIOContext& context);
+    static void acquired(const fuse::FileIOContext& context);
 
-    static void acquiring(const FileIOContext& context);
+    static void acquiring(const fuse::FileIOContext& context);
 
-    static void couldntAcquire(const FileIOContext& context);
+    static void couldntAcquire(const fuse::FileIOContext& context);
 
-    static void released(const FileIOContext& context);
+    static void released(const fuse::FileIOContext& context);
 
-    static void tryAcquire(const FileIOContext& context);
-}; // LockableTraits<FileIOContext>
+    static void tryAcquire(const fuse::FileIOContext& context);
+}; // LockableTraits<fuse::FileIOContext>
+
+} // common
+
+namespace fuse
+{
 
 class FileIOContext
-  : public Lockable<FileIOContext>
+  : public common::Lockable<FileIOContext>
 {
     // Bundles up state required to perform a flush.
     class FlushContext;
@@ -54,10 +59,10 @@ class FileIOContext
     using FlushContextPtr = std::shared_ptr<FlushContext>;
 
     // Create the file.
-    ErrorOr<FileAccessSharedPtr> create();
+    common::ErrorOr<FileAccessSharedPtr> create();
 
     // Download the file from the cloud.
-    ErrorOr<FileAccessSharedPtr> download(const Mount& mount);
+    common::ErrorOr<FileAccessSharedPtr> download(const Mount& mount);
 
     // How long should we wait before we flush modifications?
     std::chrono::seconds flushDelay() const;
@@ -76,18 +81,18 @@ class FileIOContext
                          m_time_t lastModified,
                          NodeHandle mountHandle,
                          LocalPath& mountPath,
-                         const Task& task);
+                         const common::Task& task);
 
     // Open the file for IO.
     auto open(FileIOContextLock& lock,
              const Mount& mount,
              m_off_t hint = -1)
-      -> ErrorOr<FileAccessSharedPtr>;
+      -> common::ErrorOr<FileAccessSharedPtr>;
 
     auto open(FileIOContextSharedLock& lock,
               const Mount& mount,
               m_off_t hint = -1)
-      -> ErrorOr<FileAccessSharedPtr>;
+      -> common::ErrorOr<FileAccessSharedPtr>;
 
     // What file does this entry represent?
     FileInodeRef mFile;
@@ -114,7 +119,7 @@ class FileIOContext
     bool mFlushNeeded;
 
     // Represents a queued periodic flush, if any.
-    Task mPeriodicFlushTask;
+    common::Task mPeriodicFlushTask;
 
     // Tracks how many actors reference this instance.
     unsigned long mReferences;
@@ -152,9 +157,9 @@ public:
                bool truncate);
 
     // Read data from the file.
-    ErrorOr<std::string> read(const Mount& mount,
-                              m_off_t offset,
-                              unsigned int size);
+    common::ErrorOr<std::string> read(const Mount& mount,
+                                      m_off_t offset,
+                                      unsigned int size);
 
     // Increment this instance's reference count.
     void ref(RefBadge badge);
@@ -174,11 +179,11 @@ public:
     void unref(RefBadge badge);
 
     // Write data to the file.
-    ErrorOr<std::size_t> write(const Mount& mount,
-                               const void* data,
-                               m_off_t length,
-                               m_off_t offset,
-                               bool noGrow);
+    common::ErrorOr<std::size_t> write(const Mount& mount,
+                                       const void* data,
+                                       m_off_t length,
+                                       m_off_t offset,
+                                       bool noGrow);
 }; // FileIOContext
 
 } // fuse

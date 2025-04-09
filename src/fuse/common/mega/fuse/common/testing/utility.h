@@ -6,14 +6,14 @@
 #include <string>
 #include <thread>
 
+#include <mega/common/error_or_forward.h>
+#include <mega/common/node_info_forward.h>
+#include <mega/common/type_traits.h>
 #include <mega/fuse/common/date_time_forward.h>
-#include <mega/fuse/common/error_or_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
-#include <mega/fuse/common/node_info_forward.h>
 #include <mega/fuse/common/testing/client_forward.h>
 #include <mega/fuse/common/testing/path_forward.h>
-#include <mega/fuse/common/type_traits.h>
 
 #include <mega/types.h>
 
@@ -29,7 +29,7 @@ namespace testing
 // Convenience.
 template<typename T>
 using IsInfoLike =
-  IsOneOf<T, InodeInfo, NodeInfo>;
+  common::IsOneOf<T, InodeInfo, common::NodeInfo>;
 
 template<typename I, typename T>
 using EnableIfInfoLike =
@@ -53,10 +53,10 @@ bool anyOf(Container&& container, Predicate predicate)
 
 Error befriend(Client& client0, Client& client1);
 
-ErrorOr<FileFingerprint> fingerprint(const std::string& content,
-                                     std::chrono::system_clock::time_point modified);
+common::ErrorOr<FileFingerprint> fingerprint(const std::string& content,
+                                             std::chrono::system_clock::time_point modified);
 
-ErrorOr<FileFingerprint> fingerprint(const Path& path);
+common::ErrorOr<FileFingerprint> fingerprint(const Path& path);
 
 template<typename Container, typename Function>
 void forEach(Container&& container, Function function)
@@ -66,7 +66,7 @@ void forEach(Container&& container, Function function)
                   std::move(function));
 }
 
-NodeHandle id(const NodeInfo& info);
+NodeHandle id(const common::NodeInfo& info);
 InodeID id(const InodeInfo& info);
 
 DateTime lastWriteTime(const Path& path, std::error_code& result);
@@ -78,7 +78,7 @@ void lastWriteTime(const Path path,
 
 void lastWriteTime(const Path& path, const DateTime& modified);
 
-NodeHandle parentID(const NodeInfo& info);
+NodeHandle parentID(const common::NodeInfo& info);
 InodeID parentID(const InodeInfo& info);
 
 std::string randomBytes(std::size_t length);

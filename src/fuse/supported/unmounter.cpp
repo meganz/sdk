@@ -1,9 +1,9 @@
+#include <mega/common/task_executor.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/task_executor.h>
 #include <mega/fuse/platform/mount.h>
 #include <mega/fuse/platform/service_context.h>
 #include <mega/fuse/platform/unmounter.h>
@@ -15,6 +15,8 @@ namespace fuse
 {
 namespace platform
 {
+
+using namespace common;
 
 void Unmounter::emitEvent(MountDisabledCallback callback,
                           const std::string& name,
@@ -33,7 +35,7 @@ void Unmounter::emitEvent(MountDisabledCallback callback,
         event.mResult = result;
         event.mType = MOUNT_DISABLED;
 
-        client.emitEvent(event);
+        fuse::emitEvent(client, event);
     }
 
     // Forward result to user callback.

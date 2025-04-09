@@ -482,6 +482,7 @@ public:
      * - MegaApi::LOG_LEVEL_WARNING = 2
      * - MegaApi::LOG_LEVEL_INFO = 3
      * - MegaApi::LOG_LEVEL_DEBUG = 4
+     * - MegaApi::LOG_LEVEL_VERBOSE = 5
      * - MegaApi::LOG_LEVEL_MAX = 5
      *
      * @param source Location where this log was generated
@@ -10617,7 +10618,8 @@ class MegaApi
             LOG_LEVEL_WARNING, // Information representing errors in application but application will keep running
             LOG_LEVEL_INFO,    // Mainly useful to represent current progress of application.
             LOG_LEVEL_DEBUG,   // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
-            LOG_LEVEL_MAX
+            LOG_LEVEL_VERBOSE,
+            LOG_LEVEL_MAX = LOG_LEVEL_VERBOSE
         };
 
         enum {
@@ -12880,6 +12882,7 @@ class MegaApi
          * - MegaApi::LOG_LEVEL_WARNING = 2
          * - MegaApi::LOG_LEVEL_INFO = 3
          * - MegaApi::LOG_LEVEL_DEBUG = 4
+         * - MegaApi::LOG_LEVEL_VERBOSE = 5
          * - MegaApi::LOG_LEVEL_MAX = 5
          */
         static void setLogLevel(int logLevel);

@@ -1,8 +1,9 @@
 #include <cstring>
 
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/directory_inode.h>
-#include <mega/fuse/common/error_or.h>
 #include <mega/fuse/common/file_inode.h>
 #include <mega/fuse/common/file_open_flag.h>
 #include <mega/fuse/common/inode.h>
@@ -13,7 +14,6 @@
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_inode_id.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/ref.h>
 #include <mega/fuse/platform/context.h>
 #include <mega/fuse/platform/date_time.h>
@@ -34,6 +34,8 @@ namespace fuse
 {
 namespace platform
 {
+
+using namespace common;
 
 NTSTATUS Mount::canDelete(PVOID context)
 {
@@ -833,7 +835,7 @@ Mount::Mount(const MountInfo& info,
   : fuse::Mount(info, mountDB)
   , mActivities()
   , mDispatcher(*this, info.mPath)
-  , mExecutor(mountDB.executorFlags())
+  , mExecutor(mountDB.executorFlags(), logger())
 {
     mDispatcher.start(info.mPath);
 

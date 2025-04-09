@@ -40049,7 +40049,7 @@ MegaCompleteUploadData* MegaCompleteUploadDataPrivate::copy() const
     return new MegaCompleteUploadDataPrivate(*this);
 }
 
-MegaFuseExecutorFlagsPrivate::MegaFuseExecutorFlagsPrivate(fuse::TaskExecutorFlags& flags)
+MegaFuseExecutorFlagsPrivate::MegaFuseExecutorFlagsPrivate(common::TaskExecutorFlags& flags)
   : MegaFuseExecutorFlags()
   , mFlags(flags)
 {
@@ -40221,7 +40221,7 @@ void MegaFuseFlagsPrivate::setFlushDelay(size_t seconds)
 
 void MegaFuseFlagsPrivate::setLogLevel(int level)
 {
-    mFlags.mLogLevel = static_cast<fuse::LogLevel>(level);
+    mFlags.mLogLevel = static_cast<mega::LogLevel>(level);
 }
 
 MegaMountPrivate::MegaMountPrivate()

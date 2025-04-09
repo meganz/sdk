@@ -1,7 +1,7 @@
 #include <cassert>
 
+#include <mega/common/error_or.h>
 #include <mega/fuse/common/client.h>
-#include <mega/fuse/common/error_or.h>
 #include <mega/fuse/common/file_cache.h>
 #include <mega/fuse/common/file_info.h>
 
@@ -9,6 +9,8 @@ namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 FileInfo::FileInfo(const FileExtension& extension,
                    const FileAccess& fileAccess,

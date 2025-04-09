@@ -4,8 +4,8 @@
 #include <mutex>
 #include <utility>
 
+#include <mega/common/type_traits.h>
 #include <mega/fuse/common/any_lock_forward.h>
-#include <mega/fuse/common/type_traits.h>
 
 namespace mega
 {

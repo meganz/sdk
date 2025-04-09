@@ -4,15 +4,16 @@
 #include <memory>
 #include <vector>
 
-#include <mega/fuse/common/activity_monitor.h>
+#include <mega/common/activity_monitor.h>
+#include <mega/common/normalized_path.h>
+#include <mega/common/task_executor.h>
+#include <mega/common/task_executor_flags_forward.h>
 #include <mega/fuse/common/inode_forward.h>
 #include <mega/fuse/common/inode_forward.h>
+#include <mega/fuse/common/logger.h>
 #include <mega/fuse/common/mount.h>
 #include <mega/fuse/common/mount_inode_id_forward.h>
-#include <mega/fuse/common/normalized_path.h>
 #include <mega/fuse/common/tags.h>
-#include <mega/fuse/common/task_executor.h>
-#include <mega/fuse/common/task_executor_flags_forward.h>
 #include <mega/fuse/platform/inode_invalidator.h>
 #include <mega/fuse/platform/library.h>
 #include <mega/fuse/platform/mount_forward.h>
@@ -59,11 +60,11 @@ class Mount final
                     this,
                     std::forward<Arguments>(arguments)...);
 
-        auto wrapper = [](Activity, auto& callback, const Task&) {
+        auto wrapper = [](common::Activity, auto& callback, const common::Task&) {
             callback();
         }; // wrapper
 
-        std::function<void(const Task&)> wrapper_ =
+        std::function<void(const common::Task&)> wrapper_ =
             std::bind(std::move(wrapper),
                       mActivities.begin(),
                       std::move(callback_),
@@ -163,13 +164,13 @@ class Mount final
                fuse_file_info& info);
 
     // Tracks whether any requests are in progress.
-    ActivityMonitor mActivities;
+    common::ActivityMonitor mActivities;
 
     // Responsible for performing requests.
-    TaskExecutor mExecutor;
+    common::TaskExecutor mExecutor;
 
     // Where is the mount mounted?
-    NormalizedPath mPath;
+    common::NormalizedPath mPath;
 
     // How this mount communicates with libfuse.
     Session mSession;
@@ -184,7 +185,7 @@ public:
     ~Mount();
 
     // Update this mount's executor flags.
-    void executorFlags(const TaskExecutorFlags& flags) override;
+    void executorFlags(const common::TaskExecutorFlags& flags) override;
 
     // Invalidate an inode's attributes.
     void invalidateAttributes(InodeID id) override;
@@ -211,7 +212,7 @@ public:
     MountInodeID map(InodeID id) const override;
 
     // What local path is this mount mapping from?
-    NormalizedPath path() const override;
+    common::NormalizedPath path() const override;
 }; // Mount
 
 } // platform

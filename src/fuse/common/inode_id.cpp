@@ -3,6 +3,7 @@
 #include <limits>
 #include <sstream>
 
+#include <mega/common/query.h>
 #include <mega/fuse/common/inode_id.h>
 #include <mega/fuse/common/mount_inode_id.h>
 
@@ -11,10 +12,35 @@
 
 namespace mega
 {
+
+constexpr auto Synthetic = std::uint64_t(1) << 63;
+
+namespace common
+{
+
+using fuse::InodeID;
+
+InodeID SerializationTraits<InodeID>::from(const Field& field)
+{
+    auto value = field.get<std::uint64_t>();
+
+    if (value < Synthetic)
+        return InodeID(NodeHandle().set6byte(value));
+
+    return InodeID(value);
+}
+
+void SerializationTraits<InodeID>::to(Parameter& parameter,
+                                      const InodeID& value)
+{
+    parameter.set(value.get());
+}
+
+} // common
+
 namespace fuse
 {
 
-constexpr auto Synthetic = std::uint64_t(1) << 63;
 constexpr auto Undefined = std::numeric_limits<std::uint64_t>::max();
 
 InodeID::InodeID()

@@ -5,17 +5,17 @@
 #include <mutex>
 #include <string>
 
+#include <mega/common/error_or_forward.h>
+#include <mega/common/lockable.h>
+#include <mega/common/node_info_forward.h>
 #include <mega/fuse/common/directory_inode_forward.h>
-#include <mega/fuse/common/error_or_forward.h>
 #include <mega/fuse/common/file_inode_forward.h>
 #include <mega/fuse/common/inode_badge_forward.h>
 #include <mega/fuse/common/inode_db_forward.h>
 #include <mega/fuse/common/inode_forward.h>
 #include <mega/fuse/common/inode_id.h>
 #include <mega/fuse/common/inode_info_forward.h>
-#include <mega/fuse/common/lockable.h>
 #include <mega/fuse/common/logging.h>
-#include <mega/fuse/common/node_info_forward.h>
 #include <mega/fuse/common/tags.h>
 #include <mega/fuse/platform/mount_forward.h>
 
@@ -23,28 +23,33 @@
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 
 template<>
-struct LockableTraits<Inode>
+struct LockableTraits<fuse::Inode>
 {
     using LockType = std::recursive_mutex;
 
-    static void acquiring(const Inode& inode);
+    static void acquiring(const fuse::Inode& inode);
 
-    static void acquired(const Inode& inode);
+    static void acquired(const fuse::Inode& inode);
 
-    static void couldntAcquire(const Inode& inode);
+    static void couldntAcquire(const fuse::Inode& inode);
 
-    static void released(const Inode& inode);
+    static void released(const fuse::Inode& inode);
 
-    static void tryAcquire(const Inode& inode);
-}; // LockableTraits<Inode>
+    static void tryAcquire(const fuse::Inode& inode);
+}; // LockableTraits<fuse::Inode>
+
+} // common
+
+namespace fuse
+{
 
 // Represents a filesystem entity.
 class Inode
-  : public Lockable<Inode>
+  : public common::Lockable<Inode>
 {
     // Update this inode's name and parent.
     void moved(InodeDBLock& lock,
@@ -62,11 +67,11 @@ class Inode
 
 protected:
     Inode(InodeID id,
-          const NodeInfo& info,
+          const common::NodeInfo& info,
           InodeDB& inodeDB);
 
     // Update an inode's cached description.
-    void info(const NodeInfo& info, InodeDBLock& lock);
+    void info(const common::NodeInfo& info, InodeDBLock& lock);
 
     // The inode's identifier.
     const InodeID mID;
@@ -120,7 +125,7 @@ public:
     InodeID id() const;
 
     // Update an inode's cached description.
-    virtual void info(const NodeInfo& info) = 0;
+    virtual void info(const common::NodeInfo& info) = 0;
 
     // Retrieve a description of the entity this inode represents.
     virtual InodeInfo info() const = 0;
@@ -152,8 +157,8 @@ public:
     accesslevel_t permissions() const;
 
     // Compute this inode's path relative to the specified node.
-    ErrorOr<LocalPath> path(NodeHandle parentHandle) const;
-    ErrorOr<LocalPath> path(InodeID parentID) const;
+    common::ErrorOr<LocalPath> path(NodeHandle parentHandle) const;
+    common::ErrorOr<LocalPath> path(InodeID parentID) const;
 
     // Increment this instance's reference counter.
     void ref(RefBadge badge);

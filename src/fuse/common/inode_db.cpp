@@ -3,13 +3,20 @@
 #include <map>
 #include <tuple>
 
+#include <mega/common/bind_handle.h>
+#include <mega/common/database.h>
+#include <mega/common/error_or.h>
+#include <mega/common/node_event.h>
+#include <mega/common/node_event_queue.h>
+#include <mega/common/node_event_type.h>
+#include <mega/common/node_info.h>
+#include <mega/common/query.h>
+#include <mega/common/scoped_query.h>
+#include <mega/common/transaction.h>
 #include <mega/fuse/common/any_lock.h>
 #include <mega/fuse/common/any_lock_set.h>
-#include <mega/fuse/common/bind_handle.h>
 #include <mega/fuse/common/client.h>
-#include <mega/fuse/common/database.h>
 #include <mega/fuse/common/directory_inode.h>
-#include <mega/fuse/common/error_or.h>
 #include <mega/fuse/common/file_cache.h>
 #include <mega/fuse/common/file_info.h>
 #include <mega/fuse/common/file_inode.h>
@@ -18,13 +25,6 @@
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_db.h>
-#include <mega/fuse/common/node_event.h>
-#include <mega/fuse/common/node_event_queue.h>
-#include <mega/fuse/common/node_event_type.h>
-#include <mega/fuse/common/node_info.h>
-#include <mega/fuse/common/query.h>
-#include <mega/fuse/common/scoped_query.h>
-#include <mega/fuse/common/transaction.h>
 #include <mega/fuse/platform/mount.h>
 #include <mega/fuse/platform/path_adapter.h>
 #include <mega/fuse/platform/service_context.h>
@@ -35,6 +35,8 @@ namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 class InodeDB::EventObserver
 {
@@ -239,7 +241,7 @@ InodeID InodeDB::addFile(const FileExtension& extension,
     // Allocate a new inode ID.
     query.execute();
 
-    auto id = query.field("next").inode();
+    auto id = query.field("next").get<InodeID>();
 
     // Make sure we haven't wrapped around.
     assert(id);
@@ -252,13 +254,13 @@ InodeID InodeDB::addFile(const FileExtension& extension,
     // Add the file to the database.
     query = transaction.query(mQueries.mAddInode);
 
-    query.param(":bind_handle") = nullptr;
-    query.param(":extension") = extension;
-    query.param(":handle") = nullptr;
-    query.param(":id") = id;
-    query.param(":modified") = false;
-    query.param(":name") = name;
-    query.param(":parent_handle") = parentHandle;
+    query.param(":bind_handle").set(nullptr);
+    query.param(":extension").set(extension.get());
+    query.param(":handle").set(nullptr);
+    query.param(":id").set(id);
+    query.param(":modified").set(false);
+    query.param(":name").set(name);
+    query.param(":parent_handle").set(parentHandle);
     query.execute();
 
     // Return new ID to caller.
@@ -421,7 +423,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
     auto query = transaction.query(mQueries.mGetChildrenByParentHandle);
 
     // What children are present on disk?
-    query.param(":parent_handle") = parent.handle();
+    query.param(":parent_handle").set(parent.handle());
     query.execute();
 
     // What children need to be loaded?
@@ -456,8 +458,8 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
 
     for ( ; query; ++query)
     {
-        auto id = query.field("id").inode();
-        auto name = query.field("name").string();
+        auto id = query.field("id").get<InodeID>();
+        auto name = query.field("name").get<std::string>();
 
         // Have we already seen a cloud child with this name?
         auto i = descriptions.find(&name);
@@ -477,9 +479,10 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
         }
 
         // Child exists only locally.
-        pending.emplace_back(fileExtensionDB().get(query.field("extension")),
-                             std::move(name),
-                             id);
+        pending.emplace_back(
+          fileExtensionDB().get(query.field("extension").get<std::string>()),
+          std::move(name),
+          id);
     }
 
     InodeRefVector children;
@@ -518,7 +521,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
             query.reset();
 
             // Check if child's in the file cache.
-            query.param(":handle") = info.mHandle;
+            query.param(":handle").set(info.mHandle);
             query.execute();
 
             // Child's not in the file cache.
@@ -526,8 +529,8 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
                 return self.add(&InodeDB::buildFile, info);
 
             // Convenience.
-            auto extension = fileExtensionDB().get(query.field("extension"));
-            auto id = query.field("id").inode();
+            auto extension = fileExtensionDB().get(query.field("extension").get<std::string>());
+            auto id = query.field("id").get<InodeID>();
 
             // Try and get our hands on the file's info.
             auto fileInfo = fileCache().info(extension, id);
@@ -623,7 +626,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
     // Prune stale database records.
     for (auto id : removed)
     {
-        query.param(":id") = id;
+        query.param(":id").set(id);
         query.execute();
         query.reset();
     }
@@ -701,7 +704,7 @@ InodeRef InodeDB::get(FileCache& fileCache,
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetInodeByHandle);
 
-    query.param(":handle") = handle;
+    query.param(":handle").set(handle);
     query.execute();
 
     // Inode isn't present in the cache.
@@ -725,7 +728,7 @@ InodeRef InodeDB::get(FileCache& fileCache,
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetInodeByID);
 
-    query.param(":id") = id;
+    query.param(":id").set(id);
     query.execute();
 
     // Inode isn't present in the cache.
@@ -750,8 +753,8 @@ InodeRef InodeDB::get(FileCache& fileCache,
     assert(query);
 
     // Convenience.
-    auto extension = fileExtensionDB().get(query.field("extension"));
-    auto id = query.field("id").inode();
+    auto extension = fileExtensionDB().get(query.field("extension").get<std::string>());
+    auto id = query.field("id").get<InodeID>();
 
     // If the inode's in the cache, it must be a file.
     //
@@ -764,7 +767,7 @@ InodeRef InodeDB::get(FileCache& fileCache,
         // So prune the stale cache entry.
         query = transaction.query(mQueries.mRemoveInodeByID);
 
-        query.param(":id") = id;
+        query.param(":id").set(id);
         query.execute();
 
         transaction.commit();
@@ -776,13 +779,13 @@ InodeRef InodeDB::get(FileCache& fileCache,
 
     // Latch information from the database.
     if (!query.field("handle").null())
-        info.mHandle = query.field("handle").handle();
+        info.mHandle = query.field("handle").get<NodeHandle>();
 
     if (!query.field("name").null())
-        info.mName = query.field("name").string();
+        info.mName = query.field("name").get<std::string>();
 
     if (!query.field("parent_handle").null())
-        info.mParentHandle = query.field("parent_handle");
+        info.mParentHandle = query.field("parent_handle").get<NodeHandle>();
 
     // Release query, transaction and lock so we can call the client.
     query.reset();
@@ -851,11 +854,11 @@ InodeRef InodeDB::get(FileCache& fileCache,
         transaction = mContext.mDatabase.transaction();
         query = transaction.query(mQueries.mSetBindHandleHandleNameParentHandleByID);
 
-        query.param(":bind_handle") = nullptr;
-        query.param(":handle") = info.mHandle;
-        query.param(":id") = id;
-        query.param(":name") = nullptr;
-        query.param(":parent_handle") = nullptr;
+        query.param(":bind_handle").set(nullptr);
+        query.param(":handle").set(info.mHandle);
+        query.param(":id").set(id);
+        query.param(":name").set(nullptr);
+        query.param(":parent_handle").set(nullptr);
         query.execute();
 
         transaction.commit();
@@ -875,7 +878,7 @@ InodeRef InodeDB::get(FileCache& fileCache,
     transaction = mContext.mDatabase.transaction();
     query = transaction.query(mQueries.mRemoveInodeByID);
 
-    query.param(":id") = id;
+    query.param(":id").set(id);
     query.execute();
 
     transaction.commit();
@@ -904,11 +907,11 @@ void InodeDB::handle(FileInode& file,
     auto query = transaction.query(mQueries.mSetBindHandleHandleNameParentHandleByID);
 
     // Record the inode's new handle in the database.
-    query.param(":bind_handle") = nullptr;
-    query.param(":handle") = oldHandle;
-    query.param(":id") = file.id();
-    query.param(":name") = nullptr;
-    query.param(":parent_handle") = nullptr;
+    query.param(":bind_handle").set(nullptr);
+    query.param(":handle").set(oldHandle);
+    query.param(":id").set(file.id());
+    query.param(":name").set(nullptr);
+    query.param(":parent_handle").set(nullptr);
     query.execute();
 
     // Sanity.
@@ -958,32 +961,32 @@ InodeID InodeDB::hasChild(const DirectoryInode& parent,
         auto query = transaction.query(mQueries.mGetInodeIDByBindHandleOrHandle);
 
         // Check if the inode is known locally.
-        query.param(":bind_handle") = bindHandle;
-        query.param(":handle") = childHandle;
+        query.param(":bind_handle").set(bindHandle);
+        query.param(":handle").set(childHandle);
         query.execute();
 
         // Child's known locally (under some parent.)
         if (query)
         {
             // Latch the child's actual inode ID.
-            id = query.field("id").inode();
+            id = query.field("id").get<InodeID>();
 
             // We don't track a cloud node's name or parent.
             query = transaction.query(mQueries.mSetBindHandleHandleNameParentHandleByID);
 
-            query.param(":bind_handle") = nullptr;
-            query.param(":handle") = childHandle;
-            query.param(":id") = id;
-            query.param(":name") = nullptr;
-            query.param(":parent_handle") = nullptr;
+            query.param(":bind_handle").set(nullptr);
+            query.param(":handle").set(childHandle);
+            query.param(":id").set(id);
+            query.param(":name").set(nullptr);
+            query.param(":parent_handle").set(nullptr);
             query.execute();
         }
 
         // Check if the child is known locally under *this* parent.
         query = transaction.query(mQueries.mGetInodeIDByNameAndParentHandle);
 
-        query.param(":name") = name;
-        query.param(":parent_handle") = parentHandle;
+        query.param(":name").set(name);
+        query.param(":parent_handle").set(parentHandle);
         query.execute();
 
         // No other child exists with this name.
@@ -991,14 +994,14 @@ InodeID InodeDB::hasChild(const DirectoryInode& parent,
             return transaction.commit(), id;
 
         // Another child exists with this name.
-        auto otherID = query.field("id").inode();
+        auto otherID = query.field("id").get<InodeID>();
 
         // Consider it "replaced."
         query = transaction.query(mQueries.mSetNameParentHandleByID);
 
-        query.param(":id") = otherID;
-        query.param(":name") = nullptr;
-        query.param(":parent_handle") = nullptr;
+        query.param(":id").set(otherID);
+        query.param(":name").set(nullptr);
+        query.param(":parent_handle").set(nullptr);
         query.execute();
 
         transaction.commit();
@@ -1011,13 +1014,13 @@ InodeID InodeDB::hasChild(const DirectoryInode& parent,
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetInodeIDByNameAndParentHandle);
 
-    query.param(":name") = name;
-    query.param(":parent_handle") = parentHandle;
+    query.param(":name").set(name);
+    query.param(":parent_handle").set(parentHandle);
     query.execute();
 
     // Child exists locally.
     if (query)
-        return query.field("id");
+        return query.field("id").get<InodeID>();
 
     // No child exists locally.
     return InodeID();
@@ -1046,7 +1049,7 @@ ErrorOr<bool> InodeDB::hasChildren(const DirectoryInode& directory) const
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetInodeIDByParentHandle);
 
-    query.param(":parent_handle") = parentHandle;
+    query.param(":parent_handle").set(parentHandle);
     query.execute();
 
     return query;
@@ -1173,14 +1176,14 @@ auto InodeDB::modified() const
         auto handle = ([&]() -> NodeHandle {
             // Search for the inode's parent if it hasn't been uploaded.
             if (query.field("handle").null())
-                return query.field("parent_handle");
+                return query.field("parent_handle").get<NodeHandle>();
 
             // Otherwise search for the inode itself.
-            return query.field("handle");
+            return query.field("handle").get<NodeHandle>();
         })();
 
         // Retrieve the inode's ID.
-        auto id = query.field("id").inode();
+        auto id = query.field("id").get<InodeID>();
 
         // Add the inode's information to our vector.
         modified.emplace_back(handle, id);
@@ -1233,9 +1236,9 @@ Error InodeDB::move(FileInodeRef source,
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mSetNameParentHandleByID);
 
-    query.param(":id") = id;
-    query.param(":name") = targetName;
-    query.param(":parent_handle") = targetParentHandle;
+    query.param(":id").set(id);
+    query.param(":name").set(targetName);
+    query.param(":parent_handle").set(targetParentHandle);
     query.execute();
 
     transaction.commit();
@@ -1334,7 +1337,7 @@ void InodeDB::remove(const FileInode& inode, InodeDBLock lock)
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mRemoveInodeByID);
 
-    query.param(":id") = id;
+    query.param(":id").set(id);
     query.execute();
 
     transaction.commit();
@@ -1393,7 +1396,7 @@ Error InodeDB::replace(FileInodeRef source,
     auto query = transaction.query(mQueries.mRemoveInodeByID);
 
     // Remove target from the database.
-    query.param(":id") = target->id();
+    query.param(":id").set(target->id());
     query.execute();
 
     // Source is a local file.
@@ -1402,9 +1405,9 @@ Error InodeDB::replace(FileInodeRef source,
         query = transaction.query(mQueries.mSetNameParentHandleByID);
 
         // Move source in the database.
-        query.param(":id") = source->id();
-        query.param(":name") = targetName;
-        query.param(":parent_handle") = targetParentHandle;
+        query.param(":id").set(source->id());
+        query.param(":name").set(targetName);
+        query.param(":parent_handle").set(targetParentHandle);
         query.execute();
     }
 
@@ -1492,7 +1495,7 @@ Error InodeDB::unlink(FileInodeRef file)
         auto transaction = mContext.mDatabase.transaction();
         auto query = transaction.query(mQueries.mRemoveInodeByID);
 
-        query.param(":id") = file->id();
+        query.param(":id").set(file->id());
         query.execute();
 
         transaction.commit();
@@ -1555,13 +1558,13 @@ void InodeDB::add(const FileInode& inode)
     auto query = transaction.query(mQueries.mAddInode);
 
     // Add the inode to the database.
-    query.param(":bind_handle") = nullptr;
-    query.param(":extension") = extension;
-    query.param(":handle") = handle;
-    query.param(":id") = id;
-    query.param(":modified") = false;
-    query.param(":name") = nullptr;
-    query.param(":parent_handle") = nullptr;
+    query.param(":bind_handle").set(nullptr);
+    query.param(":extension").set(extension.get());
+    query.param(":handle").set(handle);
+    query.param(":id").set(id);
+    query.param(":modified").set(false);
+    query.param(":name").set(nullptr);
+    query.param(":parent_handle").set(nullptr);
 
     query.execute();
 
@@ -1585,8 +1588,8 @@ auto InodeDB::binding(const FileInode& file, const BindHandle& handle)
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mSetBindHandleByID);
 
-    query.param(":id") = file.id();
-    query.param(":bind_handle") = handle;
+    query.param(":id").set(file.id());
+    query.param(":bind_handle").set(handle);
     query.execute();
 
     transaction.commit();
@@ -1627,8 +1630,8 @@ void InodeDB::bound(const FileInode& file,
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mSetBindHandleByID);
 
-    query.param(":id") = file.id();
-    query.param(":bind_handle") = nullptr;
+    query.param(":id").set(file.id());
+    query.param(":bind_handle").set(nullptr);
     query.execute();
 
     transaction.commit();
@@ -1706,7 +1709,7 @@ bool InodeDB::exists(InodeID id) const
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetHandleByID);
 
-    query.param(":id") = id;
+    query.param(":id").set(id);
     query.execute();
 
     return !!query;
@@ -1843,8 +1846,8 @@ void InodeDB::modified(InodeID id, bool modified)
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mSetModifiedByID);
 
-    query.param(":id") = id;
-    query.param(":modified") = modified;
+    query.param(":id").set(id);
+    query.param(":modified").set(modified);
     query.execute();
 
     transaction.commit();
@@ -1856,10 +1859,10 @@ bool InodeDB::modified(InodeID id) const
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetModifiedByID);
 
-    query.param(":id") = id;
+    query.param(":id").set(id);
     query.execute();
 
-    return query && query.field("modified");
+    return query && query.field("modified").get<bool>();
 }
 
 FileInodeRefVector InodeDB::modified(NodeHandle parent) const
@@ -1997,16 +2000,16 @@ void InodeDB::EventObserver::added(const NodeEvent& event)
     auto query = mTransaction.query(
                    queries().mGetExtensionAndInodeIDByNameAndParentHandle);
 
-    query.param(":name") = name;
-    query.param(":parent_handle") = parentHandle;
+    query.param(":name").set(name);
+    query.param(":parent_handle").set(parentHandle);
     query.execute();
 
     // Node replaces an inode that's not in memory.
     if (query)
     {
         // Convenience.
-        auto extension = fileExtensionDB().get(query.field("extension"));
-        auto id = query.field("id").inode();
+        auto extension = fileExtensionDB().get(query.field("extension").get<std::string>());
+        auto id = query.field("id").get<InodeID>();
 
         FUSEDebugF("%s (%s) [%s] replaces cold inode %s",
                    name.c_str(),
@@ -2017,7 +2020,7 @@ void InodeDB::EventObserver::added(const NodeEvent& event)
         // Purge the inode from the database.
         query = mTransaction.query(queries().mRemoveInodeByID);
 
-        query.param(":id") = id;
+        query.param(":id").set(id);
         query.execute();
 
         // Purge the inode's content from the cache.
@@ -2099,16 +2102,16 @@ void InodeDB::EventObserver::moved(const NodeEvent& event)
     auto query = mTransaction.query(
                    queries().mGetExtensionAndInodeIDByNameAndParentHandle);
 
-    query.param(":name") = name;
-    query.param(":parent_handle") = parentHandle;
+    query.param(":name").set(name);
+    query.param(":parent_handle").set(parentHandle);
     query.execute();
 
     // Node replaces an inode that's not in memory.
     if (query)
     {
         // Convenience.
-        auto extension = fileExtensionDB().get(query.field("extension"));
-        auto id = query.field("id").inode();
+        auto extension = fileExtensionDB().get(query.field("extension").get<std::string>());
+        auto id = query.field("id").get<InodeID>();
 
         FUSEDebugF("%s (%s) [%s] replaces cold inode %s",
                    name.c_str(),
@@ -2119,7 +2122,7 @@ void InodeDB::EventObserver::moved(const NodeEvent& event)
         // Purge the inode from the database.
         query = mTransaction.query(queries().mRemoveInodeByID);
 
-        query.param(":id") = id;
+        query.param(":id").set(id);
         query.execute();
 
         // Purge the inode from the cache.
@@ -2214,15 +2217,15 @@ void InodeDB::EventObserver::removed(const NodeEvent& event)
 
     auto query = mTransaction.query(queries().mGetExtensionAndInodeIDByHandle);
 
-    query.param(":handle") = handle;
+    query.param(":handle").set(handle);
     query.execute();
 
     // Node matches an inode that's not in memory.
     if (query)
     {
         // Convenience.
-        auto extension = fileExtensionDB().get(query.field("extension"));
-        auto id = query.field("id").inode();
+        auto extension = fileExtensionDB().get(query.field("extension").get<std::string>());
+        auto id = query.field("id").get<InodeID>();
 
         FUSEDebugF("%s (%s) [%s] matches cold inode %s",
                    name.c_str(),
@@ -2233,7 +2236,7 @@ void InodeDB::EventObserver::removed(const NodeEvent& event)
         // Purge the inode from the database.
         query = mTransaction.query(queries().mRemoveInodeByID);
 
-        query.param(":id") = id;
+        query.param(":id").set(id);
         query.execute();
 
         // Purge the inode's content from the cache.

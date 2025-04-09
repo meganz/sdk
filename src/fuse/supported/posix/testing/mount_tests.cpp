@@ -14,6 +14,8 @@ namespace fuse
 namespace testing
 {
 
+using namespace common;
+
 TEST_F(FUSEMountTests, add_fails_when_target_is_unknown)
 {
     MountInfo info;

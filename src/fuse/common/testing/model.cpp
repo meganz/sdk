@@ -4,8 +4,8 @@
 #include <fstream>
 #include <stdexcept>
 
-#include <mega/fuse/common/error_or.h>
-#include <mega/fuse/common/node_info.h>
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/model.h>
@@ -21,6 +21,8 @@ namespace fuse
 {
 namespace testing
 {
+
+using namespace common;
 
 static Model::DirectoryNodePtr generate(const std::string& prefix,
                                         std::size_t height,

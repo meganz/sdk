@@ -49,6 +49,14 @@ auto operator!=(const Stat& lhs, const T& rhs)
 
 namespace mega
 {
+namespace common
+{
+
+bool operator==(const NodeInfo& lhs, const Stat& rhs);
+bool operator!=(const NodeInfo& lhs, const Stat& rhs);
+
+} // common
+
 namespace fuse
 {
 

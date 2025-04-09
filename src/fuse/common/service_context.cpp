@@ -7,6 +7,8 @@ namespace mega
 namespace fuse
 {
 
+using namespace common;
+
 ServiceContext::ServiceContext(Service& service)
   : mService(service)
 {

@@ -19,7 +19,7 @@ class MountDB
   : public fuse::MountDB
 {
     // Checks whether a mount's local path is valid.
-    MountResult check(const Client& client,
+    MountResult check(const common::Client& client,
                       const MountInfo& info) const override;
 
 public:

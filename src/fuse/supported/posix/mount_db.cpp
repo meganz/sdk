@@ -9,11 +9,11 @@
 #include <utility>
 #include <vector>
 
+#include <mega/common/utility.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/utility.h>
 #include <mega/fuse/platform/mount_db.h>
 #include <mega/fuse/platform/service_context.h>
 #include <mega/fuse/platform/session.h>
@@ -24,6 +24,8 @@ namespace fuse
 {
 namespace platform
 {
+
+using namespace common;
 
 // Makes dealing with fd_set a little more convenient.
 class DescriptorSet

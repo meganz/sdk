@@ -2,35 +2,40 @@
 
 #include <condition_variable>
 
-#include <mega/fuse/common/bind_handle_forward.h>
-#include <mega/fuse/common/client_forward.h>
-#include <mega/fuse/common/error_or_forward.h>
+#include <mega/common/bind_handle_forward.h>
+#include <mega/common/client_forward.h>
+#include <mega/common/error_or_forward.h>
+#include <mega/common/lockable.h>
+#include <mega/common/task_executor_forward.h>
 #include <mega/fuse/common/file_cache_forward.h>
 #include <mega/fuse/common/file_extension_db_forward.h>
 #include <mega/fuse/common/file_info_forward.h>
 #include <mega/fuse/common/file_inode_forward.h>
 #include <mega/fuse/common/file_io_context_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
-#include <mega/fuse/common/lockable.h>
 #include <mega/fuse/common/mount_forward.h>
-#include <mega/fuse/common/task_executor_forward.h>
 #include <mega/fuse/platform/service_context_forward.h>
 
 #include <mega/filesystem.h>
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 
 template<>
-struct LockableTraits<FileCache>
-  : public LockableTraitsCommon<FileCache, std::recursive_mutex>
+struct LockableTraits<fuse::FileCache>
+  : public LockableTraitsCommon<fuse::FileCache, std::recursive_mutex>
 {
-}; // LockableTraits<FileCache> 
+}; // LockableTraits<fuse::FileCache> 
+
+} // common
+
+namespace fuse
+{
 
 class FileCache
-  : public Lockable<FileCache>
+  : public common::Lockable<FileCache>
 {
     friend class FileIOContext;
     friend class FileInfo;
@@ -41,11 +46,11 @@ class FileCache
     // the file already exists at the specified location.
     //
     // If create is true, a new file will be created at the specified location.
-    ErrorOr<FileInfoRef> create(const FileExtension& extension,
-                                const LocalPath& path,
-                                InodeID id,
-                                FileAccessSharedPtr* fileAccess,
-                                bool create);
+    common::ErrorOr<FileInfoRef> create(const FileExtension& extension,
+                                        const LocalPath& path,
+                                        InodeID id,
+                                        FileAccessSharedPtr* fileAccess,
+                                        bool create);
 
     // Get a reference to an inode's file info.
     //
@@ -80,29 +85,29 @@ public:
     void cancel();
 
     // What client are we using to transfer data?
-    Client& client() const;
+    common::Client& client() const;
 
     // Retrieve a reference to an inode's file context.
     FileIOContextRef context(FileInodeRef file,
                              bool inMemoryOnly = false) const;
 
     // Create a new file description based on a file already in the cache.
-    ErrorOr<FileInfoRef> create(const FileExtension& extension,
-                                const LocalPath& path,
-                                InodeID id,
-                                FileAccessSharedPtr* fileAccess = nullptr);
+    common::ErrorOr<FileInfoRef> create(const FileExtension& extension,
+                                        const LocalPath& path,
+                                        InodeID id,
+                                        FileAccessSharedPtr* fileAccess = nullptr);
 
     // Create an empty file and return its description.
-    ErrorOr<FileInfoRef> create(const FileExtension& extension,
-                                InodeID id,
-                                FileAccessSharedPtr* fileAccess = nullptr,
-                                LocalPath* filePath = nullptr);
+    common::ErrorOr<FileInfoRef> create(const FileExtension& extension,
+                                        InodeID id,
+                                        FileAccessSharedPtr* fileAccess = nullptr,
+                                        LocalPath* filePath = nullptr);
 
     // Called by the client when its view of the cloud is current.
     void current();
 
     // Who do we call when we want to execute something on another thread?
-    TaskExecutor& executor() const;
+    common::TaskExecutor& executor() const;
 
     // Flush zero or more modified inodes to the cloud.
     void flush(const Mount& mount, FileInodeRefVector inodes);

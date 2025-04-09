@@ -79,9 +79,9 @@ namespace fs = std::filesystem;
 #include <iomanip>
 
 // FUSE
+#include <mega/common/normalized_path.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/normalized_path.h>
 #include <mega/fuse/common/service_flags.h>
 
 using namespace mega;
@@ -4272,7 +4272,7 @@ static void exec_fuseflags(autocomplete::ACState& state)
     }; // parseCacheFlags
 
     auto parseExecutorFlags =
-      [&](fuse::TaskExecutorFlags& flags, const std::string& type) {
+      [&](common::TaskExecutorFlags& flags, const std::string& type) {
         std::string idle;
         std::string max;
         std::string min;
@@ -4303,7 +4303,7 @@ static void exec_fuseflags(autocomplete::ACState& state)
         flags.mFlushDelay = std::chrono::seconds(std::stoul(flushDelay));
 
     if (!logLevel.empty())
-        flags.mLogLevel = fuse::toLogLevel(logLevel);
+        flags.mLogLevel = toLogLevel(logLevel);
 
     parseCacheFlags(flags.mInodeCacheFlags);
     parseExecutorFlags(flags.mMountExecutorFlags, "mount");
@@ -7551,7 +7551,7 @@ void exec_debug(autocomplete::ACState& s)
     }
     if (s.extractflag("-verbose"))
     {
-        SimpleLogger::setLogLevel(logMax);
+        SimpleLogger::setLogLevel(logVerbose);
     }
     if (s.extractflag("-console"))
     {
@@ -11085,7 +11085,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    SimpleLogger::setLogLevel(logMax);
+    SimpleLogger::setLogLevel(logVerbose);
     auto gLoggerAddr = &gLogger;
     g_externalLogger.addMegaLogger(&gLogger,
 

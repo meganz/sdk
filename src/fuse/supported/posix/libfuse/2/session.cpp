@@ -2,10 +2,10 @@
 #include <cstring>
 #include <vector>
 
+#include <mega/common/task_executor.h>
+#include <mega/common/utility.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_inode_id.h>
-#include <mega/fuse/common/task_executor.h>
-#include <mega/fuse/common/utility.h>
 #include <mega/fuse/platform/constants.h>
 #include <mega/fuse/platform/mount.h>
 #include <mega/fuse/platform/mount_db.h>

@@ -2,9 +2,9 @@
 #include <stdexcept>
 #include <utility>
 
-#include <mega/fuse/common/activity_monitor.h>
+#include <mega/common/activity_monitor.h>
+#include <mega/common/utility.h>
 #include <mega/fuse/common/logging.h>
-#include <mega/fuse/common/utility.h>
 #include <mega/fuse/platform/inode_invalidator.h>
 #include <mega/fuse/platform/mount.h>
 
@@ -24,6 +24,8 @@ enum InvalidationFlag : unsigned int
 }; // InvalidationFlag
 
 using InvalidationFlags = unsigned int;
+
+using namespace common;
 
 struct InodeInvalidator::Invalidation
 {
