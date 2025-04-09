@@ -55,6 +55,8 @@ namespace mega {
         std::function<void(std::unique_ptr<HttpReq>&)> interceptSCRequest;
         std::function<void(m_off_t&)> onLimitMaxReqSize;
         std::function<void(int&, unsigned)> onHookNumberOfConnections;
+        std::function<void(bool&)> onHookDownloadRequestSingleUrl;
+        std::function<void(m_time_t&)> onHookResetTransferLastAccessTime;
     };
 
     extern MegaTestHooks globalMegaTestHooks;
@@ -84,6 +86,19 @@ namespace mega {
     // Ensure new RaidReq number of connections is taken from the client's number of connections
     #define DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connectionsInOutVar, clientNumberOfConnections) { if (globalMegaTestHooks.onHookNumberOfConnections) globalMegaTestHooks.onHookNumberOfConnections(connectionsInOutVar, clientNumberOfConnections); }
 
+    // For CommandGetFile, so a raided file can request the unraided copy.
+#define DEBUG_TEST_HOOK_DOWNLOAD_REQUEST_SINGLEURL(singleUrlFlag) \
+    { \
+        if (globalMegaTestHooks.onHookDownloadRequestSingleUrl) \
+            globalMegaTestHooks.onHookDownloadRequestSingleUrl(singleUrlFlag); \
+    }
+
+#define DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastAccessTime) \
+    { \
+        if (globalMegaTestHooks.onHookResetTransferLastAccessTime) \
+            globalMegaTestHooks.onHookResetTransferLastAccessTime(lastAccessTime); \
+    }
+
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -92,6 +107,8 @@ namespace mega {
     #define DEBUG_TEST_HOOK_DOWNLOAD_FAILED(X)
     #define DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(X)
     #define DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connectionsInOutVar, clientNumberOfConnections)
+#define DEBUG_TEST_HOOK_DOWNLOAD_REQUEST_SINGLEURL(singleUrlFlag)
+#define DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastAccessTime)
 #endif
 
 

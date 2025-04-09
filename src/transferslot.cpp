@@ -1199,6 +1199,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                                       newInputBufferSupplied,
                                                       pauseConnectionInputForRaid,
                                                       client->httpio->uploadSpeed);
+                if (posrange == std::make_pair(m_off_t{-1}, m_off_t{-1}))
+                {
+                    LOG_warn << "Conn " << i
+                             << " : Received error position, transfer must be retried";
+                    transfer->chunkmacs.clear();
+                    return transfer->failed(API_EARGS, committer);
+                }
 
                 // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
                 bool newOutputBufferSupplied = false;

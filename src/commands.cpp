@@ -26,6 +26,7 @@
 #include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
 #include "mega/megaapp.h"
+#include "mega/testhooks.h"
 #include "mega/tlv.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
@@ -737,6 +738,8 @@ CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySi
     cmd(undelete ? "gd" : "g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
+
+    DEBUG_TEST_HOOK_DOWNLOAD_REQUEST_SINGLEURL(singleUrl);
     if (!singleUrl)
     {
         arg("v", 2);  // version 2: server can supply details for cloudraid files

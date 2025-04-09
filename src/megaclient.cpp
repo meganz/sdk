@@ -4414,6 +4414,8 @@ void MegaClient::dispatchTransfers()
                                                 s >= 0)
                                             {
                                                 tslot->transfer->tempurls = tempurls;
+                                                tslot->transfer
+                                                    ->adjustNonRaidedProgressIfNowIsRaided();
                                                 tslot->transfer->downloadFileHandle = h;
                                                 tslot->transferbuf.setIsRaid(tslot->transfer,
                                                                              tempurls,
@@ -15163,7 +15165,8 @@ void MegaClient::purgeOrphanTransfers(bool remove)
         {
             transfer_multimap::iterator it = multi_cachedtransfers[d].begin();
             Transfer *transfer = it->second;
-            if (remove || (purgeOrphanTransfers && (m_time() - transfer->lastaccesstime) >= 172500))
+            if (remove || (purgeOrphanTransfers &&
+                           (m_time() - transfer->lastaccesstime) >= Transfer::TEMPURL_TIMEOUT_TS))
             {
                 if (purgeCount == 0)
                 {
@@ -18269,22 +18272,10 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 }
             }
 
+            const auto currentTime = m_time();
             if (t)
             {
-                bool hadAnyData = t->pos > 0;
-                if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
-                {
-                    LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
-                    t->tempurls.clear();
-
-                    if (d == PUT)
-                    {
-                        t->chunkmacs.clear();
-                        t->progresscompleted = 0;
-                        t->ultoken.reset();
-                        t->pos = 0;
-                    }
-                }
+                t->discardTempUrlsIfNoDataDownloadedOrTimeoutReached(d, currentTime);
 
                 auto fa = fsaccess->newfileaccess();
 
@@ -18302,7 +18293,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                     }
                     else
                     {
-                        if (hadAnyData)
+                        if (const auto hadAnyData = (t->pos != 0); hadAnyData)
                         {
                             LOG_warn << "Temporary file not found:" << t->localfilename;
                         }
@@ -18348,7 +18339,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
 
             t->skipserialization = donotpersist;
 
-            t->lastaccesstime = m_time();
+            t->lastaccesstime = currentTime;
             t->tag = tag;
             f->tag = tag;
             t->transfers_it = multi_transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t));

@@ -127,6 +127,9 @@ namespace mega {
         // calculate the exact size of each of the 6 parts of a raid file.  Some may not have a full last sector
         static m_off_t raidPartSize(unsigned part, m_off_t fullfilesize);
 
+        // calculates the module between a given offset and a RAIDLINE.
+        static m_off_t offsetToRaidLine(const m_off_t offset);
+
         // report a failed connection.  The function tries to switch to 5 connection raid or a different 5 connections.  Two fails without progress and we should fail the transfer as usual
         bool tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum, bool incrementErrors);
 
