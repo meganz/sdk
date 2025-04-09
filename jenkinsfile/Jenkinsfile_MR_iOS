@@ -129,6 +129,14 @@ pipeline {
                                 [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
                                 ]
                         ])
+                        withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
+                            sh "git submodule update --init --recursive"
+                        }
+                        script{
+                            ios_sources_workspace = WORKSPACE
+                            sdk_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGASDK/Sources/MEGASDK"
+                            megachat_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK"
+                        }
                         dir('Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK'){
 
                             //Clone MEGAchat
@@ -154,17 +162,8 @@ pipeline {
                                     ]
                             ])
                         }
-                        withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
-                            sh "git submodule update --init --recursive"
-                        }
-                        script{
-                            ios_sources_workspace = WORKSPACE
-                            sdk_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGASDK/Sources/MEGASDK"
-                            megachat_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK"
-                        }
                     }
                 }
-
                 stage('Build SDK and iOS'){
                     environment {
                         PATH = "/usr/local/bin:${env.PATH}"
