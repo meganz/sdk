@@ -17,6 +17,7 @@ auto FileStorage::openFile(FileID id, bool mustCreate) -> FileAccessPtr
     auto file = mFilesystem->newfileaccess(false);
     auto path = userFilePath(id);
 
+    // Vulnerable to TOCTOU race.
     if (file->isfile(path) == !mustCreate && file->fopen(path, true, true, FSLogging::noLogging))
         return file;
 
