@@ -55,6 +55,14 @@ class FileServiceContext
     // Note that if we want to run some query on the database, we must
     // explicitly lock mDatabase, too.
     common::SharedMutex mLock;
+
+    // This member should always come last as it will ensure the context
+    // isn't destroyed until any related activities have been completed.
+    //
+    // Since each File(Info)?Context is passed an activity when they are
+    // instantiated, this means that this member's destructor will wait
+    // until all File(Info)?Contexts that refer to this context have been
+    // destroyed before allowing this context itself to be destroyed.
     common::ActivityMonitor mActivities;
 
 public:
