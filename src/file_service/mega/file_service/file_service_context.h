@@ -49,6 +49,11 @@ class FileServiceContext
 
     FromFileIDMap<FileContextWeakPtr> mFileContexts;
     FromFileIDMap<FileInfoContextWeakPtr> mInfoContexts;
+
+    // This lock serializes access to the context's members.
+    //
+    // Note that if we want to run some query on the database, we must
+    // explicitly lock mDatabase, too.
     common::SharedMutex mLock;
     common::ActivityMonitor mActivities;
 
