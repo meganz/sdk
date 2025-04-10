@@ -252,6 +252,16 @@ CurlHttpIO::CurlHttpIO()
         throw std::runtime_error("cURL built without HTTP/HTTPS support. Aborting.");
     }
 
+    if (data->ares)
+    {
+        int version{data->ares_num};
+        int major{(version >> 16) & 0xFF};
+        int minor{(version >> 8) & 0xFF};
+        int patch{version & 0xFF};
+        LOG_debug << "cURL built with c-ares backend as DNS resolver.";
+        LOG_debug << "c-ares version: " << major << "." << minor << "." << patch;
+    }
+
     curlipv6 = data->features & CURL_VERSION_IPV6;
     LOG_debug << "IPv6 enabled: " << curlipv6;
 
@@ -559,6 +569,29 @@ int CurlHttpIO::instanceCount = 0;
 void CurlHttpIO::setuseragent(string* u)
 {
     useragent = *u;
+}
+
+bool CurlHttpIO::setdnsservers(const char* servers)
+{
+    const curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
+
+    if (!data->ares)
+    {
+        return false;
+    }
+
+    if (servers)
+    {
+        lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
+        if (DNS_CACHE_EXPIRES)
+        {
+            dnscache.clear();
+        }
+
+        dnsservers = servers;
+        LOG_debug << "Setting custom DNS servers: " << dnsservers;
+    }
+    return true;
 }
 
 void CurlHttpIO::disconnect()
@@ -1049,6 +1082,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             {
                 curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
             }
+        }
+
+        if (!httpio->dnsservers.empty())
+        {
+            curl_easy_setopt(curl, CURLOPT_DNS_SERVERS, httpio->dnsservers.c_str());
         }
 
         httpio->numconnections[httpctx->d]++;

@@ -21988,21 +21988,26 @@ error MegaApiImpl::performRequest_retryPendingConnections(MegaRequestPrivate* re
             bool disconnect = request->getFlag();
             bool includexfers = request->getNumber() != 0;
             const char *dnsservers = request->getText();
+            error result{API_OK};
 
             client->abortbackoff(includexfers);
             if (disconnect)
             {
                 client->disconnect();
 
-                string servers;
-                if (dnsservers && dnsservers[0])
+                if (dnsservers)
                 {
-                    servers = dnsservers;
+                    if (!httpio->setdnsservers(dnsservers))
+                    {
+                        LOG_warn << "libcurl does not have support for a DNS resolver backend. "
+                                    "Build libcurl with c-ares support.";
+                        result = API_ENOENT;
+                    }
                 }
             }
 
-            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-            return API_OK;
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(result));
+            return result;
 }
 
 void MegaApiImpl::inviteContact(const char* email, const char* message, int action, MegaHandle contactLink, MegaRequestListener* listener)
