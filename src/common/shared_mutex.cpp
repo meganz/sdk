@@ -15,26 +15,16 @@ using std::chrono::steady_clock;
 // Convenience.
 using steady_time = steady_clock::time_point;
 
-void SharedMutex::lock_shared()
-{
-    while (!try_lock_shared_until(steady_time::max()))
-        ;
-}
-
-void SharedMutex::lock()
-{
-    while (!try_lock_until(steady_time::max()))
-        ;
-}
-
-bool SharedMutex::try_lock_shared()
-{
-    return try_lock_shared_until(steady_clock::now());
-}
-
-bool SharedMutex::try_lock_shared_until(steady_clock::time_point time)
+bool SharedMutex::try_lock_shared_until(steady_clock::time_point time,
+                                        [[maybe_unused]] bool validate)
 {
     std::unique_lock<std::mutex> lock(mLock);
+
+    // What thread is trying to acquire this mutex?
+    auto id = std::this_thread::get_id();
+
+    // Make sure the thread doesn't already hold a write lock.
+    assert(!validate || mWriterID != id);
 
     // Wait for the mutex to be available.
     auto result = mReaderCV.wait_until(lock, time, [&]() {
@@ -54,21 +44,23 @@ bool SharedMutex::try_lock_shared_until(steady_clock::time_point time)
     return true;
 }
 
-bool SharedMutex::try_lock()
-{
-    return try_lock_until(steady_clock::now());
-}
-
-bool SharedMutex::try_lock_until(steady_clock::time_point time)
+bool SharedMutex::try_lock_until(steady_clock::time_point time,
+                                 [[maybe_unused]] bool validate)
 {
     std::unique_lock<std::mutex> lock(mLock);
 
     // What thread wants to acquire this mutex?
     auto id = std::this_thread::get_id();
 
+    // Make sure this thread doesn't already hold a read lock.
+    assert(!validate || !mReaders.count(id) || !mReaders[id]);
+
+    // Make sure this thread doesn't already hold a write lock.
+    assert(!validate || id != mWriterID);
+
     // Wait for the mutex to be available.
     auto result = mWriterCV.wait_until(lock, time, [&]() {
-        return mWriterID == id || !mCounter;
+        return !mCounter;
     });
 
     // Couldn't acquire the mutex.
@@ -80,6 +72,28 @@ bool SharedMutex::try_lock_until(steady_clock::time_point time)
     mWriterID = id;
 
     return true;
+}
+
+void SharedMutex::lock_shared()
+{
+    while (!try_lock_shared_until(steady_time::max()))
+        ;
+}
+
+void SharedMutex::lock()
+{
+    while (!try_lock_until(steady_time::max()))
+        ;
+}
+
+bool SharedMutex::try_lock_shared()
+{
+    return try_lock_shared_until(steady_clock::now());
+}
+
+bool SharedMutex::try_lock()
+{
+    return try_lock_until(steady_clock::now());
 }
 
 void SharedMutex::unlock()

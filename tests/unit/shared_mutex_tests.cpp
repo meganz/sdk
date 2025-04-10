@@ -101,8 +101,11 @@ TEST_F(FUSESharedMutexTests, lock_fails)
     SharedMutex mutex;
 
     {
-        UniqueLock<SharedMutex> lock(mutex, std::try_to_lock);
-        ASSERT_TRUE(lock);
+        UniqueLock<SharedMutex> lock0(mutex, std::try_to_lock);
+        ASSERT_TRUE(lock0);
+
+        UniqueLock<SharedMutex> lock1(mutex, std::try_to_lock);
+        ASSERT_FALSE(lock1);
 
         auto result = execute(std::function<bool()>([&]() {
             return !UniqueLock<SharedMutex>(mutex, std::try_to_lock);
@@ -111,25 +114,17 @@ TEST_F(FUSESharedMutexTests, lock_fails)
         ASSERT_TRUE(result.get());
     }
 
-    SharedLock<SharedMutex> lock(mutex, std::try_to_lock);
-    ASSERT_TRUE(lock);
+    SharedLock<SharedMutex> lock0(mutex, std::try_to_lock);
+    ASSERT_TRUE(lock0);
+
+    UniqueLock<SharedMutex> lock1(mutex, std::try_to_lock);
+    ASSERT_FALSE(lock1);
 
     auto result = execute(std::function<bool()>([&]() {
         return !UniqueLock<SharedMutex>(mutex, std::try_to_lock);
     }));
 
     ASSERT_TRUE(result.get());
-}
-
-TEST_F(FUSESharedMutexTests, lock_recursive_succeeds)
-{
-    SharedMutex mutex;
-
-    UniqueLock<SharedMutex> lock0(mutex, std::try_to_lock);
-    ASSERT_TRUE(lock0);
-
-    UniqueLock<SharedMutex> lock1(mutex, std::try_to_lock);
-    ASSERT_TRUE(lock1);
 }
 
 TEST_F(FUSESharedMutexTests, lock_succeeds)

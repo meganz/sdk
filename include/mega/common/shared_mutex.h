@@ -16,6 +16,14 @@ namespace common
 
 class SharedMutex
 {
+    // Try to acquire shared ownership of this mutex.
+    bool try_lock_shared_until(std::chrono::steady_clock::time_point time,
+                               bool validate);
+
+    // Try to acquire exclusive ownership of this mutex.
+    bool try_lock_until(std::chrono::steady_clock::time_point time,
+                        bool validate);
+
     // How many threads own this mutex?
     //
     // >0 One or more readers own this mutex.
@@ -60,7 +68,10 @@ public:
     }
 
     // Try to acquire shared ownership of this mutex.
-    bool try_lock_shared_until(std::chrono::steady_clock::time_point time);
+    bool try_lock_shared_until(std::chrono::steady_clock::time_point time)
+    {
+        return try_lock_shared_until(time, false);
+    }
 
     // Try to acquire exclusive ownership of this mutex.
     bool try_lock();
@@ -75,7 +86,10 @@ public:
     }
 
     // Try to acquire exclusive ownership of this mutex.
-    bool try_lock_until(std::chrono::steady_clock::time_point time);
+    bool try_lock_until(std::chrono::steady_clock::time_point time)
+    {
+        return try_lock_until(time, false);
+    }
 
     // Release exclusive ownership of this mutex.
     void unlock();
