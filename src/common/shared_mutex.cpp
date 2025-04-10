@@ -27,42 +27,6 @@ void SharedMutex::lock()
         ;
 }
 
-void SharedMutex::to_shared_lock()
-{
-    {
-        std::lock_guard<std::mutex> guard(mLock);
-
-        auto id = std::this_thread::get_id();
-
-        // Make sure we currently own this mutex.
-        assert(mWriterID == id);
-
-        // Make sure we don't hold any recursive locks.
-        assert(mCounter == -1);
-
-        // Remember that we hold this lock.
-        assert(++mReaders[id]);
-
-        // Convert writer to reader.
-        mCounter = 1;
-
-        // No writers own this lock anymore.
-        mWriterID = std::thread::id();
-
-        // Silence compiler.
-        static_cast<void>(id);
-    }
-
-    // Notify any sleeping readers.
-    mReaderCV.notify_all();
-}
-
-void SharedMutex::to_unique_lock()
-{
-    while (!try_to_unique_lock_until(steady_time::max()))
-        ;
-}
-
 bool SharedMutex::try_lock_shared()
 {
     return try_lock_shared_until(steady_clock::now());
@@ -114,40 +78,6 @@ bool SharedMutex::try_lock_until(steady_clock::time_point time)
     // Mutex has been acquired.
     mCounter--;
     mWriterID = id;
-
-    return true;
-}
-
-bool SharedMutex::try_to_unique_lock_until(steady_clock::time_point time)
-{
-    std::unique_lock<std::mutex> lock(mLock);
-
-    // Wait until a single reader owns this mutex.
-    auto result = mReaderCV.wait_until(lock, time, [&]() {
-        return mCounter == 1;
-    });
-
-    // Too many readers retain ownership of this mutex.
-    if (!result)
-        return false;
-
-    auto id = std::this_thread::get_id();
-
-    // Make sure a single reader owns this lock.
-    assert(mReaders.size() == 1);
-
-    // Make sure that reader is us.
-    assert(mReaders.count(id));
-
-    // And that there are no recursive locks.
-    assert(mReaders[id] == 1);
-
-    // Convert to exclusive ownership.
-    mCounter = -1;
-    mWriterID = id;
-
-    // We no longer hold a read lock on this mutex.
-    assert(mReaders.erase(id) == 1);
 
     return true;
 }
