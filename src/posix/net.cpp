@@ -1659,12 +1659,15 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 long httpstatus;
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &httpstatus);
                 req->httpstatus = int(httpstatus);
+                // Get the used ip address, if any.
+                char* resolvedIpAddress = nullptr;
+                curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIMARY_IP, &resolvedIpAddress);
 
                 LOG_debug << req->getLogName()
                           << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
                           << (req->httpiohandle ?
                                   (((CurlHttpContext*)req->httpiohandle)->hostname + " - " +
-                                   ((CurlHttpContext*)req->httpiohandle)->hostip) :
+                                   (resolvedIpAddress ? resolvedIpAddress : "")) :
                                   "(unknown) ");
                 if (req->httpstatus)
                 {
