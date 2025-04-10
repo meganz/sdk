@@ -76,56 +76,123 @@ public:
 };
 
 /**
- * @brief SdkTestPath.PathFunctions
+ * @brief SdkTestPath.GetNodeByPathResolvesPathFromGetNodePath
  *
- * Verifies that path functions when paths include colons.
- * It checks consistency between:
- * - `getNodePath` and `getNodeByPath`
- * - `getNodePathByNodeHandle` and `getNodeByPath`
- * - `getNodePath` and `getNodeByPathOfType`
- * - `getNodePathByNodeHandle` and `getNodeByPathOfType`
+ * Verifies that a node retrieved by handle can return its path using getNodePath
+ * and then resolved back to the original handle using getNodeByPath.
+ *
+ * Steps for each handle defined in the suite:
+ * 1. Get a node by handle.
+ * 2. Get the node path by using getNodePath.
+ * 3. Escape colons in the path (required to use getNodeByPath when the paths has colons).
+ * 4. Use getNodeByPath to resolve the escaped path.
+ * 5. Confirm that the resolved node has the same handle as the original.
  */
-TEST_F(SdkTestPath, PathFunctions)
+TEST_F(SdkTestPath, GetNodeByPathResolvesPathFromGetNodePath)
 {
     auto handles = getAllNodesHandles();
 
     for (auto handle: handles)
     {
-        std::unique_ptr<MegaNode> originalNode =
-            std::unique_ptr<MegaNode>(megaApi[0]->getNodeByHandle(handle));
-        ASSERT_NE(originalNode, nullptr) << "Failed to retrieve node by handle.";
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(handle));
+        ASSERT_NE(node, nullptr) << "Failed to retrieve node by handle.";
 
-        std::string pathFromNode = megaApi[0]->getNodePath(originalNode.get());
-        std::string pathFromHandle = megaApi[0]->getNodePathByNodeHandle(handle);
-        std::string escapedColonsPathFromNode =
-            std::regex_replace(pathFromNode, std::regex(":"), "\\:");
-        std::string escapedColonsPathFromHandle =
-            std::regex_replace(pathFromHandle, std::regex(":"), "\\:");
+        std::string path = megaApi[0]->getNodePath(node.get());
+        std::string escapedPath = std::regex_replace(path, std::regex(":"), "\\:");
 
-        std::unique_ptr<MegaNode> nodeFromPath(
-            megaApi[0]->getNodeByPath(escapedColonsPathFromNode.c_str()));
-        ASSERT_NE(nodeFromPath, nullptr) << "Failed to retrieve node by path.";
-        EXPECT_EQ(nodeFromPath->getHandle(), originalNode->getHandle())
-            << escapedColonsPathFromNode;
+        std::unique_ptr<MegaNode> fromPath(megaApi[0]->getNodeByPath(escapedPath.c_str()));
+        ASSERT_NE(fromPath, nullptr) << "Failed to retrieve node by path.";
+        EXPECT_EQ(fromPath->getHandle(), handle) << escapedPath;
+    }
+}
 
-        nodeFromPath = std::unique_ptr<MegaNode>(
-            megaApi[0]->getNodeByPath(escapedColonsPathFromHandle.c_str()));
-        ASSERT_NE(nodeFromPath, nullptr) << "Failed to retrieve node by path.";
-        EXPECT_EQ(nodeFromPath->getHandle(), handle) << escapedColonsPathFromHandle;
+/**
+ * @brief SdkTestPath.GetNodeByPathResolvesPathFromGetNodePathByNodeHandle
+ *
+ * Verifies that a path obtained from a handle using getNodePathByNodeHandle
+ * can be resolved back to the original handle using getNodeByPath.
+ *
+ * Steps for each handle defined in the suite:
+ * 1. Get the node path by using getNodePathByNodeHandle.
+ * 2. Escape colons in the path (required to use getNodeByPath when the path has colons).
+ * 3. Use getNodeByPath to resolve the escaped path.
+ * 4. Confirm that the resolved node has the same handle as the original.
+ */
+TEST_F(SdkTestPath, GetNodeByPathResolvesPathFromGetNodePathByNodeHandle)
+{
+    auto handles = getAllNodesHandles();
 
-        nodeFromPath = std::unique_ptr<MegaNode>(
-            megaApi[0]->getNodeByPathOfType(escapedColonsPathFromNode.c_str(),
-                                            nullptr,
-                                            originalNode->getType()));
-        ASSERT_NE(nodeFromPath, nullptr) << "Failed to retrieve node by path and type.";
-        EXPECT_EQ(nodeFromPath->getHandle(), originalNode->getHandle())
-            << escapedColonsPathFromNode;
+    for (auto handle: handles)
+    {
+        std::string path = megaApi[0]->getNodePathByNodeHandle(handle);
+        std::string escapedPath = std::regex_replace(path, std::regex(":"), "\\:");
 
-        nodeFromPath = std::unique_ptr<MegaNode>(
-            megaApi[0]->getNodeByPathOfType(escapedColonsPathFromHandle.c_str(),
-                                            nullptr,
-                                            originalNode->getType()));
-        ASSERT_NE(nodeFromPath, nullptr) << "Failed to retrieve node by path and type.";
-        EXPECT_EQ(nodeFromPath->getHandle(), handle) << escapedColonsPathFromHandle;
+        std::unique_ptr<MegaNode> fromPath(megaApi[0]->getNodeByPath(escapedPath.c_str()));
+        ASSERT_NE(fromPath, nullptr) << "Failed to retrieve node by path.";
+        EXPECT_EQ(fromPath->getHandle(), handle) << escapedPath;
+    }
+}
+
+/**
+ * @brief SdkTestPath.GetNodeByPathOfTypeResolvesPathFromGetNodePath
+ *
+ * Verifies that a node retrieved by handle can return its path using getNodePath
+ * and then be resolved back to the original handle using getNodeByPathOfType.
+ *
+ * Steps for each handle defined in the suite:
+ * 1. Get a node by handle.
+ * 2. Get the node path by using getNodePath.
+ * 3. Escape colons in the path (required to use getNodeByPathOfType when the path has colons).
+ * 4. Use getNodeByPathOfType to resolve the escaped path, providing the node's type.
+ * 5. Confirm that the resolved node has the same handle as the original.
+ */
+TEST_F(SdkTestPath, GetNodeByPathOfTypeResolvesPathFromGetNodePath)
+{
+    auto handles = getAllNodesHandles();
+
+    for (auto handle: handles)
+    {
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(handle));
+        ASSERT_NE(node, nullptr) << "Failed to retrieve node by handle.";
+
+        std::string path = megaApi[0]->getNodePath(node.get());
+        std::string escapedPath = std::regex_replace(path, std::regex(":"), "\\:");
+
+        std::unique_ptr<MegaNode> fromPath(
+            megaApi[0]->getNodeByPathOfType(escapedPath.c_str(), nullptr, node->getType()));
+        ASSERT_NE(fromPath, nullptr) << "Failed to retrieve node by path and type.";
+        EXPECT_EQ(fromPath->getHandle(), handle) << escapedPath;
+    }
+}
+
+/**
+ * @brief SdkTestPath.GetNodeByPathOfTypeResolvesPathFromGetNodePathByNodeHandle
+ *
+ * Verifies that a path obtained from a handle using getNodePathByNodeHandle
+ * can be resolved back to the original handle using getNodeByPathOfType.
+ *
+ * Steps for each handle defined in the suite:
+ * 1. Get a node by handle (to retrieve the type).
+ * 2. Get the node path by using getNodePathByNodeHandle.
+ * 3. Escape colons in the path (required to use getNodeByPathOfType when the path has colons).
+ * 4. Use getNodeByPathOfType to resolve the escaped path, providing the node's type.
+ * 5. Confirm that the resolved node has the same handle as the original.
+ */
+TEST_F(SdkTestPath, GetNodeByPathOfTypeResolvesPathFromGetNodePathByNodeHandle)
+{
+    auto handles = getAllNodesHandles();
+
+    for (auto handle: handles)
+    {
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(handle));
+        ASSERT_NE(node, nullptr) << "Failed to retrieve node by handle.";
+
+        std::string path = megaApi[0]->getNodePathByNodeHandle(handle);
+        std::string escapedPath = std::regex_replace(path, std::regex(":"), "\\:");
+
+        std::unique_ptr<MegaNode> fromPath(
+            megaApi[0]->getNodeByPathOfType(escapedPath.c_str(), nullptr, node->getType()));
+        ASSERT_NE(fromPath, nullptr) << "Failed to retrieve node by path and type.";
+        EXPECT_EQ(fromPath->getHandle(), handle) << escapedPath;
     }
 }
