@@ -254,6 +254,22 @@ TEST_F(FUSECommonTests, cloud_replace)
     EXPECT_EQ(fsidOf(MountPathW() / "sfx"), handle->as8byte());
 }
 
+TEST_F(FUSECommonTests, duplicate_names)
+{
+    // Add a duplicate directory.
+    ASSERT_EQ(ClientW()->makeDirectory("sd0", "/x/s").errorOr(API_OK), API_OK);
+
+    // Wait for the directory to become inaccessible.
+    std::error_code error;
+
+    EXPECT_TRUE(waitFor([&]() {
+        return !fs::exists(MountPathW() / "sd0", error);
+    }, mDefaultTimeout));
+
+    EXPECT_FALSE(fs::exists(MountPathW() / "sd0", error));
+    EXPECT_FALSE(error);
+}
+
 TEST_F(FUSECommonTests, file_cache_load)
 {
     // Create a new client so not to interfere with later tests.
