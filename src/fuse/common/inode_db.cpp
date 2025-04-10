@@ -362,26 +362,15 @@ void InodeDB::childRemoved([[maybe_unused]] const Inode& inode,
 
 InodeRefVector InodeDB::children(const DirectoryInode& parent) const
 {
-    // So we can look up strings by reference.
-    struct StringPtrLess {
-        bool operator()(const std::string* lhs,
-                        const std::string* rhs) const
-        {
-            return *lhs < *rhs;
-        }
-    }; // StringPtrLess
-
     // Convenience.
-    using StringPtrToNodeInfoPtrMap =
-      std::map<const std::string*,
-               NodeInfoList::iterator,
-               StringPtrLess>;
+    using StringToNodeInfoPtrMap =
+      std::map<std::string, NodeInfoList::iterator>;
 
     // Stores the description of each of this node's children.
     NodeInfoList storage;
 
     // Maps a child's name to its description.
-    StringPtrToNodeInfoPtrMap descriptions;
+    StringToNodeInfoPtrMap descriptions;
 
     // Insert dummy for purposes of duplicate detection.
     storage.emplace_back();
@@ -389,7 +378,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
     // What children are present in the cloud?
     client().each([&](NodeInfo description) {
         // Have we seen a child with this name before?
-        auto i = descriptions.find(&description.mName);
+        auto i = descriptions.find(description.mName);
 
         // Haven't seen a child with this name before.
         if (i == descriptions.end())
@@ -400,7 +389,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
             j = storage.emplace(j, std::move(description));
 
             // Add child to index.
-            descriptions[&j->mName] = j;
+            descriptions[j->mName] = j;
 
             // Process the next child.
             return;
@@ -462,7 +451,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
         auto name = query.field("name").get<std::string>();
 
         // Have we already seen a cloud child with this name?
-        auto i = descriptions.find(&name);
+        auto i = descriptions.find(name);
 
         // A child with this name is present in the cloud.
         if (i != descriptions.end())
