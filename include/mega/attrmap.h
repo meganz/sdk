@@ -86,6 +86,50 @@ struct MEGA_API AttrMap
     void getjson(string*) const;
     std::string getjson() const;
 
+    /**
+     * @brief generates a string by exporting all [key, value] pairs as a JSON object ({"..."})
+     *
+     * @example
+     * Input:
+     *  {
+     *      [116] : 20
+     *      [28260]: 8
+     *      [6384743]: sha256
+     *      [1936225125]: abcd
+     *  }
+     *
+     * Output:
+     *  "{"t":"20","nd":"8","alg":"sha256","shse":"abcd"}"
+     *
+     * @return a string by exporting all [key, value] pairs as a JSON object ({"..."})
+     */
+    std::string getJsonObject() const;
+
+    /**
+     * @brief Imports [key, value] pairs in this AttrMap (discarding any existing value) from a
+     * string with JSON object format
+     * ({"..."})
+     *
+     * @note: The expected format of input buf must
+     * be a well formed JSON string. e.g: "{"t":"20","nd":"8","alg":"sha256","shse":"abcd"}"
+     *
+     * Also note that this function does not expect nested objects inside another object in that
+     * string. e.g: "totp":"{"t":"70", "subObject":"{"a":"1", "b":"2"}"}"
+     *
+     * @example
+     * Input:
+     *  "{"t":"20","nd":"8","alg":"sha256","shse":"abcd"}"
+     *
+     * Result: Stores [k,v] elements in this AttrMap
+     *  {
+     *      [116] : 20
+     *      [28260]: 8
+     *      [6384743]: sha256
+     *      [1936225125]: abcd
+     *  }
+     */
+    void fromjsonObject(const std::string& buf);
+
     // import from JSON string
     void fromjson(const char* buf);
 
@@ -94,6 +138,44 @@ struct MEGA_API AttrMap
      * assuming the value is in json format.
      */
     std::optional<AttrMap> getNestedJsonObject(const std::string_view name) const;
+
+    /**
+     * @brief Generates a new AttrMap from JsonObject String stored in value corresponding to
+     * specific key(parentName) of this AttrMap
+     *
+     * Given a key(parentName), this function searches an object name (childName) in the value of
+     * that key (parentName) and extract that object into a new AttrMap
+     *
+     * @note: The expected format of AttrMap string value that corresponding to key (parentName),
+     * must be a well formed JSON string. e.g: "n":"Pasword1
+     * notes","u":"myUser","pwd":"abcd","url":"www.website.com","totp":{"t":"70","nd":"8","alg":"sha1","shse":"HVR4CFHAFOWFGGFAGSA5JVTIMMPG6GMT"}
+     *
+     * Also note that this function does not support nested objects inside another object in that
+     * string. e.g: "totp":"{"t":"70", "subObject":"{"a":"1", "b":"2"}"}"
+     *
+     * @example
+     * Input:
+     * {
+     *      [110] 	  "Pasword1"
+     *      [7370605] "n":"Pasword1
+     * notes","u":"myUser","pwd":"abcd","url":"www.website.com","totp":{"t":"70","nd":"8","alg":"sha1","shse":"HVR4CFHAFOWFGGFAGSA5JVTIMMPG6GMT"}
+     * }
+     *
+     * Output:
+     * {
+     *      [1953461360] :
+     * {"t":"70","nd":"8","alg":"sha1","shse":"HVR4CFHAFOWFGGFAGSA5JVTIMMPG6GMT"}
+     * }
+     *
+     * In example above we can see that we want to extract "totp" object stored at [7370605]
+     *
+     * @param parentName key of this AttrMap where we want to extract JSON object
+     * @param childName Object name inside Value of parentName key in this AttrMap
+     * @return a new AttrMap from JsonObject String stored in value corresponding to
+     * specific key(parentName) of this AttrMap
+     */
+    std::optional<AttrMap> getComplexNestedJsonObject(const std::string_view parentName,
+                                                      const std::string_view childName) const;
 
     // export as raw binary serialize
     void serialize(string*) const;
@@ -142,17 +224,26 @@ struct MEGA_API AttrMap
                                       const std::array<std::string_view, S>& nestedFieldKeys)
     {
         const auto getNestedFieldFinalStr =
-            [this, &updates](const auto& field) -> std::optional<std::string>
+            [this, &updates](const std::string_view field) -> std::optional<std::string>
         {
-            auto currentVal = getNestedJsonObject(field);
-            if (const bool nestedMergeRequired =
-                    hasUpdate(AttrMap::string2nameid(field), updates.map) && currentVal &&
-                    !updates.getStringView(field).value_or("").empty();
-                !nestedMergeRequired)
-                return std::nullopt;
-            const auto updateVal = updates.getNestedJsonObject(field).value_or(AttrMap{});
-            currentVal->applyUpdates(updateVal.map);
-            return currentVal->getjson();
+            const auto nameId = AttrMap::string2nameid(field);
+
+            if (!hasUpdate(nameId, updates.map) ||
+                updates.getStringView(field).value_or("").empty())
+                return std::optional<std::string>{std::nullopt};
+
+            AttrMap complexMapUpdatesValues;
+            assert(updates.map.contains(nameId)); // otherwise doesn't have updates
+            complexMapUpdatesValues.fromjsonObject(updates.map.at(nameId));
+
+            AttrMap complexMapCurrentValues;
+            if (this->map.contains(nameId))
+            {
+                complexMapCurrentValues.fromjsonObject(this->map.at(nameId));
+            }
+
+            complexMapCurrentValues.applyUpdates(complexMapUpdatesValues.map);
+            return std::make_optional(complexMapCurrentValues.getJsonObject());
         };
         std::array<std::optional<std::string>, S> finalNestedStrs;
         std::transform(begin(nestedFieldKeys),
