@@ -155,13 +155,9 @@ void SharedMutex::unlock_shared()
         static_cast<void>(id);
     }
 
-    // Mutex is held by more than one reader.
-    if (counter > 1)
-        return;
-
-    // Mutex is held by a single reader.
+    // Mutex is held by one or more readers.
     if (counter > 0)
-        return mReaderCV.notify_one();
+        return;
 
     // Mutex is available.
     mWriterCV.notify_one();
