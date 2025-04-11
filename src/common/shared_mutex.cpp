@@ -76,13 +76,13 @@ bool SharedMutex::try_lock_until(steady_clock::time_point time,
 
 void SharedMutex::lock_shared()
 {
-    while (!try_lock_shared_until(steady_time::max()))
+    while (!try_lock_shared_until(steady_time::max(), true))
         ;
 }
 
 void SharedMutex::lock()
 {
-    while (!try_lock_until(steady_time::max()))
+    while (!try_lock_until(steady_time::max(), true))
         ;
 }
 
