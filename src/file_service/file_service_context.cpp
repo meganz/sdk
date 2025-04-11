@@ -86,7 +86,7 @@ template<typename Lock>
 auto FileServiceContext::infoFromIndex(FileID id, Lock&& lock, bool open)
     -> std::pair<FileInfoContextPtr, FileAccessPtr>
 {
-    auto info = getFromIndex(id, lock, mInfoContexts);
+    auto info = getFromIndex(id, std::forward<Lock>(lock), mInfoContexts);
     auto file = open ? mStorage.getFile(id) : nullptr;
 
     return std::make_pair(std::move(info), std::move(file));
@@ -172,7 +172,7 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
 template<typename Lock>
 auto FileServiceContext::openFromIndex(FileID id, Lock&& lock) -> FileContextPtr
 {
-    return getFromIndex(id, lock, mFileContexts);
+    return getFromIndex(id, std::forward<Lock>(lock), mFileContexts);
 }
 
 template<typename T>
