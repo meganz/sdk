@@ -170,6 +170,9 @@ struct SharedLock
 }; // SharedLock<T>
 
 template<typename T>
+SharedLock(T&) -> SharedLock<T>;
+
+template<typename T>
 struct SharedLockTraits
 {
     static void lock(T& mutex)
@@ -204,6 +207,9 @@ struct UniqueLock
     using Base::Base;
     using Base::operator=;
 }; // UniqueLock<T>
+
+template<typename T>
+UniqueLock(T&) -> UniqueLock<T>;
 
 template<typename T>
 struct UniqueLockTraits
