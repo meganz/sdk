@@ -3545,4 +3545,31 @@ std::string getThisThreadIdStr()
     return ss.str();
 }
 
+storagestatus_t getStorageStatusFromString(const std::string& storageStatusStr)
+{
+    if (storageStatusStr.empty())
+    {
+        return STORAGE_GREEN;
+    }
+
+    const auto storageStatusOpt = stringToNumber<int>(storageStatusStr);
+    if (!storageStatusOpt)
+    {
+        LOG_err << "[getStorageStatusFromString] error: cannot parse storage status from value = "
+                << storageStatusStr;
+        return STORAGE_UNKNOWN;
+    }
+
+    const auto storageStatus = static_cast<storagestatus_t>(*storageStatusOpt);
+    switch (storageStatus)
+    {
+        case STORAGE_RED:
+        case STORAGE_ORANGE:
+        case STORAGE_GREEN:
+            return storageStatus;
+        default:
+            return STORAGE_UNKNOWN;
+    }
+}
+
 } // namespace mega

@@ -1444,6 +1444,11 @@ public:
     // clean rubbish bin
     void cleanrubbishbin();
 
+    // process a received storage status value from API command and update the state if needed
+    // returns true if the storagestatus_t arg is expected (STORAGE_GREEN, STORAGE_ORANGE,
+    // STORAGE_RED), false otherwise.
+    bool processStorageStatusFromCmd(const storagestatus_t);
+
     // change the storage status
     bool setstoragestatus(storagestatus_t);
 
@@ -1784,9 +1789,6 @@ public:
 
     // next internal upload handle (call UploadHandle::next() to update value)
     UploadHandle mUploadHandle;
-
-    // just one notification after fetchnodes and catch-up actionpackets
-    bool notifyStorageChangeOnStateCurrent = false;
 
     // maximum number of concurrent transfers (uploads + downloads)
     static const unsigned MAXTOTALTRANSFERS;

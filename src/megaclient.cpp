@@ -1872,7 +1872,6 @@ void MegaClient::init()
     // actions in server-client stream)
     resetId(sessionid, sizeof sessionid, rng);
 
-    notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
 
     mCurrentSeqtag.clear();
@@ -5214,13 +5213,6 @@ bool MegaClient::procsc()
                             syncsAlreadyLoadedOnStatecurrent = true;
                         }
 #endif
-
-                        if (notifyStorageChangeOnStateCurrent)
-                        {
-                            app->notify_storage(STORAGE_CHANGE);
-                            notifyStorageChangeOnStateCurrent = false;
-                        }
-
                         if (tctable && cachedfiles.size())
                         {
                             TransferDbCommitter committer(tctable);
@@ -6161,6 +6153,42 @@ bool MegaClient::slotavail() const
     return !mBlocked && tslots.size() < MAXTOTALTRANSFERS;
 }
 
+bool MegaClient::processStorageStatusFromCmd(const storagestatus_t status)
+{
+    switch (status)
+    {
+        case STORAGE_RED:
+        {
+            const auto isPaywall = (ststatus == STORAGE_PAYWALL);
+            LOG_verbose << "[processStorageStatusFromCmd] Storage status is RED [isPaywall = "
+                        << isPaywall << "]";
+            activateoverquota(0, isPaywall);
+            return true;
+        }
+        case STORAGE_ORANGE:
+        {
+            LOG_verbose << "[processStorageStatusFromCmd] Storage status is ORANGE (close to the "
+                           "storage capacity)";
+            [[fallthrough]];
+        }
+        case STORAGE_GREEN:
+        {
+            setstoragestatus(status);
+            return true;
+        }
+        case STORAGE_UNKNOWN:
+        {
+            LOG_warn << "[processStorageStatusFromCmd] Storage status is unknown";
+            return false;
+        }
+        default:
+        {
+            LOG_err << "[processStorageStatusFromCmd] Invalid storage status: " << status;
+            return false;
+        }
+    }
+}
+
 bool MegaClient::setstoragestatus(storagestatus_t status)
 {
     // transition from paywall to red should not happen
@@ -6176,13 +6204,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
 
 #ifdef ENABLE_SYNC
-        if (previousStatus == STORAGE_PAYWALL)
-        {
-            mOverquotaDeadlineTs = 0;
-            mOverquotaWarningTs.clear();
-        }
-        app->notify_storage(ststatus);
-        if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
+        if (status == STORAGE_RED || status == STORAGE_PAYWALL) // transitioning to OQ
         {
             syncs.disableSyncs(STORAGE_OVERQUOTA, false, true);
         }
@@ -6195,11 +6217,15 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
             {
                 break;
             }
-            // fall-through
+            [[fallthrough]];
         case STORAGE_PAYWALL:
+            mOverquotaDeadlineTs = 0;
+            mOverquotaWarningTs.clear();
+            [[fallthrough]];
         case STORAGE_RED:
             // Transition from OQ.
             abortbackoff(true);
+            break;
         default:
             break;
         }
@@ -7266,21 +7292,10 @@ void MegaClient::sc_userattr()
                         if (!fetchingnodes)
                         {
                             // silently fetch-upon-update these critical attributes
-                            if (type == ATTR_DISABLE_VERSIONS || type == ATTR_PUSH_SETTINGS)
+                            if (type == ATTR_DISABLE_VERSIONS || type == ATTR_PUSH_SETTINGS ||
+                                type == ATTR_STORAGE_STATE)
                             {
                                 getua(u, type, 0);
-                            }
-                            else if (type == ATTR_STORAGE_STATE)
-                            {
-                                if (!statecurrent)
-                                {
-                                    notifyStorageChangeOnStateCurrent = true;
-                                }
-                                else
-                                {
-                                    LOG_debug << "Possible storage status change";
-                                    app->notify_storage(STORAGE_CHANGE);
-                                }
                             }
                         }
                     }

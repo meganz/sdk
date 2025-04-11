@@ -1670,6 +1670,9 @@ inline bool isAllDigits(const std::string_view s)
                            return std::isdigit(c);
                        });
 }
+
+storagestatus_t getStorageStatusFromString(const std::string& storageStateStr);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H
