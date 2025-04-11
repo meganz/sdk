@@ -32,7 +32,7 @@ template<typename T>
 auto FileServiceContext::getFromIndex(FileID id, FromFileIDMap<std::weak_ptr<T>>& map)
     -> std::shared_ptr<T>
 {
-    SharedLock<SharedMutex> guard(mLock);
+    SharedLock guard(mLock);
 
     if (auto entry = map.find(id); entry != map.end())
         return entry->second.lock();
@@ -43,8 +43,8 @@ auto FileServiceContext::getFromIndex(FileID id, FromFileIDMap<std::weak_ptr<T>>
 auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     -> std::pair<FileInfoContextPtr, FileAccessPtr>
 {
-    UniqueLock<SharedMutex> guardContexts(mLock);
-    UniqueLock<Database> guardDatabase(mDatabase);
+    UniqueLock guardContexts(mLock);
+    UniqueLock guardDatabase(mDatabase);
 
     if (auto result = infoFromIndex(id, open); result.first)
         return result;
@@ -116,8 +116,8 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     if (node->mIsDirectory)
         return unexpected(FILE_SERVICE_FILE_IS_A_DIRECTORY);
 
-    UniqueLock<SharedMutex> guardContexts(mLock);
-    UniqueLock<Database> guardDatabase(mDatabase);
+    UniqueLock guardContexts(mLock);
+    UniqueLock guardDatabase(mDatabase);
 
     if (auto context = openFromIndex(id))
         return context;
@@ -154,7 +154,7 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
     if (!info)
         return openFromCloud(id);
 
-    UniqueLock<SharedMutex> guard(mLock);
+    UniqueLock guard(mLock);
 
     if (auto context = openFromIndex(info->id()))
         return context;
@@ -175,7 +175,7 @@ auto FileServiceContext::openFromIndex(FileID id) -> FileContextPtr
 template<typename T>
 void FileServiceContext::removeFromIndex(FileID id, FromFileIDMap<T>& map)
 {
-    UniqueLock<SharedMutex> guard(mLock);
+    UniqueLock guard(mLock);
 
     if (auto entry = map.find(id); entry != map.end() && entry->second.expired())
         map.erase(id);

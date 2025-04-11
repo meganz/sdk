@@ -26,14 +26,14 @@ FileService::~FileService() = default;
 
 void FileService::deinitialize()
 {
-    UniqueLock<SharedMutex> guard(mContextLock);
+    UniqueLock guard(mContextLock);
 
     mContext.reset();
 }
 
 auto FileService::info(FileID id) -> FileServiceResultOr<FileInfo>
 {
-    SharedLock<SharedMutex> guard(mContextLock);
+    SharedLock guard(mContextLock);
 
     if (mContext)
         return mContext->info(id);
@@ -43,7 +43,7 @@ auto FileService::info(FileID id) -> FileServiceResultOr<FileInfo>
 
 auto FileService::open(FileID id) -> FileServiceResultOr<File>
 {
-    SharedLock<SharedMutex> guard(mContextLock);
+    SharedLock guard(mContextLock);
 
     if (mContext)
         return mContext->open(id);
@@ -54,7 +54,7 @@ auto FileService::open(FileID id) -> FileServiceResultOr<File>
 auto FileService::initialize(Client& client) -> FileServiceResult
 try
 {
-    UniqueLock<SharedMutex> guard(mContextLock);
+    UniqueLock guard(mContextLock);
 
     if (mContext)
     {

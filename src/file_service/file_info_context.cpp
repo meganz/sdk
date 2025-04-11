@@ -15,7 +15,7 @@ using namespace common;
 template<typename T>
 auto FileInfoContext::get(T FileInfoContext::* const property) const
 {
-    SharedLock<SharedMutex> guard(mLock);
+    SharedLock guard(mLock);
 
     return this->*property;
 }
