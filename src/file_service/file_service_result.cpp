@@ -7,7 +7,7 @@ namespace mega
 namespace file_service
 {
 
-auto toDescription(FileServiceResult result) -> const char*
+const char* toDescription(FileServiceResult result)
 {
     static const char* descriptions[] = {
 #define DEFINE_DESCRIPTION(name, description) description,
@@ -23,7 +23,7 @@ auto toDescription(FileServiceResult result) -> const char*
     return "N/A";
 }
 
-auto toString(FileServiceResult result) -> const char*
+const char* toString(FileServiceResult result)
 {
     static const char* names[] = {
 #define DEFINE_NAME(name, description) #name,

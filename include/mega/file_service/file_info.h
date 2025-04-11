@@ -24,13 +24,13 @@ public:
 
     ~FileInfo();
 
-    auto handle() const -> NodeHandle;
+    NodeHandle handle() const;
 
-    auto id() const -> FileID;
+    FileID id() const;
 
-    auto modified() const -> std::int64_t;
+    std::int64_t modified() const;
 
-    auto size() const -> std::uint64_t;
+    std::uint64_t size() const;
 }; // FileInfo
 
 } // file_service

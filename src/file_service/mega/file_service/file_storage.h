@@ -19,9 +19,9 @@ class FileStorage
     //
     // It's an error if mustCreate is true and a file for id already exists.
     // It's an error if mustCreate is false but no file for id exists.
-    auto openFile(FileID id, bool mustCreate) -> FileAccessPtr;
+    FileAccessPtr openFile(FileID id, bool mustCreate);
 
-    auto userFilePath(FileID id) const -> LocalPath;
+    LocalPath userFilePath(FileID id) const;
 
     FileSystemAccessPtr mFilesystem;
     common::Directory mStorageDirectory;
@@ -32,15 +32,15 @@ public:
 
     ~FileStorage();
 
-    auto addFile(FileID id) -> FileAccessPtr;
+    FileAccessPtr addFile(FileID id);
 
-    auto databasePath() const -> LocalPath;
+    LocalPath databasePath() const;
 
-    auto getFile(FileID id) -> FileAccessPtr;
+    FileAccessPtr getFile(FileID id);
 
-    auto storageDirectory() const -> const LocalPath&;
+    const LocalPath& storageDirectory() const;
 
-    auto userStorageDirectory() const -> const LocalPath&;
+    const LocalPath& userStorageDirectory() const;
 }; // FileStorage
 
 } // file_service

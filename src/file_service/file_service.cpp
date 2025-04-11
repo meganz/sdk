@@ -24,7 +24,7 @@ FileService::FileService():
 
 FileService::~FileService() = default;
 
-auto FileService::deinitialize() -> void
+void FileService::deinitialize()
 {
     UniqueLock<SharedMutex> guard(mContextLock);
 

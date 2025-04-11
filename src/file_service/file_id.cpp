@@ -13,7 +13,7 @@ namespace common
 
 using namespace file_service;
 
-auto SerializationTraits<FileID>::from(const Field& field) -> FileID
+FileID SerializationTraits<FileID>::from(const Field& field)
 {
     auto value = field.get<std::uint64_t>();
 
@@ -23,7 +23,7 @@ auto SerializationTraits<FileID>::from(const Field& field) -> FileID
     return FileID::from(NodeHandle().set6byte(value));
 }
 
-auto SerializationTraits<FileID>::to(Parameter& parameter, FileID id) -> void
+void SerializationTraits<FileID>::to(Parameter& parameter, FileID id)
 {
     parameter.set(id.toU64());
 }
@@ -50,27 +50,27 @@ FileID::operator bool() const
     return mID != kUndefined;
 }
 
-auto FileID::operator==(const FileID& rhs) const -> bool
+bool FileID::operator==(const FileID& rhs) const
 {
     return mID == rhs.mID;
 }
 
-auto FileID::operator<(const FileID& rhs) const -> bool
+bool FileID::operator<(const FileID& rhs) const
 {
     return mID < rhs.mID;
 }
 
-auto FileID::operator!=(const FileID& rhs) const -> bool
+bool FileID::operator!=(const FileID& rhs) const
 {
     return !(*this == rhs);
 }
 
-auto FileID::operator!() const -> bool
+bool FileID::operator!() const
 {
     return !operator bool();
 }
 
-auto FileID::from(NodeHandle handle) -> FileID
+FileID FileID::from(NodeHandle handle)
 {
     if (!handle.isUndef())
         return FileID(handle.as8byte());
@@ -78,14 +78,14 @@ auto FileID::from(NodeHandle handle) -> FileID
     return FileID();
 }
 
-auto FileID::from(std::uint64_t u64) -> FileID
+FileID FileID::from(std::uint64_t u64)
 {
     assert(!synthetic(u64));
 
     return FileID(kSynthetic | u64);
 }
 
-auto FileID::toHandle() const -> NodeHandle
+NodeHandle FileID::toHandle() const
 {
     assert(!synthetic(mID));
 
@@ -95,22 +95,22 @@ auto FileID::toHandle() const -> NodeHandle
     return NodeHandle();
 }
 
-auto FileID::toU64() const -> std::uint64_t
+std::uint64_t FileID::toU64() const
 {
     return mID;
 }
 
-auto synthetic(FileID id) -> bool
+bool synthetic(FileID id)
 {
     return synthetic(id.toU64());
 }
 
-auto synthetic(std::uint64_t u64) -> bool
+bool synthetic(std::uint64_t u64)
 {
     return u64 != kUndefined && u64 >= kSynthetic;
 }
 
-auto toString(FileID id) -> std::string
+std::string toString(FileID id)
 {
     return toHandle(id.toU64());
 }

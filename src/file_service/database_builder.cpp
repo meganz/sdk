@@ -13,7 +13,7 @@ static void downgrade10(Query& query);
 
 static void upgrade01(Query& query);
 
-auto DatabaseBuilder::versions() const -> const DatabaseVersionVector&
+const DatabaseVersionVector& DatabaseBuilder::versions() const
 {
     static const DatabaseVersionVector versions = {
         {&downgrade10, &upgrade01},

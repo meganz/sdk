@@ -17,9 +17,9 @@ namespace common
 template<>
 struct SerializationTraits<file_service::FileID>
 {
-    static auto from(const Field& field) -> file_service::FileID;
+    static file_service::FileID from(const Field& field);
 
-    static auto to(Parameter& parameter, file_service::FileID id) -> void;
+    static void to(Parameter& parameter, file_service::FileID id);
 }; // SerializationTraits<file_service::FileID>
 
 } // common
@@ -38,28 +38,28 @@ public:
 
     operator bool() const;
 
-    auto operator==(const FileID& rhs) const -> bool;
+    bool operator==(const FileID& rhs) const;
 
-    auto operator<(const FileID& rhs) const -> bool;
+    bool operator<(const FileID& rhs) const;
 
-    auto operator!=(const FileID& rhs) const -> bool;
+    bool operator!=(const FileID& rhs) const;
 
-    auto operator!() const -> bool;
+    bool operator!() const;
 
-    static auto from(NodeHandle handle) -> FileID;
+    static FileID from(NodeHandle handle);
 
-    static auto from(std::uint64_t u64) -> FileID;
+    static FileID from(std::uint64_t u64);
 
-    auto toHandle() const -> NodeHandle;
+    NodeHandle toHandle() const;
 
-    auto toU64() const -> std::uint64_t;
+    std::uint64_t toU64() const;
 }; // FileID
 
-auto synthetic(FileID id) -> bool;
+bool synthetic(FileID id);
 
-auto synthetic(std::uint64_t u64) -> bool;
+bool synthetic(std::uint64_t u64);
 
-auto toString(FileID id) -> std::string;
+std::string toString(FileID id);
 
 } // file_service
 } // mega

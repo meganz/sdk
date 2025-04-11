@@ -39,22 +39,22 @@ FileInfoContext::~FileInfoContext()
     mService.removeFromIndex(FileInfoContextBadge(), mID);
 }
 
-auto FileInfoContext::handle() const -> NodeHandle
+NodeHandle FileInfoContext::handle() const
 {
     return get(&FileInfoContext::mHandle);
 }
 
-auto FileInfoContext::id() const -> FileID
+FileID FileInfoContext::id() const
 {
     return mID;
 }
 
-auto FileInfoContext::modified() const -> std::int64_t
+std::int64_t FileInfoContext::modified() const
 {
     return get(&FileInfoContext::mModified);
 }
 
-auto FileInfoContext::size() const -> std::uint64_t
+std::uint64_t FileInfoContext::size() const
 {
     return get(&FileInfoContext::mSize);
 }

@@ -13,22 +13,22 @@ FileInfo::FileInfo(FileServiceContextBadge, FileInfoContextPtr context):
 
 FileInfo::~FileInfo() = default;
 
-auto FileInfo::handle() const -> NodeHandle
+NodeHandle FileInfo::handle() const
 {
     return mContext->handle();
 }
 
-auto FileInfo::id() const -> FileID
+FileID FileInfo::id() const
 {
     return mContext->id();
 }
 
-auto FileInfo::modified() const -> std::int64_t
+std::int64_t FileInfo::modified() const
 {
     return mContext->modified();
 }
 
-auto FileInfo::size() const -> std::uint64_t
+std::uint64_t FileInfo::size() const
 {
     return mContext->size();
 }

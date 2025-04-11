@@ -173,7 +173,7 @@ auto FileServiceContext::openFromIndex(FileID id) -> FileContextPtr
 }
 
 template<typename T>
-auto FileServiceContext::removeFromIndex(FileID id, FromFileIDMap<T>& map) -> void
+void FileServiceContext::removeFromIndex(FileID id, FromFileIDMap<T>& map)
 {
     UniqueLock<SharedMutex> guard(mLock);
 
@@ -231,12 +231,12 @@ catch (std::runtime_error& exception)
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
-auto FileServiceContext::removeFromIndex(FileContextBadge, FileID id) -> void
+void FileServiceContext::removeFromIndex(FileContextBadge, FileID id)
 {
     removeFromIndex(id, mFileContexts);
 }
 
-auto FileServiceContext::removeFromIndex(FileInfoContextBadge, FileID id) -> void
+void FileServiceContext::removeFromIndex(FileInfoContextBadge, FileID id)
 {
     removeFromIndex(id, mInfoContexts);
 }

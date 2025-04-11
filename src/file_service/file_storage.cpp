@@ -12,7 +12,7 @@ namespace file_service
 
 using namespace common;
 
-auto FileStorage::openFile(FileID id, bool mustCreate) -> FileAccessPtr
+FileAccessPtr FileStorage::openFile(FileID id, bool mustCreate)
 {
     auto file = mFilesystem->newfileaccess(false);
     auto path = userFilePath(id);
@@ -26,7 +26,7 @@ auto FileStorage::openFile(FileID id, bool mustCreate) -> FileAccessPtr
                    path.toPath(false).c_str());
 }
 
-auto FileStorage::userFilePath(FileID id) const -> LocalPath
+LocalPath FileStorage::userFilePath(FileID id) const
 {
     auto name = LocalPath::fromRelativePath(toString(id));
     auto path = userStorageDirectory();
@@ -44,12 +44,12 @@ FileStorage::FileStorage(const Client& client):
 
 FileStorage::~FileStorage() = default;
 
-auto FileStorage::addFile(FileID id) -> FileAccessPtr
+FileAccessPtr FileStorage::addFile(FileID id)
 {
     return openFile(id, true);
 }
 
-auto FileStorage::databasePath() const -> LocalPath
+LocalPath FileStorage::databasePath() const
 {
     static const auto name = LocalPath::fromRelativePath("metadata");
 
@@ -60,17 +60,17 @@ auto FileStorage::databasePath() const -> LocalPath
     return path;
 }
 
-auto FileStorage::getFile(FileID id) -> FileAccessPtr
+FileAccessPtr FileStorage::getFile(FileID id)
 {
     return openFile(id, false);
 }
 
-auto FileStorage::storageDirectory() const -> const LocalPath&
+const LocalPath& FileStorage::storageDirectory() const
 {
     return mStorageDirectory;
 }
 
-auto FileStorage::userStorageDirectory() const -> const LocalPath&
+const LocalPath& FileStorage::userStorageDirectory() const
 {
     return mUserStorageDirectory;
 }

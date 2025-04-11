@@ -24,7 +24,7 @@ public:
 
     ~FileService();
 
-    auto deinitialize() -> void;
+    void deinitialize();
 
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
 

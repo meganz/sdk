@@ -23,9 +23,9 @@ enum FileServiceResult : unsigned int
 #undef DEFINE_ENUMERANT
 }; // FileServiceResult
 
-auto toDescription(FileServiceResult result) -> const char*;
+const char* toDescription(FileServiceResult result);
 
-auto toString(FileServiceResult result) -> const char*;
+const char* toString(FileServiceResult result);
 
 } // file_service
 } // mega
