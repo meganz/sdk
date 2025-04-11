@@ -47,7 +47,17 @@ class FileServiceContext
     auto removeFromIndex(FileID id, FromFileIDMap<T>& map) -> void;
 
     common::Client& mClient;
+
+    // No locks are needed in order to make use of this member.
+    //
+    // As far as invariants are concerned, the member is sane as soon as it
+    // completes its initialization.
+    //
+    // As for different threads making concurrent calls, that should also be
+    // safe although we will be relying on the operating system itself to
+    // synchronize calls to the filesystem.
     FileStorage mStorage;
+
     common::Database mDatabase;
     FileServiceQueries mQueries;
 
