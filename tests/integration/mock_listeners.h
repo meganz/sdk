@@ -151,6 +151,32 @@ private:
 };
 
 /**
+ * @class MockNodesUpdateListener
+ * @brief A simple mock listener to track nodes updates
+ */
+class MockNodesUpdateListener: public ::mega::MegaListener
+{
+public:
+    MockNodesUpdateListener(::mega::MegaApi* megaApi = nullptr):
+        mMegaApi{megaApi}
+    {}
+
+    MOCK_METHOD(void,
+                onNodesUpdate,
+                (::mega::MegaApi * api, ::mega::MegaNodeList* nodes),
+                (override));
+
+    ~MockNodesUpdateListener()
+    {
+        if (mMegaApi)
+            mMegaApi->removeListener(this);
+    }
+
+private:
+    ::mega::MegaApi* mMegaApi{nullptr};
+};
+
+/**
  * @class MockSyncListener
  * @brief Mock listener only implementing methods for transfers
  *
