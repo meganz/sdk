@@ -22,7 +22,7 @@ class SdkTestPath: public SdkTestNodesSetUp
 public:
     const std::vector<NodeInfo>& getElements() const override
     {
-        static const std::vector<NodeInfo> TEST_NODES{
+        static const std::vector<NodeInfo> testNodes{
             FileNodeInfo("rootTestFile"),
             DirNodeInfo("dir1")
                 .addChild(FileNodeInfo("testFile1"))
@@ -41,12 +41,12 @@ public:
                 .addChild(FileNodeInfo("testFile2")),
 #endif
         };
-        return TEST_NODES;
+        return testNodes;
     }
 
     const std::string& getRootTestDir() const override
     {
-        static const std::string dirName{"SDK_TEST_PATH_AUX_DIR"};
+        static const std::string dirName{"SDK_TEST_PATH"};
         return dirName;
     }
 
@@ -97,8 +97,9 @@ TEST_F(SdkTestPath, GetNodeByPathResolvesPathFromGetNodePath)
         std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(handle));
         ASSERT_NE(node, nullptr) << "Failed to retrieve node by handle.";
 
-        std::string path = megaApi[0]->getNodePath(node.get());
-        std::string escapedPath = std::regex_replace(path, std::regex(":"), "\\:");
+        auto path{megaApi[0]->getNodePath(node.get())};
+        ASSERT_NE(path, nullptr) << "Failed to retrieve node by node handle.";
+        auto escapedPath{std::regex_replace(path, std::regex(":"), "\\:")};
 
         std::unique_ptr<MegaNode> fromPath(megaApi[0]->getNodeByPath(escapedPath.c_str()));
         ASSERT_NE(fromPath, nullptr) << "Failed to retrieve node by path.";
@@ -124,8 +125,9 @@ TEST_F(SdkTestPath, GetNodeByPathResolvesPathFromGetNodePathByNodeHandle)
 
     for (auto handle: handles)
     {
-        std::string path = megaApi[0]->getNodePathByNodeHandle(handle);
-        std::string escapedPath = std::regex_replace(path, std::regex(":"), "\\:");
+        auto path{megaApi[0]->getNodePathByNodeHandle(handle)};
+        ASSERT_NE(path, nullptr) << "Failed to retrieve node by handle.";
+        auto escapedPath{std::regex_replace(path, std::regex(":"), "\\:")};
 
         std::unique_ptr<MegaNode> fromPath(megaApi[0]->getNodeByPath(escapedPath.c_str()));
         ASSERT_NE(fromPath, nullptr) << "Failed to retrieve node by path.";
@@ -155,8 +157,9 @@ TEST_F(SdkTestPath, GetNodeByPathOfTypeResolvesPathFromGetNodePath)
         std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(handle));
         ASSERT_NE(node, nullptr) << "Failed to retrieve node by handle.";
 
-        std::string path = megaApi[0]->getNodePath(node.get());
-        std::string escapedPath = std::regex_replace(path, std::regex(":"), "\\:");
+        auto path{megaApi[0]->getNodePath(node.get())};
+        ASSERT_NE(path, nullptr) << "Failed to retrieve node by node handle.";
+        auto escapedPath{std::regex_replace(path, std::regex(":"), "\\:")};
 
         std::unique_ptr<MegaNode> fromPath(
             megaApi[0]->getNodeByPathOfType(escapedPath.c_str(), nullptr, node->getType()));
@@ -187,8 +190,9 @@ TEST_F(SdkTestPath, GetNodeByPathOfTypeResolvesPathFromGetNodePathByNodeHandle)
         std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(handle));
         ASSERT_NE(node, nullptr) << "Failed to retrieve node by handle.";
 
-        std::string path = megaApi[0]->getNodePathByNodeHandle(handle);
-        std::string escapedPath = std::regex_replace(path, std::regex(":"), "\\:");
+        auto path{megaApi[0]->getNodePathByNodeHandle(handle)};
+        ASSERT_NE(path, nullptr) << "Failed to retrieve path by handle.";
+        auto escapedPath{std::regex_replace(path, std::regex(":"), "\\:")};
 
         std::unique_ptr<MegaNode> fromPath(
             megaApi[0]->getNodeByPathOfType(escapedPath.c_str(), nullptr, node->getType()));

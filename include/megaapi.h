@@ -18146,8 +18146,8 @@ class MegaApi
          * @brief Get the path of a MegaNode
          *
          * If the node doesn't exist, this function returns NULL.
-         * You can recoved the node later using MegaApi::getNodeByPath
-         * except if the path contains names with '/', '\' or ':' characters.
+         * You can recover the node later using MegaApi::getNodeByPath
+         * except if the path contains names with '/' or '\' characters.
          *
          * Note: inshare paths have following structure "email:path"
          *
@@ -18163,7 +18163,7 @@ class MegaApi
          *
          * If the node doesn't exist, this function returns NULL.
          * You can recover the node later using MegaApi::getNodeByPath
-         * except if the path contains names with '/', '\' or ':' characters.
+         * except if the path contains names with '/' or '\' characters.
          *
          * Note: inshare paths have following structure "email:path"
          *
@@ -18182,8 +18182,11 @@ class MegaApi
          * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
-         * Paths with names containing '/', '\' or ':' aren't compatible
+         * Paths with names containing '/' or '\' aren't compatible
          * with this function.
+         *
+         * If the path name contains ':' it needs to be escaped before
+         * calling this function.
          *
          * Note: inshare paths have following structure "email:path"
          *
@@ -18206,8 +18209,11 @@ class MegaApi
          * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
-         * Paths with names containing '/', '\' or ':' aren't compatible
+         * Paths with names containing '/' or '\' aren't compatible
          * with this function.
+         *
+         * If the path name contains ':' it needs to be escaped before
+         * calling this function.
          *
          * Note: inshare paths have following structure "email:path"
          *
