@@ -24,12 +24,15 @@ namespace file_service
 
 class FileServiceContext
 {
-    template<typename T>
-    auto getFromIndex(FileID id, FromFileIDMap<std::weak_ptr<T>>& map) -> std::shared_ptr<T>;
+    template<typename Lock, typename T>
+    auto getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
+        -> std::shared_ptr<T>;
 
     auto infoFromDatabase(FileID id, bool open) -> std::pair<FileInfoContextPtr, FileAccessPtr>;
 
-    auto infoFromIndex(FileID id, bool open) -> std::pair<FileInfoContextPtr, FileAccessPtr>;
+    template<typename Lock>
+    auto infoFromIndex(FileID id, Lock&& lock, bool open)
+        -> std::pair<FileInfoContextPtr, FileAccessPtr>;
 
     auto info(FileID id, bool open) -> std::pair<FileInfoContextPtr, FileAccessPtr>;
 
@@ -37,7 +40,8 @@ class FileServiceContext
 
     auto openFromDatabase(FileID id) -> FileServiceResultOr<FileContextPtr>;
 
-    auto openFromIndex(FileID id) -> FileContextPtr;
+    template<typename Lock>
+    auto openFromIndex(FileID id, Lock&& lock) -> FileContextPtr;
 
     template<typename T>
     auto removeFromIndex(FileID id, FromFileIDMap<T>& map) -> void;

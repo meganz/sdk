@@ -28,11 +28,12 @@ using namespace common;
 
 static Database createDatabase(const LocalPath& databasePath);
 
-template<typename T>
-auto FileServiceContext::getFromIndex(FileID id, FromFileIDMap<std::weak_ptr<T>>& map)
+template<typename Lock, typename T>
+auto FileServiceContext::getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
     -> std::shared_ptr<T>
 {
-    SharedLock guard(mLock);
+    assert(lock.mutex() == &mLock);
+    assert(lock.owns_lock());
 
     if (auto entry = map.find(id); entry != map.end())
         return entry->second.lock();
@@ -43,10 +44,10 @@ auto FileServiceContext::getFromIndex(FileID id, FromFileIDMap<std::weak_ptr<T>>
 auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     -> std::pair<FileInfoContextPtr, FileAccessPtr>
 {
-    UniqueLock guardContexts(mLock);
-    UniqueLock guardDatabase(mDatabase);
+    UniqueLock lockContexts(mLock);
+    UniqueLock lockDatabase(mDatabase);
 
-    if (auto result = infoFromIndex(id, open); result.first)
+    if (auto result = infoFromIndex(id, lockContexts, open); result.first)
         return result;
 
     auto transaction = mDatabase.transaction();
@@ -81,10 +82,11 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     return std::make_pair(std::move(info), std::move(file));
 }
 
-auto FileServiceContext::infoFromIndex(FileID id, bool open)
+template<typename Lock>
+auto FileServiceContext::infoFromIndex(FileID id, Lock&& lock, bool open)
     -> std::pair<FileInfoContextPtr, FileAccessPtr>
 {
-    auto info = getFromIndex(id, mInfoContexts);
+    auto info = getFromIndex(id, lock, mInfoContexts);
     auto file = open ? mStorage.getFile(id) : nullptr;
 
     return std::make_pair(std::move(info), std::move(file));
@@ -92,7 +94,7 @@ auto FileServiceContext::infoFromIndex(FileID id, bool open)
 
 auto FileServiceContext::info(FileID id, bool open) -> std::pair<FileInfoContextPtr, FileAccessPtr>
 {
-    if (auto result = infoFromIndex(id, open); result.first)
+    if (auto result = infoFromIndex(id, SharedLock(mLock), open); result.first)
         return result;
 
     return infoFromDatabase(id, open);
@@ -116,10 +118,10 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     if (node->mIsDirectory)
         return unexpected(FILE_SERVICE_FILE_IS_A_DIRECTORY);
 
-    UniqueLock guardContexts(mLock);
-    UniqueLock guardDatabase(mDatabase);
+    UniqueLock lockContexts(mLock);
+    UniqueLock lockDatabase(mDatabase);
 
-    if (auto context = openFromIndex(id))
+    if (auto context = openFromIndex(id, lockContexts))
         return context;
 
     auto transaction = mDatabase.transaction();
@@ -154,9 +156,9 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
     if (!info)
         return openFromCloud(id);
 
-    UniqueLock guard(mLock);
+    UniqueLock lock(mLock);
 
-    if (auto context = openFromIndex(info->id()))
+    if (auto context = openFromIndex(info->id(), lock))
         return context;
 
     auto context =
@@ -167,9 +169,10 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
     return context;
 }
 
-auto FileServiceContext::openFromIndex(FileID id) -> FileContextPtr
+template<typename Lock>
+auto FileServiceContext::openFromIndex(FileID id, Lock&& lock) -> FileContextPtr
 {
-    return getFromIndex(id, mFileContexts);
+    return getFromIndex(id, lock, mFileContexts);
 }
 
 template<typename T>
@@ -213,7 +216,7 @@ catch (std::runtime_error& exception)
 auto FileServiceContext::open(FileID id) -> FileServiceResultOr<File>
 try
 {
-    if (auto context = openFromIndex(id))
+    if (auto context = openFromIndex(id, SharedLock(mLock)))
         return File({}, std::move(context));
 
     auto context = openFromDatabase(id);
