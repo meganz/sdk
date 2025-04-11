@@ -30,6 +30,7 @@ RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install
     curl \
     fakeroot \
     git \
+    libtool \
     nasm \
     pkg-config \
     python3 \
