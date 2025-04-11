@@ -2130,7 +2130,18 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
             }
             case FOLDERNODE:
                 if (n->isPasswordManagerNode())
-                    stream << "password manager node entry";
+                {
+                    stream << "password manager node entry of type ";
+                    if (n->isPasswordNode())
+                        stream << "password";
+                    else if (n->isCreditCardNode())
+                        stream << "credit card";
+                    else
+                    {
+                        stream << "unknown type";
+                        assert(false);
+                    }
+                }
                 else if (n->isPasswordManagerNodeFolder())
                     stream << "password folder";
                 else
@@ -5247,7 +5258,7 @@ autocomplete::ACN autocompleteSyntax()
                    sequence(text("newfolder"), param("parenthandle"), param("name")),
                    sequence(text("renamefolder"), param("handle"), param("name")),
                    sequence(text("removefolder"), param("handle")),
-                   sequence(text("newentry"),
+                   sequence(text("newpassentry"),
                             param("parenthandle"),
                             param("name"),
                             param("pwd"),
@@ -5259,13 +5270,21 @@ autocomplete::ACN autocompleteSyntax()
                             opt(sequence(flag("-totp-expt"), param("expiration_time"))),
                             opt(sequence(flag("-totp-alg"),
                                          either(text("sha1"), text("sha256"), text("sha512"))))),
-                   sequence(text("newentries"),
+                   sequence(text("newcreditcardentry"),
+                            param("parenthandle"),
+                            param("name"),
+                            param("cardnumber"),
+                            opt(sequence(flag("-n"), param("notes"))),
+                            opt(sequence(flag("-u"), param("card_holder"))),
+                            opt(sequence(flag("-cvv"), param("cvv"))),
+                            opt(sequence(flag("-exp"), param("expirationdate")))),
+                   sequence(text("newpassentries"),
                             param("parenthandle"),
                             repeat(sequence(param("name"), param("uname"), param("pwd")))),
                    sequence(text("getentrydata"), param("nodehandle")),
                    sequence(text("renameentry"), param("nodehandle"), param("name")),
                    sequence(
-                       text("updateentry"),
+                       text("updatepassentry"),
                        param("nodehandle"),
                        opt(sequence(flag("-p"), param("pwd"))),
                        opt(sequence(flag("-url"), param("url"))),
@@ -5279,6 +5298,13 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(sequence(
                                         flag("-totp-alg"),
                                         either(text("sha1"), text("sha256"), text("sha512")))))))),
+                   sequence(text("updatecreditcardentry"),
+                            param("nodehandle"),
+                            opt(sequence(flag("-nu"), param("card_number"))),
+                            opt(sequence(flag("-n"), param("notes"))),
+                            opt(sequence(flag("-u"), param("card_holder"))),
+                            opt(sequence(flag("-cvv"), param("cvv"))),
+                            opt(sequence(flag("-exp"), param("expirationdate")))),
                    sequence(text("removeentry"), param("nodehandle")),
                    sequence(text("generatetotptoken"), param("nodehandle")),
                    sequence(text("import"),
@@ -13234,28 +13260,49 @@ void exec_passwordmanager(autocomplete::ACState& s)
         return pwdData;
     };
     static constexpr std::string_view DELETE_STR{"EMPTY"};
-    const auto createPwdData = [](std::string&& pwd,
-                                  std::string&& url,
-                                  std::string&& userName,
-                                  std::string&& notes,
-                                  std::string&& totpJson)
+    const auto getDataSetter = [](AttrMap& toWriteMap)
     {
-        auto pwdData = std::make_unique<AttrMap>();
-        const auto addData = [&pwdData](std::string&& data, const std::string_view key)
+        return [&toWriteMap](std::string&& data, const std::string_view key)
         {
             if (data.empty())
                 return;
             // patch to allow setting to null taking into account that extractflag doesn't accept ""
             if (data == DELETE_STR)
                 data.clear();
-            pwdData->map[AttrMap::string2nameid(key)] = std::move(data);
+            toWriteMap.map[AttrMap::string2nameid(key)] = std::move(data);
         };
+    };
+    const auto createPwdData = [&getDataSetter](std::string&& pwd,
+                                                std::string&& url,
+                                                std::string&& userName,
+                                                std::string&& notes,
+                                                std::string&& totpJson)
+    {
+        auto pwdData = std::make_unique<AttrMap>();
+        const auto addData = getDataSetter(*pwdData);
         addData(std::move(pwd), MegaClient::PWM_ATTR_PASSWORD_PWD);
         addData(std::move(url), MegaClient::PWM_ATTR_PASSWORD_URL);
         addData(std::move(userName), MegaClient::PWM_ATTR_PASSWORD_USERNAME);
         addData(std::move(notes), MegaClient::PWM_ATTR_PASSWORD_NOTES);
         addData(std::move(totpJson), MegaClient::PWM_ATTR_PASSWORD_TOTP);
         return pwdData;
+    };
+    const auto createCcData = [&getDataSetter](std::string&& number,
+                                               std::string&& notes,
+                                               std::string&& holder,
+                                               std::string&& cvv,
+                                               std::string&& expirationDate)
+    {
+        auto ccData = std::make_unique<AttrMap>();
+        const auto addData = getDataSetter(*ccData);
+        addData(std::string{MegaClient::PWM_ATTR_NODE_TYPE_CREDIT_CARD},
+                MegaClient::PWM_ATTR_NODE_TYPE);
+        addData(std::move(number), MegaClient::PWM_ATTR_CREDIT_CARD_NUMBER);
+        addData(std::move(notes), MegaClient::PWM_ATTR_CREDIT_NOTES);
+        addData(std::move(holder), MegaClient::PWM_ATTR_CREDIT_CARD_HOLDER);
+        addData(std::move(cvv), MegaClient::PWM_ATTR_CREDIT_CVV);
+        addData(std::move(expirationDate), MegaClient::PWM_ATTR_CREDIT_EXP_DATE);
+        return ccData;
     };
     const auto doesNodeHaveTotpData = [](const Node& n) -> bool
     {
@@ -13265,47 +13312,79 @@ void exec_passwordmanager(autocomplete::ACState& s)
         assert(pwdData.has_value());
         return pwdData->getStringView(MegaClient::PWM_ATTR_PASSWORD_TOTP).has_value();
     };
-    const auto printEntryDetails = [](NodeHandle nh)
+
+    const auto printAttr =
+        [](const std::string_view attr, const AttrMap& data, const unsigned nest = 1) -> void
+    {
+        for (unsigned i = 0; i < nest; ++i)
+            std::cout << "\t";
+        std::cout << attr << ": " << data.getStringView(attr).value_or("") << "\n";
+    };
+
+    const auto printEntryDetails = [&printAttr](NodeHandle nh)
     {
         auto pwdNode = client->nodeByHandle(nh);
         assert(pwdNode);
-        assert(pwdNode->isPasswordNode());
+        assert(pwdNode->isPasswordManagerNode());
 
-        auto pwdData = pwdNode->attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
-        assert(pwdData.has_value());
-        const auto nRemoved =
-            pwdData->map.erase(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP));
-        assert(nRemoved <= 1);
+        auto entryData = pwdNode->attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        assert(entryData.has_value());
 
-        cout << "Password data for entry " << pwdNode->attrs.map['n'] << " (" << toNodeHandle(nh) << "):\n";
-        const auto printAttr =
-            [](const std::string_view attr, const AttrMap& data, const unsigned nest = 1) -> void
+        if (pwdNode->isPasswordNode())
         {
-            for (unsigned i = 0; i < nest; ++i)
-                std::cout << "\t";
-            std::cout << attr << ": " << data.getStringView(attr).value_or("") << "\n";
-        };
-        printAttr(MegaClient::PWM_ATTR_PASSWORD_PWD, *pwdData);
-        printAttr(MegaClient::PWM_ATTR_PASSWORD_USERNAME, *pwdData);
-        printAttr(MegaClient::PWM_ATTR_PASSWORD_URL, *pwdData);
-        printAttr(MegaClient::PWM_ATTR_PASSWORD_NOTES, *pwdData);
-
-        const auto totpData =
-            pwdNode->attrs.getComplexNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER,
-                                                      MegaClient::PWM_ATTR_PASSWORD_TOTP);
-        std::cout << "\t" << MegaClient::PWM_ATTR_PASSWORD_TOTP << ": " << (totpData ? "" : "null")
-                  << "\n";
-        if (totpData)
-        {
-            AttrMap totpMap;
-            totpMap.fromjsonObject(
-                totpData->map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP))
-                    .c_str());
-            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE, totpMap, 2);
-            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS, totpMap, 2);
-            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT, totpMap, 2);
-            printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG, totpMap, 2);
+            const auto nRemoved =
+                entryData->map.erase(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP));
+            assert(nRemoved <= 1);
         }
+
+        cout << "PWM data for entry " << pwdNode->displayname() << " (" << toNodeHandle(nh) << ")";
+        if (pwdNode->isPasswordNode())
+        {
+            cout << " of type password node:\n";
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_PWD, *entryData);
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_USERNAME, *entryData);
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_URL, *entryData);
+            printAttr(MegaClient::PWM_ATTR_PASSWORD_NOTES, *entryData);
+
+            const auto totpData =
+                pwdNode->attrs.getComplexNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER,
+                                                          MegaClient::PWM_ATTR_PASSWORD_TOTP);
+
+            std::cout << "\t" << MegaClient::PWM_ATTR_PASSWORD_TOTP << ": "
+                      << (totpData ? "" : "null") << "\n";
+            if (totpData)
+            {
+                AttrMap totpMap;
+                totpMap.fromjsonObject(
+                    totpData->map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP))
+                        .c_str());
+                printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_SHSE, totpMap, 2);
+                printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS, totpMap, 2);
+                printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_EXPT, totpMap, 2);
+                printAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP_HASH_ALG, totpMap, 2);
+            }
+        }
+        else if (pwdNode->isCreditCardNode())
+        {
+            cout << " of type credit card node:\n";
+            printAttr(MegaClient::PWM_ATTR_CREDIT_CARD_NUMBER, *entryData);
+            printAttr(MegaClient::PWM_ATTR_CREDIT_NOTES, *entryData);
+            printAttr(MegaClient::PWM_ATTR_CREDIT_CARD_HOLDER, *entryData);
+            printAttr(MegaClient::PWM_ATTR_CREDIT_CVV, *entryData);
+            printAttr(MegaClient::PWM_ATTR_CREDIT_EXP_DATE, *entryData);
+        }
+        else
+        {
+            assert(false);
+            std::cout << "Error in printEntryDetails: Unknown node sub-type";
+        }
+    };
+    auto updateEntryCallback = [printEntryDetails](NodeHandle nh, Error e)
+    {
+        if (e == API_OK)
+            printEntryDetails(nh);
+        else
+            std::cout << "Error: " << errorstring(e) << "\n";
     };
 
     const auto validateAndSetDefaultsForTotpInit = [](const std::optional<std::string>& shse,
@@ -13450,7 +13529,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         auto nh = getNodeHandleFromParam(2);
         client->removeNode(nh, false, 0);
     }
-    else if (command == "newentry")
+    else if (command == "newpassentry")
     {
         if (!moreParamsThan(4)) return;
 
@@ -13503,7 +13582,39 @@ void exec_passwordmanager(autocomplete::ACState& s)
             std::cout << "Error before sending the putnodes. Code: " << errorstring(errCode)
                       << "\n";
     }
-    else if (command == "newentries")
+    else if (command == "newcreditcardentry")
+    {
+        if (!moreParamsThan(4))
+            return;
+
+        auto ph = getNodeHandleFromParam(2);
+        auto nParent = client->nodeByHandle(ph);
+        if (!nParent)
+        {
+            cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
+            return;
+        }
+
+        auto name = s.words[3].s.c_str();
+        auto cardnumber = s.words[4].s.c_str();
+        assert(*name && *cardnumber);
+        auto ccData = createCcData(std::string{cardnumber},
+                                   s.extractflagparam("-n").value_or(""),
+                                   s.extractflagparam("-u").value_or(""),
+                                   s.extractflagparam("-cvv").value_or(""),
+                                   s.extractflagparam("-exp").value_or(""));
+
+        if (const auto errCode =
+                client->createPasswordEntry(name,
+                                            std::move(ccData),
+                                            MegaClient::validateNewCreditCardNodeData,
+                                            nParent,
+                                            0);
+            errCode != API_OK)
+            std::cout << "Error before sending the putnodes. Code: " << errorstring(errCode)
+                      << "\n";
+    }
+    else if (command == "newpassentries")
     {
         if (s.words.size() <= 3)
         {
@@ -13558,7 +13669,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
 
         printEntryDetails(nh);
     }
-    else if (command == "updateentry")
+    else if (command == "updatepassentry")
     {
         if (!moreParamsThan(3)) return;
 
@@ -13590,13 +13701,32 @@ void exec_passwordmanager(autocomplete::ACState& s)
                                      s.extractflagparam("-n").value_or(""),
                                      totpData.value_or(removeTotp ? std::string{DELETE_STR} : ""));
 
-        auto cb = [printEntryDetails](NodeHandle nh, Error e)
-        {
-            if (e == API_OK) printEntryDetails(nh);
-            else std::cout << "Error: " << errorstring(e) << "\n";
-        };
+        if (const auto errCode =
+                client->updatePasswordNode(nh, std::move(pwdData), std::move(updateEntryCallback));
+            errCode != API_OK)
+            std::cout << "Error before sending the setattr command. Code: " << errorstring(errCode)
+                      << "\n";
+    }
+    else if (command == "updatecreditcardentry")
+    {
+        if (!moreParamsThan(3))
+            return;
 
-        if (const auto errCode = client->updatePasswordNode(nh, std::move(pwdData), std::move(cb));
+        auto nh = getNodeHandleFromParam(2);
+        auto n = client->nodeByHandle(nh);
+        if (!(n && n->isPasswordNode()))
+        {
+            cout << "Wrong Password node handle provided " << toNodeHandle(nh) << "\n";
+        }
+
+        auto ccData = createCcData(s.extractflagparam("-nu").value_or(""),
+                                   s.extractflagparam("-n").value_or(""),
+                                   s.extractflagparam("-u").value_or(""),
+                                   s.extractflagparam("-cvv").value_or(""),
+                                   s.extractflagparam("-exp").value_or(""));
+
+        if (const auto errCode =
+                client->updateCreditCardNode(nh, std::move(ccData), std::move(updateEntryCallback));
             errCode != API_OK)
             std::cout << "Error before sending the setattr command. Code: " << errorstring(errCode)
                       << "\n";
