@@ -22,6 +22,7 @@ GfxCommunicationsClient::GfxCommunicationsClient(const std::string& pipeName)
 
 std::pair<CommError, HANDLE> GfxCommunicationsClient::doConnect(LPCTSTR pipeName)
 {
+    constexpr DWORD waitTimeoutMs{3000};
     CommError error = CommError::ERR;
     HANDLE hPipe = INVALID_HANDLE_VALUE;
     while (1)
@@ -51,13 +52,13 @@ std::pair<CommError, HANDLE> GfxCommunicationsClient::doConnect(LPCTSTR pipeName
             break;
         }
 
-        // Server is busy. Wait and get one instance in 3 seconds. Continue to connect
-        if (WaitNamedPipe(pipeName, 3000))
+        // Server is busy. Wait and get one instance. Continue to connect
+        if (WaitNamedPipe(pipeName, waitTimeoutMs))
             continue;
 
         if (const auto lastError = GetLastError(); lastError == ERROR_SEM_TIMEOUT)
         {
-            LOG_warn << "WaitNamedPipe: 3 second wait timed out.";
+            LOG_warn << "WaitNamedPipe: timed out.";
             error = CommError::TIMEOUT;
             break;
         }
