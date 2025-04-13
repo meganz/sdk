@@ -1,4 +1,5 @@
 target_sources(SDKlib PRIVATE
+                      avl_tree_traits.h
                       database_builder.h
                       file_context.h
                       file_context_badge.h
