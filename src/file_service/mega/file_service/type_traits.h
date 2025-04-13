@@ -87,5 +87,23 @@ struct MostSpecificClass<Class0, Class1>
 template<typename Class0, typename Class1, typename... Classes>
 using MostSpecificClassT = typename MostSpecificClass<Class0, Class1, Classes...>::type;
 
+template<typename Type>
+struct MemberPointerTraits: std::false_type
+{}; // MemberPointerTraits<Type>
+
+template<typename Class, typename Member>
+struct MemberPointerTraits<Member Class::*>: std::true_type
+{
+    using class_type = Class;
+    using member_type = Member;
+}; // MemberPointerTraits<Class Member::*>
+
+template<typename Class, typename Member>
+struct MemberPointerTraits<Member Class::* const>: std::true_type
+{
+    using class_type = Class;
+    using member_type = Member;
+}; // MemberPointerTraits<Class Member::* const>
+
 } // file_service
 } // mega

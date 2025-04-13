@@ -52,5 +52,36 @@ static_assert(std::is_same_v<MostSpecificClassT<Base, DerivedA, DerivedB>, Deriv
 static_assert(std::is_same_v<MostSpecificClassT<Base, Unrelated>, NoneSuch>);
 static_assert(std::is_same_v<MostSpecificClassT<Base, DerivedA, Unrelated>, NoneSuch>);
 
+struct Object
+{
+    const int mConstMember{};
+    int mMember{};
+    static constexpr int sConstMember{};
+}; // Object
+
+using ConstMember = MemberPointerTraits<decltype(&Object::mConstMember)>;
+
+static_assert(ConstMember::value);
+static_assert(std::is_same_v<ConstMember::class_type, Object>);
+static_assert(std::is_same_v<ConstMember::member_type, const int>);
+
+using Member = MemberPointerTraits<decltype(&Object::mMember)>;
+
+static_assert(Member::value);
+static_assert(std::is_same_v<Member::class_type, Object>);
+static_assert(std::is_same_v<Member::member_type, int>);
+
+template<typename T>
+using DetectClassType = typename T::class_type;
+
+template<typename T>
+using DetectMemberType = typename T::member_type;
+
+using StaticConstMember = MemberPointerTraits<decltype(&Object::sConstMember)>;
+
+static_assert(!StaticConstMember::value);
+static_assert(!DetectedV<DetectClassType, StaticConstMember>);
+static_assert(!DetectedV<DetectMemberType, StaticConstMember>);
+
 } // file_service
 } // mega
