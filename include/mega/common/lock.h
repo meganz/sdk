@@ -167,54 +167,6 @@ struct SharedLock
 
     using Base::Base;
     using Base::operator=;
-
-    UniqueLock<T> to_unique_lock()
-    {
-        assert(this->mMutex);
-        assert(this->mOwned);
-
-        Traits::to_unique_lock(*this->mMutex);
-
-        auto result = UniqueLock<T>(*this->mMutex, std::adopt_lock);
-
-        this->mOwned = false;
-
-        return result;
-    }
-
-    UniqueLock<T> try_to_unique_lock()
-    {
-        assert(this->mMutex);
-        assert(this->mOwned);
-
-        this->mOwned = !Traits::try_to_unique_lock(*this->mMutex);
-
-        if (!this->mOwned)
-            return UniqueLock<T>(*this->mMutex, std::adopt_lock);
-
-        return UniqueLock<T>();
-    }
-
-    template<typename Rep, typename Period>
-    UniqueLock<T> try_to_unique_lock_for(std::chrono::duration<Rep, Period> duration)
-    {
-        auto now = std::chrono::steady_clock::now();
-
-        return try_to_unique_lock_until(now + duration);
-    }
-
-    UniqueLock<T> try_to_unique_lock_until(std::chrono::steady_clock::time_point time)
-    {
-        assert(this->mMutex);
-        assert(this->mOwned);
-
-        this->mOwned = !Traits::try_to_unique_lock_until(*this->mMutex, time);
-
-        if (!this->mOwned)
-            return UniqueLock<T>(*this->mMutex, std::adopt_lock);
-
-        return UniqueLock<T>();
-    }
 }; // SharedLock<T>
 
 template<typename T>
@@ -223,11 +175,6 @@ struct SharedLockTraits
     static void lock(T& mutex)
     {
         mutex.lock_shared();
-    }
-
-    static void to_unique_lock(T& mutex)
-    {
-        mutex.to_unique_lock();
     }
 
     static bool try_lock(T& mutex)
@@ -239,17 +186,6 @@ struct SharedLockTraits
     static bool try_lock_until(T& mutex, TP time)
     {
         return mutex.try_lock_shared_until(time);
-    }
-
-    static bool try_to_unique_lock(T& mutex)
-    {
-        return mutex.try_to_unique_lock();
-    }
-
-    template<typename TP>
-    static bool try_to_unique_lock_until(T& mutex, TP time)
-    {
-        return mutex.try_to_unique_lock_until(time);
     }
 
     static void unlock(T& mutex)
@@ -267,18 +203,6 @@ struct UniqueLock
 
     using Base::Base;
     using Base::operator=;
-
-    SharedLock<T> to_shared_lock()
-    {
-        assert(this->mMutex);
-        assert(this->mOwned);
-
-        Traits::to_shared_lock(*this->mMutex);
-
-        this->mOwned = false;
-
-        return SharedLock<T>(*this->mMutex, std::adopt_lock);
-    }
 }; // UniqueLock<T>
 
 template<typename T>
@@ -287,11 +211,6 @@ struct UniqueLockTraits
     static void lock(T& mutex)
     {
         mutex.lock();
-    }
-
-    static void to_shared_lock(T& mutex)
-    {
-        mutex.to_shared_lock();
     }
 
     static bool try_lock(T& mutex)

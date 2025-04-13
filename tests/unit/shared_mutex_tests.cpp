@@ -101,8 +101,11 @@ TEST_F(FUSESharedMutexTests, lock_fails)
     SharedMutex mutex;
 
     {
-        UniqueLock<SharedMutex> lock(mutex, std::try_to_lock);
-        ASSERT_TRUE(lock);
+        UniqueLock<SharedMutex> lock0(mutex, std::try_to_lock);
+        ASSERT_TRUE(lock0);
+
+        UniqueLock<SharedMutex> lock1(mutex, std::try_to_lock);
+        ASSERT_FALSE(lock1);
 
         auto result = execute(std::function<bool()>([&]() {
             return !UniqueLock<SharedMutex>(mutex, std::try_to_lock);
@@ -111,25 +114,17 @@ TEST_F(FUSESharedMutexTests, lock_fails)
         ASSERT_TRUE(result.get());
     }
 
-    SharedLock<SharedMutex> lock(mutex, std::try_to_lock);
-    ASSERT_TRUE(lock);
+    SharedLock<SharedMutex> lock0(mutex, std::try_to_lock);
+    ASSERT_TRUE(lock0);
+
+    UniqueLock<SharedMutex> lock1(mutex, std::try_to_lock);
+    ASSERT_FALSE(lock1);
 
     auto result = execute(std::function<bool()>([&]() {
         return !UniqueLock<SharedMutex>(mutex, std::try_to_lock);
     }));
 
     ASSERT_TRUE(result.get());
-}
-
-TEST_F(FUSESharedMutexTests, lock_recursive_succeeds)
-{
-    SharedMutex mutex;
-
-    UniqueLock<SharedMutex> lock0(mutex, std::try_to_lock);
-    ASSERT_TRUE(lock0);
-
-    UniqueLock<SharedMutex> lock1(mutex, std::try_to_lock);
-    ASSERT_TRUE(lock1);
 }
 
 TEST_F(FUSESharedMutexTests, lock_succeeds)
@@ -206,77 +201,6 @@ TEST_F(FUSESharedMutexTests, shared_lock_succeeds)
     auto acquired = result.get();
 
     ASSERT_LE(acquired, Clock::now());
-}
-
-TEST_F(FUSESharedMutexTests, to_shared_lock_succeeds)
-{
-    SharedMutex mutex;
-
-    UniqueLock<SharedMutex> lock0(mutex, std::try_to_lock);
-    ASSERT_TRUE(lock0);
-
-    std::function<TimePoint()> acquire = [&mutex]() {
-        SharedLock<SharedMutex> lock(mutex, std::defer_lock);
-
-        if (lock.try_lock_for(Milliseconds(256)))
-            return Clock::now();
-
-        return TimePoint::min();
-    }; // acquire
-
-    auto result0 = execute(acquire);
-    auto result1 = execute(acquire);
-
-    std::this_thread::sleep_for(Milliseconds(32));
-
-    auto released = Clock::now();
-
-    auto lock1 = lock0.to_shared_lock();
-    ASSERT_TRUE(lock1);
-
-    ASSERT_FALSE(lock0);
-    ASSERT_EQ(lock0.mutex(), lock1.mutex());
-    ASSERT_EQ(lock0.mutex(), &mutex);
-
-    auto acquired0 = result0.get();
-    ASSERT_GT(acquired0, released);
-
-    auto acquired1 = result1.get();
-    ASSERT_GT(acquired1, released);
-}
-
-TEST_F(FUSESharedMutexTests, to_unique_lock_succeeds)
-{
-    SharedMutex mutex;
-
-    SharedLock<SharedMutex> lock0(mutex, std::try_to_lock);
-    ASSERT_TRUE(lock0);
-
-    auto result = execute(std::function<TimePoint()>([&]() {
-        SharedLock<SharedMutex> lock(mutex, std::try_to_lock);
-
-        if (!lock)
-            return TimePoint::min();
-
-        std::this_thread::sleep_for(Milliseconds(32));
-
-        auto released = Clock::now();
-
-        lock.unlock();
-
-        return released;
-    }));
-
-    auto lock1 = lock0.try_to_unique_lock_for(Milliseconds(64));
-    ASSERT_TRUE(lock1);
-
-    auto acquired = Clock::now();
-
-    ASSERT_GT(acquired, result.get());
-
-    ASSERT_FALSE(lock0);
-    ASSERT_EQ(lock0.mutex(), lock1.mutex());
-    ASSERT_EQ(lock0.mutex(), &mutex);
 }
 
 } // testing

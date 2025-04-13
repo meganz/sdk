@@ -16,6 +16,14 @@ namespace common
 
 class SharedMutex
 {
+    // Try to acquire shared ownership of this mutex.
+    bool try_lock_shared_until(std::chrono::steady_clock::time_point time,
+                               bool validate);
+
+    // Try to acquire exclusive ownership of this mutex.
+    bool try_lock_until(std::chrono::steady_clock::time_point time,
+                        bool validate);
+
     // How many threads own this mutex?
     //
     // >0 One or more readers own this mutex.
@@ -47,12 +55,6 @@ public:
     // Acquire exclusive ownership of this mutex.
     void lock();
 
-    // Convert exclusive ownership to shared ownership.
-    void to_shared_lock();
-
-    // Convert shared ownership to exclusive ownership.
-    void to_unique_lock();
-
     // Try to acquire shared ownership of this mutex.
     bool try_lock_shared();
 
@@ -66,7 +68,10 @@ public:
     }
 
     // Try to acquire shared ownership of this mutex.
-    bool try_lock_shared_until(std::chrono::steady_clock::time_point time);
+    bool try_lock_shared_until(std::chrono::steady_clock::time_point time)
+    {
+        return try_lock_shared_until(time, false);
+    }
 
     // Try to acquire exclusive ownership of this mutex.
     bool try_lock();
@@ -79,23 +84,12 @@ public:
 
         return try_lock_until(now + duration);
     }
+
     // Try to acquire exclusive ownership of this mutex.
-    bool try_lock_until(std::chrono::steady_clock::time_point time);
-
-    // Try and convert shared ownership to exclusive ownership.
-    bool try_to_unique_lock();
-
-    // Try and convert shared ownership to exclusive ownership.
-    template<typename Rep, typename Duration>
-    bool try_to_unique_lock_for(std::chrono::duration<Rep, Duration> duration)
+    bool try_lock_until(std::chrono::steady_clock::time_point time)
     {
-        auto now = std::chrono::steady_clock::now();
-
-        return try_to_unique_lock_until(now + duration);
+        return try_lock_until(time, false);
     }
-
-    // Try and convert shared ownership to exclusive ownership.
-    bool try_to_unique_lock_until(std::chrono::steady_clock::time_point time);
 
     // Release exclusive ownership of this mutex.
     void unlock();

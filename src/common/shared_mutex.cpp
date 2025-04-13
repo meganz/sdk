@@ -15,62 +15,16 @@ using std::chrono::steady_clock;
 // Convenience.
 using steady_time = steady_clock::time_point;
 
-void SharedMutex::lock_shared()
-{
-    while (!try_lock_shared_until(steady_time::max()))
-        ;
-}
-
-void SharedMutex::lock()
-{
-    while (!try_lock_until(steady_time::max()))
-        ;
-}
-
-void SharedMutex::to_shared_lock()
-{
-    {
-        std::lock_guard<std::mutex> guard(mLock);
-
-        auto id = std::this_thread::get_id();
-
-        // Make sure we currently own this mutex.
-        assert(mWriterID == id);
-
-        // Make sure we don't hold any recursive locks.
-        assert(mCounter == -1);
-
-        // Remember that we hold this lock.
-        assert(++mReaders[id]);
-
-        // Convert writer to reader.
-        mCounter = 1;
-
-        // No writers own this lock anymore.
-        mWriterID = std::thread::id();
-
-        // Silence compiler.
-        static_cast<void>(id);
-    }
-
-    // Notify any sleeping readers.
-    mReaderCV.notify_all();
-}
-
-void SharedMutex::to_unique_lock()
-{
-    while (!try_to_unique_lock_until(steady_time::max()))
-        ;
-}
-
-bool SharedMutex::try_lock_shared()
-{
-    return try_lock_shared_until(steady_clock::now());
-}
-
-bool SharedMutex::try_lock_shared_until(steady_clock::time_point time)
+bool SharedMutex::try_lock_shared_until(steady_clock::time_point time,
+                                        [[maybe_unused]] bool validate)
 {
     std::unique_lock<std::mutex> lock(mLock);
+
+    // What thread is trying to acquire this mutex?
+    auto id = std::this_thread::get_id();
+
+    // Make sure the thread doesn't already hold a write lock.
+    assert(!validate || mWriterID != id);
 
     // Wait for the mutex to be available.
     auto result = mReaderCV.wait_until(lock, time, [&]() {
@@ -90,21 +44,23 @@ bool SharedMutex::try_lock_shared_until(steady_clock::time_point time)
     return true;
 }
 
-bool SharedMutex::try_lock()
-{
-    return try_lock_until(steady_clock::now());
-}
-
-bool SharedMutex::try_lock_until(steady_clock::time_point time)
+bool SharedMutex::try_lock_until(steady_clock::time_point time,
+                                 [[maybe_unused]] bool validate)
 {
     std::unique_lock<std::mutex> lock(mLock);
 
     // What thread wants to acquire this mutex?
     auto id = std::this_thread::get_id();
 
+    // Make sure this thread doesn't already hold a read lock.
+    assert(!validate || !mReaders.count(id) || !mReaders[id]);
+
+    // Make sure this thread doesn't already hold a write lock.
+    assert(!validate || id != mWriterID);
+
     // Wait for the mutex to be available.
     auto result = mWriterCV.wait_until(lock, time, [&]() {
-        return mWriterID == id || !mCounter;
+        return !mCounter;
     });
 
     // Couldn't acquire the mutex.
@@ -118,38 +74,26 @@ bool SharedMutex::try_lock_until(steady_clock::time_point time)
     return true;
 }
 
-bool SharedMutex::try_to_unique_lock_until(steady_clock::time_point time)
+void SharedMutex::lock_shared()
 {
-    std::unique_lock<std::mutex> lock(mLock);
+    while (!try_lock_shared_until(steady_time::max(), true))
+        ;
+}
 
-    // Wait until a single reader owns this mutex.
-    auto result = mReaderCV.wait_until(lock, time, [&]() {
-        return mCounter == 1;
-    });
+void SharedMutex::lock()
+{
+    while (!try_lock_until(steady_time::max(), true))
+        ;
+}
 
-    // Too many readers retain ownership of this mutex.
-    if (!result)
-        return false;
+bool SharedMutex::try_lock_shared()
+{
+    return try_lock_shared_until(steady_clock::now());
+}
 
-    auto id = std::this_thread::get_id();
-
-    // Make sure a single reader owns this lock.
-    assert(mReaders.size() == 1);
-
-    // Make sure that reader is us.
-    assert(mReaders.count(id));
-
-    // And that there are no recursive locks.
-    assert(mReaders[id] == 1);
-
-    // Convert to exclusive ownership.
-    mCounter = -1;
-    mWriterID = id;
-
-    // We no longer hold a read lock on this mutex.
-    assert(mReaders.erase(id) == 1);
-
-    return true;
+bool SharedMutex::try_lock()
+{
+    return try_lock_until(steady_clock::now());
 }
 
 void SharedMutex::unlock()
@@ -211,13 +155,9 @@ void SharedMutex::unlock_shared()
         static_cast<void>(id);
     }
 
-    // Mutex is held by more than one reader.
-    if (counter > 1)
-        return;
-
-    // Mutex is held by a single reader.
+    // Mutex is held by one or more readers.
     if (counter > 0)
-        return mReaderCV.notify_one();
+        return;
 
     // Mutex is available.
     mWriterCV.notify_one();
