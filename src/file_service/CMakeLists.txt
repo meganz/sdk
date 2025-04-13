@@ -5,9 +5,13 @@ add_subdirectory(
 
 add_subdirectory(mega/file_service)
 
-target_include_directories(SDKlib PRIVATE
-                                  ${CMAKE_CURRENT_SOURCE_DIR}
+add_library(FileServiceHeaders INTERFACE)
+
+target_include_directories(
+    FileServiceHeaders INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+target_link_libraries(SDKlib PRIVATE FileServiceHeaders)
 
 target_sources(SDKlib PRIVATE
                       database_builder.cpp
