@@ -19,6 +19,9 @@ template<typename Traits>
 using DetectKeyPointer = decltype(Traits::mKeyPointer);
 
 template<typename Traits>
+using DetectLinkPointer = decltype(Traits::mLinkPointer);
+
+template<typename Traits>
 class KeyTraits
 {
     using KeyPointerTraits = MemberPointerTraits<DetectedT<DetectKeyPointer, Traits>>;
@@ -50,6 +53,70 @@ public:
         return node.*Traits::mKeyPointer;
     }
 }; // KeyTraits<Traits>
+
+template<typename Traits>
+class LinkTraits
+{
+    using LinkPointerTraits = MemberPointerTraits<DetectedT<DetectLinkPointer, Traits>>;
+
+    static_assert(LinkPointerTraits::value);
+
+public:
+    using LinkType = typename LinkPointerTraits::member_type;
+    using NodeType = typename LinkPointerTraits::class_type;
+
+    static_assert(std::is_base_of_v<AVLTreeNode<NodeType>, LinkType>);
+
+    template<typename NodeType>
+    static auto balance(NodeType& node)
+    {
+        auto balance = 0;
+
+        if (auto* right = LinkTraits::right(node))
+            balance = height(*right);
+
+        if (auto* left = LinkTraits::left(node))
+            balance -= height(*left);
+
+        return balance;
+    }
+
+    template<typename NodeType>
+    static auto& child(NodeType& node, bool direction)
+    {
+        return link(node).mChildren[direction];
+    }
+
+    template<typename NodeType>
+    static auto& height(NodeType& node)
+    {
+        return link(node).mHeight;
+    }
+
+    template<typename NodeType>
+    static auto& left(NodeType& node)
+    {
+        return child(node, 0);
+    }
+
+    template<typename NodeType>
+    static auto& link(NodeType& node)
+    {
+        return node.*Traits::mLinkPointer;
+    }
+
+    template<typename NodeType>
+    static auto& parent(NodeType& node)
+    {
+        return link(node).mParent;
+    }
+
+    template<typename NodeType>
+    static auto& right(NodeType& node)
+    {
+        return child(node, 1);
+    }
+}; // LinkTraits<Traits>
 
 } // detail
 } // file_service
