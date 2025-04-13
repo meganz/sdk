@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/file_service/avl_tree_node.h>
 #include <mega/file_service/type_traits.h>
 
 #include <functional>
