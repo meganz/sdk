@@ -12,5 +12,6 @@ target_sources(SDKlib PRIVATE
                       from_file_id_map.h
                       logger.h
                       logging.h
+                      type_traits.h
 )
 

@@ -28,3 +28,5 @@ target_sources(SDKlib PRIVATE
                       logger.cpp
 )
 
+add_subdirectory(testing)
+
