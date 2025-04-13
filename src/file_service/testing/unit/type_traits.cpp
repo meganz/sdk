@@ -34,5 +34,23 @@ static_assert(std::is_same_v<DetectedOrT<int, DetectType, DetectedTest0>, void>)
 static_assert(!DetectedOrV<int, DetectType, DetectedTest1>);
 static_assert(std::is_same_v<DetectedOrT<int, DetectType, DetectedTest1>, int>);
 
+struct Base
+{}; // Base
+
+struct DerivedA: Base
+{}; // DerivedA
+
+struct DerivedB: DerivedA
+{}; // DerivedB
+
+struct Unrelated
+{}; // Unrelated
+
+static_assert(std::is_same_v<MostSpecificClassT<Base, DerivedA>, DerivedA>);
+static_assert(std::is_same_v<MostSpecificClassT<Base, DerivedA, DerivedB>, DerivedB>);
+
+static_assert(std::is_same_v<MostSpecificClassT<Base, Unrelated>, NoneSuch>);
+static_assert(std::is_same_v<MostSpecificClassT<Base, DerivedA, Unrelated>, NoneSuch>);
+
 } // file_service
 } // mega

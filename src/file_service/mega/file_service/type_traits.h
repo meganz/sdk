@@ -64,5 +64,28 @@ using DetectedOrT = typename DetectedOr<DefaultType, Predicate, Parameters...>::
 template<typename DefaultType, template<typename> typename Predicate, typename... Parameters>
 static constexpr auto DetectedOrV = DetectedOr<DefaultType, Predicate, Parameters...>::value;
 
+template<typename Class0, typename Class1, typename... Classes>
+struct MostSpecificClass:
+    MostSpecificClass<typename MostSpecificClass<Class0, Class1>::type, Classes...>
+{}; // MostSpecificClass<Class0, Class1, Classes...>
+
+template<typename Class, typename... Classes>
+struct MostSpecificClass<NoneSuch, Class, Classes...>
+{
+    using type = NoneSuch;
+}; // MostSpecificClass<NoneSuch, Class, Classes...>
+
+template<typename Class0, typename Class1>
+struct MostSpecificClass<Class0, Class1>
+{
+    using type =
+        std::conditional_t<std::is_base_of_v<Class0, Class1>,
+                           Class1,
+                           std::conditional_t<std::is_base_of_v<Class1, Class0>, Class0, NoneSuch>>;
+}; // MostSpecificClass
+
+template<typename Class0, typename Class1, typename... Classes>
+using MostSpecificClassT = typename MostSpecificClass<Class0, Class1, Classes...>::type;
+
 } // file_service
 } // mega
