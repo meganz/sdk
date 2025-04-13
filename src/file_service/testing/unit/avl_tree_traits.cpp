@@ -12,11 +12,13 @@ struct Node
 {
     Node(int key):
         mLink{},
-        mKey(key)
+        mKey{key},
+        mSize{}
     {}
 
     AVLTreeNode<Node> mLink;
     int mKey;
+    int mSize;
 }; // Node
 
 struct Traits
@@ -154,6 +156,49 @@ TEST(AVLTreeLinkTraits, right)
     LT::right(n0) = nullptr;
 
     EXPECT_EQ(n0.mLink.mChildren[1], nullptr);
+}
+
+struct TraitsWithMetadata: Traits
+{
+    static constexpr auto mMetadataPointer = &Node::mSize;
+
+    static int update(const int* lhs, const int* rhs)
+    {
+        return (lhs ? *lhs : 0) + (rhs ? *rhs : 0) + 1;
+    }
+}; // TraitsWithMetadata
+
+TEST(AVLTreeMetadataTraits, update)
+{
+    using LT = detail::LinkTraits<Traits>;
+
+    // No metadata.
+    {
+        using MT = detail::MetadataTraits<Traits>;
+
+        Node n0{0};
+
+        MT::update<LT>(n0);
+    }
+
+    // With metadata.
+    using MT = detail::MetadataTraits<TraitsWithMetadata>;
+
+    Node n0{0};
+    Node n1{1};
+    Node n2{2};
+
+    LT::left(n1) = &n0;
+    LT::right(n1) = &n2;
+
+    MT::update<LT>(n0);
+    EXPECT_EQ(n0.mSize, 1);
+
+    MT::update<LT>(n2);
+    EXPECT_EQ(n2.mSize, 1);
+
+    MT::update<LT>(n1);
+    EXPECT_EQ(n1.mSize, 3);
 }
 
 } // file_service

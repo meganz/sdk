@@ -22,6 +22,9 @@ template<typename Traits>
 using DetectLinkPointer = decltype(Traits::mLinkPointer);
 
 template<typename Traits>
+using DetectUpdate = decltype(Traits::update);
+
+template<typename Traits>
 class KeyTraits
 {
     using KeyPointerTraits = MemberPointerTraits<DetectedT<DetectKeyPointer, Traits>>;
@@ -117,6 +120,53 @@ public:
         return child(node, 1);
     }
 }; // LinkTraits<Traits>
+
+template<typename Traits, typename = void>
+struct MetadataTraits
+{
+    template<typename LinkTraits, typename NodeType>
+    static void update(NodeType&)
+    {}
+}; // MetadataTraits<Traits, void>
+
+template<typename Traits>
+class MetadataTraits<Traits, std::void_t<decltype(Traits::mMetadataPointer)>>
+{
+    using MetadataPointerTraits = MemberPointerTraits<decltype(Traits::mMetadataPointer)>;
+
+    static_assert(MetadataPointerTraits::value);
+
+    using MetadataType = typename MetadataPointerTraits::member_type;
+
+    static_assert(std::is_invocable_r_v<MetadataType,
+                                        DetectedT<DetectUpdate, Traits>,
+                                        const MetadataType*,
+                                        const MetadataType*>);
+
+    template<typename NodeType>
+    static auto& metadata(NodeType& node)
+    {
+        return node.*Traits::mMetadataPointer;
+    }
+
+public:
+    using NodeType = typename MetadataPointerTraits::class_type;
+
+    template<typename LinkTraits, typename NodeType>
+    static void update(NodeType& node)
+    {
+        const MetadataType* left{};
+        const MetadataType* right{};
+
+        if (auto* child = LinkTraits::left(node))
+            left = &metadata(*child);
+
+        if (auto* child = LinkTraits::right(node))
+            right = &metadata(*child);
+
+        metadata(node) = Traits::update(left, right);
+    }
+}; // MetadataTraits<Traits, void>
 
 } // detail
 } // file_service
