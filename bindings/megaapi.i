@@ -24,11 +24,9 @@ jstring strEncodeUTF8 = NULL;
 jclass clsString = NULL;
 jmethodID ctorString = NULL;
 jmethodID getBytes = NULL;
-jclass applicationClass = NULL;
-jmethodID startVideoCaptureMID = NULL;
-jmethodID stopVideoCaptureMID = NULL;
-jmethodID deviceListMID = NULL;
-jobject surfaceTextureHelper = NULL;
+extern jclass applicationClass;
+extern jmethodID deviceListMID;
+extern jobject surfaceTextureHelper;
 extern jclass fileWrapper;
 extern jclass integerClass;
 
