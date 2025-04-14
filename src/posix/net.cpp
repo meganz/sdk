@@ -205,7 +205,7 @@ CurlHttpIO::CurlHttpIO()
     curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
     if (data->version)
     {
-        LOG_debug << "cURL version: " << data->version;
+        LOG_debug << "curl version: " << data->version;
     }
 
     if (data->ssl_version)
@@ -220,15 +220,15 @@ CurlHttpIO::CurlHttpIO()
             throw std::runtime_error("Unsupported SSL backend (GSKit). Aborting.");
         }
 
-        if (data->version_num < 0x072c00 // At least cURL 7.44.0
-        #ifdef USE_OPENSSL
-                && !(strstr(curlssl.c_str(), "openssl") && data->version_num > 0x070b00)
-                // or cURL 7.11.0 with OpenSSL
-        #endif
-            )
+        if (data->version_num < 0x072c00 // At least curl 7.44.0
+#ifdef USE_OPENSSL
+            && !(strstr(curlssl.c_str(), "openssl") && data->version_num > 0x070b00)
+        // or curl 7.11.0 with OpenSSL
+#endif
+        )
         {
-            LOG_fatal << "cURL built without public key pinning support. Aborting.";
-            throw std::runtime_error("cURL built without public key pinning support. Aborting.");
+            LOG_fatal << "curl built without public key pinning support. Aborting.";
+            throw std::runtime_error("curl built without public key pinning support. Aborting.");
         }
     }
 
@@ -248,8 +248,8 @@ CurlHttpIO::CurlHttpIO()
 
     if (!data->protocols[i] || !(data->features & CURL_VERSION_SSL))
     {
-        LOG_fatal << "cURL built without HTTP/HTTPS support. Aborting.";
-        throw std::runtime_error("cURL built without HTTP/HTTPS support. Aborting.");
+        LOG_fatal << "curl built without HTTP/HTTPS support. Aborting.";
+        throw std::runtime_error("curl built without HTTP/HTTPS support. Aborting.");
     }
 
     if (data->ares)
@@ -258,7 +258,7 @@ CurlHttpIO::CurlHttpIO()
         int major{(version >> 16) & 0xFF};
         int minor{(version >> 8) & 0xFF};
         int patch{version & 0xFF};
-        LOG_debug << "cURL built with c-ares backend as DNS resolver.";
+        LOG_debug << "curl built with c-ares backend as DNS resolver.";
         LOG_debug << "c-ares version: " << major << "." << minor << "." << patch;
     }
 
