@@ -615,10 +615,8 @@ bool PosixFileAccess::fopen(const LocalPath& f,
     if (!write)
     {
         char resolved_path[PATH_MAX];
-        if (memcmp(fstr.c_str(), ".", 2) && memcmp(fstr.c_str(), "..", 3)
-                && (statok || !lstat(fstr.c_str(), &statbuf) )
-                && !S_ISLNK(statbuf.st_mode)
-                && realpath(fstr.c_str(), resolved_path) == resolved_path)
+        if (fstr != "." && fstr != ".." && (statok || !lstat(fstr.c_str(), &statbuf)) &&
+            !S_ISLNK(statbuf.st_mode) && realpath(fstr.c_str(), resolved_path) == resolved_path)
         {
             const char *fname;
             size_t fnamesize;
@@ -2159,7 +2157,7 @@ static std::string deviceOf(const std::string& database,
                  << device
                  << ". Error was: "
                  << std::strerror(error);
-                 
+
         return std::string();
     }
 

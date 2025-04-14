@@ -745,7 +745,7 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
                 return nullptr;
             }
 
-            if (!memcmp(buf.get(), "MEGA{\"", 6))
+            if (Utils::startswith(reinterpret_cast<const char*>(buf.get()), "MEGA{\""))
             {
                 return buf.release();
             }

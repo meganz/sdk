@@ -383,8 +383,26 @@ public:
 
     // join({"a", "new", "loom"}, "; ") -> "a; new; loom"
     static std::string join(const std::vector<std::string>& items, const std::string& with);
-    static bool startswith(const std::string& str, const std::string& start);
-    static bool startswith(const std::string& str, char chr);
+    template<typename T>
+    static bool startswith(const std::basic_string<T>& str, const std::basic_string<T>& start);
+
+    template<typename T>
+    static bool startswith(const std::basic_string<T>& str, T chr)
+    {
+        return str.length() >= 1 && chr == str.front();
+    }
+
+    template<typename T>
+    static const T* startswith(const T* str, const T* start);
+
+    template<typename T>
+    static const T* startswith(const std::basic_string<T>& str, const T* start)
+    {
+        return startswith(str.c_str(), start);
+    }
+
+    template<typename T>
+    static bool endswith(const T* str, size_t strLen, const T* suffix, size_t suffixLen);
     static bool endswith(const std::string& str, char chr);
     static const std::string _trimDefaultChars;
     // return string with trimchrs removed from front and back of given string str

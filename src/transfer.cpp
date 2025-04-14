@@ -2344,7 +2344,7 @@ DirectRead::~DirectRead()
 
 std::string DirectReadSlot::adjustURLPort(std::string url)
 {
-    if (!memcmp(url.c_str(), "http:", 5))
+    if (Utils::startswith(url, "http:"))
     {
         size_t portendindex = url.find("/", 8);
         size_t portstartindex = url.find(":", 8);

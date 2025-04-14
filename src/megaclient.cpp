@@ -2446,8 +2446,8 @@ void MegaClient::exec()
                 switch (static_cast<reqstatus_t>(fc->req.status))
                 {
                     case REQ_SUCCESS:
-                        if (fc->req.contenttype.find("text/html") != string::npos
-                            && !memcmp(fc->req.posturl.c_str(), "http:", 5))
+                        if (fc->req.contenttype.find("text/html") != string::npos &&
+                            Utils::startswith(fc->req.posturl, "http:"))
                         {
                             LOG_warn << "Invalid Content-Type detected downloading file attr: " << fc->req.contenttype;
                             fc->urltime = 0;
@@ -2494,8 +2494,9 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         LOG_warn << "Error getting file attr";
 
-                        if (fc->req.httpstatus && fc->req.contenttype.find("text/html") != string::npos
-                                && !memcmp(fc->req.posturl.c_str(), "http:", 5))
+                        if (fc->req.httpstatus &&
+                            fc->req.contenttype.find("text/html") != string::npos &&
+                            Utils::startswith(fc->req.posturl, "http:"))
                         {
                             LOG_warn << "Invalid Content-Type detected on failed file attr: " << fc->req.contenttype;
                             usehttps = true;
@@ -3034,7 +3035,7 @@ void MegaClient::exec()
                             fnstats.eOthersCount++;
                         }
                     }
-                    
+
                     if (pendingsc->httpstatus == 500 && !scnotifyurl.empty())
                     {
                         sendevent(99482, "500 received on wsc url");
@@ -3978,7 +3979,8 @@ void MegaClient::dispatchTransfers()
             {
                 dynamicQueueLimit = calcDynamicQueueLimit();
             }
-            double transferWeight = static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit); 
+            double transferWeight =
+                static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit);
             //LOG_verbose << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM << " -> transferWeight = " << transferWeight << " [tslots = " << tslots.size() << "] [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
             return transferWeight;
         }
@@ -4948,7 +4950,7 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     mKeyManager.reset();
 
     mLastErrorDetected = REASON_ERROR_NO_ERROR;
-    
+
     mReqHashcashEasiness = 0;
     mReqHashcashToken.clear();
 }
@@ -5372,7 +5374,7 @@ bool MegaClient::procsc()
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
                     // "a" element if present)
-                    if (fetchingnodes || memcmp(jsonsc.pos, "\"i\":\"", 5) ||
+                    if (fetchingnodes || !Utils::startswith(jsonsc.pos, "\"i\":\"") ||
                         memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid) ||
                         jsonsc.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
                         name == 't') // we still set 'i' on move commands to produce backward
@@ -6609,7 +6611,7 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                 case makeNameid("f"):
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                     {
-                        putnodesCmd->emptyResponse = !memcmp(j->pos, "[]", 2);
+                        putnodesCmd->emptyResponse = Utils::startswith(j->pos, "[]");
                         readnodes(j,
                                   1,
                                   putnodesCmd->source,
@@ -18096,7 +18098,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         assert(f->size >= 0);
 
         // Do we have enough space for the download?
-        // fsaccess->availableDiskSpace is expensive over network driver. 
+        // fsaccess->availableDiskSpace is expensive over network driver.
         // Pass in a positive value, check will use this value. A use case is downloading a folder
         auto available = availableDiskSpace > 0 ? availableDiskSpace : fsaccess->availableDiskSpace(targetPath);
         if (available <= f->size)
