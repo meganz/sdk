@@ -30,15 +30,21 @@ public:
 
     MockLogger()
     {
-        mega::SimpleLogger::logger = this;
+        mega::SimpleLogger::setOutputClass(this);
     }
 
     ~MockLogger()
     {
-        mega::SimpleLogger::logger = nullptr;
+        mega::SimpleLogger::setOutputClass(nullptr);
     }
 
-    void log(const char *time, int loglevel, const char *source, const char *message) override
+    void log(const char* time,
+             int loglevel,
+             const char* source,
+             const char* message,
+             const char**,
+             size_t*,
+             unsigned) override
     {
         EXPECT_EQ(nullptr, time);
         EXPECT_EQ(nullptr, source);
@@ -282,14 +288,17 @@ TEST(Logging, performanceMode_withMessageLargeThanLogBuffer)
         MockLogger logger;
         const std::string file = "file.cpp";
         const int line = 13;
-        const std::string firstMessage(256 - file.size() - 5, 'X'); // 5 = ':13 ' plus null terminator
+        const std::string firstMessage(mega::LOGGER_CHUNKS_SIZE - file.size() - 5,
+                                       'X'); // 5 = ':13 ' plus null terminator
         const std::string secondMessage = "yay";
         const std::string message = firstMessage + secondMessage;
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
         logger.checkLogLevel(level);
         ASSERT_EQ(2, logger.mMessage.size());
-        ASSERT_EQ(expMsg(file, line, message).substr(0,255), logger.mMessage[0]);
-        ASSERT_EQ(expMsg(file, line, message).substr(255), logger.mMessage[1]);
+        ASSERT_EQ(expMsg(file, line, message).substr(0, mega::LOGGER_CHUNKS_SIZE - 1),
+                  logger.mMessage[0]);
+        ASSERT_EQ(expMsg(file, line, message).substr(mega::LOGGER_CHUNKS_SIZE - 1),
+                  logger.mMessage[1]);
     }
 }
 
@@ -305,9 +314,9 @@ TEST(Logging, performanceMode_withHugeMessage)
         logger.checkLogLevel(level);
 
         const int totallength = 5000 + strlen(" [file.cpp:13]") + 1;
-        const size_t fullMsgCount = totallength / 255;
+        const size_t fullMsgCount = totallength / (mega::LOGGER_CHUNKS_SIZE - 1);
         ASSERT_EQ(fullMsgCount + 1, logger.mMessage.size());
-        ASSERT_EQ(totallength % 255 - 1, logger.mMessage.back().size());
+        ASSERT_EQ(totallength % (mega::LOGGER_CHUNKS_SIZE - 1) - 1, logger.mMessage.back().size());
     }
 }
 
@@ -315,7 +324,7 @@ TEST(Logging, performanceMode_withHugeMessage_butNoLogger)
 {
     for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
-        mega::SimpleLogger::logger = nullptr;
+        mega::SimpleLogger::setOutputClass(nullptr);
         const std::string file = "file.cpp";
         const int line = 13;
         const std::string message(5000, 'X');
