@@ -343,12 +343,12 @@ public:
 
     MockLogger()
     {
-        mega::SimpleLogger::logger = this;
+        mega::SimpleLogger::setOutputClass(this);
     }
 
     ~MockLogger()
     {
-        mega::SimpleLogger::logger = nullptr;
+        mega::SimpleLogger::setOutputClass(nullptr);
     }
 
     void log(const char *time, int loglevel, const char *source, const char *message) override
