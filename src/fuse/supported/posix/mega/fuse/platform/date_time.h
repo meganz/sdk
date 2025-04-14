@@ -1,8 +1,10 @@
 #pragma once
 
-#include <ctime>
-
 #include <mega/fuse/common/date_time.h>
+
+#ifdef HAS_DISTINCT_TIME_T
+
+#include <ctime>
 
 namespace mega
 {
@@ -28,4 +30,6 @@ struct TimeValueTraits<time_t>
 } // detail
 } // fuse
 } // mega
+
+#endif // HAS_DISTINCT_TIME_T
 

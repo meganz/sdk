@@ -83,11 +83,11 @@
 }
 
 - (BOOL)isValidForCreate {
-    self.megaTOTPDataValidation ? self.megaTOTPDataValidation->isValidForCreate() : false;
+    return self.megaTOTPDataValidation ? self.megaTOTPDataValidation->isValidForCreate() : false;
 }
 
 - (BOOL)isValidForUpdate {
-    self.megaTOTPDataValidation ? self.megaTOTPDataValidation->isValidForUpdate() : false;
+    return self.megaTOTPDataValidation ? self.megaTOTPDataValidation->isValidForUpdate() : false;
 }
 
 @end

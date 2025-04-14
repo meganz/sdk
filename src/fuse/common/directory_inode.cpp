@@ -1,13 +1,14 @@
 #include <cassert>
 #include <mutex>
 
-#include <mega/fuse/common/any_lock_set.h>
 #include <mega/fuse/common/any_lock.h>
+#include <mega/fuse/common/any_lock_set.h>
 #include <mega/fuse/common/badge.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/constants.h>
 #include <mega/fuse/common/directory_inode.h>
 #include <mega/fuse/common/error_or.h>
+#include <mega/fuse/common/file_move_flag.h>
 #include <mega/fuse/common/inode_badge.h>
 #include <mega/fuse/common/inode_db.h>
 #include <mega/fuse/common/inode_info.h>
@@ -222,7 +223,8 @@ ErrorOr<MakeInodeResult> DirectoryInode::makeFile(const platform::Mount& mount,
 
 Error DirectoryInode::move(const std::string& name,
                            const std::string& newName,
-                           DirectoryInodeRef newParent)
+                           DirectoryInodeRef newParent,
+                           FileMoveFlags flags)
 {
     // Sanity.
     assert(newParent);
@@ -258,6 +260,10 @@ Error DirectoryInode::move(const std::string& name,
     // New parent contains a child with the desired name.
     if (target)
     {
+        // But the caller doesn't want to replace it.
+        if ((flags & FILE_MOVE_NO_REPLACE))
+            return API_EEXIST;
+
         locks.emplace(*target);
 
         // Reacquire locks.
@@ -270,7 +276,10 @@ Error DirectoryInode::move(const std::string& name,
                                newParent);
     }
 
-    // New parent doesn't have a child with our desired name.
+    // The caller wanted to replace the target.
+    if ((flags & FILE_MOVE_EXCHANGE))
+        return API_ENOENT;
+
     locks.lock();
 
     // Perform move.

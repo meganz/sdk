@@ -3290,6 +3290,8 @@ void MegaClient::exec()
             getOrCreateSyncdebrisFolder();
         }
 
+        setSyncUploadThrottleParamsFromAPIAfterTimeout();
+
         if (!syncs.clientThreadActions.empty())
         {
             CodeCounter::ScopeTimer clientActionTime(performanceStats.clientThreadActions);
@@ -5196,13 +5198,14 @@ bool MegaClient::procsc()
                             for (unsigned int i = 0; i < cachedfiles.size(); i++)
                             {
                                 direction_t type = NONE;
-                                File *file = app->file_resume(&cachedfiles.at(i), &type);
+                                File* file = app->file_resume(&cachedfiles.at(i),
+                                                              &type,
+                                                              cachedfilesdbids.at(i));
                                 if (!file || (type != GET && type != PUT))
                                 {
                                     tctable->del(cachedfilesdbids.at(i));
                                     continue;
                                 }
-                                file->dbid = cachedfilesdbids.at(i);
                                 if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag, nullptr, nextreqtag()))  // TODO: should we have serialized these flags and restored them?
                                 {
                                     tctable->del(cachedfilesdbids.at(i));
@@ -9729,7 +9732,7 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
     assert(name && *name);
 
     std::vector<NewNode> nn(1);
-    bool canChangeVault = parent->isPasswordNodeFolder();
+    bool canChangeVault = parent->isPasswordManagerNodeFolder();
     NewNode& newPasswordNode = nn.front();
     putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault);
     const char* cauth = nullptr;
@@ -9760,7 +9763,8 @@ error MegaClient::renameNode(NodeHandle nh, const char* newName, CommandSetAttr:
 
     if (!(newName && *newName)) return API_EARGS;
 
-    const bool canChangeVault = node->isPasswordNodeFolder() || node->isPasswordNode();
+    const bool canChangeVault =
+        node->isPasswordManagerNodeFolder() || node->isPasswordManagerNode();
     string sname = newName;
     LocalPath::utf8_normalize(&sname);
     return setattr(node, attr_map('n', sname), std::move(cbRequest), canChangeVault);
@@ -9774,8 +9778,8 @@ error MegaClient::removeNode(NodeHandle nh, bool keepVersions, int rTag)
     if (keepVersions && node->type != FILENODE) return API_EARGS;
 
     bool canChangeVault = false;
-    const bool isPNFolder = node->isPasswordNodeFolder();
-    if (isPNFolder || node->isPasswordNode())
+    const bool isPNFolder = node->isPasswordManagerNodeFolder();
+    if (isPNFolder || node->isPasswordManagerNode())
     {
         if (isPNFolder && node->nodeHandle() == getPasswordManagerBase())
         {
@@ -14496,7 +14500,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encKey.resize(linkKeySize);
         for (unsigned int i = 0; i < linkKeySize; i++)
         {
-            encKey[i] = derivedKey[i] ^ linkKey[i];
+            encKey[i] = static_cast<char>(derivedKey[i] ^ linkKey[i]);
         }
 
         // Preapare payload to derive encryption key
@@ -15265,13 +15269,12 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         for (unsigned int i = 0; i < cachedfiles.size(); i++)
         {
             direction_t type = NONE;
-            File *file = app->file_resume(&cachedfiles.at(i), &type);
+            File* file = app->file_resume(&cachedfiles.at(i), &type, cachedfilesdbids.at(i));
             if (!file || (type != GET && type != PUT))
             {
                 tctable->del(cachedfilesdbids.at(i));
                 continue;
             }
-            file->dbid = cachedfilesdbids.at(i);
             if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag, nullptr, nextreqtag()))  // TODO: should we have serialized these flags and reused them here?
             {
                 tctable->del(cachedfilesdbids.at(i));
@@ -15455,8 +15458,14 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
-        auto onuserdataCompletion = [this, fetchnodesTag, loadSyncs](string*, string*, string*, error e) {
-
+        auto onuserdataCompletion = [this,
+                                     fetchnodesTag
+#ifdef ENABLE_SYNC // maybe_unused not allowed for lambda captures
+                                     ,
+                                     loadSyncs
+#endif
+        ](string*, string*, string*, error e)
+        {
             restag = fetchnodesTag;
 
             // upon ug completion
@@ -17406,6 +17415,77 @@ void MegaClient::changeSyncRoot(const handle backupId,
     }
 
     syncs.changeSyncRemoteRoot(backupId, std::move(newRootNode), std::move(completion));
+}
+
+void MegaClient::setSyncUploadThrottleParamsFromAPIAfterTimeout()
+{
+    if (mSetSyncUploadThrottleParamsFromAPILastTime == std::chrono::steady_clock::time_point{})
+        return;
+
+    if (const auto timeSinceLastSetSyncUploadThrottleParamsFromAPIInSeconds =
+            timeSinceLastSetSyncUploadThrottleParamsFromAPI();
+        timeSinceLastSetSyncUploadThrottleParamsFromAPIInSeconds >=
+        TIMEOUT_TO_SET_SYNC_UPLOAD_THROTTLE_PARAMS_FROM_API)
+    {
+        LOG_debug << "[MegaClient::setSyncUploadThrottleParamsFromAPIAfterTimeout] call "
+                     "setSyncUploadThrottleParamsFromAPI "
+                     "after "
+                  << timeSinceLastSetSyncUploadThrottleParamsFromAPIInSeconds.count()
+                  << " secs [timeout: "
+                  << TIMEOUT_TO_SET_SYNC_UPLOAD_THROTTLE_PARAMS_FROM_API.count() << " secs]";
+
+        setSyncUploadThrottleParamsFromAPI();
+    }
+}
+
+void MegaClient::handleSetThrottleResult(const CommandSetThrottlingParams::ResultVariant& result)
+{
+    const auto handleError = [](const Error& err)
+    {
+        LOG_debug << "[MegaClient::handleSetThrottleResult] Command failed with error: " << err;
+    };
+
+    const auto handleParams =
+        [this](const CommandSetThrottlingParams::ThrottlingParamsFromAPI& params)
+    {
+        setSyncUploadThrottleUpdateRate(std::chrono::seconds(params.updateRateInSeconds),
+                                        [](const error) {});
+
+        setSyncMaxUploadsBeforeThrottle(static_cast<unsigned>(params.maxUploadsBeforeThrottle),
+                                        [](const error) {});
+
+        LOG_warn << "[MegaClient::handleSetThrottleResult] Ignoring "
+                    "uploadCounterInactivityTime: "
+                 << params.uploadCounterInactivityTime;
+    };
+
+    std::visit(overloaded{handleError, handleParams}, result);
+}
+
+void MegaClient::setSyncUploadThrottleParamsFromAPI()
+{
+    LOG_verbose
+        << "[MegaClient::setSyncUploadThrottleParamsFromAPI] call [last time since last call: " <<
+        [this]
+    {
+        if ((mSetSyncUploadThrottleParamsFromAPILastTime ==
+             std::chrono::steady_clock::time_point{}))
+        {
+            return std::string("first call");
+        }
+        return std::to_string(timeSinceLastSetSyncUploadThrottleParamsFromAPI().count()) + " secs";
+    }() << "]";
+
+    auto commandSetThrottlingParamsCompletion =
+        [this](const CommandSetThrottlingParams::ResultVariant& result)
+    {
+        handleSetThrottleResult(result);
+    };
+
+    reqs.add(
+        new CommandSetThrottlingParams(*this, std::move(commandSetThrottlingParamsCompletion)));
+
+    mSetSyncUploadThrottleParamsFromAPILastTime = std::chrono::steady_clock::now();
 }
 
 void MegaClient::setSyncUploadThrottleUpdateRate(const std::chrono::seconds updateRateInSeconds,
@@ -21655,13 +21735,13 @@ void MegaClient::runNetworkConnectivityTest(
 void MegaClient::sendNetworkConnectivityTestEvent(const NetworkConnectivityTestResults& results)
 {
     string resultString;
-    if (results.ipv4.udpMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
-        results.ipv4.dnsLookupMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
+    if (results.ipv4.messages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
+        results.ipv4.dns != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
     {
         resultString = results.ipv4.summary;
     }
-    if (results.ipv6.udpMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
-        results.ipv6.dnsLookupMessages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
+    if (results.ipv6.messages != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE &&
+        results.ipv6.dns != NetworkConnectivityTestMessageStatus::NET_UNREACHABLE)
     {
         if (!resultString.empty())
             resultString += ' ';
@@ -21692,7 +21772,7 @@ NodeHandle MegaClient::getPasswordManagerBase()
                NodeHandle{};
 }
 
-void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const
+void MegaClient::preparePasswordManagerNodeData(attr_map& attrs, const AttrMap& data) const
 {
     assert(!data.map.empty());
     attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = data.getjson();
@@ -21734,22 +21814,29 @@ void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManage
     reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rTag, std::move(cbRequest)));
 }
 
-error MegaClient::createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
-                                     std::shared_ptr<Node> nParent, int rTag)
-{
-    std::map<std::string, std::unique_ptr<AttrMap>> aux;
-    aux[name] = std::move(data);
-    return createPasswordNodes(std::move(aux), nParent, rTag);
-}
-
-error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_ptr<AttrMap>>& data,
+error MegaClient::createPasswordEntry(const char* name,
+                                      std::unique_ptr<AttrMap> data,
+                                      PasswordDataValidator dataValidator,
                                       std::shared_ptr<Node> nParent,
                                       int rTag)
 {
+    if (!name || !data)
+        return API_EARGS;
+    std::map<std::string, std::unique_ptr<AttrMap>> aux;
+    aux[name] = std::move(data);
+    return createPasswordEntries(std::move(aux), dataValidator, nParent, rTag);
+}
+
+error MegaClient::createPasswordEntries(
+    ValidPasswordData&& data,
+    std::function<PasswordEntryError(const AttrMap&)> dataValidator,
+    std::shared_ptr<Node> nParent,
+    int rTag)
+{
     assert(nParent);
-    if (!nParent->isPasswordNodeFolder())
+    if (!nParent->isPasswordManagerNodeFolder())
     {
-        LOG_err << "Password Manager: failed Password Node creation wrong parameters: Password "
+        LOG_err << "Password Manager: failed Password entry creation wrong parameters: Password "
                    "Node Folder parent handle";
         return API_EARGS;
     }
@@ -21764,18 +21851,21 @@ error MegaClient::createPasswordNodes(const std::map<std::string, std::unique_pt
             assert(false);
             continue;
         }
-        if (const auto validCode = validateNewPasswordNodeData(*dataAttrMap);
-            validCode != PasswordEntryError::OK)
+
+        // Prevent storing password entry fields with empty strings
+        dataAttrMap->removeEmptyValues();
+
+        if (const auto validCode = dataValidator(*dataAttrMap); validCode != PasswordEntryError::OK)
         {
-            std::string errMsg = "Password Manager: Wrong parameters. Failed Password Node "
+            std::string errMsg = "Password Manager: Wrong parameters. Failed Password Entry "
                                  "creation for entry with name \"" +
                                  name + "\": ";
             LOG_err << errMsg << toString(validCode);
-            return API_EARGS;
+            return API_EAPPKEY;
         }
         const auto addAttrs = [this, d = dataAttrMap.get()](AttrMap& attrs)
         {
-            preparePasswordNodeData(attrs.map, *d);
+            preparePasswordManagerNodeData(attrs.map, *d);
         };
         NewNode& newPasswordNode = nn[nodeToFillIndex++];
         putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
@@ -21820,7 +21910,7 @@ MegaClient::ImportPaswordResult
         return {err, {}, 0};
     };
     std::shared_ptr<Node> parent = nodeByHandle(parentHandle);
-    if (!parent || !parent->isPasswordNodeFolder())
+    if (!parent || !parent->isPasswordManagerNodeFolder())
         return logReturnErr(API_EARGS, "parent node doesn't exist");
 
     PassFileParseResult parserResult = readPasswordImportFile(filePath, source);
@@ -21839,14 +21929,19 @@ MegaClient::ImportPaswordResult
     }
 
     ncoll::NameCollisionSolver collisionSolver{getNodesNames(getChildren(parent.get()))};
-    const auto [badEntries, goodEntries] =
+    auto [badEntries, goodEntries] =
         MegaClient::validatePasswordEntries(std::move(parserResult.mResults), collisionSolver);
 
     const auto nGoodEntries = goodEntries.size();
     if (nGoodEntries == 0)
         return {API_OK, badEntries, nGoodEntries};
 
-    return {createPasswordNodes(std::move(goodEntries), parent, rTag), badEntries, nGoodEntries};
+    return {createPasswordEntries(std::move(goodEntries),
+                                  MegaClient::validateNewPasswordNodeData,
+                                  parent,
+                                  rTag),
+            badEntries,
+            nGoodEntries};
 }
 
 PasswordEntryError MegaClient::validateTotpDataFormat(const AttrMap& data)
@@ -21895,6 +21990,9 @@ PasswordEntryError MegaClient::validateNewNodeTotpData(const AttrMap& data)
 
 PasswordEntryError MegaClient::validateNewPasswordNodeData(const AttrMap& data)
 {
+    if (!isPwmDataOfType(data, PwmEntryType::PASSWORD))
+        return PasswordEntryError::PARSE_ERROR;
+
     if (const bool pwdPresent = (data.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
         !pwdPresent)
     {
@@ -21913,6 +22011,37 @@ PasswordEntryError MegaClient::validateNewPasswordNodeData(const AttrMap& data)
             return res;
         }
     }
+    return PasswordEntryError::OK;
+}
+
+PasswordEntryError MegaClient::validateNewCreditCardNodeData(const AttrMap& data)
+{
+    auto isValidExpDateFormat = [](const std::string_view s)
+    {
+        if ((s.size() != 5) || (s.at(2) != '/'))
+            return false;
+        if (const auto month = stringToNumber<int>(s.substr(0, 2)); !month || *month > 12)
+            return false;
+        if (!isAllDigits(s.substr(3)))
+            return false;
+
+        return true;
+    };
+
+    if (!isPwmDataOfType(data, PwmEntryType::CREDIT_CARD))
+        return PasswordEntryError::PARSE_ERROR;
+
+    const auto creditCardNumber = data.getStringView(PWM_ATTR_CREDIT_CARD_NUMBER);
+    if (!creditCardNumber || creditCardNumber->empty())
+        return PasswordEntryError::MISSING_CREDIT_CARD_NUMBER;
+    if (!isAllDigits(*creditCardNumber))
+        return PasswordEntryError::INVALID_CREDIT_CARD_NUMBER;
+    if (const auto cvv = data.getStringView(PWM_ATTR_CREDIT_CVV); cvv && !isAllDigits(*cvv))
+        return PasswordEntryError::INVALID_CREDIT_CARD_CVV;
+    if (const auto exp = data.getStringView(PWM_ATTR_CREDIT_EXP_DATE);
+        exp && !isValidExpDateFormat(*exp))
+        return PasswordEntryError::INVALID_CREDIT_CARD_EXPIRATION_DATE;
+
     return PasswordEntryError::OK;
 }
 
@@ -21958,6 +22087,41 @@ std::pair<MegaClient::BadPasswordData, MegaClient::ValidPasswordData>
     return result;
 }
 
+error MegaClient::updateCreditCardNode(const NodeHandle nh,
+                                       std::unique_ptr<AttrMap> newData,
+                                       CommandSetAttr::Completion&& cb)
+{
+    auto pwdNode = nodeByHandle(nh);
+    if (const auto err = checkRenameNodePrecons(pwdNode); err != API_OK)
+        return err;
+    if (!newData || newData->map.empty() ||
+        (newData->map.size() == 1 && newData->getStringView(PWM_ATTR_NODE_TYPE)))
+        return logAndReturnError(
+            API_EARGS,
+            "Password Manager: calling updateCreditCardNode with nothing to update");
+    if (!pwdNode->isCreditCardNode())
+        return logAndReturnError(
+            API_EARGS,
+            "Password Manager: calling updateCreditCardNode with not a Credit Card Node handle");
+
+    AttrMap mergedData =
+        pwdNode->attrs.getNestedJsonObject(NODE_ATTR_PASSWORD_MANAGER).value_or(AttrMap{});
+    mergedData.applyUpdates(newData->map);
+
+    if (const auto validCode = validateNewCreditCardNodeData(mergedData);
+        validCode != PasswordEntryError::OK)
+        return logAndReturnError(API_EAPPKEY,
+                                 "Password Manager: calling updateCreditCardNode with data that "
+                                 "leaves the node in an invalid state. Validation error: " +
+                                     std::string{toString(validCode)});
+
+    attr_map updates;
+    preparePasswordManagerNodeData(updates, mergedData);
+
+    static constexpr bool CAN_CHANGE_VAULT{true};
+    return setattr(std::move(pwdNode), std::move(updates), std::move(cb), CAN_CHANGE_VAULT);
+}
+
 error MegaClient::updatePasswordNode(const NodeHandle nh,
                                      std::unique_ptr<AttrMap> newData,
                                      CommandSetAttr::Completion&& cb)
@@ -21986,7 +22150,7 @@ error MegaClient::updatePasswordNode(const NodeHandle nh,
                                      std::string{toString(validCode)});
 
     attr_map updates;
-    preparePasswordNodeData(updates, mergedData);
+    preparePasswordManagerNodeData(updates, mergedData);
 
     static constexpr bool CAN_CHANGE_VAULT{true};
     return setattr(std::move(pwdNode), std::move(updates), std::move(cb), CAN_CHANGE_VAULT);

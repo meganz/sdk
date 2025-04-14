@@ -4,6 +4,8 @@
 
 #include <mega/fuse/common/activity_monitor.h>
 #include <mega/fuse/common/client_forward.h>
+#include <mega/fuse/common/file_cache_forward.h>
+#include <mega/fuse/common/inode_db_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
 #include <mega/fuse/common/lockable.h>
 #include <mega/fuse/common/mount_db_forward.h>
@@ -175,6 +177,9 @@ public:
     // Query executor flags.
     TaskExecutorFlags executorFlags() const;
 
+    // Retrieve a reference to the file cache.
+    FileCache& fileCache();
+
     // Update an existing mount's flags.
     MountResult flags(const std::string& name,
                       const MountFlags& flags);
@@ -187,6 +192,9 @@ public:
 
     // Retrieve a list of known mounts.
     MountInfoVector get(bool onlyEnabled) const;
+
+    // Retrieve a reference to the inode DB.
+    InodeDB& inodeDB();
 
     // Query which path a named mount is associated with.
     NormalizedPath path(const std::string& name) const;

@@ -727,7 +727,7 @@ TEST_F(SqliteDBTest, RootPath)
 TEST(LocalPath, AppendWithSeparator)
 {
     LocalPath source;
-    LocalPath target;
+    LocalPath target = LocalPath::fromRelativePath("");
 
     // Doesn't add a separator if the target is empty.
     source = LocalPath::fromRelativePath("a");
@@ -1426,49 +1426,6 @@ TEST(ScopedHelpers, ScopedDestructor)
 
     // Make sure destructor was executed.
     EXPECT_EQ(x, 4);
-}
-
-TEST(ScopedHelpers, ScopedLengthRestorer)
-{
-    // Test with local path.
-    {
-        auto x = LocalPath::fromAbsolutePath("x");
-        auto originalSize = SizeTraits<LocalPath>::size(x);
-
-        {
-            auto r = makeScopedSizeRestorer(x);
-            x.appendWithSeparator(LocalPath::fromRelativePath("y"), true);
-            EXPECT_NE(SizeTraits<LocalPath>::size(x), originalSize);
-        }
-
-        EXPECT_EQ(SizeTraits<LocalPath>::size(x), originalSize);
-    }
-
-    // Test with vector.
-    {
-        std::vector<std::string> x(1, "foo");
-
-        auto originalSize = x.size();
-
-        {
-            auto r = makeScopedSizeRestorer(x);
-            x.emplace_back("bar");
-        }
-
-        EXPECT_EQ(x.size(), originalSize);
-    }
-
-    // Test with explicit new size given.
-    {
-        std::string x;
-
-        {
-            auto r = makeScopedSizeRestorer(x, 32);
-            EXPECT_EQ(x.size(), 32);
-        }
-
-        EXPECT_TRUE(x.empty());
-    }
 }
 
 TEST(ScopedHelpers, ScopedValue)

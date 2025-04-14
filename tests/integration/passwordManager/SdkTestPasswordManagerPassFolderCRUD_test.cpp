@@ -59,7 +59,7 @@ TEST_F(SdkTestPasswordManagerPassFolderCRUD, GetPassFolder)
 {
     const auto mnPNFolder = getFolderNode();
     ASSERT_NE(nullptr, mnPNFolder);
-    ASSERT_TRUE(mApi->isPasswordNodeFolder(mnPNFolder->getHandle()));
+    ASSERT_TRUE(mApi->isPasswordManagerNodeFolder(mnPNFolder->getHandle()));
     ASSERT_EQ(getFolderName(), mnPNFolder->getName());
 }
 
@@ -76,7 +76,7 @@ TEST_F(SdkTestPasswordManagerPassFolderCRUD, RenameFolderName)
     LOG_debug << logPre << "Validating new name";
     folder = getFolderNode();
     ASSERT_NE(nullptr, folder);
-    ASSERT_TRUE(mApi->isPasswordNodeFolder(folder->getHandle()));
+    ASSERT_TRUE(mApi->isPasswordManagerNodeFolder(folder->getHandle()));
     ASSERT_STREQ(updatedFolderName, folder->getName());
 }
 

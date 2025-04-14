@@ -173,6 +173,17 @@ bool AttrMap::hasDifferentValue(nameid attrId, const attr_map& otherAttrs) const
            (curIt != map.end() && otherIt != otherAttrs.end() && curIt->second != otherIt->second); // have different values
 }
 
+void AttrMap::removeEmptyValues()
+{
+    for (auto it = map.begin(); it != map.end();)
+    {
+        if (it->second.empty())
+            it = map.erase(it);
+        else
+            ++it;
+    }
+}
+
 void AttrMap::applyUpdates(const attr_map& updates)
 {
     for (auto& u : updates)

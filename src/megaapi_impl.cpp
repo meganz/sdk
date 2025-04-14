@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <cstdint>
 #include <functional>
 #include <iomanip>
 #include <locale>
@@ -2231,10 +2232,52 @@ bool MegaNodePrivate::isForeign()
     return foreign;
 }
 
+bool MegaNodePrivate::isCreditCardNode() const
+{
+    if (!isPasswordManagerNode())
+        return false;
+
+    const auto passNodeAttr = getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+    assert(passNodeAttr);
+
+    AttrMap attrMap;
+    attrMap.fromjson(passNodeAttr);
+    return MegaClient::isPwmDataOfType(attrMap, MegaClient::PwmEntryType::CREDIT_CARD);
+}
+
 bool MegaNodePrivate::isPasswordNode() const
+{
+    if (!isPasswordManagerNode())
+        return false;
+
+    const auto passNodeAttr = getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+    assert(passNodeAttr);
+
+    AttrMap attrMap;
+    attrMap.fromjson(passNodeAttr);
+    return MegaClient::isPwmDataOfType(attrMap, MegaClient::PwmEntryType::PASSWORD);
+}
+
+bool MegaNodePrivate::isPasswordManagerNode() const
 {
     return (type == FOLDERNODE &&
             getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER) != nullptr);
+}
+
+MegaNode::CreditCardNodeData* MegaNodePrivate::getCreditCardData() const
+{
+    if (!isCreditCardNode())
+        return nullptr;
+
+    AttrMap aux;
+    aux.fromjson(getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER));
+
+    return new CCNDataPrivate{
+        getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_CREDIT_CARD_NUMBER)),
+        getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_CREDIT_NOTES)),
+        getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_CREDIT_CARD_HOLDER)),
+        getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_CREDIT_CVV)),
+        getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_CREDIT_EXP_DATE))};
 }
 
 MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData() const
@@ -3119,6 +3162,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->listener = transfer->getListener();
     this->transfer = transfer->getTransfer();
     this->type = transfer->getType();
+    this->dbid = transfer->getUniqueId();
     this->setState(transfer->getState());
     this->setPriority(transfer->getPriority());
     this->setTag(transfer->getTag());
@@ -3173,6 +3217,11 @@ void MegaTransferPrivate::setTransfer(Transfer* newTransfer)
 Transfer* MegaTransferPrivate::getTransfer() const
 {
     return transfer;
+}
+
+uint32_t MegaTransferPrivate::getUniqueId() const
+{
+    return dbid;
 }
 
 int MegaTransferPrivate::getTag() const
@@ -6220,6 +6269,7 @@ bool MegaFile::serialize(string *d) const
         return false;
     }
 
+    megaTransfer->dbid = dbid;
     if (!megaTransfer->serialize(d))
     {
         return false;
@@ -6249,6 +6299,10 @@ MegaFile *MegaFile::unserialize(string *d)
     {
         delete megaFile;
         return NULL;
+    }
+    else
+    {
+        transfer->dbid = megaFile->dbid;
     }
 
     const char* ptr = d->data();
@@ -6425,10 +6479,7 @@ void MegaFileGet::prepare(FileSystemAccess&)
     {
         transfer->localfilename = getLocalname();
         assert(transfer->localfilename.isAbsolute());
-
-        size_t leafIndex = transfer->localfilename.getLeafnameByteIndex();
-        transfer->localfilename.truncate(leafIndex);
-        transfer->localfilename.appendWithSeparator(LocalPath::tmpNameLocal(), false);
+        transfer->localfilename.changeLeaf(LocalPath::tmpNameLocal());
     }
 }
 
@@ -7315,7 +7366,7 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
     }
 
 #ifdef USE_OPENSSL
-    RAND_seed(data, size);
+    RAND_seed(data, static_cast<int>(size));
 #endif
 }
 
@@ -9668,6 +9719,19 @@ MegaTransferList *MegaApiImpl::getStreamingTransfers()
         }
     }
     return new MegaTransferListPrivate(transfers.data(), int(transfers.size()));
+}
+
+MegaTransfer* MegaApiImpl::getTransferByUniqueId(uint32_t transferUniqueId) const
+{
+    SdkMutexGuard g(sdkMutex);
+    const auto it = std::find_if(begin(transferMap),
+                                 end(transferMap),
+                                 [&id = transferUniqueId](const auto& p)
+                                 {
+                                     return p.second->getUniqueId() == id;
+                                 });
+
+    return it != end(transferMap) ? it->second->copy() : nullptr;
 }
 
 MegaTransfer *MegaApiImpl::getTransferByTag(int transferTag)
@@ -13161,7 +13225,7 @@ void MegaApiImpl::transfer_update(Transfer *t)
     }
 }
 
-File *MegaApiImpl::file_resume(string *d, direction_t *type)
+File* MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid)
 {
     if (!d || d->size() < sizeof(char))
     {
@@ -13213,7 +13277,9 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
 
     if (file)
     {
+        file->dbid = dbid;
         currentTransfer = file->getTransfer();
+        currentTransfer->dbid = file->dbid;
         waiter->notify();
     }
     return file;
@@ -19843,21 +19909,22 @@ void MegaApiImpl::fetchTimeZone(bool forceApiFetch, MegaRequestListener* listene
     waiter->notify();
 }
 
-std::pair<bool, error> MegaApiImpl::checkCreateFolderPrecons(const char* name,
-                                                             std::shared_ptr<Node> parent,
-                                                             MegaRequestPrivate* request)
+error MegaApiImpl::checkCreateFolderPrecons(const char* name,
+                                            std::shared_ptr<Node> parent,
+                                            MegaRequestPrivate* request)
 {
-    if (!name || !(*name) || !parent) return std::make_pair(false, API_EARGS);
+    if (!name || !(*name) || !parent)
+        return API_EARGS;
 
     // prevent to create a duplicate folder with same name in same path
     std::shared_ptr<Node> folder = client->childnodebyname(parent.get(), name, false);
     if (folder && folder->type == FOLDERNODE)
     {
         request->setNodeHandle(folder->nodehandle);
-        return std::make_pair(false, API_EEXIST);
+        return API_EEXIST;
     }
 
-    return std::make_pair(true, API_OK);
+    return API_OK;
 }
 
 void MegaApiImpl::sendUserfeedback(const int rating,
@@ -19922,12 +19989,8 @@ void MegaApiImpl::createFolder(const char* name, MegaNode* parent, MegaRequestLi
     {
         std::shared_ptr<Node> parent = client->nodebyhandle(request->getParentHandle());
         auto name = request->getName();
-
-        const auto aux = checkCreateFolderPrecons(name, parent, request);
-        const bool& preconsOK = aux.first;
-        const error& code = aux.second;
-        if (!preconsOK) return code;
-
+        if (const auto error = checkCreateFolderPrecons(name, parent, request); error != API_OK)
+            return error;
         return client->createFolder(parent, name, request->getTag());
     };
 
@@ -24782,7 +24845,12 @@ void MegaApiImpl::getFolderInfo(MegaNode* node, MegaRequestListener* listener)
             }
 
             NodeCounter nc = node->getCounter();
-            std::unique_ptr<MegaFolderInfo> folderInfo = std::make_unique<MegaFolderInfoPrivate>((int)nc.files, (int)nc.folders, (int)nc.versions, nc.storage, nc.versionStorage);
+            std::unique_ptr<MegaFolderInfo> folderInfo = std::make_unique<MegaFolderInfoPrivate>(
+                (int)nc.files,
+                node->type == FOLDERNODE ? ((int)nc.folders - 1) : (int)nc.folders,
+                (int)nc.versions,
+                nc.storage,
+                nc.versionStorage);
             request->setMegaFolderInfo(folderInfo.get());
 
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
@@ -26965,10 +27033,10 @@ void MegaApiImpl::runNetworkConnectivityTest(MegaRequestListener* listener)
 
                     request->setMegaNetworkConnectivityTestResults(
                         new MegaNetworkConnectivityTestResultsPrivate(
-                            toPublicNetworkConnectivityTestStatus(results.ipv4.udpMessages),
-                            toPublicNetworkConnectivityTestStatus(results.ipv4.dnsLookupMessages),
-                            toPublicNetworkConnectivityTestStatus(results.ipv6.udpMessages),
-                            toPublicNetworkConnectivityTestStatus(results.ipv6.dnsLookupMessages)));
+                            toPublicNetworkConnectivityTestStatus(results.ipv4.messages),
+                            toPublicNetworkConnectivityTestStatus(results.ipv4.dns),
+                            toPublicNetworkConnectivityTestStatus(results.ipv6.messages),
+                            toPublicNetworkConnectivityTestStatus(results.ipv6.dns)));
                 }
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             });
@@ -27025,7 +27093,7 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
     waiter->notify();
 }
 
-bool MegaApiImpl::isPasswordNodeFolder(MegaHandle h) const
+bool MegaApiImpl::isPasswordManagerNodeFolder(MegaHandle h) const
 {
     if (h == UNDEF)
         return false;
@@ -27033,7 +27101,7 @@ bool MegaApiImpl::isPasswordNodeFolder(MegaHandle h) const
     SdkMutexGuard g{sdkMutex};
     const auto n = client->nodebyhandle(h);
     assert(n && "Node not found by handle");
-    return n && n->isPasswordNodeFolder();
+    return n && n->isPasswordManagerNodeFolder();
 }
 
 static std::string totpToJson(const MegaNode::PasswordNodeData::TotpData& totp)
@@ -27080,28 +27148,84 @@ void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
     client->createPasswordManagerBase(request->getTag(), std::move(cb));
 }
 
-std::unique_ptr<AttrMap> MegaApiImpl::toPasswordNodeData(const MegaNode::PasswordNodeData* data) const
+static std::function<void(const std::string_view, const char*)> getAttrSetter(AttrMap& attrMap)
 {
-    if (!data) return nullptr;
+    return [&attrMap](const std::string_view key, const char* value)
+    {
+        if (value)
+            attrMap.map[AttrMap::string2nameid(key)] = value;
+    };
+}
+
+std::unique_ptr<AttrMap>
+    MegaApiImpl::toAttrMapCreditCard(const MegaNode::CreditCardNodeData* data) const
+{
+    if (!data)
+        return nullptr;
 
     auto attrMap = std::make_unique<AttrMap>();
+    const auto addAttr = getAttrSetter(*attrMap);
+    addAttr(MegaClient::PWM_ATTR_NODE_TYPE,
+            std::string{MegaClient::PWM_ATTR_NODE_TYPE_CREDIT_CARD}.c_str());
+    addAttr(MegaClient::PWM_ATTR_CREDIT_CARD_NUMBER, data->cardNumber());
+    addAttr(MegaClient::PWM_ATTR_CREDIT_NOTES, data->notes());
+    addAttr(MegaClient::PWM_ATTR_CREDIT_CARD_HOLDER, data->cardHolderName());
+    addAttr(MegaClient::PWM_ATTR_CREDIT_CVV, data->cvv());
+    addAttr(MegaClient::PWM_ATTR_CREDIT_EXP_DATE, data->expirationDate());
 
-    auto n = data->notes();
-    if (n) attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_NOTES)] = n;
+    return attrMap;
+}
 
-    auto p = data->password();
-    if (p) attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_PWD)] = p;
+std::unique_ptr<AttrMap>
+    MegaApiImpl::toAttrMapPassword(const MegaNode::PasswordNodeData* data) const
+{
+    if (!data)
+        return nullptr;
 
-    auto u = data->url();
-    if (u) attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_URL)] = u;
-
-    auto un = data->userName();
-    if (un) attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_USERNAME)] = un;
+    auto attrMap = std::make_unique<AttrMap>();
+    const auto addAttr = getAttrSetter(*attrMap);
+    addAttr(MegaClient::PWM_ATTR_PASSWORD_NOTES, data->notes());
+    addAttr(MegaClient::PWM_ATTR_PASSWORD_PWD, data->password());
+    addAttr(MegaClient::PWM_ATTR_PASSWORD_URL, data->url());
+    addAttr(MegaClient::PWM_ATTR_PASSWORD_USERNAME, data->userName());
 
     if (const auto totp = data->totpData(); totp)
-        attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP)] =
-            totpToJson(*totp);
+        addAttr(MegaClient::PWM_ATTR_PASSWORD_TOTP, totpToJson(*totp).c_str());
+
     return attrMap;
+}
+
+void MegaApiImpl::createCreditCardNode(const char* name,
+                                       const MegaNode::CreditCardNodeData* ccData,
+                                       const MegaHandle parentHandle,
+                                       MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_CREATE_PASSWORD_NODE, listener);
+    request->setName(name);
+    request->setParentHandle(parentHandle);
+    request->setParamType(MegaApi::PWM_NODE_TYPE_CREDIT_CARD);
+
+    request->performRequest = [this, request, ccData]() -> error
+    {
+        auto name = request->getName();
+        auto parentHandle = client->nodebyhandle(request->getParentHandle());
+        auto data = toAttrMapCreditCard(ccData);
+
+        if (const auto error = checkCreateFolderPrecons(name, parentHandle, request);
+            error != API_OK)
+            return error;
+
+        // using default this->putnodes_result as callback
+        return client->createPasswordEntry(name,
+                                           std::move(data),
+                                           MegaClient::validateNewCreditCardNodeData,
+                                           parentHandle,
+                                           request->getTag());
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::createPasswordNode(const char* name, const MegaNode::PasswordNodeData* pwData,
@@ -27110,6 +27234,7 @@ void MegaApiImpl::createPasswordNode(const char* name, const MegaNode::PasswordN
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_PASSWORD_NODE, listener);
     request->setParentHandle(parentHandle);
     request->setName(name);
+    request->setParamType(MegaApi::PWM_NODE_TYPE_PASSWORD);
 
     request->performRequest = [this, request, pwData]() -> error
     {
@@ -27121,16 +27246,42 @@ void MegaApiImpl::createPasswordNode(const char* name, const MegaNode::PasswordN
 
         auto name = request->getName();
         auto parent = client->nodebyhandle(request->getParentHandle());
-        auto data = toPasswordNodeData(pwData);
-
-        const auto aux = checkCreateFolderPrecons(name, parent, request);
-        const bool& preconsOK = aux.first;
-        const error& code = aux.second;
-        if (!preconsOK)
-            return code;
+        auto data = toAttrMapPassword(pwData);
+        if (const auto error = checkCreateFolderPrecons(name, parent, request); error != API_OK)
+            return error;
 
         // using default this->putnodes_result as callback
-        return client->createPasswordNode(name, std::move(data), parent, request->getTag());
+        return client->createPasswordEntry(name,
+                                           std::move(data),
+                                           MegaClient::validateNewPasswordNodeData,
+                                           parent,
+                                           request->getTag());
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::updateCreditCardNode(MegaHandle node,
+                                       const MegaNode::CreditCardNodeData* ccData,
+                                       MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_UPDATE_PASSWORD_NODE, listener);
+    request->setNodeHandle(node);
+    request->setParamType(MegaApi::PWM_NODE_TYPE_CREDIT_CARD);
+    request->performRequest = [this, request, ccData]() -> error
+    {
+        auto nhPwdNode = NodeHandle{}.set6byte(request->getNodeHandle());
+        auto data = toAttrMapCreditCard(ccData);
+        CommandSetAttr::Completion cbRequest = [this, request](NodeHandle nh, Error e)
+        {
+            assert(request->getNodeHandle() == nh.as8byte());
+            request->setNodeHandle(nh.as8byte());
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+        };
+
+        return client->updateCreditCardNode(nhPwdNode, std::move(data), std::move(cbRequest));
     };
 
     requestQueue.push(request);
@@ -27141,11 +27292,11 @@ void MegaApiImpl::updatePasswordNode(MegaHandle h, const MegaNode::PasswordNodeD
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_UPDATE_PASSWORD_NODE, listener);
     request->setNodeHandle(h);
-
+    request->setParamType(MegaApi::PWM_NODE_TYPE_PASSWORD);
     request->performRequest = [this, request, pwData]() -> error
     {
         auto nhPwdNode = NodeHandle{}.set6byte(request->getNodeHandle());
-        auto data = toPasswordNodeData(pwData);
+        auto data = toAttrMapPassword(pwData);
         CommandSetAttr::Completion cbRequest = [this, request](NodeHandle nh, Error e)
         {
             assert(request->getNodeHandle() == nh.as8byte());
@@ -27193,6 +27344,14 @@ static constexpr int toPublicErrorCode(const PasswordEntryError e)
             return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_TOTP_HASH_ALG;
         case PasswordEntryError::INVALID_TOTP_HASH_ALG:
             return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_TOTP_HASH_ALG;
+        case PasswordEntryError::MISSING_CREDIT_CARD_NUMBER:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_MISSING_CREDIT_CARD_NUMBER;
+        case PasswordEntryError::INVALID_CREDIT_CARD_NUMBER:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_CREDIT_CARD_NUMBER;
+        case PasswordEntryError::INVALID_CREDIT_CARD_CVV:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_CREDIT_CARD_CVV;
+        case PasswordEntryError::INVALID_CREDIT_CARD_EXPIRATION_DATE:
+            return MegaApi::IMPORTED_PASSWORD_ERROR_INVALID_CREDIT_CARD_EXPIRATION_DATE;
     }
     assert(false);
     return -1; // We should never get here
@@ -27728,9 +27887,10 @@ void MegaApiImpl::deleteUserAttribute(int type, MegaRequestListener* listener)
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_DEL_ATTR_USER, listener);
     request->setParamType(type);
 
-    request->performRequest = [this, request]()
-    {
+    request->performRequest =
 #ifdef DEBUG
+        [this, request]()
+    {
         attr_t type = static_cast<attr_t>(request->getParamType());
         string attributeName = MegaApiImpl::userAttributeToString(type);
         if (attributeName.empty())
@@ -27739,10 +27899,13 @@ void MegaApiImpl::deleteUserAttribute(int type, MegaRequestListener* listener)
         }
         client->delua(attributeName.c_str());
         return API_OK;
-#else
-        return API_EACCESS;
-#endif
     };
+#else
+        []()
+    {
+        return API_EACCESS;
+    };
+#endif
 
     requestQueue.push(request);
     waiter->notify();
@@ -29948,7 +30111,6 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
 
         megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_SCAN, foldercount, 0, filecount, &localPath, &localname);
 
-        auto restoreLen = makeScopedSizeRestorer(localPath);
         if (!childPath.isURI())
         {
             childPath.appendWithSeparator(localname, false);
@@ -30841,15 +31003,15 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
         {
             FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
 
-            while (da->dnext(localPath, localname, false))
+            LocalPath childPath = localPath;
+            while (da->dnext(childPath, localname, false))
             {
-                auto restoreLen = makeScopedSizeRestorer(localPath);
-                localPath.appendWithSeparator(localname, false);
+                childPath.appendWithSeparator(localname, false);
 
                 //TODO: add exclude filters here
 
                 auto fa = client->fsaccess->newfileaccess();
-                if(fa->fopen(localPath, true, false, FSLogging::logOnError))
+                if (fa->fopen(childPath, true, false, FSLogging::logOnError))
                 {
                     string name = localname.toName(*client->fsaccess);
                     if(fa->type == FILENODE)
@@ -30857,26 +31019,39 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                         pendingTransfers++;
 
                         totalFiles++;
-                        megaApi->startUpload(false, localPath.toPath(false).c_str(),
-                                                            parent, nullptr, nullptr, -1,folderTransferTag, true,
-                                                            nullptr, false, false, fsType, CancelToken(), this);
+                        megaApi->startUpload(false,
+                                             childPath.toPath(false).c_str(),
+                                             parent,
+                                             nullptr,
+                                             nullptr,
+                                             -1,
+                                             folderTransferTag,
+                                             true,
+                                             nullptr,
+                                             false,
+                                             false,
+                                             fsType,
+                                             CancelToken(),
+                                             this);
                     }
                     else
                     {
                         MegaNode *child = megaApi->getChildNode(parent, name.c_str());
                         if(!child || !child->isFolder())
                         {
-                            pendingFolders.push_back(localPath);
+                            pendingFolders.push_back(childPath);
                             megaApi->createFolder(name.c_str(), parent, this);
                         }
                         else
                         {
-                            pendingFolders.push_front(localPath);
+                            pendingFolders.push_front(childPath);
                             onFolderAvailable(child->getHandle());
                         }
                         delete child;
                     }
                 }
+
+                childPath = localPath;
             }
         }
     }
@@ -31519,9 +31694,11 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
         }
         else
         {
-            auto restoreLen = makeScopedSizeRestorer(localpath);
-            localpath.appendWithSeparator(LocalPath::fromRelativeName(child->getName(), *fsaccess, fsType), true);
-            scanFolder_result result = scanFolder(child, localpath, fsType, fileAddedCount);
+            LocalPath newpath{localpath};
+            newpath.appendWithSeparator(
+                LocalPath::fromRelativeName(child->getName(), *fsaccess, fsType),
+                true);
+            scanFolder_result result = scanFolder(child, newpath, fsType, fileAddedCount);
 
             if (result != scanFolder_succeeded)
             {
@@ -31620,8 +31797,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(
         }
 
         // get file local path
-        auto& fileLocalPath = folder.localPath;
-        auto restoreLen = makeScopedSizeRestorer(fileLocalPath);
+        auto fileLocalPath = folder.localPath;
         fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
 
         auto decision = CollisionChecker::Result::Download;
@@ -39631,7 +39807,7 @@ MegaNodeTreePrivate::MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
 
 MegaNetworkConnectivityTestResultsPrivate* MegaNetworkConnectivityTestResultsPrivate::copy() const
 {
-    return new MegaNetworkConnectivityTestResultsPrivate(mIPv4UDP, mIPv4DNS, mIPv6UDP, mIPv6DNS);
+    return new MegaNetworkConnectivityTestResultsPrivate(mIPv4, mIPv4DNS, mIPv6, mIPv6DNS);
 }
 
 MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const

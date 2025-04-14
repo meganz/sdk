@@ -39,21 +39,21 @@ public:
 
     operator BindHandle() const;
 
-    operator bool() const;
-
     operator NodeHandle() const;
 
     operator InodeID() const;
 
     operator LocalPath() const;
 
-    operator std::int64_t() const;
-
     operator std::string() const;
 
-    operator std::uint64_t() const;
-
     BindHandle bindHandle() const;
+
+    template<typename T, std::enable_if_t<std::is_integral_v<T>, void>* = nullptr>
+    operator T() const
+    {
+        return static_cast<T>(uint64());
+    }
 
     bool boolean() const;
 
@@ -66,6 +66,8 @@ public:
     bool null() const;
 
     LocalPath path() const;
+
+    std::size_t size() const;
 
     std::string string() const;
 
@@ -84,15 +86,11 @@ public:
 
     auto operator=(const BindHandle& value) -> Parameter&;
 
-    auto operator=(const bool value) -> Parameter&;
-
     auto operator=(const NodeHandle& value) -> Parameter&;
 
     auto operator=(const InodeID& value) -> Parameter&;
 
     auto operator=(const LocalPath& value) -> Parameter&;
-
-    auto operator=(const std::int64_t value) -> Parameter&;
 
     auto operator=(const std::nullptr_t) -> Parameter&;
 
@@ -100,7 +98,11 @@ public:
 
     auto operator=(const char* value) -> Parameter&;
 
-    auto operator=(const std::uint64_t value) -> Parameter&;
+    template<typename T>
+    auto operator=(T value) -> std::enable_if_t<std::is_integral_v<T>, Parameter&>
+    {
+        return uint64(static_cast<std::uint64_t>(value));
+    }
 
     auto boolean(const bool value) -> Parameter&;
 
@@ -110,15 +112,21 @@ public:
 
     auto inode(const InodeID& value) -> Parameter&;
 
+    auto int32(const std::int32_t value) -> Parameter&;
+
     auto int64(const std::int64_t value) -> Parameter&;
 
     auto null() -> Parameter&;
 
     auto path(const LocalPath& value) -> Parameter&;
 
+    auto size(const std::size_t value) -> Parameter&;
+
     auto string(const std::string& value) -> Parameter&;
 
     auto string(const char* value) -> Parameter&;
+
+    auto uint32(const std::uint32_t value) -> Parameter&;
 
     auto uint64(const std::uint64_t value) -> Parameter&;
 }; // Parameter

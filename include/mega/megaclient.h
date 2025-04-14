@@ -1273,6 +1273,31 @@ public:
                         const char* const newLocalRootPath,
                         std::function<void(error, SyncError)>&& completion);
 
+private:
+    static constexpr std::chrono::seconds TIMEOUT_TO_SET_SYNC_UPLOAD_THROTTLE_PARAMS_FROM_API{
+        86400};
+
+    std::chrono::steady_clock::time_point mSetSyncUploadThrottleParamsFromAPILastTime;
+
+    std::chrono::seconds timeSinceLastSetSyncUploadThrottleParamsFromAPI() const
+    {
+        return std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - mSetSyncUploadThrottleParamsFromAPILastTime);
+    }
+
+    void setSyncUploadThrottleParamsFromAPIAfterTimeout();
+
+    void handleSetThrottleResult(const CommandSetThrottlingParams::ResultVariant& result);
+
+public:
+    /**
+     * @brief Sets the upload throttling configurable values retrieved directly from API.
+     *
+     * @see Syncs::setThrottleUpdateRate()
+     * @see Syncs::setMaxUploadBeforeThrottle()
+     */
+    void setSyncUploadThrottleParamsFromAPI();
+
     /**
      * @brief Sets the upload throttling configurable value throttleUpdateRate.
      *
@@ -1321,8 +1346,9 @@ public:
         std::function<void(const error)>&& completion);
 
 public:
-
-#endif  // ENABLE_SYNC
+#else
+    void setSyncUploadThrottleParamsFromAPI() {}
+#endif // ENABLE_SYNC
 
     /**
      * @brief creates a tlv with one record and returns it encrypted with master key
@@ -2991,7 +3017,7 @@ private:
      * @param attrs The node attribute map to write the serialized password data
      * @param data The attribute map containing password-related information.
      */
-    void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+    void preparePasswordManagerNodeData(attr_map& attrs, const AttrMap& data) const;
 
     /**
      * @brief Checks preconditions for node rename operations on the given node.
@@ -3067,6 +3093,13 @@ public:
 
     // Password Manager
     static const char* const NODE_ATTR_PASSWORD_MANAGER;
+    static constexpr std::string_view PWM_ATTR_NODE_TYPE{"t"};
+    static constexpr std::string_view PWM_ATTR_NODE_TYPE_CREDIT_CARD{"c"};
+    static constexpr std::string_view PWM_ATTR_CREDIT_CARD_NUMBER{"nu"};
+    static constexpr std::string_view PWM_ATTR_CREDIT_NOTES{"n"};
+    static constexpr std::string_view PWM_ATTR_CREDIT_CARD_HOLDER{"u"};
+    static constexpr std::string_view PWM_ATTR_CREDIT_CVV{"cvv"};
+    static constexpr std::string_view PWM_ATTR_CREDIT_EXP_DATE{"exp"};
     static constexpr std::string_view PWM_ATTR_PASSWORD_NOTES{"n"};
     static constexpr std::string_view PWM_ATTR_PASSWORD_URL{"url"};
     static constexpr std::string_view PWM_ATTR_PASSWORD_USERNAME{"u"};
@@ -3077,10 +3110,44 @@ public:
     static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_HASH_ALG{"alg"};
     static constexpr std::string_view PWM_ATTR_PASSWORD_TOTP_NDIGITS{"nd"};
 
+    enum class PwmEntryType
+    {
+        PASSWORD,
+        CREDIT_CARD,
+    };
+
+    /**
+     * @brief This method converts the value in the field PWM_ATTR_NODE_TYPE into a PwmEntryType. If
+     * the value is not expected this method returns nullopt
+     */
+    static std::optional<PwmEntryType> toPwmEntryType(const std::optional<std::string_view>& t)
+    {
+        if (!t) // Password entries have no PWM_ATTR_NODE_TYPE field
+            return PwmEntryType::PASSWORD;
+
+        if (*t == PWM_ATTR_NODE_TYPE_CREDIT_CARD)
+            return PwmEntryType::CREDIT_CARD;
+        return std::nullopt;
+    }
+
+    /**
+     * @brief Checks if the given `data` stores the provided `type` of PWM node
+     * @note `data` must be an AttrMap obtained from reading the NODE_ATTR_PASSWORD_MANAGER node
+     * attribute.
+     */
+    static bool isPwmDataOfType(const AttrMap& data, const PwmEntryType type)
+    {
+        return toPwmEntryType(data.getStringView(MegaClient::PWM_ATTR_NODE_TYPE)) == type;
+    }
+
     NodeHandle getPasswordManagerBase();
-    void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
-    error createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
-                             std::shared_ptr<Node> nParent, int rtag);
+    void createPasswordManagerBase(int rtag,
+                                   CommandCreatePasswordManagerBase::Completion cbRequest);
+
+    /** @brief The same as updatePasswordNode but for updating a Credit Card Node */
+    error updateCreditCardNode(const NodeHandle nh,
+                               std::unique_ptr<AttrMap> newData,
+                               CommandSetAttr::Completion&& cb);
 
     /**
      * @brief Updates the password node data stored in the node with the given `nh` with the
@@ -3107,22 +3174,36 @@ public:
     // Data type to handle wrongly formatted password info. Key: info, val: ErrCode
     using BadPasswordData = std::map<std::string, PasswordEntryError>;
 
+    // Validator for data of a new PasswordManagerNode
+    using PasswordDataValidator = std::function<PasswordEntryError(const AttrMap&)>;
+
+    // Check createPasswordEntries
+    error createPasswordEntry(const char* name,
+                              std::unique_ptr<AttrMap> data,
+                              MegaClient::PasswordDataValidator dataValidator,
+                              std::shared_ptr<Node> nParent,
+                              int rtag);
+
     /**
-     * @brief Creates multiple password nodes with a single putnodes call
+     * @brief Creates multiple PasswordManagerNode instances with a single putnodes call
      *
      * @note API_EARGS will be returned if:
-     *     - nParent is not a password node folder
+     *     - nParent is not a PasswordManagerNode folder
      *     - If any of the given values in data is invalid, e.g., the password field is missing
      *
      * @param data A map with the name of the password entry to create as key and the information of
      * the password (AttrMap) as values.
+     * @param dataValidator a std::function to validate the given data before creating a new
+     * PasswordManagerNode. Note: The same validator will apply to all the entries in the data
+     * parameter.
      * @param nParent The parent node that will contain the nodes to be created
      * @param rTag tag parameter for putnodes call
      * @return error code (API_OK if succeeded)
      */
-    error createPasswordNodes(const ValidPasswordData& data,
-                              std::shared_ptr<Node> nParent,
-                              int rTag);
+    error createPasswordEntries(ValidPasswordData&& data,
+                                PasswordDataValidator dataValidator,
+                                std::shared_ptr<Node> nParent,
+                                int rTag);
 
     using ImportPaswordResult = std::tuple<error, MegaClient::BadPasswordData, std::size_t>;
 
@@ -3203,6 +3284,13 @@ public:
      * @return The error code for the validation
      */
     static PasswordEntryError validateNewPasswordNodeData(const AttrMap& data);
+
+    /**
+     * @brief validateNewCreditCardNodeData
+     * @param data
+     * @return
+     */
+    static PasswordEntryError validateNewCreditCardNodeData(const AttrMap& data);
 
     /**
      * @brief Processes the input password entries and splits them into two containers (bad, good).

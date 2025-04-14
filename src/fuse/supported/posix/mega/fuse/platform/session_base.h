@@ -1,12 +1,12 @@
 #pragma once
 
-#include <memory>
-#include <string>
-
-#include <mega/fuse/common/mount_inode_id.h>
+#include <mega/fuse/common/mount_inode_id_forward.h>
 #include <mega/fuse/platform/library.h>
 #include <mega/fuse/platform/mount_forward.h>
-#include <mega/fuse/platform/session_forward.h>
+
+#include <mutex>
+#include <string>
+#include <vector>
 
 namespace mega
 {
@@ -15,14 +15,38 @@ namespace fuse
 namespace platform
 {
 
-// How we communicate with FUSE.
-class Session
+class SessionBase
 {
+    static fuse_lowlevel_ops mOperations;
+    static std::once_flag mOperationsInitialized;
+
+protected:
+    class Arguments
+    {
+        fuse_args mArguments;
+        std::vector<char*> mPointers;
+        std::vector<std::string> mStrings;
+
+    public:
+        Arguments(const std::string& name);
+
+        fuse_args* get();
+    }; // Arguments
+
+    struct SessionDeleter
+    {
+        void operator()(fuse_session* session);
+    }; // SessionDeleter
+
+    using SessionPtr = std::unique_ptr<fuse_session, SessionDeleter>;
+
+    SessionBase(Mount& mount);
+
+    ~SessionBase();
+
     static void access(fuse_req_t request,
                        fuse_ino_t inode,
                        int mask);
-
-    static void init(void* context, fuse_conn_info* connection);
 
     static void lookup(fuse_req_t request,
                        fuse_ino_t parent,
@@ -34,7 +58,7 @@ class Session
 
     static void forget(fuse_req_t request,
                        fuse_ino_t inode,
-                       std::size_t num);
+                       std::uint64_t num);
 
     static void forget_multi(fuse_req_t request,
                              std::size_t count,
@@ -49,6 +73,8 @@ class Session
                         fuse_ino_t inode,
                         fuse_file_info* info);
 
+    static void init(void* context, fuse_conn_info* connection);
+
     static void mkdir(fuse_req_t request,
                       fuse_ino_t parent,
                       const char* name,
@@ -60,6 +86,10 @@ class Session
                       mode_t mode,
                       dev_t device);
 
+    static Mount& mount(fuse_req_t request);
+
+    static Mount& mount(void* context);
+
     static void open(fuse_req_t request,
                      fuse_ino_t inode,
                      fuse_file_info* info);
@@ -67,6 +97,12 @@ class Session
     static void opendir(fuse_req_t request,
                         fuse_ino_t inode,
                         fuse_file_info* info);
+
+    const fuse_lowlevel_ops& operations();
+
+    virtual void populateCapabilities(fuse_conn_info* connection);
+
+    virtual void populateOperations(fuse_lowlevel_ops& operations);
 
     static void read(fuse_req_t request,
                      fuse_ino_t inode,
@@ -88,15 +124,13 @@ class Session
                            fuse_ino_t inode,
                            fuse_file_info* info);
 
-    static void rename(fuse_req_t request,
-                       fuse_ino_t sourceParent,
-                       const char* sourceName,
-                       fuse_ino_t targetParent,
-                       const char* targetName);
-
     static void rmdir(fuse_req_t request,
                       fuse_ino_t parent,
                       const char* name);
+
+    static SessionBase& session(fuse_req_t request);
+
+    static SessionBase& session(void* context);
 
     static void setattr(fuse_req_t request,
                         fuse_ino_t inode,
@@ -118,21 +152,15 @@ class Session
                       off_t offset,
                       fuse_file_info* info);
 
-    fuse_chan* mChannel;
     Mount& mMount;
-    static const fuse_lowlevel_ops mOperations;
-    fuse_session* mSession;
+    SessionPtr mSession;
 
 public:
-    Session(Mount& mount);
-
-    ~Session();
-
     // What descriptor is the session using to communicate with FUSE?
-    int descriptor() const;
+    virtual int descriptor() const = 0;
 
     // Dispatch a request received from FUSE.
-    void dispatch(std::string request);
+    virtual void dispatch() = 0;
 
     // Destroy the mount associated with this session.
     void destroy();
@@ -144,23 +172,20 @@ public:
     void invalidateAttributes(MountInodeID id);
 
     // Invalidate an inode's data.
-    void invalidateData(MountInodeID id,
-                        off_t offset,
-                        off_t size);
+    virtual void invalidateData(MountInodeID id,
+                                off_t offset,
+                                off_t size) = 0;
 
     void invalidateData(MountInodeID id);
 
     // Invalidate a specific directory entry.
-    void invalidateEntry(const std::string& name,
-                         MountInodeID child,
-                         MountInodeID parent);
+    virtual void invalidateEntry(const std::string& name,
+                                 MountInodeID child,
+                                 MountInodeID parent) = 0;
 
-    void invalidateEntry(const std::string& name,
-                         MountInodeID parent);
-
-    // Retrieve the next request from FUSE.
-    std::string nextRequest();
-}; // Session
+    virtual void invalidateEntry(const std::string& name,
+                                 MountInodeID parent) = 0;
+}; // SessionBase
 
 } // platform
 } // fuse

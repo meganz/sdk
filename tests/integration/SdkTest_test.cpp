@@ -28,11 +28,17 @@
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/types.h"
+#include "megaapi.h"
 #include "megautils.h"
+#include "mock_listeners.h"
 #include "sdk_test_utils.h"
+
+#include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
+#include <cstdint>
 
 #if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
 #include "mega/posix/gfx/worker/socket_utils.h"
@@ -42,9 +48,7 @@ using ::mega::gfx::SocketUtils;
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
         (  std::ostringstream() << std::dec << x ) ).str()
 
-
 using namespace std;
-using sdk_test::waitForSyncState;
 
 static const string APP_KEY     = "8QxzVRxD";
 static const string PUBLICFILE  = "file.txt";
@@ -1282,7 +1286,7 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
         << "Fetchnodes failed or took more than " << timeout << " seconds";
 }
 
-void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
+void SdkTest::logout(unsigned int apiIndex, [[maybe_unused]] bool keepSyncConfigs, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT] = false;
 #ifdef ENABLE_SYNC
@@ -1483,7 +1487,16 @@ bool SdkTest::createFile(string filename, bool largeFile, string content)
         temp.append(content);
 
     // Write the file to disk.
-    return ::createFile(fs::u8path(filename), temp);
+    try
+    {
+        sdk_test::createFile(fs::u8path(filename), temp);
+        return true;
+    }
+    catch (const std::runtime_error& err)
+    {
+        LOG_err << err.what();
+        return false;
+    }
 }
 
 int64_t SdkTest::getFilesize(string filename)
@@ -3025,7 +3038,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  *
  * - Uploads an empty directory
  * - Starts an upload transfer and cancel it
- * - Starts an upload transfer, pause it, resume it and complete it
+ * - Starts an upload transfer, pause it, check the unique id, resume it and complete it
  * - Get node by fingerprint
  * - Get size of a node
  * - Download a file
@@ -3082,6 +3095,20 @@ TEST_F(SdkTest, SdkTestTransfers)
     ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
     ASSERT_EQ(API_EINCOMPLETE, ttc.waitForResult());
 
+    // --- Setup a global listener to capture dbid and tag on next transfer ---
+    testing::NiceMock<MockTransferListener> mockGlobalListener{megaApi[0].get()};
+    std::promise<std::tuple<uint32_t, int>> dbidAndTagOnStart;
+    EXPECT_CALL(mockGlobalListener, onTransferStart)
+        .WillOnce(
+            [&dbidAndTagOnStart](MegaApi*, MegaTransfer* transfer)
+            {
+                if (transfer)
+                    dbidAndTagOnStart.set_value({transfer->getUniqueId(), transfer->getTag()});
+                else
+                    dbidAndTagOnStart.set_value({0, -1});
+            });
+    megaApi[0]->addListener(&mockGlobalListener);
+
     // --- Upload a file (part 1) ---
     TransferTracker tt(megaApi[0].get());
     mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
@@ -3106,6 +3133,22 @@ TEST_F(SdkTest, SdkTestTransfers)
     EXPECT_EQ(API_OK, mApi[0].lastError) << "Cannot pause transfer (error: " << mApi[0].lastError << ")";
     EXPECT_TRUE(megaApi[0]->areTransfersPaused(MegaTransfer::TYPE_UPLOAD)) << "Upload transfer not paused";
 
+    // --- Get dbid and tag of first transfer since started listening ---
+    auto transferListerResult = dbidAndTagOnStart.get_future();
+    ASSERT_EQ(transferListerResult.wait_for(std::chrono::seconds(maxTimeout)),
+              std::future_status::ready)
+        << "Timeout for the start upload";
+    megaApi[0]->removeListener(&mockGlobalListener); // not needed any longer
+    const auto [transferUniqueId, transferTag] = transferListerResult.get();
+    ASSERT_NE(transferTag, -1) << "Missing transfer param for onTransferStart event";
+    std::unique_ptr<MegaTransfer> transferByUniqueId{
+        megaApi[0]->getTransferByUniqueId(transferUniqueId)};
+    ASSERT_TRUE(transferByUniqueId) << "No transfer found with unique Id " << transferUniqueId;
+    EXPECT_EQ(transferTag, transferByUniqueId->getTag())
+        << "Retrieved transfer doesn't match expected tag";
+    transferByUniqueId.reset(megaApi[0]->getTransferByUniqueId(transferUniqueId + 1));
+    EXPECT_FALSE(transferByUniqueId)
+        << "This use case doesn't expect any other active or in pause transfers";
 
     // --- Resume a transfer ---
 
@@ -6919,6 +6962,47 @@ TEST_F(SdkTest, SdkTestChat)
 }
 #endif
 
+TEST_F(SdkTest, SdkTestFolderInfo)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode);
+    auto f1node = createDirectory(*megaApi[0], *rootNode, "folder1");
+    ASSERT_EQ(result(f1node), API_OK);
+    ASSERT_TRUE(value(f1node));
+    auto node = createDirectory(*megaApi[0], *value(f1node), "folder1.1");
+    ASSERT_EQ(result(node), API_OK);
+    ASSERT_TRUE(value(node));
+    ASSERT_TRUE(createFile(UPFILE, false)); // local file
+    MegaHandle fileHande = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHande,
+                            UPFILE.c_str(),
+                            value(node).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/));
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHande,
+                            UPFILE.c_str(),
+                            value(f1node).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/));
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, value(f1node).get()));
+    auto info = mApi[0].mFolderInfo.get();
+    ASSERT_EQ(info->getNumFiles(), 2);
+    ASSERT_EQ(info->getNumFolders(), 1);
+}
+
 class myMIS : public MegaInputStream
 {
 public:
@@ -7797,10 +7881,14 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 */
 
 #ifdef DEBUG
-TEST_F(SdkTest, DISABLED_SdkTestOverquotaCloudraid)
+TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
     LOG_info << "___TEST SdkTestOverquotaCloudraid";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto accountRestorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -8461,71 +8549,6 @@ TEST_F(SdkTest, SdkGetBanners)
     ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Get banners failed (error: " << err << ")";
 }
 
-
-TEST_F(SdkTest, SdkLocalPath_leafOrParentName)
-{
-    char pathSep = LocalPath::localPathSeparator_utf8;
-
-    string rootName;
-    string rootDrive;
-#ifdef WIN32
-    rootName = "D";
-    rootDrive = rootName + ':';
-#endif
-
-    // "D:\\foo\\bar.txt" or "/foo/bar.txt"
-    LocalPath lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar.txt");
-    ASSERT_EQ(lp.leafOrParentName(), "bar.txt");
-
-    // "D:\\foo\\" or "/foo/"
-    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep);
-    ASSERT_EQ(lp.leafOrParentName(), "foo");
-
-    // "D:\\foo" or "/foo"
-    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo");
-    ASSERT_EQ(lp.leafOrParentName(), "foo");
-
-    // "D:\\" or "/"
-    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep);
-    ASSERT_EQ(lp.leafOrParentName(), rootName);
-
-#ifdef WIN32
-    // "D:"
-    lp = LocalPath::fromAbsolutePath(rootDrive);
-    ASSERT_EQ(lp.leafOrParentName(), rootName);
-
-    // "D"
-    lp = LocalPath::fromAbsolutePath(rootName);
-    ASSERT_EQ(lp.leafOrParentName(), rootName);
-
-    // Current implementation prevents the following from working correctly on *nix platforms
-
-    // "D:\\foo\\bar\\.\\" or "/foo/bar/./"
-    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + '.' + pathSep);
-    ASSERT_EQ(lp.leafOrParentName(), "bar");
-
-    // "D:\\foo\\bar\\." or "/foo/bar/."
-    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + '.');
-    ASSERT_EQ(lp.leafOrParentName(), "bar");
-
-    // "D:\\foo\\bar\\..\\" or "/foo/bar/../"
-    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + ".." + pathSep);
-    ASSERT_EQ(lp.leafOrParentName(), "foo");
-
-    // "D:\\foo\\bar\\.." or "/foo/bar/.."
-    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + "..");
-    ASSERT_EQ(lp.leafOrParentName(), "foo");
-#endif
-
-    // ".\\foo\\" or "./foo/"
-    lp = LocalPath::fromRelativePath(string(".") + pathSep + "foo" + pathSep);
-    ASSERT_EQ(lp.leafOrParentName(), "foo");
-
-    // ".\\foo" or "./foo"
-    lp = LocalPath::fromRelativePath(string(".") + pathSep + "foo");
-    ASSERT_EQ(lp.leafOrParentName(), "foo");
-}
-
 TEST_F(SdkTest, SdkSimpleCommands)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -9178,7 +9201,7 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // look for Device Name attr
     string deviceName;
-    bool deviceNameWasSetByCurrentTest = false;
+    [[maybe_unused]] bool deviceNameWasSetByCurrentTest = false;
     if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
         deviceName = "Jenkins " + timestamp;
@@ -10402,6 +10425,10 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     LOG_info << "___TEST RecursiveDownloadWithLogout";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+
     // this one used to cause a double-delete
 
     // make new folders (and files) in the local filesystem - approx 130 - we must upload in order to have something to download
@@ -10595,10 +10622,9 @@ TEST_F(SdkTest, FetchAds)
     // TODO: LOG_debug << "\t# Test suite 2: Fetching ads with containing-ads account";
 }
 
-#ifdef ENABLE_SYNC
-
 void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 {
+#ifdef ENABLE_SYNC
     unique_ptr<MegaSyncList> allSyncs{ megaApi->getSyncs() };
     for (int i = 0; i < allSyncs->size(); ++i)
     {
@@ -10613,6 +10639,7 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
             ASSERT_EQ(API_OK, rt2.waitForResult());
         }
     }
+#endif
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
     if (baseNode)
@@ -10638,6 +10665,10 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
     fs::remove_all(basePath, ignoredEc);
 
 }
+
+#ifdef ENABLE_SYNC
+
+using sdk_test::waitForSyncState;
 
 TEST_F(SdkTest, SyncBasicOperations)
 {
@@ -13237,7 +13268,9 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(),
+              numberTotalOfFolders - (removedFolder->getNumFolders() + 1))
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
 
     waitForResponse(&check2); // Wait until receive nodes updated at client 2
@@ -13250,7 +13283,9 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     // --- UserB Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(),
+              numberTotalOfFolders - (removedFolder->getNumFolders() + 1))
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
 
     unique_ptr<MegaNode> nodeToMove(megaApi[0]->getNodeByHandle(handleFolderToMove));
@@ -13278,19 +13313,26 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles() - movedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders() - movedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(),
+              numberTotalOfFolders - (removedFolder->getNumFolders() + 1) -
+                  (movedFolder->getNumFolders() + 1))
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize() - movedFolder->getCurrentSize()) << "Incorrect account Size";
 
     // --- UserB Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles() - movedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders() - movedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(),
+              numberTotalOfFolders - (removedFolder->getNumFolders() + 1) -
+                  (movedFolder->getNumFolders() + 1))
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize() - movedFolder->getCurrentSize()) << "Incorrect account Size";
 
     // --- UserA Check folder info from rubbish node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rubbishBinA.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), movedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), movedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), movedFolder->getNumFolders() + 1)
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), movedFolder->getCurrentSize()) << "Incorrect account Size";
 
     // --- UserB Check folder info from rubbish node ---
@@ -13298,7 +13340,8 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_TRUE(rubbishBinB);
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rubbishBinB.get())) << "Cannot get Folder Info";
     ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), movedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), movedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), movedFolder->getNumFolders() + 1)
+        << "Incorrect number of Folders";
     ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), movedFolder->getCurrentSize()) << "Incorrect account Size";
 
     ASSERT_NO_FATAL_FAILURE(locallogout());

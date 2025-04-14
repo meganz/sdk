@@ -22,13 +22,11 @@
 #ifndef MEGA_WIN32_OS_H
 #define MEGA_WIN32_OS_H 1
 
-#ifdef HAVE_CONFIG_H
 // platform dependent constants
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(HAVE_SDK_CONFIG_H)
 #include "mega/config-android.h"
 #else
 #include "mega/config.h"
-#endif
 #endif
 
 // FIXME: move to autoconf

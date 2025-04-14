@@ -60,12 +60,11 @@ struct TransferSlotStats
     double failedRequestRatio() const;
     // Time (ms) taken to establish a connection
     // Includes DNS resolution, TCP handshake.
-    double averageLatency() const;
+    double averageConnectTime() const;
     // Time (ms) taken to start receiving the first byte of data
     // Includes DNS resolution, TCP handshake,
     // SSL handshake, server-side processing.
-    // This value is used for logging information only.
-    m_off_t averageStartTransferTime() const;
+    double averageStartTransferTime() const;
 };
 } // namespace stats
 
@@ -212,6 +211,10 @@ private:
 
     // returns true if connection haven't received data recently (set incrementErrors) or if slower than other connections (reset incrementErrors)
     bool testForSlowRaidConnection(unsigned connectionNum, bool& incrementErrors);
+
+    // Log transfer stats and send to the client the specific transferslot stats that are used for
+    // aggregated comparison.
+    void processTransferStats();
 };
 
 } // namespace

@@ -27,6 +27,8 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_INC}/error_or_forward.h
                              ${FUSE_COMMON_INC}/expected.h
                              ${FUSE_COMMON_INC}/expected_forward.h
+                             ${FUSE_COMMON_INC}/file_move_flag.h
+                             ${FUSE_COMMON_INC}/file_move_flag_forward.h
                              ${FUSE_COMMON_INC}/file_open_flag.h
                              ${FUSE_COMMON_INC}/file_open_flag_forward.h
                              ${FUSE_COMMON_INC}/inode_cache_flags.h
@@ -104,6 +106,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_SRC}/client_adapter.cpp
                              ${FUSE_COMMON_SRC}/database.cpp
                              ${FUSE_COMMON_SRC}/date_time.cpp
+                             ${FUSE_COMMON_SRC}/file_move_flag.cpp
                              ${FUSE_COMMON_SRC}/inode_id.cpp
                              ${FUSE_COMMON_SRC}/inode_info.cpp
                              ${FUSE_COMMON_SRC}/log_level.cpp

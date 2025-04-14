@@ -294,6 +294,10 @@ enum class PasswordEntryError : uint8_t
     INVALID_TOTP_EXPT,
     MISSING_TOTP_HASH_ALG,
     INVALID_TOTP_HASH_ALG,
+    MISSING_CREDIT_CARD_NUMBER,
+    INVALID_CREDIT_CARD_NUMBER,
+    INVALID_CREDIT_CARD_CVV,
+    INVALID_CREDIT_CARD_EXPIRATION_DATE,
 };
 
 /**
@@ -465,7 +469,7 @@ public:
 
     virtual bool serialize(string*) const = 0;
 
-    uint32_t dbid = 0;
+    uint32_t dbid = 0; // exposed for active transfers via MegaTransfer::getUniqueId
     bool notified = false;
 };
 

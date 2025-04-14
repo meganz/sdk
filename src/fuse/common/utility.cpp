@@ -13,7 +13,22 @@ std::chrono::minutes defaultTimeout()
     return std::chrono::minutes(5);
 }
 
-std::string format(std::va_list arguments, const char* format)
+std::string format(const char* format, ...)
+{
+    assert(format);
+
+    std::va_list arguments;
+
+    va_start(arguments, format);
+
+    auto result = formatv(arguments, format);
+
+    va_end(arguments);
+
+    return result;
+}
+
+std::string formatv(std::va_list arguments, const char* format)
 {
     assert(format);
 
@@ -46,20 +61,6 @@ std::string format(std::va_list arguments, const char* format)
     return buffer;
 }
 
-std::string format(const char* format, ...)
-{
-    assert(format);
-
-    std::va_list arguments;
-
-    va_start(arguments, format);
-
-    auto result = fuse::format(arguments, format);
-
-    va_end(arguments);
-
-    return result;
-}
 
 } // fuse
 } // mega

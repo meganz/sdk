@@ -240,6 +240,10 @@ void editFileAndWaitForUploadScoped(MegaApi* const api,
  */
 class SdkTestSyncUploadThrottling: public SdkTestSyncNodesOperations
 {
+private:
+    static constexpr std::chrono::seconds DEFAULT_THROTTLE_UPDATE_RATE{60};
+    static constexpr unsigned DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE{2};
+
 public:
     static constexpr auto MAX_TIMEOUT{COMMON_TIMEOUT}; // Timeout for operations in this tests suite
 
@@ -282,30 +286,17 @@ public:
         const std::shared_ptr<UploadThrottlingManager>& uploadThrottlingManager,
         const std::shared_ptr<MockUploadThrottlingManager>& mockUploadThrottlingManager) const
     {
-        // 1) Retrieve throttle values.
-        const auto throttleValueLimits = uploadThrottlingManager->throttleValueLimits();
+        ASSERT_TRUE(uploadThrottlingManager->setThrottleUpdateRate(DEFAULT_THROTTLE_UPDATE_RATE));
 
-        // 2) Set the minimum values possible.
-        const auto throttleUpdateRate = throttleValueLimits.throttleUpdateRateLowerLimit;
-        const auto maxUploadsBeforeThrottle =
-            throttleValueLimits.maxUploadsBeforeThrottleLowerLimit;
-
-        ASSERT_TRUE(uploadThrottlingManager->setThrottleUpdateRate(throttleUpdateRate));
-        ASSERT_EQ(uploadThrottlingManager->throttleUpdateRate(),
-                  throttleValueLimits.throttleUpdateRateLowerLimit);
-
-        ASSERT_TRUE(uploadThrottlingManager->setMaxUploadsBeforeThrottle(maxUploadsBeforeThrottle));
-        ASSERT_EQ(uploadThrottlingManager->maxUploadsBeforeThrottle(),
-                  throttleValueLimits.maxUploadsBeforeThrottleLowerLimit);
+        ASSERT_TRUE(uploadThrottlingManager->setMaxUploadsBeforeThrottle(
+            DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE));
 
         LOG_debug << "[SdkTestSyncUploadThrottling] throttleUpdateRate: "
-                  << throttleUpdateRate.count()
-                  << " secs, maxUploadsBeforeThrottle: " << maxUploadsBeforeThrottle;
+                  << DEFAULT_THROTTLE_UPDATE_RATE.count()
+                  << " secs, maxUploadsBeforeThrottle: " << DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE;
 
-        // 3) Forward throttling methods from the mocked UTM to the real UTM.
         forwardThrottlingMethods(mockUploadThrottlingManager, uploadThrottlingManager);
 
-        // 4) Now set up the mock in the client.
         ASSERT_NO_FATAL_FAILURE(
             setThrottlingManager(megaApi[0]->getClient(), mockUploadThrottlingManager));
     }
@@ -955,21 +946,27 @@ TEST_F(SdkTestSyncUploadThrottling, UploadSeveralThrottledFiles)
         tempFile2->appendData(100);
     };
 
+    const size_t numQueuedFiles = 2;
+    const auto adjustedUpdateRateSecondsWithTwoQueuedFiles =
+        calcDynamicThrottleUpdateRate(updateRateSeconds, numQueuedFiles);
+
     // Wait config values for task 1.
     const auto uploadWaitConfigTask1 = std::invoke(
-        [&updateRateSeconds]() -> UploadWaitConfig
+        [&adjustedUpdateRateSecondsWithTwoQueuedFiles]() -> UploadWaitConfig
         {
             UploadWaitConfig uploadWaitConfig{};
-            uploadWaitConfig.minWaitForTransferStart = std::chrono::seconds(updateRateSeconds);
+            uploadWaitConfig.minWaitForTransferStart = adjustedUpdateRateSecondsWithTwoQueuedFiles;
             return uploadWaitConfig;
         });
 
     // Define wait config values for task 2.
     const auto uploadWaitConfigTask2 = std::invoke(
-        [&updateRateSeconds]() -> UploadWaitConfig
+        [&updateRateSeconds, &adjustedUpdateRateSecondsWithTwoQueuedFiles]() -> UploadWaitConfig
         {
             UploadWaitConfig uploadWaitConfig{};
-            uploadWaitConfig.minWaitForTransferStart = std::chrono::seconds(updateRateSeconds * 2);
+            uploadWaitConfig.minWaitForTransferStart =
+                std::chrono::seconds(adjustedUpdateRateSecondsWithTwoQueuedFiles +
+                                     updateRateSeconds - std::chrono::seconds(1));
             uploadWaitConfig.maxWaitForTransferStartFromMinWait =
                 UploadWaitConfig::TOLERANCE_SECONDS_FOR_STARTING_UPLOADS * 2;
             return uploadWaitConfig;

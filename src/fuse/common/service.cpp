@@ -131,7 +131,8 @@ MountResult Service::enable(const std::string& name,
     if (mContext)
         event.mResult = mContext->enable(name, remember);
 
-    mClient.emitEvent(event);
+    if (event.mResult != MOUNT_SUCCESS)
+        mClient.emitEvent(event);
 
     return event.mResult;
 }

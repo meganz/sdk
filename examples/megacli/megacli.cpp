@@ -2129,9 +2129,12 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                 break;
             }
             case FOLDERNODE:
-                if (n->isPasswordNode())            stream << "password entry";
-                else if (n->isPasswordNodeFolder()) stream << "password folder";
-                else                                stream << "folder";
+                if (n->isPasswordManagerNode())
+                    stream << "password manager node entry";
+                else if (n->isPasswordManagerNodeFolder())
+                    stream << "password folder";
+                else
+                    stream << "folder";
 
                 if (handles_on)
                 {
@@ -13103,16 +13106,14 @@ void exec_networktest(autocomplete::ACState&)
             if (e == API_OK)
             {
                 cout << "Network connectivity test:\n"
-                     << "\tIPv4 UDP: "
-                     << NetworkConnectivityTestStatusToString(results.ipv4.udpMessages) << '\n'
-                     << "\tIPv4 DNS: "
-                     << NetworkConnectivityTestStatusToString(results.ipv4.dnsLookupMessages)
+                     << "\tIPv4: " << NetworkConnectivityTestStatusToString(results.ipv4.messages)
+                     << '\n'
+                     << "\tIPv4 DNS: " << NetworkConnectivityTestStatusToString(results.ipv4.dns)
                      << '\n'
                      << "\tIPv4 summary: " << results.ipv4.summary << '\n'
-                     << "\tIPv6 UDP: "
-                     << NetworkConnectivityTestStatusToString(results.ipv6.udpMessages) << '\n'
-                     << "\tIPv6 DNS: "
-                     << NetworkConnectivityTestStatusToString(results.ipv6.dnsLookupMessages)
+                     << "\tIPv6: " << NetworkConnectivityTestStatusToString(results.ipv6.messages)
+                     << '\n'
+                     << "\tIPv6 DNS: " << NetworkConnectivityTestStatusToString(results.ipv6.dns)
                      << '\n'
                      << "\tIPv6 summary: " << results.ipv6.summary << endl;
             }
@@ -13482,7 +13483,12 @@ void exec_passwordmanager(autocomplete::ACState& s)
                                      s.extractflagparam("-n").value_or(""),
                                      totpDataJson.value_or(""));
 
-        if (const auto errCode = client->createPasswordNode(name, std::move(pwdData), nParent, 0);
+        if (const auto errCode =
+                client->createPasswordEntry(name,
+                                            std::move(pwdData),
+                                            MegaClient::validateNewPasswordNodeData,
+                                            nParent,
+                                            0);
             errCode != API_OK)
             std::cout << "Error before sending the putnodes. Code: " << errorstring(errCode)
                       << "\n";
@@ -13513,7 +13519,11 @@ void exec_passwordmanager(autocomplete::ACState& s)
             auto pwdData = createPwdData(std::string{pwd}, "", std::string{userName}, "", "");
             info[std::move(name)] = std::move(pwdData);
         }
-        if (const auto errCode = client->createPasswordNodes(std::move(info), nParent, 0);
+        if (const auto errCode =
+                client->createPasswordEntries(std::move(info),
+                                              MegaClient::validateNewPasswordNodeData,
+                                              nParent,
+                                              0);
             errCode != API_OK)
             std::cout << "Error before sending the putnodes. Code: " << errorstring(errCode)
                       << "\n";
@@ -13529,9 +13539,10 @@ void exec_passwordmanager(autocomplete::ACState& s)
             cout << "No node found with provided handle " << toNodeHandle(nh) << "\n";
             return;
         }
-        if (!pwdNode->isPasswordNode())
+        if (!pwdNode->isPasswordManagerNode())
         {
-            cout << "Node handle provided " << toNodeHandle(nh) << " isn't a Password Node's\n";
+            cout << "Node handle provided " << toNodeHandle(nh)
+                 << " isn't a Password Manager Node's\n";
             return;
         }
 

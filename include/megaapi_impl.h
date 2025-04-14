@@ -30,6 +30,7 @@
 #include "megaapi.h"
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 
 #define CRON_USE_LOCAL_TIME 1
@@ -606,6 +607,75 @@ constexpr int charToPubhashAlgorithm(const std::string_view alg)
 class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
+        class CCNDataPrivate: public MegaNode::CreditCardNodeData
+        {
+        public:
+            CCNDataPrivate(const char* cardNumber,
+                           const char* notes,
+                           const char* cardHolderName,
+                           const char* cvv,
+                           const char* expirationDate):
+                mCardNumber{charPtrToStrOpt(cardNumber)},
+                mNotes{charPtrToStrOpt(notes)},
+                mCardHolderName{charPtrToStrOpt(cardHolderName)},
+                mCvv{charPtrToStrOpt(cvv)},
+                mExpirationDate{charPtrToStrOpt(expirationDate)}
+            {}
+
+            void setCardNumber(const char* cardNumber) override
+            {
+                mCardNumber = charPtrToStrOpt(cardNumber);
+            }
+
+            void setNotes(const char* notes) override
+            {
+                mNotes = charPtrToStrOpt(notes);
+            }
+
+            void setCardHolderName(const char* cardHolderName) override
+            {
+                mCardHolderName = charPtrToStrOpt(cardHolderName);
+            }
+
+            void setCvv(const char* cvv) override
+            {
+                mCvv = charPtrToStrOpt(cvv);
+            }
+
+            void setExpirationDate(const char* expirationDate) override
+            {
+                mExpirationDate = charPtrToStrOpt(expirationDate);
+            }
+
+            const char* cardNumber() const override
+            {
+                return getConstCharPtr(mCardNumber);
+            }
+
+            const char* notes() const override
+            {
+                return getConstCharPtr(mNotes);
+            }
+
+            const char* cardHolderName() const override
+            {
+                return getConstCharPtr(mCardHolderName);
+            }
+
+            const char* cvv() const override
+            {
+                return getConstCharPtr(mCvv);
+            }
+
+            const char* expirationDate() const override
+            {
+                return getConstCharPtr(mExpirationDate);
+            }
+
+        private:
+            std::optional<std::string> mCardNumber, mNotes, mCardHolderName, mCvv, mExpirationDate;
+        };
+
     class PNDataPrivate : public MegaNode::PasswordNodeData
     {
     public:
@@ -933,7 +1003,10 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isExpired() override;
         bool isTakenDown() override;
         bool isForeign() override;
+        bool isCreditCardNode() const override;
         bool isPasswordNode() const override;
+        bool isPasswordManagerNode() const override;
+        CreditCardNodeData* getCreditCardData() const override;
         PasswordNodeData* getPasswordData() const override;
         std::string* getPrivateAuth();
         MegaNodeList *getChildren() override;
@@ -1568,6 +1641,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         int getMaxRetries() const override;
         unsigned getStage() const override;
         virtual int64_t getTime() const;
+        uint32_t getUniqueId() const override;
         int getTag() const override;
         long long getSpeed() const override;
         long long getMeanSpeed() const override;
@@ -3805,6 +3879,7 @@ class MegaApiImpl : public MegaApp
         void notifyTransfer(int transferTag, MegaTransferListener *listener = NULL);
         MegaTransferList *getTransfers();
         MegaTransferList *getStreamingTransfers();
+        MegaTransfer* getTransferByUniqueId(uint32_t transferUniqueId) const;
         MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
         MegaTransferList *getChildTransfers(int transferTag);
@@ -3905,9 +3980,9 @@ class MegaApiImpl : public MegaApp
 
     private:
         bool nodeInRubbishCheck(handle) const;
-        std::pair<bool, error> checkCreateFolderPrecons(const char* name,
-                                                        std::shared_ptr<Node> parent,
-                                                        MegaRequestPrivate* request);
+        error checkCreateFolderPrecons(const char* name,
+                                       std::shared_ptr<Node> parent,
+                                       MegaRequestPrivate* request);
 
         void sendUserfeedback(const int rating,
                               const char* comment,
@@ -4392,9 +4467,16 @@ public:
 
         // Password Manager
         void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
-        bool isPasswordNodeFolder(MegaHandle node) const;
+        bool isPasswordManagerNodeFolder(MegaHandle node) const;
+        void createCreditCardNode(const char* name,
+                                  const MegaNode::CreditCardNodeData* ccData,
+                                  const MegaHandle parentHandle,
+                                  MegaRequestListener* listener = nullptr);
         void createPasswordNode(const char *name, const MegaNode::PasswordNodeData *data,
                                 MegaHandle parent, MegaRequestListener *listener = nullptr);
+        void updateCreditCardNode(MegaHandle node,
+                                  const MegaNode::CreditCardNodeData* ccData,
+                                  MegaRequestListener* listener = nullptr);
         void updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,
                                 MegaRequestListener *listener = NULL);
         void importPasswordsFromFile(const char* filePath,
@@ -4749,7 +4831,7 @@ public:
         void transfer_complete(Transfer *) override;
         void transfer_removed(Transfer *) override;
 
-        File* file_resume(string*, direction_t *type) override;
+        File* file_resume(string*, direction_t* type, uint32_t) override;
 
         void transfer_prepare(Transfer*) override;
         void transfer_failed(Transfer*, const Error& error, dstime timeleft) override;
@@ -4929,7 +5011,9 @@ public:
 
         // Password Manager - private
         void createPasswordManagerBase(MegaRequestPrivate*);
-        std::unique_ptr<AttrMap> toPasswordNodeData(const MegaNode::PasswordNodeData* data) const;
+        std::unique_ptr<AttrMap>
+            toAttrMapCreditCard(const MegaNode::CreditCardNodeData* data) const;
+        std::unique_ptr<AttrMap> toAttrMapPassword(const MegaNode::PasswordNodeData* data) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderDownloadController;
@@ -5837,16 +5921,16 @@ private:
 class MegaNetworkConnectivityTestResultsPrivate: public MegaNetworkConnectivityTestResults
 {
 public:
-    MegaNetworkConnectivityTestResultsPrivate(int ipv4udp, int ipv4dns, int ipv6udp, int ipv6dns):
-        mIPv4UDP(ipv4udp),
+    MegaNetworkConnectivityTestResultsPrivate(int ipv4, int ipv4dns, int ipv6, int ipv6dns):
+        mIPv4(ipv4),
         mIPv4DNS(ipv4dns),
-        mIPv6UDP(ipv6udp),
+        mIPv6(ipv6),
         mIPv6DNS(ipv6dns)
     {}
 
     int getIPv4UDP() const override
     {
-        return mIPv4UDP;
+        return mIPv4;
     }
 
     int getIPv4DNS() const override
@@ -5856,7 +5940,7 @@ public:
 
     int getIPv6UDP() const override
     {
-        return mIPv6UDP;
+        return mIPv6;
     }
 
     int getIPv6DNS() const override
@@ -5867,9 +5951,9 @@ public:
     MegaNetworkConnectivityTestResultsPrivate* copy() const override;
 
 private:
-    const int mIPv4UDP;
+    const int mIPv4;
     const int mIPv4DNS;
-    const int mIPv6UDP;
+    const int mIPv6;
     const int mIPv6DNS;
 };
 

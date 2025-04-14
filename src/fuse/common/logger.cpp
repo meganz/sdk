@@ -26,7 +26,7 @@ std::runtime_error Logger::error(const char* filename,
     // Compute log message.
     va_start(arguments, line);
 
-    auto message = fuse::format(arguments, format);
+    auto message = formatv(arguments, format);
 
     va_end(arguments);
 
@@ -38,26 +38,6 @@ std::runtime_error Logger::error(const char* filename,
 
     // Return exception to caller.
     return exception;
-}
-
-void Logger::log(std::va_list arguments,
-                 const char* filename,
-                 const char* format,
-                 unsigned int line,
-                 unsigned int severity)
-{
-    // Sanity.
-    assert(format);
-
-    // Last minute severity check.
-    if (masked(static_cast<LogLevel>(severity)))
-        return;
-
-    // Emit log message.
-    log(filename,
-        fuse::format(arguments, format),
-        line,
-        severity);
 }
 
 void Logger::log(const char* filename,
@@ -111,9 +91,29 @@ void Logger::log(const char* filename,
     va_start(arguments, severity);
 
     // Emit log message.
-    log(arguments, filename, format, line, severity);
+    logv(arguments, filename, format, line, severity);
 
     va_end(arguments);
+}
+
+void Logger::logv(std::va_list arguments,
+                  const char* filename,
+                  const char* format,
+                  unsigned int line,
+                  unsigned int severity)
+{
+    // Sanity.
+    assert(format);
+
+    // Last minute severity check.
+    if (masked(static_cast<LogLevel>(severity)))
+        return;
+
+    // Emit log message.
+    log(filename,
+        formatv(arguments, format),
+        line,
+        severity);
 }
 
 void Logger::logLevel(LogLevel level)

@@ -208,13 +208,39 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, CreateNewPassNode)
     ASSERT_NE(newPwdNodeHandle, UNDEF);
     const std::unique_ptr<MegaNode> newPwdNode{mApi->getNodeByHandle(newPwdNodeHandle)};
     ASSERT_NE(newPwdNode, nullptr) << "New node could not be retrieved";
+    ASSERT_TRUE(newPwdNode->isPasswordManagerNode());
     ASSERT_TRUE(newPwdNode->isPasswordNode());
-    ASSERT_FALSE(mApi->isPasswordNodeFolder(newPwdNode->getHandle()));
+    ASSERT_FALSE(mApi->isPasswordManagerNodeFolder(newPwdNode->getHandle()));
 
     LOG_debug << logPre << "Validating node name and data";
     EXPECT_STREQ(newPwdNode->getName(), pwdNodeName.c_str());
     std::unique_ptr<PasswordNodeData> receivedPwdData{newPwdNode->getPasswordData()};
     EXPECT_THAT(receivedPwdData.get(), PasswordNodeDataEquals(predefinedPwdDataOwned()));
+}
+
+TEST_F(SdkTestPasswordManagerPassNodeCRUD, CreateNewPassNodeWithEmptyField)
+{
+    static const auto logPre = getLogPrefix();
+
+    auto pwdData = emptyPwdData();
+    pwdData->setPassword("ABCD");
+    pwdData->setNotes("");
+    const auto pwdNodeName = getFilePrefix();
+
+    LOG_debug << logPre << "Creating new Password Node";
+    const auto newPwdNodeHandle = createPasswordNode(pwdNodeName, pwdData.get());
+
+    LOG_debug << logPre << "Getting created Password Node";
+    ASSERT_NE(newPwdNodeHandle, UNDEF);
+    const std::unique_ptr<MegaNode> newPwdNode{mApi->getNodeByHandle(newPwdNodeHandle)};
+    ASSERT_NE(newPwdNode, nullptr) << "New node could not be retrieved";
+    ASSERT_TRUE(newPwdNode->isPasswordNode());
+
+    LOG_debug << logPre << "Validating node name and data";
+    EXPECT_STREQ(newPwdNode->getName(), pwdNodeName.c_str());
+    std::unique_ptr<PasswordNodeData> receivedPwdData{newPwdNode->getPasswordData()};
+    pwdData->setNotes(nullptr);
+    EXPECT_THAT(receivedPwdData.get(), PasswordNodeDataEquals(pwdData.get()));
 }
 
 TEST_F(SdkTestPasswordManagerPassNodeCRUD, CopyPassNode)
@@ -234,7 +260,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, CopyPassNode)
 
     LOG_debug << logPre << "Validating cloned node";
     ASSERT_TRUE(clonedNode->isPasswordNode());
-    ASSERT_FALSE(mApi->isPasswordNodeFolder(clonedNode->getHandle()));
+    ASSERT_FALSE(mApi->isPasswordManagerNodeFolder(clonedNode->getHandle()));
 
     EXPECT_STREQ(clonedNode->getName(), pwdNodeName.c_str());
     EXPECT_THAT(clonedPwdData.get(), PasswordNodeDataEquals(predefinedPwdDataOwned()));
@@ -258,11 +284,39 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, CreateErrorSameName)
 TEST_F(SdkTestPasswordManagerPassNodeCRUD, CreateErrorArgs)
 {
     static const auto logPre = getLogPrefix();
-    LOG_debug << logPre << "Creating a node with invalid arguments, expecting API_EARGS";
-    NiceMock<MockRequestListener> rl;
-    rl.setErrorExpectations(API_EARGS, _, MegaRequest::TYPE_CREATE_PASSWORD_NODE);
-    mApi->createPasswordNode(nullptr, nullptr, INVALID_HANDLE, &rl);
-    EXPECT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
+    {
+        LOG_debug << logPre
+                  << "#### Test1: Creating a node with invalid arguments, expecting API_EARGS ####";
+        NiceMock<MockRequestListener> rl;
+        rl.setErrorExpectations(API_EARGS, _, MegaRequest::TYPE_CREATE_PASSWORD_NODE);
+        mApi->createPasswordNode(nullptr, nullptr, INVALID_HANDLE, &rl);
+        EXPECT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    {
+        LOG_debug << logPre
+                  << "#### Test2: Creating a node with empty password, expecting API_EARGS ####";
+        NiceMock<MockRequestListener> rl;
+        const auto pwdData = predefinedPwdData();
+        pwdData->setPassword("");
+        rl.setErrorExpectations(API_EAPPKEY, _, MegaRequest::TYPE_CREATE_PASSWORD_NODE);
+        mApi->createPasswordNode(getFilePrefix().c_str(), pwdData.get(), getBaseHandle(), &rl);
+        EXPECT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
+
+    {
+        LOG_debug
+            << logPre
+            << "#### Test3: Creating a node with incomplete TOTP data, expecting API_EARGS ####";
+        NiceMock<MockRequestListener> rl;
+        const auto pwdData = predefinedPwdData();
+        const auto totpData = predefinedPwdTotpData();
+        totpData->setNdigits(TotpData::TOTPNULLOPT);
+        pwdData->setTotpData(totpData.get());
+        rl.setErrorExpectations(API_EAPPKEY, _, MegaRequest::TYPE_CREATE_PASSWORD_NODE);
+        mApi->createPasswordNode(getFilePrefix().c_str(), pwdData.get(), getBaseHandle(), &rl);
+        EXPECT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
+    }
 }
 
 TEST_F(SdkTestPasswordManagerPassNodeCRUD, GetPassNodeByHandle)
@@ -317,7 +371,23 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateChangeJustPwdFromSameData)
     validatePwdNodeData(newPwdNodeHandle, pwdData.get());
 }
 
-TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateChangeJustNotesFromEmtpyData)
+TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateChangeJustPwdToEmpty)
+{
+    static const auto logPre = getLogPrefix();
+    LOG_debug << logPre << "Creating a node";
+    const auto newPwdNodeHandle = createPasswordNode();
+    ASSERT_NE(newPwdNodeHandle, UNDEF);
+
+    LOG_debug << logPre << "Updating with empty data";
+    const auto emptyData = emptyPwdData();
+    emptyData->setPassword("");
+    NiceMock<MockRequestListener> rl;
+    rl.setErrorExpectations(API_EAPPKEY, _, MegaRequest::TYPE_UPDATE_PASSWORD_NODE);
+    mApi->updatePasswordNode(newPwdNodeHandle, emptyData.get(), &rl);
+    ASSERT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
+}
+
+TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateChangeJustNotesFromEmptyData)
 {
     static const auto logPre = getLogPrefix();
     LOG_debug << logPre << "Creating a node";
@@ -583,7 +653,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataWithWrongValues)
     };
     EXPECT_NO_FATAL_FAILURE(expectFailureOnPwdDataUpdate());
 
-    LOG_debug << logPre << "#### Test1: Update Totpdata with invalid Shared secret";
+    LOG_debug << logPre << "#### Test1: Update Totpdata with invalid Shared secret ####";
     pwdData = getCustomTotpData(emptyPwdData(),
                                 [](auto& totpData)
                                 {
@@ -591,7 +661,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataWithWrongValues)
                                 });
     EXPECT_NO_FATAL_FAILURE(expectFailureOnPwdDataUpdate());
 
-    LOG_debug << logPre << "#### Test2: Update Totpdata with invalid Ndigits";
+    LOG_debug << logPre << "#### Test2: Update Totpdata with invalid Ndigits ####";
     pwdData = getCustomTotpData(emptyPwdData(),
                                 [](auto& totpData)
                                 {
@@ -599,7 +669,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataWithWrongValues)
                                 });
     EXPECT_NO_FATAL_FAILURE(expectFailureOnPwdDataUpdate());
 
-    LOG_debug << logPre << "#### Test3: Update Totpdata with Ndigits equal Zero";
+    LOG_debug << logPre << "#### Test3: Update Totpdata with Ndigits equal Zero ####";
     pwdData = getCustomTotpData(emptyPwdData(),
                                 [](auto& totpData)
                                 {
@@ -607,7 +677,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataWithWrongValues)
                                 });
     EXPECT_NO_FATAL_FAILURE(expectFailureOnPwdDataUpdate());
 
-    LOG_debug << logPre << "#### Test4: Update Totpdata with expiration time equal Zero";
+    LOG_debug << logPre << "#### Test4: Update Totpdata with expiration time equal Zero ####";
     pwdData = getCustomTotpData(emptyPwdData(),
                                 [](auto& totpData)
                                 {
@@ -615,7 +685,7 @@ TEST_F(SdkTestPasswordManagerPassNodeCRUD, UpdateTotpDataWithWrongValues)
                                 });
     EXPECT_NO_FATAL_FAILURE(expectFailureOnPwdDataUpdate());
 
-    LOG_debug << logPre << "#### Test4: Update Totpdata with invalid hash algorithm";
+    LOG_debug << logPre << "#### Test4: Update Totpdata with invalid hash algorithm ####";
     pwdData = getCustomTotpData(emptyPwdData(),
                                 [](auto& totpData)
                                 {

@@ -5870,7 +5870,11 @@ bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
         fs::path fp = p / fs::u8path(filename);
 
         int fdtmp = openat(AT_FDCWD, p.c_str(), O_RDWR|O_CLOEXEC|O_TMPFILE, 0600);
-        write(fdtmp, filename.data(), filename.size());
+        if (const auto wrBytes = write(fdtmp, filename.data(), filename.size()); wrBytes < 0)
+        {
+            cerr << " Error writing file " << filename;
+            return false;
+        }
 
         stringstream fdproc;
         fdproc << "/proc/self/fd/";

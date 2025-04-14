@@ -655,7 +655,7 @@ std::string readFile(const Path& path)
     if (!istream)
         return std::string();
 
-    std::string buffer(size, '\0');
+    std::string buffer(static_cast<std::size_t>(size), '\0');
 
     istream.read(&buffer[0], static_cast<std::streamsize>(size));
 

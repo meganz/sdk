@@ -32,6 +32,7 @@
 #include "types.h"
 
 #include <memory>
+#include <optional>
 #include <variant>
 
 namespace mega {
@@ -2296,6 +2297,29 @@ public:
 
 private:
     Cb mCompletion;
+};
+
+class MEGA_API CommandSetThrottlingParams: public Command
+{
+public:
+    struct ThrottlingParamsFromAPI
+    {
+        m_off_t updateRateInSeconds{-1};
+        m_off_t maxUploadsBeforeThrottle{-1};
+        m_off_t uploadCounterInactivityTime{-1};
+    };
+
+    using ResultVariant = std::variant<Error, ThrottlingParamsFromAPI>;
+    using Completion = std::function<void(const ResultVariant&)>;
+
+    CommandSetThrottlingParams(const MegaClient&, Completion&& completion);
+    bool procresult(Result, JSON&) override;
+
+private:
+    static std::pair<bool /* parseOk */, std::optional<ThrottlingParamsFromAPI>>
+        parseJson(JSON& json);
+
+    Completion mCompletion;
 };
 
 } // namespace

@@ -36,6 +36,11 @@ class TransferStats
 {
 public:
     /**
+     * @brief A pair representing: <numTransfers, totalSize>.
+     */
+    using UncollectedTransfersCounters = std::pair<size_t, m_off_t>;
+
+    /**
      * @brief Structure that stores information about a single transfer.
      */
     struct TransferData
@@ -164,10 +169,26 @@ public:
         return mMaxAgeSeconds;
     }
 
+    /**
+     * @brief Get the number of transfers and accumulated transfer size that has not been collected
+     * and printed.
+     */
+    UncollectedTransfersCounters getUncollectedAndPrintedTransferData() const
+    {
+        return mUncollectedAndPrintedTransferData;
+    }
+
+    /**
+     * @brief Collect and print the metrics, and reset the uncollectedAndPrintedTransferData.
+     */
+    TransferStats::Metrics collectAndPrintMetrics(const direction_t type,
+                                                  const std::string& separator = "\n");
+
 private:
     std::deque<TransferData> mTransfersData; // Stores the recent transfer data.
     size_t mMaxEntries; // Maximum number of transfers to store.
     int64_t mMaxAgeSeconds; // Maximum age of a transfer before it's removed (in seconds).
+    UncollectedTransfersCounters mUncollectedAndPrintedTransferData{};
 };
 
 /**
@@ -179,6 +200,13 @@ private:
 class TransferStatsManager
 {
 public:
+    static constexpr size_t NUM_ENTRIES_FOR_LOGGING =
+        10; // Default number of entries in each stats collection to collect and log current
+            // metrics.
+    static constexpr m_off_t TOTAL_SIZE_FOR_LOGGING =
+        101 * 1024 * 1024; // Default accumulated size for all entries in each stats collection to
+                           // collect and log current metrics.
+
     /**
      * @brief Constructs a new TransferStatsManager object.
      *
@@ -224,7 +252,15 @@ public:
      * @param separator for each line of metrics values.
      */
     TransferStats::Metrics collectAndPrintMetrics(const direction_t type,
-                                                  const std::string& separator = "\n") const;
+                                                  const std::string& separator = "\n");
+
+    /**
+     * @brief Call collectAndPrintMetrics if getUncollectedAndPrintedTransferData() reached either
+     * NUM_ENTRIES_FOR_LOGGING or TOTAL_SIZE_FOR_LOGGING.
+     */
+    std::optional<TransferStats::Metrics>
+        collectAndPrintTransferStatsIfLimitReached(const direction_t type,
+                                                   const std::string& separator = "\n");
 
     /**
      * @brief Check the number of transfers included in the collection.
@@ -252,6 +288,12 @@ public:
      * @return The max number of seconds for a transfer to be kept in the collection.
      */
     int64_t getMaxAgeSeconds(const direction_t type) const;
+
+    /**
+     * @see TransferStats::getUncollectedAndPrintedTransferData()
+     */
+    TransferStats::UncollectedTransfersCounters
+        getUncollectedAndPrintedTransferData(const direction_t type) const;
 
 private:
     static constexpr size_t MAX_ENTRIES =

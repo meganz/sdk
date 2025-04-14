@@ -24,6 +24,8 @@
 
 #include <mega/types.h>
 
+#include <cstdint>
+
 // FUSE.
 #include <mega/fuse/common/mount_event_forward.h>
 
@@ -310,10 +312,16 @@ struct MEGA_API MegaApp
     virtual void storagesum_changed(int64_t /*newsum*/) {}
 
     // global transfer queue updates
-    virtual void file_added(File*) { }
-    virtual void file_removed(File*, const Error&) { }
-    virtual void file_complete(File*) { }
-    virtual File* file_resume(string*, direction_t*) { return NULL; }
+    virtual void file_added(File*) {}
+
+    virtual void file_removed(File*, const Error&) {}
+
+    virtual void file_complete(File*) {}
+
+    virtual File* file_resume(string*, direction_t*, uint32_t)
+    {
+        return NULL;
+    }
 
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }

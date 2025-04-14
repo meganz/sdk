@@ -284,7 +284,7 @@ CurlHttpIO::CurlHttpIO()
 #endif
     {
         LOG_debug << "Initializing OpenSSL locking callbacks";
-        int numLocks = CRYPTO_num_locks();
+        size_t numLocks = CRYPTO_num_locks();
         sslMutexes = new std::recursive_mutex*[numLocks];
         memset(sslMutexes, 0, numLocks * sizeof(std::recursive_mutex*));
 #if OPENSSL_VERSION_NUMBER >= 0x10000000  || defined (LIBRESSL_VERSION_NUMBER)
@@ -637,12 +637,15 @@ void CurlHttpIO::disconnect()
 
 bool CurlHttpIO::setmaxdownloadspeed(m_off_t bpslimit)
 {
+    LOG_debug << "[CurlHttpIO::setmaxdownloadspeed] Set max download speed to " << bpslimit
+              << " B/s";
     maxspeed[GET] = bpslimit;
     return true;
 }
 
 bool CurlHttpIO::setmaxuploadspeed(m_off_t bpslimit)
 {
+    LOG_debug << "[CurlHttpIO::setmaxuploadspeed] Set max upload speed to " << bpslimit << " B/s";
     maxspeed[PUT] = bpslimit;
     return true;
 }
@@ -2385,7 +2388,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
                                                  NID_commonName,
                                                  (char *)request->sslfakeissuer.data(),
                                                  int(request->sslfakeissuer.size()));
-            request->sslfakeissuer.resize(len > 0 ? len : 0);
+            request->sslfakeissuer.resize(len > 0 ? static_cast<size_t>(len) : 0);
             LOG_debug << "Fake certificate issuer: " << request->sslfakeissuer;
         }
     }

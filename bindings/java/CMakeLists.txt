@@ -24,7 +24,7 @@ set(CMAKE_SWIG_FLAGS -c++ -package "nz.mega.sdk" ${ADDITIONAL_SWIG_DEFINES} -I${
 
 # Generate java binding files
 swig_add_library(SDKJavaBindings
-    TYPE STATIC
+    TYPE USE_BUILD_SHARED_LIBS
     LANGUAGE java
     SOURCES ${SWIG_INTERFACE_FILE}
     OUTPUT_DIR ${JAVA_OUTPUT_DIR}

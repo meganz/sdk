@@ -181,18 +181,20 @@ string backupTypeToStr(BackupType type)
 void AddHiddenFileAttribute([[maybe_unused]] mega::LocalPath& path)
 {
 #ifdef _WIN32
+    auto pathStr{path.asPlatformEncoded(false)};
     WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (GetFileAttributesExW(path.localpath.data(), GetFileExInfoStandard, &fad))
-        SetFileAttributesW(path.localpath.data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
+    if (GetFileAttributesExW(pathStr.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW(pathStr.data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
 #endif
 }
 
 void RemoveHiddenFileAttribute([[maybe_unused]] mega::LocalPath& path)
 {
 #ifdef _WIN32
+    auto pathStr{path.asPlatformEncoded(false)};
     WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (GetFileAttributesExW(path.localpath.data(), GetFileExInfoStandard, &fad))
-        SetFileAttributesW(path.localpath.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+    if (GetFileAttributesExW(pathStr.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW(pathStr.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
 #endif
 }
 
@@ -3000,6 +3002,14 @@ std::string_view toString(const PasswordEntryError err)
             return "Missing totp hash alg";
         case PasswordEntryError::INVALID_TOTP_HASH_ALG:
             return "Invalid totp hash alg";
+        case PasswordEntryError::MISSING_CREDIT_CARD_NUMBER:
+            return "Missing credit card number";
+        case PasswordEntryError::INVALID_CREDIT_CARD_NUMBER:
+            return "Invalid credit card number";
+        case PasswordEntryError::INVALID_CREDIT_CARD_CVV:
+            return "Invalid credit card cvv (card validation value)";
+        case PasswordEntryError::INVALID_CREDIT_CARD_EXPIRATION_DATE:
+            return "Invalid credit card expiration date";
     }
     assert(false);
     return "Unknown error";

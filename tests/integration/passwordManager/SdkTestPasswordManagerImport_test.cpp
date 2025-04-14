@@ -21,12 +21,6 @@ class SdkTestPasswordManagerImport: public SdkTestPasswordManager
 public:
     static constexpr auto MAX_TIMEOUT{3min};
 
-    void TearDown() override
-    {
-        purgeTree(0, mPwmBaseNode.get(), false);
-        SdkTestPasswordManager::TearDown();
-    }
-
     using BadEntries = std::map<std::string, int64_t>;
     using ImportPassFileResult = std::variant<long long, BadEntries>;
 
@@ -88,29 +82,6 @@ public:
         if (!list)
             return {};
         return toNamesVector(*list);
-    }
-
-private:
-    std::unique_ptr<MegaNode> mPwmBaseNode;
-
-    void initPasswordManagerBase()
-    {
-        testing::NiceMock<MockRequestListener> rl{megaApi[0].get()};
-        handle baseHandle{UNDEF};
-        EXPECT_CALL(rl, onRequestFinish)
-            .WillOnce(
-                [&baseHandle, &rl](MegaApi*, MegaRequest* req, MegaError* err)
-                {
-                    baseHandle = req->getNodeHandle();
-                    rl.markAsFinished(err->getErrorCode() == API_OK);
-                });
-        RequestTracker rtPasswordManagerBase(megaApi[0].get());
-        megaApi[0]->getPasswordManagerBase(&rl);
-        ASSERT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
-
-        ASSERT_NE(baseHandle, UNDEF);
-        mPwmBaseNode.reset(megaApi[0]->getNodeByHandle(baseHandle));
-        ASSERT_TRUE(mPwmBaseNode);
     }
 };
 

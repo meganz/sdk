@@ -3,10 +3,12 @@ find_path(FUSE_INCLUDE_DIR
           HINTS
           $ENV{FUSE_PREFIX}
           PATH_SUFFIXES
+          include/fuse3
           include/fuse
 )
 
 find_library(FUSE_LIBRARY
+             libfuse3.so
              libfuse.dylib
              libfuse.so
              HINTS
@@ -45,8 +47,18 @@ if (FUSE_INCLUDE_DIR AND FUSE_LIBRARY)
         target_include_directories(FUSE INTERFACE ${FUSE_INCLUDE_DIRS})
     endif()
 
-    file(READ "${FUSE_INCLUDE_DIR}/fuse_common.h" CONTENT)
+    # Assume we've found libfuse 3.x.
+    set(FUSE_VERSION_PATH "${FUSE_INCLUDE_DIR}/libfuse_config.h")
 
+    # We've actually found libfuse 2.x.
+    if (NOT EXISTS "${FUSE_VERSION_PATH}")
+        set(FUSE_VERSION_PATH "${FUSE_INCLUDE_DIR}/fuse_common.h")
+    endif()
+
+    # Read the version file.
+    file(READ "${FUSE_VERSION_PATH}" CONTENT)
+
+    # Parse version.
     string(REGEX REPLACE ".*#define FUSE_MAJOR_VERSION +([0-9]+).*$"
                          "\\1"
                          FUSE_VERSION_MAJOR
@@ -59,7 +71,12 @@ if (FUSE_INCLUDE_DIR AND FUSE_LIBRARY)
                          ${CONTENT}
     )
 
+    # Latch full version.
     set(FUSE_VERSION "${FUSE_VERSION_MAJOR}.${FUSE_VERSION_MINOR}")
+
+    # Cleanup after ourselves.
+    unset(CONTENT)
+    unset(FUSE_VERSION_PATH)
 endif()
 
 include(FindPackageHandleStandardArgs)
