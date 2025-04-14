@@ -1732,7 +1732,6 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
                         break;
                     }
 
-                    ptr++;
                     continue;
                 }
 
