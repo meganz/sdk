@@ -19,8 +19,6 @@
 
 #include <mega/logging.h>
 
-#ifdef NOT_REALLY_NEEDED_BECAUSE_WE_EXERCISE_IT_ALL_THE_TIME_ANYWAY
-
 #ifdef ENABLE_LOG_PERFORMANCE
 namespace {
 
@@ -516,8 +514,6 @@ TEST(Logging, macroFatal)
         EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
     }
 }
-
-#endif
 
 TEST(Logging, Extract_file_name_from_full_path)
 {
