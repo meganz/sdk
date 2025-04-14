@@ -327,7 +327,7 @@ protected:
         string folderName;
 
         // Only figure out the fs type per folder (and on the worker thread), as it is expensive
-		FileSystemType fsType;
+        FileSystemType fsType{FileSystemType::FS_UNKNOWN};
 
         // If there is already a cloud node with this name for this parent, this is set
         // It also becomes set after we have created a cloud node for this folder
