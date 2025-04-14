@@ -875,6 +875,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         }
     }
 
+    req->outpos = 0;
+
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
     httpctx->posturl = req->posturl;
 
