@@ -38,10 +38,6 @@
 #include "mega/transfer.h"
 #include "mega/user_attribute.h"
 
-#ifdef __ANDROID__
-#include "mega/android/androidFileSystem.h"
-#endif
-
 namespace mega {
 
 const int Sync::SCANNING_DELAY_DS = 5;

@@ -65,13 +65,11 @@ public:
     virtual void append(const LocalPath& additionalPath) = 0;
     virtual void appendWithSeparator(const LocalPath& additionalPath,
                                      const bool separatorAlways) = 0;
-
     virtual void prependWithSeparator(const LocalPath& additionalPath) = 0;
     virtual LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const = 0;
     virtual void trimNonDriveTrailingSeparator() = 0;
     virtual bool findPrevSeparator(size_t& separatorBytePos,
                                    const FileSystemAccess& fsaccess) const = 0;
-
     virtual bool beginsWithSeparator() const = 0;
     virtual bool endsInSeparator() const = 0;
 
@@ -86,7 +84,6 @@ public:
 
     virtual bool isContainingPathOf(const LocalPath& path,
                                     size_t* subpathIndex = nullptr) const = 0;
-
     virtual bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const = 0;
     virtual bool hasNextPathComponent(const size_t index) const = 0;
 
@@ -105,9 +102,6 @@ public:
 
     virtual std::unique_ptr<AbstractLocalPath> clone() const = 0;
     virtual PathType getPathType() const = 0;
-
-    virtual std::string serialize() const = 0;
-    virtual bool unserialize(const std::string& data) = 0;
 };
 
 /**
@@ -120,13 +114,10 @@ class MEGA_API PlatformURIHelper
 {
 public:
     virtual ~PlatformURIHelper(){};
-    // Returns true if string is an URI
+    // Returns true if string is a URI
     virtual bool isURI(const string_type& URI) = 0;
     // Returns the name of file/directory pointed by the URI
-    virtual std::optional<string_type> getName(const string_type& uri) = 0;
-    // Returns parent URI if it's available
-    virtual std::optional<string_type> getParentURI(const string_type& uri) = 0;
-    virtual std::optional<string_type> getPath(const string_type& uri) = 0;
+    virtual string_type getName(const string_type& uri) = 0;
 };
 
 /**
@@ -143,12 +134,7 @@ public:
     static bool isURI(const string_type& uri);
 
     // Retrieve the name for a given path or URI
-    static std::optional<string_type> getName(const string_type& uri);
-
-    // Retrieve the name for a given path or URI
-    static std::optional<string_type> getParentURI(const string_type& uri);
-
-    static std::optional<string_type> getPath(const string_type& uri);
+    static string_type getName(const string_type& uri);
 
     // platformHelper should be kept alive during all program execution and ownership isn't taken
     static void setPlatformHelper(PlatformURIHelper* platformHelper);
@@ -219,7 +205,6 @@ public:
     // file path.
     static LocalPath fromPlatformEncodedAbsolute(const std::string& localname);
     static LocalPath fromPlatformEncodedRelative(const std::string& localname);
-
 #ifdef WIN32
     static LocalPath fromPlatformEncodedAbsolute(std::wstring&& localname);
     static LocalPath fromPlatformEncodedRelative(std::wstring&& localname);
@@ -257,9 +242,6 @@ public:
         }
         return false;
     }
-
-    std::string serialize() const;
-    static std::optional<LocalPath> unserialize(const std::string& d);
 
     bool operator==(const LocalPath& p) const;
     bool operator!=(const LocalPath& p) const;
@@ -310,8 +292,6 @@ public:
     void trimNonDriveTrailingSeparator();
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     bool beginsWithSeparator() const;
-
-    // For URIS, returns true if it's only a URI without any appended leaf
     bool endsInSeparator() const;
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
@@ -351,7 +331,6 @@ public:
     //
     // On Windows systems, this predicate returns true if and only if the
     // path specifies a drive such as C:\.
-    // For URIs, root path is consider if LocalPath doesn't contain any leaf
     bool isRootPath() const;
 
     bool extension(std::string& extension) const;
