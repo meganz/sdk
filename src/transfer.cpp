@@ -243,14 +243,14 @@ bool Transfer::serialize(string *d) const
 
     // 8 expansion flags, in the normal manner.  First flag is for whether downloadFileHandle is
     // present Second Flag is for marking if localfilename is serialized as LocalPath
-    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1, 1);
+    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1, 1, 1);
 
     if (!downloadFileHandle.isUndef())
     {
         cw.serializeNodeHandle(downloadFileHandle);
     }
 
-    d->append(reinterpret_cast<const char*>(&discardedTempUrlsSize), sizeof(discardedTempUrlsSize));
+    cw.serializeu8(discardedTempUrlsSize);
 
 #ifdef DEBUG
     // very quick debug only double check
@@ -318,9 +318,9 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     if ((hasUltoken && !r.unserializebinary(t->ultoken->data(), UPLOADTOKENLEN)) ||
         !r.unserializestring(combinedUrls) || !r.unserializei8(state) ||
         !r.unserializeu64(t->priority) || !r.unserializei8(version) ||
-        (version > 0 && !r.unserializeexpansionflags(expansionflags, 2)) ||
+        (version > 0 && !r.unserializeexpansionflags(expansionflags, 3)) ||
         (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)) ||
-        !r.unserializeu8(t->discardedTempUrlsSize))
+        (expansionflags[2] && !r.unserializeu8(t->discardedTempUrlsSize)))
     {
         LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
         return nullptr;
