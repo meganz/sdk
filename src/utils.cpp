@@ -708,6 +708,50 @@ void chunkmac_map::copyEntriesTo(chunkmac_map& other)
     }
 }
 
+m_off_t chunkmac_map::copyEntriesToUntilRaidlineBeforePos(m_off_t maxPos, chunkmac_map& other)
+{
+    static constexpr auto logPre = "[chunkmac_map::copyEntriesToUntilRaidlineBeforePos] ";
+
+    maxPos = ChunkedHash::chunkfloor(maxPos);
+    while (maxPos > 0 && (maxPos % RAIDLINE != 0))
+    {
+        LOG_debug << logPre << "Wrong maxPos not padded to RAIDLINE: maxPos = " << maxPos
+                  << ", RAIDLINE = " << RAIDLINE << ", mod = " << (maxPos % RAIDLINE);
+        maxPos -= (maxPos % RAIDLINE);
+        maxPos = ChunkedHash::chunkfloor(maxPos);
+        if (maxPos % RAIDLINE != 0)
+        {
+            LOG_debug << logPre << "maxPos still not padded to RAIDLINE: pos = " << maxPos
+                      << ", RAIDLINE = " << RAIDLINE << ", mod = " << (maxPos % RAIDLINE);
+        }
+    }
+
+    LOG_debug << logPre << "Final maxPos = " << maxPos;
+
+    if (maxPos == 0)
+        return 0;
+
+    for (auto& e: mMacMap)
+    {
+        if (e.first >= maxPos)
+        {
+            LOG_debug << logPre << "chunk (" << e.first << ") exceeding maxPos (maxPos = " << maxPos
+                      << "), break";
+            break;
+        }
+        if (!e.second.finished)
+        {
+            LOG_debug << logPre << "chunk (" << e.first
+                      << ") not finished (offset = " << e.second.offset << ") (maxPos = " << maxPos
+                      << "), break";
+            break;
+        }
+        other.mMacMap[e.first] = e.second;
+    }
+
+    return maxPos;
+}
+
 void chunkmac_map::copyEntryTo(m_off_t pos, chunkmac_map& other)
 {
     assert(pos > macsmacSoFarPos);

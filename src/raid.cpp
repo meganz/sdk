@@ -488,6 +488,10 @@ m_off_t RaidBufferManager::raidPartSize(unsigned part, m_off_t filesize)
     return (filesize - r) / EFFECTIVE_RAIDPARTS + t;
 }
 
+m_off_t RaidBufferManager::offsetToRaidLine(const m_off_t offset)
+{
+    return offset % RAIDLINE;
+}
 
 void RaidBufferManager::combineRaidParts(unsigned connectionNum)
 {
@@ -951,6 +955,16 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
         {
             if (isNewRaid())
             {
+                if (const auto posOffsetToRaidLine = offsetToRaidLine(transfer->pos);
+                    posOffsetToRaidLine)
+                {
+                    LOG_err << "Wrong transfer->pos for new raid, not padded to RAIDLINE: "
+                               "transfer->pos = "
+                            << transfer->pos << ", RAIDLINE = " << RAIDLINE
+                            << ", mod = " << posOffsetToRaidLine;
+                    return std::make_pair(-1, -1);
+                }
+
                 // We need to adjust the size taking into account that our RaidReqs will be split into 5 requests (one for each part)
                 // Besides, we need that the RaidReqs (except for the last one) are padded to a RAIDLINE
                 m_off_t defaultMaxReqSize = static_cast<m_off_t>((TransferSlot::MAX_REQ_SIZE_NEW_RAID) * EFFECTIVE_RAIDPARTS);
@@ -1003,11 +1017,17 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
         }
         // Calc npos limit depending on the maxReqSize, the next processed piece and the transfer size.
         npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
-        if (isNewRaid() && (npos < transfer->size) && ((npos - transfer->pos) % RAIDLINE != 0))
+        if (isNewRaid() && (npos < transfer->size))
         {
-            LOG_err << "Wrong chunk size for new raid, not padded to RAIDLINE: pos = " << transfer->pos << ", npos = " << npos << ", size = " << (npos-transfer->pos) << ", RAIDLINE = " << RAIDLINE << ", mod = " << ((npos-transfer->pos)%RAIDLINE);
-            assert(false);
-            return std::make_pair(0, 0);
+            if (const auto chunkSize = (npos - transfer->pos),
+                chunkOffsetToRaidLine = offsetToRaidLine(chunkSize);
+                chunkOffsetToRaidLine)
+            {
+                LOG_err << "Wrong chunk size for new raid, not padded to RAIDLINE: pos = "
+                        << transfer->pos << ", npos = " << npos << ", chunk size = " << chunkSize
+                        << ", RAIDLINE = " << RAIDLINE << ", mod = " << chunkOffsetToRaidLine;
+                return std::make_pair(-1, -1);
+            }
         }
         LOG_debug << std::string(transfer->type == PUT ? "Uploading" :
                                 transfer->type == GET ? "Downloading" : "?")

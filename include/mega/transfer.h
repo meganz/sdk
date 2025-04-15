@@ -177,6 +177,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // temp URLs for upload/download data.  They can be cached.  For uploads, a new url means any previously uploaded data is abandoned.
     // downloads can have 6 for raid, 1 for non-raid.  Uploads always have 1
     std::vector<string> tempurls;
+    uint8_t discardedTempUrlsSize{};
+    static constexpr m_time_t TEMPURL_TIMEOUT_TS{172500};
 
     // context of the async fopen operation
     unique_ptr<AsyncIOContext> asyncopencontext;
@@ -217,6 +219,11 @@ struct MEGA_API Transfer : public FileFingerprint
     bool addTransferStats();
 
     void collectAndPrintTransferStatsIfLimitReached();
+
+    void discardTempUrlsIfNoDataDownloadedOrTimeoutReached(const direction_t transferDirection,
+                                                           const m_time_t currentTime);
+
+    void adjustNonRaidedProgressIfNowIsRaided();
 
 private:
     FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);

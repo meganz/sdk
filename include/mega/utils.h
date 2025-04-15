@@ -496,6 +496,7 @@ public:
     m_off_t updateContiguousProgress(m_off_t fileSize);
     void updateMacsmacProgress(SymmCipher *cipher);
     void copyEntriesTo(chunkmac_map& other);
+    m_off_t copyEntriesToUntilRaidlineBeforePos(m_off_t maxPos, chunkmac_map& other);
     void copyEntryTo(m_off_t pos, chunkmac_map& other);
     void debugLogOuputMacs();
 
