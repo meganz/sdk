@@ -2847,7 +2847,7 @@ private:
 // JourneyID and ViewID
 //
     // JourneyID for cs API requests and log events
-    std::unique_ptr<JourneyID> mJourneyId;
+    JourneyID mJourneyId;
 
 public:
 
