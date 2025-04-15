@@ -1,0 +1,13 @@
+diff --git a/lib/arm/cpu_features.h b/lib/arm/cpu_features.h
+index dc9ab8a..89bff65 100644
+--- a/lib/arm/cpu_features.h
++++ b/lib/arm/cpu_features.h
+@@ -189,7 +189,7 @@ static inline u32 get_arm_cpu_features(void) { return 0; }
+ #  define HAVE_DOTPROD(features)       ((features) & ARM_CPU_FEATURE_DOTPROD)
+ #endif
+ #if defined(ARCH_ARM64) && HAVE_NEON_INTRIN && \
+-       (GCC_PREREQ(8, 1) || CLANG_PREREQ(7, 0, 10010000) || defined(_MSC_VER))
++       (GCC_PREREQ(8, 1) || CLANG_PREREQ(7, 0, 10010000) || (defined(_MSC_VER) && _MSC_VER >= 1940))
+ #  define HAVE_DOTPROD_INTRIN  1
+    /*
+     * Use an inline assembly fallback for clang 15 and earlier, which only
