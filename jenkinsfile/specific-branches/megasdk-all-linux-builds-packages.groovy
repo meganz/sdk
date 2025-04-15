@@ -134,7 +134,7 @@ pipeline {
                         } 
                         axis { 
                             name 'DISTRO'; 
-                            values  'DEB_Arch_Extra'
+                            values  'DEB_Arch_Extra','Debian_11','xUbuntu_20.04'
                         }
                     }
                 }
