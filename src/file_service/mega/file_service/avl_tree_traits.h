@@ -51,7 +51,7 @@ public:
     }
 
     template<typename NodeType>
-    static auto& key(const NodeType& node)
+    static auto& key(NodeType& node)
     {
         return node.*Traits::mKeyPointer;
     }
@@ -143,14 +143,14 @@ class MetadataTraits<Traits, std::void_t<decltype(Traits::mMetadataPointer)>>
                                         const MetadataType*,
                                         const MetadataType*>);
 
+public:
+    using NodeType = typename MetadataPointerTraits::class_type;
+
     template<typename NodeType>
     static auto& metadata(NodeType& node)
     {
         return node.*Traits::mMetadataPointer;
     }
-
-public:
-    using NodeType = typename MetadataPointerTraits::class_type;
 
     template<typename LinkTraits, typename NodeType>
     static void update(NodeType& node)

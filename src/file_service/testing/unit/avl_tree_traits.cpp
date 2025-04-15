@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <mega/file_service/avl_tree_traits.h>
+#include <mega/file_service/testing/unit/avl_node.h>
 
 #include <functional>
 
@@ -7,25 +8,6 @@ namespace mega
 {
 namespace file_service
 {
-
-struct Node
-{
-    Node(int key):
-        mLink{},
-        mKey{key},
-        mSize{}
-    {}
-
-    AVLTreeNode<Node> mLink;
-    int mKey;
-    int mSize;
-}; // Node
-
-struct Traits
-{
-    static constexpr auto mKeyPointer = &Node::mKey;
-    static constexpr auto mLinkPointer = &Node::mLink;
-}; // Traits
 
 TEST(AVLTreeKeyTraits, compare)
 {
@@ -157,16 +139,6 @@ TEST(AVLTreeLinkTraits, right)
 
     EXPECT_EQ(n0.mLink.mChildren[1], nullptr);
 }
-
-struct TraitsWithMetadata: Traits
-{
-    static constexpr auto mMetadataPointer = &Node::mSize;
-
-    static int update(const int* lhs, const int* rhs)
-    {
-        return (lhs ? *lhs : 0) + (rhs ? *rhs : 0) + 1;
-    }
-}; // TraitsWithMetadata
 
 TEST(AVLTreeMetadataTraits, update)
 {
