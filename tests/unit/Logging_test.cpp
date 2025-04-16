@@ -155,13 +155,12 @@ TEST(Logging, performanceMode_DirectMessagesChained)
             return message1;
         };
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line}
-            << mega::DirectMessage{message1.data()} << mega::DirectMessage{chainedF().data()};
-        ASSERT_EQ(5, logger.mMessage.size());
+            << mega::DirectMessage{message1.data()} << chainedF().data();
+        ASSERT_EQ(4, logger.mMessage.size());
         ASSERT_EQ(message1, logger.mMessage[0]);
         ASSERT_EQ(message2, logger.mMessage[1]);
         ASSERT_EQ(" [file.cpp:14]", logger.mMessage[2]);
-        ASSERT_EQ(message1, logger.mMessage[3]);
-        ASSERT_EQ(" [file.cpp:13]", logger.mMessage[4]);
+        ASSERT_EQ(message1 + " [file.cpp:13]", logger.mMessage[3]);
     }
 }
 
