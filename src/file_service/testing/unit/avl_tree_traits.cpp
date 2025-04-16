@@ -25,7 +25,7 @@ TEST(AVLTreeKeyTraits, custom_compare)
 {
     struct TraitsWithCustomCompare: Traits
     {
-        using compare = std::greater<int>;
+        using Compare = std::greater<int>;
     }; // TraitsWithCustomCompare
 
     using KT = detail::KeyTraits<TraitsWithCustomCompare>;

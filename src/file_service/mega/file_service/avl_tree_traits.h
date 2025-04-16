@@ -13,7 +13,7 @@ namespace detail
 {
 
 template<typename Traits>
-using DetectCompareType = typename Traits::compare;
+using DetectCompareType = typename Traits::Compare;
 
 template<typename Traits>
 using DetectKeyPointer = decltype(Traits::mKeyPointer);
