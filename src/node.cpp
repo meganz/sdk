@@ -35,7 +35,12 @@
 #include "mega/transferslot.h"
 #include "megafs.h"
 
-namespace mega {
+#ifdef __ANDROID__
+#include "mega/android/androidFileSystem.h"
+#endif
+
+namespace mega
+{
 
 const vector<string> Node::attributesToCopyIntoPreviousVersions{
     "fav",
@@ -3512,7 +3517,12 @@ auto LocalNode::WatchHandle::operator=(std::nullptr_t) -> WatchHandle&
 
     auto& node = *mEntry->second.first;
     auto& sync = *node.sync;
-    auto& notifier = static_cast<LinuxDirNotify&>(*sync.dirnotify);
+    auto& notifier =
+#ifndef __ANDROID__
+        static_cast<LinuxDirNotify&>(*sync.dirnotify);
+#else
+        static_cast<AndroidDirNotify&>(*sync.dirnotify);
+#endif
 
     notifier.removeWatch(mEntry);
     invalidate();
@@ -3547,7 +3557,12 @@ WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
     }
 
     // Get our hands on the notifier.
-    auto& notifier = static_cast<LinuxDirNotify&>(*sync->dirnotify);
+    auto& notifier =
+#ifndef __ANDROID__
+        static_cast<LinuxDirNotify&>(*sync->dirnotify);
+#else
+        static_cast<AndroidDirNotify&>(*sync->dirnotify);
+#endif
 
     // Add the watch.
     auto result = notifier.addWatch(*this, path, fsid);
