@@ -24,6 +24,7 @@
 
 #include <cstdint>
 #include <inttypes.h>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -6093,6 +6094,7 @@ public:
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
         EVENT_CONFIRM_USER_EMAIL        = 20, // Ephemeral account confirmed the associated email
         EVENT_CREDIT_CARD_EXPIRY        = 21, // Credit card is due to expire soon or when a new card is registered
+        EVENT_NETWORK_ACTIVITY = 22,
     };
 
     enum
@@ -6105,6 +6107,29 @@ public:
         REASON_ERROR_DB_INDEX_OVERFLOW          = 4,    // Index used to primary key at db overflow
         REASON_ERROR_NO_JSCD = 5, // No JSON Sync Config Data
         REASON_ERROR_REGENERATE_JSCD = 6, // JSON Sync Config Data has been regenerated
+    };
+
+    /**
+     * @brief Direction of a network activity for EVENT_NETWORK_ACTIVITY.
+     *
+     * Maps 1:1 with the internal enum of the same name in types.h
+     */
+    enum NetworkActivityChannel
+    {
+        SC = 0, // Server to client channel
+        CS = 1, // Client to server channel
+    };
+
+    /**
+     * @brief Type of network activity for EVENT_NETWORK_ACTIVITY.
+     *
+     * Maps 1:1 with the internal enum of the same name in types.h
+     */
+    enum NetworkActivityType
+    {
+        REQUEST_SENT = 0,
+        REQUEST_RECEIVED = 1,
+        REQUEST_ERROR = 2,
     };
 
     virtual ~MegaEvent();
@@ -6175,6 +6200,19 @@ public:
      * @return Readable description of the event
      */
     virtual const char* getEventString() const;
+
+    /**
+     * @brief Returns a numeric value associated with the specified key for this event.
+     *
+     * This method allows accessing multiple named numeric values that may be associated
+     * with the event.
+     *
+     * @param key The key identifying the numeric data.
+     *
+     * @return An optional containing the numeric value corresponding to the provided key,
+     *         or an empty optional if not available.
+     */
+    virtual std::optional<int64_t> getNumber(const std::string& key) const;
 };
 
 /**
@@ -9232,6 +9270,14 @@ class MegaGlobalListener
          * has been registered. After receiving this event, app should call to
          * MegaApi::fetchCreditCardInfo to receive info about credit card
          *
+         * - MegaEvent::EVENT_NETWORK_ACTIVITY: Some network activity on the SC or CS channel is
+         * being notified.
+         * For this event type:
+         *  - MegaEvent::getNumber("channel") returns the channel where the activity happened.
+         *  - MegaEvent::getNumber("activity_type") returns the type of network activity.
+         *  - MegaEvent::getNumber("error_code") returns the error code
+         *    or status number associated with the activity.
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -9863,6 +9909,14 @@ class MegaListener
      *
      * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may
      * have reappeared. Please tread carefully.
+     *
+     * - MegaEvent::EVENT_NETWORK_ACTIVITY: Some network activity on the SC or CS channel is
+     * being notified.
+     * For this event type:
+     *  - MegaEvent::getNumber("channel") returns the channel where the activity happened.
+     *  - MegaEvent::getNumber("activity_type") returns the type of network activity.
+     *  - MegaEvent::getNumber() or MegaEvent::getNumber("default") returns the error code
+     *    or status number associated with the activity.
      *
      * @param api MegaApi object connected to the account
      * @param event Details about the event

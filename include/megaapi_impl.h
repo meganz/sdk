@@ -2283,19 +2283,22 @@ public:
     const char *getText() const override;
     int64_t getNumber() const override;
     MegaHandle getHandle() const override;
-    const char *getEventString() const override;
+    const char* getEventString() const override;
+    std::optional<int64_t> getNumber(const std::string& key) const override;
 
     std::string getValidDataToString() const;
     static const char* getEventString(int type);
 
     void setText(const char* newText);
     void setNumber(int64_t newNumber);
-    void setHandle(const MegaHandle &handle);
+    void setHandle(const MegaHandle& handle);
+    void setNumber(const std::string& key, int64_t value);
 
 protected:
     int type;
     const char* text = nullptr;
     int64_t number = -1;
+    std::map<std::string, int64_t> numberMap;
     MegaHandle mHandle = INVALID_HANDLE;
 };
 
@@ -5014,6 +5017,10 @@ public:
         void sendPendingRequests();
         unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr, m_off_t availableDiskSpace = 0);
         void updateBackups();
+
+        void notify_network_activity(int networkActivityChannel,
+                                     int networkActivityType,
+                                     int code) override;
 
         //Internal
         std::shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint);

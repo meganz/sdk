@@ -7564,6 +7564,11 @@ const char *MegaEvent::getEventString() const
     return NULL;
 }
 
+std::optional<int64_t> MegaEvent::getNumber(const std::string& /* key */) const
+{
+    return std::nullopt;
+}
+
 MegaHandleList *MegaHandleList::createInstance()
 {
     return new MegaHandleListPrivate();

@@ -38674,6 +38674,20 @@ void MegaEventPrivate::setNumber(int64_t newNumber)
     number = newNumber;
 }
 
+std::optional<int64_t> MegaEventPrivate::getNumber(const std::string& key) const
+{
+    if (auto it = numberMap.find(key); it != numberMap.end())
+    {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
+void MegaEventPrivate::setNumber(const std::string& key, int64_t value)
+{
+    numberMap[key] = value;
+}
+
 MegaHandle MegaEventPrivate::getHandle() const
 {
     return mHandle;
@@ -38708,9 +38722,14 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
         case MegaEvent::EVENT_RELOADING: return "RELOADING";
         case MegaEvent::EVENT_FATAL_ERROR: return "FATAL_ERROR";
-        case MegaEvent::EVENT_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
-        case MegaEvent::EVENT_DOWNGRADE_ATTACK: return "DOWNGRADE_ATTACK";
-        case MegaEvent::EVENT_CREDIT_CARD_EXPIRY: return "CREDIT_CARD_EXPIRY";
+        case MegaEvent::EVENT_UPGRADE_SECURITY:
+            return "UPGRADE_SECURITY";
+        case MegaEvent::EVENT_DOWNGRADE_ATTACK:
+            return "DOWNGRADE_ATTACK";
+        case MegaEvent::EVENT_CREDIT_CARD_EXPIRY:
+            return "CREDIT_CARD_EXPIRY";
+        case MegaEvent::EVENT_NETWORK_ACTIVITY:
+            return "NETWORK_ACTIVITY";
     }
 
     return "UNKNOWN";
@@ -40444,6 +40463,17 @@ size_t MegaCancelSubscriptionReasonListPrivate::size() const
 MegaCancelSubscriptionReasonListPrivate* MegaCancelSubscriptionReasonListPrivate::copy() const
 {
     return new MegaCancelSubscriptionReasonListPrivate(*this);
+}
+
+void MegaApiImpl::notify_network_activity(int networkActivityChannel,
+                                          int networkActivityType,
+                                          int code)
+{
+    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_NETWORK_ACTIVITY);
+    event->setNumber("channel", networkActivityChannel);
+    event->setNumber("activity_type", networkActivityType);
+    event->setNumber("error_code", code);
+    fireOnEvent(event);
 }
 
 } // namespace mega
