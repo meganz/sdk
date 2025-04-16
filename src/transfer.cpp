@@ -241,8 +241,9 @@ bool Transfer::serialize(string *d) const
     // version. Originally, 0.  Version 1 adds expansion flags, which then work in the usual way
     cw.serializeu8(1);
 
-    // 8 expansion flags, in the normal manner.  First flag is for whether downloadFileHandle is present
-    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1);
+    // 8 expansion flags, in the normal manner.  First flag is for whether downloadFileHandle is
+    // present Second flag is for amount of discarded temp URLs
+    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1, 1);
 
     if (!downloadFileHandle.isUndef())
     {
@@ -323,8 +324,9 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
         !r.unserializei8(state) ||
         !r.unserializeu64(t->priority) ||
         !r.unserializei8(version) ||
-        (version > 0 && !r.unserializeexpansionflags(expansionflags, 1)) ||
-        (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)))
+        (version > 0 && !r.unserializeexpansionflags(expansionflags, 2)) ||
+        (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)) ||
+        (expansionflags[1] && !r.unserializeu8(t->discardedTempUrlsSize)))
     {
         LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
         return nullptr;
