@@ -34,6 +34,9 @@
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
 #include "megafs.h"
+#ifdef __ANDROID__
+#include "mega/android/androidFileSystem.h"
+#endif
 
 #ifdef __ANDROID__
 #include "mega/android/androidFileSystem.h"

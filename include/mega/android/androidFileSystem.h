@@ -13,6 +13,10 @@
 #include <jni.h>
 #include <mutex>
 
+extern jclass fileWrapper;
+extern jclass integerClass;
+extern JavaVM* MEGAjvm;
+
 namespace mega
 {
 /*
