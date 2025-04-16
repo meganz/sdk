@@ -17534,7 +17534,7 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(folderVisitorApiIndex));
 
     // Get session
-    std::string session{megaApi[folderVisitorApiIndex]->dumpSession()};
+    unique_ptr<char[]> session{megaApi[folderVisitorApiIndex]->dumpSession()};
 
     // Local logout
     locallogout(folderVisitorApiIndex);
@@ -17547,7 +17547,7 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
     auto& requestFlag{mApi[folderVisitorApiIndex].requestFlags[requestFlagType]};
     requestFlag = false;
 
-    ASSERT_EQ(synchronousFastLogin(folderVisitorApiIndex, session.c_str(), this), API_OK);
+    ASSERT_EQ(synchronousFastLogin(folderVisitorApiIndex, session.get(), this), API_OK);
     ASSERT_NO_FATAL_FAILURE(fetchnodes(folderVisitorApiIndex));
 
     const unsigned int timeoutInSeconds{60};
@@ -19202,7 +19202,7 @@ TEST_F(SdkTest, SdkNodeDescription)
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
 
     auto& target = mApi[0];
-    std::unique_ptr<char> session(dumpSession());
+    std::unique_ptr<char[]> session(dumpSession());
     locallogout(0);
     resumeSession(session.get());
     target.resetlastEvent();
