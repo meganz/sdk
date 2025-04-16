@@ -201,7 +201,7 @@ class SimpleLogger
     //     LOG_debug << "1" << f();
     bool isChained{false};
     static inline thread_local std::vector<DirectMessage> mDirectMessages;
-    static inline thread_local std::vector<std::unique_ptr<std::string> > mCopiedParts;
+    static inline thread_local std::vector<std::string> mCopiedParts;
 
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
@@ -235,9 +235,9 @@ class SimpleLogger
             }
             else //reached LOGGER_CHUNKS_SIZE, we need to copy mBuffer contents
             {
-                mCopiedParts.emplace_back(new string(mBuffer.data()));
+                mCopiedParts.emplace_back(string(mBuffer.data()));
                 mDirectMessages.push_back(
-                    DirectMessage{mCopiedParts.back()->data(), mCopiedParts.back()->size()});
+                    DirectMessage{mCopiedParts.back().data(), mCopiedParts.back().size()});
             }
         }
         else if (logger)
@@ -612,9 +612,9 @@ public:
         {
             *mBufferIt = '\0';
 
-            mCopiedParts.emplace_back(new string(mBuffer.data()));
+            mCopiedParts.emplace_back(string(mBuffer.data()));
             mDirectMessages.push_back(
-                DirectMessage{mCopiedParts.back()->data(), mCopiedParts.back()->size()});
+                DirectMessage{mCopiedParts.back().data(), mCopiedParts.back().size()});
 
             mBufferIt = mBuffer.begin();
         }
