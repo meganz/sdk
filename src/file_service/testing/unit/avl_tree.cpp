@@ -46,9 +46,10 @@ TEST(AVLTree, add)
         ASSERT_TRUE(tree.empty());
 
         // We can add a node to the tree.
-        auto iterator = tree.add(n00);
+        auto [iterator, added] = tree.add(n00);
 
         // The iterator references the node we added.
+        ASSERT_TRUE(added);
         ASSERT_NE(iterator, tree.end());
         EXPECT_EQ(&*iterator, &n00);
 
@@ -57,7 +58,10 @@ TEST(AVLTree, add)
 
         // When we add a node with a duplicate key, we get an iterator
         // referencing the node in the tree with that key.
-        EXPECT_EQ(tree.add(n01), iterator);
+        std::tie(iterator, added) = tree.add(n01);
+
+        EXPECT_FALSE(added);
+        EXPECT_EQ(&*iterator, &n00);
 
         // Make sure the tree remains valid.
         ASSERT_TRUE(validate(tree));
@@ -70,7 +74,10 @@ TEST(AVLTree, add)
         for (auto& node: nodes)
         {
             // Add the node to the tree.
-            auto iterator = tree.add(node);
+            auto [iterator, added] = tree.add(node);
+
+            // Make sure the node was added.
+            ASSERT_TRUE(added);
 
             // Make sure the iterator's valid.
             ASSERT_NE(iterator, tree.end());

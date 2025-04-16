@@ -203,13 +203,13 @@ public:
     class ConstIterator;
     class Iterator;
 
-    Iterator add(NodeType& node)
+    auto add(NodeType& node) -> std::pair<Iterator, bool>
     {
         NodeType** link{};
         auto* parent = find(KT::key(node), link);
 
         if (auto* child = *link)
-            return Iterator(child);
+            return std::make_pair(child, false);
 
         *link = &node;
         LT::parent(node) = parent;
@@ -217,7 +217,7 @@ public:
 
         rebalance(&node);
 
-        return Iterator(&node);
+        return std::make_pair(&node, true);
     }
 
     Iterator begin()
@@ -312,16 +312,14 @@ public:
 template<typename Traits>
 class AVLTree<Traits>::ConstIterator
 {
-    friend class AVLTree<Traits>;
-
-    ConstIterator(Iterator iterator):
-        mIterator(iterator)
-    {}
-
     Iterator mIterator{};
 
 public:
     ConstIterator() = default;
+
+    ConstIterator(Iterator iterator):
+        mIterator(iterator)
+    {}
 
     ConstIterator left() const
     {
@@ -376,14 +374,14 @@ class AVLTree<Traits>::Iterator
 {
     friend class AVLTree<Traits>;
 
-    Iterator(NodeType* node):
-        mNode(node)
-    {}
-
     NodeType* mNode{};
 
 public:
     Iterator() = default;
+
+    Iterator(NodeType* node):
+        mNode(node)
+    {}
 
     Iterator left() const
     {
