@@ -267,6 +267,25 @@ public:
         return const_cast<AVLTree<Traits>&>(*this).find(key);
     }
 
+    Iterator lower_bound(const KeyType& key)
+    {
+        NodeType** link;
+        auto* parent = find(key, link);
+
+        if (*link)
+            return *link;
+
+        if (parent && link == &LT::left(*parent))
+            return parent;
+
+        return nullptr;
+    }
+
+    ConstIterator lower_bound(const KeyType& key) const
+    {
+        return const_cast<AVLTree<Traits>&>(*this).lower_bound(key);
+    }
+
     NodeType* remove(const KeyType& key)
     {
         NodeType** link{};

@@ -150,6 +150,27 @@ TEST(AVLTree, find)
     }
 }
 
+TEST(AVLTree, lower_bound)
+{
+    std::vector<Node> nodes = {1, 3};
+    auto tree = treeFrom<Traits>(nodes);
+
+    auto iterator = tree.lower_bound(0);
+    ASSERT_NE(iterator, tree.end());
+    ASSERT_EQ(iterator->mKey, 1);
+
+    iterator = tree.lower_bound(1);
+    ASSERT_NE(iterator, tree.end());
+    ASSERT_EQ(iterator->mKey, 1);
+
+    iterator = tree.lower_bound(2);
+    ASSERT_NE(iterator, tree.end());
+    ASSERT_EQ(iterator->mKey, 3);
+
+    iterator = tree.lower_bound(4);
+    ASSERT_EQ(iterator, tree.end());
+}
+
 TEST(AVLTree, metadata)
 {
     std::vector<Node> nodes = {0, 1, 2, 3, 4, 5, 6};
