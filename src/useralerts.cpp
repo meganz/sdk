@@ -2190,17 +2190,37 @@ void UserAlerts::add(UserAlert::Base* unb)
         }
     }
 
-    // check for previous Payment-Reminder to ignore
+    // check for previous Payment-Reminder-s to ignore
     if (!alerts.empty() && (unb->type == name_id::psts || unb->type == name_id::psts_v2) &&
         static_cast<UserAlert::Payment*>(unb)->success)
     {
         // if a successful payment is made then hide/remove any reminders received
-        for (auto& a : alerts)
+        for (auto& a: alerts)
         {
-            if (a->type == name_id::pses && a->relevant())
+            if (a->type == name_id::pses &&
+                static_cast<UserAlert::PaymentReminder*>(a)->expiryTime < unb->ts())
             {
                 a->setRelevant(false);
-                notifyAlert(a, a->seen(), a->tag);
+                a->setRemoved();
+                useralertnotify.erase(
+                    std::remove(useralertnotify.begin(), useralertnotify.end(), a),
+                    useralertnotify.end());
+            }
+        }
+    }
+
+    // check for previous Payment that would invalidate a Payment-Reminder
+    else if (!alerts.empty() && unb->type == name_id::pses)
+    {
+        // if a successful payment was made later, then ignore this reminder
+        for (auto& a: alerts)
+        {
+            if ((a->type == name_id::psts || a->type == name_id::psts_v2) &&
+                static_cast<UserAlert::Payment*>(a)->success &&
+                a->ts() > static_cast<UserAlert::PaymentReminder*>(unb)->expiryTime)
+            {
+                delete unb;
+                return;
             }
         }
     }
