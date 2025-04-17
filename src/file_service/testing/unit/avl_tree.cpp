@@ -152,22 +152,26 @@ TEST(AVLTree, find)
 
 TEST(AVLTree, lower_bound)
 {
-    std::vector<Node> nodes = {1, 3};
+    std::vector<Node> nodes = {-1, 2, 4};
     auto tree = treeFrom<Traits>(nodes);
 
     auto iterator = tree.lower_bound(0);
     ASSERT_NE(iterator, tree.end());
-    ASSERT_EQ(iterator->mKey, 1);
+    ASSERT_EQ(iterator->mKey, 2);
+
+    iterator = tree.lower_bound(3);
+    ASSERT_NE(iterator, tree.end());
+    ASSERT_EQ(iterator->mKey, 4);
 
     iterator = tree.lower_bound(1);
     ASSERT_NE(iterator, tree.end());
-    ASSERT_EQ(iterator->mKey, 1);
-
-    iterator = tree.lower_bound(2);
-    ASSERT_NE(iterator, tree.end());
-    ASSERT_EQ(iterator->mKey, 3);
+    ASSERT_EQ(iterator->mKey, 2);
 
     iterator = tree.lower_bound(4);
+    ASSERT_NE(iterator, tree.end());
+    ASSERT_EQ(iterator->mKey, 4);
+
+    iterator = tree.lower_bound(5);
     ASSERT_EQ(iterator, tree.end());
 }
 

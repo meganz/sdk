@@ -270,16 +270,22 @@ public:
 
     Iterator lower_bound(const KeyType& key)
     {
-        NodeType** link;
-        auto* parent = find(key, link);
+        NodeType* candidate = nullptr;
 
-        if (*link)
-            return *link;
+        for (auto* node = mRoot; node;)
+        {
+            auto relationship = KT::compare(key, KT::key(*node));
 
-        if (parent && link == &LT::left(*parent))
-            return parent;
+            if (!relationship)
+                return node;
 
-        return nullptr;
+            if (relationship < 0)
+                candidate = node;
+
+            node = LT::child(*node, relationship > 0);
+        }
+
+        return candidate;
     }
 
     ConstIterator lower_bound(const KeyType& key) const
