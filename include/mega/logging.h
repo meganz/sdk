@@ -185,26 +185,23 @@ class SimpleLogger
 
     std::string getTime();
 #else
-    static inline thread_local std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
-    std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
-#ifndef NDEBUG
-    // Detect and warn against multiple instances of this class created in the same thread.
-    // If multiple instances are used in the same thread, the messages from the last created one will
-    // overwrite and corrupt the messages of others, by overwriting mBuffer.
-    //
-    // An alternative approach aiming to allow such cases, would be to overload operator,(), but that will
-    // require to no longer use LoggerVoidify(), and create a "null logger" for the cases when requested
-    // log level needs to be ignored. That would also incur a small performance penalty for the latter case.
-    static inline thread_local const SimpleLogger* mBufferOwner = nullptr;
-#endif
+    using Buffer = std::array<char, LOGGER_CHUNKS_SIZE>;
+    static inline thread_local Buffer mBuffer;
+    static inline thread_local Buffer::iterator mBufferIt{mBuffer.begin()};
 
     using DiffType = std::array<char, LOGGER_CHUNKS_SIZE>::difference_type;
     using NumBuf = char[24];
     const char* filenameStr;
     int lineNum;
 
-    std::vector<DirectMessage> mDirectMessages;
-    std::vector<std::string *> mCopiedParts;
+    // True if there is a previous instance in the logging chain.
+    // For example, the first LOG_debug below will have isChained == false:
+    // the second LOG_debug inside f() below will have isChained == true:
+    //     int f() {LOG_DEBUG << "not first in chain"; return 2;}
+    //     LOG_debug << "1" << f();
+    bool isChained{false};
+    static inline thread_local std::vector<DirectMessage> mDirectMessages;
+    static inline thread_local std::vector<std::string> mCopiedParts;
 
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
@@ -238,10 +235,9 @@ class SimpleLogger
             }
             else //reached LOGGER_CHUNKS_SIZE, we need to copy mBuffer contents
             {
-                std::string *newStr  = new string(mBuffer.data());
-                mCopiedParts.emplace_back( newStr);
-                string * back = mCopiedParts[mCopiedParts.size()-1];
-                mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
+                mCopiedParts.emplace_back(string(mBuffer.data()));
+                mDirectMessages.push_back(
+                    DirectMessage{mCopiedParts.back().data(), mCopiedParts.back().size()});
             }
         }
         else if (logger)
@@ -389,25 +385,28 @@ public:
     // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
     static inline thread_local bool mThreadLocalLoggingDisabled = false;
 
-    SimpleLogger(const LogLevel ll, const char* filename, const int line)
-    : level{ll}
+    SimpleLogger(const LogLevel ll,
+                 const char* filename,
+                 const int line,
+                 [[maybe_unused]] bool noChainAssert = false):
+        level{ll}
 #ifdef ENABLE_LOG_PERFORMANCE
-    , mBufferIt{mBuffer.begin()}
-    , filenameStr(filename)
-    , lineNum(line)
+        ,
+        filenameStr(filename),
+        lineNum(line),
+        isChained(false)
 #endif
     {
         if (mThreadLocalLoggingDisabled) return;
 
 #ifdef ENABLE_LOG_PERFORMANCE
-#ifndef NDEBUG
-        // Multiple instances in the same thread will lead to message corruption!
-        if (!mBufferOwner)
-        {
-            mBufferOwner = this;
-        }
-        assert(mBufferOwner == this);
-#endif
+
+        // isChained if there are logs in the mBuffer or mDirectMessages
+        // Note: such as if the first logger instance doesn't output anything and we treat
+        // the second one as not in chain
+        isChained = mBufferIt != mBuffer.begin() || !mDirectMessages.empty();
+        // logging chain is not well supported, change caller code to avoid it
+        assert(!isChained || noChainAssert);
 #else
         if (!logger)
         {
@@ -439,36 +438,35 @@ public:
             copyToBuffer("]", 1);
         }
 
-        outputBuffer(true);
+        // The last output if it is not chained
+        const auto lastOutput = !isChained;
+        outputBuffer(lastOutput);
 
-        if (!mDirectMessages.empty())
+        // Direct Messages are log on last output
+        if (lastOutput)
         {
-            if (logger)
+            if (!mDirectMessages.empty())
             {
-                std::unique_ptr<const char *[]> dm(new const char *[mDirectMessages.size()]);
-                std::unique_ptr<size_t[]> dms(new size_t[mDirectMessages.size()]);
-                unsigned i = 0;
-                for (const auto & d : mDirectMessages)
+                if (logger)
                 {
-                    dm[i] = d.constChar();
-                    dms[i] = d.size();
-                    i++;
+                    std::unique_ptr<const char*[]> dm(new const char*[mDirectMessages.size()]);
+                    std::unique_ptr<size_t[]> dms(new size_t[mDirectMessages.size()]);
+                    unsigned i = 0;
+                    for (const auto& d: mDirectMessages)
+                    {
+                        dm[i] = d.constChar();
+                        dms[i] = d.size();
+                        i++;
+                    }
+
+                    logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), i);
                 }
-
-                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), i);
             }
-        }
-        for (auto &s: mCopiedParts)
-        {
-            delete s;
+            // Clear
+            mDirectMessages.clear();
+            mCopiedParts.clear();
         }
 
-#ifndef NDEBUG
-        if (mBufferOwner == this)
-        {
-            mBufferOwner = nullptr;
-        }
-#endif
 #else
         if (logger)
             logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
@@ -613,11 +611,11 @@ public:
         if (mBufferIt != mBuffer.begin()) //something was appended to the buffer before this direct msg
         {
             *mBufferIt = '\0';
-            std::string *newStr  = new string(mBuffer.data());
-            mCopiedParts.emplace_back( newStr);
-            string * back = mCopiedParts[mCopiedParts.size()-1];
 
-            mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
+            mCopiedParts.emplace_back(string(mBuffer.data()));
+            mDirectMessages.push_back(
+                DirectMessage{mCopiedParts.back().data(), mCopiedParts.back().size()});
+
             mBufferIt = mBuffer.begin();
         }
 
@@ -656,18 +654,11 @@ public:
     // These do not go through the LOG_<level> macros.
     //
     // When ENABLE_LOG_PERFORMANCE is on, this must not be called during the lifetime of an
-    // existing instance created in the same thread. Otherwise this will overwrite the message
-    // of the existing instance. That would be a rare case, but could be achieved by writing
+    // existing instance created in the same thread. Otherwise logs are mixed. That would be
+    // a rare case, but could be avoided by writing:
     // LOG_info << "foo", SimpleLogger::postLog(logInfo, "bar", filename, line);
     static void postLog(LogLevel logLevel, const char *message, const char *filename, int line)
     {
-#ifdef ENABLE_LOG_PERFORMANCE
-#ifndef NDEBUG
-        assert(!mBufferOwner);
-        if (mBufferOwner) return;
-#endif
-#endif
-
         if (logCurrentLevel < logLevel) return;
         SimpleLogger simpleLogger(logLevel, filename ? filename : "", line);
         if (message)

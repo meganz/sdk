@@ -19,8 +19,6 @@
 
 #include <mega/logging.h>
 
-#ifdef NOT_REALLY_NEEDED_BECAUSE_WE_EXERCISE_IT_ALL_THE_TIME_ANYWAY
-
 #ifdef ENABLE_LOG_PERFORMANCE
 namespace {
 
@@ -30,21 +28,38 @@ public:
 
     MockLogger()
     {
-        mega::SimpleLogger::logger = this;
+        mega::SimpleLogger::setOutputClass(this);
     }
 
     ~MockLogger()
     {
-        mega::SimpleLogger::logger = nullptr;
+        mega::SimpleLogger::setOutputClass(nullptr);
     }
 
-    void log(const char *time, int loglevel, const char *source, const char *message) override
+    void log(const char* time,
+             int loglevel,
+             const char* source,
+             const char* message,
+             const char** directMessages,
+             size_t* directMessagesSizes,
+             unsigned numberMessages) override
     {
         EXPECT_EQ(nullptr, time);
         EXPECT_EQ(nullptr, source);
-        EXPECT_NE(nullptr, message);
-        mLogLevel.insert(loglevel);
-        mMessage.push_back(message);
+
+        if (directMessages)
+        {
+            for (unsigned i = 0; i < numberMessages; i++)
+            {
+                mLogLevel.insert(loglevel);
+                mMessage.push_back(std::string{directMessages[i], directMessagesSizes[i]});
+            }
+        }
+        else if (message)
+        {
+            mLogLevel.insert(loglevel);
+            mMessage.push_back(message);
+        }
     }
 
     void checkLogLevel(const int expLogLevel) const
@@ -63,14 +78,90 @@ std::string expMsg(const std::string& file, const int line, const std::string& m
 {
     return message + " ["+file + ":" + std::to_string(line) + "]";
 }
-
-#ifdef _WIN32
-std::string expWMsg(const std::string& file, const int line, const std::wstring& message)
-{
-    return file + ":" + std::to_string(line) + " " + std::string(message.begin(), message.end());
 }
-#endif
 
+TEST(Logging, performanceMode_OneDirectMessage)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        const std::string file = "file.cpp";
+        const int line = 13;
+        const std::string message = "some message";
+        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line}
+            << mega::DirectMessage{message.data()};
+        logger.checkLogLevel(level);
+        ASSERT_EQ(2, logger.mMessage.size());
+        ASSERT_EQ(message, logger.mMessage[0]);
+        ASSERT_EQ(" [file.cpp:13]", logger.mMessage[1]);
+    }
+}
+
+TEST(Logging, performanceMode_MultipleDirectMessages)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        const std::string file = "file.cpp";
+        const int line = 13;
+        const std::string message1 = "some message 1";
+        const std::string message2 = "some message 2";
+        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line}
+            << mega::DirectMessage{message1.data()} << mega::DirectMessage{message2.data()};
+        logger.checkLogLevel(level);
+        ASSERT_EQ(3, logger.mMessage.size());
+        ASSERT_EQ(message1, logger.mMessage[0]);
+        ASSERT_EQ(message2, logger.mMessage[1]);
+        ASSERT_EQ(" [file.cpp:13]", logger.mMessage[2]);
+    }
+}
+
+TEST(Logging, performanceMode_StringsChained)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        const std::string file = "file.cpp";
+        const int line = 13;
+        const std::string message1 = "some message 1";
+        const std::string message2 = "some message 2";
+        auto chainedF = [&]()
+        {
+            mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), 14, true}
+                << message2;
+            return message1;
+        };
+        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message1
+                                                                                   << chainedF();
+        ASSERT_EQ(2, logger.mMessage.size());
+        ASSERT_EQ(message1 + message2 + " [file.cpp:14]", logger.mMessage[0]);
+        ASSERT_EQ(message1 + " [file.cpp:13]", logger.mMessage[1]);
+    }
+}
+
+TEST(Logging, performanceMode_DirectMessagesChained)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        const std::string file = "file.cpp";
+        const int line = 13;
+        const std::string message1 = "some message 1";
+        const std::string message2 = "some message 2";
+        auto chainedF = [&]()
+        {
+            mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), 14, true}
+                << mega::DirectMessage{message2.data()};
+            return message1;
+        };
+        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line}
+            << mega::DirectMessage{message1.data()} << chainedF().data();
+        ASSERT_EQ(4, logger.mMessage.size());
+        ASSERT_EQ(message1, logger.mMessage[0]);
+        ASSERT_EQ(message2, logger.mMessage[1]);
+        ASSERT_EQ(" [file.cpp:14]", logger.mMessage[2]);
+        ASSERT_EQ(message1 + " [file.cpp:13]", logger.mMessage[3]);
+    }
 }
 
 TEST(Logging, performanceMode_forStdString)
@@ -87,23 +178,6 @@ TEST(Logging, performanceMode_forStdString)
         ASSERT_EQ(expMsg(file, line, message), logger.mMessage[0]);
     }
 }
-
-#ifdef _WIN32
-TEST(Logging, performanceMode_forWStdString)
-{
-    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
-    {
-        MockLogger logger;
-        const std::string file = "file.cpp";
-        const int line = 13;
-        const std::wstring message = L"\u039C\u03C5\u03C4\u03B9\u03BB\u03B7\u03BD\u03B1\u03AF\u03BF\u03C2\20\u0391\u03B2\u03C1\u03AC\u03C2";
-        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
-        logger.checkLogLevel(level);
-        ASSERT_EQ(1, logger.mMessage.size());
-        ASSERT_EQ(expWMsg(file, line, message), logger.mMessage[0]);
-    }
-}
-#endif
 
 TEST(Logging, performanceMode_forCString)
 {
@@ -282,14 +356,17 @@ TEST(Logging, performanceMode_withMessageLargeThanLogBuffer)
         MockLogger logger;
         const std::string file = "file.cpp";
         const int line = 13;
-        const std::string firstMessage(256 - file.size() - 5, 'X'); // 5 = ':13 ' plus null terminator
+        const std::string firstMessage(mega::LOGGER_CHUNKS_SIZE - file.size() - 5,
+                                       'X'); // 5 = ':13 ' plus null terminator
         const std::string secondMessage = "yay";
         const std::string message = firstMessage + secondMessage;
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
         logger.checkLogLevel(level);
         ASSERT_EQ(2, logger.mMessage.size());
-        ASSERT_EQ(expMsg(file, line, message).substr(0,255), logger.mMessage[0]);
-        ASSERT_EQ(expMsg(file, line, message).substr(255), logger.mMessage[1]);
+        ASSERT_EQ(expMsg(file, line, message).substr(0, mega::LOGGER_CHUNKS_SIZE - 1),
+                  logger.mMessage[0]);
+        ASSERT_EQ(expMsg(file, line, message).substr(mega::LOGGER_CHUNKS_SIZE - 1),
+                  logger.mMessage[1]);
     }
 }
 
@@ -305,9 +382,9 @@ TEST(Logging, performanceMode_withHugeMessage)
         logger.checkLogLevel(level);
 
         const int totallength = 5000 + strlen(" [file.cpp:13]") + 1;
-        const size_t fullMsgCount = totallength / 255;
+        const size_t fullMsgCount = totallength / (mega::LOGGER_CHUNKS_SIZE - 1);
         ASSERT_EQ(fullMsgCount + 1, logger.mMessage.size());
-        ASSERT_EQ(totallength % 255 - 1, logger.mMessage.back().size());
+        ASSERT_EQ(totallength % (mega::LOGGER_CHUNKS_SIZE - 1) - 1, logger.mMessage.back().size());
     }
 }
 
@@ -315,7 +392,7 @@ TEST(Logging, performanceMode_withHugeMessage_butNoLogger)
 {
     for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
-        mega::SimpleLogger::logger = nullptr;
+        mega::SimpleLogger::setOutputClass(nullptr);
         const std::string file = "file.cpp";
         const int line = 13;
         const std::string message(5000, 'X');
@@ -334,12 +411,12 @@ public:
 
     MockLogger()
     {
-        mega::SimpleLogger::logger = this;
+        mega::SimpleLogger::setOutputClass(this);
     }
 
     ~MockLogger()
     {
-        mega::SimpleLogger::logger = nullptr;
+        mega::SimpleLogger::setOutputClass(nullptr);
     }
 
     void log(const char *time, int loglevel, const char *source, const char *message) override
@@ -507,8 +584,6 @@ TEST(Logging, macroFatal)
         EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
     }
 }
-
-#endif
 
 TEST(Logging, Extract_file_name_from_full_path)
 {

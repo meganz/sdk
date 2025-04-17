@@ -2660,11 +2660,13 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                             if (err)
                             {
                                 // todo: or should we mark this one as blocked and otherwise continue.
-
+                                const auto fromDisplayPath = fromNode->displaypath();
+                                const auto toDisplayPath = toNode->displaypath();
                                 // err could be EACCESS or ECIRCULAR for example
-                                LOG_warn << mc.clientname << "SYNC Rename not permitted due to err " << err << ": " << fromNode->displaypath()
-                                    << " to " << toNode->displaypath()
-                                    << (newName.empty() ? "" : (" as " + newName).c_str());
+                                LOG_warn << mc.clientname << "SYNC Rename not permitted due to err "
+                                         << err << ": " << fromDisplayPath << " to "
+                                         << toDisplayPath
+                                         << (newName.empty() ? "" : (" as " + newName).c_str());
 
                                 movePtr->failed = true;
 
