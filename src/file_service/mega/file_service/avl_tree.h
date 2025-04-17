@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/file_service/avl_tree_iterator.h>
 #include <mega/file_service/avl_tree_node.h>
 #include <mega/file_service/avl_tree_traits.h>
 #include <mega/file_service/type_traits.h>
@@ -200,8 +201,8 @@ private:
     std::size_t mSize{};
 
 public:
-    class ConstIterator;
-    class Iterator;
+    using ConstIterator = AVLTreeIterator<NodeType, LinkTraits, true>;
+    using Iterator = AVLTreeIterator<NodeType, LinkTraits, false>;
 
     auto add(NodeType& node) -> std::pair<Iterator, bool>
     {
@@ -299,9 +300,9 @@ public:
 
     NodeType* remove(Iterator iterator)
     {
-        assert(iterator.mNode);
+        assert(iterator != Iterator{});
 
-        auto& node = *iterator.mNode;
+        auto& node = *iterator;
         auto* parent = LT::parent(node);
 
         if (!parent)
@@ -327,158 +328,6 @@ public:
         return mSize;
     }
 }; // AVLTree<Traits>
-
-template<typename Traits>
-class AVLTree<Traits>::ConstIterator
-{
-    Iterator mIterator{};
-
-public:
-    ConstIterator() = default;
-
-    ConstIterator(Iterator iterator):
-        mIterator(iterator)
-    {}
-
-    ConstIterator left() const
-    {
-        return mIterator.left();
-    }
-
-    ConstIterator parent() const
-    {
-        return mIterator.parent();
-    }
-
-    ConstIterator right() const
-    {
-        return mIterator.right();
-    }
-
-    const NodeType& operator*() const
-    {
-        return *mIterator;
-    }
-
-    const NodeType* operator->() const
-    {
-        return mIterator.operator->();
-    }
-
-    bool operator==(const ConstIterator& rhs) const
-    {
-        return mIterator == rhs.mIterator;
-    }
-
-    bool operator!=(const ConstIterator& rhs) const
-    {
-        return !(*this == rhs);
-    }
-
-    ConstIterator& operator++()
-    {
-        ++mIterator;
-
-        return *this;
-    }
-
-    ConstIterator operator++(int)
-    {
-        return mIterator++;
-    }
-}; // AVLTree<Traits>::ConstIterator
-
-template<typename Traits>
-class AVLTree<Traits>::Iterator
-{
-    friend class AVLTree<Traits>;
-
-    NodeType* mNode{};
-
-public:
-    Iterator() = default;
-
-    Iterator(NodeType* node):
-        mNode(node)
-    {}
-
-    Iterator left() const
-    {
-        assert(mNode);
-
-        return LT::left(*mNode);
-    }
-
-    Iterator parent() const
-    {
-        assert(mNode);
-
-        return LT::parent(*mNode);
-    }
-
-    Iterator right() const
-    {
-        assert(mNode);
-
-        return LT::right(*mNode);
-    }
-
-    NodeType& operator*() const
-    {
-        assert(mNode);
-
-        return *mNode;
-    }
-
-    NodeType* operator->() const
-    {
-        assert(mNode);
-
-        return mNode;
-    }
-
-    bool operator==(const Iterator& rhs) const
-    {
-        return mNode == rhs.mNode;
-    }
-
-    bool operator!=(const Iterator& rhs) const
-    {
-        return !(*this == rhs);
-    }
-
-    Iterator& operator++()
-    {
-        assert(mNode);
-
-        if (auto* node = LT::right(*mNode))
-        {
-            for (mNode = node; (node = LT::left(*mNode));)
-                mNode = node;
-
-            return *this;
-        }
-
-        for (auto* node = mNode; (mNode = LT::parent(*node));)
-        {
-            if (LT::right(*mNode) != node)
-                break;
-
-            node = mNode;
-        }
-
-        return *this;
-    }
-
-    Iterator operator++(int)
-    {
-        Iterator result = *this;
-
-        ++(*this);
-
-        return result;
-    }
-}; // AVLTree<Traits>::Iterator
 
 } // file_service
 } // mega
