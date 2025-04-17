@@ -15,7 +15,7 @@ template<typename Traits>
 using DetectValidate = decltype(Traits::validate);
 
 template<typename Traits>
-static constexpr auto HasValidateV =
+constexpr auto HasValidateV =
     std::is_invocable_r_v<bool, DetectedT<DetectValidate, Traits>, const Node&>;
 
 template<typename Traits, typename KeyType = typename AVLTree<Traits>::KeyType>
