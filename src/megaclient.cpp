@@ -2711,6 +2711,9 @@ void MegaClient::exec()
                         {
                             if (pendingcs->in == "-3")
                             {
+                                app->notify_network_activity(NetworkActivityChannel::SC,
+                                                             NetworkActivityType::REQUEST_ERROR,
+                                                             API_EAGAIN);
                                 reason = RETRY_API_LOCK;
                             }
                             else
@@ -2918,7 +2921,11 @@ void MegaClient::exec()
                     {
                         btsc.backoff();
                         pendingscUserAlerts.reset();
-                        LOG_warn << "Backing off before retrying useralerts request: " << btsc.retryin();
+                        LOG_warn << "Backing off before retrying useralerts request: "
+                                 << btsc.retryin();
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     API_EAGAIN);
                         break;
                     }
                     LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
@@ -3006,6 +3013,9 @@ void MegaClient::exec()
                         {
                             fnstats.eAgainCount++;
                         }
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     API_EAGAIN);
                     }
                     else if (e == API_EBLOCKED)
                     {
