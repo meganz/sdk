@@ -323,16 +323,14 @@ public:
      * @brief Represents the reason why a connection has been replaced by unused one.
      * - CONN_SPEED_SLOWEST_PART replaced part is the slowest one in comparison with the rest of
      * parts
-     * - CONN_SPEED_UNDER_THRESHOLD replaced part is the slowest one and it's speed is below min
-     * speed threshold
-     * - TRANSFER_MEAN_SPEED_UNDER_THRESHOLD replaced part is the slowest one and transfer mean
-     * speed is below minstreamingrate
+     *
+     * - TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD replaced part is the slowest one and transfer mean
+     * speed is below minstreamingrate or replaced part speed is below min speed threshold
      */
     enum ConnReplacementReason
     {
         CONN_SPEED_SLOWEST_PART = 0,
-        CONN_SPEED_UNDER_THRESHOLD = 1,
-        TRANSFER_MEAN_SPEED_UNDER_THRESHOLD = 2,
+        TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD = 1,
     };
 
     /**
@@ -418,6 +416,12 @@ public:
     /* ===================*\
      *      Constants     *
     \* ===================*/
+
+    /**
+     * @brief Default connection index used for non-raided transfers in ambit of slow connections
+     * detection
+     */
+    static constexpr unsigned DEF_CONN_INDEX_NON_RAIDED_TRANSFER = 0;
 
     /**
     *   @brief Time interval to recalculate speed and mean speed values.
@@ -541,6 +545,12 @@ public:
     \* ===================*/
 
     /**
+     * @brief Returns true is transfer is raided, otherwise returns false
+     * @return true if is transfer is raided, otherwise returns false
+     */
+    bool isRaidedTransfer() const;
+
+    /**
      * @brief Retries the entire direct read transfer upon a failure.
      *
      * This function is called when a transfer has failed, and it is responsible for
@@ -565,6 +575,15 @@ public:
     std::pair<std::set<size_t>, size_t> searchSlowConnsUnderThreshold();
 
     /**
+     * @brief increments counter of slow speed detection for all indexes in slowConns param
+     * @param set of indexes to be incremented it's counter of slow speed detection
+     * @return true if counter of slow speed detection has reached
+     * MAX_CONN_BELOW_SPEED_THRESHOLD_DETECTED for any connection index
+     * (DEF_CONN_INDEX_NON_RAIDED_TRANSFER index in case of non-raided transfer), otherwise false
+     */
+    bool incrementConnDetectedBelowSpeedThreshold(std::set<size_t> slowConns);
+
+    /**
      * @brief Detects and manages slow-performing RAIDED parts in a streaming transfer.
      *
      * This method identifies slow connections in a RAID streaming transfer by evaluating
@@ -584,15 +603,23 @@ public:
     std::pair<bool, bool> detectAndManageSlowConnsUnderThreshold();
 
     /**
-     * @brief Manages low speed raided direct read transfer
+     * @brief returns the index of slowest connection index (DEF_CONN_INDEX_NON_RAIDED_TRANSFER in
+     * case of non-raided transfers)
+     * @return the index of slowest connection index (DEF_CONN_INDEX_NON_RAIDED_TRANSFER in case of
+     * non-raided transfers) or an invalid index in case of no slowest connection found
+     */
+    size_t searchSlowestConnectionIndex() const;
+
+    /**
+     * @brief Manages low mean speed for direct read transfer
      *
-     * The function finds the slowest connection, and replaces it by unused connection if posible,
-     * Otherwise entire transfer is retried.
+     * The function finds the slowest connection (if any), and replaces it by unused connection if
+     * posible, Otherwise entire transfer is retried.
      *
      * @note This function is called from watchOverDirectReadPerformance that monitors the speed of
-     * the entire raided transfer.
+     * transfer
      */
-    void onLowSpeedRaidedTransfer();
+    bool onLowMeanSpeedRaidedTransfer();
 
     /**
     *   @brief Main i/o loop (process every HTTP req from req vector).
@@ -690,7 +717,14 @@ public:
 
     /**
      * @brief Replace connectionNum by unused connection
-     * @param connectionNum The connection number
+     *
+     * @param connectionNum The connection number to be replaced by unused one
+     * @param reason Reason of replacement
+     * - UnusedConn::CONN_SPEED_SLOWEST_PART: replaced part is the slowest one
+     * - UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD: replaced part is the slowest one AND
+     * transfer mean speed is below minstreamingrate OR replaced part speed is below min speed
+     * threshold
+     *
      * @return true if connection could be replaced, otherwise false
      */
     bool replaceConnectionByUnused(const size_t connectionNum,
@@ -773,6 +807,13 @@ public:
     *   @see DirectReadSlot::mNumReqsInflight
     */
     bool increaseReqsInflight();
+
+    /**
+     * @brief Returns a pair of [transfer min speed, transfer mean speed]
+     * @param dsSinceLastWatch Ds since watchOverDirectReadPerformance was executed last time
+     * @return a pair of [transfer min speed, transfer mean speed]
+     */
+    std::pair<int, m_off_t> getMinAndMeanSpeed(const dstime dsSinceLastWatch);
 
     /**
     *   @brief Calculate speed and mean speed for DirectRead aggregated operations.
@@ -983,7 +1024,7 @@ private:
      * @param reason the reason for checking if we have reached max connection switched.
      *  - if CONN_SPEED_SLOWEST_PART comparison will be done against
      * mNumConnSwitchesSlowestPart
-     *  - if CONN_SPEED_UNDER_THRESHOLD or TRANSFER_MEAN_SPEED_UNDER_THRESHOLD comparison will be
+     *  - if TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD comparison will be
      * done against mNumConnSwitchesBelowSpeedThreshold
      *
      * @return `true` if the maximum number of connection switches has been reached or
@@ -994,31 +1035,29 @@ private:
         switch (reason)
         {
             case UnusedConn::CONN_SPEED_SLOWEST_PART:
-                return mNumConnSwitchesSlowestPart > DirectReadSlot::MAX_CONN_SWITCHES_SLOWEST_PART;
-            case UnusedConn::CONN_SPEED_UNDER_THRESHOLD:
-            case UnusedConn::TRANSFER_MEAN_SPEED_UNDER_THRESHOLD:
-                return mNumConnSwitchesBelowSpeedThreshold >
+                return mNumConnSwitchesSlowestPart >=
+                       DirectReadSlot::MAX_CONN_SWITCHES_SLOWEST_PART;
+            case UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD:
+                return mNumConnSwitchesBelowSpeedThreshold >=
                        DirectReadSlot::MAX_CONN_SWITCHES_BELOW_SPEED_THRESHOLD;
         }
         assert(false);
         return false;
     }
 
+    /**
+     * @brief increases counter for unused connection switches given a replacement reason
+     */
     void increaseUnusedConnSwitches(const UnusedConn::ConnReplacementReason reason)
     {
         switch (reason)
         {
             case UnusedConn::CONN_SPEED_SLOWEST_PART:
                 ++mNumConnSwitchesSlowestPart;
-                if (maxUnusedConnSwitchesReached(reason))
-                {
-                    mSlowDetectionBackoff = std::chrono::steady_clock::now();
-                }
-                break;
-            case UnusedConn::CONN_SPEED_UNDER_THRESHOLD:
-            case UnusedConn::TRANSFER_MEAN_SPEED_UNDER_THRESHOLD:
+                return;
+            case UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD:
                 ++mNumConnSwitchesBelowSpeedThreshold;
-                break;
+                return;
         }
         assert(false);
     }
