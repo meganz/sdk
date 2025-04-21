@@ -1666,7 +1666,7 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
         retryEntireTransfer(API_EREAD);
         return;
     }
-    replaceConnectionByUnused(connectionNum, UnusedConn::ON_RAIDED_ERROR, reason);
+    replaceConnectionByUnusedInflight(connectionNum, UnusedConn::ON_RAIDED_ERROR, reason);
 }
 
 bool DirectReadSlot::isRaidedTransfer() const
@@ -1754,7 +1754,24 @@ bool DirectReadSlot::unusedConnectionCanBeReused()
     return mUnusedConn.CanBeReused();
 }
 
-void DirectReadSlot::replaceConnectionByUnused(
+void DirectReadSlot::replaceConnectionByUnusedInflight(
+    const size_t newUnusedConnection,
+    const UnusedConn::ConnReplacementReason replamecementReason,
+    const UnusedConn::UnusedReason unusedReason)
+{
+    if (replaceConnectionByUnused(newUnusedConnection, replamecementReason, unusedReason))
+    {
+        decreaseReqsInflight();
+    }
+
+    if (mUnusedConnIncrementedInFlightReqs)
+    {
+        decreaseReqsInflight();
+        mUnusedConnIncrementedInFlightReqs = false;
+    }
+}
+
+bool DirectReadSlot::replaceConnectionByUnused(
     const size_t newUnusedConnection,
     const UnusedConn::ConnReplacementReason replamecementReason,
     const UnusedConn::UnusedReason unusedReason)
@@ -1767,7 +1784,7 @@ void DirectReadSlot::replaceConnectionByUnused(
                 << "]: "
                 << " Cannot replace unused connection by " << newUnusedConnection;
         assert(false);
-        return;
+        return false;
     }
 
     const auto prevUnusedConnection = mUnusedConn.getNum();
@@ -1782,6 +1799,7 @@ void DirectReadSlot::replaceConnectionByUnused(
     resetConnection(prevUnusedConnection);
     mUnusedConn.setUnused(newUnusedConnection, unusedReason);
     resetConnection(newUnusedConnection);
+    return true;
 }
 
 std::pair<size_t, size_t>
@@ -1888,10 +1906,12 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(const size_t connectio
     auto [slowestConnection, fastestConnection] = searchSlowestAndFastestConns(connectionNum);
     if (canSwitchSlowestByUnusedConn(connectionNum, slowestConnection, fastestConnection))
     {
-        replaceConnectionByUnused(slowestConnection,
-                                  UnusedConn::CONN_SPEED_SLOWEST_PART,
-                                  UnusedConn::UN_NOT_ERR);
-        return true;
+        if (replaceConnectionByUnused(slowestConnection,
+                                      UnusedConn::CONN_SPEED_SLOWEST_PART,
+                                      UnusedConn::UN_NOT_ERR))
+        {
+            return true;
+        }
     }
     return false;
 }
@@ -2029,9 +2049,10 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
             return true;
         }
 
-        replaceConnectionByUnused(slowestConnectionIndex,
-                                  UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD,
-                                  UnusedConn::UN_NOT_ERR);
+        replaceConnectionByUnusedInflight(slowestConnectionIndex,
+                                          UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD,
+                                          UnusedConn::UN_NOT_ERR);
+
         return false;
     }
 
@@ -2223,6 +2244,7 @@ bool DirectReadSlot::doio()
                     {
                         // Count the "unused connection" (restored by parity) as a req inflight, so we avoid to exec this piece of code needlessly
                         increaseReqsInflight();
+                        mUnusedConnIncrementedInFlightReqs = true;
                     }
                     // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
                     if (!processAnyOutputPieces())
@@ -2555,7 +2577,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     mNumReqsInflight = 0;
     mWaitForParts = false;
     mMaxChunkSubmitted = 0;
-
+    mUnusedConnIncrementedInFlightReqs = false;
     mDrs_it = mDr->drn->client->drss.insert(mDr->drn->client->drss.end(), this);
 
     mDr->drn->partiallen = 0;

@@ -662,6 +662,28 @@ public:
     bool unusedConnectionCanBeReused();
 
     /**
+     * @brief Replace connectionNum by unused connection when there are requests in flight
+     * This method also decrements in flight reqs, if connection can be replaced by unused one
+     * This method also decrements in flight reqs again, just in case
+     * mUnusedConnIncrementedInFlightReqs is true
+     *
+     * @param newUnusedConnection The connection number to be replaced by unused one
+     * @param reason Reason of replacement
+     * - UnusedConn::CONN_SPEED_SLOWEST_PART: replaced part is the slowest one
+     * - UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD: replaced part is the slowest one AND
+     * transfer mean speed is below minstreamingrate OR replaced part speed is below min speed
+     * threshold
+     * - UnusedConn::ON_RAIDED_ERROR replaced part has failed due a Http err
+     *
+     * @param unusedReason reason to be set at new unused connection. See UnusedReason enum
+     *
+     */
+    void replaceConnectionByUnusedInflight(
+        const size_t newUnusedConnection,
+        const UnusedConn::ConnReplacementReason replamecementReason,
+        const UnusedConn::UnusedReason unusedReason);
+
+    /**
      * @brief Replace connectionNum by unused connection
      *
      * @param newUnusedConnection The connection number to be replaced by unused one
@@ -673,8 +695,10 @@ public:
      * - UnusedConn::ON_RAIDED_ERROR replaced part has failed due a Http err
      *
      * @param unusedReason reason to be set at new unused connection. See UnusedReason enum
+     *
+     * @return True if connection has been replaced by unused, false otherwise
      */
-    void replaceConnectionByUnused(const size_t newUnusedConnection,
+    bool replaceConnectionByUnused(const size_t newUnusedConnection,
                                    const UnusedConn::ConnReplacementReason replamecementReason,
                                    const UnusedConn::UnusedReason unusedReason);
 
@@ -906,6 +930,12 @@ private:
     *   @see DirectReadSlot::mWaitForParts
     */
     unsigned mNumReqsInflight;
+
+    /**
+     * @brief flag that indicates when DirectReadSlot::mNumReqsInflight has been incremented due to
+     * unused connection
+     */
+    bool mUnusedConnIncrementedInFlightReqs{false};
 
     /**
     *   @brief Speed controller instance.
