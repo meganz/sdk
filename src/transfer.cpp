@@ -1883,13 +1883,13 @@ bool DirectReadSlot::replaceConnectionByUnused(const size_t connectionNum,
         return false;
     }
 
+    increaseUnusedConnSwitches(reason);
     assert(mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(connectionNum)));
     if (mUnusedConn.getNum() != mReqs.size())
     {
         resetConnection(mUnusedConn.getNum());
     }
     mUnusedConn.setUnused(connectionNum, UnusedConn::UN_NOT_ERR);
-    increaseUnusedConnSwitches(reason);
     LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
                 << " Continuing after setting slow connection"
                 << " [total slow connections switches = " << mNumPerformanceConnectionsSwitches
@@ -1990,12 +1990,30 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(const size_t connectio
 {
     // If mUnusedConn has failed due an error, we won't consider it valid for replacement
     assert(connectionNum < mReqs.size());
-    if (!mDr->drbuf.isRaid() || !isUnusedConnectionFailed() ||
-        maxUnusedConnSwitchesReached(UnusedConn::CONN_SPEED_LOW_PERFORMANCE) ||
-        exitDueReqsOnFlight() || !mReqs[connectionNum] || (connectionNum == mUnusedConn.getNum()) ||
+    if (!mDr->drbuf.isRaid() || !isUnusedConnectionFailed() || exitDueReqsOnFlight() ||
+        !mReqs[connectionNum] || (connectionNum == mUnusedConn.getNum()) ||
         !isMinComparableThroughputForThisConnection(connectionNum))
     {
         return false;
+    }
+
+    if (maxUnusedConnSwitchesReached(UnusedConn::CONN_SPEED_LOW_PERFORMANCE))
+    {
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::seconds>(now - mSlowDetetionBackoff).count() >
+            SLOW_DETECTION_BACKOFF.count())
+        {
+            LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
+                        << " SlowDetetionBackoff has expired (it will be reset) and slowest "
+                           "connection will be replaced by unused one"
+                        << " [this = " << this << "]";
+            mNumPerformanceConnectionsSwitches = 0;
+            mSlowDetetionBackoff = std::chrono::steady_clock::time_point::min();
+        }
+        else
+        {
+            return false;
+        }
     }
 
     auto [slowestConnection, fastestConnection] = searchSlowestAndFastestConns(connectionNum);
@@ -2622,6 +2640,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     }
     mMinComparableThroughput = DirectReadSlot::DEFAULT_MIN_COMPARABLE_THROUGHPUT;
     mSlotStartTime = std::chrono::steady_clock::now();
+    mSlowDetetionBackoff = std::chrono::steady_clock::time_point::min();
 }
 
 DirectReadSlot::~DirectReadSlot()

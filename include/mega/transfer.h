@@ -30,7 +30,9 @@
 
 #include <variant>
 
-namespace mega {
+namespace mega
+{
+using namespace std::literals;
 
 // helper class for categorizing transfers for upload/download queues
 struct TransferCategory
@@ -530,6 +532,13 @@ public:
      */
     static constexpr int MAX_DIFFERENT_FAILED_RAIDED_CONNS = 1;
 
+    /**
+     * @brief Backoff between retries when mNumPerformanceConnectionsSwitches has reached limit
+     *
+     * @see DirectReadSlot::searchAndDisconnectSlowestConnection
+     */
+    static constexpr std::chrono::seconds SLOW_DETECTION_BACKOFF = 300s;
+
     /* ===================*\
      *      Methods       *
     \* ===================*/
@@ -889,6 +898,13 @@ private:
     std::chrono::steady_clock::time_point mSlotStartTime;
 
     /**
+     * @brief Backoff to be applied when max of bad performance connections have been detected
+     *
+     * @see DirectReadSlot::searchAndDisconnectSlowestConnection
+     */
+    std::chrono::steady_clock::time_point mSlowDetetionBackoff;
+
+    /**
      *   @brief Unused connection due to slowness.
      *
      *   This value is used for detecting the slowest start connection and further search and
@@ -991,7 +1007,14 @@ private:
     \* =======================*/
 
     /**
-     * @brief Checks if the maximum number of slow connection switches has been reached or exceeded.
+     * @brief Checks if the maximum number of slow connection switches has been reached or exceeded
+     * based on reason param.
+     *
+     * @param reason the reason for checking if we have reached max connection switched.
+     *  - if CONN_SPEED_LOW_PERFORMANCE comparisson will be done against
+     * mNumPerformanceConnectionsSwitches
+     *  - if CONN_SPEED_UNDER_THRESHOLD or TRANSFER_MEAN_SPEED_UNDER_THRESHOLD comparisson will be
+     * done against mNumSlowSpeedSwitches
      *
      * @return `true` if the maximum number of slow connection switches has been reached or
      * exceeded, `false` otherwise.
@@ -1017,6 +1040,10 @@ private:
         {
             case UnusedConn::CONN_SPEED_LOW_PERFORMANCE:
                 ++mNumPerformanceConnectionsSwitches;
+                if (maxUnusedConnSwitchesReached(reason))
+                {
+                    mSlowDetetionBackoff = std::chrono::steady_clock::now();
+                }
             case UnusedConn::CONN_SPEED_UNDER_THRESHOLD:
             case UnusedConn::TRANSFER_MEAN_SPEED_UNDER_THRESHOLD:
                 ++mNumSlowSpeedSwitches;
