@@ -327,7 +327,7 @@ public:
      * - TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD replaced part is the slowest one and transfer mean
      * speed is below minstreamingrate or replaced part speed is below min speed threshold
      *
-     * - ON_RAIDED_ERROR replaced part has failed with a Http error
+     * - ON_RAIDED_ERROR replaced part has failed with an HTTP error.
      */
     enum ConnReplacementReason
     {
@@ -481,8 +481,8 @@ public:
     static constexpr unsigned DEFAULT_MIN_COMPARABLE_THROUGHPUT = MAX_DELIVERY_CHUNK;
 
     /**
-     *   @brief Max times a DirectReadSlot is allowed to switch the unused connection by another
-     * connection detected as slow respect the others
+     *   @brief Max times a DirectReadSlot is allowed to switch the unused connection for another
+     * connection detected as slow with respect to the others.
      *
      *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
      */
@@ -530,10 +530,10 @@ public:
     /**
      * @brief Timeout to reset connection switches counters.
      *
-     * During a streaming transfer we may perform RAIDED parts replacements due to different reasons
-     * (failed part, slow mean speed) this replacements can be done just a limited number of times.
-     * However for long streaming transfers, we need to reset those counters to discard punctual
-     * connectivity issues.
+     * During a streaming transfer, we may perform RAIDED parts replacements due to different
+     * reasons (failed part, slow mean speed). These replacements can be done just a limited number
+     * of times. However, for long streaming transfers, we need to reset those counters to discard
+     * punctual connectivity issues.
      *
      * @see DirectReadSlot::doio
      */
@@ -569,7 +569,7 @@ public:
      *
      * @return A pair containing:
      *         - A set of indices representing connections that are too slow.
-     *         - The index of the slowest connection (or invalid index if no slow conns exists).
+     *         - The index of the slowest connection (or invalid index if no slow conns exist).
      */
     std::pair<std::set<size_t>, size_t> searchSlowConnsUnderThreshold();
 
@@ -674,9 +674,8 @@ public:
 
     /**
      * @brief Replace connectionNum by unused connection when there are requests in flight.
-     * - This method decrements in flight reqs, if connection can be replaced by unused one
-     * - This method also decrements in flight reqs again, just in case
-     * mUnusedConnIncrementedInFlightReqs is true
+     * - This method decrements the number of requests in flight as necessary if the
+     * newUnusedConnection can be replaced by the currently unused one.
      *
      * @note: this method internally calls DirectReadSlot::replaceConnectionByUnused to perform
      * connection replacement
@@ -736,9 +735,9 @@ public:
      * @return `true` if the slowest connection can be switched out for the unused connection,
      *         `false` otherwise.
      */
-    bool canSwitchSlowestByUnusedConn(const size_t connectionNum,
-                                      const size_t slowestConnection,
-                                      const size_t fastestConnection) const;
+    bool slowestConnTooSlowVsFastest(const size_t connectionNum,
+                                     const size_t slowestConnection,
+                                     const size_t fastestConnection) const;
 
     /**
      * @brief Search for the slowest connection and switch it with the actual unused connection.
@@ -894,7 +893,7 @@ private:
     std::chrono::steady_clock::time_point mSlotStartTime;
 
     /**
-     * @brief Timeout for reset all connection switches counters
+     * @brief Timeout to reset all connection switch counters.
      *
      * @see DirectReadSlot::resetConnSwitchesCountersIfTimeoutExpired
      */
@@ -945,8 +944,9 @@ private:
     unsigned mNumReqsInflight;
 
     /**
-     * @brief flag that indicates when DirectReadSlot::mNumReqsInflight has been incremented due to
-     * unused connection
+     * @brief Flag that indicates whether the DirectReadSlot::mNumReqsInflight counter has been
+incremented after processing the unused connection.
+@see DirectReadSlot::increaseReqsInFlight
      */
     bool mUnusedConnIncrementedInFlightReqs{false};
 
