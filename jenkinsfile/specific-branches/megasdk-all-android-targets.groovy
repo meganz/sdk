@@ -66,10 +66,11 @@ pipeline {
                     }
                     steps {
                         sh "docker run --name android-builder-arm-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=arm meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-arm-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=arm -e BUILD_SHARED_LIBS=ON meganz/android-build-env:${env.BUILD_NUMBER}"                    
                     }
                     post{
                         aborted {
-                            sh "docker kill android-builder-arm-${env.BUILD_NUMBER}"
+                            sh "docker kill android-builder-arm-${env.BUILD_NUMBER}; docker kill android-builder-arm-dynamiclib-${env.BUILD_NUMBER}"
                             script {
                                 failedTargets.add("arm")
                             }
@@ -88,10 +89,11 @@ pipeline {
                     }
                     steps {
                         sh "docker run --name android-builder-arm64-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=arm64 meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-arm64-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=arm64 -e BUILD_SHARED_LIBS=ON meganz/android-build-env:${env.BUILD_NUMBER}"
                     }
                     post{
                         aborted {
-                            sh "docker kill android-builder-arm64-${env.BUILD_NUMBER}" 
+                            sh "docker kill android-builder-arm64-${env.BUILD_NUMBER}; docker kill android-builder-arm64-dynamiclib-${env.BUILD_NUMBER}" 
                             script {
                                 failedTargets.add("arm64")
                             }
@@ -110,10 +112,11 @@ pipeline {
                     }
                     steps {
                         sh "docker run --name android-builder-x86-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=x86 meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-x86-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=x86 -e BUILD_SHARED_LIBS=ON meganz/android-build-env:${env.BUILD_NUMBER}"                    
                     }
                     post{
                         aborted {
-                            sh "docker kill android-builder-x86-${env.BUILD_NUMBER}" 
+                            sh "docker kill android-builder-x86-${env.BUILD_NUMBER}; docker kill android-builder-x86-dynamiclib-${env.BUILD_NUMBER}" 
                             script {
                                 failedTargets.add("x86")
                             }
@@ -132,14 +135,15 @@ pipeline {
                     }
                     steps {
                         sh "docker run --name android-builder-x64-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=x64 meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-x64-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=x64 -e BUILD_SHARED_LIBS=ON meganz/android-build-env:${env.BUILD_NUMBER}" 
                     }
                     post{
                         aborted {
-                            sh "docker kill android-builder-x64-${env.BUILD_NUMBER}" 
+                            sh "docker kill android-builder-x64-${env.BUILD_NUMBER}; docker kill android-builder-x64-dynamiclib-${env.BUILD_NUMBER}"
                             script {
                                 failedTargets.add("x64")
                             }
-                        }
+                        } 
                         failure {
                             script {
                                 failedTargets.add("x64")
