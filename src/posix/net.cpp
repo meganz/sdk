@@ -2058,7 +2058,7 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
         while (end > val && *end < ' ')
             end--;
         assert(end - val >= 0);
-        string buffer{val, static_cast<size_t>(end - val)};
+        string buffer{val, static_cast<size_t>((end - val) + 1)};
         LOG_warn << "X-Hashcash received:" << buffer;
 
         // Example of hashcash header
