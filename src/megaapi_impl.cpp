@@ -6837,7 +6837,7 @@ void MegaApiImpl::init(MegaApi* publicApi,
 
     if (newBasePath)
     {
-        basePath.assign(newBasePath);
+        basePath = newBasePath;
     }
     else
     {
