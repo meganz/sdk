@@ -6838,9 +6838,15 @@ void MegaApiImpl::init(MegaApi* publicApi,
     dbAccess = nullptr;
     if (newBasePath)
     {
-        dbAccess = new MegaDbAccess(LocalPath::fromAbsolutePath(newBasePath));
-        basePath = newBasePath;
+        basePath.assign(newBasePath);
     }
+    else
+    {
+        LocalPath path;
+        fsAccess->cwd(path);
+        basePath = path.toPath(true);
+    }
+    dbAccess = new MegaDbAccess(LocalPath::fromAbsolutePath(basePath));
 
     gfxAccess = gfxproc.release();
     if (gfxAccess)
