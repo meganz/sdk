@@ -2684,9 +2684,72 @@ public class MegaApiJava {
      *
      * @param node MegaHandle of the node to check if it is a Password Node Folder
      * @return true if this node is a Password Node Folder
+     *
+     * @deprecated Moved to isPasswordManagerNodeFolder.
      */
+    @Deprecated
     public boolean isPasswordNodeFolder(long node) {
         return megaApi.isPasswordNodeFolder(node);
+    }
+
+    /**
+     * Returns true if provided MegaHandle belongs to a Password Manager Node Folder
+     *
+     * A folder is considered a Password Manager Node Folder if Password Manager Base is its
+     * ancestor, or if the node is the Password Manager Base folder itself.
+     *
+     * @param node MegaHandle of the node to check if it is a Password Manager Node Folder
+     * @return true if this node is a Password Manager Node Folder, false otherwise.
+     * In case node doesn't exists this method will also returns false.
+     */
+    public boolean isPasswordManagerNodeFolder(long node) {
+        return megaApi.isPasswordManagerNodeFolder(node);
+    };
+
+    /**
+     * Create a new Credit Card Node in your Password Manager tree
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
+     * - MegaRequest::getName - name for the new Password Node provided as an argument
+     * - MegaRequest::getParamType - MegaApi::PWM_NODE_TYPE_CREDIT_CARD
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new Password Node
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EBUSINESSPASTDUE:
+     *   + If the MEGA account is a business account and it's status is expired
+     * - MegaError::API_EARGS:
+     *   + If `name` is nullptr or empty string
+     *   + If `data` is nullptr
+     *   + If `parent` does belong to a passwordNodeFolder
+     * - MegaError::API_EEXIST:
+     *   + If there already is a Password Manager Node in the target path with the same name. In
+     *     that case, the existing Password Manager Node MegaHandle can be retrieved by
+     *     MegaRequest::getNodeHandle.
+     * - MegaError::API_EAPPKEY:
+     *   + If the `data` is ill-formed. These are the format requirements for the data in the
+     *     CreditCardNodeData object:
+     *     - `cardNumber`: Mandatory (not nullptr nor empty string). Can only contain digits (no
+     *       spaces or other characters are allowed)
+     *     - `cvv`: Optional. If defined, must contain only digits (no spaces or other
+     *       characters are allowed)
+     *     - `expirationDate`: Optional. If defined must follow exactly the format: MM/YY, where
+     *       MM and YY are digits and MM must be between 01 and 12. Some examples:
+     *       + Valid inputs: 01/11, 12/25, 05/99.
+     *       + Invalid inputs: 13/25, 1/30, 03/5.
+     *     - `notes` and `cardHolderName`: Optionals and with no format restrictions.
+     *
+     * @param name Name for the new Credit Card Node
+     * @param data Credit Card Node data for the Credit Card Node
+     * @param parent Parent folder for the new Credit Card Node
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createCreditCardNode(String name, MegaNode.CreditCardNodeData data, long parent, MegaRequestListenerInterface listener) {
+        megaApi.createCreditCardNode(name, data, parent, createDelegateRequestListener(listener));
     }
 
     /**
@@ -2712,6 +2775,37 @@ public class MegaApiJava {
     public void createPasswordNode(String name, MegaNode.PasswordNodeData data, long parent,
                                    MegaRequestListenerInterface listener) {
         megaApi.createPasswordNode(name, data, parent, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Update a Creadit Card Node in the MEGA account according to the parameters
+     *
+     * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+     * - MegaRequest::getParamType - MegaApi::PWM_NODE_TYPE_CREDIT_CARD
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish
+     * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EBUSINESSPASTDUE:
+     *   + If the MEGA account is a business account and it's status is expired
+     * - MegaError::API_EARGS:
+     *   + If `newData` is nullptr or empty
+     *   + If `node` does not exist or does not belong to a Credit Card Node
+     * - MegaError::API_EAPPKEY:
+     *   + If the node ends up in an invalid state after applying the provided updates in
+     *    `newData`. See `MegaApi::createCreditCardNode` documentation for more details on the
+     *    expected format of each field if specified for the update.
+     *
+     * @param node Node to modify
+     * @param newData New data for the Credit Card Node to update
+     * @param listener MegaRequestListener to track this request
+     */
+    public void updateCreditCardNode(long node, MegaNode.CreditCardNodeData newData,
+                                     MegaRequestListenerInterface listener) {
+        megaApi.updateCreditCardNode(node, newData, createDelegateRequestListener(listener));
     }
 
     /**
