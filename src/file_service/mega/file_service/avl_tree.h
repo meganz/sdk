@@ -267,12 +267,10 @@ public:
     using Iterator = AVLTreeIterator<NodeType, LinkTraits, false>;
 
     // Add a node to the tree.
-    auto add(NodeType& node) -> std::pair<Iterator, bool>
+    auto add(NodeType** link, NodeType& node, NodeType* parent) -> std::pair<Iterator, bool>
     {
-        NodeType** link{};
-
-        // Where should we link in the user's node?
-        auto* parent = find(KT::key(node), link);
+        // Sanity.
+        assert(link);
 
         // A node in the tree's already associated with this key.
         if (auto* child = *link)
@@ -292,6 +290,18 @@ public:
 
         // Let the user know the node was added.
         return std::make_pair(&node, true);
+    }
+
+    // Add a node to the tree.
+    auto add(NodeType& node) -> std::pair<Iterator, bool>
+    {
+        NodeType** link{};
+
+        // Where should we link in the user's node?
+        auto* parent = find(KT::key(node), link);
+
+        // Try and add the node to the tree.
+        return add(link, node, parent);
     }
 
     // Return an iterator to the first node in the tree.
