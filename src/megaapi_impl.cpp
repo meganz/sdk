@@ -6835,7 +6835,6 @@ void MegaApiImpl::init(MegaApi* publicApi,
 
     fsAccess.reset(new MegaFileSystemAccess);
 
-    dbAccess = nullptr;
     if (newBasePath)
     {
         basePath.assign(newBasePath);
