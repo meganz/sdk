@@ -12,7 +12,7 @@
 #     -it : Starts an interactive terminal session inside the container after the cmake project is configured and build
 
 # Base image
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Install dependencies
 RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install \
