@@ -340,6 +340,30 @@ TEST(AVLTree, remove)
     }
 }
 
+TEST(AVLTree, upper_bound)
+{
+    std::vector<Node> nodes = {-1, 2, 4};
+    auto tree = treeFrom<Traits>(nodes);
+
+    auto iterator = tree.upper_bound(-2);
+    ASSERT_NE(iterator, tree.end());
+    ASSERT_EQ(iterator->mKey, -1);
+
+    iterator = tree.upper_bound(-1);
+    ASSERT_NE(iterator, tree.end());
+    ASSERT_EQ(iterator->mKey, 2);
+
+    iterator = tree.upper_bound(2);
+    ASSERT_NE(iterator, tree.end());
+    ASSERT_EQ(iterator->mKey, 4);
+
+    iterator = tree.upper_bound(4);
+    ASSERT_EQ(iterator, tree.end());
+
+    iterator = tree.lower_bound(5);
+    ASSERT_EQ(iterator, tree.end());
+}
+
 template<typename Traits, typename KeyType>
 static std::vector<KeyType> breadth(const AVLTree<Traits>& tree)
 {

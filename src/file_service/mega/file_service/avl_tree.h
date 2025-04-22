@@ -501,6 +501,34 @@ public:
     {
         return mSize;
     }
+
+    // Return a reference to the first node greater than key.
+    Iterator upper_bound(const KeyType& key)
+    {
+        NodeType* candidate = nullptr;
+
+        // Search the tree for key.
+        for (auto* node = mRoot; node;)
+        {
+            // How does key relate to this node's key?
+            auto relationship = KT::compare(key, KT::key(*node));
+
+            // Key's less than this node's key.
+            if (relationship < 0)
+                candidate = node;
+
+            // Continue the search down the tree.
+            node = LT::child(*node, relationship >= 0);
+        }
+
+        // If candidate's not null, it'll be the first node greater than key.
+        return candidate;
+    }
+
+    ConstIterator upper_bound(const KeyType& key) const
+    {
+        return const_cast<AVLTree<Traits>&>(*this).upper_bound(key);
+    }
 }; // AVLTree<Traits>
 
 } // file_service
