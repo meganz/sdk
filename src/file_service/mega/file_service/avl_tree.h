@@ -53,53 +53,6 @@ public:
     static_assert(IsNotNoneSuchV<NodeType>);
 
 private:
-    // Try and locate key in the tree.
-    //
-    // This function returns two values, one directly and one through the
-    // link parameter.
-    //
-    // The value returned directly by this function will be a pointer to the
-    // last node that was traversed when searching for key. Put differently,
-    // it will point to the parent of the node that does (or would) contain
-    // key.
-    //
-    // The link parameter will point to the last child link that was taken
-    // before traversal terminated. If key is already in the tree, *link
-    // will reference the node that contains it. If key isn't in the tree
-    // then we can use *link to attach a new directly to the appropriate
-    // parent.
-    auto* find(const KeyType& key, NodeType**& link)
-    {
-        // Start the search from the root.
-        //
-        // Note that link is a reference to a node pointer.
-        link = &mRoot;
-
-        // The root node has no parent.
-        NodeType* parent{};
-
-        for (NodeType* child; (child = *link);)
-        {
-            // How does the user's key relate to the child's?
-            auto relationship = KT::compare(key, KT::key(*child));
-
-            // User's key is equivalent to the child's.
-            if (!relationship)
-                break;
-
-            // Which child are we going to traverse into?
-            //
-            // If relationship is >0, traverse into the right child.
-            // Otherwise, traverse into the left child.
-            link = &LT::child(*child, relationship > 0);
-
-            // This child is the parent of the next.
-            parent = child;
-        }
-
-        return parent;
-    }
-
     // Rebalance a node (subtree) if necessary.
     NodeType* maybeRebalance(NodeType& node)
     {
@@ -379,6 +332,53 @@ public:
     ConstIterator end() const
     {
         return {};
+    }
+
+    // Try and locate key in the tree.
+    //
+    // This function returns two values, one directly and one through the
+    // link parameter.
+    //
+    // The value returned directly by this function will be a pointer to the
+    // last node that was traversed when searching for key. Put differently,
+    // it will point to the parent of the node that does (or would) contain
+    // key.
+    //
+    // The link parameter will point to the last child link that was taken
+    // before traversal terminated. If key is already in the tree, *link
+    // will reference the node that contains it. If key isn't in the tree
+    // then we can use *link to attach a new directly to the appropriate
+    // parent.
+    auto* find(const KeyType& key, NodeType**& link)
+    {
+        // Start the search from the root.
+        //
+        // Note that link is a reference to a node pointer.
+        link = &mRoot;
+
+        // The root node has no parent.
+        NodeType* parent{};
+
+        for (NodeType* child; (child = *link);)
+        {
+            // How does the user's key relate to the child's?
+            auto relationship = KT::compare(key, KT::key(*child));
+
+            // User's key is equivalent to the child's.
+            if (!relationship)
+                break;
+
+            // Which child are we going to traverse into?
+            //
+            // If relationship is >0, traverse into the right child.
+            // Otherwise, traverse into the left child.
+            link = &LT::child(*child, relationship > 0);
+
+            // This child is the parent of the next.
+            parent = child;
+        }
+
+        return parent;
     }
 
     // Return an iterator to the node associated with key.
