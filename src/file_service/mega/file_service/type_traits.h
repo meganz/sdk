@@ -105,5 +105,11 @@ struct MemberPointerTraits<Member Class::* const>: std::true_type
     using member_type = Member;
 }; // MemberPointerTraits<Class Member::* const>
 
+template<typename Type>
+using RemoveCVRef = std::remove_cv<std::remove_reference_t<Type>>;
+
+template<typename Type>
+using RemoveCVRefT = typename RemoveCVRef<Type>::type;
+
 } // file_service
 } // mega

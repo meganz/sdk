@@ -83,5 +83,9 @@ static_assert(!StaticConstMember::value);
 static_assert(!DetectedV<DetectClassType, StaticConstMember>);
 static_assert(!DetectedV<DetectMemberType, StaticConstMember>);
 
+static_assert(std::is_same_v<RemoveCVRefT<const int&>, int>);
+static_assert(std::is_same_v<RemoveCVRefT<int&>, int>);
+static_assert(std::is_same_v<RemoveCVRefT<int>, int>);
+
 } // file_service
 } // mega
