@@ -1846,9 +1846,9 @@ LocalPath PathURI::parentPath() const
 LocalPath PathURI::insertFilenameSuffix(const std::string& suffix) const
 {
     PathURI newPathUri{*this};
-    std::string name = newPathUri.leafName().toPath(false);
-    name.append(suffix);
-    newPathUri.changeLeaf(LocalPath::fromRelativePath(name));
+    auto auxPathName = newPathUri.leafName();
+    assert(!auxPathName.isRootPath() && !auxPathName.isURI());
+    newPathUri.changeLeaf(auxPathName.insertFilenameSuffix(suffix));
     return LocalPathImplementationHelper::buildLocalPath(newPathUri);
 }
 

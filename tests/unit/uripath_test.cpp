@@ -25,7 +25,7 @@ static const string_type uriLeaf2{L"file.txt"};
 #else
 static const string rootName;
 static const string rootDrive;
-static const string_type uriBase{"content://com.android.externalstorage.documents/"};
+static const string_type uriBase{"content://com.android.externalstorage.documents"};
 static const string_type uriLeaf1{"folder1"};
 static const string_type uriLeaf2{"file.txt"};
 #endif
