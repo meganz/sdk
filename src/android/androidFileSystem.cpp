@@ -846,7 +846,7 @@ bool AndroidFileAccess::sysopen(bool, FSLogging)
 
     mFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(nonblocking_localname, false, false);
 
-    if (!mFileWrapper->exists())
+    if (!mFileWrapper || !mFileWrapper->exists())
     {
         errorcode = ENOENT;
         return false;
@@ -1459,6 +1459,10 @@ AddWatchResult AndroidDirNotify::addWatch(LocalNode& node, const LocalPath& path
     if (auxPath.isURI())
     {
         auto androidFileWrapper{AndroidFileWrapper::getAndroidFileWrapper(auxPath, false, false)};
+        if (!androidFileWrapper)
+        {
+            return make_pair(WatchMapIterator{}, WR_FAILURE);
+        }
         auto pathStr{androidFileWrapper->getPath()};
         if (pathStr.has_value())
         {
