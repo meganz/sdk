@@ -242,6 +242,7 @@ public:
     static constexpr separator_t localPathSeparator = '/';
     static constexpr char localPathSeparator_utf8 = '/';
 #endif
+    static constexpr char uriPathSeparator_utf8 = '/';
 
     bool isAbsolute() const
     {
