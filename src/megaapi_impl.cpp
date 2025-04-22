@@ -6842,9 +6842,9 @@ void MegaApiImpl::init(MegaApi* publicApi,
     }
     else
     {
-        LocalPath path;
-        fsAccess->cwd(path);
-        basePath = path.toPath(true);
+        LocalPath currentWorkingDirectory;
+        fsAccess->cwd(currentWorkingDirectory);
+        basePath = currentWorkingDirectory.toPath(true);
     }
     dbAccess = new MegaDbAccess(LocalPath::fromAbsolutePath(basePath));
 
