@@ -2045,7 +2045,8 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
     const NodeMatchByFSIDAttributes fsNodeAttributes{row.fsNode->type,
                                                      fsfp(),
                                                      cloudRootOwningUser,
-                                                     row.fsNode->fingerprint};
+                                                     row.fsNode->fingerprint,
+                                                     FileFingerprint{}};
     const auto [foundExclusionUnknown, sourceSyncNode] = syncs.findLocalNodeBySyncedFsid(
         row.fsNode->fsid,
         fsNodeAttributes,
@@ -2318,7 +2319,8 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                             syncNode.type,
                             fsfp,
                             cloudRootOwningUser,
-                            syncNode.syncedFingerprint};
+                            syncNode.syncedFingerprint,
+                            FileFingerprint{}};
 
                         return syncs.findLocalNodeByScannedFsid(syncNode.fsid_lastSynced,
                                                                 syncNodeAttributes,
@@ -9812,7 +9814,8 @@ bool Sync::resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath)
     const NodeMatchByFSIDAttributes moveNodeAttributes{movePtr->sourceType,
                                                        *movePtr->sourceFsfp,
                                                        cloudRootOwningUser,
-                                                       movePtr->sourceFingerprint};
+                                                       movePtr->sourceFingerprint,
+                                                       FileFingerprint{}};
     const auto [sourceExclusionUnknown, source] =
         syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid,
                                         moveNodeAttributes,
@@ -9895,7 +9898,8 @@ bool Sync::resolve_checkMoveComplete(SyncRow& row, SyncRow& /*parentRow*/, SyncP
     const NodeMatchByFSIDAttributes moveNodeAttributes{movePtr->sourceType,
                                                        *movePtr->sourceFsfp,
                                                        cloudRootOwningUser,
-                                                       movePtr->sourceFingerprint};
+                                                       movePtr->sourceFingerprint,
+                                                       FileFingerprint{}};
     const auto [sourceExclusionUnknown, sourceSyncNode] =
         syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid,
                                         moveNodeAttributes,
@@ -10255,7 +10259,8 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
             const NodeMatchByFSIDAttributes syncNodeAttributes{row.syncNode->type,
                                                                fsfp(),
                                                                cloudRootOwningUser,
-                                                               row.syncNode->syncedFingerprint};
+                                                               row.syncNode->syncedFingerprint,
+                                                               FileFingerprint{}};
             const auto [sourceFsidExclusionUnknown, fsElsewhere] =
                 syncs.findLocalNodeByScannedFsid(row.syncNode->fsid_lastSynced,
                                                  syncNodeAttributes,
@@ -11358,7 +11363,8 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
             sourceSyncNodeOriginal->type,
             sourceSyncNodeOriginal->sync->fsfp(),
             sourceSyncNodeOriginal->sync->cloudRootOwningUser,
-            sourceSyncNodeOriginal->syncedFingerprint};
+            sourceSyncNodeOriginal->syncedFingerprint,
+            FileFingerprint{}};
         std::tie(unsureDueToUnknownExclusionMoveSource, sourceSyncNodeCurrent) =
             findLocalNodeByScannedFsid(sourceSyncNodeOriginal->fsid_lastSynced,
                                        sourceSyncNodeOriginalAttributes,
@@ -11544,7 +11550,8 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& /*parentRow*/, SyncPath& fu
                 const NodeMatchByFSIDAttributes syncNodeAttributes{syncNode.type,
                                                                    fsfp,
                                                                    cloudRootOwningUser,
-                                                                   syncNode.syncedFingerprint};
+                                                                   syncNode.syncedFingerprint,
+                                                                   FileFingerprint{}};
                 return syncs.findLocalNodeByScannedFsid(syncNode.fsid_lastSynced,
                                                         syncNodeAttributes,
                                                         fullPath.localPath,

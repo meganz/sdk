@@ -70,9 +70,14 @@ NodeMatchByFSIDAttributes
     genMatchAttributes(const nodetype_t nodeType = FILENODE,
                        const fsfp_t& filesystemFingerprint = {1, "UUID"},
                        const handle userHandle = COMMON_USER_OWNER,
-                       const FileFingerprint& fileFingerprint = genLightFingerprint())
+                       const FileFingerprint& fileFingerprint = genLightFingerprint(),
+                       const FileFingerprint& realFingerprint = genLightFingerprint())
 {
-    return NodeMatchByFSIDAttributes{nodeType, filesystemFingerprint, userHandle, fileFingerprint};
+    return NodeMatchByFSIDAttributes{nodeType,
+                                     filesystemFingerprint,
+                                     userHandle,
+                                     fileFingerprint,
+                                     realFingerprint};
 }
 
 } // namespace
