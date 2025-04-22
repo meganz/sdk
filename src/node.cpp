@@ -38,10 +38,6 @@
 #include "mega/android/androidFileSystem.h"
 #endif
 
-#ifdef __ANDROID__
-#include "mega/android/androidFileSystem.h"
-#endif
-
 namespace mega
 {
 
