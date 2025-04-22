@@ -6841,9 +6841,7 @@ void MegaApiImpl::init(MegaApi* publicApi,
     }
     else
     {
-        LocalPath currentWorkingDirectory;
-        fsAccess->cwd(currentWorkingDirectory);
-        basePath = currentWorkingDirectory.toPath(true);
+        basePath = std::filesystem::current_path().string();
     }
     dbAccess = new MegaDbAccess(LocalPath::fromAbsolutePath(basePath));
 
