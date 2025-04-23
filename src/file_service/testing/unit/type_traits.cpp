@@ -94,5 +94,17 @@ static_assert(IsEqualityComparableV<std::pair<int, int>>);
 static_assert(!IsEqualityComparableV<Unrelated>);
 static_assert(!IsEqualityComparableV<std::pair<int, Unrelated>>);
 
+template<typename Provided, typename Expected>
+constexpr auto SelectFirstResultIsV =
+    std::is_same_v<std::invoke_result_t<SelectFirst, Provided>, Expected>;
+
+// Convenience.
+using IntPair = std::pair<int, int>;
+
+static_assert(SelectFirstResultIsV<const IntPair&, const int&>);
+static_assert(SelectFirstResultIsV<IntPair&, int&>);
+static_assert(SelectFirstResultIsV<IntPair&&, int&&>);
+static_assert(SelectFirstResultIsV<IntPair, int&&>);
+
 } // file_service
 } // mega
