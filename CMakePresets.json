@@ -45,7 +45,7 @@
             "inherits": "default",
             "cacheVariables": {
                 "ENABLE_ISOLATED_GFX": "OFF",
-                "USE_LIBUV": "ON"
+                "USE_LIBUV": "ON",
                 "WITH_FUSE": "ON"
             }
         },
@@ -61,6 +61,25 @@
             "inherits": [
                 "windows",
                 "megacmd"
+            ]
+        },
+        {
+            "name": "megaproxy",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_ISOLATED_GFX": "OFF",
+                "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_SYNC": "OFF",
+                "USE_LIBUV": "OFF",
+                "USE_READLINE": "OFF"
+            }
+        },
+        {
+            "name": "megaproxy-unix",
+            "inherits": [
+                "unix",
+                "megaproxy"
             ]
         },
         {
