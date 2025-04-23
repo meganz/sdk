@@ -18,6 +18,10 @@ namespace detail
 template<typename Traits>
 using DetectCompareType = typename Traits::Compare;
 
+// Check whether Traits contains a key functor.
+template<typename Traits>
+using DetectKeyFunction = typename Traits::KeyFunction;
+
 // Check whether Traits contains an mKeyPointer member.
 template<typename Traits>
 using DetectKeyPointer = decltype(Traits::mKeyPointer);
@@ -44,7 +48,19 @@ class KeyTraits
     static_assert(KeyPointerTraits::value);
 
 public:
-    using KeyType = typename KeyPointerTraits::member_type;
+    // Default to Identity if Traits::KeyFunction isn't defined.
+    using KeyFunction = DetectedOrT<Identity, DetectKeyFunction, Traits>;
+
+    // Convenience.
+    using CandidateKeyType = typename KeyPointerTraits::member_type;
+
+    // Make sure the user's provided a sane key functor.
+    static_assert(std::is_invocable_v<KeyFunction, CandidateKeyType>);
+
+    // Determine the tree's key type.
+    using KeyType = RemoveCVRefT<std::invoke_result_t<KeyFunction, CandidateKeyType>>;
+
+    // Determine the tree's node type.
     using NodeType = typename KeyPointerTraits::class_type;
 
     // Default to std::less<KeyType> if Traits::Compare isn't defined.
@@ -79,7 +95,7 @@ public:
     template<typename NodeType>
     static auto& key(NodeType& node)
     {
-        return node.*Traits::mKeyPointer;
+        return KeyFunction()(node.*Traits::mKeyPointer);
     }
 }; // KeyTraits<Traits>
 
