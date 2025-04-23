@@ -28,7 +28,7 @@ using DetectLinkPointer = decltype(Traits::mLinkPointer);
 
 // Check whether Traits contains an update member.
 template<typename Traits>
-using DetectUpdate = decltype(Traits::update);
+using DetectUpdate = typename Traits::Update;
 
 template<typename Traits>
 class KeyTraits
@@ -260,7 +260,7 @@ public:
             right = &metadata(*child);
 
         // Recompute this node's metadata.
-        metadata(node) = Traits::update(left, right);
+        metadata(node) = typename Traits::Update()(left, right);
     }
 }; // MetadataTraits<Traits, void>
 

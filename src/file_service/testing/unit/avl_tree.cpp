@@ -12,7 +12,7 @@ namespace file_service
 {
 
 template<typename Traits>
-using DetectValidate = decltype(Traits::validate);
+using DetectValidate = typename Traits::Validate;
 
 template<typename Traits>
 constexpr auto HasValidateV =
@@ -465,7 +465,7 @@ bool validate(typename AVLTree<Traits>::ConstIterator node,
     // Validate our metadata.
     if constexpr (HasValidateV<Traits>)
     {
-        if (!Traits::validate(*node))
+        if (!typename Traits::Validate()(*node))
             return false;
     }
 
