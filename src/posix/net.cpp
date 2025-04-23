@@ -1052,6 +1052,10 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                 curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
             }
         }
+        else
+        {
+            curl_easy_setopt(curl, CURLOPT_PROXY, "");
+        }
 
         httpio->numconnections[httpctx->d]++;
         curl_multi_add_handle(httpio->curlm[httpctx->d], curl);
