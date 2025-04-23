@@ -15,9 +15,29 @@
             "generator": "Unix Makefiles"
         },
         {
+            "name": "android",
+            "hidden": true,
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_SYSTEM_NAME": "Android"
+            }
+        },
+        {
             "name": "windows",
             "hidden": true,
             "generator": "Visual Studio 17 2022"
+        },
+        {
+            "name": "mega",
+            "hidden": true,
+            "inherits": "default"
+        },
+        {
+            "name": "mega-android",
+            "inherits": [
+                "android",
+                "mega"
+            ]
         },
         {
             "name": "megasync",
