@@ -462,7 +462,7 @@ public:
     NodeType* remove(Iterator iterator)
     {
         // Make sure our iterator is valid.
-        assert(iterator != Iterator{});
+        assert(iterator);
 
         // What node is the iterator referencing?
         auto& node = *iterator;

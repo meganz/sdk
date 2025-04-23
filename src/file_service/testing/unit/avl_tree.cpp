@@ -367,9 +367,6 @@ TEST(AVLTree, upper_bound)
 template<typename Traits, typename KeyType>
 static std::vector<KeyType> breadth(const AVLTree<Traits>& tree)
 {
-    // Convenience.
-    using KeyTraits = detail::KeyTraits<Traits>;
-
     // No nodes to order if the tree's empty.
     if (tree.empty())
         return {};
@@ -395,13 +392,13 @@ static std::vector<KeyType> breadth(const AVLTree<Traits>& tree)
         pending.pop_front();
 
         // Keep track of which key this iterator references.
-        keys.emplace_back(KeyTraits::key(*iterator));
+        keys.emplace_back(iterator->mKey);
 
         // Push this node's children onto the queue.
-        if (auto left = iterator.left(); left != Iterator{})
+        if (auto left = iterator.left())
             pending.emplace_back(left);
 
-        if (auto right = iterator.right(); right != Iterator{})
+        if (auto right = iterator.right())
             pending.emplace_back(right);
     }
 
@@ -430,13 +427,10 @@ template<typename Traits>
 bool validate(typename AVLTree<Traits>::ConstIterator node,
               typename AVLTree<Traits>::ConstIterator parent)
 {
-    using KeyTraits = detail::KeyTraits<Traits>;
     using LinkTraits = detail::LinkTraits<Traits>;
 
-    static const typename AVLTree<Traits>::ConstIterator null;
-
     // No node? Can't be invalid.
-    if (node == null)
+    if (!node)
         return true;
 
     // A node's parent must be who linked to us.
@@ -447,14 +441,11 @@ bool validate(typename AVLTree<Traits>::ConstIterator node,
     if (std::abs(LinkTraits::balance(*node)) > 1)
         return false;
 
-    // Get our hands on the node's key.
-    auto& key = KeyTraits::key(*node);
-
     // Validate left subtree.
-    if (auto left = node.left(); left != null)
+    if (auto left = node.left())
     {
         // Our left subtree must have a key less than ours.
-        if (KeyTraits::key(*left) >= key)
+        if (left->mKey >= node->mKey)
             return false;
 
         // Bail if our left subtree isn't valid.
@@ -472,11 +463,11 @@ bool validate(typename AVLTree<Traits>::ConstIterator node,
     auto right = node.right();
 
     // No right subtree so we're valid.
-    if (right == null)
+    if (!right)
         return true;
 
     // Right subtree must have a key greater than ours.
-    if (KeyTraits::key(*right) <= key)
+    if (right->mKey <= node->mKey)
         return false;
 
     // Validate our right subtree.

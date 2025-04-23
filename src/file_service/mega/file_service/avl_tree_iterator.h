@@ -33,6 +33,11 @@ public:
         mNode(other.nodePointer())
     {}
 
+    explicit operator bool() const
+    {
+        return mNode != nullptr;
+    }
+
     NodeType& operator*() const
     {
         assert(mNode);
@@ -55,6 +60,11 @@ public:
     bool operator!=(const AVLTreeIterator& rhs) const
     {
         return !(*this == rhs);
+    }
+
+    bool operator!() const
+    {
+        return !mNode;
     }
 
     AVLTreeIterator& operator++()
