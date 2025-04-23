@@ -194,6 +194,9 @@ class MetadataTraits<Traits, std::void_t<decltype(Traits::mMetadataPointer)>>
 
     using MetadataType = typename MetadataPointerTraits::member_type;
 
+public:
+    using NodeType = typename MetadataPointerTraits::class_type;
+
     // If Traits::mMetadataPointer exists so much Traits::update(...).
     //
     // This function is called when a node's metadata needs to be updated.
@@ -208,8 +211,8 @@ class MetadataTraits<Traits, std::void_t<decltype(Traits::mMetadataPointer)>>
     // Add 0:
     // 0(0)
     //
-    // When 0 is added, update(...) is called with the sizes extracted from
-    // its children, if any.
+    // When 0 is added, update(...) is called on the new node to compute the
+    // sizes of its children, if any.
     //
     // Add 1:
     // 0(1) -.
@@ -228,13 +231,8 @@ class MetadataTraits<Traits, std::void_t<decltype(Traits::mMetadataPointer)>>
     // tree is altered to restore that balance. Since the tree's structure
     // has changed, we need to update the metadata of each node that has
     // been altered. The result is what you'd expect.
-    static_assert(std::is_invocable_r_v<MetadataType,
-                                        DetectedT<DetectUpdate, Traits>,
-                                        const MetadataType*,
-                                        const MetadataType*>);
-
-public:
-    using NodeType = typename MetadataPointerTraits::class_type;
+    static_assert(
+        std::is_invocable_r_v<MetadataType, DetectedT<DetectUpdate, Traits>, const NodeType&>);
 
     // Return a reference to a node's metadata.
     template<typename NodeType>
@@ -247,20 +245,8 @@ public:
     template<typename LinkTraits, typename NodeType>
     static void update(NodeType& node)
     {
-        // Assume the node has no children.
-        const MetadataType* left{};
-        const MetadataType* right{};
-
-        // Latch left child's metadata.
-        if (auto* child = LinkTraits::left(node))
-            left = &metadata(*child);
-
-        // Latch right child's metadata.
-        if (auto* child = LinkTraits::right(node))
-            right = &metadata(*child);
-
         // Recompute this node's metadata.
-        metadata(node) = typename Traits::Update()(left, right);
+        metadata(node) = typename Traits::Update()(node);
     }
 }; // MetadataTraits<Traits, void>
 

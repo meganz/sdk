@@ -29,15 +29,28 @@ struct Traits
     static constexpr auto mLinkPointer = &Node::mLink;
 }; // Traits
 
-struct TraitsWithMetadata: public Traits
+class TraitsWithMetadata: public Traits
 {
+    using LT = detail::LinkTraits<TraitsWithMetadata>;
+    using MT = detail::MetadataTraits<TraitsWithMetadata>;
+
+public:
     static constexpr auto mMetadataPointer = &Node::mSize;
 
     struct Update
     {
-        int operator()(const int* lhs, const int* rhs) const
+        template<typename NodeType>
+        int operator()(const NodeType& node) const
         {
-            return (lhs ? *lhs : 0) + (rhs ? *rhs : 0) + 1;
+            auto size = 1;
+
+            if (auto* left = LT::left(node))
+                size += MT::metadata(*left);
+
+            if (auto* right = LT::right(node))
+                size += MT::metadata(*right);
+
+            return size;
         }
     }; // Update
 
@@ -45,9 +58,6 @@ struct TraitsWithMetadata: public Traits
     {
         auto validate(const Node* node) const
         {
-            using LT = detail::LinkTraits<TraitsWithMetadata>;
-            using MT = detail::MetadataTraits<TraitsWithMetadata>;
-
             if (!node)
                 return std::make_pair(0, true);
 
