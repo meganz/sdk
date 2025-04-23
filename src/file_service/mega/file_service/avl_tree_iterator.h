@@ -33,32 +33,6 @@ public:
         mNode(other.nodePointer())
     {}
 
-    AVLTreeIterator left() const
-    {
-        assert(mNode);
-
-        return LinkTraits::left(*mNode);
-    }
-
-    NodeType* nodePointer() const
-    {
-        return mNode;
-    }
-
-    AVLTreeIterator parent() const
-    {
-        assert(mNode);
-
-        return LinkTraits::parent(*mNode);
-    }
-
-    AVLTreeIterator right() const
-    {
-        assert(mNode);
-
-        return LinkTraits::right(*mNode);
-    }
-
     NodeType& operator*() const
     {
         assert(mNode);
@@ -113,6 +87,32 @@ public:
         ++(*this);
 
         return result;
+    }
+
+    AVLTreeIterator left() const
+    {
+        assert(mNode);
+
+        return LinkTraits::left(*mNode);
+    }
+
+    NodeType* nodePointer() const
+    {
+        return mNode;
+    }
+
+    AVLTreeIterator parent() const
+    {
+        assert(mNode);
+
+        return LinkTraits::parent(*mNode);
+    }
+
+    AVLTreeIterator right() const
+    {
+        assert(mNode);
+
+        return LinkTraits::right(*mNode);
     }
 }; // AVLTreeIterator<Traits, IsConstIterator>
 
