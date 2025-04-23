@@ -13,6 +13,7 @@ target_sources(SDKlib PRIVATE
                       file_info_context_badge_forward.h
                       file_range_traits.h
                       file_range_tree_node.h
+                      file_range_tree_traits.h
                       file_service_context.h
                       file_service_queries.h
                       file_storage.h
