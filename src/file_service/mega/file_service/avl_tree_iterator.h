@@ -30,7 +30,7 @@ public:
     {}
 
     AVLTreeIterator(const OtherIteratorType& other):
-        mNode(other.nodePointer())
+        mNode(const_cast<NodeType*>(other.nodePointer()))
     {}
 
     explicit operator bool() const
