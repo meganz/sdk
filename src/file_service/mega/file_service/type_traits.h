@@ -1,6 +1,7 @@
 #pragma once
 
 #include <type_traits>
+#include <utility>
 
 namespace mega
 {
@@ -63,6 +64,16 @@ using DetectedOrT = typename DetectedOr<DefaultType, Predicate, Parameters...>::
 
 template<typename DefaultType, template<typename> typename Predicate, typename... Parameters>
 constexpr auto DetectedOrV = DetectedOr<DefaultType, Predicate, Parameters...>::value;
+
+// Return value as-is.
+struct Identity
+{
+    template<typename T>
+    auto&& operator()(T&& value) const
+    {
+        return std::forward<T>(value);
+    }
+}; // Identity
 
 template<typename Class0, typename Class1, typename... Classes>
 struct MostSpecificClass:
