@@ -177,7 +177,7 @@ struct MetadataTraits
 {
     // Provide a dummy method so our AVL code doesn't care whether the
     // user's tree is augmented or not.
-    template<typename LinkTraits, typename NodeType>
+    template<typename IteratorType, typename NodeType>
     static void update(NodeType&)
     {}
 }; // MetadataTraits<Traits, void>
@@ -231,8 +231,8 @@ public:
     // tree is altered to restore that balance. Since the tree's structure
     // has changed, we need to update the metadata of each node that has
     // been altered. The result is what you'd expect.
-    static_assert(
-        std::is_invocable_r_v<MetadataType, DetectedT<DetectUpdate, Traits>, const NodeType&>);
+    using Update = DetectedT<DetectUpdate, Traits>;
+    static_assert(IsNotNoneSuchV<Update>);
 
     // Return a reference to a node's metadata.
     template<typename NodeType>
@@ -242,11 +242,16 @@ public:
     }
 
     // Update a node's metadata based on that of its children.
-    template<typename LinkTraits, typename NodeType>
+    template<typename IteratorType, typename NodeType>
     static void update(NodeType& node)
     {
+        // Make sure our update functor accepts an iterator.
+        static_assert(std::is_invocable_r_v<MetadataType, Update, IteratorType>);
+
+        IteratorType iterator(&node);
+
         // Recompute this node's metadata.
-        metadata(node) = typename Traits::Update()(node);
+        metadata(node) = Update()(iterator);
     }
 }; // MetadataTraits<Traits, void>
 

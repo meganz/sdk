@@ -253,7 +253,7 @@ private:
         LT::height(node) = height + 1;
 
         // Update any metadata associated with this node.
-        MT::template update<LT>(node);
+        MT::template update<ConstIterator>(node);
     }
 
     // Points to the tree's root node, if any.

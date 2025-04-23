@@ -456,7 +456,7 @@ bool validate(typename AVLTree<Traits>::ConstIterator node,
     // Validate our metadata.
     if constexpr (HasValidateV<Traits>)
     {
-        if (!typename Traits::Validate()(*node))
+        if (!typename Traits::Validate()(node))
             return false;
     }
 

@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <mega/file_service/avl_tree_iterator.h>
 #include <mega/file_service/avl_tree_traits.h>
 #include <mega/file_service/testing/unit/avl_node.h>
 
@@ -143,6 +144,7 @@ TEST(AVLTreeLinkTraits, right)
 TEST(AVLTreeMetadataTraits, update)
 {
     using LT = detail::LinkTraits<Traits>;
+    using IteratorType = AVLTreeIterator<Node, LT, true>;
 
     // No metadata.
     {
@@ -150,7 +152,7 @@ TEST(AVLTreeMetadataTraits, update)
 
         Node n0{0};
 
-        MT::update<LT>(n0);
+        MT::update<IteratorType>(n0);
     }
 
     // With metadata.
@@ -163,13 +165,13 @@ TEST(AVLTreeMetadataTraits, update)
     LT::left(n1) = &n0;
     LT::right(n1) = &n2;
 
-    MT::update<LT>(n0);
+    MT::update<IteratorType>(n0);
     EXPECT_EQ(n0.mSize, 1);
 
-    MT::update<LT>(n2);
+    MT::update<IteratorType>(n2);
     EXPECT_EQ(n2.mSize, 1);
 
-    MT::update<LT>(n1);
+    MT::update<IteratorType>(n1);
     EXPECT_EQ(n1.mSize, 3);
 }
 
