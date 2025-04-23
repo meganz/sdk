@@ -9,6 +9,8 @@ target_sources(SDKlib PRIVATE
                       file_info_context_forward.h
                       file_info_context_pointer.h
                       file_info_forward.h
+                      file_range.h
+                      file_range_forward.h
                       file_service_context_badge.h
                       file_service_context_badge_forward.h
                       file_service_context_forward.h

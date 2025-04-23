@@ -20,6 +20,7 @@ target_sources(SDKlib PRIVATE
                       file_id.cpp
                       file_info.cpp
                       file_info_context.cpp
+                      file_range.cpp
                       file_service.cpp
                       file_service_context.cpp
                       file_service_queries.cpp
