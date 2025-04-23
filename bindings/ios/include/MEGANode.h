@@ -20,6 +20,7 @@
  */
 #import <Foundation/Foundation.h>
 #import "PasswordNodeData.h"
+#import "MEGACreditCardNodeData.h"
 
 typedef NS_ENUM (NSInteger, MEGANodeType) {
     MEGANodeTypeUnknown = -1,
@@ -320,11 +321,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic, nullable) NSString *deviceId;
 
 /**
-* @brief The Password Node Data if the node is a Password Node.
-*/
-@property (readonly, nonatomic, nullable) PasswordNodeData *passwordNodeData;
-
-/**
  * @breif Get a list of tags from a node.
  */
 @property (readonly, nonatomic, nullable) MEGAStringList *tags;
@@ -549,16 +545,50 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (BOOL)isNodeKeyDecrypted;
 
++ (nullable NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
+
+#pragma mark - Password Manager
+
 /**
- * @brief Returns true if this MegaNode is a Password Node
+ * @brief Returns true if this MEGANode is a Password Manager Node
  *
- * Only MegaNodes created with MegaApi::createPasswordNode return true in this function.
+ * A node is considered a Password Manager Node if Password Manager Base is its
+ * ancestor and it's not a Password Manager Node Folder.
+ *
+ * @return true if this node is a Password Manager Node, false otherwise.
+ * In case node doesn't exists this method will also returns false.
+ */
+- (BOOL)isPasswordManagerNode;
+
+/**
+ * @brief Returns true if this MEGANode is a Password Node
+ *
+ * Only MEGANodes created with [MEGASdk createPasswordNodeWithName:data:parent:delegate:] return true in this function.
  *
  * @return true if this node is a Password Node
  */
 - (BOOL)isPasswordNode;
 
-+ (nullable NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
+/**
+ * @brief Returns true if this MEGANode is a Credit Card Node
+ *
+ * @note: A Credit Card Node is a Password Manager Node with credit card information.
+ *
+ * Only MEGANodes created with [MEGASdk createCreditCardNodeWithName:data:parent:delegate:] return true in this function.
+ *
+ * @return true if this node is a Credit Card Node
+ */
+- (BOOL)isCreditCardNode;
+
+/**
+* @brief The Password Node Data if the node is a Password Node.
+*/
+@property (readonly, nonatomic, nullable) PasswordNodeData *passwordNodeData;
+
+/**
+* @brief The Credit Card Node Data if the node is a Credit Card Node.
+*/
+@property (readonly, nonatomic, nullable) MEGACreditCardNodeData *creditCardNodeData;
 
 @end
 
