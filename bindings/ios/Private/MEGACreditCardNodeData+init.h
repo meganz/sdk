@@ -1,6 +1,6 @@
 /**
  * @file MEGACreditCardNodeData+init.h
- * @brief Private functions of MEGACurrency
+ * @brief Private functions of MEGACreditCardNodeData
  *
  * (c) 2025 by Mega Limited, Auckland, New Zealand
  *

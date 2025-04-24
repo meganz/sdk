@@ -76,7 +76,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return A newly created MEGACreditCardNodeData object.
  */
--(instancetype)initWithCardNumber:(NSString *)sharedKey
+-(instancetype)initWithCardNumber:(NSString *)cardNumber
                             notes:(nullable NSString *)notes
                    cardHolderName:(nullable NSString *)cardHolderName
                               cvv:(nullable NSString *)cvv
