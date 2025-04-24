@@ -9841,7 +9841,7 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * @param name Name for the new Credit Card Node
  * @param data Credit Card Node data for the Credit Card Node
  * @param parent Parent folder for the new Credit Card Node
- * @param listener MegaRequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)createCreditCardNodeWithName:(NSString *)name data:(MEGACreditCardNodeData *)data parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -9869,7 +9869,7 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  *
  * @param node Node to modify
  * @param newData New data for the Credit Card Node to update
- * @param listener MegaRequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)updateCreditCardNodeWithHandle:(MEGAHandle)node newData:(MEGACreditCardNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate;
 
