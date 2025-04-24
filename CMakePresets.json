@@ -63,6 +63,23 @@
                 "windows",
                 "megasync"
             ]
+        },
+        {
+            "name": "mega-vpn",
+            "hidden": true,
+            "inherits": "default"
+        },
+        {
+            "name": "mega-vpn-android",
+            "inherits": [
+                "android",
+                "mega-vpn"
+            ],
+            "cacheVariables": {
+                "ENABLE_CHAT": "OFF",
+                "ENABLE_SYNC": "OFF",
+                "USE_LIBUV": "OFF"
+            }
         }
     ]
 }
