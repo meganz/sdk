@@ -1672,7 +1672,7 @@ auto PathURI::asPlatformEncoded(const bool) const -> string_type
 
     for (const auto& leaf: mAuxPath)
     {
-        path.push_back(LocalPath::localPathSeparator);
+        path.push_back(LocalPath::uriPathSeparator_utf8);
         path.append(leaf);
     }
 
@@ -1745,6 +1745,7 @@ void PathURI::append(const LocalPath& additionalPath)
 
 void PathURI::appendWithSeparator(const LocalPath& additionalPath, const bool)
 {
+    assert(!additionalPath.isAbsolute() && !additionalPath.isURI());
     const auto auxPath = additionalPath.toPath(false);
     auto leaves =
         splitString<std::vector<std::string>>(auxPath, LocalPath::localPathSeparator_utf8);

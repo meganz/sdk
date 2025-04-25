@@ -4610,6 +4610,14 @@ void Syncs::startSync_inThread(UnifiedSync& us,
         if (completion) completion(e, us.mConfig.mError, us.mConfig.mBackupId);
     };
 
+#ifdef __ANDROID__
+    if (!us.mConfig.mLocalPath.isURI())
+    {
+        LOG_warn << "startSync_inThread: sync path is not from URIPath type";
+        return fail(API_EFAILED, UNABLE_TO_ADD_WATCH);
+    }
+#endif
+
     us.mConfig.mRunState = SyncRunState::Loading;
     us.changedConfigState(false, true);
 
