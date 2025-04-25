@@ -1919,9 +1919,7 @@ MegaClient::MegaClient(MegaApp* a,
     mFuseService(mFuseClientAdapter)
 {
 #ifdef __ANDROID__
-    if (auto fsa = fsaccess->newfileaccess();
-        dynamic_cast<AndroidFileSystemAccess*>(fsaccess.get()) &&
-        !dynamic_cast<AndroidFileAccess*>(fsa.get()))
+    if (!AndroidFileSystemAccess::isFileWrapperActive(fsaccess.get()))
     {
         LOG_verbose << "[MegaClient::MegaClient] replacing AndroidFileSystemAccess by "
                        "LinuxFileSystemAccess due to missing FileWrapper in JNI";

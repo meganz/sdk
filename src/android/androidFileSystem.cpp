@@ -1447,6 +1447,16 @@ bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& ne
     return false;
 }
 
+bool AndroidFileSystemAccess::isFileWrapperActive(const FileSystemAccess* fsa)
+{
+    if (auto afsa = dynamic_cast<const AndroidFileSystemAccess*>(fsa); afsa)
+    {
+        return afsa->isFileWrapperActive();
+    }
+
+    return false;
+}
+
 AndroidDirNotify::AndroidDirNotify(AndroidFileSystemAccess& owner,
                                    LocalNode& root,
                                    const LocalPath& rootPath):

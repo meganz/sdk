@@ -261,6 +261,13 @@ public:
 
     static void emptydirlocal(const LocalPath&, dev_t = 0);
 
+    static bool isFileWrapperActive(const FileSystemAccess* fsa);
+
+    bool isFileWrapperActive() const
+    {
+        return fileWrapper != nullptr;
+    }
+
 private:
     LocalPath getStandartPath(const LocalPath& localPath) const;
     bool copy(const LocalPath& oldname, const LocalPath& newName);
