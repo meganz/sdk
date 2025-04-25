@@ -90,7 +90,7 @@ pipeline {
                 axes {
                     axis { 
                         name 'ARCHITECTURE'; 
-                        values 'amd64','armhf'
+                        values 'amd64','armhf','arm64'
                     }
                     axis { 
                         name 'DISTRO'; 
@@ -103,7 +103,7 @@ pipeline {
                     }
                 }
                 excludes {
-                    exclude {   
+                    exclude {
                         axis { 
                             name 'ARCHITECTURE'; 
                             values 'armhf'
@@ -117,7 +117,7 @@ pipeline {
                                     'openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
                         }
                     }
-                    exclude {   
+                    exclude {
                         axis { 
                             name 'ARCHITECTURE'; 
                             values 'amd64' 
@@ -125,6 +125,16 @@ pipeline {
                         axis { 
                             name 'DISTRO'; 
                             values  'Raspbian_11', 'Raspbian_12'
+                        }
+                    }
+                    exclude {
+                        axis { 
+                            name 'ARCHITECTURE'; 
+                            values 'arm64' 
+                        } 
+                        axis { 
+                            name 'DISTRO'; 
+                            values  'DEB_Arch_Extra','Debian_11','xUbuntu_20.04','xUbuntu_24.04','Fedora_40','openSUSE_Tumbleweed'
                         }
                     }
                 }
