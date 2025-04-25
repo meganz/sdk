@@ -73,6 +73,7 @@ struct MEGA_API FileFingerprint : public Cacheable
     string fingerprintDebugString() const;
 
     bool EqualExceptValidFlag(const FileFingerprint& rhs) const;
+    bool equalExceptMtime(const FileFingerprint& rhs) const;
 };
 
 // orders transfers by file fingerprints, ordered by size / mtime / sparse CRC

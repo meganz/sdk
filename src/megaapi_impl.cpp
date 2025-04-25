@@ -18795,7 +18795,13 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> fa
         }
 
         FileFingerprint fp;
-        return (ff->isvalid && fp.genfingerprint(fa) && fp.isvalid && fp == *ff);
+        auto resGenFp = fp.genfingerprint(fa);
+        return ff->isvalid && resGenFp && fp.isvalid &&
+#ifdef __ANDROID__
+               ff->equalExceptMtime(fp);
+#else
+               fp == *ff;
+#endif
     };
 
     auto metaMacFunc = [fileNode, faGetter]() {

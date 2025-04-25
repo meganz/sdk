@@ -1895,9 +1895,10 @@ bool FSNode::debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, c
     {
         if (od->fingerprint == ff) return true;
 #ifdef __ANDROID__
-        if (memcmp(od->fingerprint.crc.data(), ff.crc.data(), sizeof ff.crc) == 0 &&
-            od->fingerprint.size == ff.size && od->fingerprint.mtime != ff.mtime)
+        if (od->fingerprint.equalExceptMtime(ff))
+        {
             return true;
+        }
 #endif
 
         LOG_debug << "fingerprint mismatch at path: " << path;

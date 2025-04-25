@@ -70,6 +70,12 @@ bool FileFingerprint::EqualExceptValidFlag(const FileFingerprint& rhs) const
     return !memcmp(crc.data(), rhs.crc.data(), sizeof crc);
 }
 
+bool FileFingerprint::equalExceptMtime(const FileFingerprint& rhs) const
+{
+    return (memcmp(this->crc.data(), rhs.crc.data(), sizeof rhs.crc) == 0 &&
+            this->size == rhs.size);
+}
+
 bool FileFingerprint::serialize(string *d) const
 {
     d->append((const char*)&size, sizeof(size));
