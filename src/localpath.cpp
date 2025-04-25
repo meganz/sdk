@@ -1960,7 +1960,7 @@ string_type PathURI::getRealPath() const
     auto pathOptional = URIHandler::getPath(mUri);
     if (pathOptional.has_value())
     {
-        LocalPath::path2local(&pathOptional.value(), &path);
+        path = pathOptional.value();
     }
 
     for (const auto& leaf: mAuxPath)

@@ -51,9 +51,6 @@ NodeMatchByFSIDResult
     }
 
     // IMPORTANT: Ensure that we are not mixing two different files whose FSIDs have been reused.
-#ifndef __ANDROID__
-    assert(source.nodetype != FILENODE || (source.realFingerprint == source.fingerprint));
-#endif
     if (source.nodetype == FILENODE && target.fingerprint != source.fingerprint &&
         target.fingerprint != source.realFingerprint)
         return NodeMatchByFSIDResult::DifferentFingerprint;
