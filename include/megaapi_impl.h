@@ -24,6 +24,7 @@
 
 #include "mega.h"
 #include "mega/command.h"
+#include "mega/filesystem.h"
 #include "mega/gfx/external.h"
 #include "mega/heartbeats.h"
 #include "mega/totp.h"
@@ -87,20 +88,17 @@ class MegaSemaphore : public CppSemaphore {};
 #endif
 
 #ifdef WIN32
-    class MegaHttpIO : public CurlHttpIO {};
-    class MegaFileSystemAccess : public WinFileSystemAccess {};
-    class MegaWaiter : public WinWaiter {};
+class MegaHttpIO: public CurlHttpIO
+{};
+
+class MegaWaiter: public WinWaiter
+{};
 #else
-    class MegaHttpIO : public CurlHttpIO {};
-    class MegaWaiter : public PosixWaiter {};
-    #ifdef __APPLE__
-    class MegaFileSystemAccess : public MacFileSystemAccess {};
-#elif __ANDROID__
-    class MegaFileSystemAccess: public AndroidFileSystemAccess
-    {};
-#else
-    class MegaFileSystemAccess : public LinuxFileSystemAccess {};
-#endif
+class MegaHttpIO: public CurlHttpIO
+{};
+
+class MegaWaiter: public PosixWaiter
+{};
 #endif
 
 #ifdef HAVE_LIBUV
@@ -4677,7 +4675,7 @@ public:
         MegaClient *client;
         MegaHttpIO *httpio;
         shared_ptr<MegaWaiter> waiter;
-        unique_ptr<MegaFileSystemAccess> fsAccess;
+        unique_ptr<FileSystemAccess> fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
         string basePath;
@@ -4686,7 +4684,7 @@ public:
         // for fingerprinting off-thread
         // one at a time is enough
         mutex fingerprintingFsAccessMutex;
-        MegaFileSystemAccess fingerprintingFsAccess;
+        unique_ptr<FileSystemAccess> fingerprintingFsAccess;
 
         mutex mLastRecievedLoggedMeMutex;
         sessiontype_t mLastReceivedLoggedInState = NOTLOGGEDIN;
@@ -5452,7 +5450,7 @@ protected:
 public:
     const bool useIPv6;
     const bool useTLS;
-    MegaFileSystemAccess *fsAccess;
+    std::unique_ptr<FileSystemAccess> fsAccess;
 
     std::string basePath;
 
@@ -6372,6 +6370,8 @@ public:
 private:
     std::vector<std::shared_ptr<MegaCancelSubscriptionReason>> mReasons;
 };
+
+std::unique_ptr<FileSystemAccess> createFSA();
 }
 
 // Specializations of std::hash for custom Sync types

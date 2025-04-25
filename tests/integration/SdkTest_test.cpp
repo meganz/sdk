@@ -63,8 +63,7 @@ static const string THUMBNAIL   = "logo_thumbnail.png";
 static const string PREVIEW     = "logo_preview.png";
 static const string PUBLIC_IMAGE_URL = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns"; //gitleaks:allow
 
-
-MegaFileSystemAccess fileSystemAccess;
+std::unique_ptr<::mega::FileSystemAccess> fileSystemAccess = ::mega::createFSA();
 
 #ifdef _WIN32
 DWORD ThreadId()
@@ -109,7 +108,7 @@ void copyFile(std::string& from, std::string& to)
 {
     LocalPath f = LocalPath::fromAbsolutePath(from);
     LocalPath t = LocalPath::fromAbsolutePath(to);
-    fileSystemAccess.copylocal(f, t, m_time());
+    fileSystemAccess->copylocal(f, t, m_time());
 }
 
 std::string megaApiCacheFolder(int index)
@@ -138,7 +137,7 @@ std::string megaApiCacheFolder(int index)
 
     } else
     {
-        std::unique_ptr<DirAccess> da(fileSystemAccess.newdiraccess());
+        std::unique_ptr<DirAccess> da(fileSystemAccess->newdiraccess());
         auto lp = LocalPath::fromAbsolutePath(p);
         if (!da->dopen(&lp, nullptr, false))
         {
@@ -10236,7 +10235,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     auto aux = LocalPath::fromAbsolutePath(fs::current_path().u8string());
 
 #if defined (__linux__) || defined (__ANDROID__)
-    if (fileSystemAccess.getlocalfstype(aux) == FS_EXT)
+    if (fileSystemAccess->getlocalfstype(aux) == FS_EXT)
     {
         // Escape set of characters and check if it's the expected one
         const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
@@ -10256,8 +10255,8 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
         delete [] name;
     }
 #elif defined  (__APPLE__) || defined (USE_IOS)
-    if (fileSystemAccess.getlocalfstype(aux) == FS_APFS
-            || fileSystemAccess.getlocalfstype(aux) == FS_HFS)
+    if (fileSystemAccess->getlocalfstype(aux) == FS_APFS ||
+        fileSystemAccess->getlocalfstype(aux) == FS_HFS)
     {
         // Escape set of characters and check if it's the expected one
         const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
@@ -10277,7 +10276,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
         delete [] name;
     }
 #elif defined(_WIN32) || defined(_WIN64)
-    if (fileSystemAccess.getlocalfstype(aux) == FS_NTFS)
+    if (fileSystemAccess->getlocalfstype(aux) == FS_NTFS)
     {
         // Escape set of characters and check if it's the expected one
         const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().u8string().c_str());
@@ -10424,13 +10423,15 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
 
 #ifdef WIN32
     // double check a few well known paths
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:")), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:\\")), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("C:\\")), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("C:\\Program Files")), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:\\Program Files\\Windows NT")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess->getlocalfstype(LocalPath::fromAbsolutePath("c:")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess->getlocalfstype(LocalPath::fromAbsolutePath("c:\\")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess->getlocalfstype(LocalPath::fromAbsolutePath("C:\\")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess->getlocalfstype(LocalPath::fromAbsolutePath("C:\\Program Files")),
+              FS_NTFS);
+    ASSERT_EQ(fileSystemAccess->getlocalfstype(
+                  LocalPath::fromAbsolutePath("c:\\Program Files\\Windows NT")),
+              FS_NTFS);
 #endif
-
 }
 TEST_F(SdkTest, EscapesReservedCharacters)
 {

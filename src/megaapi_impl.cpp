@@ -6921,7 +6921,8 @@ void MegaApiImpl::init(MegaApi* publicApi,
     httpio = new MegaHttpIO();
     waiter.reset(new MegaWaiter());
 
-    fsAccess.reset(new MegaFileSystemAccess);
+    fsAccess = mega::createFSA();
+    fingerprintingFsAccess = mega::createFSA();
 
     if (newBasePath)
     {
@@ -10049,7 +10050,8 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst,
     else // if no fingerprint provided, calculate it, to avoid extra workload (and reduce mutex locking time) to SDK thread at sendPendingTransfers
     {
         lock_guard<mutex> g(fingerprintingFsAccessMutex);
-        auto fa = fingerprintingFsAccess.newfileaccess();
+        assert(fingerprintingFsAccess); // somehow ::init() wasn't evaluated
+        auto fa = fingerprintingFsAccess->newfileaccess();
 
         if (localPath.empty() || !fa->fopen(localPath, true, false, FSLogging::logOnError))
         {
@@ -19456,7 +19458,7 @@ void MegaApiImpl::removeRecursively(const char *path)
 {
 #ifndef _WIN32
     auto localpath = LocalPath::fromPlatformEncodedAbsolute(path);
-    MegaFileSystemAccess::emptydirlocal(localpath);
+    FSACCESS_CLASS::emptydirlocal(localpath);
 #else
     auto localpath = LocalPath::fromAbsolutePath(path);
     WinFileSystemAccess::emptydirlocal(localpath);
@@ -30099,10 +30101,10 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
     return true;
 }
 
-MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *api, MegaTransferPrivate *t)
-    : MegaRecursiveOperation(api->getMegaClient())
-    , fsaccess(new MegaFileSystemAccess)
+MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl* api, MegaTransferPrivate* t):
+    MegaRecursiveOperation(api->getMegaClient())
 {
+    fsaccess = mega::createFSA();
     megaApi = api;
     transfer = t;
     listener = t->getListener();
@@ -31731,10 +31733,11 @@ MegaClient* MegaRecursiveOperation::megaapiThreadClient()
     return mMegaapiThreadClient;
 }
 
-MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *api, MegaTransferPrivate *t)
-    : MegaRecursiveOperation(api->client)
-    , fsaccess(new MegaFileSystemAccess)
+MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl* api,
+                                                           MegaTransferPrivate* t):
+    MegaRecursiveOperation(api->client)
 {
+    fsaccess = mega::createFSA();
     megaApi = api;
     fsaccess->setdefaultfilepermissions(megaApi->getDefaultFilePermissions()); // Grant default file permissions
     fsaccess->setdefaultfolderpermissions(megaApi->getDefaultFolderPermissions()); // Grant default folder permissions
@@ -32444,7 +32447,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl* megaApi,
     this->remainingcloseevents = 0;
     this->evtrequirescleaning = false;
 #endif
-    fsAccess = new MegaFileSystemAccess;
+    fsAccess = mega::createFSA();
 
     if (basePath.size())
     {
@@ -32472,7 +32475,7 @@ MegaTCPServer::~MegaTCPServer()
     semaphoresdestroyed = true;
     uv_sem_destroy(&semaphoreStartup);
     uv_sem_destroy(&semaphoreEnd);
-    delete fsAccess;
+    fsAccess.reset();
     LOG_verbose << "MegaTCPServer::~MegaTCPServer END";
 }
 
@@ -40544,6 +40547,12 @@ size_t MegaCancelSubscriptionReasonListPrivate::size() const
 MegaCancelSubscriptionReasonListPrivate* MegaCancelSubscriptionReasonListPrivate::copy() const
 {
     return new MegaCancelSubscriptionReasonListPrivate(*this);
+}
+
+std::unique_ptr<FileSystemAccess> createFSA()
+{
+    auto fsaccess = std::unique_ptr<FileSystemAccess>{new FSACCESS_CLASS};
+    return fsaccess;
 }
 
 void MegaApiImpl::notify_network_activity(int networkActivityChannel,
