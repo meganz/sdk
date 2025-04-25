@@ -19458,7 +19458,14 @@ void MegaApiImpl::removeRecursively(const char *path)
 {
 #ifndef _WIN32
     auto localpath = LocalPath::fromPlatformEncodedAbsolute(path);
+#ifndef __ANDROID__
     FSACCESS_CLASS::emptydirlocal(localpath);
+#else
+    if (auto fsa = createFSA(); dynamic_cast<AndroidFileSystemAccess*>(fsa.get()))
+        AndroidFileSystemAccess::emptydirlocal(localpath);
+    else
+        LinuxFileSystemAccess::emptydirlocal(localpath);
+#endif
 #else
     auto localpath = LocalPath::fromAbsolutePath(path);
     WinFileSystemAccess::emptydirlocal(localpath);
@@ -40552,6 +40559,16 @@ MegaCancelSubscriptionReasonListPrivate* MegaCancelSubscriptionReasonListPrivate
 std::unique_ptr<FileSystemAccess> createFSA()
 {
     auto fsaccess = std::unique_ptr<FileSystemAccess>{new FSACCESS_CLASS};
+#ifdef __ANDROID__
+    if (auto fsa = fsaccess->newfileaccess();
+        dynamic_cast<AndroidFileSystemAccess*>(fsaccess.get()) &&
+        !dynamic_cast<AndroidFileAccess*>(fsa.get()))
+    {
+        LOG_verbose << "[mega::createFSA] JNI FileWrapper not present. Creating "
+                       "LinuxFileSystemAccess instead of AndroidFileSystemAcces";
+        fsaccess.reset(new LinuxFileSystemAccess);
+    }
+#endif
     return fsaccess;
 }
 
