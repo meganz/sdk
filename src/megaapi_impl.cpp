@@ -6835,12 +6835,15 @@ void MegaApiImpl::init(MegaApi* publicApi,
 
     fsAccess.reset(new MegaFileSystemAccess);
 
-    dbAccess = nullptr;
     if (newBasePath)
     {
-        dbAccess = new MegaDbAccess(LocalPath::fromAbsolutePath(newBasePath));
         basePath = newBasePath;
     }
+    else
+    {
+        basePath = std::filesystem::current_path().string();
+    }
+    dbAccess = new MegaDbAccess(LocalPath::fromAbsolutePath(basePath));
 
     gfxAccess = gfxproc.release();
     if (gfxAccess)

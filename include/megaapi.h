@@ -10909,19 +10909,21 @@ class MegaApi
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
-         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
+         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer
+         * required.
          *
          * @param basePath Base path to store the local cache
-         * If you pass NULL to this parameter, the SDK won't use any local cache.
+         * If you pass NULL to this parameter, the SDK will use the current working directory.
          *
          * @param userAgent User agent to use in network requests
          * If you pass NULL to this parameter, a default user agent will be used
          *
          * @param workerThreadCount The number of worker threads for encryption or other operations
-         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
-         * and uploads and downloads can proceed more quickly on very fast connections.
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked
+         * less, and uploads and downloads can proceed more quickly on very fast connections.
          *
-         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
+         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function
+         * differently
          *
          */
         MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
@@ -10929,26 +10931,30 @@ class MegaApi
         /**
          * @brief MegaApi Constructor that uses a given GFX provider
          *
-         * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics provider.
+         * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs
+         * a graphics provider.
          * @see MegaGfxProvider
          *
          * @param appKey AppKey of your application
-         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
+         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer
+         * required.
          *
-         * @param provider Graphics processing provider. The SDK will use it to generate previews and thumbnails. Once MegaApi returns, the provider
-         * couldn't be reused and the caller should release it.
+         * @param provider Graphics processing provider. The SDK will use it to generate previews
+         * and thumbnails. Once MegaApi returns, the provider couldn't be reused and the caller
+         * should release it.
          *
          * @param basePath Base path to store the local cache
-         * If you pass NULL to this parameter, the SDK won't use any local cache.
+         * If you pass NULL to this parameter, the SDK will use the current working directory.
          *
          * @param userAgent User agent to use in network requests
          * If you pass NULL to this parameter, a default user agent will be used
          *
          * @param workerThreadCount The number of worker threads for encryption or other operations
-         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
-         * and uploads and downloads can proceed more quickly on very fast connections.
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked
+         * less, and uploads and downloads can proceed more quickly on very fast connections.
          *
-         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
+         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function
+         * differently
          *
          */
         MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
