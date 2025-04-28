@@ -52,7 +52,7 @@ public:
     using KeyFunction = DetectedOrT<Identity, DetectKeyFunction, Traits>;
 
     // Convenience.
-    using CandidateKeyType = typename KeyPointerTraits::member_type;
+    using CandidateKeyType = typename KeyPointerTraits::MemberType;
 
     // Make sure the user's provided a sane key functor.
     static_assert(std::is_invocable_v<KeyFunction, CandidateKeyType>);
@@ -61,7 +61,7 @@ public:
     using KeyType = RemoveCVRefT<std::invoke_result_t<KeyFunction, CandidateKeyType>>;
 
     // Determine the tree's node type.
-    using NodeType = typename KeyPointerTraits::class_type;
+    using NodeType = typename KeyPointerTraits::ClassType;
 
     // Default to std::less<KeyType> if Traits::Compare isn't defined.
     using Compare = DetectedOrT<std::less<KeyType>, DetectCompareType, Traits>;
@@ -108,8 +108,8 @@ class LinkTraits
     static_assert(LinkPointerTraits::value);
 
 public:
-    using LinkType = typename LinkPointerTraits::member_type;
-    using NodeType = typename LinkPointerTraits::class_type;
+    using LinkType = typename LinkPointerTraits::MemberType;
+    using NodeType = typename LinkPointerTraits::ClassType;
 
     // Make sure mLinkPointer actually refers to an AVL node instance.
     static_assert(std::is_base_of_v<AVLTreeNode<NodeType>, LinkType>);
@@ -208,10 +208,10 @@ class MetadataTraits<Traits, std::void_t<decltype(Traits::mMetadataPointer)>>
     // If mMetadataPointer is present, make sure it's a class member pointer.
     static_assert(MetadataPointerTraits::value);
 
-    using MetadataType = typename MetadataPointerTraits::member_type;
+    using MetadataType = typename MetadataPointerTraits::MemberType;
 
 public:
-    using NodeType = typename MetadataPointerTraits::class_type;
+    using NodeType = typename MetadataPointerTraits::ClassType;
 
     // If Traits::mMetadataPointer exists so much Traits::update(...).
     //

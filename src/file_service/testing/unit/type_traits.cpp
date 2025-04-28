@@ -62,20 +62,20 @@ struct Object
 using ConstMember = MemberPointerTraits<decltype(&Object::mConstMember)>;
 
 static_assert(ConstMember::value);
-static_assert(std::is_same_v<ConstMember::class_type, Object>);
-static_assert(std::is_same_v<ConstMember::member_type, const int>);
+static_assert(std::is_same_v<ConstMember::ClassType, Object>);
+static_assert(std::is_same_v<ConstMember::MemberType, const int>);
 
 using Member = MemberPointerTraits<decltype(&Object::mMember)>;
 
 static_assert(Member::value);
-static_assert(std::is_same_v<Member::class_type, Object>);
-static_assert(std::is_same_v<Member::member_type, int>);
+static_assert(std::is_same_v<Member::ClassType, Object>);
+static_assert(std::is_same_v<Member::MemberType, int>);
 
 template<typename T>
-using DetectClassType = typename T::class_type;
+using DetectClassType = typename T::ClassType;
 
 template<typename T>
-using DetectMemberType = typename T::member_type;
+using DetectMemberType = typename T::MemberType;
 
 using StaticConstMember = MemberPointerTraits<decltype(&Object::sConstMember)>;
 
