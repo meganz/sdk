@@ -150,6 +150,24 @@ TEST(AVLTree, find)
     }
 }
 
+TEST(AVLTree, iteration)
+{
+    std::vector<Node> nodes = {0, 1, 2, 3, 4, 5, 6, 7};
+    auto tree = treeFrom<Traits>(nodes);
+
+    // Make sure we can traverse the tree in order.
+    auto i = tree.begin();
+    auto m = nodes.begin();
+
+    for (; m != nodes.end(); ++i, ++m)
+    {
+        ASSERT_NE(i, tree.end());
+        ASSERT_EQ(&*i, &*m);
+    }
+
+    ASSERT_EQ(i, tree.end());
+}
+
 TEST(AVLTree, lower_bound)
 {
     std::vector<Node> nodes = {-1, 2, 4};
