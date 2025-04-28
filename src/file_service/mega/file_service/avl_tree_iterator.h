@@ -10,14 +10,15 @@ namespace mega
 namespace file_service
 {
 
-template<typename BaseNodeType, typename LinkTraits, auto IsConstIterator>
+template<typename BaseNodeType, typename LinkTraits, auto IsConstIterator, auto IsReverseIterator>
 class AVLTreeIterator
 {
     // Determine our actual node type.
     using NodeType = std::conditional_t<IsConstIterator, const BaseNodeType, BaseNodeType>;
 
     // Convenience.
-    using OtherIteratorType = AVLTreeIterator<BaseNodeType, LinkTraits, !IsConstIterator>;
+    using OtherIteratorType =
+        AVLTreeIterator<BaseNodeType, LinkTraits, !IsConstIterator, IsReverseIterator>;
 
     // Move the iterator forward one node.
     AVLTreeIterator& next()
@@ -117,7 +118,14 @@ public:
 
     AVLTreeIterator& operator++()
     {
-        return next();
+        if constexpr (IsReverseIterator)
+        {
+            return previous();
+        }
+        else
+        {
+            return next();
+        }
     }
 
     AVLTreeIterator operator++(int)
@@ -131,7 +139,14 @@ public:
 
     AVLTreeIterator& operator--()
     {
-        return previous();
+        if constexpr (IsReverseIterator)
+        {
+            return next();
+        }
+        else
+        {
+            return previous();
+        }
     }
 
     AVLTreeIterator operator--(int)
@@ -168,7 +183,34 @@ public:
 
         return LinkTraits::right(*mNode);
     }
-}; // AVLTreeIterator<Traits, IsConstIterator>
+}; // AVLTreeIterator<BaseNodeType, LinkTraits, IsConstIterator, IsReverseIterator>
+
+// Convenience.
+template<typename Type>
+struct ToConstIterator;
+
+template<typename BaseNodeType, typename LinkTraits, auto IsConstIterator, auto IsReverseIterator>
+struct ToConstIterator<
+    AVLTreeIterator<BaseNodeType, LinkTraits, IsConstIterator, IsReverseIterator>>
+{
+    using Type = AVLTreeIterator<BaseNodeType, LinkTraits, true, IsReverseIterator>;
+}; // ToConstIterator<AVLTreeIterator<...>>
+
+template<typename Type>
+using ToConstIteratorT = typename ToConstIterator<Type>::Type;
+
+template<typename Type>
+struct ToReverseIterator;
+
+template<typename BaseNodeType, typename LinkTraits, auto IsConstIterator, auto IsReverseIterator>
+struct ToReverseIterator<
+    AVLTreeIterator<BaseNodeType, LinkTraits, IsConstIterator, IsReverseIterator>>
+{
+    using Type = AVLTreeIterator<BaseNodeType, LinkTraits, IsConstIterator, true>;
+}; // ToReverseIterator<AVLTreeIterator<...>>
+
+template<typename Type>
+using ToReverseIteratorT = typename ToReverseIterator<Type>::Type;
 
 } // file_service
 } // mega

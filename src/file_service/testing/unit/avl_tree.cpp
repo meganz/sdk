@@ -168,10 +168,10 @@ TEST(AVLTree, iteration)
     ASSERT_EQ(i, tree.end());
 
     // Make sure we can traverse the tree in reverse order.
+    auto j = tree.rbegin();
     auto n = nodes.rbegin();
-    auto j = decltype(tree)::Iterator(&*n);
 
-    for (; n != nodes.rend(); --j, ++n)
+    for (; n != nodes.rend(); ++j, ++n)
     {
         ASSERT_TRUE(j);
         ASSERT_EQ(&*j, &*n);

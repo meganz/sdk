@@ -263,8 +263,11 @@ private:
     std::size_t mSize{};
 
 public:
-    using ConstIterator = AVLTreeIterator<NodeType, LinkTraits, true>;
-    using Iterator = AVLTreeIterator<NodeType, LinkTraits, false>;
+    using Iterator = AVLTreeIterator<NodeType, LinkTraits, false, false>;
+    using ReverseIterator = ToReverseIteratorT<Iterator>;
+
+    using ConstIterator = ToConstIteratorT<Iterator>;
+    using ConstReverseIterator = ToReverseIteratorT<ConstIterator>;
 
     // Add a node to the tree.
     auto add(NodeType** link, NodeType& node, NodeType* parent) -> std::pair<Iterator, bool>
@@ -324,6 +327,29 @@ public:
     ConstIterator begin() const
     {
         return const_cast<AVLTree<Traits>&>(*this).begin();
+    }
+
+    ConstIterator cbegin() const
+    {
+        return begin();
+    }
+
+    // Return an iterator to the end of the tree.
+    ConstIterator cend() const
+    {
+        return end();
+    }
+
+    // Return a reverse iterator to the last node in the tree.
+    ConstReverseIterator crbegin() const
+    {
+        return rbegin();
+    }
+
+    // Return a reverse iterator to the end of the tree.
+    ConstReverseIterator crend() const
+    {
+        return rend();
     }
 
     // Does the tree contain any nodes?
@@ -442,6 +468,27 @@ public:
         return const_cast<AVLTree<Traits>&>(*this).lower_bound(key);
     }
 
+    // Return a reverse iterator to the last node in the tree.
+    ReverseIterator rbegin()
+    {
+        // No nodes? No iterator.
+        if (!mRoot)
+            return {};
+
+        auto* node = mRoot;
+
+        // Locate the tree's largest key.
+        while (LT::right(*node))
+            node = LT::right(*node);
+
+        return node;
+    }
+
+    ReverseIterator rbegin() const
+    {
+        return const_cast<AVLTree<Traits>&>(*this).rbegin();
+    }
+
     // Remove the node associated with the specified key.
     NodeType* remove(const KeyType& key)
     {
@@ -482,6 +529,17 @@ public:
 
         // Remove node from the tree.
         return remove(link, parent);
+    }
+
+    // Return a reverse iterator to the end of the tree.
+    ReverseIterator rend()
+    {
+        return {};
+    }
+
+    ConstReverseIterator rend() const
+    {
+        return {};
     }
 
     // Return an iterator to this tree's root node.

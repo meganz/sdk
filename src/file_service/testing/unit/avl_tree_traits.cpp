@@ -144,7 +144,7 @@ TEST(AVLTreeLinkTraits, right)
 TEST(AVLTreeMetadataTraits, update)
 {
     using LT = detail::LinkTraits<Traits>;
-    using IteratorType = AVLTreeIterator<Node, LT, true>;
+    using IteratorType = AVLTreeIterator<Node, LT, true, false>;
 
     // No metadata.
     {
