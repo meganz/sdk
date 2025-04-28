@@ -20291,3 +20291,30 @@ TEST_F(SdkTest, ExportNodeWithExpiryDate)
     auto link = exportNode(client, *value(node), tomorrow);
     ASSERT_EQ(result(link), API_OK);
 }
+
+TEST_F(SdkTest, HashCash)
+{
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_FALSE(email.empty() || pass.empty());
+    megaApi.resize(1);
+    mApi.resize(1);
+    configureTestInstance(0, email, pass, true, MegaApi::CLIENT_TYPE_DEFAULT);
+    std::string ua = "HashcashDemo";
+    megaApi[0]->getClient()->httpio->setuseragent(&ua);
+    megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
+    std::unique_ptr<RequestTracker> tracker;
+    if (!gResumeSessions || gSessionIDs[0].empty() || gSessionIDs[0] == "invalid")
+    {
+        out() << "Starting new session of account #0: " << mApi[0].email;
+        tracker = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    }
+    else
+    {
+        out() << "Resuming session of account #0";
+        tracker = asyncRequestFastLogin(0, gSessionIDs[0].c_str());
+    }
+    auto loginResult = tracker->waitForResult();
+    ASSERT_EQ(API_OK, loginResult)
+        << " Login error  " << loginResult << " for account " << mApi[0].email;
+    megaApi[0]->getClient()->httpio->setuseragent(&USER_AGENT); // stop hashcash, speed up cleanup
+}
