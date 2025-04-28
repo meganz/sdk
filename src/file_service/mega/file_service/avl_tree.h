@@ -298,10 +298,8 @@ public:
     // Add a node to the tree.
     auto add(NodeType& node) -> std::pair<Iterator, bool>
     {
-        NodeType** link{};
-
         // Where should we link in the user's node?
-        auto* parent = find(KT::key(node), link);
+        auto [parent, link] = findLink(KT::key(node));
 
         // Try and add the node to the tree.
         return add(link, node, parent);
@@ -385,12 +383,12 @@ public:
     // will reference the node that contains it. If key isn't in the tree
     // then we can use *link to attach a new directly to the appropriate
     // parent.
-    auto* find(const KeyType& key, NodeType**& link)
+    auto findLink(const KeyType& key) -> std::pair<NodeType*, NodeType**>
     {
         // Start the search from the root.
         //
         // Note that link is a reference to a node pointer.
-        link = &mRoot;
+        auto link = &mRoot;
 
         // The root node has no parent.
         NodeType* parent{};
@@ -414,16 +412,14 @@ public:
             parent = child;
         }
 
-        return parent;
+        return std::make_pair(parent, link);
     }
 
     // Return an iterator to the node associated with key.
     Iterator find(const KeyType& key)
     {
-        NodeType** link{};
-
         // Try and locate the node associated with key.
-        find(key, link);
+        auto [_, link] = findLink(key);
 
         return *link;
     }
@@ -492,10 +488,8 @@ public:
     // Remove the node associated with the specified key.
     NodeType* remove(const KeyType& key)
     {
-        NodeType** link{};
-
         // Try and locate the node in the tree.
-        auto* parent = find(key, link);
+        auto [parent, link] = findLink(key);
 
         // Key is associated with some node in the tree.
         if (*link)
