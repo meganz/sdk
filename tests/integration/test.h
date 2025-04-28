@@ -771,6 +771,14 @@ struct StandardClient : public MegaApp
     void request_response_progress(m_off_t a, m_off_t b) override;
     void threadloop();
 
+    void updateClientDowaitDs(const dstime lastClientDoWait);
+    dstime consumeClientDowaitDs(const dstime timeGranularity = 1);
+    void resetClientDowaitDs();
+
+private:
+    dstime mClientDowaitDs{};
+
+public:
     static bool debugging;  // turn this on to prevent the main thread timing out when stepping in the MegaClient
 
     template <class PROMISE_VALUE>

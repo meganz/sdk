@@ -860,6 +860,30 @@ bool Sync::shouldHaveDatabase() const
     return mUnifiedSync.shouldHaveDatabase();
 }
 
+bool Sync::hasPendingTransfersThreadSafeState() const
+{
+    if (!threadSafeState)
+        return false;
+    const auto counts = threadSafeState->transferCounts();
+    return counts.mUploads.mPending > 0 || counts.mDownloads.mPending > 0;
+}
+
+bool Syncs::anySyncHasPendingTransfersThreadSafeState() const
+{
+    assert(onSyncThread() || !onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+
+    for (const auto& us: mSyncVec)
+    {
+        if (us && us->mSync && us->mSync->hasPendingTransfersThreadSafeState())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 const fsfp_t& Sync::fsfp() const
 {
     return getConfig().mFilesystemFingerprint;
