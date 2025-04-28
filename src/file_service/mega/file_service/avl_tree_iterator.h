@@ -19,6 +19,54 @@ class AVLTreeIterator
     // Convenience.
     using OtherIteratorType = AVLTreeIterator<BaseNodeType, LinkTraits, !IsConstIterator>;
 
+    // Move the iterator forward one node.
+    AVLTreeIterator& next()
+    {
+        assert(mNode);
+
+        if (auto* node = LinkTraits::right(*mNode))
+        {
+            for (mNode = node; (node = LinkTraits::left(*mNode));)
+                mNode = node;
+
+            return *this;
+        }
+
+        for (auto* node = mNode; (mNode = LinkTraits::parent(*node));)
+        {
+            if (LinkTraits::right(*mNode) != node)
+                break;
+
+            node = mNode;
+        }
+
+        return *this;
+    }
+
+    // Move the iterator backwards one node.
+    AVLTreeIterator& previous()
+    {
+        assert(mNode);
+
+        if (auto* node = LinkTraits::left(*mNode))
+        {
+            for (mNode = node; (node = LinkTraits::right(*mNode));)
+                mNode = node;
+
+            return *this;
+        }
+
+        for (auto* node = mNode; (mNode = LinkTraits::parent(*node));)
+        {
+            if (LinkTraits::left(*mNode) != node)
+                break;
+
+            node = mNode;
+        }
+
+        return *this;
+    }
+
     // Where we are in the tree.
     NodeType* mNode{};
 
@@ -69,25 +117,7 @@ public:
 
     AVLTreeIterator& operator++()
     {
-        assert(mNode);
-
-        if (auto* node = LinkTraits::right(*mNode))
-        {
-            for (mNode = node; (node = LinkTraits::left(*mNode));)
-                mNode = node;
-
-            return *this;
-        }
-
-        for (auto* node = mNode; (mNode = LinkTraits::parent(*node));)
-        {
-            if (LinkTraits::right(*mNode) != node)
-                break;
-
-            node = mNode;
-        }
-
-        return *this;
+        return next();
     }
 
     AVLTreeIterator operator++(int)
@@ -101,25 +131,7 @@ public:
 
     AVLTreeIterator& operator--()
     {
-        assert(mNode);
-
-        if (auto* node = LinkTraits::left(*mNode))
-        {
-            for (mNode = node; (node = LinkTraits::right(*mNode));)
-                mNode = node;
-
-            return *this;
-        }
-
-        for (auto* node = mNode; (mNode = LinkTraits::parent(*node));)
-        {
-            if (LinkTraits::left(*mNode) != node)
-                break;
-
-            node = mNode;
-        }
-
-        return *this;
+        return previous();
     }
 
     AVLTreeIterator operator--(int)
