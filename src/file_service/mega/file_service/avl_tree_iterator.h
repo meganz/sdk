@@ -99,6 +99,38 @@ public:
         return result;
     }
 
+    AVLTreeIterator& operator--()
+    {
+        assert(mNode);
+
+        if (auto* node = LinkTraits::left(*mNode))
+        {
+            for (mNode = node; (node = LinkTraits::right(*mNode));)
+                mNode = node;
+
+            return *this;
+        }
+
+        for (auto* node = mNode; (mNode = LinkTraits::parent(*node));)
+        {
+            if (LinkTraits::left(*mNode) != node)
+                break;
+
+            node = mNode;
+        }
+
+        return *this;
+    }
+
+    AVLTreeIterator operator--(int)
+    {
+        AVLTreeIterator result = *this;
+
+        --(*this);
+
+        return result;
+    }
+
     AVLTreeIterator left() const
     {
         assert(mNode);
