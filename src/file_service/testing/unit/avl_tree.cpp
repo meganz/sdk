@@ -177,7 +177,7 @@ TEST(AVLTree, iteration)
         ASSERT_EQ(&*j, &*n);
     }
 
-    ASSERT_FALSE(j);
+    ASSERT_EQ(j, tree.rend());
 }
 
 TEST(AVLTree, lower_bound)
