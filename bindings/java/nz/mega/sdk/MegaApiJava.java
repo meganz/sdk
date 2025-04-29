@@ -12082,4 +12082,58 @@ public class MegaApiJava {
     public void moveOrRemoveDeconfiguredBackupNodes(long deconfiguredBackupRoot, long backupDestination, MegaRequestListenerInterface listener) {
         megaApi.moveOrRemoveDeconfiguredBackupNodes(deconfiguredBackupRoot, backupDestination, createDelegateRequestListener(listener));
     }
+
+    /**
+     * @brief Change the local path that is being used as root for a sync.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CHANGE_SYNC_ROOT.
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFile - Returns the path of the new local folder to use as root
+     * - MegaRequest::getNodeHandle - Returns the affected sync backup ID.
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request.
+     * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional
+     *   info for the specific sync error (MegaSync::Error). This can occur both when the
+     *   request has succeeded (API_OK) and in some cases of failure when the request error is
+     *   not sufficiently descriptive.
+     *
+     * On the onRequestFinish callback, the error code associated with the MegaError
+     * (MegaError::getErrorCode()) and the SyncError (if relevant, MegaError::getSyncError())
+     * can be:
+     * - MegaError::API_OK:
+     *     + SyncError::NO_SYNC_ERROR the new root has been changed successfully
+     * - MegaError::API_EARGS:
+     *     + SyncError::LOCAL_PATH_UNAVAILABLE the given path is nullptr or is empty
+     *     + SyncError::UNKNOWN_ERROR The given backupId does not match any of the registered
+     *       syncs
+     *     + SyncError::LOCAL_PATH_SYNC_COLLISION The local path conflicts with existing
+     *       synchronization paths (nested syncs are not allowed)
+     *     + SyncError::FILESYSTEM_ID_UNAVAILABLE unable to get the file system fingerprint with
+     *       the given path
+     *     + SyncError::LOCAL_FILESYSTEM_MISMATCH The given path is in a different file system
+     *       comparing with the previous one. We don't allow this operation
+     *     + SyncError::UNABLE_TO_RETRIEVE_ROOT_FSID The new root directory cannot be opened
+     *     + SyncError::BACKUP_SOURCE_NOT_BELOW_DRIVE The new root directory is not contained in
+     *       the previous external path. That operation is not allowed.
+     * - MegaError::API_EWRITE:
+     *     + SyncError::SYNC_CONFIG_WRITE_FAILURE We couldn't write into the database to commit
+     *       the change.
+     * - MegaError::API_EFAILED:
+     *     + SyncError::LOCAL_PATH_MOUNTED trying to sync bellow a FUSE mount point
+     *     + SyncError::UNSUPPORTED_FILE_SYSTEM the given path is in a not supported file system
+     * - MegaError::API_ETEMPUNAVAIL:
+     *     + SyncError::LOCAL_PATH_TEMPORARY_UNAVAILABLE the given new path is temporarily
+     *       unavailable
+     * - MegaError::API_ENOENT:
+     *     + SyncError::LOCAL_PATH_UNAVAILABLE the given new path is not available
+     * - MegaError::API_EACCESS:
+     *     + SyncError::INVALID_LOCAL_TYPE the given path is not a directory
+     *
+     * @param syncBackupId The handle (backup ID) of the sync whose local root is to be changed.
+     * @param newLocalSyncRootPath The new local path to set as the sync root.
+     * @param listener A MegaRequestListener to track this request. This parameter is optional.
+     */
+    public void changeSyncLocalRoot(long syncBackupId, String newLocalSyncRootPath, MegaRequestListenerInterface listener) {
+        megaApi.changeSyncLocalRoot(syncBackupId, newLocalSyncRootPath, createDelegateRequestListener(listener));
+    }
 }
