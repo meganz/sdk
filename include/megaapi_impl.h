@@ -4234,7 +4234,7 @@ public:
         void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
         void getFileVersionsOption(MegaRequestListener *listener = NULL);
 
-        void setContactLinksOption(bool disable, MegaRequestListener *listener = NULL);
+        void setContactLinksOption(bool enable, MegaRequestListener* listener = NULL);
         void getContactLinksOption(MegaRequestListener *listener = NULL);
 
         void retrySSLerrors(bool enable);

@@ -19777,20 +19777,23 @@ class MegaApi
         void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
+         * @brief Enable or disable the automatic approval of incoming contact requests using a
+         * contact link
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          *
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+         * - MegaRequest::getParamType - Returns the value
+         * MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
          *
          * Valid data in the MegaRequest object received in onRequestFinish:
          * - MegaRequest::getText - "0" for disable, "1" for enable
          *
-         * @param disable True to disable the automatic approval of incoming contact requests using a contact link
+         * @param enable True to enable the automatic approval of incoming contact requests using a
+         * contact link
          * @param listener MegaRequestListener to track this request
          */
-        void setContactLinksOption(bool disable, MegaRequestListener *listener = NULL);
+        void setContactLinksOption(bool enable, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Check if file versioning is enabled or disabled
