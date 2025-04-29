@@ -40569,7 +40569,7 @@ std::unique_ptr<FileSystemAccess> createFSA()
     if (!AndroidFileSystemAccess::isFileWrapperActive(fsaccess.get()))
     {
         LOG_verbose << "[mega::createFSA] JNI FileWrapper not present. Creating "
-                       "LinuxFileSystemAccess instead of AndroidFileSystemAcces";
+                       "LinuxFileSystemAccess instead of AndroidFileSystemAccess";
         fsaccess.reset(new LinuxFileSystemAccess);
     }
 #endif
