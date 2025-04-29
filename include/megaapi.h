@@ -17810,6 +17810,10 @@ class MegaApi
         /**
          * @brief Set the throttle update rate for sync-uploads.
          *
+         * @note The values set by this method will be overwritten upon resuming/starting
+         * application, and every 24-hours runtime (Those values will be received from API). We
+         * highly recommend to rely on API values instead of setting custom ones.
+         *
          * The associated request type with this request is
          * MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES
          *
@@ -17827,6 +17831,10 @@ class MegaApi
 
         /**
          * @brief Set the max number of sync uploads per file before applying throttling logic.
+         *
+         * @note The values set by this method will be overwritten upon resuming/starting
+         * application, and every 24-hours runtime (Those values will be received from API). We
+         * highly recommend to rely on API values instead of setting custom ones.
          *
          * The associated request type with this request is
          * MegaRequest::TYPE_SET_SYNC_UPLOAD_THROTTLE_VALUES
