@@ -6,7 +6,6 @@
 #include <string>
 #include <utility>
 
-#include <mega/common/bind_handle_forward.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/database_forward.h>
 #include <mega/common/error_or_forward.h>
@@ -315,9 +314,6 @@ class InodeDB final
     // Unlink a file.
     Error unlink(FileInodeRef file);
 
-    // Tracks which inode is associated with what bind handle.
-    mutable ToInodeRawPtrMap<common::BindHandle> mByBindHandle;
-
     // Tracks which inode is associated with what node handle.
     mutable ToInodeRawPtrMap<NodeHandle> mByHandle;
 
@@ -346,17 +342,6 @@ public:
 
     // Add a memory-only inode to the database.
     void add(const FileInode& inode);
-
-    // Signal that file's content is being bound to a name in the cloud.
-    auto binding(const FileInode& file, const common::BindHandle& handle)
-      -> ToInodeRawPtrMap<common::BindHandle>::iterator;
-
-    // Retrieve the inode that is being bound using the specified handle.
-    FileInodeRef binding(const common::BindHandle& handle) const;
-
-    // Signal that file's content has been bound to a name in the cloud.
-    void bound(const FileInode& file,
-               ToInodeRawPtrMap<common::BindHandle>::iterator iterator);
 
     // Retrieve the cache associated with this database.
     InodeCache& cache() const;

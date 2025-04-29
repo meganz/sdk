@@ -3,7 +3,6 @@
 #include <future>
 #include <mutex>
 
-#include <mega/common/bind_handle.h>
 #include <mega/common/client.h>
 #include <mega/common/error_or.h>
 #include <mega/common/logging.h>
