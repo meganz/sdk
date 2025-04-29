@@ -1746,15 +1746,15 @@ using namespace mega;
     }
 }
 
-- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->setUnshareableNodeCoordinates(node.getCPtr, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->setUnshareableNodeCoordinates(node.getCPtr, latitude, longitude , [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
-- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude {
+- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude {
     if (self.megaApi) {
-        self.megaApi->setUnshareableNodeCoordinates(node.getCPtr, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE));
+        self.megaApi->setUnshareableNodeCoordinates(node.getCPtr, latitude, longitude);
     }
 }
 

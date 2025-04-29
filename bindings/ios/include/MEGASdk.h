@@ -3978,7 +3978,7 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * @param longitude Longitude in signed decimal degrees notation.
  * @param delegate Delegate to track this request.
  */
-- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(nullable NSNumber *)latitude longitude:(nullable NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -4001,7 +4001,7 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * @param latitude Latitude in signed decimal degrees notation.
  * @param longitude Longitude in signed decimal degrees notation.
  */
-- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(nullable NSNumber *)latitude longitude:(nullable NSNumber *)longitude;
+- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude;
 
 /**
  * @brief Generate a public link of a file/folder in MEGA.
