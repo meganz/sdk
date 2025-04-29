@@ -708,6 +708,50 @@ void chunkmac_map::copyEntriesTo(chunkmac_map& other)
     }
 }
 
+m_off_t chunkmac_map::copyEntriesToUntilRaidlineBeforePos(m_off_t maxPos, chunkmac_map& other)
+{
+    static constexpr auto logPre = "[chunkmac_map::copyEntriesToUntilRaidlineBeforePos] ";
+
+    maxPos = ChunkedHash::chunkfloor(maxPos);
+    while (maxPos > 0 && (maxPos % RAIDLINE != 0))
+    {
+        LOG_debug << logPre << "Wrong maxPos not padded to RAIDLINE: maxPos = " << maxPos
+                  << ", RAIDLINE = " << RAIDLINE << ", mod = " << (maxPos % RAIDLINE);
+        maxPos -= (maxPos % RAIDLINE);
+        maxPos = ChunkedHash::chunkfloor(maxPos);
+        if (maxPos % RAIDLINE != 0)
+        {
+            LOG_debug << logPre << "maxPos still not padded to RAIDLINE: pos = " << maxPos
+                      << ", RAIDLINE = " << RAIDLINE << ", mod = " << (maxPos % RAIDLINE);
+        }
+    }
+
+    LOG_debug << logPre << "Final maxPos = " << maxPos;
+
+    if (maxPos == 0)
+        return 0;
+
+    for (auto& e: mMacMap)
+    {
+        if (e.first >= maxPos)
+        {
+            LOG_debug << logPre << "chunk (" << e.first << ") exceeding maxPos (maxPos = " << maxPos
+                      << "), break";
+            break;
+        }
+        if (!e.second.finished)
+        {
+            LOG_debug << logPre << "chunk (" << e.first
+                      << ") not finished (offset = " << e.second.offset << ") (maxPos = " << maxPos
+                      << "), break";
+            break;
+        }
+        other.mMacMap[e.first] = e.second;
+    }
+
+    return maxPos;
+}
+
 void chunkmac_map::copyEntryTo(m_off_t pos, chunkmac_map& other)
 {
     assert(pos > macsmacSoFarPos);
@@ -1723,16 +1767,65 @@ std::string Utils::join(const std::vector<std::string>& items, const std::string
     return r;
 }
 
-bool Utils::startswith(const std::string& str, const std::string& start)
+template<typename T>
+bool Utils::startswith(const std::basic_string<T>& str, const std::basic_string<T>& start)
 {
     if (str.length() < start.length()) return false;
-    return memcmp(str.data(), start.data(), start.length()) == 0;
+    return memcmp(str.data(), start.data(), start.length() * sizeof(T)) == 0;
 }
 
-bool Utils::startswith(const std::string &str, char chr)
+template bool Utils::startswith<char>(const std::string&, const std::string&);
+template bool Utils::startswith<wchar_t>(const std::wstring&, const std::wstring&);
+
+template<typename T>
+const T* Utils::startswith(const T* str, const T* start)
 {
-    return str.length() >= 1 && chr == str.front();
+    if (!str || !start)
+    {
+        return nullptr;
+    }
+    while (*str == *start)
+    {
+        if (*str == 0)
+        {
+            return str;
+        }
+        str++;
+        start++;
+    }
+    return *start == 0 ? str : nullptr;
 }
+
+template const char* Utils::startswith<char>(const char*, const char*);
+template const wchar_t* Utils::startswith<wchar_t>(const wchar_t*, const wchar_t*);
+
+template<typename T>
+bool Utils::endswith(const T* str, size_t strLen, const T* suffix, size_t sfxLen)
+{
+    if (strLen < sfxLen)
+    {
+        return false;
+    }
+    if (!str || !suffix)
+    {
+        return false;
+    }
+    const T* end = str + strLen;
+    const T* start = end - sfxLen;
+    while (start < end)
+    {
+        if (*start != *suffix)
+        {
+            return false;
+        }
+        start++;
+        suffix++;
+    }
+    return true;
+}
+
+template bool Utils::endswith(const char*, size_t, const char*, size_t);
+template bool Utils::endswith(const wchar_t*, size_t, const wchar_t*, size_t);
 
 bool Utils::endswith(const std::string &str, char chr)
 {
@@ -3543,6 +3636,33 @@ std::string getThisThreadIdStr()
     std::stringstream ss;
     ss << std::this_thread::get_id();
     return ss.str();
+}
+
+storagestatus_t getStorageStatusFromString(const std::string& storageStatusStr)
+{
+    if (storageStatusStr.empty())
+    {
+        return STORAGE_GREEN;
+    }
+
+    const auto storageStatusOpt = stringToNumber<int>(storageStatusStr);
+    if (!storageStatusOpt)
+    {
+        LOG_err << "[getStorageStatusFromString] error: cannot parse storage status from value = "
+                << storageStatusStr;
+        return STORAGE_UNKNOWN;
+    }
+
+    const auto storageStatus = static_cast<storagestatus_t>(*storageStatusOpt);
+    switch (storageStatus)
+    {
+        case STORAGE_RED:
+        case STORAGE_ORANGE:
+        case STORAGE_GREEN:
+            return storageStatus;
+        default:
+            return STORAGE_UNKNOWN;
+    }
 }
 
 } // namespace mega

@@ -806,10 +806,9 @@ typedef enum {
     STORAGE_GREEN = 0,      // there is storage is available
     STORAGE_ORANGE = 1,     // storage is almost full
     STORAGE_RED = 2,        // storage is full
-    STORAGE_CHANGE = 3,     // the status of the storage might have changed
+    // STORAGE_CHANGE = 3,     // obsolete (SDK fetches the state and notify directly)
     STORAGE_PAYWALL = 4,    // storage is full and user didn't remedy despite of warnings
 } storagestatus_t;
-
 
 enum SmsVerificationState {
     // These values (except unknown) are delivered from the servers

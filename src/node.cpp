@@ -745,7 +745,7 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
                 return nullptr;
             }
 
-            if (!memcmp(buf.get(), "MEGA{\"", 6))
+            if (Utils::startswith(reinterpret_cast<const char*>(buf.get()), "MEGA{\""))
             {
                 return buf.release();
             }
@@ -2067,6 +2067,21 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
         }
     }
 
+    if (transferSP)
+    {
+        if (const auto isUpload = dynamic_cast<SyncUpload_inClient*>(transferSP.get()) != nullptr;
+            isUpload)
+        {
+            LOG_debug << "Moving upload (" << transferSP->getLocalname() << ") source from: '"
+                      << getLocalPath().toPath(false) << "' to '"
+                      << ln->getLocalPath().toPath(false) << "'";
+        }
+        else
+        {
+            LOG_debug << "Moving download (" << transferSP->getLocalname() << ") source from: '"
+                      << getCloudPath(true) << "' to '" << ln->getCloudPath(true) << "'";
+        }
+    }
     ln->resetTransfer(std::move(transferSP));
 
     LocalTreeProcUpdateTransfers tput;

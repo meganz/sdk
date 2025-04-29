@@ -4,20 +4,20 @@
 #include <cstddef>
 #include <mutex>
 
-#include <mega/fuse/common/client_forward.h>
-#include <mega/fuse/common/error_or_forward.h>
+#include <mega/common/client_forward.h>
+#include <mega/common/error_or_forward.h>
+#include <mega/log_level_forward.h>
+#include <mega/common/node_event_queue_forward.h>
+#include <mega/common/normalized_path_forward.h>
+#include <mega/common/task_queue_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
-#include <mega/fuse/common/log_level_forward.h>
 #include <mega/fuse/common/mount_flags_forward.h>
 #include <mega/fuse/common/mount_info_forward.h>
 #include <mega/fuse/common/mount_result_forward.h>
-#include <mega/fuse/common/node_event_queue_forward.h>
-#include <mega/fuse/common/normalized_path_forward.h>
 #include <mega/fuse/common/service_callbacks.h>
 #include <mega/fuse/common/service_context_forward.h>
 #include <mega/fuse/common/service_flags.h>
 #include <mega/fuse/common/service_forward.h>
-#include <mega/fuse/common/task_queue_forward.h>
 
 #include <mega/types.h>
 
@@ -29,9 +29,9 @@ namespace fuse
 class Service final
 {
 public:
-    Service(Client& client, const ServiceFlags& flags);
+    Service(common::Client& client, const ServiceFlags& flags);
 
-    explicit Service(Client& mClient);
+    explicit Service(common::Client& mClient);
 
     ~Service();
 
@@ -42,7 +42,7 @@ public:
     MountResult add(const MountInfo& info);
 
     // Check if a file exists in the cache.
-    bool cached(NormalizedPath path) const;
+    bool cached(common::NormalizedPath path) const;
 
     // Called by the client when its view of the cloud is current.
     void current();
@@ -51,7 +51,7 @@ public:
     void deinitialize();
 
     // Describe the inode representing the file at the specified path.
-    ErrorOr<InodeInfo> describe(const NormalizedPath& path) const;
+    common::ErrorOr<InodeInfo> describe(const common::NormalizedPath& path) const;
 
     // Disable an enabled mount.
     void disable(MountDisabledCallback callback,
@@ -62,7 +62,7 @@ public:
     MountResult discard(bool discard);
 
     // Downgrade the FUSE database to the specified version.
-    MountResult downgrade(const NormalizedPath& path, std::size_t target);
+    MountResult downgrade(const common::NormalizedPath& path, std::size_t target);
 
     // Enable a disabled mount.
     MountResult enable(const std::string& name, bool remember);
@@ -71,7 +71,7 @@ public:
     bool enabled(const std::string& name) const;
 
     // Execute a function on some thread.
-    Task execute(std::function<void(const Task&)> function);
+    common::Task execute(std::function<void(const common::Task&)> function);
 
     // Update a mount's flags.
     MountResult flags(const std::string& name,
@@ -96,7 +96,7 @@ public:
     LogLevel logLevel() const;
 
     // Retrieve the path the mount associated with name.
-    NormalizedPath path(const std::string& name) const;
+    common::NormalizedPath path(const std::string& name) const;
 
     // Remove a disabled mount from the database.
     MountResult remove(const std::string& name);
@@ -115,16 +115,16 @@ public:
     // A path is syncable if:
     // - It does not contain an active mount.
     // - It is not contained within an active mount.
-    bool syncable(const NormalizedPath& path) const;
+    bool syncable(const common::NormalizedPath& path) const;
 
     // Called by the client when nodes have changed in the cloud.
-    void updated(NodeEventQueue& events);
+    void updated(common::NodeEventQueue& events);
 
     // Update the FUSE database to the specified version.
-    MountResult upgrade(const NormalizedPath& path, std::size_t target);
+    MountResult upgrade(const common::NormalizedPath& path, std::size_t target);
 
     // Who we call to learn about the cloud and transfer files.
-    Client& mClient;
+    common::Client& mClient;
 
 private:
     // Platform-specific behavior and state.

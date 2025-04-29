@@ -1,10 +1,12 @@
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/inode_info.h>
-#include <mega/fuse/common/node_info.h>
 
 namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 InodeInfo::InodeInfo(NodeInfo info)
   : mID(InodeID(info.mHandle))

@@ -93,6 +93,13 @@ class SdkTestTransferStats: public SdkTest
 {
 public:
     /**
+     * @brief Extra time from transfer request completion to the TransferSlot constructor, where the
+     * transfer stats are collected.
+     */
+    static constexpr std::chrono::milliseconds TIME_FROM_TRANSFER_COMPLETE_TO_STATS_COLLECTION{
+        1500};
+
+    /**
      * @brief Wrapper to upload files with the necessary parameters.
      *
      * @param rootNode The ROOTNODE of the Cloud.
@@ -119,6 +126,7 @@ public:
                                 false,
                                 nullptr))
             << "Cannot upload " << uploadFileName;
+        std::this_thread::sleep_for(TIME_FROM_TRANSFER_COMPLETE_TO_STATS_COLLECTION);
         return megaApi[0]->getNodeByHandle(fileHandle);
     }
 
@@ -143,6 +151,7 @@ public:
                             MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
                             false /* undelete */))
             << "Cannot download " << downloadFileName;
+        std::this_thread::sleep_for(TIME_FROM_TRANSFER_COMPLETE_TO_STATS_COLLECTION);
     };
 };
 
@@ -208,6 +217,9 @@ TEST_F(SdkTestTransferStats, SdkTestTransferStats)
         regularFileSizes.size(),
         std::accumulate(regularFileSizes.begin(), regularFileSizes.end(), m_off_t{0})};
 
+    // Give enough time for the TransferSlot constructor to be called, when the stats are collected.
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+
     // 2.2 Collect metrics.
     auto* const client{megaApi[0]->getClient()};
     LOG_debug << "[SdkTest::SdkTestTransferStats] collectAndPrintMetrics for UPLOADS";
@@ -257,7 +269,6 @@ TEST_F(SdkTestTransferStats, SdkTestTransferStats)
                                  0.33); // 1 out of 3 is RAID, with 2 decimal precision
 
     // 3.3 Collect metrics for downloads including the CloudRAID file and compare results.
-    std::this_thread::sleep_for(std::chrono::seconds{1});
     LOG_debug << "[SdkTest::SdkTestTransferStats] collectAndPrintMetrics for DOWNLOADS after "
                  "CLOUDRAID download";
     ASSERT_EQ(client->mTransferStatsManager.getUncollectedAndPrintedTransferData(GET),

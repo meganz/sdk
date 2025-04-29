@@ -1,13 +1,13 @@
 #pragma once
 
-#include <mega/fuse/common/activity_monitor.h>
-#include <mega/fuse/common/error_or_forward.h>
+#include <mega/common/activity_monitor.h>
+#include <mega/common/error_or_forward.h>
+#include <mega/common/task_executor.h>
 #include <mega/fuse/common/inode_db_forward.h>
 #include <mega/fuse/common/inode_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount.h>
 #include <mega/fuse/common/mount_result_forward.h>
-#include <mega/fuse/common/task_executor.h>
 #include <mega/fuse/platform/context_forward.h>
 #include <mega/fuse/platform/dispatcher.h>
 #include <mega/fuse/platform/library.h>
@@ -122,13 +122,13 @@ class Mount
                    FSP_FSCTL_FILE_INFO& info);
 
     // Tracks whether any requests are in progress.
-    ActivityMonitor mActivities;
+    common::ActivityMonitor mActivities;
 
     // Responsible for receiving requests from WinFSP.
     Dispatcher mDispatcher;
 
     // Responsible for performing select requests.
-    TaskExecutor mExecutor;
+    common::TaskExecutor mExecutor;
 
 public:
     Mount(const MountInfo& info,
@@ -161,7 +161,7 @@ public:
     MountInodeID map(InodeID id) const override;
 
     // What local path is this mount mapping from?
-    NormalizedPath path() const override;
+    common::NormalizedPath path() const override;
 
     // Remove the mount from memory.
     MountResult remove();

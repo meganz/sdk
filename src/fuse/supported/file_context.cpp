@@ -12,6 +12,8 @@ namespace fuse
 namespace platform
 {
 
+using namespace common;
+
 FileContext::FileContext(FileIOContextRef context,
                          fuse::Mount& mount,
                          FileOpenFlags flags)

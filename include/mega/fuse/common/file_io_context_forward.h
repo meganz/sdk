@@ -5,7 +5,8 @@
 #include <mutex>
 #include <vector>
 
-#include <mega/fuse/common/lock_forward.h>
+#include <mega/common/lock_forward.h>
+#include <mega/common/lock_forward.h>
 #include <mega/fuse/common/ref_forward.h>
 
 namespace mega
@@ -15,8 +16,8 @@ namespace fuse
 
 class FileIOContext;
 
-using FileIOContextLock = UniqueLock<const FileIOContext>;
-using FileIOContextSharedLock = SharedLock<const FileIOContext>;
+using FileIOContextLock = common::UniqueLock<const FileIOContext>;
+using FileIOContextSharedLock = common::SharedLock<const FileIOContext>;
 
 using FileIOContextPtr = std::unique_ptr<FileIOContext>;
 using FileIOContextRef = Ref<FileIOContext>;

@@ -31,11 +31,13 @@ target_sources(test_integration
     integration_test_utils.cpp
     DisableBackupSync_test.cpp
     SdkTestTransferMaxSpeeds_test.cpp
+    sdk_test_file_path.cpp
     sdk_test_http_server.cpp
     sdk_test_node_tags.cpp
     sdk_test_node_tags.h
     sdk_test_network.cpp
     SdkTestDeviceCenter_test.cpp
+    SdkTestSyncLocalOperations_test.cpp
 
     passwordManager/SdkTestPasswordManager.cpp
     passwordManager/SdkTestPasswordManager.h

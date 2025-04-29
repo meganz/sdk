@@ -2,6 +2,10 @@ macro(process_vcpkg_libraries overlays_path)
 
     set(VCPKG_TOOLCHAIN_PATH "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 
+    if (NOT EXISTS ${VCPKG_TOOLCHAIN_PATH})
+        message(FATAL_ERROR "Invalid VCPKG_ROOT path: ${VCPKG_ROOT}")
+    endif()
+
     # Use internal VCPKG tools
     set(VCPKG_BOOTSTRAP_OPTIONS "-disableMetrics")
     foreach(path IN ITEMS ${overlays_path})
@@ -53,6 +57,8 @@ macro(process_vcpkg_libraries overlays_path)
         else() # Linux
             if (CMAKE_SYSTEM_PROCESSOR MATCHES "armv7l" OR (NOT CMAKE_SYSTEM_PROCESSOR AND HOST_ARCH MATCHES "armv7l"))
                 set(VCPKG_TARGET_TRIPLET "arm-linux")
+            elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64" OR (NOT CMAKE_SYSTEM_PROCESSOR AND HOST_ARCH MATCHES "aarch64|arm64"))
+                set(VCPKG_TARGET_TRIPLET "arm64-linux-mega")
             else()
                 set(VCPKG_TARGET_TRIPLET "x64-linux-mega")
             endif()

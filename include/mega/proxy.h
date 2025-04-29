@@ -50,6 +50,8 @@ public:
     bool credentialsNeeded() const;
     std::string getUsername() const;
     std::string getPassword() const;
+    static Proxy parseFromURL(const std::string& url);
+    bool operator==(const Proxy& other) const;
 
 protected:
     int proxyType;
@@ -61,6 +63,11 @@ protected:
 int proxyTypeFromString(const std::string& type);
 
 const std::string* proxyTypeToString(int type);
+
+// This function retrieves the proxy settings from environment variables
+// (http_proxy, HTTP_PROXY, https_proxy or HTTPS_PROXY) in order.
+// If none is set, it returns a default proxy.
+void getEnvProxy(Proxy* proxy);
 
 } // namespace
 

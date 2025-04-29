@@ -50,6 +50,7 @@ class JiraProject:
         assert self._version.released == False
         self._version_id = self._version.id
         self._check_all_tickets_are_resolved_or_closed()
+        self._check_all_tickets_have_release_number_affected()
 
     def update_current_version(self, to_version: str, used_by_apps: str):
         from datetime import date
@@ -289,7 +290,10 @@ class JiraProject:
         release_number_affected = "Patch"
         for i in unreleased_issues:
             assert isinstance(i, Issue)
-            affected = i.raw["fields"][custom_field_id]["value"]
+            custom_field_data = i.raw.get("fields", {}).get(custom_field_id)
+            assert custom_field_data, f"Missing 'Release number affected' field in ticket: {i.key}"
+            affected = custom_field_data.get("value")
+
             if affected == "Major":
                 return affected
             if affected == "Minor":
@@ -320,3 +324,18 @@ class JiraProject:
                 f"- {issue.key} -> {issue.fields.status.name}" for issue in issues
             )
         )
+
+    def _check_all_tickets_have_release_number_affected(self):
+        jql_query = (
+            f'project = "{self._project_key}" AND fixVersion = "{self._version.name}" '
+            f'AND "Release number affected" is EMPTY'
+        )
+        issues = self._jira.search_issues(jql_query)
+
+        assert not issues, (
+            f"The following tickets are missing the release number affected field:\n"
+            + "\n".join(
+                f"- {issue.key}" for issue in issues
+            )
+        )
+

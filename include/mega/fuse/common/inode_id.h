@@ -4,6 +4,7 @@
 #include <sstream>
 #include <string>
 
+#include <mega/common/query_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
 #include <mega/fuse/common/mount_inode_id_forward.h>
 
@@ -11,6 +12,19 @@
 
 namespace mega
 {
+namespace common
+{
+
+template<>
+struct SerializationTraits<fuse::InodeID>
+{
+    static fuse::InodeID from(const Field& field);
+
+    static void to(Parameter& parameter, const fuse::InodeID& value);
+}; // SerializationTraits<fuse::InodeID>
+
+} // common
+
 namespace fuse
 {
 

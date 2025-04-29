@@ -13,3 +13,4 @@ build-*Debug
 build-*Release
 /third_party/crashlytics*h
 *.toml
+CMakeUserPresets.json

@@ -4,10 +4,10 @@
 #include <cerrno>
 #include <cstring>
 
+#include <mega/common/utility.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_inode_id.h>
-#include <mega/fuse/common/utility.h>
 #include <mega/fuse/platform/constants.h>
 #include <mega/fuse/platform/file_descriptor.h>
 #include <mega/fuse/platform/utility.h>

@@ -161,7 +161,7 @@ public:
     LocalPath(const LocalPath& p);
     LocalPath operator=(const LocalPath& p);
 
-    ~LocalPath() {}
+    virtual ~LocalPath() {}
 
     AbstractLocalPath* getImpl() const
     {

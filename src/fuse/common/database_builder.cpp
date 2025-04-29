@@ -3,24 +3,21 @@
 #include <map>
 #include <vector>
 
-#include <mega/fuse/common/database.h>
+#include <mega/common/database.h>
+#include <mega/common/database_utilities.h>
+#include <mega/common/logging.h>
+#include <mega/common/query.h>
+#include <mega/common/transaction.h>
 #include <mega/fuse/common/database_builder.h>
 #include <mega/fuse/common/inode_id.h>
-#include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_info.h>
-#include <mega/fuse/common/query.h>
-#include <mega/fuse/common/scoped_query.h>
-#include <mega/fuse/common/transaction.h>
 
 namespace mega
 {
 namespace fuse
 {
 
-using DowngradeFunction = void (*)(Query&);
-using UpgradeFunction = void (*)(Query&);
-
-static std::size_t currentVersion(Query& query);
+using namespace common;
 
 static void downgrade10(Query& query);
 static void downgrade21(Query& query);
@@ -32,125 +29,21 @@ static void upgrade12(Query& query);
 static void upgrade23(Query& query);
 static void upgrade34(Query& query);
 
-static const std::vector<DowngradeFunction> downgrades = {
-    nullptr,
-    &downgrade10,
-    &downgrade21,
-    &downgrade32,
-    &downgrade43,
-}; // downgrades
-
-static const std::vector<UpgradeFunction> upgrades = {
-    &upgrade01,
-    &upgrade12,
-    &upgrade23,
-    &upgrade34,
-}; // upgrades
-
-template<typename Function>
-void DatabaseBuilder::withQuery(Function&& function)
+const DatabaseVersionVector& DatabaseBuilder::versions() const
 {
-    auto databaseLock = DatabaseLock(mDatabase);
-    auto transaction = mDatabase.transaction();
-    auto query = mDatabase.query();
+    static const DatabaseVersionVector versions = {
+        {&downgrade10, &upgrade01},
+        {&downgrade21, &upgrade12},
+        {&downgrade32, &upgrade23},
+        {&downgrade43, &upgrade34},
+    }; // versions
 
-    function(query);
-
-    transaction.commit();
+    return versions;
 }
 
 DatabaseBuilder::DatabaseBuilder(Database& database)
-  : mDatabase(database)
+  : common::DatabaseBuilder(database)
 {
-}
-
-void DatabaseBuilder::build()
-{
-    assert(downgrades.size() == upgrades.size() + 1);
-    assert(!upgrades.empty());
-
-    upgrade(upgrades.size());
-}
-
-void DatabaseBuilder::downgrade(std::size_t target)
-{
-    withQuery([&](Query& query) {
-        auto current = currentVersion(query);
-
-        if (current <= target)
-            return;
-
-        for (; current > target; --current)
-        {
-            auto* downgrader = &downgrades[current];
-
-            assert(*downgrader);
-
-            FUSEDebugF("Downgrading database to version %zu", current - 1);
-
-            (*downgrader)(query);
-
-            query = "delete from version where version = :version";
-
-            query.param(":version") = current;
-            query.execute();
-        }
-    });
-}
-
-void DatabaseBuilder::upgrade(std::size_t target)
-{
-    target = std::min(target, upgrades.size());
-
-    withQuery([&](Query& query) {
-        auto current = currentVersion(query);
-
-        if (current >= target)
-            return;
-
-        while (current < target)
-        {
-            auto* upgrader = &upgrades[current++];
-
-            assert(*upgrader);
-
-            FUSEDebugF("Upgrading database to version %zu", current);
-
-            (*upgrader)(query);
-
-            query = "insert into version values (:version)";
-
-            query.param(":version").uint64(current);
-            query.execute();
-        }
-    });
-}
-
-static std::size_t currentVersion(Query& query)
-{
-    // Check if the "version" table exists.
-    query = "select name "
-            "  from sqlite_master "
-            " where name = :name "
-            "   and type = :type";
-
-    query.param(":name") = "version";
-    query.param(":type") = "table";
-    query.execute();
-
-    // Table doesn't exist: Must be the initial version.
-    if (!query)
-        return 0u;
-
-    // Determine the database's current version.
-    query = "   select version "
-            "     from version "
-            " order by version desc "
-            "    limit 1";
-
-    query.execute();
-
-    return query.field("version").size();
 }
 
 void downgrade10(Query& query)
@@ -163,20 +56,53 @@ void downgrade10(Query& query)
 
     query = "drop table mounts";
     query.execute();
-
-    query = "drop table versions";
-    query.execute();
 }
 
 void downgrade21(Query& query)
 {
-    query = "alter table inodes drop column bind_handle";
+    // Inode table loses its bind_handle field.
+    query = "create table inodes_new ( "
+            "  handle integer "
+            "  constraint uq_inodes_handle "
+            "             unique, "
+            "  id integer "
+            "  constraint nn_inodes_id "
+            "             not null, "
+            "  modified integer "
+            "  constraint nn_inodes_modified "
+            "             not null, "
+            "  name text, "
+            "  parent_handle integer, "
+            "  constraint pk_inodes "
+            "             primary key (id), "
+            "  constraint uq_inodes_name_parent_handle "
+            "             unique (name, parent_handle) "
+            ")";
+
+    query.execute();
+
+    // Migrate existing inode data to our new table.
+    query = "insert into inodes_new "
+            "select handle "
+            "     , id "
+            "     , modified "
+            "     , name "
+            "     , parent_handle "
+            "  from inodes";
+
+    query.execute();
+
+    // Replace the old inodes table with our new one.
+    query = "drop table inodes";
+    query.execute();
+
+    query = "alter table inodes_new rename to inodes";
     query.execute();
 }
 
 void downgrade32(Query& query)
 {
-    query = "alter table drop column extension";
+    query = "alter table inodes drop column extension";
     query.execute();
 }
 
@@ -290,7 +216,7 @@ void upgrade01(Query& query)
     // Initially, no IDs have been allocated.
     query = "insert into inode_id values (:value)";
 
-    query.param(":value") = InodeID(0);
+    query.param(":value").set(InodeID(0));
     query.execute();
 
     // Tracks all mounts known by FUSE.
@@ -315,17 +241,6 @@ void upgrade01(Query& query)
             "             not null, "
             "  constraint pk_mounts "
             "             primary key (path) "
-            ")";
-
-    query.execute();
-
-    // Tracks which datahbase upgrades have been performed.
-    query = "create table version ( "
-            "  version integer "
-            "  constraint nn_version_version "
-            "             not null, "
-            "  constraint pk_versions "
-            "             primary key (version) "
             ")";
 
     query.execute();

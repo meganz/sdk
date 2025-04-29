@@ -1,4 +1,4 @@
-#include <mega/fuse/common/bind_handle.h>
+#include <mega/common/bind_handle.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/file_cache.h>
 #include <mega/fuse/common/file_info.h>
@@ -23,6 +23,8 @@ namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 static LocalPath cachePath(const Client& client);
 

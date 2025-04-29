@@ -58,8 +58,7 @@ public:
     static GfxClient create(const std::string& endpointName);
 
 private:
-
-    bool isRetryError(CommError error) const;
+    bool isConnectRetryError(CommError error) const;
 
     // it retries on some errors
     std::unique_ptr<IEndpoint> connectWithRetry(std::chrono::milliseconds backoff, unsigned int maxRetries);

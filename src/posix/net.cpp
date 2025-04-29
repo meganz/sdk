@@ -804,7 +804,7 @@ std::string gencash(const string& token, uint8_t easiness)
     // hash (little endian) - the lower, the harder to solve)
     uint32_t threshold =
         static_cast<uint32_t>((((easiness & 63) << 1) + 1) << ((easiness >> 6) * 7 + 3));
-    
+
     // Token is 64 chars in B64, we need the 48 bytes in binary
     string tokenBinary = Base64::atob(token);
 
@@ -874,6 +874,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                                  static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
         }
     }
+
+    req->outpos = 0;
 
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
     httpctx->posturl = req->posturl;
@@ -954,15 +956,19 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         if (!httpio->disablepkp && req->protect)
         {
         #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
-            if (curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY,
-                  !memcmp(req->posturl.data(), httpio->APIURL.data(), httpio->APIURL.size())
-                  || !memcmp(req->posturl.data(), MegaClient::REQSTATURL.data(), MegaClient::REQSTATURL.size())
-                    ? "sha256//0W38e765pAfPqS3DqSVOrPsC4MEOvRBaXQ7nY1AJ47E=;" //API 1
-                      "sha256//gSRHRu1asldal0HP95oXM/5RzBfP1OIrPjYsta8og80="  //API 2
-                    : (!memcmp(req->posturl.data(), MegaClient::SFUSTATSURL.data(), MegaClient::SFUSTATSURL.size()))
-                           ? "sha256//2ZAltznnzY3Iee3NIZPOgqIQVNXVjvDEjWTmAreYVFU=;"  // STATSSFU  1
-                             "sha256//7jLrvaEtfqTCHew0iibvEm2k61iatru+rwhFD7g3nxA="   // STATSSFU  2
-                                 : nullptr) ==  CURLE_OK)
+            if (curl_easy_setopt(
+                    curl,
+                    CURLOPT_PINNEDPUBLICKEY,
+                    Utils::startswith(req->posturl, httpio->APIURL) ||
+                            Utils::startswith(req->posturl, MegaClient::REQSTATURL) ?
+                        "sha256//0W38e765pAfPqS3DqSVOrPsC4MEOvRBaXQ7nY1AJ47E=;" // API 1
+                        "sha256//gSRHRu1asldal0HP95oXM/5RzBfP1OIrPjYsta8og80=" // API 2
+                        :
+                        (Utils::startswith(req->posturl, MegaClient::SFUSTATSURL) ?
+                             "sha256//2ZAltznnzY3Iee3NIZPOgqIQVNXVjvDEjWTmAreYVFU=;" // STATSSFU  1
+                             "sha256//7jLrvaEtfqTCHew0iibvEm2k61iatru+rwhFD7g3nxA=" // STATSSFU  2
+                             :
+                             nullptr)) == CURLE_OK)
             {
                 curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
                 if (httpio->pkpErrors)
@@ -1574,10 +1580,9 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                                     while (slist)
                                     {
                                         LOG_warn << req->getLogName() << i << ": " << slist->data;
-                                        if (i == 0 && !memcmp("Issuer:", slist->data, 7))
+                                        if (i == 0 && Utils::startswith(slist->data, "Issuer:"))
                                         {
-                                            const char *issuer = NULL;
-                                            issuer = strstr(slist->data, "CN = ");
+                                            const char* issuer = strstr(slist->data, "CN = ");
                                             if (issuer)
                                             {
                                                 issuer += 5;
@@ -1999,16 +2004,17 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 }
 
 // set contentlength according to Original-Content-Length header
-size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* target)
+size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void* target)
 {
     HttpReq *req = (HttpReq*)target;
     size_t len = size * nmemb;
     if (len > 2)
     {
-        NET_verbose << req->getLogName() << "Header: " << string((const char*)ptr, len - 2);
+        NET_verbose << req->getLogName() << "Header: " << string(ptr, len - 2);
     }
-
-    if (len > 5 && !memcmp(ptr, "HTTP/", 5))
+    assert(Utils::endswith(ptr, len, "\r\n", 2));
+    const char* val = nullptr;
+    if (Utils::startswith(ptr, "HTTP/"))
     {
         if (req->contentlength >= 0)
         {
@@ -2021,31 +2027,38 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
 
         return size * nmemb;
     }
-    else if (len > 15 && !memcmp(ptr, "Content-Length:", 15))
+    else if ((val = Utils::startswith(ptr, "Content-Length:")) != nullptr)
     {
         if (req->contentlength < 0)
         {
-            req->setcontentlength(atoll((char*)ptr + 15));
+            req->setcontentlength(atoll(val));
         }
     }
-    else if (len > 24 && !memcmp(ptr, "Original-Content-Length:", 24))
+    else if ((val = Utils::startswith(ptr, "Original-Content-Length:")) != nullptr)
     {
-        req->setcontentlength(atoll((char*)ptr + 24));
+        req->setcontentlength(atoll(val));
     }
-    else if (len > 17 && !memcmp(ptr, "X-MEGA-Time-Left:", 17))
+    else if ((val = Utils::startswith(ptr, "X-MEGA-Time-Left:")) != nullptr)
     {
-        req->timeleft = atol((char*)ptr + 17);
+        req->timeleft = atol(val);
     }
-    else if (len > 15 && !memcmp(ptr, "Content-Type:", 13))
+    else if ((val = Utils::startswith(ptr, "Content-Type:")) != nullptr)
     {
-        req->contenttype.assign((char *)ptr + 13, len - 15);
+        req->contenttype.assign(val, len - 15); // length of "Content-Type:" + 2
     }
-    else if (len >= (11 + 7) && !memcmp(ptr, "X-Hashcash:", 11))
+    else if ((val = Utils::startswith(ptr, "X-Hashcash:")) != nullptr)
     {
-        // trim trailing CRLF
-        while (len > 11 && static_cast<uint8_t*>(ptr)[len - 1] < ' ') len--;
-
-        string buffer{(char*)ptr + 11, len - 11};
+        const char* end = ptr + len - 3; // point to the char before CRLF terminator
+        if (end - val < 4) // minimum hashcash len is 5
+        {
+            LOG_warn << "Ignoring too short X-Hashcash header";
+            return len;
+        }
+        // trim trailing CRLF, from right to left, up to end of "X-Hashcash:"
+        while (end > val && *end < ' ')
+            end--;
+        assert(end - val >= 0);
+        string buffer{val, static_cast<size_t>((end - val) + 1)};
         LOG_warn << "X-Hashcash received:" << buffer;
 
         // Example of hashcash header
@@ -2341,11 +2354,12 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
             BN_bn2bin(rsaN, buf);
 
             // check the public key matches for the URL of the connection (API or SFU-stats)
-            if ((!memcmp(request->posturl.data(), httpio->APIURL.data(), httpio->APIURL.size())
-                    && (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
-                ||(!memcmp(request->posturl.data(), MegaClient::SFUSTATSURL.data(), MegaClient::SFUSTATSURL.size())
-                    && (!memcmp(buf, SFUSTATSSSLMODULUS, sizeof SFUSTATSSSLMODULUS - 1) || !memcmp(buf, SFUSTATSSSLMODULUS2, sizeof SFUSTATSSSLMODULUS2 - 1)))
-                )
+            if ((Utils::startswith(request->posturl, httpio->APIURL) &&
+                 (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) ||
+                  !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1))) ||
+                (Utils::startswith(request->posturl, MegaClient::SFUSTATSURL) &&
+                 (!memcmp(buf, SFUSTATSSSLMODULUS, sizeof SFUSTATSSSLMODULUS - 1) ||
+                  !memcmp(buf, SFUSTATSSSLMODULUS2, sizeof SFUSTATSSSLMODULUS2 - 1))))
             {
                 BN_bn2bin(rsaE, buf);
 

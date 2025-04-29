@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <mutex>
 
-#include <mega/fuse/common/error_or_forward.h>
+#include <mega/common/error_or_forward.h>
 #include <mega/fuse/common/file_cache_forward.h>
 #include <mega/fuse/common/file_extension_db.h>
 #include <mega/fuse/common/file_info_forward.h>
@@ -64,7 +64,7 @@ public:
     //
     // If successful, path will be updated to contain the concrete
     // location where this file's content is stored.
-    ErrorOr<FileAccessSharedPtr> open(LocalPath& path) const;
+    common::ErrorOr<FileAccessSharedPtr> open(LocalPath& path) const;
 
     // Where is this file's cached content stored?
     LocalPath path() const;

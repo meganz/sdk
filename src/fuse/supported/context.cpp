@@ -1,3 +1,4 @@
+#include <mega/common/badge.h>
 #include <mega/fuse/common/inode.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/ref.h>

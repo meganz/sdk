@@ -32,7 +32,7 @@
 #include "mega/utils.h"
 
 #include <cryptopp/hkdf.h> // required for derive key of master key
-#include <mega/fuse/common/normalized_path.h>
+#include <mega/common/normalized_path.h>
 
 #include <algorithm>
 #include <cctype>
@@ -1867,7 +1867,6 @@ void MegaClient::init()
     // actions in server-client stream)
     resetId(sessionid, sizeof sessionid, rng);
 
-    notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
 
     mCurrentSeqtag.clear();
@@ -2421,8 +2420,8 @@ void MegaClient::exec()
                 switch (static_cast<reqstatus_t>(fc->req.status))
                 {
                     case REQ_SUCCESS:
-                        if (fc->req.contenttype.find("text/html") != string::npos
-                            && !memcmp(fc->req.posturl.c_str(), "http:", 5))
+                        if (fc->req.contenttype.find("text/html") != string::npos &&
+                            Utils::startswith(fc->req.posturl, "http:"))
                         {
                             LOG_warn << "Invalid Content-Type detected downloading file attr: " << fc->req.contenttype;
                             fc->urltime = 0;
@@ -2469,8 +2468,9 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         LOG_warn << "Error getting file attr";
 
-                        if (fc->req.httpstatus && fc->req.contenttype.find("text/html") != string::npos
-                                && !memcmp(fc->req.posturl.c_str(), "http:", 5))
+                        if (fc->req.httpstatus &&
+                            fc->req.contenttype.find("text/html") != string::npos &&
+                            Utils::startswith(fc->req.posturl, "http:"))
                         {
                             LOG_warn << "Invalid Content-Type detected on failed file attr: " << fc->req.contenttype;
                             usehttps = true;
@@ -2868,6 +2868,9 @@ void MegaClient::exec()
             case REQ_SUCCESS:
                 if (*pendingscUserAlerts->in.c_str() == '{')
                 {
+                    // there should be no User Alerts when logged into folder
+                    assert(!loggedIntoFolder());
+
                     JSON json;
                     json.begin(pendingscUserAlerts->in.c_str());
                     json.enterobject();
@@ -3006,7 +3009,7 @@ void MegaClient::exec()
                             fnstats.eOthersCount++;
                         }
                     }
-                    
+
                     if (pendingsc->httpstatus == 500 && !scnotifyurl.empty())
                     {
                         sendevent(99482, "500 received on wsc url");
@@ -3950,7 +3953,8 @@ void MegaClient::dispatchTransfers()
             {
                 dynamicQueueLimit = calcDynamicQueueLimit();
             }
-            double transferWeight = static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit); 
+            double transferWeight =
+                static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit);
             //LOG_verbose << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM << " -> transferWeight = " << transferWeight << " [tslots = " << tslots.size() << "] [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
             return transferWeight;
         }
@@ -4407,6 +4411,8 @@ void MegaClient::dispatchTransfers()
                                                 s >= 0)
                                             {
                                                 tslot->transfer->tempurls = tempurls;
+                                                tslot->transfer
+                                                    ->adjustNonRaidedProgressIfNowIsRaided();
                                                 tslot->transfer->downloadFileHandle = h;
                                                 tslot->transferbuf.setIsRaid(tslot->transfer,
                                                                              tempurls,
@@ -4920,7 +4926,7 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     mKeyManager.reset();
 
     mLastErrorDetected = REASON_ERROR_NO_ERROR;
-    
+
     mReqHashcashEasiness = 0;
     mReqHashcashToken.clear();
 }
@@ -5185,13 +5191,6 @@ bool MegaClient::procsc()
                             syncsAlreadyLoadedOnStatecurrent = true;
                         }
 #endif
-
-                        if (notifyStorageChangeOnStateCurrent)
-                        {
-                            app->notify_storage(STORAGE_CHANGE);
-                            notifyStorageChangeOnStateCurrent = false;
-                        }
-
                         if (tctable && cachedfiles.size())
                         {
                             TransferDbCommitter committer(tctable);
@@ -5351,7 +5350,7 @@ bool MegaClient::procsc()
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
                     // "a" element if present)
-                    if (fetchingnodes || memcmp(jsonsc.pos, "\"i\":\"", 5) ||
+                    if (fetchingnodes || !Utils::startswith(jsonsc.pos, "\"i\":\"") ||
                         memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid) ||
                         jsonsc.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
                         name == 't') // we still set 'i' on move commands to produce backward
@@ -5372,10 +5371,12 @@ bool MegaClient::procsc()
                                 bool isMoveOperation = false;
                                 // node addition
                                 {
-                                    useralerts.beginNotingSharedNodes();
+                                    if (!loggedIntoFolder())
+                                        useralerts.beginNotingSharedNodes();
                                     handle originatingUser = sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode.get(), isMoveOperation);
                                     mergenewshares(1);
-                                    useralerts.convertNotedSharedNodes(true, originatingUser);
+                                    if (!loggedIntoFolder())
+                                        useralerts.convertNotedSharedNodes(true, originatingUser);
                                 }
                                 lastAPDeletedNode = nullptr;
                             }
@@ -6130,6 +6131,42 @@ bool MegaClient::slotavail() const
     return !mBlocked && tslots.size() < MAXTOTALTRANSFERS;
 }
 
+bool MegaClient::processStorageStatusFromCmd(const storagestatus_t status)
+{
+    switch (status)
+    {
+        case STORAGE_RED:
+        {
+            const auto isPaywall = (ststatus == STORAGE_PAYWALL);
+            LOG_verbose << "[processStorageStatusFromCmd] Storage status is RED [isPaywall = "
+                        << isPaywall << "]";
+            activateoverquota(0, isPaywall);
+            return true;
+        }
+        case STORAGE_ORANGE:
+        {
+            LOG_verbose << "[processStorageStatusFromCmd] Storage status is ORANGE (close to the "
+                           "storage capacity)";
+            [[fallthrough]];
+        }
+        case STORAGE_GREEN:
+        {
+            setstoragestatus(status);
+            return true;
+        }
+        case STORAGE_UNKNOWN:
+        {
+            LOG_warn << "[processStorageStatusFromCmd] Storage status is unknown";
+            return false;
+        }
+        default:
+        {
+            LOG_err << "[processStorageStatusFromCmd] Invalid storage status: " << status;
+            return false;
+        }
+    }
+}
+
 bool MegaClient::setstoragestatus(storagestatus_t status)
 {
     // transition from paywall to red should not happen
@@ -6145,13 +6182,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
 
 #ifdef ENABLE_SYNC
-        if (previousStatus == STORAGE_PAYWALL)
-        {
-            mOverquotaDeadlineTs = 0;
-            mOverquotaWarningTs.clear();
-        }
-        app->notify_storage(ststatus);
-        if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
+        if (status == STORAGE_RED || status == STORAGE_PAYWALL) // transitioning to OQ
         {
             syncs.disableSyncs(STORAGE_OVERQUOTA, false, true);
         }
@@ -6164,11 +6195,15 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
             {
                 break;
             }
-            // fall-through
+            [[fallthrough]];
         case STORAGE_PAYWALL:
+            mOverquotaDeadlineTs = 0;
+            mOverquotaWarningTs.clear();
+            [[fallthrough]];
         case STORAGE_RED:
             // Transition from OQ.
             abortbackoff(true);
+            break;
         default:
             break;
         }
@@ -6552,7 +6587,7 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                 case makeNameid("f"):
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                     {
-                        putnodesCmd->emptyResponse = !memcmp(j->pos, "[]", 2);
+                        putnodesCmd->emptyResponse = Utils::startswith(j->pos, "[]");
                         readnodes(j,
                                   1,
                                   putnodesCmd->source,
@@ -6774,26 +6809,40 @@ bool MegaClient::sc_shares()
                         }
                     }
 
-                    if (r == ACCESS_UNKNOWN)
+                    if (!loggedIntoFolder()) // ignore User Alerts when logged into folder
                     {
-                        handle peer = outbound ? uh : oh;
-                        if (peer != me && peer && !ISUNDEF(peer) && statecurrent && ou != me)
+                        if (r == ACCESS_UNKNOWN)
                         {
-                            User* u = finduser(peer);
-                            useralerts.add(new UserAlert::DeletedShare(peer, u ? u->email : "", oh, h, ts == 0 ? m_time() : ts, useralerts.nextId()));
-                        }
-                    }
-                    else
-                    {
-                        if (!outbound && statecurrent)
-                        {
-                            User* u = finduser(oh);
-                            // only new shares should be notified (skip permissions changes)
-                            bool newShare = u && u->sharing.find(h) == u->sharing.end();
-                            if (newShare)
+                            handle peer = outbound ? uh : oh;
+                            if (peer != me && peer && !ISUNDEF(peer) && statecurrent && ou != me)
                             {
-                                useralerts.add(new UserAlert::NewShare(h, oh, u->email, ts, useralerts.nextId()));
-                                useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
+                                User* u = finduser(peer);
+                                useralerts.add(new UserAlert::DeletedShare(peer,
+                                                                           u ? u->email : "",
+                                                                           oh,
+                                                                           h,
+                                                                           ts == 0 ? m_time() : ts,
+                                                                           useralerts.nextId()));
+                            }
+                        }
+                        else
+                        {
+                            if (!outbound && statecurrent)
+                            {
+                                User* u = finduser(oh);
+                                // only new shares should be notified (skip permissions changes)
+                                bool newShare = u && u->sharing.find(h) == u->sharing.end();
+                                if (newShare)
+                                {
+                                    useralerts.add(new UserAlert::NewShare(h,
+                                                                           oh,
+                                                                           u->email,
+                                                                           ts,
+                                                                           useralerts.nextId()));
+                                    // no need to alert on nodes already in the new share, which are
+                                    // delivered next
+                                    useralerts.ignoreNextSharedNodesUnder(h);
+                                }
                             }
                         }
                     }
@@ -6823,7 +6872,7 @@ bool MegaClient::sc_shares()
 
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        if (!outbound && statecurrent)
+                        if (!outbound && statecurrent && !loggedIntoFolder())
                         {
                             User* u = finduser(oh);
                             // only new shares should be notified (skip permissions changes)
@@ -6889,7 +6938,7 @@ bool MegaClient::sc_upgrade(nameid paymentType)
             case EOO:
                 // No User Alert for 'ftr' and features
                 if (paymentType != makeNameid("ftr") && (itemclass == 0 || itemclass == 1) &&
-                    statecurrent)
+                    statecurrent && !loggedIntoFolder())
                 {
                     useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId(), paymentType));
                 }
@@ -6917,7 +6966,7 @@ void MegaClient::sc_paymentreminder()
             break;
 
         case EOO:
-            if (statecurrent)
+            if (statecurrent && !loggedIntoFolder())
             {
                 useralerts.add(new UserAlert::PaymentReminder(expiryts ? expiryts : m_time(), useralerts.nextId()));
             }
@@ -7221,21 +7270,10 @@ void MegaClient::sc_userattr()
                         if (!fetchingnodes)
                         {
                             // silently fetch-upon-update these critical attributes
-                            if (type == ATTR_DISABLE_VERSIONS || type == ATTR_PUSH_SETTINGS)
+                            if (type == ATTR_DISABLE_VERSIONS || type == ATTR_PUSH_SETTINGS ||
+                                type == ATTR_STORAGE_STATE)
                             {
                                 getua(u, type, 0);
-                            }
-                            else if (type == ATTR_STORAGE_STATE)
-                            {
-                                if (!statecurrent)
-                                {
-                                    notifyStorageChangeOnStateCurrent = true;
-                                }
-                                else
-                                {
-                                    LOG_debug << "Possible storage status change";
-                                    app->notify_storage(STORAGE_CHANGE);
-                                }
                             }
                         }
                     }
@@ -7308,7 +7346,7 @@ void MegaClient::sc_ipc()
                     break;
                 }
 
-                if (m && statecurrent)
+                if (m && statecurrent && !loggedIntoFolder())
                 {
                     string email;
                     JSON::copystring(&email, m);
@@ -7554,7 +7592,7 @@ void MegaClient::sc_upc(bool incoming)
                     pcr->uts = uts;
                 }
 
-                if (statecurrent && ou != me && (incoming || s != 2))
+                if (statecurrent && ou != me && (incoming || s != 2) && !loggedIntoFolder())
                 {
                     string email;
                     JSON::copystring(&email, m);
@@ -7652,7 +7690,7 @@ void MegaClient::sc_ph()
             n = nodebyhandle(h);
             if (n)
             {
-                if ((takendown || reinstated) && !ISUNDEF(h) && statecurrent)
+                if ((takendown || reinstated) && !ISUNDEF(h) && statecurrent && !loggedIntoFolder())
                 {
                     useralerts.add(new UserAlert::Takedown(takendown, reinstated, n->type, h, m_time(), useralerts.nextId()));
                 }
@@ -8804,19 +8842,16 @@ MegaClient::TotpTokenResult MegaClient::generateTotpTokenFromNode(const handle h
     if (!node->isPasswordNode())
         return logAndError(API_ENOENT, "No password node found with the given handle");
 
-    const auto pwdData = node->attrs.getNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
-    if (!pwdData)
-    {
-        assert(false && "All password nodes must have the pwm field");
-        return logAndError(API_ENOENT,
-                           "No password node with valid pwm data found with the given handle");
-    }
-
-    const auto totpData = pwdData->getNestedJsonObject(MegaClient::PWM_ATTR_PASSWORD_TOTP);
+    const auto totpData =
+        node->attrs.getComplexNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER,
+                                               MegaClient::PWM_ATTR_PASSWORD_TOTP);
     if (!totpData)
         return logAndError(API_EKEY, "Trying to generate totp token for a node with no totp data");
 
-    const auto totpParams = toTotpParameters(*totpData);
+    AttrMap totpMap;
+    totpMap.fromjsonObject(
+        totpData->map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
+    const auto totpParams = toTotpParameters(totpMap);
     if (!totpParams)
     {
         assert(false && "If present in a password node, totp data must be well formatted");
@@ -8866,8 +8901,6 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
                         c.push_back(s);
                         break;
                     }
-
-                    path++;
                     continue;
                 }
 
@@ -9077,7 +9110,10 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                 if (n)
                 {
                     TreeProcDel td;
-                    useralerts.beginNotingSharedNodes();
+                    if (!loggedIntoFolder())
+                    {
+                        useralerts.beginNotingSharedNodes();
+                    }
 
                     int creqtag = reqtag;
                     reqtag = 0;
@@ -9085,7 +9121,10 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
 
-                    useralerts.stashDeletedNotedSharedNodes(originatingUser);
+                    if (!loggedIntoFolder())
+                    {
+                        useralerts.stashDeletedNotedSharedNodes(originatingUser);
+                    }
 #ifdef ENABLE_SYNC
                     // None sync operation is required if version is removed
                     if (n->parent && n->parent->type != FILENODE)
@@ -9093,7 +9132,10 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                         syncs.triggerSync(n->parent->nodeHandle());
                     }
 #endif
-                    useralerts.convertNotedSharedNodes(false, originatingUser);
+                    if (!loggedIntoFolder())
+                    {
+                        useralerts.convertNotedSharedNodes(false, originatingUser);
+                    }
                 }
 
                 return n;
@@ -10449,7 +10491,7 @@ int MegaClient::readnode(JSON* j,
                     }
                 }
 
-                if (u != me && !ISUNDEF(u) && !fetchingnodes)
+                if (u != me && !ISUNDEF(u) && !fetchingnodes && !loggedIntoFolder())
                 {
                     useralerts.noteSharedNode(u, t, ts, n.get(), name_id::put);
                 }
@@ -10480,7 +10522,7 @@ int MegaClient::readnode(JSON* j,
             n = nullptr;    // ownership is taken by NodeManager upon addNode()
 
             // update-alerts for shared-nodes management
-            if (!ISUNDEF(ph))
+            if (!ISUNDEF(ph) && !loggedIntoFolder())
             {
                 if (useralerts.isHandleInAlertsAsRemoved(h) && ISUNDEF(previousHandleForAlert))
                 {
@@ -11205,7 +11247,7 @@ int MegaClient::readuser(JSON* j, bool actionpackets)
 
         if (!warnlevel())
         {
-            if (actionpackets && v >= 0 && v <= 3 && statecurrent)
+            if (actionpackets && v >= 0 && v <= 3 && statecurrent && !loggedIntoFolder())
             {
                 string email;
                 JSON::copystring(&email, m);
@@ -14968,7 +15010,11 @@ bool MegaClient::fetchsc(DbTable* stateCacheTable)
 
             case CACHEDALERT:
             {
-                if (!useralerts.unserializeAlert(&data, id))
+                if (loggedIntoFolder())
+                {
+                    stateCacheTable->del(id); // delete record from old DB table 'statecache'
+                }
+                else if (!useralerts.unserializeAlert(&data, id))
                 {
                     LOG_err << "Failed - user notification read error";
                     // don't break execution, just ignore it
@@ -15127,7 +15173,8 @@ void MegaClient::purgeOrphanTransfers(bool remove)
         {
             transfer_multimap::iterator it = multi_cachedtransfers[d].begin();
             Transfer *transfer = it->second;
-            if (remove || (purgeOrphanTransfers && (m_time() - transfer->lastaccesstime) >= 172500))
+            if (remove || (purgeOrphanTransfers &&
+                           (m_time() - transfer->lastaccesstime) >= Transfer::TEMPURL_TIMEOUT_TS))
             {
                 if (purgeCount == 0)
                 {
@@ -18026,7 +18073,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         assert(f->size >= 0);
 
         // Do we have enough space for the download?
-        // fsaccess->availableDiskSpace is expensive over network driver. 
+        // fsaccess->availableDiskSpace is expensive over network driver.
         // Pass in a positive value, check will use this value. A use case is downloading a folder
         auto available = availableDiskSpace > 0 ? availableDiskSpace : fsaccess->availableDiskSpace(targetPath);
         if (available <= f->size)
@@ -18233,22 +18280,10 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 }
             }
 
+            const auto currentTime = m_time();
             if (t)
             {
-                bool hadAnyData = t->pos > 0;
-                if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
-                {
-                    LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
-                    t->tempurls.clear();
-
-                    if (d == PUT)
-                    {
-                        t->chunkmacs.clear();
-                        t->progresscompleted = 0;
-                        t->ultoken.reset();
-                        t->pos = 0;
-                    }
-                }
+                t->discardTempUrlsIfNoDataDownloadedOrTimeoutReached(d, currentTime);
 
                 auto fa = fsaccess->newfileaccess();
 
@@ -18266,7 +18301,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                     }
                     else
                     {
-                        if (hadAnyData)
+                        if (const auto hadAnyData = (t->pos != 0); hadAnyData)
                         {
                             LOG_warn << "Temporary file not found:" << t->localfilename;
                         }
@@ -18312,7 +18347,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
 
             t->skipserialization = donotpersist;
 
-            t->lastaccesstime = m_time();
+            t->lastaccesstime = currentTime;
             t->tag = tag;
             f->tag = tag;
             t->transfers_it = multi_transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t));
@@ -21775,7 +21810,20 @@ NodeHandle MegaClient::getPasswordManagerBase()
 void MegaClient::preparePasswordManagerNodeData(attr_map& attrs, const AttrMap& data) const
 {
     assert(!data.map.empty());
-    attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = data.getjson();
+    auto auxstr = data.getjson();
+    auto auxDataAttrMap = data;
+    if (auxDataAttrMap.map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)))
+    {
+        const auto totp =
+            auxDataAttrMap.map.extract(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP));
+        auxstr = auxDataAttrMap.getjson();
+        if (!auxDataAttrMap.map.empty())
+        {
+            auxstr += ",\"" + AttrMap::nameid2string(totp.key()) + "\":" + totp.mapped();
+        }
+    }
+
+    attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = auxstr;
 }
 
 std::string MegaClient::getPartialAPs()
@@ -22004,7 +22052,7 @@ PasswordEntryError MegaClient::validateNewPasswordNodeData(const AttrMap& data)
         totpPresent)
     {
         AttrMap totpMap;
-        totpMap.fromjson(data.map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
+        totpMap.fromjsonObject(data.map.at(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)).c_str());
 
         if (const auto res = validateNewNodeTotpData(totpMap); res != PasswordEntryError::OK)
         {
@@ -22140,6 +22188,20 @@ error MegaClient::updatePasswordNode(const NodeHandle nh,
 
     AttrMap mergedData =
         pwdNode->attrs.getNestedJsonObject(NODE_ATTR_PASSWORD_MANAGER).value_or(AttrMap{});
+
+    mergedData.removeEmptyValues();
+
+    // complex Json Objects inside another AttrMap value (like totp) must be extracted using
+    // getComplexNestedJsonObject
+    auto totpData =
+        pwdNode->attrs.getComplexNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER,
+                                                  MegaClient::PWM_ATTR_PASSWORD_TOTP);
+    if (totpData && totpData->map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)))
+    {
+        mergedData.map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)] =
+            totpData->map[AttrMap::string2nameid(PWM_ATTR_PASSWORD_TOTP)];
+    }
+
     mergedData.applyUpdatesWithNestedFields(*newData, std::array{PWM_ATTR_PASSWORD_TOTP});
 
     if (const auto validCode = validateNewPasswordNodeData(mergedData);

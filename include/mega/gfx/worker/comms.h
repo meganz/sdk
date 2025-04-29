@@ -80,6 +80,7 @@ enum class CommError: uint8_t
     ERR             = 1, // an generic error
     NOT_EXIST       = 2,
     TIMEOUT         = 3,
+    CLOSED = 4, // The other side has closed
 };
 
 } // namespace gfx

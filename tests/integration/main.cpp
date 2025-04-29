@@ -615,7 +615,7 @@ int main (int argc, char *argv[])
 
     sdk_test::setTestDataDir(fs::absolute(fs::path(argv[0]).parent_path()));
 
-    SimpleLogger::setLogLevel(logMax);
+    SimpleLogger::setLogLevel(logVerbose);
     SimpleLogger::setOutputClass(&megaLogger);
 
     // delete old test folders, created during previous runs

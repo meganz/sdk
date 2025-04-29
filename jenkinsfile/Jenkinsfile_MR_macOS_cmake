@@ -203,6 +203,8 @@ pipeline {
                                         ./tools/gfxworker/tests/integration/gfxworker_test_integration &
                                         pid=\$!
                                         wait \$pid || FAILED=2
+                                        gzip -c gfxworker_test_integration.log > gfxworker_test_integration_${BUILD_ID}.log.gz || :
+                                        rm gfxworker_test_integration.log || :
                                     fi
 
                                     if [ -z \"\$FAILED\" ]; then
@@ -264,7 +266,7 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'build_dir/test_integration*log*, build_dir/examples-*.tar.gz', fingerprint: true
+                    archiveArtifacts artifacts: 'build_dir/*test_integration*log*, build_dir/examples-*.tar.gz', fingerprint: true
                     deleteDir()
                 }
             }

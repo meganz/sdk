@@ -1,11 +1,11 @@
 #include <fstream>
 
-#include <mega/fuse/common/error_or.h>
-#include <mega/fuse/common/mount_event_type.h>
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/mount_event.h>
+#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/file.h>
@@ -23,6 +23,8 @@ namespace fuse
 {
 namespace testing
 {
+
+using namespace common;
 
 struct FUSECommonTests
   : TestBase
@@ -250,6 +252,22 @@ TEST_F(FUSECommonTests, cloud_replace)
     EXPECT_TRUE(fs::is_directory(MountPathW() / "sfx", error));
     EXPECT_FALSE(error);
     EXPECT_EQ(fsidOf(MountPathW() / "sfx"), handle->as8byte());
+}
+
+TEST_F(FUSECommonTests, duplicate_names)
+{
+    // Add a duplicate directory.
+    ASSERT_EQ(ClientW()->makeDirectory("sd0", "/x/s").errorOr(API_OK), API_OK);
+
+    // Wait for the directory to become inaccessible.
+    std::error_code error;
+
+    EXPECT_TRUE(waitFor([&]() {
+        return !fs::exists(MountPathW() / "sd0", error);
+    }, mDefaultTimeout));
+
+    EXPECT_FALSE(fs::exists(MountPathW() / "sd0", error));
+    EXPECT_FALSE(error);
 }
 
 TEST_F(FUSECommonTests, file_cache_load)

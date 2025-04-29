@@ -5,24 +5,24 @@
 #include <functional>
 #include <mutex>
 
-#include <mega/fuse/common/client_callbacks.h>
-#include <mega/fuse/common/client_forward.h>
-#include <mega/fuse/common/error_or_forward.h>
+#include <mega/common/client_callbacks.h>
+#include <mega/common/client_forward.h>
+#include <mega/common/error_or_forward.h>
+#include <mega/common/node_info_forward.h>
+#include <mega/common/normalized_path_forward.h>
+#include <mega/common/task_queue_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount_event_forward.h>
 #include <mega/fuse/common/mount_flags_forward.h>
 #include <mega/fuse/common/mount_info_forward.h>
 #include <mega/fuse/common/mount_result_forward.h>
-#include <mega/fuse/common/node_info_forward.h>
-#include <mega/fuse/common/normalized_path_forward.h>
 #include <mega/fuse/common/service_forward.h>
-#include <mega/fuse/common/task_queue_forward.h>
 #include <mega/fuse/common/testing/client_forward.h>
 #include <mega/fuse/common/testing/cloud_path_forward.h>
 #include <mega/fuse/common/testing/mount_event_observer_forward.h>
 #include <mega/fuse/common/testing/path.h>
-#include <mega/fuse/common/upload_callbacks.h>
-#include <mega/fuse/common/upload_forward.h>
+#include <mega/common/upload_callbacks.h>
+#include <mega/common/upload_forward.h>
 
 namespace mega
 {
@@ -37,13 +37,13 @@ class Client
     class Uploader;
 
     // Get our hands on the client's high level interface.
-    virtual fuse::Client& client() const = 0;
+    virtual common::Client& client() const = 0;
 
     // Retrieve the handle associated with the specified child.
     NodeHandle handle(NodeHandle parent, const std::string& name) const;
 
     using MakeDirectoryCallback =
-      std::function<void(ErrorOr<NodeHandle>)>;
+      std::function<void(common::ErrorOr<NodeHandle>)>;
 
     // Create a directory in the cloud.
     void makeDirectory(MakeDirectoryCallback callback,
@@ -51,9 +51,9 @@ class Client
                        NodeHandle parentHandle);
 
     // Upload a file to the cloud.
-    ErrorOr<NodeHandle> uploadFile(const std::string& name,
-                                   NodeHandle parentHandle,
-                                   const Path& path);
+    common::ErrorOr<NodeHandle> uploadFile(const std::string& name,
+                                           NodeHandle parentHandle,
+                                           const Path& path);
 
     // Get our hands on the client's FUSE interface.
     virtual Service& service() const = 0;
@@ -150,7 +150,7 @@ public:
     virtual auto contact(const std::string& email) const -> ContactPtr = 0;
 
     // Describe the inode associated with the specified path.
-    ErrorOr<InodeInfo> describe(const Path& path) const;
+    common::ErrorOr<InodeInfo> describe(const Path& path) const;
 
     // Remove a sync previously created with synchronize(...)
     void desynchronize(::mega::handle id);
@@ -171,13 +171,13 @@ public:
     MountResult enableMount(const std::string& name, bool remember);
 
     // Execute some function on the client thread.
-    Task execute(std::function<void(const Task&)> function);
+    common::Task execute(std::function<void(const common::Task&)> function);
 
     // Retrieve information about a specific child.
-    ErrorOr<NodeInfo> get(CloudPath parentPath, const std::string& name) const;
+    common::ErrorOr<common::NodeInfo> get(CloudPath parentPath, const std::string& name) const;
 
     // Retrieve information about a node.
-    ErrorOr<NodeInfo> get(CloudPath path) const;
+    common::ErrorOr<common::NodeInfo> get(CloudPath path) const;
 
     // Query what a child's node handle is.
     NodeHandle handle(CloudPath parentPath, const std::string& name) const;
@@ -186,7 +186,7 @@ public:
     NodeHandle handle(const std::string& path) const;
 
     // Send a friendship invite to the specified user.
-    virtual auto invite(const std::string& email) -> ErrorOr<InvitePtr> = 0;
+    virtual auto invite(const std::string& email) -> common::ErrorOr<InvitePtr> = 0;
 
     // Is a friendship invite associated with the specified user?
     virtual auto invited(const std::string& email) const -> InvitePtr = 0;
@@ -211,8 +211,7 @@ public:
     virtual Error logout(bool keepSession) = 0;
 
     // Create a directory in the cloud.
-    ErrorOr<NodeHandle> makeDirectory(const std::string& name,
-                                      CloudPath parent);
+    common::ErrorOr<NodeHandle> makeDirectory(const std::string& name, CloudPath parent);
 
     // Return a reference to a new mount event observer.
     MountEventObserverPtr mountEventObserver();
@@ -230,7 +229,7 @@ public:
     MountInfoPtr mountInfo(const std::string& name) const;
 
     // Retrieve the path associated with the specified name.
-    NormalizedPath mountPath(const std::string& name) const;
+    common::NormalizedPath mountPath(const std::string& name) const;
 
     // Retrieve a description of each (enabled) mount.
     MountInfoVector mounts(bool onlyEnabled) const;
@@ -275,7 +274,7 @@ public:
                         accesslevel_t permissions) const = 0;
 
     // Retrieve storage statistics from the cloud.
-    ErrorOr<StorageInfo> storageInfo();
+    common::ErrorOr<StorageInfo> storageInfo();
 
     // Where are we storing our files
     const Path& storagePath() const;
@@ -285,12 +284,12 @@ public:
       -> std::tuple<::mega::handle, Error, SyncError>;
 
     // Upload a directory tree or file to the cloud.
-    ErrorOr<NodeHandle> upload(const std::string& name,
-                               CloudPath parent,
-                               const Path& path);
+    common::ErrorOr<NodeHandle> upload(const std::string& name,
+                                       CloudPath parent,
+                                       const Path& path);
 
-    ErrorOr<NodeHandle> upload(CloudPath parent,
-                               const Path& path);
+    common::ErrorOr<NodeHandle> upload(CloudPath parent,
+                                       const Path& path);
 
     // Specify whether files should be versioned.
     virtual void useVersioning(bool useVersioning) = 0;

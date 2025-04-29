@@ -1,21 +1,20 @@
 #pragma once
 
-#include <mega/fuse/platform/windows.h>
-
+#include <mega/common/node_info_forward.h>
+#include <mega/common/type_traits.h>
 #include <mega/fuse/common/inode_info_forward.h>
-#include <mega/fuse/common/node_info_forward.h>
 #include <mega/fuse/common/testing/path_forward.h>
 #include <mega/fuse/common/testing/utility.h>
-#include <mega/fuse/common/type_traits.h>
 #include <mega/fuse/platform/handle_forward.h>
 #include <mega/fuse/platform/security_descriptor_forward.h>
 #include <mega/fuse/platform/utility.h>
+#include <mega/fuse/platform/windows.h>
 
 template<typename T>
 using IsNativeInfoLike =
-  mega::fuse::IsOneOf<T,
-                      BY_HANDLE_FILE_INFORMATION,
-                      WIN32_FILE_ATTRIBUTE_DATA>;
+  mega::common::IsOneOf<T,
+                        BY_HANDLE_FILE_INFORMATION,
+                        WIN32_FILE_ATTRIBUTE_DATA>;
 
 template<typename T>
 using IsAnyInfoLike =
@@ -25,11 +24,11 @@ using IsAnyInfoLike =
 
 template<typename T, typename... Ts>
 using AreAnyInfoLike =
-  mega::fuse::AllOf<IsAnyInfoLike, T, Ts...>;
+  mega::common::AllOf<IsAnyInfoLike, T, Ts...>;
 
 template<typename T, typename... Ts>
 using AreNativeInfoLike =
-  mega::fuse::AllOf<IsNativeInfoLike, T, Ts...>;
+  mega::common::AllOf<IsNativeInfoLike, T, Ts...>;
 
 bool operator==(const BY_HANDLE_FILE_INFORMATION& lhs,
                 const BY_HANDLE_FILE_INFORMATION& rhs);
@@ -58,6 +57,15 @@ auto operator!=(const T& lhs, const U& rhs)
 
 namespace mega
 {
+namespace common
+{
+
+template<typename T>
+auto operator==(const NodeInfo& lhs, const T& rhs)
+  -> std::enable_if_t<IsNativeInfoLike<T>::value, bool>;
+
+} // common
+
 namespace fuse
 {
 

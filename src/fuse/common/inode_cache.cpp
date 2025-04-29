@@ -1,11 +1,11 @@
 #include <chrono>
 #include <functional>
 
-#include <mega/fuse/common/inode_cache.h>
+#include <mega/common/utility.h>
 #include <mega/fuse/common/inode.h>
+#include <mega/fuse/common/inode_cache.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/ref.h>
-#include <mega/fuse/common/utility.h>
 
 namespace mega
 {

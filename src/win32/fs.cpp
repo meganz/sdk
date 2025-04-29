@@ -1236,9 +1236,9 @@ bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& 
     }
     newAbsolutepathStr.resize(newlen);
 
-    if (memcmp(newAbsolutepathStr.data(), L"\\\\?\\", 8))
+    if (!Utils::startswith(newAbsolutepathStr, L"\\\\?\\"))
     {
-        if (!memcmp(newAbsolutepathStr.data(), L"\\\\", 4)) // network location
+        if (Utils::startswith(newAbsolutepathStr, L"\\\\")) // network location
         {
             newAbsolutepathStr.insert(0, L"\\\\?\\UNC\\");
         }
@@ -1789,7 +1789,7 @@ DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root,
 
 bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {
-    WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
+    static const wchar_t* VBoxSharedFolderFS = L"VBoxSharedFolderFS";
     std::wstring path, fsname;
     bool result = true;
     isnetwork = false;
@@ -1811,13 +1811,14 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& i
                               (LPWSTR)fsname.data(),
                               MAX_PATH))
     {
-        if (!memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
+        if (Utils::startswith(fsname, VBoxSharedFolderFS))
         {
             LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
             syncError = VBOXSHAREDFOLDER_UNSUPPORTED;
             result = false;
         }
-        else if ((!memcmp(fsname.data(), L"FAT", 6) || !memcmp(fsname.data(), L"exFAT", 10))) // TODO: have these checks for !windows too
+        else if ((Utils::startswith(fsname, L"FAT") ||
+                  Utils::startswith(fsname, L"exFAT"))) // TODO: have these checks for !windows too
         {
             LOG_warn << "You are syncing a local folder formatted with a FAT filesystem. "
                         "That filesystem has deficiencies managing big files and modification times "
@@ -1826,7 +1827,7 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& i
                         "reliable filesystems like NTFS (more information at https://help.mega.nz/megasync/syncing.html#can-i-sync-fat-fat32-partitions-under-windows.";
             syncWarning = LOCAL_IS_FAT;
         }
-        else if (!memcmp(fsname.data(), L"HGFS", 8))
+        else if (Utils::startswith(fsname, L"HGFS"))
         {
             LOG_warn << "You are syncing a local folder shared with VMWare. Those folders do not support filesystem notifications "
             "so MEGAsync will have to be continuously scanning to detect changes in your files and folders. "

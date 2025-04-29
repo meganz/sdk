@@ -1,6 +1,6 @@
-#include <mega/fuse/common/error_or.h>
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/inode_info.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/directory.h>
@@ -30,6 +30,8 @@ using platform::SecurityIdentifier;
 using platform::fromWideString;
 using platform::readOnlySecurityDescriptor;
 using platform::readWriteSecurityDescriptor;
+
+using namespace common;
 
 union FileInfo
 {

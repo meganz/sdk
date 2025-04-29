@@ -4,9 +4,9 @@
 #include <functional>
 #include <string>
 
+#include <mega/common/error_or_forward.h>
 #include <mega/fuse/common/directory_inode_forward.h>
 #include <mega/fuse/common/directory_inode_results.h>
-#include <mega/fuse/common/error_or_forward.h>
 #include <mega/fuse/common/file_move_flag_forward.h>
 #include <mega/fuse/common/inode.h>
 #include <mega/fuse/platform/mount_forward.h>
@@ -23,14 +23,14 @@ class DirectoryInode final
 {
     // Make a new child.
     template<typename Maker>
-    ErrorOr<MakeInodeResult> make(Maker&& maker, const std::string& name);
+    common::ErrorOr<MakeInodeResult> make(Maker&& maker, const std::string& name);
 
     // Removes this directory from the inode database.
     void remove(RefBadge badge, InodeDBLock lock) override;
 
 public:
     DirectoryInode(InodeID id,
-                   const NodeInfo& info,
+                   const common::NodeInfo& info,
                    InodeDB& inodeDB);
 
     ~DirectoryInode();
@@ -54,21 +54,21 @@ public:
     bool hasChild(const std::string& name) const;
 
     // Does this directory contain any children?
-    ErrorOr<bool> hasChildren() const;
+    common::ErrorOr<bool> hasChildren() const;
 
     // Update this directory's cached description.
-    void info(const NodeInfo& info) override;
+    void info(const common::NodeInfo& info) override;
 
     // Retrieve a description of this directory.
     InodeInfo info() const override;
 
     // Make a subdirectory with the specified name.
-    ErrorOr<MakeInodeResult> makeDirectory(const platform::Mount& mount,
-                                           const std::string& name);
+    common::ErrorOr<MakeInodeResult> makeDirectory(const platform::Mount& mount,
+                                                   const std::string& name);
 
     // Make a file with the specified name.
-    ErrorOr<MakeInodeResult> makeFile(const platform::Mount& mount,
-                                      const std::string& name);
+    common::ErrorOr<MakeInodeResult> makeFile(const platform::Mount& mount,
+                                              const std::string& name);
 
     // Move a child to a new directory.
     Error move(const std::string& name,

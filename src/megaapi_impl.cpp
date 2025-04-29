@@ -322,7 +322,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
                                 node->client->setkey(&c, node->client->unshareablekey.data());
                                 c.ctr_crypt(data, SymmCipher::BLOCKSIZE, 0, 0, NULL, false);
-                                ok = !memcmp(data, "unshare/", 8);
+                                ok = Utils::startswith(reinterpret_cast<const char*>(data),
+                                                       "unshare/");
                                 if (ok)
                                 {
                                     coords = string((char*)data + 8, 8);
@@ -2286,11 +2287,16 @@ MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData() const
     {
         AttrMap aux;
         aux.fromjson(getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER));
+        constexpr auto totpNameid = AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP);
 
         std::optional<PNDataPrivate::TotpDataPrivate> totp{};
-        if (const auto auxTotp = aux.getNestedJsonObject(MegaClient::PWM_ATTR_PASSWORD_TOTP);
-            auxTotp)
-            totp = PNDataPrivate::TotpDataPrivate::fromMap(*auxTotp);
+        if (aux.map.contains(totpNameid))
+        {
+            AttrMap auxTotp;
+            auxTotp.fromjsonObject(
+                aux.map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP)));
+            totp = PNDataPrivate::TotpDataPrivate::fromMap(auxTotp);
+        }
 
         return new PNDataPrivate{
             getConstCharPtr(aux.getString(MegaClient::PWM_ATTR_PASSWORD_PWD)),
@@ -26303,7 +26309,7 @@ MegaMountList* MegaApiImpl::listMounts(bool enabled)
     return new MegaMountListPrivate(std::move(mounts));
 }
 
-void MegaApiImpl::onFuseEvent(const fuse::MountEvent& event) 
+void MegaApiImpl::onFuseEvent(const fuse::MountEvent& event)
 {
     static const FuseEventHandler handlers[] = {
         &MegaListener::onMountAdded,
@@ -27128,8 +27134,7 @@ static std::string totpToJson(const MegaNode::PasswordNodeData::TotpData& totp)
         attrMap.map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP_NDIGITS)] =
             std::to_string(nDigits);
 
-    std::string result;
-    attrMap.getjson(&result);
+    auto result = attrMap.getJsonObject();
     return result;
 }
 
@@ -33453,7 +33458,7 @@ int MegaHTTPServer::onHeaderField(http_parser *parser, const char *at, size_t le
     httpctx->lastheader = string(at, length);
     tolower_string(httpctx->lastheader);
 
-    if (length == 5 && !memcmp(at, "Range", 5))
+    if (Utils::startswith(at, "Range"))
     {
         httpctx->range = true;
         LOG_debug << httpctx->getLogName() << "Range header detected";
@@ -33491,8 +33496,7 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
     {
         LOG_debug << httpctx->getLogName() << "Range header value: " << value;
         httpctx->range = false;
-        if (length > 7 && !memcmp(at, "bytes=", 6)
-                && ((index = value.find_first_of('-')) != string::npos))
+        if (Utils::startswith(at, "bytes=") && ((index = value.find_first_of('-')) != string::npos))
         {
             endptr = (char *)value.c_str();
             unsigned long long number = strtoull(value.c_str() + 6, &endptr, 10);
@@ -39882,7 +39886,7 @@ MegaCompleteUploadData* MegaCompleteUploadDataPrivate::copy() const
     return new MegaCompleteUploadDataPrivate(*this);
 }
 
-MegaFuseExecutorFlagsPrivate::MegaFuseExecutorFlagsPrivate(fuse::TaskExecutorFlags& flags)
+MegaFuseExecutorFlagsPrivate::MegaFuseExecutorFlagsPrivate(common::TaskExecutorFlags& flags)
   : MegaFuseExecutorFlags()
   , mFlags(flags)
 {
@@ -40054,7 +40058,7 @@ void MegaFuseFlagsPrivate::setFlushDelay(size_t seconds)
 
 void MegaFuseFlagsPrivate::setLogLevel(int level)
 {
-    mFlags.mLogLevel = static_cast<fuse::LogLevel>(level);
+    mFlags.mLogLevel = static_cast<mega::LogLevel>(level);
 }
 
 MegaMountPrivate::MegaMountPrivate()

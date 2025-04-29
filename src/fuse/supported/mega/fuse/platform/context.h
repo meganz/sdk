@@ -1,6 +1,5 @@
 #pragma once
 
-#include <mega/fuse/common/badge.h>
 #include <mega/fuse/common/inode_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount_forward.h>

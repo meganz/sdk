@@ -44,7 +44,7 @@ class RealClient
     using RequestCallbackMap = std::map<RequestKey, RequestCallback>;
 
     // Retrieve this client's high-level interface.
-    fuse::Client& client() const override;
+    common::Client& client() const override;
 
     // What is the email of the currenty logged in user?
     std::string email() const override;
@@ -77,7 +77,7 @@ class RealClient
     Error openShareDialog(NodeHandle handle);
 
     // Try and retrieve the user's salt.
-    ErrorOr<std::string> prelogin(const std::string& email);
+    common::ErrorOr<std::string> prelogin(const std::string& email);
 
     // Called when a request has completed.
     void requestCompleted(RequestKey key, Error result);
@@ -120,7 +120,7 @@ public:
     auto contact(const std::string& email) const -> ContactPtr override;
 
     // Send a friendship invite to the specified user.
-    auto invite(const std::string& email) -> ErrorOr<InvitePtr> override;
+    auto invite(const std::string& email) -> common::ErrorOr<InvitePtr> override;
 
     // Is a friendship invite associated with the specified user?
     auto invited(const std::string& email) const -> InvitePtr override;

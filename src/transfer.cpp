@@ -241,13 +241,16 @@ bool Transfer::serialize(string *d) const
     // version. Originally, 0.  Version 1 adds expansion flags, which then work in the usual way
     cw.serializeu8(1);
 
-    // 8 expansion flags, in the normal manner.  First flag is for whether downloadFileHandle is present
-    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1);
+    // 8 expansion flags, in the normal manner.  First flag is for whether downloadFileHandle is
+    // present Second flag is for amount of discarded temp URLs
+    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1, 1);
 
     if (!downloadFileHandle.isUndef())
     {
         cw.serializeNodeHandle(downloadFileHandle);
     }
+
+    cw.serializeu8(discardedTempUrlsSize);
 
 #ifdef DEBUG
     // very quick debug only double check
@@ -262,6 +265,7 @@ bool Transfer::serialize(string *d) const
     assert(t->fingerprint() == fingerprint() || (!t->fingerprint().isvalid && !fingerprint().isvalid));
     assert(t->badfp == badfp || (!t->badfp.isvalid && !badfp.isvalid));
     assert(t->downloadFileHandle == downloadFileHandle);
+    assert(t->discardedTempUrlsSize == discardedTempUrlsSize);
 #endif
 
 
@@ -320,8 +324,9 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
         !r.unserializei8(state) ||
         !r.unserializeu64(t->priority) ||
         !r.unserializei8(version) ||
-        (version > 0 && !r.unserializeexpansionflags(expansionflags, 1)) ||
-        (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)))
+        (version > 0 && !r.unserializeexpansionflags(expansionflags, 2)) ||
+        (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)) ||
+        (expansionflags[1] && !r.unserializeu8(t->discardedTempUrlsSize)))
     {
         LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
         return nullptr;
@@ -336,6 +341,8 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
         assert(!t->tempurls.back().empty());
         p += (n == std::string::npos) ? ll : (n + 1);
     }
+
+    assert(!t->discardedTempUrlsSize || !t->tempurls.empty());
     if (!t->tempurls.empty() && t->tempurls.size() != 1 && t->tempurls.size() != RAIDPARTS)
     {
         LOG_err << "Transfer unserialization failed - temp URL incorrect components";
@@ -640,6 +647,91 @@ void Transfer::collectAndPrintTransferStatsIfLimitReached()
         return;
     }
     client->mTransferStatsManager.collectAndPrintTransferStatsIfLimitReached(type);
+}
+
+void Transfer::discardTempUrlsIfNoDataDownloadedOrTimeoutReached(
+    const direction_t transferDirection,
+    const m_time_t currentTime)
+{
+    DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastaccesstime)
+
+    if (const auto discardTempURLs = (transferDirection == GET && !pos) ||
+                                     ((currentTime - lastaccesstime) >= TEMPURL_TIMEOUT_TS);
+        !discardTempURLs)
+        return;
+
+    LOG_warn << "[Transfer::discardTempUrlsIfNoTransferDataOrTimeoutReached] Discarding temporary "
+                "URL (pos = "
+             << pos << ", lastaccesstime = " << lastaccesstime << ", currentTime = " << currentTime
+             << ", diff (" << (currentTime - lastaccesstime) << ") >= TEMPURL_TIMEOUT_TS ("
+             << TEMPURL_TIMEOUT_TS << ")";
+
+    switch (transferDirection)
+    {
+        case GET:
+        {
+            discardedTempUrlsSize = static_cast<uint8_t>(tempurls.size());
+            break;
+        }
+        case PUT:
+        {
+            chunkmacs.clear();
+            progresscompleted = 0;
+            ultoken.reset();
+            pos = 0;
+            break;
+        }
+        default:
+            break;
+    }
+
+    tempurls.clear();
+}
+
+void Transfer::adjustNonRaidedProgressIfNowIsRaided()
+{
+    static constexpr auto logPre = "[Transfer::adjustNonRaidedProgressIfNowIsRaided] ";
+
+    if (const auto fromNonRaidToRaidResumption =
+            (discardedTempUrlsSize == 1 && tempurls.size() == RAIDPARTS);
+        !fromNonRaidToRaidResumption)
+    {
+        return;
+    }
+
+    if (!slot)
+    {
+        LOG_warn << logPre << "Call with no TransferSlot!";
+        assert(false &&
+               "Call to Transfer::adjustNonRaidedProgressIfNowIsRaided with invalid TransferSlot!");
+        return;
+    }
+
+    LOG_debug << logPre
+              << "Adjusting chunkmacs and transfer progress to discard non-contiguous data, as "
+                 "well as the contiguous data reminder to RAIDLINE";
+    chunkmac_map newChunkmacs;
+    pos = chunkmacs.copyEntriesToUntilRaidlineBeforePos(pos, newChunkmacs);
+    chunkmacs.swap(newChunkmacs);
+
+    m_off_t sumOfPartialChunks{0};
+    chunkmacs.calcprogress(size, pos, progresscompleted, &sumOfPartialChunks);
+
+    if (progresscompleted > size)
+    {
+        LOG_err << logPre << "Invalid transfer progress!";
+        pos = size;
+        progresscompleted = size;
+    }
+
+    const auto progressContiguous = slot->updatecontiguousprogress();
+
+    LOG_debug << logPre << "Adjusted resumed transfer at " << pos
+              << " Completed: " << progresscompleted << " Contiguous: " << progressContiguous
+              << " Partial: " << sumOfPartialChunks << " Size: " << size
+              << " ultoken: " << (ultoken != NULL);
+
+    discardedTempUrlsSize = 0;
 }
 
 FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResolution(CollisionResolution resolution)
@@ -2333,7 +2425,7 @@ DirectRead::~DirectRead()
 
 std::string DirectReadSlot::adjustURLPort(std::string url)
 {
-    if (!memcmp(url.c_str(), "http:", 5))
+    if (Utils::startswith(url, "http:"))
     {
         size_t portendindex = url.find("/", 8);
         size_t portstartindex = url.find(":", 8);

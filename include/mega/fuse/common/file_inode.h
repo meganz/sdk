@@ -1,7 +1,7 @@
 #pragma once
 
+#include <mega/common/error_or_forward.h>
 #include <mega/fuse/common/directory_inode_forward.h>
-#include <mega/fuse/common/error_or_forward.h>
 #include <mega/fuse/common/file_extension_db_forward.h>
 #include <mega/fuse/common/file_info_forward.h>
 #include <mega/fuse/common/file_inode_forward.h>
@@ -34,7 +34,7 @@ class FileInode final
 
 public:
     FileInode(InodeID id,
-              const NodeInfo& info,
+              const common::NodeInfo& info,
               InodeDB& inodeDB);
 
     ~FileInode();
@@ -61,7 +61,7 @@ public:
     NodeHandle handle() const override;
 
     // Update this file's cached description.
-    void info(const NodeInfo& info) override;
+    void info(const common::NodeInfo& info) override;
 
     // Retrieve a description of this file.
     InodeInfo info() const override;
@@ -75,8 +75,8 @@ public:
                DirectoryInodeRef parent) override;
 
     // Open this file for reading or writing.
-    ErrorOr<platform::FileContextPtr> open(Mount& mount,
-                                           FileOpenFlags flags);
+    common::ErrorOr<platform::FileContextPtr> open(Mount& mount,
+                                                   FileOpenFlags flags);
 
     // Replace other with this file.
     Error replace(InodeBadge badge,

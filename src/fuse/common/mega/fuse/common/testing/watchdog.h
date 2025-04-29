@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-#include <mega/fuse/common/task_executor.h>
+#include <mega/common/task_executor.h>
 
 namespace mega
 {
@@ -13,8 +13,8 @@ namespace testing
 
 class Watchdog
 {
-    TaskExecutor mExecutor;
-    Task mTask;
+    common::TaskExecutor mExecutor;
+    common::Task mTask;
 
 public:
     Watchdog();

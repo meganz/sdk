@@ -29,6 +29,7 @@ target_sources(test_unit
     name_collision_test.cpp
     PayCrypter_test.cpp
     PendingContactRequest_test.cpp
+    proxy_test.cpp
     Scoped_timer_test.cpp
     Serialization_test.cpp
     Share_test.cpp
@@ -49,6 +50,7 @@ target_sources(test_unit
     LRUCache_test.cpp
     totp_test.cpp
     localpath_test.cpp
+    shared_mutex_tests.cpp
 )
 
 target_sources_conditional(test_unit

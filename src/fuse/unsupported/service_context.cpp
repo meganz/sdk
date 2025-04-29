@@ -1,13 +1,14 @@
+#include <mega/common/error_or.h>
+#include <mega/common/normalized_path.h>
+#include <mega/common/task_queue.h>
 #include <mega/fuse/common/client.h>
-#include <mega/fuse/common/error_or.h>
 #include <mega/fuse/common/inode_info.h>
-#include <mega/fuse/common/mount_event_type.h>
+#include <mega/fuse/common/logger.h>
 #include <mega/fuse/common/mount_event.h>
+#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/normalized_path.h>
 #include <mega/fuse/common/service.h>
-#include <mega/fuse/common/task_queue.h>
 #include <mega/fuse/platform/service_context.h>
 
 namespace mega
@@ -16,6 +17,8 @@ namespace fuse
 {
 namespace platform
 {
+
+using namespace common;
 
 ServiceContext::ServiceContext(const ServiceFlags&, Service& service)
   : fuse::ServiceContext(service)
@@ -57,7 +60,7 @@ void ServiceContext::disable(MountDisabledCallback callback,
     event.mResult = MOUNT_UNKNOWN;
     event.mType = MOUNT_DISABLED;
 
-    client().emitEvent(event);
+    emitEvent(client(), event);
 }
 
 MountResult ServiceContext::discard(bool)
@@ -82,7 +85,7 @@ bool ServiceContext::enabled(const std::string&) const
 
 Task ServiceContext::execute(std::function<void(const Task&)> function)
 {
-    Task task(std::move(function));
+    Task task(std::move(function), logger());
 
     task.cancel();
 

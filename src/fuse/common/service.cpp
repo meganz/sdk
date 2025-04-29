@@ -1,23 +1,26 @@
 #include <cassert>
 #include <stdexcept>
 
+#include <mega/common/error_or.h>
+#include <mega/log_level.h>
+#include <mega/common/normalized_path.h>
+#include <mega/common/task_queue.h>
 #include <mega/fuse/common/client.h>
-#include <mega/fuse/common/error_or.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/logging.h>
-#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_event.h>
+#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
-#include <mega/fuse/common/normalized_path.h>
 #include <mega/fuse/common/service.h>
-#include <mega/fuse/common/task_queue.h>
 #include <mega/fuse/platform/service_context.h>
 
 namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 Service::Service(Client& client, const ServiceFlags& flags)
   : mClient(client)
@@ -49,7 +52,7 @@ MountResult Service::add(const MountInfo& info)
     if (mContext)
         event.mResult = mContext->add(info);
 
-    mClient.emitEvent(event);
+    emitEvent(mClient, event);
 
     return event.mResult;
 }
@@ -90,7 +93,7 @@ void Service::disable(MountDisabledCallback callback,
     event.mResult = MOUNT_UNKNOWN;
     event.mType = MOUNT_DISABLED;
 
-    mClient.emitEvent(event);
+    emitEvent(mClient, event);
 
     callback(event.mResult);
 }
@@ -132,7 +135,7 @@ MountResult Service::enable(const std::string& name,
         event.mResult = mContext->enable(name, remember);
 
     if (event.mResult != MOUNT_SUCCESS)
-        mClient.emitEvent(event);
+        emitEvent(mClient, event);
 
     return event.mResult;
 }
@@ -147,7 +150,7 @@ Task Service::execute(std::function<void(const Task&)> function)
     if (mContext)
         return mContext->execute(std::move(function));
 
-    Task task(std::move(function));
+    Task task(std::move(function), logger());
 
     task.cancel();
 
@@ -166,7 +169,7 @@ MountResult Service::flags(const std::string& name,
     if (mContext)
         event.mResult = mContext->flags(name, flags);
 
-    mClient.emitEvent(event);
+    emitEvent(mClient, event);
 
     return event.mResult;
 }
@@ -217,12 +220,12 @@ void Service::logLevel(LogLevel level)
 
     mFlags.mLogLevel = level;
 
-    Logger::logLevel(level);
+    logger().logLevel(level);
 }
 
 LogLevel Service::logLevel() const
 {
-    return Logger::logLevel();
+    return logger().logLevel();
 }
 
 NormalizedPath Service::path(const std::string& name) const
@@ -244,7 +247,7 @@ MountResult Service::remove(const std::string& name)
     if (mContext)
         event.mResult = mContext->remove(name);
 
-    mClient.emitEvent(event);
+    emitEvent(mClient, event);
 
     return event.mResult;
 }
@@ -255,7 +258,7 @@ void Service::serviceFlags(const ServiceFlags& flags)
 
     mFlags = flags;
 
-    Logger::logLevel(mFlags.mLogLevel);
+    logger().logLevel(mFlags.mLogLevel);
 
     if (mContext)
         mContext->serviceFlags(mFlags);

@@ -2,9 +2,9 @@
 
 #include <string>
 
+#include <mega/common/node_info_forward.h>
 #include <mega/fuse/common/inode_id.h>
 #include <mega/fuse/common/inode_info_forward.h>
-#include <mega/fuse/common/node_info_forward.h>
 
 #include <mega/types.h>
 
@@ -17,9 +17,9 @@ struct InodeInfo
 {
     InodeInfo() = default;
 
-    explicit InodeInfo(NodeInfo info);
+    explicit InodeInfo(common::NodeInfo info);
 
-    InodeInfo(InodeID id, NodeInfo info);
+    InodeInfo(InodeID id, common::NodeInfo info);
 
     InodeID mID;
     bool mIsDirectory;

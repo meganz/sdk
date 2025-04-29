@@ -669,6 +669,7 @@ protected:
 
     void testPrefs(const std::string& title, int type);
     void testRecents(const std::string& title, bool useSensitiveExclusion);
+    void testCloudRaidTransferResume(const bool fromNonRaid, const std::string& logPre);
 
 #ifdef ENABLE_CHAT
     void cancelSchedMeetings();

@@ -1,24 +1,26 @@
 #include <cassert>
 #include <mutex>
 
+#include <mega/common/badge.h>
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/fuse/common/any_lock.h>
 #include <mega/fuse/common/any_lock_set.h>
-#include <mega/fuse/common/badge.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/constants.h>
 #include <mega/fuse/common/directory_inode.h>
-#include <mega/fuse/common/error_or.h>
 #include <mega/fuse/common/file_move_flag.h>
 #include <mega/fuse/common/inode_badge.h>
 #include <mega/fuse/common/inode_db.h>
 #include <mega/fuse/common/inode_info.h>
-#include <mega/fuse/common/node_info.h>
 #include <mega/fuse/common/ref.h>
 
 namespace mega
 {
 namespace fuse
 {
+
+using namespace common;
 
 template<typename Maker>
 ErrorOr<MakeInodeResult> DirectoryInode::make(Maker&& maker, const std::string& name)

@@ -26,6 +26,7 @@
 #include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
 #include "mega/megaapp.h"
+#include "mega/testhooks.h"
 #include "mega/tlv.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
@@ -737,6 +738,8 @@ CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySi
     cmd(undelete ? "gd" : "g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
+
+    DEBUG_TEST_HOOK_DOWNLOAD_REQUEST_SINGLEURL(singleUrl);
     if (!singleUrl)
     {
         arg("v", 2);  // version 2: server can supply details for cloudraid files
@@ -3858,6 +3861,15 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             {
                                 LOG_info << "CallKit is " << ((!strcmp(value.data(), "1")) ? "disabled" : "enabled");
                             }
+                            else if (at == ATTR_STORAGE_STATE)
+                            {
+                                if (const auto storageStatus = getStorageStatusFromString(value);
+                                    !client->processStorageStatusFromCmd(storageStatus))
+                                {
+                                    assert(false &&
+                                           "CommandGetUA: Storage status is unknown or invalid");
+                                }
+                            }
                             break;
                         }
                         default: // legacy attributes without explicit scope or unknown attribute
@@ -4344,6 +4356,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     std::string sds, sdsVersion;
 
     bool uspw = false;
+    string userStorageLevel, versionUserStorageLevel;
     vector<m_time_t> warningTs;
     m_time_t deadlineTs = -1;
 
@@ -4668,6 +4681,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             }
             break;
         }
+
+        case makeNameid("^!usl"):
+            parseUserAttribute(json, userStorageLevel, versionUserStorageLevel);
+            break;
 
         case makeNameid("^!csp"):
             parseUserAttribute(json, cookieSettings, versionCookieSettings);
@@ -5181,6 +5198,17 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     u->removeAttribute(ATTR_SYNC_DESIRED_STATE);
                 }
 
+                if (!userStorageLevel.empty())
+                {
+                    changes |= u->updateAttributeIfDifferentVersion(ATTR_STORAGE_STATE,
+                                                                    userStorageLevel,
+                                                                    versionUserStorageLevel);
+                }
+                else
+                {
+                    LOG_debug << "[CommandGetUserData] userStorageLevel is empty";
+                }
+
                 if (changes)
                 {
                     u->setTag(tag ? tag : -1);
@@ -5262,6 +5290,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 client->setBusinessStatus(BIZ_STATUS_INACTIVE);
             }
 
+            const auto storageStatus = getStorageStatusFromString(userStorageLevel);
             if (uspw)
             {
                 if (deadlineTs == -1 || warningTs.empty())
@@ -5275,7 +5304,14 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     client->activateoverquota(0, true);
                 }
 
+                if (storageStatus != STORAGE_RED)
+                {
+                    client->sendevent(99492, "Paywall enabled, but storage level not red");
+                    assert(false && "Paywall enabled, but storage level not red");
+                }
             }
+
+            client->processStorageStatusFromCmd(storageStatus);
 
             mCompletion(&name, &pubk, &privk, API_OK);
             return true;
@@ -5449,7 +5485,6 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
     bool got_storage = false;
     bool got_storage_used = false;
 #endif
-    int uslw = -1;
 
     if (r.wasErrorOrOK())
     {
@@ -5482,6 +5517,8 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
     details->transfer_reserved = 0;
     details->transfer_own_reserved = 0;
     details->transfer_srv_reserved = 0;
+
+    storagestatus_t userStorageLevel{STORAGE_UNKNOWN};
 
     for (;;)
     {
@@ -5652,8 +5689,15 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 break;
 
             case makeNameid("uslw"):
-            // The percentage (in 1000s) indicating the limit at which you are 'nearly' over. Currently 98% for PRO, 90% for free.
-                uslw = int(json.getint());
+                // The percentage (in 100s) indicating the limit at which you are 'nearly' over.
+                // Currently 98% for PRO, 90% for free.
+                if (const auto uslw = json.getint(); uslw >= 0)
+                {
+                    LOG_debug << "[CommandGetUserQuota] Percentage of storage above which the "
+                                 "storage status is set to STORAGE_ORANGE (meaning the used "
+                                 "storage is close to the limit): >"
+                              << (uslw / 100) << "%";
+                }
                 break;
 
             case makeNameid("features"):
@@ -5704,33 +5748,16 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
             }
             break;
 
+            case makeNameid("usl"):
+                userStorageLevel = static_cast<storagestatus_t>(json.getint());
+                break;
+
             case EOO:
                 assert(!mStorage || (got_storage && got_storage_used) || client->loggedIntoFolder());
 
-                if (mStorage)
+                if (mStorage && !client->processStorageStatusFromCmd(userStorageLevel))
                 {
-                    if (uslw <= 0)
-                    {
-                        uslw = 9000;
-                        LOG_warn << "Using default almost overstorage threshold";
-                    }
-
-                    if (details->storage_used >= details->storage_max)
-                    {
-                        LOG_debug << "Account full";
-                        bool isPaywall = (client->ststatus == STORAGE_PAYWALL);
-                        client->activateoverquota(0, isPaywall);
-                    }
-                    else if (details->storage_used >= (details->storage_max / 10000 * uslw))
-                    {
-                        LOG_debug << "Few storage space available";
-                        client->setstoragestatus(STORAGE_ORANGE);
-                    }
-                    else
-                    {
-                        LOG_debug << "There are no storage problems";
-                        client->setstoragestatus(STORAGE_GREEN);
-                    }
+                    assert(false && "CommandGetUserQuota: Storage status is unknown or invalid");
                 }
 
                 if (mPro)

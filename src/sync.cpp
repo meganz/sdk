@@ -2428,11 +2428,11 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
         if (foundSourceCloudNode && foundTargetCloudNode)
         {
-            SYNC_verbose_timed << syncname << "Move detected by fsid "
-                               << toHandle(row.fsNode->fsid) << ". Type: " << sourceSyncNode->type
-                               << " new path: " << fullPath.localPath
-                               << " old localnode: " << sourceSyncNode->getLocalPath()
-                               << logTriplet(row, fullPath);
+            SYNC_verbose << syncname << "Move detected by fsid " << toHandle(row.fsNode->fsid)
+                         << ". Type: " << sourceSyncNode->type
+                         << " new path: " << fullPath.localPath
+                         << " old localnode: " << sourceSyncNode->getLocalPath()
+                         << logTriplet(row, fullPath);
 
             if (sourceNodeUser != targetNodeUser)
             {
@@ -2706,11 +2706,18 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
                 if (!foundSourceCloudNode) SYNC_verbose << syncname << "Adjusting LN for local move/rename before cloud node exists." << logTriplet(row, fullPath);
 
+                if (sourceSyncNode->fsid_lastSynced != row.fsNode->fsid)
+                {
+                    LOG_warn << "Moving content from source sync node to target sync node, but "
+                                "sourceSyncNode fsid_lastSynced ("
+                             << sourceSyncNode->fsid_lastSynced
+                             << ") is different from fsNode fsid (" << row.fsNode->fsid << ")";
+                    assert(false && "Moving content from a source sync node whose fsid_lastSynced "
+                                    "is different from the fsNode fsid");
+                }
                 // remove fsid (and handle) from source node, so we don't detect
                 // that as a move source anymore
                 sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
-
-                assert(sourceSyncNode->fsid_lastSynced == row.fsNode->fsid);
                 sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, nullptr); // no longer associted with an fs item
                 sourceSyncNode->sync->statecacheadd(sourceSyncNode);
 
@@ -3050,6 +3057,9 @@ bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row,
 
                 // remove fsid (and handle) from source node, so we don't detect
                 // that as a move source anymore
+                const auto sourceSyncNodeTransferWithDifferentFsid =
+                    sourceSyncNode->transferSP &&
+                    sourceSyncNode->fsid_lastSynced != sourceSyncNode->fsid_asScanned;
                 sourceSyncNode->syncedFingerprint = FileFingerprint();
                 sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, sourceSyncNode->cloneShortname());
                 sourceSyncNode->setSyncedNodeHandle(NodeHandle());
@@ -3058,6 +3068,23 @@ bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row,
                 // Move all the LocalNodes under the source node to the new location
                 // We can't move the source node itself as the recursive callers may be using it
                 sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
+                if (sourceSyncNodeTransferWithDifferentFsid)
+                {
+                    LOG_debug << "[Sync::checkForCompletedCloudMoveToHere] SourceSyncNode had a "
+                                 "transfer inflight and the scanned fsid and synced fsid were "
+                                 "different: restoring the moved transfer to the sourceSyncNode "
+                                 "(it could belong to a new file with same name)";
+                    sourceSyncNode->resetTransfer(std::move(row.syncNode->transferSP));
+                }
+                else if (row.syncNode->transferSP)
+                {
+                    LOG_debug << "[Sync::checkForCompletedCloudMoveToHere] row.syncNode has now a "
+                                 "transferSP! The sourceSyncNode had that transferSP but the "
+                                 "sourceSyncNode->fsid_lastSynced was not different from "
+                                 "sourceSyncNode->fsid_asScanned! Check this scenario! Triplet "
+                                 "after move: "
+                              << logTriplet(row, fullPath);
+                }
 
                 row.syncNode->setScanAgain(false, true, true, 0);
                 sourceSyncNode->setScanAgain(true, false, false, 0);
@@ -11292,11 +11319,10 @@ std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const Loca
         return getResult(false);
     }
 
-    auto prevfa = syncs.fsaccess->newfileaccess(false);
-    const bool canOpenFile = prevfa->fopen(fullPath, FSLogging::logOnError);
-    if (!canOpenFile)
+    const auto currentfa = syncs.fsaccess->newfileaccess(false);
+    if (const auto canOpenFile = currentfa->fopen(fullPath, FSLogging::logOnError); !canOpenFile)
     {
-        if (prevfa->retry)
+        if (currentfa->retry)
         {
             LOG_debug << syncname
                       << "checkIfFileIsChanging: The file in the origin is temporarily blocked. "
@@ -11311,59 +11337,82 @@ std::optional<bool> Sync::checkIfFileIsChanging(const FSNode& fsNode, const Loca
             return getResult(false);
         }
     }
-    LOG_debug << syncname << "checkIfFileIsChanging: File detected in the origin of a move";
 
-    const bool fileCheckedInFuture = currentsecs < state.updatedfilets;
-    fileCheckedInFuture ?
-        LOG_warn << syncname << "checkIfFileIsChanging: File checked in the future" :
-        LOG_debug << syncname << "checkIfFileIsChanging: The file size seems stable";
+    LOG_debug << syncname
+              << "checkIfFileIsChanging: File detected in the origin of a move [fsNode = '"
+              << fsNode.localname << "', sourcePath = '" << fullPath.toPath(false) << "']";
 
-    const bool fileSizeChangedTooRecently =
-        (currentsecs - state.updatedfilets) < (Sync::FILE_UPDATE_DELAY_DS / 10);
-    if (!fileCheckedInFuture && fileSizeChangedTooRecently)
+    if (const auto fileSizeCheckedInFuture = currentsecs < state.updatedfilets;
+        fileSizeCheckedInFuture)
     {
-        LOG_verbose << syncname << "checkIfFileIsChanging: currentsecs = " << currentsecs
-                    << "  lastcheck = " << state.updatedfilets << "  currentsize = " << prevfa->size
-                    << "  lastsize = " << state.updatedfilesize;
-        LOG_debug << "checkIfFileIsChanging: The file size changed too recently. Waiting "
-                  << currentsecs - state.updatedfilets << " ds for " << fsNode.localname;
-        return getResult(true);
+        LOG_warn << syncname
+                 << "checkIfFileIsChanging: File size checked in the future, adjusting filets to "
+                    "currentsecs";
+        assert(false && "checkIfFileIsChanging: File size checked in the future!");
+        state.updatedfilets = currentsecs;
     }
 
-    const bool fileSizeIsChanging = state.updatedfilesize != prevfa->size;
-    if (!fileCheckedInFuture && fileSizeIsChanging)
+    if (const auto fileSizeIsChanging = state.updatedfilesize != currentfa->size;
+        fileSizeIsChanging)
     {
         LOG_verbose << "checkIfFileIsChanging: " << syncname << " currentsecs = " << currentsecs
-                    << "  lastcheck = " << state.updatedfilets << "  currentsize = " << prevfa->size
+                    << "  lastcheck = " << state.updatedfilets
+                    << "  currentsize = " << currentfa->size
                     << "  lastsize = " << state.updatedfilesize;
         LOG_debug
-            << "checkIfFileIsChanging: The file size has changed since the last check. Waiting...";
-        state.updatedfilesize = prevfa->size;
+            << "checkIfFileIsChanging: The file size has changed since the last check. Waiting "
+            << Sync::FILE_UPDATE_DELAY_DS << " ds for " << fsNode.localname;
+        state.updatedfilesize = currentfa->size;
         state.updatedfilets = currentsecs;
         return getResult(true);
     }
 
-    const bool fileModifiedInFuture = currentsecs < prevfa->mtime;
-    if (fileModifiedInFuture)
+    if (const auto remainingTimeForStableFileSize =
+            Sync::FILE_UPDATE_DELAY_DS - ((currentsecs - state.updatedfilets) * 10);
+        remainingTimeForStableFileSize > 0)
     {
-        LOG_warn << syncname << "checkIfFileIsChanging: File modified in the future";
+        LOG_verbose << syncname << "checkIfFileIsChanging: currentsecs = " << currentsecs
+                    << "  lastcheck = " << state.updatedfilets
+                    << "  currentsize = " << currentfa->size
+                    << "  lastsize = " << state.updatedfilesize;
+        LOG_debug << "checkIfFileIsChanging:" << syncname << "The file size changed too recently ("
+                  << (Sync::FILE_UPDATE_DELAY_DS - remainingTimeForStableFileSize)
+                  << " ds), needs to be unmodified for " << Sync::FILE_UPDATE_DELAY_DS
+                  << " ds. Waiting " << remainingTimeForStableFileSize << " ds...";
+        return getResult(true);
+    }
+
+    LOG_debug << syncname << "checkIfFileIsChanging: The file size seems stable";
+
+    if (const auto fileModifiedInTheFuture = currentsecs < currentfa->mtime;
+        fileModifiedInTheFuture)
+    {
+        LOG_warn << syncname
+                 << "checkIfFileIsChanging: File modification time (mtime) belongs to the future "
+                    "(current time = "
+                 << currentsecs << ", file mtime = " << currentfa->mtime << ")";
         syncs.mFileChangingCheckState.erase(fullPath);
         return getResult(false);
     }
 
-    const bool fileModifiedIsStable =
-        currentsecs - prevfa->mtime >= (Sync::FILE_UPDATE_DELAY_DS / 10);
-    if (fileModifiedIsStable)
+    if (const auto remainingTimeForStableMtime =
+            Sync::FILE_UPDATE_DELAY_DS - ((currentsecs - currentfa->mtime) * 10);
+        remainingTimeForStableMtime > 0)
     {
-        LOG_debug << syncname << "checkIfFileIsChanging: The modification time seems stable.";
-        syncs.mFileChangingCheckState.erase(fullPath);
-        return getResult(false);
+        LOG_verbose << "checkIfFileIsChanging:" << syncname << "currentsecs = " << currentsecs
+                    << "  mtime = " << currentfa->mtime;
+        LOG_debug << "checkIfFileIsChanging:" << syncname
+                  << "File modified too recently too recently ("
+                  << (Sync::FILE_UPDATE_DELAY_DS - remainingTimeForStableMtime)
+                  << " ds), needs to be unmodified for " << Sync::FILE_UPDATE_DELAY_DS
+                  << " ds. Waiting " << remainingTimeForStableMtime << " ds...";
+        return getResult(true);
     }
 
-    LOG_verbose << "checkIfFileIsChanging:" << syncname << "currentsecs = " << currentsecs
-                << "  mtime = " << prevfa->mtime;
-    LOG_debug << "checkIfFileIsChanging:" << syncname << "File modified too recently. Waiting...";
-    return getResult(true);
+    LOG_debug << syncname
+              << "checkIfFileIsChanging: The file modification time (mtime) seems stable";
+    syncs.mFileChangingCheckState.erase(fullPath);
+    return getResult(false);
 }
 
 bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& /*parentRow*/, SyncPath& fullPath)

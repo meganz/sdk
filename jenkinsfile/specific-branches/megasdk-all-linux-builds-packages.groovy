@@ -106,7 +106,7 @@ pipeline {
                     exclude {   
                         axis { 
                             name 'ARCHITECTURE'; 
-                            values 'armhf' 
+                            values 'armhf'
                         } 
                         axis { 
                             name 'DISTRO'; 

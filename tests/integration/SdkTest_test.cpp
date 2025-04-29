@@ -1324,6 +1324,7 @@ void SdkTest::resumeSession(const char *session, unsigned apiIndex)
 
 void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
 {
+    MegaHandle owner = megaApi[apiIndex]->getMyUserHandleBinary();
     std::unique_ptr<MegaNodeList> children{megaApi[apiIndex]->getChildren(p)};
 
     for (int i = 0; i < children->size(); i++)
@@ -1334,6 +1335,9 @@ void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
         if (depthfirst && n->isFolder())
             purgeTree(apiIndex, n);
 
+        if (owner != n->getOwner())
+            continue;
+
         string nodepath = n->getName() ? n->getName() : "<no name>";
         auto result = synchronousRemove(apiIndex, n);
         if (result == API_EEXIST || result == API_ENOENT)
@@ -1342,7 +1346,7 @@ void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
             result = API_OK;
         }
 
-        ASSERT_EQ(API_OK, result) << "Remove node operation failed (error: " << mApi[apiIndex].lastError << ")";
+        ASSERT_EQ(API_OK, result) << "API " << apiIndex << ": Failed to remove node " << nodepath;
     }
 }
 
@@ -2049,8 +2053,12 @@ MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNo
 
     megaApi[apiIndex]->createFolder(name, parent, &tracker);
 
-    if (tracker.waitForResult(timeout) != API_OK)
+    if (auto createfolderResult = tracker.waitForResult(timeout); createfolderResult != API_OK)
+    {
+        EXPECT_EQ(API_OK, createfolderResult)
+            << "API " << apiIndex << ": Failed to create folder " << name;
         return UNDEF;
+    }
 
     return tracker.request->getNodeHandle();
 }
@@ -5602,6 +5610,109 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 }
 
 /**
+ * @brief TEST_F SdkTest.LoginToWritableFolderThenCreateSubfolder
+ *
+ * - Login 1 account
+ * - Create a folder
+ * - Create a public writable link to folder
+ * - Setup guest account without login for accessing the public link
+ * - Login guest account to public link
+ * - Check for user alerts (should not be any, including from sc50)
+ * - Create subfolder in the folder with writable link
+ * - Confirm that guest account has seen the newly created subfolder
+ * - Check again for user alerts (should still not be any)
+ */
+TEST_F(SdkTest, LoginToWritableFolderThenCreateSubfolder)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Host: create a folder
+    std::unique_ptr<MegaNode> hostRoot{megaApi[0]->getRootNode()};
+    static constexpr char folderName[] = "Writable-link-folder";
+    MegaHandle folderHandle = createFolder(0, folderName, hostRoot.get());
+    ASSERT_NE(UNDEF, folderHandle) << "API 0: Failed to create " << folderName;
+    std::unique_ptr<MegaNode> folderNode{megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_THAT(folderNode, ::testing::NotNull());
+
+    // Host: get acount details for Pro level
+    RequestTracker accountDetailsTracker{megaApi[0].get()};
+    megaApi[0]->getSpecificAccountDetails(false, false, true, -1, &accountDetailsTracker);
+    ASSERT_EQ(API_OK, accountDetailsTracker.waitForResult())
+        << "API 0: Failed to get account details";
+
+    // Host: create a writable link to folder
+    const bool isFreeAccount =
+        mApi[0].accountDetails->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE;
+    string nodeLink =
+        createPublicLink(0, folderNode.get(), 0, maxTimeout, isFreeAccount, true /*writable*/);
+
+    // Guest: setup without login for accessing the public link
+    unsigned guestIdx = 1;
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(guestIdx);
+    ASSERT_FALSE(email.empty() || pass.empty());
+    mApi.resize(guestIdx + 1);
+    megaApi.resize(guestIdx + 1);
+    configureTestInstance(guestIdx, email, pass);
+
+    // Guest: login to writable folder
+    RequestTracker loginToFolderTracker{megaApi[guestIdx].get()};
+    megaApi[guestIdx]->loginToFolder(nodeLink.c_str(), &loginToFolderTracker);
+    ASSERT_EQ(API_OK, loginToFolderTracker.waitForResult())
+        << "API 1 (guest): Failed to login to folder " << nodeLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(guestIdx));
+
+    // Guest: make sure it got no user alerts, including any from sc50
+    unsigned sc50Timeout = 10; // seconds
+    ASSERT_FALSE(waitForResponse(&mApi[guestIdx].userAlertsUpdated, sc50Timeout))
+        << "API 1 (guest): sc50 alerts after login received";
+    ASSERT_EQ(mApi[guestIdx].userAlertList, nullptr) << "sc50 of guest logged into folder";
+    unique_ptr<MegaUserAlertList> userAlerts(megaApi[guestIdx]->getUserAlerts());
+    ASSERT_TRUE(userAlerts);
+    ASSERT_EQ(userAlerts->size(), 0);
+
+    // Guest: confirm root node of folder link
+    std::unique_ptr<MegaNode> guestRoot{megaApi[guestIdx]->getRootNode()};
+    ASSERT_EQ(folderHandle, guestRoot->getHandle());
+
+    // Guest: attempt to create subfolder in writable folder
+    static constexpr char subfolderName[] = "Writable-link-subfolder";
+    RequestTracker createSubfolderTracker(megaApi[guestIdx].get());
+    megaApi[guestIdx]->createFolder(subfolderName, guestRoot.get(), &createSubfolderTracker);
+    ASSERT_EQ(API_EACCESS, createSubfolderTracker.waitForResult())
+        << "API 1 (guest): Managed to create " << subfolderName;
+
+    // Guest: reset node updates
+    mApi[guestIdx].nodeUpdated = false;
+    mApi[guestIdx].mOnNodesUpdateCompletion =
+        [guestIdx, &guest = mApi[guestIdx]](size_t apiIndex, MegaNodeList*)
+    {
+        if (guestIdx == apiIndex)
+            guest.nodeUpdated = true;
+    };
+
+    // Host: create subfolder in writable folder
+    MegaHandle subfolderHandle = createFolder(0, subfolderName, folderNode.get());
+    ASSERT_NE(UNDEF, subfolderHandle) << "API 0: Failed to create " << subfolderName;
+
+    // Guest: Wait for node update (replacement for fetchnodes())
+    ASSERT_TRUE(waitForResponse(&mApi[guestIdx].nodeUpdated))
+        << "API 1 (guest): Node update not received after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+
+    // Guest: confirm the newly created node
+    std::unique_ptr<MegaNode> subfolder{megaApi[guestIdx]->getNodeByHandle(subfolderHandle)};
+    ASSERT_THAT(subfolder, ::testing::NotNull())
+        << "API 1 (guest): Failed to find " << subfolderName;
+
+    // Guest: check again that it got no user alerts
+    ASSERT_FALSE(mApi[guestIdx].userAlertsUpdated) << "API 1 (guest): alerts received";
+    ASSERT_EQ(mApi[guestIdx].userAlertList, nullptr) << "sc50";
+    userAlerts.reset(megaApi[guestIdx]->getUserAlerts());
+    ASSERT_TRUE(userAlerts);
+    ASSERT_EQ(userAlerts->size(), 0);
+}
+
+/**
  * @brief TEST_F TestPublicFolderLinksWithShares
  *
  * 1 - create share
@@ -7232,6 +7343,20 @@ namespace mega
             connections = clientNumberOfConnections;
         }
 
+        static void onHookDownloadRequestSingleUrl(bool& singleUrl)
+        {
+            LOG_info << "onHookDownloadRequestSingleUrl: set current singleUrl value (" << singleUrl
+                     << ") to true";
+            singleUrl = true;
+        }
+
+        static void onHookResetTransferLastAccessTime(m_time_t& lastAccessTime)
+        {
+            LOG_info << "onHookResetTransferLastAccessTime: reset current lastAccessTime value ("
+                     << lastAccessTime << ") to 0";
+            lastAccessTime = 0;
+        }
+
         static bool resetForTests()
         {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -7683,64 +7808,64 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
     }
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
-#endif
 
-
-/**
- * @brief TEST_F SdkTestCloudraidTransferResume
- *
- * Tests resumption for raid file download.
- */
-#ifdef DEBUG
-TEST_F(SdkTest, SdkTestCloudraidTransferResume)
+void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::string& logPre)
 {
-    LOG_info << "___TEST Cloudraid transfer resume___";
+    LOG_info << logPre << "BEGIN";
+
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+
+    LOG_debug << logPre << "Promote account to PRO plan";
+    const auto restorer0 = elevateToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    //  1. Download raid file, with speed limit
-    //  2. Logout / Login
-    //  3. Check download resumption
+    LOG_debug << logPre << "Get CloudRAID file from public link";
+    const auto importRaidHandle =
+        importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
 
-    //  1. Download raided file, with speed limit
-    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL +PUBLIC_IMAGE_URL, rootnode.get());
-    std::unique_ptr<MegaNode> cloudRaidNode{ megaApi[0]->getNodeByHandle(importRaidHandle) };
+    unique_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
 
-    // prerequisite for having smaller (thus more) raid chunks, for increasing the chances of having
-    // contiguous progress to serialize - and resume - after logout+login
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
-    globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
-    globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+    globalMegaTestHooks.onLimitMaxReqSize = DebugTestHook::onLimitMaxReqSize;
+    globalMegaTestHooks.onHookNumberOfConnections = DebugTestHook::onHookNumberOfConnections;
+
+    if (fromNonRaid)
+    {
+        globalMegaTestHooks.onHookDownloadRequestSingleUrl =
+            DebugTestHook::onHookDownloadRequestSingleUrl;
+    }
 #endif
 
-    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2)) << "doSetMaxConnections failed or took more than 1 minute";
-    LOG_info << "For raidTests: client max connections set to 2";
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2))
+        << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_debug << logPre << "Client max connections set to 2";
 
-    string downloadedFile = DOTSLASH "cloudraid_downloaded_file.sdktest";
+    LOG_debug << logPre << "Clean up any existing file, limit speed, start download";
+    const auto downloadedFile = std::string(DOTSLASH "cloudraid_downloaded_file.sdktest");
     deleteFile(downloadedFile.c_str());
     megaApi[0]->setMaxDownloadSpeed(2000000);
+
     onTransferUpdate_progress = 0;
     TransferTracker rdt(megaApi[0].get());
     megaApi[0]->startDownload(cloudRaidNode.get(),
                               downloadedFile.c_str(),
                               nullptr /*customName*/,
                               nullptr /*appData*/,
-                              false   /*startFirst*/,
+                              false /*startFirst*/,
                               nullptr /*cancelToken*/,
-                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
-                              false   /* undelete */,
-                              &rdt    /*listener*/);
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                              false /* undelete */,
+                              &rdt /*listener*/);
 
     second_timer timer;
-    m_off_t pauseThreshold = 9000000;
+    static constexpr m_off_t pauseThreshold{9000000};
+    // Wait until partial download or timeout
     while (!rdt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
     {
         WaitMillisec(200);
@@ -7749,33 +7874,92 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
     ASSERT_FALSE(rdt.finished) << "Download ended too early, with " << rdt.waitForResult();
     ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was downloaded";
 
-    //  2. Logout / Login
-    unique_ptr<char[]> session(dumpSession());
+    // 2. Logout
+    LOG_debug << logPre << "Local logout while the transfer is in flight";
+    std::unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
-    ErrorCodes result = rdt.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Download interrupted with unexpected code: " << result;
 
+    const auto result = rdt.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE)
+        << "Download interrupted with unexpected code: " << result;
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    if (fromNonRaid)
+    {
+        globalMegaTestHooks.onHookDownloadRequestSingleUrl = nullptr;
+        globalMegaTestHooks.onHookResetTransferLastAccessTime =
+            ::mega::DebugTestHook::onHookResetTransferLastAccessTime;
+    }
+#endif
+
+    LOG_debug << logPre << "Resume session";
     onTransferStart_progress = 0;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
-    ASSERT_EQ(API_OK, doSetMaxConnections(0, 4)) << "doSetMaxConnections failed or took more than 1 minute";
-    LOG_info << "For raidTests: client max connections set to 4";
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 4))
+        << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_debug << logPre << "Client max connections set to 4";
 
-    //  3. Check download resumption
+    LOG_debug << logPre << "Check transfer resumption after resuming session";
     timer.reset();
     unique_ptr<MegaTransferList> transfers(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+
     while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
     {
         WaitMillisec(100);
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
     }
-    ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
-    ASSERT_GT(onTransferStart_progress, 0) << "Download appears to have been restarted instead of resumed";
+    ASSERT_EQ(transfers->size(), 1U) << "Download ended before resumption was checked, "
+                                        "or was not resumed after 20 seconds";
+    ASSERT_GT(onTransferStart_progress, 0)
+        << "Download appears to have been restarted instead of resumed";
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    if (fromNonRaid)
+    {
+        globalMegaTestHooks.onHookResetTransferLastAccessTime = nullptr;
+    }
+#endif
+
+    LOG_debug << logPre << "Let the download finish completely";
     megaApi[0]->setMaxDownloadSpeed(-1);
+    static constexpr size_t maxAllowedToFinishDownload{120};
+    while (transfers && transfers->size() && timer.elapsed() < maxAllowedToFinishDownload)
+    {
+        WaitMillisec(500);
+        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    }
+    ASSERT_TRUE(!transfers || !transfers->size())
+        << "Download did not finish after " << maxAllowedToFinishDownload << " seconds";
 
+    // Test hooks must be reset
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+    LOG_info << logPre << "FINISH";
+}
+
+/**
+ * @brief TEST_F SdkTestCloudraidTransferResume
+ *
+ * Tests resumption for raid file download.
+ */
+TEST_F(SdkTest, SdkTestCloudraidTransferResume)
+{
+    static const auto logPre = getLogPrefix();
+    constexpr bool fromNonRaid{false};
+    testCloudRaidTransferResume(fromNonRaid, logPre);
+}
+
+/**
+ * @brief TEST_F SdkTestCloudraidTransferResumeFromNonRaid
+ *
+ * Tests resumption from a non-raided download that is now raided and resumed with CloudRAID logic.
+ */
+TEST_F(SdkTest, SdkTestCloudraidTransferResumeFromNonRaid)
+{
+    static const auto logPre = getLogPrefix();
+    constexpr bool fromNonRaid{true};
+    testCloudRaidTransferResume(fromNonRaid, logPre);
 }
 #endif
 
@@ -11728,7 +11912,8 @@ TEST_F(SdkTest, SyncOQTransitions)
 
     ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Get account size.
     ASSERT_NE(mApi[0].accountDetails, nullptr);
-    int filesNeeded = int(mApi[0].accountDetails->getStorageMax() / remote1GBFile->getSize());
+    auto filesNeeded =
+        static_cast<int>(mApi[0].accountDetails->getStorageMax() / remote1GBFile->getSize()) + 1;
 
     for (int i=1; i < filesNeeded; i++)
     {
@@ -11740,7 +11925,8 @@ TEST_F(SdkTest, SyncOQTransitions)
         LOG_verbose << "SyncOQTransitions :  Check that Sync is disabled due to OQ.";
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
         sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_SUSPENDED, MegaSync::STORAGE_OVERQUOTA);
-        ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_SUSPENDED);
+        ASSERT_TRUE(sync);
+        ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_SUSPENDED);
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
 
         LOG_verbose << "SyncOQTransitions :  Check that Sync could not be enabled while disabled due to OQ.";

@@ -91,5 +91,8 @@ release.create_rc_tag(1)
 
 # STEP 10: step #8 from make_release: Slack:
 # Post release notes to Slack
-apps = [a.strip() for a in app_descr.split("/")]
+if args["target_apps"]:
+    apps = [a.strip() for a in args["target_apps"].split("/")]
+else:
+    apps = [a.strip() for a in app_descr.split("/")]
 release.post_notes(apps, releaseType="patchRelease")

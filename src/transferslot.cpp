@@ -386,7 +386,7 @@ void TransferSlot::processTransferStats()
                 << ". TransferSlotStats: FailedRequestRatio = " << tsStats.failedRequestRatio()
                 << ". Average connect time: " << tsStats.averageConnectTime()
                 << " ms. Average start transfer time: " << tsStats.averageStartTransferTime()
-                << ". Total requests = " << tsStats.mNumTotalRequests
+                << " ms. Total requests = " << tsStats.mNumTotalRequests
                 << " (with calculated latency: " << tsStats.mNumRequestsWithCalculatedLatency
                 << "). Failed requests = " << tsStats.mNumFailedRequests
                 << ". [Transfer->name = " << transfer->localfilename << "]"
@@ -404,7 +404,7 @@ void TransferSlot::processTransferStats()
 
 void TransferSlot::toggleport(HttpReqXfer *req)
 {
-    if (!memcmp(req->posturl.c_str(), "http:", 5))
+    if (Utils::startswith(req->posturl, "http:"))
     {
        size_t portendindex = req->posturl.find("/", 8);
        size_t portstartindex = req->posturl.find(":", 8);
@@ -853,8 +853,9 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 break;
                             }
 
-                            if (e == DAEMON_EFAILED || (reqs[i]->contenttype.find("text/html") != string::npos
-                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5)))
+                            if (e == DAEMON_EFAILED ||
+                                (reqs[i]->contenttype.find("text/html") != string::npos &&
+                                 Utils::startswith(reqs[i]->posturl, "http:")))
                             {
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
@@ -973,8 +974,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         }
                         else
                         {
-                            if (reqs[i]->contenttype.find("text/html") != string::npos
-                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
+                            if (reqs[i]->contenttype.find("text/html") != string::npos &&
+                                Utils::startswith(reqs[i]->posturl, "http:"))
                             {
                                 LOG_warn << "Conn " << i << " : Invalid Content-Type detected during download: " << reqs[i]->contenttype;
                                 client->usehttps = true;
@@ -1081,7 +1082,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 LOG_verbose << "Conn " << i << " : Async read succeeded (size: " << asyncIO[i]->dataBufferLen << ")";
                                 m_off_t npos = asyncIO[i]->posOfBuffer + asyncIO[i]->dataBufferLen;
                                 string finaltempurl = transferbuf.tempURL(i);
-                                if (client->usealtupport && !memcmp(finaltempurl.c_str(), "http:", 5))
+                                if (client->usealtupport &&
+                                    Utils::startswith(finaltempurl, "http:"))
                                 {
                                     size_t index = finaltempurl.find("/", 8);
                                     if(index != string::npos && finaltempurl.find(":", 8) == string::npos)
@@ -1199,6 +1201,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                                       newInputBufferSupplied,
                                                       pauseConnectionInputForRaid,
                                                       client->httpio->uploadSpeed);
+                if (posrange == std::make_pair(m_off_t{-1}, m_off_t{-1}))
+                {
+                    LOG_warn << "Conn " << i
+                             << " : Received error position, transfer must be retried";
+                    transfer->chunkmacs.clear();
+                    return transfer->failed(API_EARGS, committer);
+                }
 
                 // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
                 bool newOutputBufferSupplied = false;
@@ -1460,14 +1469,14 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         LOG_warn << "Failed chunk(s) due to a timeout: no data moved for " << (XFERTIMEOUT/10) << " seconds" ;
         failure = true;
         bool changeport = false;
-
-        if (transfer->type == GET && client->autodownport && !memcmp(transferbuf.tempURL(0).c_str(), "http:", 5))
+        bool startsWithHttp = Utils::startswith(transferbuf.tempURL(0), "http:");
+        if (transfer->type == GET && client->autodownport && startsWithHttp)
         {
             LOG_debug << "Automatically changing download port due to a timeout";
             client->usealtdownport = !client->usealtdownport;
             changeport = true;
         }
-        else if (transfer->type == PUT && client->autoupport && !memcmp(transferbuf.tempURL(0).c_str(), "http:", 5))
+        else if (transfer->type == PUT && client->autoupport && startsWithHttp)
         {
             LOG_debug << "Automatically changing upload port due to a timeout";
             client->usealtupport = !client->usealtupport;
@@ -1576,8 +1585,8 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
     string finaltempURL = tempURL;
     if (!finaltempURL.empty() &&
         ((transfer->type == GET && transfer->client->usealtdownport) ||
-        (transfer->type == PUT && transfer->client->usealtupport)) &&
-            !memcmp(finaltempURL.c_str(), "http:", 5))
+         (transfer->type == PUT && transfer->client->usealtupport)) &&
+        Utils::startswith(finaltempURL, "http:"))
     {
         size_t index = finaltempURL.find("/", 8);
         if (index != string::npos && finaltempURL.find(":", 8) == string::npos)
@@ -1611,7 +1620,9 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
              << " [httpReq = " << (void*)httpReq.get()
              << "] [totalFailedRequests = " << tsStats.mNumFailedRequests << "]";
 
-    if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos && !memcmp(httpReq->posturl.c_str(), "http:", 5))
+    bool postUrlStartsWithHttp = Utils::startswith(httpReq->posturl, "http:");
+    if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos &&
+        postUrlStartsWithHttp)
     {
         LOG_warn << "Conn " << channel << " : Invalid Content-Type detected on failed chunk: " << httpReq->contenttype << " [httpReq = " << (void*)httpReq.get() << "]";
         client->usehttps = true;
@@ -1679,13 +1690,13 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
             failure = true;
             bool changeport = false;
 
-            if (transfer->type == GET && client->autodownport && !memcmp(httpReq->posturl.c_str(), "http:", 5))
+            if (transfer->type == GET && client->autodownport && postUrlStartsWithHttp)
             {
                 LOG_debug << "Conn " << channel << " : Automatically changing download port";
                 client->usealtdownport = !client->usealtdownport;
                 changeport = true;
             }
-            else if (transfer->type == PUT && client->autoupport && !memcmp(httpReq->posturl.c_str(), "http:", 5))
+            else if (transfer->type == PUT && client->autoupport && postUrlStartsWithHttp)
             {
                 LOG_debug << "Conn " << channel << " : Automatically changing upload port";
                 client->usealtupport = !client->usealtupport;
