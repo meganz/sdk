@@ -12136,4 +12136,17 @@ public class MegaApiJava {
     public void changeSyncLocalRoot(long syncBackupId, String newLocalSyncRootPath, MegaRequestListenerInterface listener) {
         megaApi.changeSyncLocalRoot(syncBackupId, newLocalSyncRootPath, createDelegateRequestListener(listener));
     }
+
+    /**
+     * @param link        The recovery link sent to the user's email address.
+     * @param recoveryKey Base64-encoded string containing the recoveryKey (masterKey).
+     * @param listener    MegaRequestListener to track this request
+     * @brief Check that the provided recovery key (master key) is correct
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_CHECK_RECOVERY_KEY
+     * No data in the MegaRequest object received on all callbacks
+     */
+    public void checkRecoveryKey(String link, String recoveryKey, MegaRequestListenerInterface listener) {
+        megaApi.checkRecoveryKey(link, recoveryKey, createDelegateRequestListener(listener));
+    }
 }
