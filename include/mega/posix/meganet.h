@@ -151,6 +151,7 @@ protected:
     bool reset;
     bool statechange;
     bool dnsok;
+    string dnsservers;
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
     WAIT_CLASS* waiter;
@@ -186,6 +187,8 @@ public:
     void setuseragent(string*) override;
     void setproxy(const Proxy&) override;
     std::optional<Proxy> getproxy() const override;
+    // It returns false if curl does not have a DNS backend supporting custom DNS lists.
+    bool setdnsservers(const char*);
     void disconnect() override;
 
     // set max download speed

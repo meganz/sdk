@@ -5461,6 +5461,8 @@ autocomplete::ACN autocompleteSyntax()
                     param("recv_timeout_sec"),
                     opt(flag("-IPv4toIPv6"))));
 
+    p->Add(exec_dnsservers, sequence(text("setdns"), either(param("dnslist"), flag("-clear"))));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -14076,4 +14078,41 @@ void exec_getmyip(autocomplete::ACState&)
             cout << "Country Code: " << countryCode << endl;
             cout << "IP address: " << ipAddress << endl;
         });
+}
+
+void exec_dnsservers(autocomplete::ACState& s)
+{
+    CurlHttpIO* curlIO = dynamic_cast<CurlHttpIO*>(client->httpio);
+
+    if (!curlIO)
+    {
+        cout << "Functionality only available for CurlHttpIO." << endl;
+        return;
+    }
+
+    string serverList;
+
+    if (!s.extractflag("-clear"))
+    {
+        serverList = s.words[1].s;
+    }
+
+    if (curlIO->setdnsservers(serverList.c_str()))
+    {
+        cout << "DNS list ";
+        if (!serverList.empty())
+        {
+            cout << "set: " << serverList << endl;
+        }
+        else
+        {
+            cout << "cleared. Using the system DNS." << endl;
+        }
+    }
+    else
+    {
+        cout << "libcurl does not have support for a DNS resolver backend. Build libcurl with "
+                "c-ares support to use this functionality."
+             << endl;
+    }
 }

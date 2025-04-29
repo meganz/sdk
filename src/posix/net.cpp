@@ -205,7 +205,7 @@ CurlHttpIO::CurlHttpIO()
     curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
     if (data->version)
     {
-        LOG_debug << "cURL version: " << data->version;
+        LOG_debug << "curl version: " << data->version;
     }
 
     if (data->ssl_version)
@@ -220,15 +220,15 @@ CurlHttpIO::CurlHttpIO()
             throw std::runtime_error("Unsupported SSL backend (GSKit). Aborting.");
         }
 
-        if (data->version_num < 0x072c00 // At least cURL 7.44.0
-        #ifdef USE_OPENSSL
-                && !(strstr(curlssl.c_str(), "openssl") && data->version_num > 0x070b00)
-                // or cURL 7.11.0 with OpenSSL
-        #endif
-            )
+        if (data->version_num < 0x072c00 // At least curl 7.44.0
+#ifdef USE_OPENSSL
+            && !(strstr(curlssl.c_str(), "openssl") && data->version_num > 0x070b00)
+        // or curl 7.11.0 with OpenSSL
+#endif
+        )
         {
-            LOG_fatal << "cURL built without public key pinning support. Aborting.";
-            throw std::runtime_error("cURL built without public key pinning support. Aborting.");
+            LOG_fatal << "curl built without public key pinning support. Aborting.";
+            throw std::runtime_error("curl built without public key pinning support. Aborting.");
         }
     }
 
@@ -248,8 +248,18 @@ CurlHttpIO::CurlHttpIO()
 
     if (!data->protocols[i] || !(data->features & CURL_VERSION_SSL))
     {
-        LOG_fatal << "cURL built without HTTP/HTTPS support. Aborting.";
-        throw std::runtime_error("cURL built without HTTP/HTTPS support. Aborting.");
+        LOG_fatal << "curl built without HTTP/HTTPS support. Aborting.";
+        throw std::runtime_error("curl built without HTTP/HTTPS support. Aborting.");
+    }
+
+    if (data->ares)
+    {
+        int version{data->ares_num};
+        int major{(version >> 16) & 0xFF};
+        int minor{(version >> 8) & 0xFF};
+        int patch{version & 0xFF};
+        LOG_debug << "curl built with c-ares backend as DNS resolver.";
+        LOG_debug << "c-ares version: " << major << "." << minor << "." << patch;
     }
 
     curlipv6 = data->features & CURL_VERSION_IPV6;
@@ -559,6 +569,29 @@ int CurlHttpIO::instanceCount = 0;
 void CurlHttpIO::setuseragent(string* u)
 {
     useragent = *u;
+}
+
+bool CurlHttpIO::setdnsservers(const char* servers)
+{
+    const curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
+
+    if (!data->ares)
+    {
+        return false;
+    }
+
+    if (servers)
+    {
+        lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
+        if (DNS_CACHE_EXPIRES)
+        {
+            dnscache.clear();
+        }
+
+        dnsservers = servers;
+        LOG_debug << "Setting custom DNS servers: " << dnsservers;
+    }
+    return true;
 }
 
 void CurlHttpIO::disconnect()
@@ -1051,6 +1084,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             {
                 curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
             }
+        }
+
+        if (!httpio->dnsservers.empty())
+        {
+            curl_easy_setopt(curl, CURLOPT_DNS_SERVERS, httpio->dnsservers.c_str());
         }
 
         httpio->numconnections[httpctx->d]++;
@@ -1623,12 +1661,15 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 long httpstatus;
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &httpstatus);
                 req->httpstatus = int(httpstatus);
+                // Get the used ip address, if any.
+                char* resolvedIpAddress = nullptr;
+                curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIMARY_IP, &resolvedIpAddress);
 
                 LOG_debug << req->getLogName()
                           << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
                           << (req->httpiohandle ?
                                   (((CurlHttpContext*)req->httpiohandle)->hostname + " - " +
-                                   ((CurlHttpContext*)req->httpiohandle)->hostip) :
+                                   (resolvedIpAddress ? resolvedIpAddress : "")) :
                                   "(unknown) ");
                 if (req->httpstatus)
                 {

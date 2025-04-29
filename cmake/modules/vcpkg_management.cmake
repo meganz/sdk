@@ -104,6 +104,10 @@ macro(process_vcpkg_libraries overlays_path)
         list(APPEND VCPKG_MANIFEST_FEATURES "sdk-tests")
     endif()
 
+    if (ENABLE_C_ARES_BACKEND)
+        list(APPEND VCPKG_MANIFEST_FEATURES "c-ares-backend-curl")
+    endif()
+
     set(CMAKE_TOOLCHAIN_FILE ${CMAKE_TOOLCHAIN_FILE} ${VCPKG_TOOLCHAIN_PATH})
     message(STATUS "Using VCPKG dependencies. VCPKG base path: ${VCPKG_ROOT} and tripplet ${VCPKG_TARGET_TRIPLET}")
     message(STATUS "Overlay for VCPKG ports: ${VCPKG_OVERLAY_PORTS}")

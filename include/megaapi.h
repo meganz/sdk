@@ -11262,23 +11262,31 @@ class MegaApi
         /**
          * @brief Use custom DNS servers
          *
-         * The SDK tries to automatically get and use DNS servers configured in the system at startup. This function can be used
-         * to override that automatic detection and use a custom list of DNS servers. It is also useful to provide working
-         * DNS servers to the SDK in platforms in which it can't get them from the system.
+         * The SDK tries to automatically get and use DNS servers configured in the system at
+         * startup. This function can be used to override that automatic detection and use a custom
+         * list of DNS servers. It is also useful to provide working DNS servers to the SDK in
+         * platforms in which it can't get them from the system.
          *
-         * Since the usage of this function implies a change in DNS servers used by the SDK, all connections are
-         * closed and restarted using the new list of new DNS servers, so calling this function too often can cause
-         * many retries and problems to complete requests. Please use it only at startup or when DNS servers need to be changed.
+         * Since the usage of this function implies a change in DNS servers used by the SDK, all
+         * connections are closed and restarted using the new list of new DNS servers, so calling
+         * this function too often can cause many retries and problems to complete requests. Please
+         * use it only at startup or when DNS servers need to be changed.
          *
-         * The associated request type with this request is MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS.
-         * Valid data in the MegaRequest object received on callbacks:
+         * To use this functionality the curl library should have been built with support for
+         * c-ares. If there's no support for c-ares in the curl library, the error code provivded
+         * in onRequestFinish is MegaError::API_ENOENT.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS. Valid data in the MegaRequest object
+         * received on callbacks:
          * - MegaRequest::getText - Returns the new list of DNS servers
          *
-         * @param dnsServers New list of DNS servers. It must be a list of IPs separated by a comma character ",".
-         * IPv6 servers are allowed (without brackets).
+         * @param dnsServers New list of DNS servers. It must be a list of IPs separated by a comma
+         * character ",". IPv6 servers are allowed (without brackets). An empty list can be used to
+         * return the SDK to the default DNS resolution configuration.
          *
-         * The usage of this function will trigger the callback MegaGlobalListener::onEvent and the callback
-         * MegaListener::onEvent with the event type MegaEvent::EVENT_DISCONNECT.
+         * The usage of this function will trigger the callback MegaGlobalListener::onEvent and the
+         * callback MegaListener::onEvent with the event type MegaEvent::EVENT_DISCONNECT.
          *
          * @param listener MegaRequestListener to track this request
          */
