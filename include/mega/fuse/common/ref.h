@@ -190,11 +190,23 @@ public:
     }
 
     template<typename U>
-    void reset(U* instance = nullptr)
+    void reset(U* instance)
     {
         Ref temp(instance);
 
         swap(temp);
+    }
+
+    void reset(std::nullptr_t)
+    {
+        T* dummy{};
+
+        reset(dummy);
+    }
+
+    void reset()
+    {
+        reset(nullptr);
     }
 
     template<typename U>
