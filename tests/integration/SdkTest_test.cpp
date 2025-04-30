@@ -3040,6 +3040,49 @@ TEST_F(SdkTest, SdkTestNodeOperations)
 }
 
 /**
+ * @brief TEST_F SdkTestDownloadConflictFolderExistingName
+ *
+ * This test tries to download a File node into a local folder, that already contains a folder with
+ * the same name as downloaded file.
+ *
+ * Note: We call MegaApi::startDownload with collisionCheck(COLLISION_CHECK_ASSUMEDIFFERENT) and
+ * collisionResolution(COLLISION_RESOLUTION_OVERWRITE), so transfer will be retried sometimes by SDK
+ * and finally will fail with API_EWRITE.
+ */
+TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
+{
+    LOG_info << "___TEST SdkTestDownloadConflictFolderExistingName___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << cwd();
+
+    fs::path basePath = fs::current_path();
+    const std::string itemName{"testItem"};
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+
+    LOG_debug << "#### TEST1: Create Folder in local FS ####";
+    sdk_test::LocalTempDir d(basePath / itemName);
+
+    LOG_debug << "#### TEST2: Create File in cloud drive ####";
+    const auto newNode =
+        sdk_test::uploadFile(megaApi[0].get(),
+                             sdk_test::LocalTempFile{basePath / itemName / itemName, 1},
+                             rootNode.get());
+    ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
+
+    LOG_debug << "#### TEST3: Download file at dir with Folder with same name ####";
+    const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
+                                                newNode.get(),
+                                                basePath / itemName,
+                                                180s /*timeout*/,
+                                                MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
+                                                MegaTransfer::COLLISION_RESOLUTION_OVERWRITE);
+
+    ASSERT_TRUE(errCode.has_value()) << "test_utils(downloadFile) has returned nullopt";
+    ASSERT_EQ(*errCode, API_EWRITE)
+        << "test_utils(downloadFile) has returned unexpected errorCode: " << errCode.has_value();
+}
+
+/**
  * @brief TEST_F SdkTestTransfers
  *
  * It performs different operations related to transfers in both directions: up and down.

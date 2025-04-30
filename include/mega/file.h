@@ -35,6 +35,10 @@ enum class CollisionResolution : uint8_t
     End = 4,
 };
 
+constexpr unsigned FILE_MAX_RETRIES = 16;
+constexpr unsigned FILE_IO_MAX_RETRIES = 6;
+constexpr unsigned FILE_SYNC_MAX_RETRIES = 8;
+
 // File is the base class for an upload or download, as managed by the SDK core.
 // Each Transfer consists of a list of File that all have the same content and fingerprint
 struct MEGA_API File: public FileFingerprint
