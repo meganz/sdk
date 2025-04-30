@@ -269,6 +269,20 @@ public:
     using ConstIterator = ToConstIteratorT<Iterator>;
     using ConstReverseIterator = ToReverseIteratorT<ConstIterator>;
 
+    AVLTree() = default;
+
+    // Allow move construction since we are just moving the root pointer.
+    AVLTree(AVLTree&& other):
+        mRoot(other.mRoot),
+        mSize(other.mSize)
+    {
+        other.mRoot = nullptr;
+        other.mSize = 0;
+    }
+
+    // Disallow move assignment as we don't know how to deallocate nodes.
+    AVLTree& operator=(AVLTree&& rhs) = delete;
+
     // Add a node to the tree.
     auto add(NodeType** link, NodeType& node, NodeType* parent) -> std::pair<Iterator, bool>
     {
