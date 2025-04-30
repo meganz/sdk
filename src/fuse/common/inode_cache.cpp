@@ -17,9 +17,9 @@ using std::chrono::steady_clock;
 
 struct InodeCache::Entry
 {
-    Entry(const Inode& inode)
+    Entry(InodeRef&& inode)
       : mAccessed(steady_clock::now())
-      , mInode(const_cast<Inode*>(&inode))
+      , mInode(std::move(inode))
       , mPosition()
     {
     }
@@ -140,6 +140,10 @@ InodeCache::~InodeCache()
 
 bool InodeCache::add(const Inode& inode)
 {
+    // Acquire a reference to this inode.
+    InodeRef ref(const_cast<Inode*>(&inode));
+
+    // Lock the cache so no one else can modify it.
     Lock guard(mLock);
 
     // Convenience.
@@ -164,7 +168,7 @@ bool InodeCache::add(const Inode& inode)
     }
 
     // Add inode to the cache.
-    e = mEntries.emplace(e, inode);
+    e = mEntries.emplace(e, std::move(ref));
     
     // For debugging.
     FUSEDebugF("Adding inode %s to inode cache",
@@ -217,7 +221,8 @@ InodeCacheFlags InodeCache::flags() const
 
 bool InodeCache::remove(const Inode& inode)
 {
-    Lock guard(mLock);
+    // Lock the cache so no one else can modify it.
+    Lock lock(mLock);
 
     // Convenience.
     auto id = inode.id();
@@ -233,11 +238,20 @@ bool InodeCache::remove(const Inode& inode)
     FUSEDebugF("Removing inode %s from inode cache",
                toString(id).c_str());
 
+    // Latch the inode reference.
+    InodeRef ref(std::move(p->second->mInode));
+
     // Remove the inode from the cache.
     mEntries.erase(p->second);
 
     // Remove inode from the position map.
     mPositions.erase(p);
+
+    // Release the lock.
+    lock.unlock();
+
+    // Drop the inode reference.
+    ref.reset();
 
     // Inode's been removed from the cache.
     return true;
