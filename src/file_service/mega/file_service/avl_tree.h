@@ -568,6 +568,15 @@ public:
         return mSize;
     }
 
+    // Swap the contents of this tree with another.
+    void swap(AVLTree& other)
+    {
+        using std::swap;
+
+        swap(mRoot, other.mRoot);
+        swap(mSize, other.mSize);
+    }
+
     // Return a reference to the first node greater than key.
     Iterator upper_bound(const KeyType& key)
     {
@@ -596,6 +605,13 @@ public:
         return const_cast<AVLTree<Traits>&>(*this).upper_bound(key);
     }
 }; // AVLTree<Traits>
+
+// Swap the contents of lhs with rhs.
+template<typename Traits>
+void swap(AVLTree<Traits>& lhs, AVLTree<Traits>& rhs)
+{
+    lhs.swap(rhs);
+}
 
 } // file_service
 } // mega
