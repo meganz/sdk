@@ -45,6 +45,26 @@ struct Detected<DefaultType, std::void_t<Predicate<Parameters...>>, Predicate, P
     using Type = Predicate<Parameters...>;
 }; // DefaultType<DefaultType, Predicate, Parameters...>
 
+template<typename T>
+using EqualityCompareResultType = decltype(std::declval<T>() == std::declval<T>());
+
+template<typename T, typename = void>
+struct IsEqualityComparable: std::false_type
+{}; // IsEqualityComparable<T, void>
+
+template<typename T>
+struct IsEqualityComparable<T, std::void_t<EqualityCompareResultType<T>>>:
+    std::is_convertible<EqualityCompareResultType<T>, bool>
+{}; // IsEqualityComparable<T, void>
+
+template<typename T, typename U>
+struct IsEqualityComparable<std::pair<T, U>, void>:
+    std::conjunction<IsEqualityComparable<T>, IsEqualityComparable<U>>
+{}; // IsEqualityComparable<std::pair<T, U>, void>
+
+template<typename T>
+const auto IsEqualityComparableV = IsEqualityComparable<T>::value;
+
 } // detail
 
 template<template<typename> typename Predicate, typename... Parameters>
@@ -74,6 +94,9 @@ struct Identity
         return std::forward<T>(value);
     }
 }; // Identity
+
+using detail::IsEqualityComparable;
+using detail::IsEqualityComparableV;
 
 template<typename Class0, typename Class1, typename... Classes>
 struct MostSpecificClass:

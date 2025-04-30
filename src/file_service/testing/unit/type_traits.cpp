@@ -1,5 +1,7 @@
 #include <mega/file_service/type_traits.h>
 
+#include <utility>
+
 namespace mega
 {
 namespace file_service
@@ -86,6 +88,11 @@ static_assert(!DetectedV<DetectMemberType, StaticConstMember>);
 static_assert(std::is_same_v<RemoveCVRefT<const int&>, int>);
 static_assert(std::is_same_v<RemoveCVRefT<int&>, int>);
 static_assert(std::is_same_v<RemoveCVRefT<int>, int>);
+
+static_assert(IsEqualityComparableV<int>);
+static_assert(IsEqualityComparableV<std::pair<int, int>>);
+static_assert(!IsEqualityComparableV<Unrelated>);
+static_assert(!IsEqualityComparableV<std::pair<int, Unrelated>>);
 
 } // file_service
 } // mega
