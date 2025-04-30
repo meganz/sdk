@@ -99,8 +99,10 @@ public:
 
         auto trFut = finishedTransfer.get_future();
         auto rnFut = finishedRename.get_future();
-        trFut.wait();
-        rnFut.wait();
+        auto futureStatus = trFut.wait_for(COMMON_TIMEOUT);
+        ASSERT_EQ(futureStatus, std::future_status::ready) << "Timeout transfer";
+        futureStatus = rnFut.wait_for(COMMON_TIMEOUT);
+        ASSERT_EQ(futureStatus, std::future_status::ready) << "Timeout rename";
 
         megaApi[0]->removeListener(&mockNodesListener);
         megaApi[0]->removeListener(&mockTransferListener);

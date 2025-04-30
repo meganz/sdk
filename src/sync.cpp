@@ -7714,19 +7714,17 @@ void SyncRow::reassignFingerprints()
         syncNode->realScannedFingerprint = fsNode->fingerprint;
     }
 
+#ifdef __ANDROID__
     // In Android is not possible set mtime when file is download
     // Update fsNode->fingerprint with syncNode->syncedFingerprint in case they only have mtime
     // different This means it has scanned but it is already synced Real value that it is obtained
     // from file system is stored at syncNode->realScannedFingerprint
     if (syncNode->syncedFingerprint.isvalid && fsNode->fingerprint != syncNode->syncedFingerprint &&
-        memcmp(fsNode->fingerprint.crc.data(),
-               syncNode->syncedFingerprint.crc.data(),
-               sizeof syncNode->syncedFingerprint.crc) == 0 &&
-        fsNode->fingerprint.size == syncNode->syncedFingerprint.size &&
-        fsNode->fingerprint.mtime != syncNode->syncedFingerprint.mtime)
+        syncNode->syncedFingerprint.equalExceptMtime(fsNode->fingerprint))
     {
         fsNode->fingerprint.mtime = syncNode->syncedFingerprint.mtime;
     }
+#endif
 
     if (syncNode->scannedFingerprint != fsNode->fingerprint)
     {
@@ -9089,7 +9087,7 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
                 row.syncNode->scannedFingerprint.mtime = row.fsNode->fingerprint.mtime;
             }
 
-            if (row.syncNode->scannedFingerprint != row.syncNode->realScannedFingerprint)
+            if (row.syncNode->syncedFingerprint != row.syncNode->realScannedFingerprint)
             {
                 SYNC_verbose << syncname
                              << "mtime hasn't been set correctly at fs file (usually Android)";
