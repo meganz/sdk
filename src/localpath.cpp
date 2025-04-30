@@ -1643,9 +1643,7 @@ std::string Path::serialize() const
     std::string d;
     CacheableWriter w(d);
     w.serializeu8(static_cast<uint8_t>(mPathType));
-    std::string aux;
-    LocalPath::local2path(&mLocalpath, &aux, false);
-    w.serializestring(aux);
+    w.serializestring(mLocalpath);
     return d;
 }
 
@@ -1655,10 +1653,7 @@ bool Path::unserialize(const std::string& data)
     uint8_t type;
     r.unserializeu8(type);
     mPathType = static_cast<PathType>(type);
-    std::string aux;
-    bool unserilizeValue = r.unserializestring(aux);
-    LocalPath::path2local(&aux, &mLocalpath);
-    return unserilizeValue;
+    return r.unserializestring(mLocalpath);
 }
 
 string_type Path::getRealPath() const

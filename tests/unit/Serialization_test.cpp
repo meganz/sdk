@@ -190,6 +190,20 @@ TEST(Serialization, CacheableReaderWriter)
     ASSERT_EQ(mp2.no_audio, false);
 }
 
+TEST(Serialization, SerializeWString)
+{
+    std::wstring wstringtest(L"file-файл.txt");
+    std::string writestring;
+    mega::CacheableWriter w(writestring);
+    w.serializestring(wstringtest);
+    EXPECT_EQ(writestring.size(), wstringtest.size() * sizeof(wchar_t) + 2);
+
+    // now read the serialized data back
+    mega::CacheableReader r(writestring);
+    std::wstring readedWstring;
+    EXPECT_TRUE(r.unserializestring(readedWstring));
+    ASSERT_EQ(readedWstring, wstringtest);
+}
 
 namespace {
 

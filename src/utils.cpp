@@ -228,6 +228,13 @@ void CacheableWriter::serializepstr(const string* field)
     if (field) dest.append(field->data(), ll);
 }
 
+void CacheableWriter::serializestring(const std::wstring& field)
+{
+    const unsigned short ll = static_cast<unsigned short>(field.size() * sizeof(wchar_t));
+    dest.append(reinterpret_cast<const char*>(&ll), sizeof(ll));
+    dest.append(reinterpret_cast<const char*>(field.data()), ll);
+}
+
 void CacheableWriter::serializestring(const string& field)
 {
     unsigned short ll = (unsigned short)field.size();
@@ -364,6 +371,36 @@ bool CacheableReader::unserializecstr(string& s, bool removeNull)
     return true;
 }
 
+bool CacheableReader::unserializestring(std::wstring& s)
+{
+    if (ptr + sizeof(unsigned short) > end)
+    {
+        return false;
+    }
+
+    const unsigned short len_bytes = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(len_bytes);
+
+    if (ptr + len_bytes > end)
+    {
+        return false;
+    }
+
+    if (len_bytes)
+    {
+        if (len_bytes % sizeof(wchar_t) != 0)
+        {
+            return false;
+        }
+
+        size_t wchar_count = len_bytes / sizeof(wchar_t);
+        s.assign(reinterpret_cast<const wchar_t*>(ptr), wchar_count);
+    }
+
+    ptr += len_bytes;
+    fieldnum += 1;
+    return true;
+}
 
 bool CacheableReader::unserializestring(string& s)
 {
