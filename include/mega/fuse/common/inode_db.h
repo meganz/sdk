@@ -133,9 +133,6 @@ class InodeDB final
         // Add an inode to the database.
         common::Query mAddInode;
 
-        // Clear every inode's bind handle.
-        common::Query mClearBindHandles;
-
         // What inodes are present under the specified node handle?
         common::Query mGetChildrenByParentHandle;
         
@@ -154,8 +151,8 @@ class InodeDB final
         // What inode is associated with a given ID?
         common::Query mGetInodeByID;
 
-        // What ID is associated with the given bind handle or node handle?
-        common::Query mGetInodeIDByBindHandleOrHandle;
+        // What ID is associated with the given node handle?
+        common::Query mGetInodeIDByHandle;
 
         // Get an inode's ID based on name and parent handle.
         common::Query mGetInodeIDByNameAndParentHandle;
@@ -178,11 +175,8 @@ class InodeDB final
         // Remove an inode specified by ID.
         common::Query mRemoveInodeByID;
 
-        // Set an inode's bind handle.
-        common::Query mSetBindHandleByID;
-
-        // Set an inode's bind handle, handle, name and parent handle.
-        common::Query mSetBindHandleHandleNameParentHandleByID;
+        // Set an inode's handle, name and parent handle.
+        common::Query mSetHandleNameParentHandleByID;
 
         // Specify whether an inode has been modified.
         common::Query mSetModifiedByID;

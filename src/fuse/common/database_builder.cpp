@@ -23,11 +23,13 @@ static void downgrade10(Query& query);
 static void downgrade21(Query& query);
 static void downgrade32(Query& query);
 static void downgrade43(Query& query);
+static void downgrade54(Query& query);
 
 static void upgrade01(Query& query);
 static void upgrade12(Query& query);
 static void upgrade23(Query& query);
 static void upgrade34(Query& query);
+static void upgrade45(Query& query);
 
 const DatabaseVersionVector& DatabaseBuilder::versions() const
 {
@@ -36,6 +38,7 @@ const DatabaseVersionVector& DatabaseBuilder::versions() const
         {&downgrade21, &upgrade12},
         {&downgrade32, &upgrade23},
         {&downgrade43, &upgrade34},
+        {&downgrade54, &upgrade45},
     }; // versions
 
     return versions;
@@ -176,6 +179,54 @@ void downgrade43(Query& query)
     query.execute();
 
     query = "alter table mounts_new rename to mounts";
+    query.execute();
+}
+
+void downgrade54(Query& query)
+{
+    // Add a new inode table with a bind_handle column.
+    query = "create table inodes_new ( "
+            "  bind_handle text "
+            "  constraint uq_inodes_bind_handle "
+            "             unique, "
+            "  extension text, "
+            "  handle integer "
+            "  constraint uq_inodes_handle "
+            "             unique, "
+            "  id integer "
+            "  constraint nn_inodes_id "
+            "             not null, "
+            "  modified integer "
+            "  constraint nn_inodes_modified "
+            "             not null, "
+            "  name text, "
+            "  parent_handle integer, "
+            "  constraint pk_inodes "
+            "             primary key (id), "
+            "  constraint uq_inodes_name_parent_handle "
+            "             unique (name, parent_handle) "
+            ")";
+
+    query.execute();
+
+    // Migrate inodes over to the new table.
+    query = "insert into inodes_new "
+            "select null "
+            "     , extension"
+            "     , handle "
+            "     , id "
+            "     , modified "
+            "     , name "
+            "     , parent_handle "
+            "  from inodes";
+
+    query.execute();
+
+    // Replace the old inodes table with our new one.
+    query = "drop table inodes";
+    query.execute();
+
+    query = "alter table inodes_new rename to inodes";
     query.execute();
 }
 
@@ -428,6 +479,57 @@ void upgrade34(Query& query)
     query.execute();
 
     query = "alter table mounts_new rename to mounts";
+    query.execute();
+}
+
+void upgrade45(Query& query)
+{
+    // Add a new inodes table without a bind_handle column.
+    query = "create table inodes_new ( "
+            "  extension text, "
+            "  handle integer "
+            "  constraint uq_inodes_handle "
+            "             unique, "
+            "  id integer "
+            "  constraint nn_inodes_id "
+            "             not null, "
+            "  modified integer "
+            "  constraint nn_inodes_modified "
+            "             not null, "
+            "  name text, "
+            "  parent_handle integer, "
+            "  constraint pk_inodes "
+            "             primary key (id), "
+            "  constraint uq_inodes_name_parent_handle "
+            "             unique (name, parent_handle) "
+            ")";
+
+    query.execute();
+
+    // Mark inodes that were being bound as modified.
+    query = "update inodes "
+            "   set modified = 1 "
+            " where bind_handle is not null";
+
+    query.execute();
+
+    // Migrate existing inodes over to our new table.
+    query = "insert into inodes_new "
+            "select extension"
+            "     , handle "
+            "     , id "
+            "     , modified"
+            "     , name "
+            "     , parent_handle "
+            "  from inodes";
+
+    query.execute();
+
+    // Replace the old inodes table with our new one.
+    query = "drop table inodes";
+    query.execute();
+
+    query = "alter table inodes_new rename to inodes";
     query.execute();
 }
 
