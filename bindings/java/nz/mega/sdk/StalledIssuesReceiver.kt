@@ -5,7 +5,7 @@ package nz.mega.sdk
  * @property onStallListLoaded - lambda that returns Stalled Issues
  */
 class StalledIssuesReceiver(
-    private val onStallListLoaded: (MegaSyncStallList) -> Unit,
+    private val onStallListLoaded: (List<MegaSyncStall>) -> Unit,
 ) : MegaRequestListenerInterface {
 
     override fun onRequestStart(api: MegaApiJava, request: MegaRequest) {
@@ -18,7 +18,12 @@ class StalledIssuesReceiver(
 
     override fun onRequestFinish(api: MegaApiJava, request: MegaRequest, e: MegaError) {
         if (request.type == MegaRequest.TYPE_GET_SYNC_STALL_LIST) {
-            onStallListLoaded(request.megaSyncStallList)
+            // Copy objects with memory ownership to prevent SIGSEGV null pointer dereference
+            val stallList = request.megaSyncStallList.copy()
+            val copiedList = (0 until stallList.size()).map { index ->
+                stallList.get(index).copy()
+            }
+            onStallListLoaded(copiedList)
         }
     }
 
