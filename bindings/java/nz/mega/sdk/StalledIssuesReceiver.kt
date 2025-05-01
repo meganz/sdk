@@ -18,12 +18,18 @@ class StalledIssuesReceiver(
 
     override fun onRequestFinish(api: MegaApiJava, request: MegaRequest, e: MegaError) {
         if (request.type == MegaRequest.TYPE_GET_SYNC_STALL_LIST) {
-            // Copy objects with memory ownership to prevent SIGSEGV null pointer dereference
-            val stallList = request.megaSyncStallList.copy()
-            val copiedList = (0 until stallList.size()).map { index ->
-                stallList.get(index).copy()
+            val stallList = request.megaSyncStallList
+            if (stallList == null) {
+                onStallListLoaded(emptyList())
+                return
             }
-            onStallListLoaded(copiedList)
+            // Copy objects with memory ownership to prevent SIGSEGV null pointer dereference
+            stallList.copy().let { list ->
+                val copiedList = (0 until list.size()).map { index ->
+                    list.get(index).copy()
+                }
+                onStallListLoaded(copiedList)
+            }
         }
     }
 
