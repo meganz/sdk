@@ -1,4 +1,3 @@
-#include <mega/common/bind_handle.h>
 #include <mega/common/error_or.h>
 #include <mega/common/lock.h>
 #include <mega/common/node_info.h>
@@ -917,18 +916,13 @@ void FileIOContext::FlushContext::uploaded(ErrorOr<UploadResult> result)
     }
 
     // Extract bind callback and bind handle.
-    auto bind       = std::move(std::get<0>(*result));
-    auto bindHandle = std::move(std::get<1>(*result));
+    auto bind = std::move(*result);
 
     // Sanity.
     assert(bind);
-    assert(bindHandle);
-
-    // Let the cache know which file's associated with this bind handle.
-    auto i = inodeDB().binding(*mContext.mFile, std::move(bindHandle));
 
     // Called when we've bound a name to our uploaded content.
-    auto bound = [i, this](ErrorOr<NodeHandle> result) {
+    auto bound = [this](ErrorOr<NodeHandle> result) {
         // A name's been bound to our content.
         if (result)
         {
@@ -941,9 +935,6 @@ void FileIOContext::FlushContext::uploaded(ErrorOr<UploadResult> result)
             // Update the file's information.
             mContext.mFile->info(*info);
         }
-
-        // Let the cache know we're done with the bind handle.
-        inodeDB().bound(*mContext.mFile, i);
 
         // Let waiters know the upload's complete.
         mCV.notify_all();

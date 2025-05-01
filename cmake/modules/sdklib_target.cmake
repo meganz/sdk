@@ -11,8 +11,6 @@ set(SDKLIB_COMMON_HEADERS
     ${SDKLIB_COMMON_INC}/activity_monitor_forward.h
     ${SDKLIB_COMMON_INC}/badge.h
     ${SDKLIB_COMMON_INC}/badge_forward.h
-    ${SDKLIB_COMMON_INC}/bind_handle.h
-    ${SDKLIB_COMMON_INC}/bind_handle_forward.h
     ${SDKLIB_COMMON_INC}/client.h
     ${SDKLIB_COMMON_INC}/client_adapter.h
     ${SDKLIB_COMMON_INC}/client_callbacks.h
@@ -73,7 +71,6 @@ set(SDKLIB_COMMON_HEADERS
 
 set(SDKLIB_COMMON_SOURCES
     ${SDKLIB_COMMON_SRC}/activity_monitor.cpp
-    ${SDKLIB_COMMON_SRC}/bind_handle.cpp
     ${SDKLIB_COMMON_SRC}/client.cpp
     ${SDKLIB_COMMON_SRC}/client_adapter.cpp
     ${SDKLIB_COMMON_SRC}/database.cpp

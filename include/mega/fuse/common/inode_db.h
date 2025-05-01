@@ -6,7 +6,6 @@
 #include <string>
 #include <utility>
 
-#include <mega/common/bind_handle_forward.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/database_forward.h>
 #include <mega/common/error_or_forward.h>
@@ -134,9 +133,6 @@ class InodeDB final
         // Add an inode to the database.
         common::Query mAddInode;
 
-        // Clear every inode's bind handle.
-        common::Query mClearBindHandles;
-
         // What inodes are present under the specified node handle?
         common::Query mGetChildrenByParentHandle;
         
@@ -155,8 +151,8 @@ class InodeDB final
         // What inode is associated with a given ID?
         common::Query mGetInodeByID;
 
-        // What ID is associated with the given bind handle or node handle?
-        common::Query mGetInodeIDByBindHandleOrHandle;
+        // What ID is associated with the given node handle?
+        common::Query mGetInodeIDByHandle;
 
         // Get an inode's ID based on name and parent handle.
         common::Query mGetInodeIDByNameAndParentHandle;
@@ -179,11 +175,8 @@ class InodeDB final
         // Remove an inode specified by ID.
         common::Query mRemoveInodeByID;
 
-        // Set an inode's bind handle.
-        common::Query mSetBindHandleByID;
-
-        // Set an inode's bind handle, handle, name and parent handle.
-        common::Query mSetBindHandleHandleNameParentHandleByID;
+        // Set an inode's handle, name and parent handle.
+        common::Query mSetHandleNameParentHandleByID;
 
         // Specify whether an inode has been modified.
         common::Query mSetModifiedByID;
@@ -315,9 +308,6 @@ class InodeDB final
     // Unlink a file.
     Error unlink(FileInodeRef file);
 
-    // Tracks which inode is associated with what bind handle.
-    mutable ToInodeRawPtrMap<common::BindHandle> mByBindHandle;
-
     // Tracks which inode is associated with what node handle.
     mutable ToInodeRawPtrMap<NodeHandle> mByHandle;
 
@@ -346,17 +336,6 @@ public:
 
     // Add a memory-only inode to the database.
     void add(const FileInode& inode);
-
-    // Signal that file's content is being bound to a name in the cloud.
-    auto binding(const FileInode& file, const common::BindHandle& handle)
-      -> ToInodeRawPtrMap<common::BindHandle>::iterator;
-
-    // Retrieve the inode that is being bound using the specified handle.
-    FileInodeRef binding(const common::BindHandle& handle) const;
-
-    // Signal that file's content has been bound to a name in the cloud.
-    void bound(const FileInode& file,
-               ToInodeRawPtrMap<common::BindHandle>::iterator iterator);
 
     // Retrieve the cache associated with this database.
     InodeCache& cache() const;
