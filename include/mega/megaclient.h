@@ -1569,7 +1569,9 @@ public:
     std::shared_ptr<Node> getovnode(Node *parent, string *name);
 
     // Load from db node children at first level
-    sharedNode_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
+    sharedNode_list getChildren(const Node* parent,
+                                CancelToken cancelToken = CancelToken(),
+                                bool includeVersions = false);
 
     // Get number of children from a node
     size_t getNumberOfChildren(NodeHandle parentHandle);

@@ -18828,9 +18828,11 @@ std::shared_ptr<Node> MegaClient::getovnode(Node *parent, string *name)
     return nullptr;
 }
 
-sharedNode_list MegaClient::getChildren(const Node* parent, CancelToken cancelToken)
+sharedNode_list MegaClient::getChildren(const Node* parent,
+                                        CancelToken cancelToken,
+                                        bool includeVersions)
 {
-    return mNodeManager.getChildren(parent, cancelToken);
+    return mNodeManager.getChildren(parent, cancelToken, includeVersions);
 }
 
 size_t MegaClient::getNumberOfChildren(NodeHandle parentHandle)
