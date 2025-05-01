@@ -25,8 +25,8 @@ class StalledIssuesReceiver(
             }
             // Copy objects with memory ownership to prevent SIGSEGV null pointer dereference
             stallList.copy().let { list ->
-                val copiedList = (0 until list.size()).map { index ->
-                    list.get(index).copy()
+                val copiedList = (0 until list.size()).mapNotNull { index ->
+                    list.get(index)?.copy()
                 }
                 onStallListLoaded(copiedList)
             }
