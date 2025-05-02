@@ -1,8 +1,12 @@
 #pragma once
 
+#include <mega/file_service/avl_tree.h>
 #include <mega/file_service/file_range_forward.h>
 #include <mega/file_service/file_range_traits.h>
+#include <mega/file_service/file_range_tree_node.h>
 #include <mega/file_service/file_range_tree_traits.h>
+
+#include <functional>
 
 namespace mega
 {
@@ -27,6 +31,28 @@ struct IsValidValueType<std::pair<FirstType, SecondType>>: IsFileRange<FirstType
 
 template<typename ValueType>
 constexpr auto IsValidValueTypeV = IsValidValueType<ValueType>::value;
+
+template<typename KeyFunctionType, typename ValueType>
+struct IndexByRangeBegin
+{
+    // Sanity.
+    static_assert(IsValidValueTypeV<ValueType>);
+    static_assert(IsValidKeyFunctionV<KeyFunctionType, ValueType>);
+
+    struct KeyFunction
+    {
+        auto& operator()(const ValueType& value) const
+        {
+            return KeyFunctionType()(value).mBegin;
+        }
+    }; // KeyFunction
+
+    // Convenenience.
+    using NodeType = FileRangeTreeNode<ValueType>;
+
+    static constexpr auto mKeyPointer = &NodeType::mValue;
+    static constexpr auto mLinkPointer = &NodeType::mByRangeBegin;
+}; // IndexByRangeBegin<KeyFunction, ValueType>
 
 } // detail
 } // file_service
