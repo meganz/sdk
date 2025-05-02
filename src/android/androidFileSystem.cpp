@@ -939,32 +939,15 @@ bool AndroidDirAccess::dnext(LocalPath& path,
 
 std::unique_ptr<FileAccess> AndroidFileSystemAccess::newfileaccess(bool followSymLinks)
 {
-    if (fileWrapper != nullptr)
-    {
-        return std::unique_ptr<FileAccess>{
-            new AndroidFileAccess{waiter,
-                                  LinuxFileSystemAccess::getdefaultfilepermissions(),
-                                  followSymLinks}};
-    }
-    else
-    {
-        return std::unique_ptr<FileAccess>{
-            new PosixFileAccess{waiter,
-                                LinuxFileSystemAccess::getdefaultfilepermissions(),
-                                followSymLinks}};
-    }
+    return std::unique_ptr<FileAccess>{
+        new AndroidFileAccess{waiter,
+                              LinuxFileSystemAccess::getdefaultfilepermissions(),
+                              followSymLinks}};
 }
 
 std::unique_ptr<DirAccess> AndroidFileSystemAccess::newdiraccess()
 {
-    if (fileWrapper != nullptr)
-    {
-        return std::unique_ptr<DirAccess>(new AndroidDirAccess());
-    }
-    else
-    {
-        return std::unique_ptr<DirAccess>(new PosixDirAccess());
-    }
+    return std::unique_ptr<DirAccess>(new AndroidDirAccess());
 }
 
 #ifdef ENABLE_SYNC
