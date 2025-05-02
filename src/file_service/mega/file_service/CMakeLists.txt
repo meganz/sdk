@@ -11,7 +11,10 @@ target_sources(SDKlib PRIVATE
                       file_info_context.h
                       file_info_context_badge.h
                       file_info_context_badge_forward.h
+                      file_range_map.h
+                      file_range_set.h
                       file_range_traits.h
+                      file_range_tree.h
                       file_range_tree_node.h
                       file_range_tree_traits.h
                       file_service_context.h
