@@ -9,6 +9,13 @@ namespace mega
 {
 namespace file_service
 {
+namespace detail
+{
+
+static_assert(KeyIsEqualityComparableV<Traits>);
+static_assert(!KeyIsEqualityComparableV<UncomparableTraits>);
+
+} // detail
 
 TEST(AVLTreeKeyTraits, compare)
 {

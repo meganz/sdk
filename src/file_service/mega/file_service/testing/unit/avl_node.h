@@ -87,5 +87,20 @@ public:
     }; // Validate
 }; // TraitsWithMetadata
 
+struct Uncomparable
+{}; // Uncomparable
+
+struct UncomparableNode
+{
+    AVLTreeNode<UncomparableNode> mLink;
+    Uncomparable mValue;
+}; // UncomparableNode
+
+struct UncomparableTraits
+{
+    static constexpr auto mKeyPointer = &UncomparableNode::mValue;
+    static constexpr auto mLinkPointer = &UncomparableNode::mLink;
+}; // UncomparableTraits
+
 } // file_service
 } // mega

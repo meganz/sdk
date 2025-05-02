@@ -99,6 +99,11 @@ public:
     }
 }; // KeyTraits<Traits>
 
+// Convenience.
+template<typename Traits>
+constexpr auto KeyIsEqualityComparableV =
+    IsEqualityComparableV<typename KeyTraits<Traits>::KeyType>;
+
 template<typename Traits>
 class LinkTraits
 {
