@@ -54,6 +54,28 @@ struct IndexByRangeBegin
     static constexpr auto mLinkPointer = &NodeType::mByRangeBegin;
 }; // IndexByRangeBegin<KeyFunction, ValueType>
 
+template<typename KeyFunctionType, typename ValueType>
+struct IndexByRangeEnd
+{
+    // Sanity.
+    static_assert(IsValidValueTypeV<ValueType>);
+    static_assert(IsValidKeyFunctionV<KeyFunctionType, ValueType>);
+
+    struct KeyFunction
+    {
+        auto& operator()(const ValueType& value) const
+        {
+            return KeyFunctionType()(value).mEnd;
+        }
+    }; // KeyFunction
+
+    // Convenenience.
+    using NodeType = FileRangeTreeNode<ValueType>;
+
+    static constexpr auto mKeyPointer = &NodeType::mValue;
+    static constexpr auto mLinkPointer = &NodeType::mByRangeEnd;
+}; // IndexByRangeEnd<KeyFunction, ValueType>
+
 } // detail
 } // file_service
 } // mega
