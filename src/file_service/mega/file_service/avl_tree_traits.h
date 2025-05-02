@@ -95,7 +95,14 @@ public:
     template<typename NodeType>
     static auto& key(NodeType& node)
     {
-        return KeyFunction()(node.*Traits::mKeyPointer);
+        return KeyFunction()(value(node));
+    }
+
+    // Return a reference to the value contained by node.
+    template<typename NodeType>
+    static auto& value(NodeType& node)
+    {
+        return node.*Traits::mKeyPointer;
     }
 }; // KeyTraits<Traits>
 

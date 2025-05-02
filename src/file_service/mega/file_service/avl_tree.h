@@ -14,8 +14,10 @@ namespace mega
 {
 namespace file_service
 {
+namespace detail
+{
 
-template<typename Traits>
+template<typename Traits, auto IsEqualityComparable = KeyIsEqualityComparableV<Traits>>
 class AVLTree
 {
     // Convenience.
@@ -338,7 +340,7 @@ public:
     // Return an iterator to the first node in the tree.
     ConstIterator begin() const
     {
-        return const_cast<AVLTree<Traits>&>(*this).begin();
+        return const_cast<AVLTree&>(*this).begin();
     }
 
     ConstIterator cbegin() const
@@ -441,7 +443,7 @@ public:
     // Return an iterator to the node associated with key.
     ConstIterator find(const KeyType& key) const
     {
-        return const_cast<AVLTree<Traits>&>(*this).find(key);
+        return const_cast<AVLTree&>(*this).find(key);
     }
 
     // Return a reference to the first node not less than key.
@@ -475,7 +477,7 @@ public:
     // Return a reference to the first node not less than key.
     ConstIterator lower_bound(const KeyType& key) const
     {
-        return const_cast<AVLTree<Traits>&>(*this).lower_bound(key);
+        return const_cast<AVLTree&>(*this).lower_bound(key);
     }
 
     // Return a reverse iterator to the last node in the tree.
@@ -496,7 +498,7 @@ public:
 
     ReverseIterator rbegin() const
     {
-        return const_cast<AVLTree<Traits>&>(*this).rbegin();
+        return const_cast<AVLTree&>(*this).rbegin();
     }
 
     // Remove the node associated with the specified key.
@@ -559,7 +561,7 @@ public:
     // Return a const iterator to this tree's root node.
     ConstIterator root() const
     {
-        return const_cast<AVLTree<Traits>&>(*this).root();
+        return const_cast<AVLTree&>(*this).root();
     }
 
     // How many nodes does this tree contain?
@@ -602,16 +604,54 @@ public:
 
     ConstIterator upper_bound(const KeyType& key) const
     {
-        return const_cast<AVLTree<Traits>&>(*this).upper_bound(key);
+        return const_cast<AVLTree&>(*this).upper_bound(key);
     }
-}; // AVLTree<Traits>
+}; // AVLTree<Traits, false>
+
+template<typename Traits>
+class AVLTree<Traits, true>: public AVLTree<Traits, false>
+{
+public:
+    bool operator==(const AVLTree& rhs) const
+    {
+        // A tree's always equal to itself.
+        if (this == &rhs)
+            return true;
+
+        // Can't be equal if the trees differ in size.
+        if (this->size() != rhs.size())
+            return false;
+
+        auto i = this->begin();
+        auto j = this->end();
+
+        // Convenience.
+        using KT = typename AVLTree::KeyTraits;
+
+        // Iterate over the tree comparing values as we go.
+        for (auto m = rhs.begin(); i != j && KT::value(*i) == KT::value(*m); ++i, ++m)
+            ;
+
+        // Make sure we compared every value in the tree.
+        return i == j;
+    }
+
+    bool operator!=(const AVLTree& rhs) const
+    {
+        return !(*this == rhs);
+    }
+}; // AVLTree<Traits, true>
 
 // Swap the contents of lhs with rhs.
-template<typename Traits>
-void swap(AVLTree<Traits>& lhs, AVLTree<Traits>& rhs)
+template<typename Traits, auto IsEqualityComparable>
+void swap(AVLTree<Traits, IsEqualityComparable>& lhs, AVLTree<Traits, IsEqualityComparable>& rhs)
 {
     lhs.swap(rhs);
 }
+
+} // detail
+
+using detail::AVLTree;
 
 } // file_service
 } // mega

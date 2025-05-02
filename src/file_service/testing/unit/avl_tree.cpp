@@ -129,6 +129,38 @@ TEST(AVLTree, add)
     }
 }
 
+TEST(AVLTree, equality)
+{
+    // Can't compare trees that whose nodes contain incomparable values.
+    static_assert(!IsEqualityComparableV<AVLTree<UncomparableTraits>>);
+
+    AVLTree<Traits> tree0;
+    AVLTree<Traits> tree1;
+
+    // Empty trees are always equal.
+    EXPECT_EQ(tree0, tree1);
+
+    // Create some nodes for us to play with.
+    std::vector<Node> nodes0 = {0, 1};
+    std::vector<Node> nodes1 = nodes0;
+
+    tree0.add(nodes0[0]);
+
+    // tree0 contains more nodes than tree1.
+    EXPECT_NE(tree0, tree1);
+
+    // tree0 contains different values than tree1.
+    tree1.add(nodes1[1]);
+
+    EXPECT_NE(tree0, tree1);
+
+    // Both trees are identical.
+    tree0.add(nodes0[1]);
+    tree1.add(nodes1[0]);
+
+    EXPECT_EQ(tree0, tree1);
+}
+
 TEST(AVLTree, find)
 {
     std::vector<Node> nodes = {0, 1, 2, 3, 4, 5, 6, 7};
