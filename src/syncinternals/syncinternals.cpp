@@ -63,11 +63,14 @@ bool FindLocalNodeByFSIDPredicate::operator()(LocalNode& localNode)
     if (mEarlyExit)
         return false;
 
-    const NodeMatchByFSIDAttributes sourceNodeAttributes{localNode.type,
-                                                         localNode.sync->fsfp(),
-                                                         localNode.sync->cloudRootOwningUser,
-                                                         getFingerprint(localNode),
-                                                         localNode.realScannedFingerprint};
+    const NodeMatchByFSIDAttributes sourceNodeAttributes{
+        localNode.type,
+        localNode.sync->fsfp(),
+        localNode.sync->cloudRootOwningUser,
+        getFingerprint(localNode),
+        (mScannedOrSyncedCtxt == ScannedOrSyncedContext::SCANNED) ?
+            localNode.realScannedFingerprint :
+            localNode.syncedFingerprint};
     const SourceNodeMatchByFSIDContext sourceContext{isFsidReused(localNode),
                                                      localNode.exclusionState()};
 
