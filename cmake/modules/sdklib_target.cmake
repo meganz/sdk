@@ -19,6 +19,7 @@ set(SDKLIB_COMMON_HEADERS
     ${SDKLIB_COMMON_INC}/database_builder.h
     ${SDKLIB_COMMON_INC}/database_forward.h
     ${SDKLIB_COMMON_INC}/database_utilities.h
+    ${SDKLIB_COMMON_INC}/deciseconds.h
     ${SDKLIB_COMMON_INC}/directory.h
     ${SDKLIB_COMMON_INC}/error_or.h
     ${SDKLIB_COMMON_INC}/error_or_forward.h
