@@ -3291,15 +3291,9 @@ using namespace mega;
     }
 }
 
-- (void)setContactLinksOptionEnable:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setContactLinksOption:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->setContactLinksOption(enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)setContactLinksOptionEnable:(BOOL)enable {
-    if (self.megaApi) {
-        self.megaApi->setContactLinksOption(enable);
     }
 }
 
