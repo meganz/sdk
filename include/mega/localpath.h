@@ -130,6 +130,8 @@ public:
     // Returns parent URI if it's available
     virtual std::optional<string_type> getParentURI(const string_type& uri) = 0;
     virtual std::optional<string_type> getPath(const string_type& uri) = 0;
+    virtual std::optional<string_type> getURI(const string_type& uri,
+                                              const std::vector<string_type> leaves) = 0;
 };
 
 /**
@@ -152,6 +154,10 @@ public:
     static std::optional<string_type> getParentURI(const string_type& uri);
 
     static std::optional<string_type> getPath(const string_type& uri);
+
+    // Returns a new URI that point to the element pointed by uri + leaves
+    static std::optional<string_type> getURI(const string_type& uri,
+                                             const std::vector<string_type> leaves);
 
     // platformHelper should be kept alive during all program execution and ownership isn't taken
     static void setPlatformHelper(PlatformURIHelper* platformHelper);
@@ -271,11 +277,11 @@ public:
 
     // Returns a string_type (wstring in windows) to the string's internal representation.
     //
-    // Mostly useful when we need to call platform-specific functions and
-    // don't want to incur the cost of a copy.
     // Call this function with stripPrefix to false if you don't want any modification in string's
     // internal representation, otherwise prefix will be stripped in Windows (except for URI PATHS)
     auto asPlatformEncoded(const bool stripPrefix) const -> string_type;
+    // Returns a string to internal representation
+    // For URI path, returns a string with a URI that point to that LocalPath it it exists
     std::string platformEncoded() const;
 
     bool empty() const;

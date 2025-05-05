@@ -64,6 +64,17 @@ std::optional<string_type> URIHandler::getPath(const string_type& uri)
     return std::nullopt;
 }
 
+std::optional<string_type> URIHandler::getURI(const string_type& uri,
+                                              const std::vector<string_type> leaves)
+{
+    if (mPlatformHelper)
+    {
+        return mPlatformHelper->getURI(uri, leaves);
+    }
+
+    return std::nullopt;
+}
+
 void URIHandler::setPlatformHelper(PlatformURIHelper* platformHelper)
 {
     mPlatformHelper = platformHelper;
@@ -1676,6 +1687,22 @@ auto PathURI::asPlatformEncoded(const bool) const -> string_type
 
 string PathURI::platformEncoded() const
 {
+    if (mAuxPath.empty())
+    {
+        std::string aux;
+        LocalPath::local2path(&mUri, &aux, false);
+        return aux;
+    }
+    else
+    {
+        auto newUri = URIHandler::getURI(mUri, mAuxPath);
+        if (newUri.has_value())
+        {
+            std::string aux;
+            LocalPath::local2path(&newUri.value(), &aux, false);
+            return aux;
+        }
+    }
     return toPath(false);
 }
 

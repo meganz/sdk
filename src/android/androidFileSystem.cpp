@@ -566,6 +566,30 @@ std::optional<std::string> AndroidPlatformURIHelper::getPath(const std::string& 
     return std::nullopt;
 }
 
+std::optional<string_type> AndroidPlatformURIHelper::getURI(const string_type& uri,
+                                                            const std::vector<string_type> leaves)
+{
+    auto child{AndroidFileWrapper::getAndroidFileWrapper(uri)};
+    if (!child)
+    {
+        return std::nullopt;
+    }
+
+    for (const auto& childName: leaves)
+    {
+        child = child->getChildByName(childName);
+        if (!child)
+        {
+            return std::nullopt;
+        }
+    }
+
+    string_type aux;
+    std::string newUri = child->getURI();
+    LocalPath::path2local(&newUri, &aux);
+    return aux;
+}
+
 bool AndroidFileAccess::fopen(const LocalPath& f,
                               bool,
                               bool write,

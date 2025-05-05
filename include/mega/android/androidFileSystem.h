@@ -112,8 +112,10 @@ public:
     bool isURI(const std::string& path) override;
     std::optional<std::string> getName(const std::string& path) override;
     // Returns parent URI if it's available
-    virtual std::optional<string_type> getParentURI(const string_type& uri) override;
-    virtual std::optional<string_type> getPath(const string_type& uri) override;
+    std::optional<string_type> getParentURI(const string_type& uri) override;
+    std::optional<string_type> getPath(const string_type& uri) override;
+    std::optional<string_type> getURI(const string_type& uri,
+                                      const std::vector<string_type> leaves) override;
 
 private:
     /**

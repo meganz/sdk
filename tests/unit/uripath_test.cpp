@@ -56,13 +56,19 @@ public:
         return std::nullopt;
     }
 
-    virtual std::optional<string_type> getParentURI(const string_type&) override
+    std::optional<string_type> getParentURI(const string_type&) override
     {
         assert(false);
         return std::nullopt;
     }
 
-    virtual std::optional<string_type> getPath(const string_type&) override
+    std::optional<string_type> getPath(const string_type&) override
+    {
+        assert(false);
+        return std::nullopt;
+    }
+
+    std::optional<string_type> getURI(const string_type&, const std::vector<string_type>) override
     {
         assert(false);
         return std::nullopt;
