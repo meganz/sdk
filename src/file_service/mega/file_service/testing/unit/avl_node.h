@@ -25,8 +25,8 @@ struct Node
 
 struct Traits
 {
-    static constexpr auto mKeyPointer = &Node::mKey;
     static constexpr auto mLinkPointer = &Node::mLink;
+    static constexpr auto mValuePointer = &Node::mKey;
 }; // Traits
 
 class TraitsWithMetadata: public Traits
@@ -98,8 +98,8 @@ struct UncomparableNode
 
 struct UncomparableTraits
 {
-    static constexpr auto mKeyPointer = &UncomparableNode::mValue;
     static constexpr auto mLinkPointer = &UncomparableNode::mLink;
+    static constexpr auto mValuePointer = &UncomparableNode::mValue;
 }; // UncomparableTraits
 
 } // file_service

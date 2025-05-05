@@ -12,8 +12,8 @@ namespace file_service
 namespace detail
 {
 
-static_assert(KeyIsEqualityComparableV<Traits>);
-static_assert(!KeyIsEqualityComparableV<UncomparableTraits>);
+static_assert(ValueIsEqualityComparableV<Traits>);
+static_assert(!ValueIsEqualityComparableV<UncomparableTraits>);
 
 } // detail
 

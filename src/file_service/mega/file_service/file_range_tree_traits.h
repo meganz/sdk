@@ -50,8 +50,8 @@ struct IndexByRangeBegin
     // Convenenience.
     using NodeType = FileRangeTreeNode<ValueType>;
 
-    static constexpr auto mKeyPointer = &NodeType::mValue;
     static constexpr auto mLinkPointer = &NodeType::mByRangeBegin;
+    static constexpr auto mValuePointer = &NodeType::mValue;
 }; // IndexByRangeBegin<KeyFunction, ValueType>
 
 template<typename KeyFunctionType, typename ValueType>
@@ -72,8 +72,8 @@ struct IndexByRangeEnd
     // Convenenience.
     using NodeType = FileRangeTreeNode<ValueType>;
 
-    static constexpr auto mKeyPointer = &NodeType::mValue;
     static constexpr auto mLinkPointer = &NodeType::mByRangeEnd;
+    static constexpr auto mValuePointer = &NodeType::mValue;
 }; // IndexByRangeEnd<KeyFunction, ValueType>
 
 } // detail

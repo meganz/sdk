@@ -17,7 +17,7 @@ namespace file_service
 namespace detail
 {
 
-template<typename Traits, auto IsEqualityComparable = KeyIsEqualityComparableV<Traits>>
+template<typename Traits, auto IsEqualityComparable = ValueIsEqualityComparableV<Traits>>
 class AVLTree
 {
     // Convenience.
@@ -41,7 +41,7 @@ public:
     // actually a subclass of some other node type.
     //
     // In this case, it'd be possible for two different classes to be
-    // reported by our traits. For instance, mKeyPointer might be
+    // reported by our traits. For instance, mValuePointer might be
     // referencing something in NodeClassA and mMetadataPointer might be
     // referencing something in NodeClass B.
     //

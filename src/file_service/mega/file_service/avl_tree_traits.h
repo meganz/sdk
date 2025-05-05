@@ -22,10 +22,6 @@ using DetectCompareType = typename Traits::Compare;
 template<typename Traits>
 using DetectKeyFunction = typename Traits::KeyFunction;
 
-// Check whether Traits contains an mKeyPointer member.
-template<typename Traits>
-using DetectKeyPointer = decltype(Traits::mKeyPointer);
-
 // Check whether Traits contains an mLinkPointer member.
 template<typename Traits>
 using DetectLinkPointer = decltype(Traits::mLinkPointer);
@@ -34,34 +30,38 @@ using DetectLinkPointer = decltype(Traits::mLinkPointer);
 template<typename Traits>
 using DetectUpdate = typename Traits::Update;
 
+// Check whether Traits contains an mValuePointer member.
+template<typename Traits>
+using DetectValuePointer = decltype(Traits::mValuePointer);
+
 template<typename Traits>
 class KeyTraits
 {
-    // Check whether Traits contains a mKeyPointer member and if it does,
+    // Check whether Traits contains a mValuePointer member and if it does,
     // whether that member is a class member pointer.
     //
-    // DetectedT<DetectKeyPointer, Traits> will be yield NoneSuch if
-    // Traits doesn't contain a mKeyPointer member.
-    using KeyPointerTraits = MemberPointerTraits<DetectedT<DetectKeyPointer, Traits>>;
+    // DetectedT<DetectValuePointer, Traits> will be yield NoneSuch if
+    // Traits doesn't contain a mValuePointer member.
+    using ValuePointerTraits = MemberPointerTraits<DetectedT<DetectValuePointer, Traits>>;
 
-    // Ensure Traits::mKeyPointer is present and is a class member pointer.
-    static_assert(KeyPointerTraits::value);
+    // Ensure Traits::mValuePointer is present and is a class member pointer.
+    static_assert(ValuePointerTraits::value);
 
 public:
     // Default to Identity if Traits::KeyFunction isn't defined.
     using KeyFunction = DetectedOrT<Identity, DetectKeyFunction, Traits>;
 
     // Convenience.
-    using CandidateKeyType = typename KeyPointerTraits::MemberType;
+    using ValueType = typename ValuePointerTraits::MemberType;
 
     // Make sure the user's provided a sane key functor.
-    static_assert(std::is_invocable_v<KeyFunction, CandidateKeyType>);
+    static_assert(std::is_invocable_v<KeyFunction, ValueType>);
 
     // Determine the tree's key type.
-    using KeyType = RemoveCVRefT<std::invoke_result_t<KeyFunction, CandidateKeyType>>;
+    using KeyType = RemoveCVRefT<std::invoke_result_t<KeyFunction, ValueType>>;
 
     // Determine the tree's node type.
-    using NodeType = typename KeyPointerTraits::ClassType;
+    using NodeType = typename ValuePointerTraits::ClassType;
 
     // Default to std::less<KeyType> if Traits::Compare isn't defined.
     using Compare = DetectedOrT<std::less<KeyType>, DetectCompareType, Traits>;
@@ -102,14 +102,9 @@ public:
     template<typename NodeType>
     static auto& value(NodeType& node)
     {
-        return node.*Traits::mKeyPointer;
+        return node.*Traits::mValuePointer;
     }
 }; // KeyTraits<Traits>
-
-// Convenience.
-template<typename Traits>
-constexpr auto KeyIsEqualityComparableV =
-    IsEqualityComparableV<typename KeyTraits<Traits>::KeyType>;
 
 template<typename Traits>
 class LinkTraits
@@ -282,6 +277,11 @@ public:
         metadata(node) = Update()(iterator);
     }
 }; // MetadataTraits<Traits, void>
+
+// Convenience.
+template<typename Traits>
+constexpr auto ValueIsEqualityComparableV =
+    IsEqualityComparableV<typename KeyTraits<Traits>::ValueType>;
 
 } // detail
 } // file_service
