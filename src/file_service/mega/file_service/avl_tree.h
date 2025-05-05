@@ -623,7 +623,7 @@ public:
             return false;
 
         auto i = this->begin();
-        auto j = this->end();
+        const auto j = this->end();
 
         // Convenience.
         using KT = typename AVLTree::KeyTraits;
