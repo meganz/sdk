@@ -44,8 +44,10 @@ set(SDKLIB_COMMON_HEADERS
     ${SDKLIB_COMMON_INC}/node_info_forward.h
     ${SDKLIB_COMMON_INC}/normalized_path.h
     ${SDKLIB_COMMON_INC}/normalized_path_forward.h
+    ${SDKLIB_COMMON_INC}/partial_download.h
     ${SDKLIB_COMMON_INC}/partial_download_callback.h
     ${SDKLIB_COMMON_INC}/partial_download_callback_forward.h
+    ${SDKLIB_COMMON_INC}/partial_download_forward.h
     ${SDKLIB_COMMON_INC}/pending_callbacks.h
     ${SDKLIB_COMMON_INC}/query.h
     ${SDKLIB_COMMON_INC}/query_forward.h
