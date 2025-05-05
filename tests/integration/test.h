@@ -1187,6 +1187,7 @@ public:
     bool waitFor(std::function<bool(StandardClient&)> predicate,
                  std::chrono::seconds timeout,
                  std::chrono::milliseconds sleepIncrement = std::chrono::milliseconds(500));
+    bool waitForSyncTotalStallsStateUpdateTrue(const std::chrono::seconds timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool makeremotenodes(const string& prefix, int depth, int fanout);
     bool backupOpenDrive(const fs::path& drivePath);

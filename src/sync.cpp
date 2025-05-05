@@ -13584,9 +13584,8 @@ void Syncs::processSyncConflicts()
     if (conflictsNow != syncConflictState)
     {
         assert(onSyncThread());
+        LOG_verbose << mClient.clientname << "New name conflicts state: " << conflictsNow;
         syncConflictState = conflictsNow;
-        mClient.app->syncupdate_totalconflicts(false);
-        mClient.app->syncupdate_conflicts(conflictsNow);
         if (conflictsNow)
         {
             assert(!totalSyncConflicts.load());
@@ -13598,6 +13597,9 @@ void Syncs::processSyncConflicts()
         {
             totalSyncConflicts.store(0);
         }
+        mClient.app->syncupdate_totalconflicts(false);
+        mClient.app->syncupdate_conflicts(conflictsNow);
+        LOG_warn << mClient.clientname << "Name conflicts state app notified: " << conflictsNow;
     }
     else if (conflictsNow && !mClient.app->isSyncStalledChanged() &&
             ((std::chrono::steady_clock::now() - lastSyncConflictsCount) >= MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
@@ -13725,9 +13727,8 @@ void Syncs::processSyncStalls()
     if (stalled != syncStallState)
     {
         assert(onSyncThread());
+        LOG_verbose << mClient.clientname << "New stall state: " << stalled;
         syncStallState = stalled;
-        mClient.app->syncupdate_totalstalls(false);
-        mClient.app->syncupdate_stalled(stalled);
         if (stalled)
         {
             assert(!totalSyncStalls.load());
@@ -13738,6 +13739,8 @@ void Syncs::processSyncStalls()
         {
             totalSyncStalls.store(0);
         }
+        mClient.app->syncupdate_totalstalls(false);
+        mClient.app->syncupdate_stalled(stalled);
         LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
     }
     else if (stalled && !mClient.app->isSyncStalledChanged() &&

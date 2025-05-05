@@ -5852,6 +5852,19 @@ vector<SyncWaitResult> waitonsyncs(const std::chrono::seconds timeout = std::chr
     return waitonsyncs(std::move(endCondition), c1, c2, c3, c4);
 }
 
+bool StandardClient::waitForSyncTotalStallsStateUpdateTrue(const std::chrono::seconds timeout)
+{
+    if (const auto totalStallsStateUpdateResult =
+            waitFor(SyncTotalStallsStateUpdate(true), timeout);
+        !totalStallsStateUpdateResult)
+    {
+        LOG_warn << "SyncTotalStallsStateUpdate(true) was false, it could be due to a change of "
+                    "stall state that was temporary false due to pending scans, and then set to "
+                    "true again when there only was 1 stall. Checking we are in stall state...";
+        return mStallDetected;
+    }
+    return true;
+}
 
 mutex StandardClient::om;
 bool StandardClient::debugging = false;
@@ -8614,7 +8627,7 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     client->createHardLink(root / ldir4 / "n0", root / ldir4 / "e" / "n5", sPath2, tPath2);
 
     waitonsyncs(TIMEOUT, client);
-    ASSERT_TRUE(client->waitFor(SyncTotalStallsStateUpdate(true), TIMEOUT));
+    ASSERT_TRUE(client->waitForSyncTotalStallsStateUpdateTrue(TIMEOUT));
     ASSERT_NO_FATAL_FAILURE(client->checkStallIssues(backupId4, 2u, sPath2, tPath2));
 }
 #endif
@@ -17371,7 +17384,7 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
     waitonsyncs(TIMEOUT, client);
 
     // Wait for the engine to detect a stall update
-    ASSERT_TRUE(client->waitFor(SyncTotalStallsStateUpdate(true), TIMEOUT));
+    ASSERT_TRUE(client->waitForSyncTotalStallsStateUpdateTrue(TIMEOUT));
 
     // Make sure the stalls collection is updated
     stalls.clear();
@@ -17408,7 +17421,7 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
     waitonsyncs(TIMEOUT, client);
 
     // Wait for the stall state to be updated. We should still have one stall (updated as we had two stalls before).
-    ASSERT_TRUE(client->waitFor(SyncTotalStallsStateUpdate(true), TIMEOUT));
+    ASSERT_TRUE(client->waitForSyncTotalStallsStateUpdateTrue(TIMEOUT));
 
     // Make sure the stalls collection is updated
     stalls.clear();
