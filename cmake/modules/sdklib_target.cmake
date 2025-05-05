@@ -57,6 +57,7 @@ set(SDKLIB_COMMON_HEADERS
     ${SDKLIB_COMMON_INC}/serialization_traits_forward.h
     ${SDKLIB_COMMON_INC}/shared_mutex.h
     ${SDKLIB_COMMON_INC}/shared_mutex_forward.h
+    ${SDKLIB_COMMON_INC}/status_flag.h
     ${SDKLIB_COMMON_INC}/subsystem_logger.h
     ${SDKLIB_COMMON_INC}/task_executor.h
     ${SDKLIB_COMMON_INC}/task_executor_flags.h

@@ -8,6 +8,7 @@
 #include <mega/common/node_event_type.h>
 #include <mega/common/node_info.h>
 #include <mega/common/normalized_path.h>
+#include <mega/common/status_flag.h>
 #include <mega/common/upload.h>
 #include <mega/common/utility.h>
 #include <mega/file.h>
@@ -128,19 +129,6 @@ using ClientUploadWeakPtr = std::weak_ptr<ClientUpload>;
 class ClientUpload
   : public ClientTransfer
 {
-    enum StatusFlag : unsigned int
-    {
-        // The upload can be cancelled.
-        SF_CANCELLABLE = 0x1,
-        // The upload has been cancelled.
-        SF_CANCELLED = 0x2,
-        // The upload hsa completed.
-        SF_COMPLETED = 0x4
-    }; // StatusFlag
-
-    // A combination of status flags.
-    using StatusFlags = unsigned int;
-
     // Bind our uploaded data to a name.
     void bind(BoundCallback callback,
               FileNodeKey fileKey,
