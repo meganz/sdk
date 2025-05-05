@@ -622,18 +622,18 @@ public:
         if (this->size() != rhs.size())
             return false;
 
+        const auto end = this->end();
         auto i = this->begin();
-        const auto j = this->end();
 
         // Convenience.
         using KT = typename AVLTree::KeyTraits;
 
         // Iterate over the tree comparing values as we go.
-        for (auto m = rhs.begin(); i != j && KT::value(*i) == KT::value(*m); ++i, ++m)
+        for (auto m = rhs.begin(); i != end && KT::value(*i) == KT::value(*m); ++i, ++m)
             ;
 
         // Make sure we compared every value in the tree.
-        return i == j;
+        return i == end;
     }
 
     bool operator!=(const AVLTree& rhs) const
