@@ -257,6 +257,56 @@ TEST_F(SdkTestOrder, SdkGetNodesInOrder)
 }
 
 /**
+ * @brief SdkTestOrder.SdkGetVersions
+ *
+ * Tests if file versioning is properly working.
+ */
+TEST_F(SdkTestOrder, SdkGetVersions)
+{
+    MegaHandle fileHandle = 0;
+    const auto remoteDir = "/SDK_TEST_ORDER_AUX_DIR";
+    auto dirNode = megaApi[0]->getNodeByPath(remoteDir);
+    const auto fileName = "testFile1";
+    ASSERT_TRUE(createFile(fileName, false));
+    const auto uploadVersions = 3;
+    // First version is already uploaded during the setup.
+    for (auto i = 1; i < uploadVersions; i++)
+    {
+        appendToFile(fileName, 20);
+        ASSERT_EQ(MegaError::API_OK,
+                  doStartUpload(0,
+                                &fileHandle,
+                                fileName,
+                                dirNode,
+                                nullptr /*fileName*/,
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/))
+            << "Cannot upload " << fileName;
+
+        ASSERT_NE(fileHandle, INVALID_HANDLE);
+    }
+    const auto fileNode(megaApi[0]->getNodeByHandle(fileHandle));
+    ASSERT_TRUE(fileNode) << "Unable to retrieve the file handle";
+    const auto versions(megaApi[0]->getVersions(fileNode));
+    ASSERT_EQ(versions->size(), uploadVersions);
+    const auto versionCount = megaApi[0]->getNumVersions(fileNode);
+    ASSERT_EQ(versionCount, uploadVersions);
+    auto session = dumpSession(0);
+    locallogout(0);
+    resumeSession(session, 0);
+    fetchnodes(0);
+    const auto remoteFileNode(megaApi[0]->getNodeByPath("/SDK_TEST_ORDER_AUX_DIR/testFile1"));
+    ASSERT_TRUE(remoteFileNode) << "Unable to retrieve the remote file handle";
+    const auto versionsAfterResume(megaApi[0]->getVersions(remoteFileNode));
+    ASSERT_EQ(versionsAfterResume->size(), uploadVersions);
+    const auto versionCountAfterResume = megaApi[0]->getNumVersions(remoteFileNode);
+    ASSERT_EQ(versionCountAfterResume, uploadVersions);
+}
+
+/**
  * @brief SdkTestOrder.SdkGetNodesInOrder
  *
  * Tests all the sorting options available for the MegaApi.getChildren method.

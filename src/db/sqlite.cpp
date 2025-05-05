@@ -1644,8 +1644,8 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter,
             "SELECT nodehandle, counter, node "s +
             "FROM nodes "
             "WHERE (parenthandle = " + idParentHand + ") " // Versions aren't taken in consideration
-            "AND matchFilter(" + idFilter + ", flags, type, ctime, mtime, mimetypeVirtual, name, description, tags, fav)"
-            "ORDER BY \n" +
+             "AND matchFilter(" + idFilter + ", flags, type, ctime, mtime, mimetypeVirtual, name, description, tags, fav)"
+             "ORDER BY \n" +
             OrderByClause::get(order) + " \n" +
             "LIMIT " + idPageSize + " OFFSET " + idPageOff;
         // clang-format on
@@ -2506,14 +2506,18 @@ void SqliteAccountState::userMatchFilter(sqlite3_context* context, int argc, sql
         assert(false);
         return;
     }
-    // Versioning
-    constexpr int64_t versionFlag = 1 << Node::FLAGS_IS_VERSION;
-    const int64_t flags = sqlite3_value_int64(argv[1]);
-    if ((flags & versionFlag) != 0)
-        return;
 
     auto filter = static_cast<const NodeSearchFilter*>(
         sqlite3_value_pointer(argv[0], NodeSearchFilterPtrStr));
+
+    const int64_t flags = sqlite3_value_int64(argv[1]);
+    // Do not include versions
+    if (!filter->includeVersions())
+    {
+        constexpr int64_t versionFlag = 1 << Node::FLAGS_IS_VERSION;
+        if ((flags & versionFlag) != 0)
+            return;
+    }
 
     // type
     const nodetype_t type = static_cast<nodetype_t>(sqlite3_value_int(argv[2]));

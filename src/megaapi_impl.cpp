@@ -18269,7 +18269,7 @@ MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
     bool lookingFor = true;
     while (lookingFor)
     {
-        sharedNode_list nodeList = client->getChildren(current.get());
+        sharedNode_list nodeList = client->getChildren(current.get(), mega::CancelToken(), true);
         if (nodeList.empty())
         {
             lookingFor = false;
@@ -40099,7 +40099,10 @@ fuse::MountInfo MegaMountPrivate::asInfo() const
 
     info.mFlags = static_cast<MegaMountFlagsPrivate&>(*mFlags).getFlags();
     info.mHandle.set6byte(mHandle);
-    info.mPath = LocalPath::fromAbsolutePath(mPath);
+    if (!mPath.empty())
+    {
+        info.mPath = LocalPath::fromAbsolutePath(mPath);
+    }
 
     return info;
 }
@@ -40121,10 +40124,7 @@ MegaHandle MegaMountPrivate::getHandle() const
 
 const char* MegaMountPrivate::getPath() const
 {
-    if (!mPath.empty())
-        return mPath.c_str();
-
-    return nullptr;
+    return mPath.c_str();
 }
 
 void MegaMountPrivate::setFlags(const MegaMountFlags* flags)

@@ -2,7 +2,6 @@
 
 #include <condition_variable>
 
-#include <mega/common/bind_handle_forward.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
 #include <mega/common/lockable.h>

@@ -1,4 +1,3 @@
-#include <mega/common/bind_handle.h>
 #include <mega/common/error_or.h>
 #include <mega/common/upload.h>
 
@@ -20,7 +19,7 @@ void Upload::begin(BoundCallback callback)
             return bound(unexpected(result.error()));
 
         // Extract bind callback.
-        auto bind = std::move(std::get<0>(*result));
+        auto bind = std::move(*result);
 
         // Sanity.
         assert(bind);

@@ -4,7 +4,6 @@
 #include <mutex>
 #include <sstream>
 
-#include <mega/common/bind_handle.h>
 #include <mega/common/client_adapter.h>
 #include <mega/common/error_or.h>
 #include <mega/common/logging.h>
@@ -75,9 +74,6 @@ class ClientNodeEvent
 {
 public:
     ClientNodeEvent(sharedNode_vector::const_iterator position);
-
-    // What is this node's bind handle?
-    BindHandle bindHandle() const override;
 
     // Is this node a directory?
     bool isDirectory() const override;
@@ -604,8 +600,7 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle parent,
 }
 
 NodeHandle ClientAdapter::handle(NodeHandle parent,
-                                 const std::string& name,
-                                 BindHandle* bindHandle) const
+                                 const std::string& name) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
@@ -619,14 +614,7 @@ NodeHandle ClientAdapter::handle(NodeHandle parent,
 
     // Retrieve the child's handle.
     if (auto node = child(mClient, parent, name))
-    {
-        // Latch bind handle if requested.
-        if (bindHandle)
-            *bindHandle = BindHandle(node->nodekeyUnchecked());
-
-        // Return node handle to caller.
         return node->nodeHandle();
-    }
 
     // Parent or child doesn't exist.
     return NodeHandle();
@@ -1178,7 +1166,6 @@ void describe(NodeInfo& destination,
     if (destination.mIsDirectory)
         return;
 
-    destination.mBindHandle = BindHandle(source.nodekeyUnchecked());
     destination.mModified = source.mtime;
     destination.mSize = source.size;
 }
@@ -1204,15 +1191,6 @@ NodeInfo describe(Node& node)
 ClientNodeEvent::ClientNodeEvent(sharedNode_vector::const_iterator position)
   : mPosition(position)
 {
-}
-
-BindHandle ClientNodeEvent::bindHandle() const
-{
-    if ((*mPosition)->type == FILENODE
-        && (*mPosition)->changed.newnode)
-        return BindHandle((*mPosition)->nodekeyUnchecked());
-
-    return BindHandle();
 }
 
 bool ClientNodeEvent::isDirectory() const
@@ -1444,21 +1422,11 @@ void ClientUpload::completed(Transfer* upload, putsource_t)
                                   upload->uploadhandle,
                                   *upload->ultoken);
 
-    // Instantiate bind handle.
-    auto bindHandle = ([&] {
-        // Convenience.
-        auto data = reinterpret_cast<const char*>(&upload->filekey);
-        auto size = static_cast<std::size_t>(FILENODEKEYLENGTH);
-
-        // Return bind handle.
-        return BindHandle(std::string(data, size));
-    })();
-
     // Latch callback.
     auto callback = std::move(mCallback);
 
     // Let the user know they can bind a name to their data.
-    callback(std::make_pair(std::move(bind), bindHandle));
+    callback(std::move(bind));
 }
 
 void ClientUpload::terminated(mega::error result)

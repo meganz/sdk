@@ -23,6 +23,14 @@
             }
         },
         {
+            "name": "ios",
+            "hidden": true,
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_SYSTEM_NAME": "iOS"
+            }
+        },
+        {
             "name": "windows",
             "hidden": true,
             "generator": "Visual Studio 17 2022"
@@ -38,6 +46,16 @@
                 "android",
                 "mega"
             ]
+        },
+        {
+            "name": "mega-ios",
+            "inherits": [
+                "ios",
+                "mega"
+            ],
+            "cacheVariables": {
+                "ENABLE_LOG_PERFORMANCE": "ON"
+            }
         },
         {
             "name": "megacmd",

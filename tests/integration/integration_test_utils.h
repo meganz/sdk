@@ -21,7 +21,8 @@
 
 namespace sdk_test
 {
-
+using namespace std::chrono_literals;
+static constexpr auto MAX_TIMEOUT = 3min; // Timeout for operations in this file
 #ifdef ENABLE_SYNC
 
 /**
@@ -158,6 +159,26 @@ bool checkAndExpectThat(const T& value, const MatcherT& matcher)
     EXPECT_THAT(value, matcher);
     return matched;
 }
+
+/**
+ * @brief Downloads a file from MEGA
+ * @see MegaApi::startDownload for more details
+ * @return a Numeric errCode corresponding to MegaError received at
+ * MegaTransferListener::onTransferFinish, or nullopt if onTransferFinish is never called.
+ * Note: If onTransferFinish is called but MegaError is not valid API_EINTERNAL will be returned.
+ */
+std::optional<int> downloadNode(
+    ::mega::MegaApi* megaApi,
+    ::mega::MegaNode* node,
+    const std::filesystem::path& fsPath,
+    const std::chrono::seconds timeoutInSecs = MAX_TIMEOUT,
+    const int collisionCheck = ::mega::MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+    const int collisionResolution = ::mega::MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+    const char* customName = nullptr,
+    const char* appData = nullptr,
+    const bool startFirst = false,
+    ::mega::MegaCancelToken* cancelToken = nullptr,
+    const bool undelete = false);
 
 /**
  * @brief Uploads the file in the given path to the given parentNode.
