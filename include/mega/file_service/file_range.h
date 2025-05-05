@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <ostream>
 #include <string>
@@ -16,7 +17,10 @@ struct FileRange
     FileRange(std::uint64_t begin, std::uint64_t end):
         mBegin(begin),
         mEnd(end)
-    {}
+    {
+        // Sanity.
+        assert(end > begin);
+    }
 
     bool operator==(const FileRange& rhs) const
     {
