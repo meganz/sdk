@@ -107,6 +107,9 @@ public:
     // Initialize the client.
     void initialize() override;
 
+    // Check whether a node is a file.
+    ErrorOr<bool> isFile(NodeHandle handle) const override;
+
     // Make a new directory in the cloud.
     void makeDirectory(MakeDirectoryCallback callback,
                        const std::string& name,

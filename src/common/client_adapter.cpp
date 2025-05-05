@@ -659,6 +659,29 @@ void ClientAdapter::initialize()
     mDeinitialized = false;
 }
 
+ErrorOr<bool> ClientAdapter::isFile(NodeHandle handle) const
+{
+    // Make sure deinitialize(...) waits for this call to complete.
+    auto activity = mActivities.begin();
+
+    // Client's being torn down.
+    if (mDeinitialized)
+        return unexpected(API_ENOENT);
+
+    // Acquire RNT lock.
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
+
+    // Try and locate the specified node.
+    auto node = mClient.nodeByHandle(handle);
+
+    // Node doesn't exist.
+    if (!node)
+        return unexpected(API_ENOENT);
+
+    // Let the caller know if the node's a file.
+    return node->type == FILENODE;
+}
+
 void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
                                   const std::string& name,
                                   NodeHandle parent)

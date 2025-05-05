@@ -97,7 +97,10 @@ public:
 
     // Initialize the client for use.
     virtual void initialize() = 0;
-    
+
+    // Check whether a node is a file.
+    virtual ErrorOr<bool> isFile(NodeHandle handle) const = 0;
+
     // What logger is this client using?
     Logger& logger() const;
 
