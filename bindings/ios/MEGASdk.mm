@@ -3291,15 +3291,15 @@ using namespace mega;
     }
 }
 
-- (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setContactLinksOptionEnable:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->setContactLinksOption(disable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->setContactLinksOption(enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
-- (void)setContactLinksOptionDisable:(BOOL)disable {
+- (void)setContactLinksOptionEnable:(BOOL)enable {
     if (self.megaApi) {
-        self.megaApi->setContactLinksOption(disable);
+        self.megaApi->setContactLinksOption(enable);
     }
 }
 
