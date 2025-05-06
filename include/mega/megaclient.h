@@ -1939,6 +1939,9 @@ public:
     // abort queued direct read(s)
     void abortreads(handle, bool, m_off_t, m_off_t);
 
+    // abort all queued direct reads.
+    void abortreads();
+
     static const char PAYMENT_PUBKEY[];
 
     void dodiscarduser(User* u, bool discardnotified);

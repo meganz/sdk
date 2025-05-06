@@ -17319,6 +17319,24 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
     i->second->abort(std::move(predicate));
 }
 
+void MegaClient::abortreads()
+{
+    auto always = [](const DirectRead&)
+    {
+        return true;
+    };
+
+    // Iterate over any active direct read nodes.
+    for (auto i = hdrns.begin(); i != hdrns.end();)
+    {
+        // Abort pending reads queued on that node.
+        i->second->abort(always);
+
+        // Destroy the node.
+        delete i++->second;
+    }
+}
+
 // execute pending directreads
 bool MegaClient::execdirectreads()
 {
