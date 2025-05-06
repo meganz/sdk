@@ -2642,6 +2642,8 @@ public:
         TYPE_SCHEDULEDMEETING_NEW,
         TYPE_SCHEDULEDMEETING_DELETED,
         TYPE_SCHEDULEDMEETING_UPDATED,
+        TYPE_SET_TAKEDOWN,
+        TYPE_SET_TAKEDOWN_REINSTATED,
 
         TOTAL_OF_ALERT_TYPES
     };
@@ -2738,17 +2740,19 @@ public:
     virtual MegaHandle getUserHandle() const;
 
     /**
-    * @brief Returns the handle of a node related to the alert
-    *
-    * This value is valid for alerts that relate to a single node.
-    *  TYPE_NEWSHARE (folder handle), TYPE_DELETEDSHARE (folder handle), TYPE_NEWSHAREDNODES (parent handle), TYPE_TAKEDOWN (node handle),
-    *  TYPE_TAKEDOWN_REINSTATED (node handle)
-    *
-    * This value is also valid for the following alerts:
-    * TYPE_SCHEDULEDMEETING_NEW (chatid), TYPE_SCHEDULEDMEETING_DELETED (chatid), TYPE_SCHEDULEDMEETING_UPDATED (chatid)
-    *
-    * @return the relevant node handle, or UNDEF if this alert does not have one.
-    */
+     * @brief Returns the handle of a node related to the alert
+     *
+     * This value is valid for alerts that relate to a single node.
+     *  TYPE_NEWSHARE (folder handle), TYPE_DELETEDSHARE (folder handle), TYPE_NEWSHAREDNODES
+     * (parent handle), TYPE_TAKEDOWN (node handle), TYPE_TAKEDOWN_REINSTATED (node handle)
+     *
+     * This value is also valid for the following alerts:
+     * TYPE_SCHEDULEDMEETING_NEW (chatid), TYPE_SCHEDULEDMEETING_DELETED (chatid),
+     * TYPE_SCHEDULEDMEETING_UPDATED (chatid), TYPE_SET_TAKEDOWN (set id),
+     * TYPE_SET_TAKEDOWN_REINSTATED (set id)
+     *
+     * @return the relevant node handle, or UNDEF if this alert does not have one.
+     */
     virtual MegaHandle getNodeHandle() const;
 
     /**
@@ -2813,7 +2817,8 @@ public:
      * This value is valid for those alerts that relate to a single name, provided
      * it could be looked up from the cached nodes at the time the alert arrived.
      * Otherwise, it may be obtainable via the nodeHandle.
-     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
+     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?,
+     *   TYPE_SET_TAKEDOWN?, TYPE_SET_TAKEDOWN_REINSTATED?
      *
      * @return the name string if relevant and available, otherwise NULL
      */

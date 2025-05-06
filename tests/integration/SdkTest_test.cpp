@@ -14751,6 +14751,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
  *      Payment                         skipped (out of user control)
  *      PaymentReminder                 skipped (out of user control)
  *      Takedown                        skipped (out of user control)
+ *      SetTakedown                     skipped (out of user control)
  */
 TEST_F(SdkTest, SdkUserAlerts)
 {

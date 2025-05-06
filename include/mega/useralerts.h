@@ -301,6 +301,26 @@ namespace UserAlert
         static Takedown* unserialize(string*, unsigned id);
     };
 
+    struct SetTakedown: public Base
+    {
+        bool isTakedown;
+        bool isReinstate;
+        m_off_t reason;
+        handle setId;
+
+        SetTakedown(UserAlertRaw& un, unsigned int id);
+        SetTakedown(bool down,
+                    bool reinstate,
+                    m_off_t downReason,
+                    handle sId,
+                    m_time_t timestamp,
+                    unsigned int id);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+
+        bool serialize(string*) const override;
+        static SetTakedown* unserialize(string*, unsigned id);
+    };
+
 #ifdef ENABLE_CHAT
     struct NewScheduledMeeting : public Base
     {

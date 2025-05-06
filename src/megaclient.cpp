@@ -21099,7 +21099,8 @@ error MegaClient::readExportedSet(JSON& j, Set& s)
     handle publicHandle{UNDEF};
     PublicLinkSet::LinkDeletionReason reason{PublicLinkSet::LinkDeletionReason::NO_REMOVED};
     bool removed{false};
-    bool takeDown{false};
+    bool containsTakenDownInfo = false;
+    bool isDown = false;
     for (;;)
     {
         switch (jsonsc.getnameid())
@@ -21159,6 +21160,16 @@ error MegaClient::readExportedSet(JSON& j, Set& s)
         }
 
         case EOO:
+            // Create an user alert if needed
+            if (containsTakenDownInfo && !ISUNDEF(s.id()) && statecurrent)
+            {
+                useralerts.add(new UserAlert::SetTakedown(isDown,
+                                                          !isDown,
+                                                          static_cast<m_off_t>(reason),
+                                                          s.id(),
+                                                          m_time(),
+                                                          useralerts.nextId()));
+            }
             if (removed)
             {
                 s.setPublicLink(nullptr);
@@ -21167,13 +21178,11 @@ error MegaClient::readExportedSet(JSON& j, Set& s)
             {
                 std::unique_ptr<PublicLinkSet> publicLinkSet;
                 publicLinkSet.reset(new PublicLinkSet(publicHandle));
-                publicLinkSet->setTakeDown(takeDown);
+                publicLinkSet->setTakeDown(isDown);
                 publicLinkSet->setLinkDeletionReason(reason);
                 s.setPublicLink(std::move(publicLinkSet));
             }
-
             return API_OK;
-
         }
     }
 }
