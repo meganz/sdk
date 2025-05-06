@@ -1,12 +1,11 @@
 #pragma once
 
-#include "mega/types.h"
-
 #include <mega/common/client_callbacks.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
 #include <mega/common/node_info_forward.h>
 #include <mega/common/normalized_path_forward.h>
+#include <mega/common/partial_download_forward.h>
 #include <mega/common/task_queue_forward.h>
 #include <mega/common/upload_callbacks.h>
 #include <mega/common/upload_forward.h>
@@ -20,6 +19,7 @@
 #include <mega/fuse/common/testing/cloud_path_forward.h>
 #include <mega/fuse/common/testing/mount_event_observer_forward.h>
 #include <mega/fuse/common/testing/path.h>
+#include <mega/types.h>
 
 #include <chrono>
 #include <condition_variable>
@@ -243,6 +243,9 @@ public:
     Error move(const std::string& name,
                CloudPath source,
                CloudPath target);
+
+    // Download part of a file from the cloud.
+    auto partialDownload(CloudPath path) -> common::ErrorOr<common::PartialDownloadPtr>;
 
     // Reload the cloud tree.
     virtual Error reload() = 0;

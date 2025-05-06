@@ -8,6 +8,8 @@
 #include <mega/common/node_event_type.h>
 #include <mega/common/node_info.h>
 #include <mega/common/normalized_path.h>
+#include <mega/common/partial_download.h>
+#include <mega/common/partial_download_callback.h>
 #include <mega/common/status_flag.h>
 #include <mega/common/upload.h>
 #include <mega/common/utility.h>
@@ -19,6 +21,7 @@
 #include <atomic>
 #include <cassert>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <sstream>
 
@@ -119,6 +122,62 @@ public:
     // How many events are in the queue?
     std::size_t size() const override;
 }; // ClientNodeEventQueue
+
+class ClientPartialDownload:
+    public PartialDownload,
+    public std::enable_shared_from_this<ClientPartialDownload>
+{
+    // Convenience.
+    using Data = DirectRead::Data;
+    using Event = DirectRead::CallbackParam;
+    using Failure = DirectRead::Failure;
+
+    // Called when the download's been completed.
+    void completed(Error result);
+
+    // Called when the SDK wants to feed us file content.
+    void data(Data& data, std::uint64_t& remaining);
+
+    // Called when the SDK wants to report a download failure.
+    void failure(Failure& failure);
+
+    // Called when the SDK wants to notify us about our download.
+    void notify(PartialDownloadWeakPtr cookie, Event& event, std::uint64_t& remaining);
+
+    // The callback that will receive file content.
+    std::atomic<PartialDownloadCallback*> mCallback;
+
+    // The client that will perform our download.
+    ClientAdapter& mClient;
+
+    // The file that we're downloading.
+    const NodeHandle mHandle;
+
+    // Tracks the status of the download.
+    std::atomic<StatusFlags> mStatus;
+
+public:
+    ClientPartialDownload(ClientAdapter& client, NodeHandle handle);
+
+    ~ClientPartialDownload();
+
+    // Begin the partial download.
+    void begin(PartialDownloadCallback& callback,
+               std::uint64_t offset,
+               std::uint64_t length) override;
+
+    // Cancel the partial download.
+    bool cancel() override;
+
+    // Is this download cancellable?
+    bool cancellable() const override;
+
+    // Has the download been cancelled?
+    bool cancelled() const override;
+
+    // Has this download completed?
+    bool completed() const override;
+}; // ClientPartialDownload
 
 class ClientUpload;
 
@@ -808,6 +867,26 @@ NodeHandle ClientAdapter::parentHandle(NodeHandle handle) const
     return NodeHandle();
 }
 
+auto ClientAdapter::partialDownload(NodeHandle handle) -> ErrorOr<PartialDownloadPtr>
+{
+    // Check if the specified node exists and denotes a file.
+    auto isFile = this->isFile(handle);
+
+    // Node exists.
+    if (isFile)
+    {
+        // And it denotes a file.
+        if (*isFile)
+            return std::make_shared<ClientPartialDownload>(*this, handle);
+
+        // Node isn't a file.
+        return unexpected(API_FUSE_EISDIR);
+    }
+
+    // Node doesn't exist or isn't accessible.
+    return unexpected(isFile.error());
+}
+
 accesslevel_t ClientAdapter::permissions(NodeHandle handle) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
@@ -1296,6 +1375,267 @@ void ClientNodeEventQueue::pop_front()
 std::size_t ClientNodeEventQueue::size() const
 {
     return mEvents.size();
+}
+
+void ClientPartialDownload::completed(Error result)
+{
+    StatusFlags desired = SF_COMPLETED;
+    StatusFlags expected = SF_CANCELLABLE;
+
+    // Treat EINCOMPLETE as a cancellation.
+    if (result == API_EINCOMPLETE)
+        desired |= SF_CANCELLED;
+
+    // Download's been cancelled.
+    if (!mStatus.compare_exchange_weak(expected, desired))
+        return;
+
+    // Get our hands on our callback.
+    auto* callback = mCallback.load();
+
+    // Sanity.
+    assert(callback);
+
+    // Let the user know how the download completed.
+    callback->completed(result);
+}
+
+void ClientPartialDownload::data(Data& data, std::uint64_t& remaining)
+{
+    // Assume the download should be terminated.
+    data.ret = false;
+
+    // Get our hands on our callback.
+    auto* callback = mCallback.load();
+
+    // Terminate the download as we've been cancelled.
+    if (!callback)
+        return;
+
+    // Convenience.
+    auto buffer = reinterpret_cast<const void*>(data.buffer);
+    auto offset = static_cast<std::uint64_t>(data.offset);
+    auto length = static_cast<std::uint64_t>(data.len);
+
+    // Clamp length.
+    length = std::min(length, remaining);
+
+    // Pass data to the user callback.
+    callback->data(buffer, offset, length);
+
+    // Figure out how many bytes we still have to download.
+    remaining -= length;
+
+    // We've got all the data we asked for.
+    if (!remaining)
+        return completed(API_OK);
+
+    // Continue the download.
+    data.ret = true;
+}
+
+void ClientPartialDownload::failure(Failure& failure)
+{
+    // Assume we've been cancelled or the read has been aborted.
+    failure.ret = NEVER;
+
+    // Get our hands on our callback.
+    auto* callback = mCallback.load();
+
+    // Download's been cancelled.
+    if (!callback)
+        return;
+
+    // Client's being torn down or the read's been aborted.
+    if (failure.e == API_EINCOMPLETE)
+        return completed(API_EINCOMPLETE);
+
+    // Dispatch the callback.
+    auto result = callback->failed(failure.e, failure.retry);
+
+    // Convenience.
+    using Abort = PartialDownloadCallback::Abort;
+    using Retry = PartialDownloadCallback::Retry;
+
+    // Let the SDK know if it should abort the download or retry.
+    std::visit(overloaded{[&](const Abort&)
+                          {
+                              // Let the user know why the read has completed.
+                              completed(failure.e);
+                          },
+                          [&](const Retry& retry)
+                          {
+                              // Retry in mWhen ds.
+                              failure.ret = retry.mWhen.count();
+                          }},
+               result);
+}
+
+void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie,
+                                   Event& event,
+                                   std::uint64_t& remaining)
+{
+    // Convenience.
+    using Revoke = DirectRead::Revoke;
+    using Valid = DirectRead::IsValid;
+
+    // Try and get a reference to ourselves.
+    auto download = cookie.lock();
+
+    // We're sane if we're alive and haven't been cancelled.
+    auto sane = download && !cancelled();
+
+    // Dispatch the event.
+    std::visit(overloaded{[&](Data& data)
+                          {
+                              // Handle the data if we're still sane.
+                              if (sane)
+                                  return this->data(data, remaining);
+
+                              // Otherwise cancel the download.
+                              data.ret = false;
+                          },
+                          [&](Failure& failure)
+                          {
+                              // Handle the failure if we're still sane.
+                              if (sane)
+                                  return this->failure(failure);
+
+                              // Otherwise cancel the download.
+                              failure.ret = NEVER;
+                          },
+                          [&](Revoke&)
+                          {
+                              // No op for now.
+                          },
+                          [&](Valid& valid)
+                          {
+                              // We're valid if we're sane.
+                              valid.ret = sane;
+                          }},
+               event);
+}
+
+ClientPartialDownload::ClientPartialDownload(ClientAdapter& client, NodeHandle handle):
+    PartialDownload(),
+    enable_shared_from_this(),
+    mCallback{nullptr},
+    mClient(client),
+    mHandle(handle),
+    mStatus{}
+{}
+
+ClientPartialDownload::~ClientPartialDownload()
+{
+    // Cancel the download if necessary.
+    cancel();
+}
+
+void ClientPartialDownload::begin(PartialDownloadCallback& callback,
+                                  std::uint64_t offset,
+                                  std::uint64_t length)
+{
+    PartialDownloadCallback* desired{};
+
+    // The download's already begun.
+    if (!mCallback.compare_exchange_weak(desired, &callback))
+        return callback.completed(API_FUSE_EALREADY);
+
+    // Let the user know the download can now be cancelled.
+    mStatus = SF_CANCELLABLE;
+
+    // So we can test whether the user's destroyed this instance.
+    auto cookie = weak_from_this();
+
+    // Try and begin the download.
+    mClient.execute(
+        [=, this](const Task& task) mutable
+        {
+            // Client's being torn down.
+            if (task.cancelled())
+                return;
+
+            // Check whether this download is still alive.
+            auto download = cookie.lock();
+
+            // Download's been destroyed.
+            //
+            // Our destructor should've notified our callback.
+            if (!download)
+                return;
+
+            // Download's been cancelled.
+            //
+            // cancel(...) should've notified our callback.
+            if (cancelled())
+                return;
+
+            // Get our hands on the node we want to download.
+            auto node = mClient.client().nodeByHandle(mHandle);
+
+            // Node doesn't exist.
+            if (!node)
+                return completed(API_ENOENT);
+
+            // Convenience.
+            auto size = static_cast<std::uint64_t>(node->size);
+
+            // Sanitize the user's offset and length.
+            offset = std::min(offset, size);
+            length = std::min(length, size - offset);
+
+            // Sanitized length is zero so complete the download early.
+            if (!length)
+                return completed(API_OK);
+
+            // So we can use our notify method as a callback.
+            DirectRead::Callback notify = std::bind(&ClientPartialDownload::notify,
+                                                    this,
+                                                    std::move(cookie),
+                                                    std::placeholders::_1,
+                                                    length);
+
+            // Begin the download.
+            mClient.client().pread(node.get(),
+                                   static_cast<m_off_t>(offset),
+                                   static_cast<m_off_t>(length),
+                                   std::move(notify));
+        });
+}
+
+bool ClientPartialDownload::cancel()
+{
+    StatusFlags desired = SF_CANCELLED | SF_COMPLETED;
+    StatusFlags expected = SF_CANCELLABLE;
+
+    // Download's already been cancelled.
+    if (!mStatus.compare_exchange_weak(expected, desired))
+        return false;
+
+    // Get our hands on our callback.
+    auto* callback = mCallback.exchange(nullptr);
+
+    // Let the user know why their download has completed.
+    if (callback)
+        callback->completed(API_EINCOMPLETE);
+
+    // Download's been cancelled.
+    return true;
+}
+
+bool ClientPartialDownload::cancellable() const
+{
+    return (mStatus & SF_CANCELLABLE) > 0;
+}
+
+bool ClientPartialDownload::cancelled() const
+{
+    return (mStatus & SF_CANCELLED) > 0;
+}
+
+bool ClientPartialDownload::completed() const
+{
+    return (mStatus & SF_COMPLETED) > 0;
 }
 
 void ClientUpload::bind(BoundCallback callback,

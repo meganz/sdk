@@ -486,6 +486,16 @@ Error Client::move(const std::string& name,
     return client().move(name, sourceHandle, targetHandle);
 }
 
+auto Client::partialDownload(CloudPath path) -> ErrorOr<PartialDownloadPtr>
+{
+    auto handle = path.resolve(*this);
+
+    if (!handle.isUndef())
+        return client().partialDownload(handle);
+
+    return unexpected(API_ENOENT);
+}
+
 Error Client::remove(CloudPath path)
 {
     auto handle = path.resolve(*this);

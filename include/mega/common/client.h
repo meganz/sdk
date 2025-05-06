@@ -1,10 +1,5 @@
 #pragma once
 
-#include <functional>
-#include <set>
-#include <string>
-#include <tuple>
-
 #include <mega/common/client_callbacks.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
@@ -12,11 +7,16 @@
 #include <mega/common/node_event_observer_forward.h>
 #include <mega/common/node_info_forward.h>
 #include <mega/common/normalized_path_forward.h>
+#include <mega/common/partial_download_forward.h>
 #include <mega/common/task_queue_forward.h>
 #include <mega/common/upload_callbacks.h>
 #include <mega/common/upload_forward.h>
-
 #include <mega/types.h>
+
+#include <functional>
+#include <set>
+#include <string>
+#include <tuple>
 
 namespace mega
 {
@@ -143,6 +143,9 @@ public:
 
     // Query who a node's parent is.
     virtual NodeHandle parentHandle(NodeHandle handle) const = 0;
+
+    // Download part of a file from the cloud.
+    virtual auto partialDownload(NodeHandle handle) -> ErrorOr<PartialDownloadPtr> = 0;
 
     // What permissions are applicable to a node?
     virtual accesslevel_t permissions(NodeHandle handle) const = 0;

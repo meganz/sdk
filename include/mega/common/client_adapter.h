@@ -129,6 +129,9 @@ public:
     // Query who a node's parent is.
     NodeHandle parentHandle(NodeHandle handle) const override;
 
+    // Download part of a file from the cloud.
+    auto partialDownload(NodeHandle handle) -> ErrorOr<PartialDownloadPtr> override;
+
     // What permissions are applicable to a node?
     accesslevel_t permissions(NodeHandle handle) const override;
 
