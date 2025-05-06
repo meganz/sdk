@@ -110,6 +110,18 @@ public:
     }
 
     // Add a range into the tree.
+    //
+    // NOTE: This function will always allocate a new node regardless of
+    // of whether the range described by that node is already present in
+    // some form in the tree.
+    //
+    // If some overlapping range is already present in the tree, the node we
+    // eagerly allocated will be deallocated and an iterator to the first
+    // overlapping range in the tree will be returned.
+    //
+    // If you want to add a range to the tree and you really don't want to
+    // allocate anything unless the addition actually happens, you should
+    // call tryAdd(...) below instead.
     template<typename Parameter, typename... Parameters>
     auto add(Parameter&& argument, Parameters&&... arguments) -> std::pair<Iterator, bool>
     {
@@ -285,6 +297,17 @@ public:
     }
 
     // Try and add a new range to the tree.
+    //
+    // tryAdd(...) is a more restrictive and performant version of add(...).
+    //
+    // Unlike add(...), it'll allocate a new node if and only if no other
+    // ranges in the tree overlap the range provided.
+    //
+    // If some ranges overlap the range provided by the caller, this
+    // function will return an iterator to the first such range.
+    //
+    // If no ranges overlap the range provided by the caller, a new node
+    // will be created based on that range and the specified arguments.
     template<typename... Parameters>
     auto tryAdd(FileRange range, Parameters&&... arguments) -> std::pair<Iterator, bool>
     {
