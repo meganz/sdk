@@ -785,6 +785,8 @@ public:
         return localroot != nullptr && localroot->hasPendingTransfers();
     }
 
+    bool hasPendingTransfersThreadSafeState() const;
+
     // What filesystem is this sync running on?
     const fsfp_t& fsfp() const;
 
@@ -2395,6 +2397,9 @@ private:
      * @return vector with the latest known *!sds user attribute values.
      */
     SyncsDesiredStates getSdsBackupsFullSync() const;
+
+public:
+    bool anySyncHasPendingTransfersThreadSafeState() const;
 };
 
 class OverlayIconCachedPaths

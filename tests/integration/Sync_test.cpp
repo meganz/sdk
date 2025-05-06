@@ -1952,6 +1952,36 @@ void StandardClient::request_response_progress(m_off_t a, m_off_t b)
     out() << clientname << " request_response_progress: " << a << " " << b;
 }
 
+void StandardClient::updateClientDowaitDs(const dstime lastClientDoWait)
+{
+    if (lastClientDoWait <= 0)
+        return;
+    lock_guard<mutex> guard(om);
+    mClientDowaitDs += lastClientDoWait;
+}
+
+dstime StandardClient::consumeClientDowaitDs(const dstime timeGranularity)
+{
+    if (timeGranularity <= 0)
+    {
+        LOG_err << "[StandardClient::consumeClientDowaitDs] timeGranularity (" << timeGranularity
+                << ") should be above 0";
+        assert(false &&
+               "[StandardClient::consumeClientDowaitDs] timeGranularity should be above 0");
+        return 0;
+    }
+    lock_guard<mutex> guard(om);
+    const auto clientDowaitDsToReturn = mClientDowaitDs / timeGranularity;
+    mClientDowaitDs -= clientDowaitDsToReturn;
+    return clientDowaitDsToReturn;
+}
+
+void StandardClient::resetClientDowaitDs()
+{
+    lock_guard<mutex> guard(om);
+    mClientDowaitDs = 0;
+}
+
 void StandardClient::threadloop()
     try
 {
@@ -1986,7 +2016,10 @@ void StandardClient::threadloop()
 
         client.waiter->bumpds();
         dstime t3 = client.waiter->ds.load();
-        if (t3 - t2 > 20) LOG_debug << "dowait took ds: " << t3 - t2;
+        const auto doWaitTimeDs = t3 - t2;
+        updateClientDowaitDs(doWaitTimeDs);
+        if (doWaitTimeDs >= 10)
+            LOG_debug << "dowait took ds: " << doWaitTimeDs;
 
         std::lock_guard<std::recursive_mutex> lg(clientMutex);
 
@@ -4859,6 +4892,7 @@ bool StandardClient::waitFor(std::function<bool(StandardClient&)> predicate,
                              std::chrono::seconds timeout,
                              std::chrono::milliseconds sleepIncrement)
 {
+    resetClientDowaitDs();
     auto total = std::chrono::milliseconds(0);
 
     out() << "Waiting for predicate to match...";
@@ -4870,6 +4904,13 @@ bool StandardClient::waitFor(std::function<bool(StandardClient&)> predicate,
             out() << "Predicate has matched!";
 
             return true;
+        }
+
+        if (const auto clientDowaitSecs = consumeClientDowaitDs(10);
+            clientDowaitSecs > 0 && timeout < std::chrono::seconds(300))
+        {
+            LOG_debug << "Adding " << clientDowaitSecs << " secs to timeout";
+            timeout += std::chrono::seconds(clientDowaitSecs);
         }
 
         if (total >= timeout)
@@ -5639,10 +5680,18 @@ bool noSyncStalled(vector<SyncWaitResult>& v)
     return true;
 }
 
-vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity, int64_t millisecNoSyncing)> endCondition, StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
+using WaitOnSyncsEndCondition =
+    std::function<bool(const std::chrono::milliseconds noActivityTime,
+                       const std::chrono::milliseconds noSyncingTime,
+                       const std::chrono::seconds noActivityExtraTimeForTimeout)>;
+
+vector<SyncWaitResult> waitonsyncs(WaitOnSyncsEndCondition&& endCondition,
+                                   StandardClient* c1 = nullptr,
+                                   StandardClient* c2 = nullptr,
+                                   StandardClient* c3 = nullptr,
+                                   StandardClient* c4 = nullptr)
 {
-
-
+    LOG_debug << "waitonsyncs starts";
     auto totalTimeoutStart = chrono::steady_clock::now();
     auto startNoActivity = chrono::steady_clock::now();
     auto startNoSyncing = chrono::steady_clock::now();
@@ -5653,54 +5702,59 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
     vector<StandardClient*> v{ c1, c2, c3, c4 };
     vector<SyncWaitResult> result{SyncWaitResult(), SyncWaitResult(), SyncWaitResult(), SyncWaitResult()};
 
+    for (auto sClient: v)
+    {
+        if (sClient)
+            sClient->resetClientDowaitDs();
+    }
+
     for (;;)
     {
         bool any_activity = false;
         bool any_still_syncing = false;
         bool any_running_at_all = false;
         bool any_stalled = false;
+        bool any_stalled_with_pending_reqs_or_scanning = false;
 
-        for (size_t i = v.size(); i--; ) if (v[i])
+        for (const auto i: range(v.size()))
         {
-            v[i]->thread_do<bool>([&](StandardClient& mc, PromiseBoolSP pb)
-                {
-                    result[i].syncStalled = mc.syncStallDetected(result[i].stall);
+            if (!v[i])
+                continue;
 
-                    if (result[i].syncStalled)
+            v[i]->thread_do<bool>(
+                    [&](StandardClient& mc, PromiseBoolSP pb)
                     {
-                        any_stalled = true;
-                        if (!stallStarted)
-                        {
-                            stallStarted = true;
-                            startStalled = chrono::steady_clock::now();
-                        }
-                    }
-                    else
-                    {
-                        any_running_at_all |= mc.client.syncs.mNumSyncsActive > 0;
+                        const auto anyTransfersOrCmds =
+                            !mc.client.transferlist.transfers[GET].empty() ||
+                            !mc.client.transferlist.transfers[PUT].empty() ||
+                            mc.client.reqs.cmdsInflight() ||
+                            mc.client.syncs.anySyncHasPendingTransfersThreadSafeState();
 
-                        if (mc.client.syncs.syncBusyState)
+                        if (result[i].syncStalled = mc.syncStallDetected(result[i].stall) ||
+                                                    mc.client.syncs.syncConflictState;
+                            result[i].syncStalled)
                         {
-                            any_activity = true;
+                            any_stalled = true;
+                            any_stalled_with_pending_reqs_or_scanning |=
+                                (anyTransfersOrCmds || mc.client.syncs.syncscanstate);
+                            if (!stallStarted)
+                            {
+                                stallStarted = true;
+                                startStalled = chrono::steady_clock::now();
+                            }
+                        }
+                        else
+                        {
+                            any_running_at_all |= mc.client.syncs.mNumSyncsActive > 0;
+                            any_activity |= (anyTransfersOrCmds || mc.client.syncs.syncBusyState);
+                            any_still_syncing |= mc.client.syncs.syncBusyState;
                         }
 
-                        if (!(mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
-                        {
-                            any_activity = true;
-                        }
-                        if (mc.client.syncs.syncBusyState)
-                        {
-                            any_still_syncing = true;
-                        }
-                        if (mc.client.reqs.cmdsInflight())
-                        {
-                            // helps with waiting for 500s to pass
-                            any_activity = true;
-                        }
-                    }
-
-                    pb->set_value(true);
-                }, __FILE__, __LINE__).get();
+                        pb->set_value(true);
+                    },
+                    __FILE__,
+                    __LINE__)
+                .get();
         }
 
         if (!any_stalled)
@@ -5710,17 +5764,23 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
         if (!any_running_at_all)
         {
-            bool stallexit = stallStarted && chrono::steady_clock::now() - startStalled > std::chrono::milliseconds(2000);
+            const auto millisecsToWait = any_stalled_with_pending_reqs_or_scanning ?
+                                             std::chrono::milliseconds(20000) :
+                                             std::chrono::milliseconds(3500);
+            const auto stallexit =
+                stallStarted && chrono::steady_clock::now() - startStalled > millisecsToWait;
             if (stallexit)
             {
                 // don't drop out of the wait if we are only stalled briefly.
                 // we've seen this happen if a .megaignore is not read properly -
                 // size is known, but read operations returns too few bytes, without error (in RenameReplaceIgnoreFile, on windows)
-                LOG_debug << " waitonsyncs detected syncs stalled for two seconds";
+                LOG_debug << " waitonsyncs detected syncs stalled for " << millisecsToWait.count()
+                          << " ms";
             }
             if (!stallStarted || stallexit)
             {
-                LOG_debug << " waitonsyncs finished since no non-stalled clients have any running syncs";
+                LOG_debug
+                    << " waitonsyncs finished since no non-stalled clients have any running syncs";
                 return result;
             }
         }
@@ -5734,6 +5794,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
             startNoSyncing = chrono::steady_clock::now();
         }
 
+        auto noActivityExtraTimeForTimeout = std::chrono::seconds(0);
         auto minNoActivityTime = std::chrono::milliseconds(6 * 60 * 1000);
         auto minNoSyncingTime = std::chrono::milliseconds(6 * 60 * 1000);
         for (auto vn : v) if (vn)
@@ -5745,8 +5806,10 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
             auto t3 = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - startNoSyncing);
             if (t3 < minNoSyncingTime) minNoSyncingTime = t3;
+
+            noActivityExtraTimeForTimeout += std::chrono::seconds(vn->consumeClientDowaitDs(10));
         }
-        if (endCondition(minNoActivityTime.count(), minNoSyncingTime.count()))
+        if (endCondition(minNoActivityTime, minNoSyncingTime, noActivityExtraTimeForTimeout))
         {
             return result;
         }
@@ -5755,28 +5818,53 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
         if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(5))
         {
-            out() << "Waiting for syncing to stop timed out at 5 minutes";
+            out() << "waitonsyncs waiting for syncing to stop timed out at 5 minutes";
             return result;
         }
     }
 }
 
-vector<SyncWaitResult> waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
+vector<SyncWaitResult> waitonsyncs(const std::chrono::seconds timeout = std::chrono::seconds(4),
+                                   StandardClient* c1 = nullptr,
+                                   StandardClient* c2 = nullptr,
+                                   StandardClient* c3 = nullptr,
+                                   StandardClient* c4 = nullptr)
 {
-    auto endCondition = [d](int64_t millisecNoActivity, int64_t millisecNoSyncing)
+    auto endCondition = [&timeout](const std::chrono::milliseconds noActivityTime,
+                                   const std::chrono::milliseconds noSyncingTime,
+                                   const std::chrono::seconds noActivityExtraTimeForTimeout)
     {
-        auto n = std::chrono::duration_cast<chrono::milliseconds>(d).count();
-        bool result = millisecNoActivity > n &&  millisecNoSyncing > n;
+        const auto noActivityTimeout =
+            std::min<std::chrono::seconds>(timeout + noActivityExtraTimeForTimeout,
+                                           std::chrono::minutes(4));
+        const auto result = noActivityTime >= noActivityTimeout && noSyncingTime >= timeout;
         if (result)
         {
-            LOG_debug << "waitonsyncs complete after " << millisecNoActivity << " ms of no activity and " << millisecNoSyncing << " ms of no syncing";
+            LOG_debug << "waitonsyncs complete after " << noActivityTime.count()
+                      << " ms of no activity and " << noSyncingTime.count()
+                      << " ms of no syncing [timeout = " << timeout.count()
+                      << " secs, noActivityExtraTimeForTimeout = "
+                      << noActivityExtraTimeForTimeout.count() << " secs]";
         }
         return result;
     };
 
-    return waitonsyncs(endCondition, c1, c2, c3, c4);
+    return waitonsyncs(std::move(endCondition), c1, c2, c3, c4);
 }
 
+bool StandardClient::waitForSyncTotalStallsStateUpdateTrue(const std::chrono::seconds timeout)
+{
+    if (const auto totalStallsStateUpdateResult =
+            waitFor(SyncTotalStallsStateUpdate(true), timeout);
+        !totalStallsStateUpdateResult)
+    {
+        LOG_warn << "SyncTotalStallsStateUpdate(true) was false, it could be due to a change of "
+                    "stall state that was temporary false due to pending scans, and then set to "
+                    "true again when there only was 1 stall. Checking we are in stall state...";
+        return mStallDetected;
+    }
+    return true;
+}
 
 mutex StandardClient::om;
 bool StandardClient::debugging = false;
@@ -8539,7 +8627,7 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     client->createHardLink(root / ldir4 / "n0", root / ldir4 / "e" / "n5", sPath2, tPath2);
 
     waitonsyncs(TIMEOUT, client);
-    ASSERT_TRUE(client->waitFor(SyncTotalStallsStateUpdate(true), TIMEOUT));
+    ASSERT_TRUE(client->waitForSyncTotalStallsStateUpdateTrue(TIMEOUT));
     ASSERT_NO_FATAL_FAILURE(client->checkStallIssues(backupId4, 2u, sPath2, tPath2));
 }
 #endif
@@ -12896,7 +12984,7 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
     RemoteNodeModel remoteTree;
 
     // Set up local FS.
-    localFS.addfile("f");
+    localFS.addfile("f", data);
     localFS.generate(root(*cdu) / "root");
     localFS.addfile(".megaignore", ignoreFile);
 
@@ -17296,7 +17384,7 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
     waitonsyncs(TIMEOUT, client);
 
     // Wait for the engine to detect a stall update
-    ASSERT_TRUE(client->waitFor(SyncTotalStallsStateUpdate(true), TIMEOUT));
+    ASSERT_TRUE(client->waitForSyncTotalStallsStateUpdateTrue(TIMEOUT));
 
     // Make sure the stalls collection is updated
     stalls.clear();
@@ -17333,7 +17421,7 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
     waitonsyncs(TIMEOUT, client);
 
     // Wait for the stall state to be updated. We should still have one stall (updated as we had two stalls before).
-    ASSERT_TRUE(client->waitFor(SyncTotalStallsStateUpdate(true), TIMEOUT));
+    ASSERT_TRUE(client->waitForSyncTotalStallsStateUpdateTrue(TIMEOUT));
 
     // Make sure the stalls collection is updated
     stalls.clear();
