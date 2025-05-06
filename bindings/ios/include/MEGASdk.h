@@ -8233,25 +8233,10 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * Valid data in the MEGARequest object received in onRequestFinish:
  * - [MEGARequest text] - "0" for disable, "1" for enable
  *
- * @param disable YES to disable the automatic approval of incoming contact requests using a contact link
+ * @param enable YES to enable the automatic approval of incoming contact requests using a contact link
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
- *
- * The associated request type with this request is MEGARequestTypeSetAttrUser
- *
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
- *
- * Valid data in the MEGARequest object received in onRequestFinish:
- * - [MEGARequest text] - "0" for disable, "1" for enable
- *
- * @param disable YES to disable the automatic approval of incoming contact requests using a contact link
- */
-- (void)setContactLinksOptionDisable:(BOOL)disable;
+- (void)setContactLinksOption:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
