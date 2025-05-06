@@ -17301,30 +17301,22 @@ void MegaClient::preadabort(handle ph, m_off_t offset, m_off_t count)
 
 void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
 {
-    handledrn_map::iterator it;
-    DirectReadNode* drn;
-
     encodehandletype(&h, p);
 
-    if ((it = hdrns.find(h)) != hdrns.end())
+    // Try and find the direct read node associated with our handle.
+    auto i = hdrns.find(h);
+
+    // No node assocated with this handle.
+    if (i == hdrns.end())
+        return;
+
+    auto predicate = [=](const DirectRead& read)
     {
-        drn = it->second;
+        return (count < 0 || count == read.count) && (offset < 0 || offset == read.offset);
+    }; // predicate
 
-        for (dr_list::iterator itRead = drn->reads.begin(); itRead != drn->reads.end();)
-        {
-            if ((offset < 0 || offset == (*itRead)->offset) &&
-                (count < 0 || count == (*itRead)->count))
-            {
-                (*itRead)->onFailure(API_EINCOMPLETE, (*itRead)->drn->retries, 0);
-
-                delete *(itRead++);
-            }
-            else
-            {
-                itRead++;
-            }
-        }
-    }
+    // Abort all reads matching our predicate.
+    i->second->abort(std::move(predicate));
 }
 
 // execute pending directreads
