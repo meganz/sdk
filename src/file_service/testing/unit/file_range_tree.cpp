@@ -297,7 +297,7 @@ TEST(FileRangeSet, remove_contained)
 
     auto i = set.add(4u, 6u).first;
 
-    set.add(7u, 9u).first;
+    set.add(7u, 9u);
 
     // Sanity.
     EXPECT_EQ(set.size(), 3u);
