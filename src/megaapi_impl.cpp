@@ -5339,6 +5339,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "TYPE_RUN_NETWORK_CONNECTIVITY_TEST";
         case TYPE_ADD_SYNC_PREVALIDATION:
             return "TYPE_ADD_SYNC_PREVALIDATION";
+        case TYPE_GET_MAX_CONNECTIONS:
+            return "GET_MAX_CONNECTIONS";
     }
     return "UNKNOWN";
 }
@@ -22919,6 +22921,39 @@ void MegaApiImpl::setMaxConnections(int direction, int connections, MegaRequestL
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::getMaxTransferConnections(const direction_t direction,
+                                            MegaRequestListener* const listener)
+{
+    auto* const request = new MegaRequestPrivate(MegaRequest::TYPE_GET_MAX_CONNECTIONS, listener);
+    assert(direction == GET || direction == PUT);
+    request->setParamType(direction);
+
+    request->performRequest = [this, request]()
+    {
+        const auto direction = request->getParamType();
+        if (direction != GET && direction != PUT)
+            return API_EINTERNAL;
+
+        request->setNumber(client->connections[direction]);
+
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getMaxUploadConnections(MegaRequestListener* const listener)
+{
+    getMaxTransferConnections(PUT, listener);
+}
+
+void MegaApiImpl::getMaxDownloadConnections(MegaRequestListener* const listener)
+{
+    getMaxTransferConnections(GET, listener);
 }
 
 error MegaApiImpl::performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer)

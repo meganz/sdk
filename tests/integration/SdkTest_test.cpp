@@ -16536,6 +16536,91 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     megaApi[0]->setMaxDownloadSpeed(-1);
 }
 
+TEST_F(SdkTest, SdkTestUploads)
+{
+    LOG_info << "___TEST Test Uploads___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto accountRestorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+
+    constexpr auto fileSize = 160000000;
+
+    const auto create16MBFile = [&]()
+    {
+        deleteFile(UPFILE.c_str());
+        std::ofstream file(fs::u8path(UPFILE), ios::out);
+        ASSERT_TRUE(file) << "Couldn't create " << UPFILE;
+        constexpr auto numLines = 10000000;
+        constexpr auto lineStr = "160MB test file "; // 16 characters
+        for (int l = 0; l < numLines; ++l)
+        {
+            file << lineStr;
+        }
+        const auto filePos = file.tellp();
+        ASSERT_EQ(filePos, fileSize) << "Wrong size for test file";
+        file.close();
+    };
+
+    const auto setMaxConnections = [&](const auto maxConnections)
+    {
+        ASSERT_EQ(API_OK, doSetMaxConnections(0, maxConnections));
+
+        int gMaxConnections{-1};
+        int gDirection{-1};
+        ASSERT_EQ(API_OK, doGetMaxUploadConnections(0, gDirection, gMaxConnections));
+        ASSERT_EQ(gMaxConnections, maxConnections);
+        ASSERT_EQ(gDirection, PUT);
+    };
+
+    const auto uploadFile = [&](const int maxConnections)
+    {
+        LOG_debug << "[SdkTestUploads] Test run with maxConnections: " << maxConnections;
+
+        ASSERT_NO_FATAL_FAILURE(create16MBFile());
+        ASSERT_NO_FATAL_FAILURE(setMaxConnections(maxConnections));
+
+        onTransferUpdate_progress = 0;
+        onTransferUpdate_filesize = 0;
+        mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
+        const auto& uploadStartTime = std::chrono::system_clock::now();
+        TransferTracker ut(megaApi[0].get());
+        megaApi[0]->startUpload(UPFILE.c_str(),
+                                rootnode.get(),
+                                nullptr /*fileName*/,
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/,
+                                &ut /*listener*/);
+
+        unsigned int transfer_timeout_in_seconds = 180;
+        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD],
+                                    transfer_timeout_in_seconds))
+            << "Transfer upload time out (180 seconds)";
+        ASSERT_EQ(API_OK, mApi[0].lastError)
+            << "Cannot upload the test file (error: " << mApi[0].lastError << ")";
+        const auto& uploadEndTime = std::chrono::system_clock::now();
+        auto uploadTime =
+            std::chrono::duration_cast<std::chrono::milliseconds>(uploadEndTime - uploadStartTime)
+                .count();
+        LOG_debug << "[SdkTestUploads] uploadTime = " << uploadTime << " ms, size = " << fileSize
+                  << ", maxConnections = " << maxConnections
+                  << " [speed = " << (((fileSize / uploadTime) * 1000) / 1024) << " KB/s]";
+        ASSERT_GE(onTransferUpdate_filesize, 0u);
+        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+    };
+
+    const std::vector<int> maxConnectionsVector = {6, 12, 16};
+
+    ASSERT_NO_FATAL_FAILURE(
+        std::for_each(maxConnectionsVector.begin(), maxConnectionsVector.end(), uploadFile));
+}
+
 auto makeScopedDefaultPermissions(MegaApi& api, int directory, int file)
 {
     auto previousDirectory = api.getDefaultFolderPermissions();

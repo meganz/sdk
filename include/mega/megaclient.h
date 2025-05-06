@@ -860,7 +860,7 @@ public:
     void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
 
     // maximum number of connections per transfer
-    static const unsigned MAX_NUM_CONNECTIONS = 6;
+    static const unsigned MAX_NUM_CONNECTIONS = 100;
 
     // set max connections per transfer
     void setmaxconnections(direction_t, int);
