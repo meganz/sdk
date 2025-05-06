@@ -17010,10 +17010,8 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 
     app->clearing();
 
-    while (!hdrns.empty())
-    {
-        delete hdrns.begin()->second;
-    }
+    // Abort any active direct reads.
+    abortreads();
 
     mNodeManager.cleanNodes();
 
