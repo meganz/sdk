@@ -232,11 +232,22 @@ public:
         return const_cast<FileRangeTree&>(*this).find(range);
     }
 
-    // Remove all ranges that overlap a given range from the tree.
+    // Remove all ranges contained in the specified range.
     Iterator remove(const FileRange& range)
     {
-        // Find all the ranges that overlap range.
-        auto [begin, end] = find(range);
+        // Find the first range, if any, contained by range.
+        auto begin = mByRangeBegin.lower_bound(range.mBegin);
+
+        // No range begins after the specified range.
+        if (!begin)
+            return {};
+
+        // Begin isn't contained within the specified range.
+        if (KeyFunctionType()(begin->mValue).mEnd > range.mEnd)
+            return {};
+
+        // Find the first range outside of range.
+        auto end = mByRangeBegin.lower_bound(range.mEnd);
 
         // And remove them from the tree.
         return remove(begin, end);

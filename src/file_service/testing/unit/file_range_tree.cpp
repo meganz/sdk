@@ -289,6 +289,32 @@ TEST(FileRangeSet, move_constructor)
     EXPECT_EQ(set1, set2);
 }
 
+TEST(FileRangeSet, remove_contained)
+{
+    FileRangeSet set;
+
+    set.add(1u, 3u);
+
+    auto i = set.add(4u, 6u).first;
+
+    set.add(7u, 9u).first;
+
+    // Sanity.
+    EXPECT_EQ(set.size(), 3u);
+
+    auto m = set.remove(FileRange(0, 2));
+    EXPECT_EQ(m, set.end());
+    EXPECT_EQ(set.size(), 3u);
+
+    m = set.remove(FileRange(0, 4));
+    EXPECT_EQ(i, m);
+    EXPECT_EQ(set.size(), 2u);
+
+    m = set.remove(FileRange(4, 9));
+    EXPECT_EQ(m, set.end());
+    EXPECT_EQ(set.size(), 0u);
+}
+
 TEST(FileRangeSet, remove_multiple)
 {
     FileRangeSet set;
@@ -307,31 +333,6 @@ TEST(FileRangeSet, remove_multiple)
 
     EXPECT_EQ(m, k);
     EXPECT_EQ(set.size(), 1u);
-}
-
-TEST(FileRangeSet, remove_overlapping)
-{
-    FileRangeSet set;
-
-    set.add(1u, 3u);
-
-    auto i = set.add(4u, 6u).first;
-    auto j = set.add(7u, 9u).first;
-
-    // Sanity.
-    EXPECT_EQ(set.size(), 3u);
-
-    auto m = set.remove(FileRange(0, 2));
-    EXPECT_EQ(m, i);
-    EXPECT_EQ(set.size(), 2u);
-
-    m = set.remove(FileRange(5, 7));
-    EXPECT_EQ(m, j);
-    EXPECT_EQ(set.size(), 1u);
-
-    m = set.remove(FileRange(6, 10));
-    EXPECT_EQ(m, set.end());
-    EXPECT_EQ(set.size(), 0u);
 }
 
 TEST(FileRangeSet, remove_single)
