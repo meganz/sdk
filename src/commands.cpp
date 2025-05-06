@@ -11153,6 +11153,16 @@ bool CommandExportSet::procresult(Result r, JSON& json)
     if ((parsedOk) && e == API_OK)
     {
         mSet->setPublicId(publicId);
+        if (publicId == UNDEF) // public link has been removed "d":1. At command response, it has to
+                               // be done by user
+        {
+            mSet->setLinkDeletionReason(Set::LinkDeletionReason::BY_USER);
+        }
+        else
+        {
+            mSet->setLinkDeletionReason(Set::LinkDeletionReason::NO_REMOVED);
+        }
+
         mSet->setTs(ts);
         mSet->setChanged(Set::CH_EXPORTED);
         if (!client->updateSet(std::move(*mSet)))

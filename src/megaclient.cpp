@@ -21088,8 +21088,12 @@ void MegaClient::sc_aer()
     }
 }
 
-error MegaClient::readExportedSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemoved)
+error MegaClient::readExportedSet(JSON& j,
+                                  Set& s,
+                                  pair<bool, Set::LinkDeletionReason>& exportRemoved)
 {
+    static constexpr uint64_t ETD_REMOVED = 4294967275; // Defined by API
+    static constexpr uint64_t ATD_REMOVED = 4294967274; // Defined by API
     for (;;)
     {
         switch (jsonsc.getnameid())
@@ -21112,9 +21116,21 @@ error MegaClient::readExportedSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRem
             break;
 
         case name_id::c:
-            exportRemoved.second = j.getint();
-            /* 0     => deleted by user
-             * Other => ETD / ATD / dispute */
+            switch (j.getint())
+            {
+                case 0:
+                    exportRemoved.second = Set::LinkDeletionReason::BY_USER;
+                    break;
+                case ETD_REMOVED:
+                    exportRemoved.second = Set::LinkDeletionReason::ETD;
+                    break;
+                case ATD_REMOVED:
+                    exportRemoved.second = Set::LinkDeletionReason::ATD;
+                    break;
+                default:
+                    exportRemoved.second = Set::LinkDeletionReason::DISPUTE;
+                    break;
+            }
             break;
 
         default: // skip 'i' and any unknown/unexpected member
@@ -21202,7 +21218,7 @@ error MegaClient::readSetsPublicHandles(JSON& j, map<handle, Set>& sets)
 void MegaClient::sc_ass()
 {
     Set s;
-    auto exportRemoved = std::make_pair(false, static_cast<m_off_t>(0));
+    auto exportRemoved = std::make_pair(false, Set::LinkDeletionReason::NO_REMOVED);
     const error e = readExportedSet(jsonsc, s, exportRemoved);
 
     if (e != API_OK)
@@ -21223,6 +21239,7 @@ void MegaClient::sc_ass()
         updatedSet.setPublicId(s.publicId());
         updatedSet.setTs(s.ts());
         updatedSet.setChanged(Set::CH_EXPORTED);
+        updatedSet.setLinkDeletionReason(exportRemoved.second);
         updateSet(std::move(updatedSet));
     }
 }

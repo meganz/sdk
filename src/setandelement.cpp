@@ -194,9 +194,10 @@ namespace mega {
             }
         }
 
-        r.serializeexpansionflags(true, true);
+        r.serializeexpansionflags(true, true, true);
         r.serializecompressedi64(mCTs);
         r.serializeu8(mType);
+        r.serializeu8(static_cast<uint8_t>(mLinkDeletionReason));
 
         return true;
     }
@@ -235,9 +236,11 @@ namespace mega {
         unsigned char expansionsS[8];
         m_time_t cts = 0;
         SetType t = TYPE_ALBUM; // by default, for migration of existing Sets
-        if (!r.unserializeexpansionflags(expansionsS, 2) ||
+        uint8_t linkDeletionReason = static_cast<uint8_t>(LinkDeletionReason::NO_REMOVED);
+        if (!r.unserializeexpansionflags(expansionsS, 3) ||
             (expansionsS[0] && !r.unserializecompressedi64(cts)) || // creation timestamp
-            (expansionsS[1] && !r.unserializeu8(t)))  // type
+            (expansionsS[1] && !r.unserializeu8(t)) || // type
+            (expansionsS[2] && !r.unserializeu8(linkDeletionReason))) // link deletion reason
         {
             return nullptr;
         }
@@ -245,6 +248,7 @@ namespace mega {
         auto s = std::make_unique<Set>(id, publicId, std::move(k), u, std::move(attrs), t);
         s->setTs(ts);
         s->setCTs(cts);
+        s->setLinkDeletionReason(static_cast<LinkDeletionReason>(linkDeletionReason));
 
         return s;
     }
@@ -257,6 +261,7 @@ namespace mega {
         {
             setChanged(CH_EXPORTED);
             setPublicId(s.publicId());
+            setLinkDeletionReason(s.getLinkDeletionReason());
         }
         else
         {

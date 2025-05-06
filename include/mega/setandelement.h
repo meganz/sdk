@@ -247,6 +247,15 @@ namespace mega {
     class Set : public CommonSE, public Cacheable
     {
     public:
+        enum class LinkDeletionReason : uint8_t
+        {
+            NO_REMOVED = 0,
+            BY_USER,
+            DISPUTE,
+            ETD,
+            ATD,
+        };
+
         using SetType = uint8_t;
 
         Set() = default;
@@ -270,6 +279,11 @@ namespace mega {
         // get Set type
         SetType type() const { return mType; }
 
+        LinkDeletionReason getLinkDeletionReason() const
+        {
+            return mLinkDeletionReason;
+        }
+
         // set public id of the set (Set exported); UNDEF received when disabled
         void setPublicId(handle pid) { mPublicId = pid; }
 
@@ -284,6 +298,11 @@ namespace mega {
 
         // set Set type
         void setType(SetType t) { mType = t; }
+
+        void setLinkDeletionReason(LinkDeletionReason r)
+        {
+            mLinkDeletionReason = r;
+        }
 
         // replace internal parameters with the ones of 's', and mark any CH_XXX change
         bool updateWith(Set&& s);
@@ -340,6 +359,8 @@ namespace mega {
         SetType mType = TYPE_ALBUM;
 
         std::bitset<CH_SIZE> mChanges;
+
+        LinkDeletionReason mLinkDeletionReason = LinkDeletionReason::NO_REMOVED;
 
         static const std::string coverTag; // "c", used for 'cover' attribute
     };

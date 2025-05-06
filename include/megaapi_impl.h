@@ -1153,10 +1153,18 @@ private:
 class MegaSetPrivate : public MegaSet
 {
 public:
-
-    MegaSetPrivate(const Set& s)
-        : mId(s.id()), mPublicId(s.publicId()), mUser(s.user()), mTs(s.ts()), mCTs(s.cts()),
-          mName(s.name()), mCover(s.cover()), mChanges(s.changes()), mType(s.type()) {}
+    MegaSetPrivate(const Set& s):
+        mId(s.id()),
+        mPublicId(s.publicId()),
+        mUser(s.user()),
+        mTs(s.ts()),
+        mCTs(s.cts()),
+        mName(s.name()),
+        mCover(s.cover()),
+        mChanges(s.changes()),
+        mType(s.type()),
+        mLinkDeletionReason(s.getLinkDeletionReason())
+    {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle publicId() const override { return mPublicId; }
@@ -1171,6 +1179,11 @@ public:
     uint64_t getChanges() const override { return mChanges.to_ullong(); }
     bool isExported() const override { return mPublicId != UNDEF; }
 
+    int getLinkDeletionReason() const override
+    {
+        return static_cast<int>(mLinkDeletionReason);
+    }
+
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
 private:
@@ -1183,6 +1196,7 @@ private:
     MegaHandle mCover;
     std::bitset<Set::CH_SIZE> mChanges;
     Set::SetType mType;
+    Set::LinkDeletionReason mLinkDeletionReason = Set::LinkDeletionReason::NO_REMOVED;
 };
 
 

@@ -2000,6 +2000,26 @@ public:
      */
     virtual bool isExported() const { return false; }
 
+    /**
+     * @brief Returns deletion reason for the link associated with the set
+     *
+     * Valid values are:
+     *    - DELETION_LINK_NO_REMOVED = 0
+     *    - DELETION_LINK_BY_USER = 1
+     *    - DELETION_LINK_DISPUTE = 2
+     *    - DELETION_LINK_ETD = 3
+     *    - DELETION_LINK_ATD = 4
+     *
+     * Note: This value only can be different from DELETION_LINK_NO_REMOVED if publicId() returns
+     * INVALID_HANDLE
+     *
+     * @return reson for link has been removed
+     */
+    virtual int getLinkDeletionReason() const
+    {
+        return false;
+    }
+
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
 
@@ -2020,6 +2040,14 @@ public:
         SET_TYPE_INVALID = -1,
     };
 
+    enum : int // 1:1 with existing Set::LinkDeletionReason::
+    {
+        DELETION_LINK_NO_REMOVED = 0,
+        DELETION_LINK_BY_USER = 1,
+        DELETION_LINK_DISPUTE = 2,
+        DELETION_LINK_ETD = 3,
+        DELETION_LINK_ATD = 4,
+    };
 };
 
 /**
