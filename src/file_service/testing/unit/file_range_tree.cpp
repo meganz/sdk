@@ -91,6 +91,9 @@ TEST(FileRangeSet, copy_assignment)
     set0.add(1u, 2u);
     set0.add(2u, 3u);
 
+    // Sanity.
+    EXPECT_EQ(set0.size(), 3u);
+
     FileRangeSet set1;
 
     set1 = set0;
@@ -119,6 +122,9 @@ TEST(FileRangeSet, copy_constructor)
     set0.add(1u, 2u);
     set0.add(2u, 3u);
 
+    // Sanity.
+    EXPECT_EQ(set0.size(), 3u);
+
     FileRangeSet set1(set0);
 
     // Make sure set1 has been populated.
@@ -135,6 +141,9 @@ TEST(FileRangeSet, find)
     // Add some ranges to the tree.
     set.add(2u, 4u);
     set.add(6u, 8u);
+
+    // Sanity.
+    EXPECT_EQ(set.size(), 2u);
 
     // Check nonoverlapping cases.
     auto [m, n] = set.find(FileRange(0, 2));
@@ -195,6 +204,9 @@ TEST(FileRangeSet, iteration)
     for (auto& range: ranges)
         set.add(range);
 
+    // Sanity.
+    EXPECT_EQ(set.size(), 3u);
+
     auto i = ranges.begin();
     auto j = ranges.end();
     auto m = set.begin();
@@ -222,6 +234,10 @@ TEST(FileRangeSet, move_assignment)
         set0.add(range);
         set1.add(range);
     }
+
+    // Sanity.
+    EXPECT_EQ(set0.size(), 3u);
+    EXPECT_EQ(set0.size(), set1.size());
 
     FileRangeSet set2;
 
@@ -257,6 +273,10 @@ TEST(FileRangeSet, move_constructor)
         set1.add(range);
     }
 
+    // Sanity.
+    EXPECT_EQ(set0.size(), 3u);
+    EXPECT_EQ(set0.size(), set1.size());
+
     // Move set0's contents to set2.
     FileRangeSet set2(std::move(set0));
 
@@ -279,6 +299,9 @@ TEST(FileRangeSet, remove_multiple)
 
     set.add(1u, 2u);
 
+    // Sanity.
+    EXPECT_EQ(set.size(), 3u);
+
     // Remove ranges up to but not including k.
     auto m = set.remove(i, k);
 
@@ -294,6 +317,9 @@ TEST(FileRangeSet, remove_overlapping)
 
     auto i = set.add(4u, 6u).first;
     auto j = set.add(7u, 9u).first;
+
+    // Sanity.
+    EXPECT_EQ(set.size(), 3u);
 
     auto m = set.remove(FileRange(0, 2));
     EXPECT_EQ(m, i);
@@ -316,6 +342,9 @@ TEST(FileRangeSet, remove_single)
     auto i = set.add(0u, 1u).first;
     auto j = set.add(1u, 2u).first;
     auto k = set.add(2u, 3u).first;
+
+    // Sanity.
+    EXPECT_EQ(set.size(), 3u);
 
     // Remove each range in sequence.
     auto m = set.remove(i);
