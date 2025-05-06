@@ -5,6 +5,7 @@
 #include <mega/file_service/file_range_tree_traits.h>
 #include <mega/file_service/type_traits.h>
 
+#include <cassert>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -148,6 +149,9 @@ public:
             // Our range may contain the leading part of the other range.
             range.mEnd = std::min(range.mEnd, other.mBegin);
         }
+
+        // Make sure the range is sane.
+        assert(range.mEnd > range.mBegin);
 
         // Add our range to the "by begin" index.
         auto [iterator, added] = mByRangeBegin.add(*node);
@@ -335,6 +339,9 @@ public:
             // Our range may contain the leading part of the other range.
             range.mEnd = std::min(range.mEnd, other.mBegin);
         }
+
+        // Make sure the range is sane.
+        assert(range.mEnd > range.mBegin);
 
         // Construct a node to represent our range in the tree.
         auto node = construct(range, std::forward<Parameters>(arguments)...);
