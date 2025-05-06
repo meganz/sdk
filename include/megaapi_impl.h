@@ -1162,9 +1162,14 @@ public:
         mName(s.name()),
         mCover(s.cover()),
         mChanges(s.changes()),
-        mType(s.type()),
-        mLinkDeletionReason(s.getLinkDeletionReason())
-    {}
+        mType(s.type())
+    {
+        if (s.getPublicLink())
+        {
+            mLinkDeletionReason = s.getPublicLink()->getLinkDeletionReason();
+            mIsTakenDown = s.getPublicLink()->isTakenDown();
+        }
+    }
 
     MegaHandle id() const override { return mId; }
     MegaHandle publicId() const override { return mPublicId; }
@@ -1184,6 +1189,11 @@ public:
         return static_cast<int>(mLinkDeletionReason);
     }
 
+    bool isTakenDown() const override
+    {
+        return mIsTakenDown;
+    }
+
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
 private:
@@ -1196,7 +1206,9 @@ private:
     MegaHandle mCover;
     std::bitset<Set::CH_SIZE> mChanges;
     Set::SetType mType;
-    Set::LinkDeletionReason mLinkDeletionReason = Set::LinkDeletionReason::NO_REMOVED;
+    PublicLinkSet::LinkDeletionReason mLinkDeletionReason{
+        PublicLinkSet::LinkDeletionReason::NO_REMOVED};
+    bool mIsTakenDown{false};
 };
 
 

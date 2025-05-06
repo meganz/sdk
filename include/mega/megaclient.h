@@ -2964,7 +2964,7 @@ private:
     error readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetadata>& nodes);
     error readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& node);
     bool decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& encryptionKey);
-    error readExportedSet(JSON& j, Set& s, pair<bool, Set::LinkDeletionReason>& exportRemoved);
+    error readExportedSet(JSON& j, Set& s);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
     void fixSetElementWithWrongKey(const Set& set);

@@ -2010,12 +2010,22 @@ public:
      *    - DELETION_LINK_ETD = 3
      *    - DELETION_LINK_ATD = 4
      *
-     * Note: This value only can be different from DELETION_LINK_NO_REMOVED if publicId() returns
-     * INVALID_HANDLE
-     *
      * @return reson for link has been removed
      */
     virtual int getLinkDeletionReason() const
+    {
+        return false;
+    }
+
+    /**
+     * @brief Returns true if this set has been exported
+     * and the related public link has been taken down.
+     *
+     * Public links are created by calling MegaApi::exportSet.
+     *
+     * @return true if the public link has been taken down.
+     */
+    virtual bool isTakenDown() const
     {
         return false;
     }

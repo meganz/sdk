@@ -10537,8 +10537,15 @@ bool CommandDismissBanner::procresult(Result r, JSON&)
 // Sets and Elements
 //
 
-bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts,
-                               handle* s, int64_t* o, handle* ph, uint8_t* t) const
+bool CommandSE::procjsonobject(JSON& json,
+                               handle& id,
+                               m_time_t& ts,
+                               handle* u,
+                               m_time_t* cts,
+                               handle* s,
+                               int64_t* o,
+                               std::unique_ptr<mega::PublicLinkSet>* publicLinkSet,
+                               uint8_t* t) const
 {
     for (;;)
     {
@@ -10583,7 +10590,10 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
         case makeNameid("ph"):
             {
                 const auto buf = json.gethandle(MegaClient::PUBLICSETHANDLE);
-                if (ph) *ph = buf;
+                if (publicLinkSet)
+                {
+                    publicLinkSet->reset(new PublicLinkSet(buf));
+                }
             }
             break;
 
@@ -10607,10 +10617,18 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
     }
 }
 
-bool CommandSE::procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u,
-                             m_time_t* cts, handle* s, int64_t* o, handle* ph, uint8_t* t) const
+bool CommandSE::procresultid(JSON& json,
+                             const Result& r,
+                             handle& id,
+                             m_time_t& ts,
+                             handle* u,
+                             m_time_t* cts,
+                             handle* s,
+                             int64_t* o,
+                             std::unique_ptr<PublicLinkSet>* publicLinkSet,
+                             uint8_t* t) const
 {
-    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, ph, t);
+    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, publicLinkSet, t);
 }
 
 bool CommandSE::procerrorcode(const Result& r, Error& e) const
@@ -11138,10 +11156,12 @@ CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool makePublic, std
 bool CommandExportSet::procresult(Result r, JSON& json)
 {
     handle sid = mSet->id();
-    handle publicId = UNDEF;
     m_time_t ts = m_time(nullptr); // made it up for case that API returns [0] (like for "d":1)
     Error e = API_OK;
-    const bool parsedOk = procerrorcode(r, e) || procresultid(json, r, sid, ts, nullptr, nullptr, nullptr, nullptr, &publicId);
+    std::unique_ptr<PublicLinkSet> publicLinkSet;
+    const bool parsedOk =
+        procerrorcode(r, e) ||
+        procresultid(json, r, sid, ts, nullptr, nullptr, nullptr, nullptr, &publicLinkSet);
 
     if (sid != mSet->id())
     {
@@ -11152,17 +11172,7 @@ bool CommandExportSet::procresult(Result r, JSON& json)
 
     if ((parsedOk) && e == API_OK)
     {
-        mSet->setPublicId(publicId);
-        if (publicId == UNDEF) // public link has been removed "d":1. At command response, it has to
-                               // be done by user
-        {
-            mSet->setLinkDeletionReason(Set::LinkDeletionReason::BY_USER);
-        }
-        else
-        {
-            mSet->setLinkDeletionReason(Set::LinkDeletionReason::NO_REMOVED);
-        }
-
+        mSet->setPublicLink(std::move(publicLinkSet));
         mSet->setTs(ts);
         mSet->setChanged(Set::CH_EXPORTED);
         if (!client->updateSet(std::move(*mSet)))
