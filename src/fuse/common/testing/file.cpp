@@ -22,7 +22,7 @@ File::File(const std::string& content,
     ostream.exceptions(std::ios::badbit | std::ios::failbit);
 
     // Open file for writing.
-    ostream.open(mPath.string(), std::ios::trunc);
+    ostream.open(mPath.string(), std::ios::binary | std::ios::trunc);
 
     // Write data to the file.
     ostream.write(content.data(),
