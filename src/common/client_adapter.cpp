@@ -1549,7 +1549,7 @@ void ClientPartialDownload::begin(PartialDownloadCallback& callback,
 
     // Try and begin the download.
     mClient.execute(
-        [=, this](const Task& task) mutable
+        [=](const Task& task) mutable
         {
             // Client's being torn down.
             if (task.cancelled())
