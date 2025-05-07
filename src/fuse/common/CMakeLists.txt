@@ -170,6 +170,7 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_SRC}/mount_event_observer.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/mount_tests.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/parameters.cpp
+                                ${FUSE_COMMON_TESTING_SRC}/partial_download_tests.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/path.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/printers.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/real_client.cpp
