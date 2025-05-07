@@ -1687,22 +1687,21 @@ auto PathURI::asPlatformEncoded(const bool) const -> string_type
 
 string PathURI::platformEncoded() const
 {
-    if (mAuxPath.empty())
+    auto src = std::invoke(
+        [this]() -> std::optional<mega::string_type>
+        {
+            if (mAuxPath.empty())
+                return mUri;
+            return URIHandler::getURI(mUri, mAuxPath);
+        });
+
+    if (src)
     {
         std::string aux;
-        LocalPath::local2path(&mUri, &aux, false);
+        LocalPath::local2path(&src.value(), &aux, false);
         return aux;
     }
-    else
-    {
-        auto newUri = URIHandler::getURI(mUri, mAuxPath);
-        if (newUri.has_value())
-        {
-            std::string aux;
-            LocalPath::local2path(&newUri.value(), &aux, false);
-            return aux;
-        }
-    }
+
     return toPath(false);
 }
 
