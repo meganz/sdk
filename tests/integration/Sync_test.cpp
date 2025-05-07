@@ -5138,6 +5138,24 @@ void StandardClient::createHardLink(const fs::path& src,
     ASSERT_TRUE(fsAccess->hardLink(sourcePath, targetPath));
 }
 
+void StandardClient::unlinklocal(const LocalPath& localPath)
+{
+    bool nonTransientErrorFound{false};
+    const auto result = waitFor(
+        [&](StandardClient& sc)
+        {
+            if (!sc.client.fsaccess->unlinklocal(localPath))
+            {
+                nonTransientErrorFound = !sc.client.fsaccess->transient_error;
+                return nonTransientErrorFound;
+            }
+
+            return true;
+        },
+        DEFAULTWAIT);
+    ASSERT_TRUE(result && !nonTransientErrorFound);
+}
+
 void StandardClient::checkStallIssues(const handle /*backupId*/,
                                       const unsigned int expectedStalls,
                                       LocalPath& sourcePath,
@@ -17246,7 +17264,6 @@ TEST_F(SyncTest, StallsWhenEncounteringHardLink)
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
     // Create a hard link to f0.
-    auto fsAccess = client->client.fsaccess.get();
     LocalPath sourcePath;
     LocalPath targetPath;
 
@@ -17254,10 +17271,7 @@ TEST_F(SyncTest, StallsWhenEncounteringHardLink)
         auto source = client->fsBasePath / "s" / "f0";
         auto target = client->fsBasePath / "s" / "f2";
 
-        sourcePath = LocalPath::fromAbsolutePath(source.u8string());
-        targetPath = LocalPath::fromAbsolutePath(target.u8string());
-
-        ASSERT_TRUE(fsAccess->hardLink(sourcePath, targetPath));
+        ASSERT_NO_FATAL_FAILURE(client->createHardLink(source, target, sourcePath, targetPath));
     }
 
     // Wait for the engine to process our changes.
@@ -17283,7 +17297,7 @@ TEST_F(SyncTest, StallsWhenEncounteringHardLink)
     ASSERT_EQ(sr.localPath2.problem, PathProblem::DetectedHardLink);
 
     // Check if we can resolve the stall by removing the hardlink.
-    ASSERT_TRUE(fsAccess->unlinklocal(targetPath));
+    ASSERT_NO_FATAL_FAILURE(client->unlinklocal(targetPath));
 
     // Wait for the stall to be resolved.
     ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
@@ -17329,18 +17343,14 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
     // Create a hard link to f0.
-    auto fsAccess = client->client.fsaccess.get();
     LocalPath sourcePath;
     LocalPath targetPath;
 
     {
-        auto source = client->fsBasePath / "s" / "f0";
-        auto target = client->fsBasePath / "s" / "d1" / "f5";
+        const auto source = client->fsBasePath / "s" / "f0";
+        const auto target = client->fsBasePath / "s" / "d1" / "f5";
 
-        sourcePath = LocalPath::fromAbsolutePath(source.u8string());
-        targetPath = LocalPath::fromAbsolutePath(target.u8string());
-
-        ASSERT_TRUE(fsAccess->hardLink(sourcePath, targetPath));
+        ASSERT_NO_FATAL_FAILURE(client->createHardLink(source, target, sourcePath, targetPath));
     }
 
     // Wait for the engine to process our changes.
@@ -17366,7 +17376,6 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
     ASSERT_EQ(sr.localPath2.problem, PathProblem::DetectedHardLink);
 
     // Create another hard link to f1.
-    auto fsAccess2 = client->client.fsaccess.get();
     LocalPath sourcePath2;
     LocalPath targetPath2;
 
@@ -17374,10 +17383,7 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
         auto source = client->fsBasePath / "s" / "d2" / "f3";
         auto target = client->fsBasePath / "s" / "d3" / "f6";
 
-        sourcePath2 = LocalPath::fromAbsolutePath(source.u8string());
-        targetPath2 = LocalPath::fromAbsolutePath(target.u8string());
-
-        ASSERT_TRUE(fsAccess2->hardLink(sourcePath2, targetPath2));
+        ASSERT_NO_FATAL_FAILURE(client->createHardLink(source, target, sourcePath2, targetPath2));
     }
 
     // Wait for the engine to process our changes.
@@ -17415,7 +17421,7 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
     ASSERT_TRUE(client->waitFor(SyncTotalStallsStateUpdate(false), TIMEOUT));
 
     // Check if we can resolve the first stall by removing the hardlink.
-    ASSERT_TRUE(fsAccess->unlinklocal(targetPath));
+    ASSERT_NO_FATAL_FAILURE(client->unlinklocal(targetPath));
 
     // Wait for the engine to process our changes.
     waitonsyncs(TIMEOUT, client);
@@ -17440,7 +17446,7 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
     ASSERT_EQ(sr4.localPath2.problem, PathProblem::DetectedHardLink);
 
     // Check if we can resolve the second stall by removing the hardlink.
-    ASSERT_TRUE(fsAccess->unlinklocal(targetPath2));
+    ASSERT_NO_FATAL_FAILURE(client->unlinklocal(targetPath2));
 
     // Wait for the engine to process our changes.
     waitonsyncs(TIMEOUT, client);
