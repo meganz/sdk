@@ -51,7 +51,7 @@ pipeline {
                             sed -i 's|slack_channel_announce = ""|slack_channel_announce = "${env.slack_channel}"|' config.toml
                             sed -i 's|slack_thread_announce = ""|slack_thread_announce = "${params.SLACK_THREAD_ANNOUNCE}"|' config.toml
                             sed -i 's|release_version = ""|release_version = "${params.RELEASE_VERSION}"|' config.toml
-                            sed -i 's|github_push_remote_url = ""|github_push_remote_url = "\${github_push_remote_url}"|' config.toml
+                            sed -i 's|github_push_remote_url = ""|github_push_remote_url = "'\${github_push_remote_url}'"|' config.toml
                             sed -i 's|confluence_url = ""|confluence_url = "${env.confluence_url}"|' config.toml
                             sed -i 's|tickets = ""|tickets = "${params.TICKETS}"|' config.toml
                         """
