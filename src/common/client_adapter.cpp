@@ -1589,11 +1589,10 @@ void ClientPartialDownload::begin(PartialDownloadCallback& callback,
                 return completed(API_OK);
 
             // So we can use our notify method as a callback.
-            DirectRead::Callback notify = std::bind(&ClientPartialDownload::notify,
-                                                    this,
-                                                    std::move(cookie),
-                                                    std::placeholders::_1,
-                                                    length);
+            auto notify = [=](Event& event) mutable
+            {
+                this->notify(cookie, event, length);
+            }; // notify
 
             // Begin the download.
             mClient.client().pread(node.get(),
