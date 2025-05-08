@@ -44,8 +44,8 @@ pipeline {
                     // SDK report
                     sh """
                         docker run \
-                            -e JIRA_PERSONAL_ACCESS_TOKEN=${env.SDK_JIRA_PERSONAL_ACCESS_TOKEN} \
-                            -e SLACK_BOT_TOKEN=${env.SDK_SLACK_BOT_TOKEN} \
+                            -e JIRA_PERSONAL_ACCESS_TOKEN=\${SDK_JIRA_PERSONAL_ACCESS_TOKEN} \
+                            -e SLACK_BOT_TOKEN=\${SDK_SLACK_BOT_TOKEN} \
                             -e JIRA_URL=${env.JIRA_URL} \
                             -e JIRA_PROJECT_KEY=${env.SDK_JIRA_PROJECT_KEY} \
                             -e SLACK_CHANNEL=${env.SDK_SLACK_CHANNEL} \
@@ -54,8 +54,8 @@ pipeline {
                     // CHT report
                     sh """
                         docker run \
-                            -e JIRA_PERSONAL_ACCESS_TOKEN=${env.SDK_JIRA_PERSONAL_ACCESS_TOKEN} \
-                            -e SLACK_BOT_TOKEN=${env.SDK_SLACK_BOT_TOKEN} \
+                            -e JIRA_PERSONAL_ACCESS_TOKEN=\${SDK_JIRA_PERSONAL_ACCESS_TOKEN} \
+                            -e SLACK_BOT_TOKEN=\${SDK_SLACK_BOT_TOKEN} \
                             -e JIRA_URL=${env.JIRA_URL} \
                             -e JIRA_PROJECT_KEY=${env.CHT_JIRA_PROJECT_KEY} \
                             -e SLACK_CHANNEL=${env.CHT_SLACK_CHANNEL} \

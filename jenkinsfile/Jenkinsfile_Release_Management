@@ -30,8 +30,6 @@ pipeline {
         jira_url = "${env.JIRA_BASE_URL}"
         confluence_url = "${env.CONFLUENCE_BASE_URL}"
         confluence_page_id = "3640225"
-        github_push_remote_url = "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/meganz/sdk.git"
-        gitlab_push_remote_url = "https://gitlab-ci-token:${GITLAB_TOKEN}@${GIT_URL_SDK_FOR_HTTPS_TOKEN}"
         GNUPGHOME = "${WORKSPACE}/.gnupg"
         JIRA_TOKEN = credentials('SDK_JIRA_PERSONAL_ACCESS_TOKEN')
         CONFLUENCE_TOKEN = credentials('SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN')
@@ -44,6 +42,7 @@ pipeline {
                     sh 'cp config.toml.template config.toml'
                     script {
                         sh """
+                            export github_push_remote_url="https://\${GITHUB_USER}:\${GITHUB_TOKEN}@github.com/meganz/sdk.git"
                             sed -i 's|project_name = ""|project_name = "${env.project_name}"|' config.toml
                             sed -i 's|target_apps = ""|target_apps = "${params.TARGET_APPS}"|' config.toml
                             sed -i 's|gitlab_url = ""|gitlab_url = "${env.gitlab_url}"|' config.toml
@@ -52,7 +51,7 @@ pipeline {
                             sed -i 's|slack_channel_announce = ""|slack_channel_announce = "${env.slack_channel}"|' config.toml
                             sed -i 's|slack_thread_announce = ""|slack_thread_announce = "${params.SLACK_THREAD_ANNOUNCE}"|' config.toml
                             sed -i 's|release_version = ""|release_version = "${params.RELEASE_VERSION}"|' config.toml
-                            sed -i 's|github_push_remote_url = ""|github_push_remote_url = "${env.github_push_remote_url}"|' config.toml
+                            sed -i 's|github_push_remote_url = ""|github_push_remote_url = "\${github_push_remote_url}"|' config.toml
                             sed -i 's|confluence_url = ""|confluence_url = "${env.confluence_url}"|' config.toml
                             sed -i 's|tickets = ""|tickets = "${params.TICKETS}"|' config.toml
                         """
@@ -68,7 +67,11 @@ pipeline {
                 """
                 // Configure gitlab
                 sh "git remote remove origin"
-                sh "set +x; git remote add origin ${gitlab_push_remote_url}"
+                sh """
+                    set +x
+                    export gitlab_push_remote_url="https://gitlab-ci-token:\${GITLAB_TOKEN}@${GIT_URL_SDK_FOR_HTTPS_TOKEN}"
+                    git remote add origin \${gitlab_push_remote_url}
+                """
             }
         }
         stage('Build docker image') {
