@@ -2142,6 +2142,9 @@ void MegaClient::exec()
             &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
     {
         LOG_debug << clientname << "Request timeout. Triggering a lock request";
+        app->notify_network_activity(NetworkActivityChannel::CS,
+                                     NetworkActivityType::REQUEST_ERROR,
+                                     LOCAL_ETIMEOUT);
         requestLock = true;
     }
 
@@ -2160,6 +2163,9 @@ void MegaClient::exec()
                 (*it)->failure = false;
                 (*it)->lastdata = Waiter::ds;
                 LOG_warn << "Transfer error count raised: " << (*it)->errorcount;
+                app->notify_network_activity(NetworkActivityChannel::SC,
+                                             NetworkActivityType::REQUEST_ERROR,
+                                             API_EFAILED);
             }
         }
     }
@@ -2198,6 +2204,9 @@ void MegaClient::exec()
                         LOG_warn << "Request failed (" << req->posturl << ") retrying ("
                                  << (req->numretry + 1) << " of " << req->maxretries << ")";
                         it++;
+                        app->notify_network_activity(NetworkActivityChannel::CS,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     req->httpstatus);
                         break;
                     }
                     // no retry -> fall through
@@ -2238,6 +2247,9 @@ void MegaClient::exec()
                     if (req->maxbt.nextset() && req->maxbt.armed())
                     {
                         LOG_debug << "Max total time exceeded for request: " << req->posturl;
+                        app->notify_network_activity(NetworkActivityChannel::CS,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     API_EFAILED);
                         restag = it->first;
                         app->http_result(API_EFAILED, 0, NULL, 0);
                         delete req;
@@ -2363,6 +2375,9 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         // repeat request with exponential backoff
                         LOG_warn << "Error setting file attribute. Will retry after backoff";
+                        app->notify_network_activity(NetworkActivityChannel::CS,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     API_EFAILED);
                         activefa.erase(erasePos);
                         fa->status = REQ_READY;
                         queuedfa.push_back(fa);
@@ -2467,6 +2482,9 @@ void MegaClient::exec()
                         // fall through
                     case REQ_FAILURE:
                         LOG_warn << "Error getting file attr";
+                        app->notify_network_activity(NetworkActivityChannel::CS,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     API_EFAILED);
 
                         if (fc->req.httpstatus &&
                             fc->req.contenttype.find("text/html") != string::npos &&
@@ -2768,6 +2786,10 @@ void MegaClient::exec()
                                     app->reqstat_progress(-1);
                                 }
 
+                                app->notify_network_activity(NetworkActivityChannel::CS,
+                                                             NetworkActivityType::REQUEST_ERROR,
+                                                             API_ESSL);
+
                                 break;
                             }
                         }
@@ -2784,6 +2806,9 @@ void MegaClient::exec()
                         app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
                         LOG_warn << "Retrying cs request in " << btcs.retryin() << " ds";
+                        app->notify_network_activity(NetworkActivityChannel::CS,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     API_EAGAIN);
 
                         // the in-progress request will be resent, unchanged (for idempotence), when we are ready again.
                         reqs.inflightFailure(reason);
@@ -3005,6 +3030,9 @@ void MegaClient::exec()
                     else
                     {
                         LOG_err << "Unexpected sc response: " << pendingsc->in;
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     e);
                         scsn.stopScsn();
                     }
                 }
@@ -3051,6 +3079,9 @@ void MegaClient::exec()
 
                 if (scsn.stopped())
                 {
+                    app->notify_network_activity(NetworkActivityChannel::SC,
+                                                 NetworkActivityType::REQUEST_ERROR,
+                                                 API_ESSL);
                     btsc.backoff(NEVER);
                 }
                 else
