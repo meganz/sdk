@@ -97,7 +97,7 @@ pipeline {
                         values  'xUbuntu_25.04','xUbuntu_24.10','xUbuntu_24.04','xUbuntu_22.04', 'xUbuntu_20.04',
                                 'Debian_11','Debian_12','Debian_testing',
                                 'DEB_Arch_Extra',
-                                'Raspbian_11', 'Raspbian_12', 'Raspbian_11_arm64', 'Raspbian_12_arm64',
+                                'Raspbian_11', 'Raspbian_12',
                                 'Fedora_40',
                                 'openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
                     }
@@ -113,7 +113,6 @@ pipeline {
                             values  'xUbuntu_25.04','xUbuntu_24.10','xUbuntu_24.04','xUbuntu_22.04', 'xUbuntu_20.04',
                                     'Debian_11','Debian_12','Debian_testing',
                                     'DEB_Arch_Extra',
-                                    'Raspbian_11_arm64', 'Raspbian_12_arm64',
                                     'Fedora_40',
                                     'openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
                         }
@@ -125,7 +124,7 @@ pipeline {
                         } 
                         axis { 
                             name 'DISTRO'; 
-                            values  'Raspbian_11', 'Raspbian_12', 'Raspbian_11_arm64', 'Raspbian_12_arm64'
+                            values  'Raspbian_11', 'Raspbian_12'
                         }
                     }
                     exclude {
