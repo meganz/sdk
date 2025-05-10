@@ -8716,6 +8716,45 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
+TEST_F(SdkTest, SdkTestStreamingRaidedTransferBestCase)
+{
+    LOG_info << "___TEST Streaming Raided Transfer Best Case___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
+    std::string url100MB =
+        "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; // https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
+    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL + url100MB, rootnode.get());
+    std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot get CloudRaidNode node from public link";
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+    mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+    std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
+        StreamRaidFilePart(megaApi[0].get(),
+                           0,
+                           cloudRaidNode->getSize(),
+                           true /*raid*/,
+                           false,
+                           cloudRaidNode.get(),
+                           nullptr,
+                           nullptr));
+
+    ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180))
+        << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Cannot finish streaming download for the cloudraid file (error: " << mApi[0].lastError
+        << ")";
+
+    LOG_info << "___TEST Streaming Raided Transfer Best Case. Tests cases completed___";
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+}
+
 #if !USE_FREEIMAGE
 TEST_F(SdkTest, DISABLED_SdkHttpReqCommandPutFATest)
 #else

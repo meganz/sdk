@@ -1726,28 +1726,21 @@ bool DirectReadSlot::exitDueReqsOnFlight() const
 {
     // If there is any `valid` connection inflight we don't switch (we only switch when the
     // status is REQ_READY for all reqs to avoid disconnections)
+
+    if (mNumReqsInflight == 0)
+        return false;
+
     if (mNumReqsInflight > 1)
-    {
         return true;
-    }
-    else if (mNumReqsInflight == 1)
-    {
-        for (size_t i = 0; i < mReqs.size(); ++i)
-        {
-            if (i == mUnusedConn.getNum())
-            {
-                // Altough "unused connection" is taken into account to increase
-                // mNumReqsInflight (for convenience), it's not an effective request in flight
-                continue;
-            }
-            if (const std::unique_ptr<HttpReq>& req = mReqs[i]; req && req->httpstatus == REQ_READY)
-            {
-                continue;
-            }
-            return true;
-        }
-    }
-    return false;
+
+    const auto it = std::find_if(std::begin(mReqs),
+                                 std::end(mReqs),
+                                 [](const auto& req) -> bool
+                                 {
+                                     return !req || req->status != REQ_READY;
+                                 });
+
+    return it != std::end(mReqs);
 }
 
 bool DirectReadSlot::unusedConnectionCanBeReused()
@@ -1767,7 +1760,8 @@ void DirectReadSlot::replaceConnectionByUnusedInflight(
 
     if (mUnusedConnIncrementedInFlightReqs)
     {
-        decreaseReqsInflight();
+        if (mNumReqsInflight > 0)
+            decreaseReqsInflight();
         mUnusedConnIncrementedInFlightReqs = false;
     }
 }
@@ -1792,7 +1786,7 @@ bool DirectReadSlot::replaceConnectionByUnused(
     LOG_debug << "DirectReadSlot::replaceConnectionByUnused: Replace conn [" << newUnusedConnection
               << "]"
               << " by unused conn [" << prevUnusedConnection << "]"
-              << ". Replamecement reason [" << replamecementReason << "], unused reason ["
+              << ". Replacement reason [" << replamecementReason << "], unused reason ["
               << unusedReason << "] [this = " << this << "]";
 
     increaseUnusedConnSwitches(replamecementReason);
@@ -2032,7 +2026,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
     }
 
     const auto [slowConns, slowestConnectionIndex] = searchSlowConnsUnderThreshold();
-    LOG_debug << "watchOverDirectReadPerformance: number of detected slow connections"
+    LOG_debug << "watchOverDirectReadPerformance: number of detected slow connections = "
               << slowConns.size();
     if (slowConns.empty())
     {
@@ -2058,7 +2052,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         if (const auto unusedConnNotReusable =
                 !unusedConnectionCanBeReused() ||
                 maxUnusedConnSwitchesReached(UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD);
-            unusedConnNotReusable)
+            unusedConnNotReusable || mNumReqsInflight < EFFECTIVE_RAIDPARTS)
         {
             retryEntireTransfer(API_EAGAIN);
             return true;
