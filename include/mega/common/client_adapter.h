@@ -130,7 +130,10 @@ public:
     NodeHandle parentHandle(NodeHandle handle) const override;
 
     // Download part of a file from the cloud.
-    auto partialDownload(NodeHandle handle) -> ErrorOr<PartialDownloadPtr> override;
+    auto partialDownload(PartialDownloadCallback& callback,
+                         NodeHandle handle,
+                         std::uint64_t offset,
+                         std::uint64_t length) -> ErrorOr<PartialDownloadPtr> override;
 
     // What permissions are applicable to a node?
     accesslevel_t permissions(NodeHandle handle) const override;

@@ -7,6 +7,7 @@
 #include <mega/common/node_event_observer_forward.h>
 #include <mega/common/node_info_forward.h>
 #include <mega/common/normalized_path_forward.h>
+#include <mega/common/partial_download_callback_forward.h>
 #include <mega/common/partial_download_forward.h>
 #include <mega/common/task_queue_forward.h>
 #include <mega/common/upload_callbacks.h>
@@ -145,7 +146,10 @@ public:
     virtual NodeHandle parentHandle(NodeHandle handle) const = 0;
 
     // Download part of a file from the cloud.
-    virtual auto partialDownload(NodeHandle handle) -> ErrorOr<PartialDownloadPtr> = 0;
+    virtual auto partialDownload(PartialDownloadCallback& callback,
+                                 NodeHandle handle,
+                                 std::uint64_t offset,
+                                 std::uint64_t length) -> ErrorOr<PartialDownloadPtr> = 0;
 
     // What permissions are applicable to a node?
     virtual accesslevel_t permissions(NodeHandle handle) const = 0;

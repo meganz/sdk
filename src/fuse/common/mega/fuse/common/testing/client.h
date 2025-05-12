@@ -5,6 +5,7 @@
 #include <mega/common/error_or_forward.h>
 #include <mega/common/node_info_forward.h>
 #include <mega/common/normalized_path_forward.h>
+#include <mega/common/partial_download_callback_forward.h>
 #include <mega/common/partial_download_forward.h>
 #include <mega/common/task_queue_forward.h>
 #include <mega/common/upload_callbacks.h>
@@ -245,7 +246,10 @@ public:
                CloudPath target);
 
     // Download part of a file from the cloud.
-    auto partialDownload(CloudPath path) -> common::ErrorOr<common::PartialDownloadPtr>;
+    auto partialDownload(common::PartialDownloadCallback& callback,
+                         CloudPath path,
+                         std::uint64_t offset,
+                         std::uint64_t length) -> common::ErrorOr<common::PartialDownloadPtr>;
 
     // Reload the cloud tree.
     virtual Error reload() = 0;

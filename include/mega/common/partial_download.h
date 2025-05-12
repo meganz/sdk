@@ -1,6 +1,5 @@
 #pragma once
 
-#include <mega/common/partial_download_callback_forward.h>
 #include <mega/common/partial_download_forward.h>
 
 #include <cstdint>
@@ -19,9 +18,7 @@ public:
     virtual ~PartialDownload() = default;
 
     // Begin the partial download.
-    virtual void begin(PartialDownloadCallback& callback,
-                       std::uint64_t offset,
-                       std::uint64_t length) = 0;
+    virtual void begin() = 0;
 
     // Cancel the partial download.
     virtual bool cancel() = 0;
