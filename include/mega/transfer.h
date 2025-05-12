@@ -543,10 +543,6 @@ public:
      *      Methods       *
     \* ===================*/
 
-    /**
-     * @brief Returns true if transfer is raided, otherwise returns false
-     * @return true if transfer is raided, otherwise returns false
-     */
     bool isRaidedTransfer() const;
 
     /**

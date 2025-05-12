@@ -1550,8 +1550,9 @@ unsigned DirectReadSlot::usedConnections() const
     assert(isRaidedTransfer());
     if (!isRaidedTransfer() || mReqs.empty())
     {
-        LOG_warn << "DirectReadSlot -> usedConnections() being used when it shouldn't"
-                 << " [this = " << this << "]";
+        LOG_err << "DirectReadSlot -> usedConnections() being used when it shouldn't"
+                << " [this = " << this << "]";
+        return 0;
     }
     return static_cast<unsigned>(mReqs.size()) -
            ((mUnusedConn.getNum() != static_cast<unsigned>(mReqs.size())) ? 1 : 0);
