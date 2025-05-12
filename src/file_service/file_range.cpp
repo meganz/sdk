@@ -1,6 +1,7 @@
 #include <mega/common/utility.h>
 #include <mega/file_service/file_range.h>
 
+#include <cassert>
 #include <cinttypes>
 #include <utility>
 
@@ -10,6 +11,11 @@ namespace file_service
 {
 
 using namespace common;
+
+FileRange::FileRange(std::uint64_t begin, std::uint64_t end):
+    mBegin(std::min(begin, end)),
+    mEnd(std::max(begin, end))
+{}
 
 FileRange combine(const FileRange& lhs, const FileRange& rhs)
 {
