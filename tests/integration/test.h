@@ -1232,6 +1232,13 @@ public:
                         LocalPath& targetPath);
 
     /**
+     * @brief Deletes a file using the client fileAccess.
+     *
+     * It uses DEFAULTWAIT for retries if the operation ends with a transient error.
+     */
+    void unlinklocal(const LocalPath& localPath);
+
+    /**
      * @brief Checks for synchronization stall issues related to a specific BackupId.
      *
      * This function validates synchronization stall issues by checking the number of detected
