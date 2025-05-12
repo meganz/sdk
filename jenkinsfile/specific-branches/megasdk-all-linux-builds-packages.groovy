@@ -12,7 +12,7 @@ pipeline {
         booleanParam(name: 'UPLOAD_TO_REPOSITORY', defaultValue: false, description: 'Should the package be uploaded to artifactory?')
         booleanParam(name: 'RESULT_TO_SLACK', defaultValue: true, description: 'Should the job result be sent to slack?')
         booleanParam(name: 'CUSTOM_BUILD', defaultValue: false, description: 'If true, will use DISTRO_TO_BUILD and ARCH_TO_BUILD. If false, will build all distributions')
-        choice(name: 'ARCH_TO_BUILD', choices: ['amd64', 'armhf'], description: 'Only used if CUSTOM_BUILD is true')        
+        choice(name: 'ARCH_TO_BUILD', choices: ['amd64', 'armhf','arm64'], description: 'Only used if CUSTOM_BUILD is true')        
         string(name: 'DISTRO_TO_BUILD', defaultValue: 'xUbuntu_22.04', description: 'Only used if CUSTOM_BUILD is true')
         string(name: 'SDK_BRANCH', defaultValue: 'develop', description: 'Define a custom SDK branch.')
     }
@@ -90,7 +90,7 @@ pipeline {
                 axes {
                     axis { 
                         name 'ARCHITECTURE'; 
-                        values 'amd64','armhf'
+                        values 'amd64','armhf','arm64'
                     }
                     axis { 
                         name 'DISTRO'; 
@@ -103,7 +103,7 @@ pipeline {
                     }
                 }
                 excludes {
-                    exclude {   
+                    exclude {
                         axis { 
                             name 'ARCHITECTURE'; 
                             values 'armhf'
@@ -117,7 +117,7 @@ pipeline {
                                     'openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
                         }
                     }
-                    exclude {   
+                    exclude {
                         axis { 
                             name 'ARCHITECTURE'; 
                             values 'amd64' 
@@ -125,6 +125,16 @@ pipeline {
                         axis { 
                             name 'DISTRO'; 
                             values  'Raspbian_11', 'Raspbian_12'
+                        }
+                    }
+                    exclude {
+                        axis { 
+                            name 'ARCHITECTURE'; 
+                            values 'arm64' 
+                        } 
+                        axis { 
+                            name 'DISTRO'; 
+                            values  'DEB_Arch_Extra','Debian_11','xUbuntu_20.04','xUbuntu_24.04','Fedora_40','openSUSE_Tumbleweed'
                         }
                     }
                 }

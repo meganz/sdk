@@ -5598,10 +5598,20 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                         if (node)
                         {
                             NodeCounter counter = node->getCounter();
-                            LOG_debug << node->displaypath() << " " << counter.storage << " " << ns->bytes << " " << counter.files << " " << ns->files << " " << counter.folders << " " << ns->folders << " "
-                                      << counter.versionStorage << " " << ns->version_bytes << " " << counter.versions << " " << ns->version_files
-                                      << (counter.storage == ns->bytes && counter.files == ns->files && counter.folders == ns->folders && counter.versionStorage == ns->version_bytes && counter.versions == ns->version_files
-                                          ? "" : " ******************************************* mismatch *******************************************");
+                            const auto displayPath = node->displaypath();
+                            LOG_debug
+                                << displayPath << " " << counter.storage << " " << ns->bytes << " "
+                                << counter.files << " " << ns->files << " " << counter.folders
+                                << " " << ns->folders << " " << counter.versionStorage << " "
+                                << ns->version_bytes << " " << counter.versions << " "
+                                << ns->version_files
+                                << (counter.storage == ns->bytes && counter.files == ns->files &&
+                                            counter.folders == ns->folders &&
+                                            counter.versionStorage == ns->version_bytes &&
+                                            counter.versions == ns->version_files ?
+                                        "" :
+                                        " ******************************************* mismatch "
+                                        "*******************************************");
                         }
 #endif
 

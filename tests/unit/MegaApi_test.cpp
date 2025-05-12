@@ -487,3 +487,12 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
     ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, gb), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
     ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
 }
+
+TEST(MegaApi, UseCurrentPathIfNoBasePathIsGiven)
+{
+    constexpr const char* appKey{nullptr};
+    constexpr const char* basePath{nullptr};
+    auto megaApi{MegaApi(appKey, basePath)};
+
+    ASSERT_STREQ(std::filesystem::current_path().string().c_str(), megaApi.getBasePath());
+}

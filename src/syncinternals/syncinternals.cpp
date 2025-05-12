@@ -314,8 +314,9 @@ void clientUpload(MegaClient& mc,
     // If we found a node to clone with a valid key, call putNodesToCloneNode.
     if (auto cloneNode = findCloneNodeCandidate(mc, *upload); cloneNode)
     {
-        LOG_debug << "Cloning node rather than sync uploading: " << cloneNode->displaypath()
-                  << " for " << upload->sourceLocalname;
+        const auto displayPath = cloneNode->displaypath();
+        LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for "
+                  << upload->sourceLocalname;
 
         // completion function is supplied to putNodes command
         upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNode);

@@ -2,9 +2,12 @@
 #include <mega/filesystem.h>
 #include <mega/logging.h>
 
+JavaVM* MEGAjvm = nullptr;
+jclass applicationClass = nullptr;
+jmethodID deviceListMID = nullptr;
 jclass fileWrapper = nullptr;
 jclass integerClass = nullptr;
-JavaVM* MEGAjvm = nullptr;
+jobject surfaceTextureHelper = nullptr;
 
 namespace mega
 {

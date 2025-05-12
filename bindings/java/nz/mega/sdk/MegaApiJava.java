@@ -2684,9 +2684,72 @@ public class MegaApiJava {
      *
      * @param node MegaHandle of the node to check if it is a Password Node Folder
      * @return true if this node is a Password Node Folder
+     *
+     * @deprecated Moved to isPasswordManagerNodeFolder.
      */
+    @Deprecated
     public boolean isPasswordNodeFolder(long node) {
         return megaApi.isPasswordNodeFolder(node);
+    }
+
+    /**
+     * Returns true if provided MegaHandle belongs to a Password Manager Node Folder
+     *
+     * A folder is considered a Password Manager Node Folder if Password Manager Base is its
+     * ancestor, or if the node is the Password Manager Base folder itself.
+     *
+     * @param node MegaHandle of the node to check if it is a Password Manager Node Folder
+     * @return true if this node is a Password Manager Node Folder, false otherwise.
+     * In case node doesn't exists this method will also returns false.
+     */
+    public boolean isPasswordManagerNodeFolder(long node) {
+        return megaApi.isPasswordManagerNodeFolder(node);
+    };
+
+    /**
+     * Create a new Credit Card Node in your Password Manager tree
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
+     * - MegaRequest::getName - name for the new Password Node provided as an argument
+     * - MegaRequest::getParamType - MegaApi::PWM_NODE_TYPE_CREDIT_CARD
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new Password Node
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EBUSINESSPASTDUE:
+     *   + If the MEGA account is a business account and it's status is expired
+     * - MegaError::API_EARGS:
+     *   + If `name` is nullptr or empty string
+     *   + If `data` is nullptr
+     *   + If `parent` does belong to a passwordNodeFolder
+     * - MegaError::API_EEXIST:
+     *   + If there already is a Password Manager Node in the target path with the same name. In
+     *     that case, the existing Password Manager Node MegaHandle can be retrieved by
+     *     MegaRequest::getNodeHandle.
+     * - MegaError::API_EAPPKEY:
+     *   + If the `data` is ill-formed. These are the format requirements for the data in the
+     *     CreditCardNodeData object:
+     *     - `cardNumber`: Mandatory (not nullptr nor empty string). Can only contain digits (no
+     *       spaces or other characters are allowed)
+     *     - `cvv`: Optional. If defined, must contain only digits (no spaces or other
+     *       characters are allowed)
+     *     - `expirationDate`: Optional. If defined must follow exactly the format: MM/YY, where
+     *       MM and YY are digits and MM must be between 01 and 12. Some examples:
+     *       + Valid inputs: 01/11, 12/25, 05/99.
+     *       + Invalid inputs: 13/25, 1/30, 03/5.
+     *     - `notes` and `cardHolderName`: Optionals and with no format restrictions.
+     *
+     * @param name Name for the new Credit Card Node
+     * @param data Credit Card Node data for the Credit Card Node
+     * @param parent Parent folder for the new Credit Card Node
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createCreditCardNode(String name, MegaNode.CreditCardNodeData data, long parent, MegaRequestListenerInterface listener) {
+        megaApi.createCreditCardNode(name, data, parent, createDelegateRequestListener(listener));
     }
 
     /**
@@ -2712,6 +2775,37 @@ public class MegaApiJava {
     public void createPasswordNode(String name, MegaNode.PasswordNodeData data, long parent,
                                    MegaRequestListenerInterface listener) {
         megaApi.createPasswordNode(name, data, parent, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Update a Creadit Card Node in the MEGA account according to the parameters
+     *
+     * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+     * - MegaRequest::getParamType - MegaApi::PWM_NODE_TYPE_CREDIT_CARD
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish
+     * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EBUSINESSPASTDUE:
+     *   + If the MEGA account is a business account and it's status is expired
+     * - MegaError::API_EARGS:
+     *   + If `newData` is nullptr or empty
+     *   + If `node` does not exist or does not belong to a Credit Card Node
+     * - MegaError::API_EAPPKEY:
+     *   + If the node ends up in an invalid state after applying the provided updates in
+     *    `newData`. See `MegaApi::createCreditCardNode` documentation for more details on the
+     *    expected format of each field if specified for the update.
+     *
+     * @param node Node to modify
+     * @param newData New data for the Credit Card Node to update
+     * @param listener MegaRequestListener to track this request
+     */
+    public void updateCreditCardNode(long node, MegaNode.CreditCardNodeData newData,
+                                     MegaRequestListenerInterface listener) {
+        megaApi.updateCreditCardNode(node, newData, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11987,5 +12081,72 @@ public class MegaApiJava {
      */
     public void moveOrRemoveDeconfiguredBackupNodes(long deconfiguredBackupRoot, long backupDestination, MegaRequestListenerInterface listener) {
         megaApi.moveOrRemoveDeconfiguredBackupNodes(deconfiguredBackupRoot, backupDestination, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Change the local path that is being used as root for a sync.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CHANGE_SYNC_ROOT.
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFile - Returns the path of the new local folder to use as root
+     * - MegaRequest::getNodeHandle - Returns the affected sync backup ID.
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request.
+     * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional
+     *   info for the specific sync error (MegaSync::Error). This can occur both when the
+     *   request has succeeded (API_OK) and in some cases of failure when the request error is
+     *   not sufficiently descriptive.
+     *
+     * On the onRequestFinish callback, the error code associated with the MegaError
+     * (MegaError::getErrorCode()) and the SyncError (if relevant, MegaError::getSyncError())
+     * can be:
+     * - MegaError::API_OK:
+     *     + SyncError::NO_SYNC_ERROR the new root has been changed successfully
+     * - MegaError::API_EARGS:
+     *     + SyncError::LOCAL_PATH_UNAVAILABLE the given path is nullptr or is empty
+     *     + SyncError::UNKNOWN_ERROR The given backupId does not match any of the registered
+     *       syncs
+     *     + SyncError::LOCAL_PATH_SYNC_COLLISION The local path conflicts with existing
+     *       synchronization paths (nested syncs are not allowed)
+     *     + SyncError::FILESYSTEM_ID_UNAVAILABLE unable to get the file system fingerprint with
+     *       the given path
+     *     + SyncError::LOCAL_FILESYSTEM_MISMATCH The given path is in a different file system
+     *       comparing with the previous one. We don't allow this operation
+     *     + SyncError::UNABLE_TO_RETRIEVE_ROOT_FSID The new root directory cannot be opened
+     *     + SyncError::BACKUP_SOURCE_NOT_BELOW_DRIVE The new root directory is not contained in
+     *       the previous external path. That operation is not allowed.
+     * - MegaError::API_EWRITE:
+     *     + SyncError::SYNC_CONFIG_WRITE_FAILURE We couldn't write into the database to commit
+     *       the change.
+     * - MegaError::API_EFAILED:
+     *     + SyncError::LOCAL_PATH_MOUNTED trying to sync bellow a FUSE mount point
+     *     + SyncError::UNSUPPORTED_FILE_SYSTEM the given path is in a not supported file system
+     * - MegaError::API_ETEMPUNAVAIL:
+     *     + SyncError::LOCAL_PATH_TEMPORARY_UNAVAILABLE the given new path is temporarily
+     *       unavailable
+     * - MegaError::API_ENOENT:
+     *     + SyncError::LOCAL_PATH_UNAVAILABLE the given new path is not available
+     * - MegaError::API_EACCESS:
+     *     + SyncError::INVALID_LOCAL_TYPE the given path is not a directory
+     *
+     * @param syncBackupId The handle (backup ID) of the sync whose local root is to be changed.
+     * @param newLocalSyncRootPath The new local path to set as the sync root.
+     * @param listener A MegaRequestListener to track this request. This parameter is optional.
+     */
+    public void changeSyncLocalRoot(long syncBackupId, String newLocalSyncRootPath, MegaRequestListenerInterface listener) {
+        megaApi.changeSyncLocalRoot(syncBackupId, newLocalSyncRootPath, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @param link        The recovery link sent to the user's email address.
+     * @param recoveryKey Base64-encoded string containing the recoveryKey (masterKey).
+     * @param listener    MegaRequestListener to track this request
+     * @brief Check that the provided recovery key (master key) is correct
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_CHECK_RECOVERY_KEY
+     * No data in the MegaRequest object received on all callbacks
+     */
+    public void checkRecoveryKey(String link, String recoveryKey, MegaRequestListenerInterface listener) {
+        megaApi.checkRecoveryKey(link, recoveryKey, createDelegateRequestListener(listener));
     }
 }

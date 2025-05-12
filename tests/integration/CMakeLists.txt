@@ -38,6 +38,7 @@ target_sources(test_integration
     sdk_test_network.cpp
     SdkTestDeviceCenter_test.cpp
     SdkTestSyncLocalOperations_test.cpp
+    SdkTestSyncNodeAttribute_test.cpp
 
     passwordManager/SdkTestPasswordManager.cpp
     passwordManager/SdkTestPasswordManager.h

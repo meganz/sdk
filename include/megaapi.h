@@ -10909,19 +10909,21 @@ class MegaApi
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
-         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
+         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer
+         * required.
          *
          * @param basePath Base path to store the local cache
-         * If you pass NULL to this parameter, the SDK won't use any local cache.
+         * If you pass NULL to this parameter, the SDK will use the current working directory.
          *
          * @param userAgent User agent to use in network requests
          * If you pass NULL to this parameter, a default user agent will be used
          *
          * @param workerThreadCount The number of worker threads for encryption or other operations
-         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
-         * and uploads and downloads can proceed more quickly on very fast connections.
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked
+         * less, and uploads and downloads can proceed more quickly on very fast connections.
          *
-         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
+         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function
+         * differently
          *
          */
         MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
@@ -10929,26 +10931,30 @@ class MegaApi
         /**
          * @brief MegaApi Constructor that uses a given GFX provider
          *
-         * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics provider.
+         * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs
+         * a graphics provider.
          * @see MegaGfxProvider
          *
          * @param appKey AppKey of your application
-         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
+         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer
+         * required.
          *
-         * @param provider Graphics processing provider. The SDK will use it to generate previews and thumbnails. Once MegaApi returns, the provider
-         * couldn't be reused and the caller should release it.
+         * @param provider Graphics processing provider. The SDK will use it to generate previews
+         * and thumbnails. Once MegaApi returns, the provider couldn't be reused and the caller
+         * should release it.
          *
          * @param basePath Base path to store the local cache
-         * If you pass NULL to this parameter, the SDK won't use any local cache.
+         * If you pass NULL to this parameter, the SDK will use the current working directory.
          *
          * @param userAgent User agent to use in network requests
          * If you pass NULL to this parameter, a default user agent will be used
          *
          * @param workerThreadCount The number of worker threads for encryption or other operations
-         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
-         * and uploads and downloads can proceed more quickly on very fast connections.
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked
+         * less, and uploads and downloads can proceed more quickly on very fast connections.
          *
-         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
+         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function
+         * differently
          *
          */
         MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
@@ -11256,23 +11262,31 @@ class MegaApi
         /**
          * @brief Use custom DNS servers
          *
-         * The SDK tries to automatically get and use DNS servers configured in the system at startup. This function can be used
-         * to override that automatic detection and use a custom list of DNS servers. It is also useful to provide working
-         * DNS servers to the SDK in platforms in which it can't get them from the system.
+         * The SDK tries to automatically get and use DNS servers configured in the system at
+         * startup. This function can be used to override that automatic detection and use a custom
+         * list of DNS servers. It is also useful to provide working DNS servers to the SDK in
+         * platforms in which it can't get them from the system.
          *
-         * Since the usage of this function implies a change in DNS servers used by the SDK, all connections are
-         * closed and restarted using the new list of new DNS servers, so calling this function too often can cause
-         * many retries and problems to complete requests. Please use it only at startup or when DNS servers need to be changed.
+         * Since the usage of this function implies a change in DNS servers used by the SDK, all
+         * connections are closed and restarted using the new list of new DNS servers, so calling
+         * this function too often can cause many retries and problems to complete requests. Please
+         * use it only at startup or when DNS servers need to be changed.
          *
-         * The associated request type with this request is MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS.
-         * Valid data in the MegaRequest object received on callbacks:
+         * To use this functionality the curl library should have been built with support for
+         * c-ares. If there's no support for c-ares in the curl library, the error code provivded
+         * in onRequestFinish is MegaError::API_ENOENT.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS. Valid data in the MegaRequest object
+         * received on callbacks:
          * - MegaRequest::getText - Returns the new list of DNS servers
          *
-         * @param dnsServers New list of DNS servers. It must be a list of IPs separated by a comma character ",".
-         * IPv6 servers are allowed (without brackets).
+         * @param dnsServers New list of DNS servers. It must be a list of IPs separated by a comma
+         * character ",". IPv6 servers are allowed (without brackets). An empty list can be used to
+         * return the SDK to the default DNS resolution configuration.
          *
-         * The usage of this function will trigger the callback MegaGlobalListener::onEvent and the callback
-         * MegaListener::onEvent with the event type MegaEvent::EVENT_DISCONNECT.
+         * The usage of this function will trigger the callback MegaGlobalListener::onEvent and the
+         * callback MegaListener::onEvent with the event type MegaEvent::EVENT_DISCONNECT.
          *
          * @param listener MegaRequestListener to track this request
          */
