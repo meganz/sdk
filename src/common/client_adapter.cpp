@@ -287,26 +287,35 @@ std::set<std::string> ClientAdapter::childNames(NodeHandle parent) const
         return std::set<std::string>();
 
     // Keeps track of duplicate names.
-    std::deque<std::set<std::string>::iterator> duplicates;
+    std::set<const std::string*> duplicates;
     std::set<std::string> names;
 
     // Collect child names.
     for (auto child : mClient.getChildren(parent_.get()))
     {
-        // Compute the child's name.
-        auto name = std::string(child->displayname());
-
         // Add the child's name to the set.
-        auto result = names.emplace(std::move(name));
+        auto result = names.emplace(child->displayname());
 
         // Name's already been seen.
         if (!result.second)
-            duplicates.emplace_back(result.first);
+            duplicates.emplace(&*result.first);
     }
 
     // Prune duplicate names.
-    for (auto iterator : duplicates)
-        names.erase(iterator);
+    while (!duplicates.empty())
+    {
+        // Get an iterator to the duplicate we have to remove.
+        auto duplicate = duplicates.begin();
+
+        // Get an iterator to the name we have to remove.
+        auto name = names.find(**duplicate);
+
+        // Remove the duplicate from our duplicates set.
+        duplicates.erase(duplicate);
+
+        // Remove the duplicated name from our names set.
+        names.erase(name);
+    }
     
     // Return names to caller.
     return names;
