@@ -322,7 +322,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
         (version > 0 && !r.unserializeexpansionflags(expansionflags, 3)) ||
         (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)) ||
         (expansionflags[1] && !r.unserializeu8(t->discardedTempUrlsSize)))
-
     {
         LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
         return nullptr;
@@ -331,7 +330,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
 
     if (!filepath.empty())
     {
-        if (const bool isLocalPath = expansionflags[1] == 1; isLocalPath)
+        if (const bool isLocalPath = expansionflags[2] == 1; isLocalPath)
         {
             auto localPath = LocalPath::unserialize(filepath);
             if (localPath.has_value())

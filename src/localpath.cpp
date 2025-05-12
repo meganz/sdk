@@ -1841,6 +1841,15 @@ void PathURI::changeLeaf(const LocalPath& newLeaf)
         return;
     }
 
+    if (auto leaves = splitString<std::vector<std::string>>(newLeaf.toPath(false),
+                                                            LocalPath::localPathSeparator);
+        leaves.size() > 1)
+    {
+        LOG_err << "Invalid newLeaf (contains multiple leaves)";
+        assert(false);
+        return;
+    }
+
     if (mAuxPath.size())
     {
         mAuxPath.pop_back();

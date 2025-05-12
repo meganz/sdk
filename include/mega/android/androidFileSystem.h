@@ -99,8 +99,6 @@ private:
     static constexpr char DELETE_FILE[] = "deleteFile";
     static constexpr char DELETE_EMPTY_FOLDER[] = "deleteFolderIfEmpty";
     static constexpr char RENAME[] = "rename";
-
-    static std::mutex mMutex;
 };
 
 /**
@@ -214,6 +212,7 @@ public:
     bool unlinklocal(const LocalPath&) override;
     bool rmdirlocal(const LocalPath&) override;
     bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
+    /* On Android we cannot set mtime on files, due to insufficient permissions */
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
@@ -253,6 +252,7 @@ public:
                              bool followSymLinks,
                              unsigned& nFingerprinted) override;
 
+    /* Not implemented yet */
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
 
     m_off_t availableDiskSpace(const LocalPath& drivePath) override;

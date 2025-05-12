@@ -15,8 +15,6 @@ namespace mega
 
 AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
 
-std::mutex AndroidFileWrapper::mMutex;
-
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mURI(path)
 {
@@ -373,6 +371,11 @@ std::optional<std::string> AndroidFileWrapper::getPath()
     }
 
     const char* chars = env->GetStringUTFChars(pathString, nullptr);
+    if (!chars)
+    {
+        return std::nullopt;
+    }
+
     std::string outputString(chars);
     env->ReleaseStringUTFChars(pathString, chars);
     env->DeleteLocalRef(pathString);
@@ -450,7 +453,8 @@ std::shared_ptr<AndroidFileWrapper>
     {
         std::vector<std::string> children;
         LocalPath auxPath{localPath};
-        while (!auxPath.isRootPath())
+        while (!auxPath.isRootPath()) // for URIs, this method returns true just if PathURI doesn't
+                                      // contains any leaf
         {
             children.insert(children.begin(), auxPath.leafOrParentName());
             auxPath = auxPath.parentPath();
@@ -509,8 +513,9 @@ bool AndroidFileWrapper::exists()
 std::shared_ptr<AndroidFileWrapper>
     AndroidFileWrapper::getAndroidFileWrapper(const std::string& uri)
 {
-    std::lock_guard<std::mutex> g(mMutex);
     std::shared_ptr<AndroidFileWrapper> androidFileWrapperNew{new AndroidFileWrapper(uri)};
+    assert(androidFileWrapperNew); // this method must return a valid AndroidFileWrapper ptr,
+                                   // otherwise all usages of this method must be reviewed
     return androidFileWrapperNew;
 }
 
@@ -723,7 +728,7 @@ void AndroidFileAccess::updatelocalname(const LocalPath& name, bool force)
     if (force || !nonblocking_localname.empty())
     {
         nonblocking_localname = name;
-        mFileWrapper = nullptr;
+        mFileWrapper.reset();
     }
 }
 
