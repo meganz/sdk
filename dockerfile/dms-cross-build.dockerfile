@@ -71,7 +71,7 @@ CMD ["sh", "-c", "\
     echo 'Adding \"me\" user...' && \
     useradd -r -M -u $owner_uid -g $owner_gid -d /mega -s /bin/bash me && \
     export PLATFORM=${PLATFORM} && \
-    su - me -w 'PLATFORM' -c ' \
+    su - me -w 'PLATFORM,VCPKG_BINARY_SOURCES,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_ENDPOINT_URL' -c ' \
     /mega/dms-toolchain.sh ${PLATFORM} && \
     cmake -B buildDMS -S sdk \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \

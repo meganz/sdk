@@ -112,6 +112,10 @@ pipeline {
                                     docker run --name dsm-builder-${PLATFORM}-${env.BUILD_NUMBER} --rm \
                                         -v ${sdk_sources_workspace}:/mega/sdk \
                                         -v ${VCPKGPATH}:/mega/vcpkg \
+                                        -e VCPKG_BINARY_SOURCES \
+                                        -e AWS_ACCESS_KEY_ID \
+                                        -e AWS_SECRET_ACCESS_KEY \
+                                        -e AWS_ENDPOINT_URL \
                                         -e PLATFORM=${PLATFORM} meganz/dsm-build-env:${env.BUILD_NUMBER}
                                 """
                             }
