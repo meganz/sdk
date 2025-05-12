@@ -32,6 +32,8 @@ vcpkg_from_git(
     URL https://pdfium.googlesource.com/pdfium.git
     REF 7a8409531fbb58d7d15ae331e645977b113d7ced # chromium/6778
     PATCHES
+        gcc_parentheses_init.patch # gcc9, no aggregate initialization with parentheses in C++20.
+        win-compilation-v142.patch # Compiler fails auto type deduction in v142 platform
 )
 
 message(STATUS "Working on submodules and other dependencies...")
