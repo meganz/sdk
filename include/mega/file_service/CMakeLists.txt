@@ -1,5 +1,6 @@
 target_sources(SDKlib PRIVATE
                       file.h
+                      file_callbacks.h
                       file_context_forward.h
                       file_context_pointer.h
                       file_forward.h
