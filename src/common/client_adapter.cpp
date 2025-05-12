@@ -1495,7 +1495,7 @@ void ClientPartialDownload::failure(Failure& failure)
 
 bool ClientPartialDownload::inProgress()
 {
-    std::lock_guard guard(mLock);
+    auto guard = this->lock<std::unique_lock>();
 
     // Download's already begun or already completed.
     if (mStatus != SF_CANCELLABLE)
@@ -1553,11 +1553,11 @@ void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
                           event);
     }
 
+    // Acquire the lock so other threads must wait to cancel us.
+    auto lock = this->lock<std::unique_lock>();
+
     // We're executing in the context of a callback.
     auto executing = makeScopedValue(mExecuting, true);
-
-    // Acquire the lock so other threads must wait to cancel us.
-    std::unique_lock lock(mLock);
 
     // Dispatch the event.
     std::visit(overloaded{[&](Data& data)
