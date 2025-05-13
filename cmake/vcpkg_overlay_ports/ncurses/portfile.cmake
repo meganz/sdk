@@ -37,6 +37,10 @@ if(VCPKG_TARGET_IS_MINGW)
     )
 endif()
 
+if(VCPKG_TARGET_IS_LINUX)
+    list(APPEND OPTIONS "CFLAGS=-std=gnu17")
+endif()
+
 vcpkg_configure_make(
     SOURCE_PATH "${SOURCE_PATH}"
     DETERMINE_BUILD_TRIPLET
