@@ -872,6 +872,21 @@ std::string gencash(const string& token, uint8_t easiness)
     }
 }
 
+const char* CurlHttpIO::pubkeyForUrl(const char* url) const
+{
+    if (Utils::startswith(url, APIURL.c_str()) ||
+        Utils::startswith(url, MegaClient::REQSTATURL.c_str()))
+    {
+        return "sha256//0W38e765pAfPqS3DqSVOrPsC4MEOvRBaXQ7nY1AJ47E=;" // API 1
+               "sha256//gSRHRu1asldal0HP95oXM/5RzBfP1OIrPjYsta8og80="; // API 2
+    }
+    else if (Utils::startswith(url, MegaClient::SFUSTATSURL.c_str()))
+    {
+        return "sha256//2ZAltznnzY3Iee3NIZPOgqIQVNXVjvDEjWTmAreYVFU=;" // STATSSFU  1
+               "sha256//7jLrvaEtfqTCHew0iibvEm2k61iatru+rwhFD7g3nxA="; // STATSSFU  2
+    }
+    return nullptr;
+}
 void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 {
     CurlHttpIO* httpio = httpctx->httpio;
@@ -989,19 +1004,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         if (!httpio->disablepkp && req->protect)
         {
         #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
-            if (curl_easy_setopt(
-                    curl,
-                    CURLOPT_PINNEDPUBLICKEY,
-                    Utils::startswith(req->posturl, httpio->APIURL) ||
-                            Utils::startswith(req->posturl, MegaClient::REQSTATURL) ?
-                        "sha256//0W38e765pAfPqS3DqSVOrPsC4MEOvRBaXQ7nY1AJ47E=;" // API 1
-                        "sha256//gSRHRu1asldal0HP95oXM/5RzBfP1OIrPjYsta8og80=" // API 2
-                        :
-                        (Utils::startswith(req->posturl, MegaClient::SFUSTATSURL) ?
-                             "sha256//2ZAltznnzY3Iee3NIZPOgqIQVNXVjvDEjWTmAreYVFU=;" // STATSSFU  1
-                             "sha256//7jLrvaEtfqTCHew0iibvEm2k61iatru+rwhFD7g3nxA=" // STATSSFU  2
-                             :
-                             nullptr)) == CURLE_OK)
+            if (curl_easy_setopt(curl,
+                                 CURLOPT_PINNEDPUBLICKEY,
+                                 httpio->pubkeyForUrl(req->posturl)) == CURLE_OK)
             {
                 curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
                 if (httpio->pkpErrors)
