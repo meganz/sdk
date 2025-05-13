@@ -1688,6 +1688,13 @@ bool ClientPartialDownload::cancel()
     mStatus = SF_CANCELLED | SF_COMPLETED;
 
     // Bail if we're executing within another callback.
+    //
+    // The user's completed(...) callback will be executed when they return
+    // control directly back to us.
+    //
+    // For instance, if they have called cancel(...) from their data(...)
+    // callback, we'll execute their completed(...) callback when they
+    // return control back to us from data(...).
     if (mExecuting)
         return true;
 
