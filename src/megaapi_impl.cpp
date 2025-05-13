@@ -2779,6 +2779,24 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
     }
     break;
+    case name_id::ass:
+    {
+        UserAlert::SetTakedown* p = static_cast<UserAlert::SetTakedown*>(b);
+        if (p->isTakedown)
+        {
+            type = TYPE_SET_TAKEDOWN;
+        }
+        else if (p->isReinstate)
+        {
+            type = TYPE_SET_TAKEDOWN_REINSTATED;
+        }
+        nodeHandle = p->setId;
+        if (const Set* set = mc->getSet(nodeHandle); set)
+        {
+            nodeName = set->name();
+        }
+    }
+    break;
 #ifdef ENABLE_CHAT
     case name_id::mcsmp:
     {
@@ -2891,6 +2909,10 @@ const char *MegaUserAlertPrivate::getTypeString() const
     case TYPE_SCHEDULEDMEETING_NEW:                     return "SCHEDULEDMEETING_NEW";
     case TYPE_SCHEDULEDMEETING_UPDATED:                 return "SCHEDULEDMEETING_UPDATED";
     case TYPE_SCHEDULEDMEETING_DELETED:                 return "SCHEDULEDMEETING_DELETED";
+    case TYPE_SET_TAKEDOWN:
+        return "SET_TAKEDOWN";
+    case TYPE_SET_TAKEDOWN_REINSTATED:
+        return "SET_TAKEDOWN_REINSTATED";
     }
     return "<new type>";
 }

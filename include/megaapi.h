@@ -2001,6 +2001,36 @@ public:
      */
     virtual bool isExported() const { return false; }
 
+    /**
+     * @brief Returns deletion reason for the link associated with the set
+     *
+     * Valid values are:
+     *    - DELETION_LINK_NO_REMOVED = 0
+     *    - DELETION_LINK_BY_USER = 1
+     *    - DELETION_LINK_DISPUTE = 2
+     *    - DELETION_LINK_ETD = 3
+     *    - DELETION_LINK_ATD = 4
+     *
+     * @return reason for link has been removed
+     */
+    virtual int getLinkDeletionReason() const
+    {
+        return false;
+    }
+
+    /**
+     * @brief Returns true if this set has been exported
+     * and the related public link has been taken down.
+     *
+     * Public links are created by calling MegaApi::exportSet.
+     *
+     * @return true if the public link has been taken down.
+     */
+    virtual bool isTakenDown() const
+    {
+        return false;
+    }
+
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
 
@@ -2021,6 +2051,14 @@ public:
         SET_TYPE_INVALID = -1,
     };
 
+    enum : int // 1:1 with existing Set::LinkDeletionReason::
+    {
+        DELETION_LINK_NO_REMOVED = 0,
+        DELETION_LINK_BY_USER = 1,
+        DELETION_LINK_DISPUTE = 2,
+        DELETION_LINK_ETD = 3,
+        DELETION_LINK_ATD = 4,
+    };
 };
 
 /**
@@ -2605,6 +2643,8 @@ public:
         TYPE_SCHEDULEDMEETING_NEW,
         TYPE_SCHEDULEDMEETING_DELETED,
         TYPE_SCHEDULEDMEETING_UPDATED,
+        TYPE_SET_TAKEDOWN,
+        TYPE_SET_TAKEDOWN_REINSTATED,
 
         TOTAL_OF_ALERT_TYPES
     };
@@ -2701,17 +2741,19 @@ public:
     virtual MegaHandle getUserHandle() const;
 
     /**
-    * @brief Returns the handle of a node related to the alert
-    *
-    * This value is valid for alerts that relate to a single node.
-    *  TYPE_NEWSHARE (folder handle), TYPE_DELETEDSHARE (folder handle), TYPE_NEWSHAREDNODES (parent handle), TYPE_TAKEDOWN (node handle),
-    *  TYPE_TAKEDOWN_REINSTATED (node handle)
-    *
-    * This value is also valid for the following alerts:
-    * TYPE_SCHEDULEDMEETING_NEW (chatid), TYPE_SCHEDULEDMEETING_DELETED (chatid), TYPE_SCHEDULEDMEETING_UPDATED (chatid)
-    *
-    * @return the relevant node handle, or UNDEF if this alert does not have one.
-    */
+     * @brief Returns the handle of a node related to the alert
+     *
+     * This value is valid for alerts that relate to a single node.
+     *  TYPE_NEWSHARE (folder handle), TYPE_DELETEDSHARE (folder handle), TYPE_NEWSHAREDNODES
+     * (parent handle), TYPE_TAKEDOWN (node handle), TYPE_TAKEDOWN_REINSTATED (node handle)
+     *
+     * This value is also valid for the following alerts:
+     * TYPE_SCHEDULEDMEETING_NEW (chatid), TYPE_SCHEDULEDMEETING_DELETED (chatid),
+     * TYPE_SCHEDULEDMEETING_UPDATED (chatid), TYPE_SET_TAKEDOWN (set id),
+     * TYPE_SET_TAKEDOWN_REINSTATED (set id)
+     *
+     * @return the relevant node handle, or UNDEF if this alert does not have one.
+     */
     virtual MegaHandle getNodeHandle() const;
 
     /**
@@ -2776,7 +2818,8 @@ public:
      * This value is valid for those alerts that relate to a single name, provided
      * it could be looked up from the cached nodes at the time the alert arrived.
      * Otherwise, it may be obtainable via the nodeHandle.
-     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
+     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?,
+     *   TYPE_SET_TAKEDOWN?, TYPE_SET_TAKEDOWN_REINSTATED?
      *
      * @return the name string if relevant and available, otherwise NULL
      */

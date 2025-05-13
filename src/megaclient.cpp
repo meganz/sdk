@@ -19955,7 +19955,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
         s.setKey(setToBeUpdated.key());
         s.setUser(setToBeUpdated.user());
         s.rebaseAttrsOn(setToBeUpdated);
-        s.setPublicId(setToBeUpdated.publicId());
+        s.setPublicLink(setToBeUpdated.getPublicLink());
         s.setType(setToBeUpdated.type());
 
         string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
@@ -20346,7 +20346,7 @@ error MegaClient::decryptSetData(Set& s)
             || mPreviewSet->mSet.id() == s.id()) // followup receiving Set data for preview Set
         {
             s.setKey(mPreviewSet->mPublicKey); // already decrypted
-            s.setPublicId(mPreviewSet->mPublicId);
+            s.setPublicLink(std::make_unique<PublicLinkSet>(mPreviewSet->mPublicId));
         }
         else
         {
@@ -20502,7 +20502,11 @@ error MegaClient::readSet(JSON& j, Set& s)
 
         case name_id::ph:
         {
-            s.setPublicId(j.gethandle(MegaClient::PUBLICSETHANDLE)); // overwrite if existed
+            handle publicLink = j.gethandle(MegaClient::PUBLICSETHANDLE); // overwrite if existed
+            if (publicLink != UNDEF)
+            {
+                s.setPublicLink(std::make_unique<PublicLinkSet>(publicLink));
+            }
             break;
         }
 
@@ -20992,7 +20996,7 @@ void MegaClient::sc_asp()
         }
 
         // copy any existing data not received via AP
-        s.setPublicId(existing.publicId());
+        s.setPublicLink(existing.getPublicLink());
 
         if (existing.updateWith(std::move(s)))
         {
@@ -21098,8 +21102,13 @@ void MegaClient::sc_aer()
     }
 }
 
-error MegaClient::readExportedSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemoved)
+error MegaClient::readExportedSet(JSON& j, Set& s)
 {
+    handle publicHandle{UNDEF};
+    PublicLinkSet::LinkDeletionReason reason{PublicLinkSet::LinkDeletionReason::NO_REMOVED};
+    bool removed{false};
+    bool containsTakenDownInfo = false;
+    bool isDown = false;
     for (;;)
     {
         switch (jsonsc.getnameid())
@@ -21109,22 +21118,28 @@ error MegaClient::readExportedSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRem
             break;
 
         case name_id::ph:
-            s.setPublicId(j.gethandle(MegaClient::PUBLICSETHANDLE)); // overwrite if existed
+            publicHandle = j.gethandle(MegaClient::PUBLICSETHANDLE); // overwrite if existed
             break;
 
         case makeNameid("ts"):
             s.setTs(j.getint());
             break;
 
-        case makeNameid("r"):
-            exportRemoved.first = j.getint() == 1;
-            s.setPublicId(UNDEF);
+        // The presence of this parameter indicates a takeup/takedown. 0 means takeup and 1 means
+        // takedown
+        case MAKENAMEID2('t', 'd'):
+            containsTakenDownInfo = true;
+            isDown = j.getint() == 1;
+            break;
+
+        // The presence of this parameter indicates a set public handle removal
+        case MAKENAMEID1('r'):
+            removed = true;
+            j.getint();
             break;
 
         case name_id::c:
-            exportRemoved.second = j.getint();
-            /* 0     => deleted by user
-             * Other => ETD / ATD / dispute */
+            reason = PublicLinkSet::apiCodeToDeletionReason(j.getint());
             break;
 
         default: // skip 'i' and any unknown/unexpected member
@@ -21140,8 +21155,29 @@ error MegaClient::readExportedSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRem
         }
 
         case EOO:
+            // Create an user alert if needed
+            if (containsTakenDownInfo && !ISUNDEF(s.id()) && statecurrent)
+            {
+                useralerts.add(new UserAlert::SetTakedown(isDown,
+                                                          !isDown,
+                                                          reason,
+                                                          s.id(),
+                                                          m_time(),
+                                                          useralerts.nextId()));
+            }
+            if (removed)
+            {
+                s.setPublicLink(nullptr);
+            }
+            else
+            {
+                std::unique_ptr<PublicLinkSet> publicLinkSet;
+                publicLinkSet.reset(new PublicLinkSet(publicHandle));
+                publicLinkSet->setTakeDown(isDown);
+                publicLinkSet->setLinkDeletionReason(reason);
+                s.setPublicLink(std::move(publicLinkSet));
+            }
             return API_OK;
-
         }
     }
 }
@@ -21150,6 +21186,8 @@ error MegaClient::readSetPublicHandle(JSON& j, map<handle, Set>& sets)
 {
     handle item = UNDEF, itemPH = UNDEF;
     m_off_t ts = 0;
+    m_off_t dts = 0;
+    bool takeDown = 0;
     for (;;)
     {
         switch (j.getnameid())
@@ -21164,6 +21202,14 @@ error MegaClient::readSetPublicHandle(JSON& j, map<handle, Set>& sets)
 
         case makeNameid("ts"):
             ts = j.getint();
+            break;
+
+        case MAKENAMEID1('c'):
+            takeDown = j.getint() == 1;
+            break;
+
+        case MAKENAMEID3('d', 't', 's'):
+            dts = j.getint();
             break;
 
         default: // skip any unknown/unexpected member
@@ -21182,8 +21228,21 @@ error MegaClient::readSetPublicHandle(JSON& j, map<handle, Set>& sets)
             assert(item != UNDEF && itemPH != UNDEF);
             if (sets.find(item) != end(sets))
             {
-                sets[item].setPublicId(itemPH);
-                sets[item].setTs(ts);
+                std::unique_ptr<PublicLinkSet> publicLinkSet =
+                    std::make_unique<PublicLinkSet>(itemPH);
+
+                if (takeDown)
+                {
+                    publicLinkSet->setTakeDown(takeDown);
+                    // Set link with ETS and ATS aren't returned, only valid reason is
+                    // Dispute(copyright)
+                    publicLinkSet->setLinkDeletionReason(
+                        PublicLinkSet::LinkDeletionReason::DISPUTE);
+                }
+
+                sets[item].setPublicLink(std::move(publicLinkSet));
+                // setTs store last modification ts
+                sets[item].setTs(dts > ts ? dts : ts);
             }
             else LOG_warn << "Sets: Set handle " << toHandle(item) << " not found in user's Sets";
 
@@ -21212,8 +21271,7 @@ error MegaClient::readSetsPublicHandles(JSON& j, map<handle, Set>& sets)
 void MegaClient::sc_ass()
 {
     Set s;
-    auto exportRemoved = std::make_pair(false, static_cast<m_off_t>(0));
-    const error e = readExportedSet(jsonsc, s, exportRemoved);
+    const error e = readExportedSet(jsonsc, s);
 
     if (e != API_OK)
     {
@@ -21230,9 +21288,9 @@ void MegaClient::sc_ass()
     else
     {
         Set updatedSet(existingSet->second);
-        updatedSet.setPublicId(s.publicId());
         updatedSet.setTs(s.ts());
         updatedSet.setChanged(Set::CH_EXPORTED);
+        updatedSet.setPublicLink(s.getPublicLink());
         updateSet(std::move(updatedSet));
     }
 }

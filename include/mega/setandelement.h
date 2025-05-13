@@ -242,21 +242,201 @@ namespace mega {
     };
 
     /**
+     * @brief Internal representation of a public link from a set
+     */
+    class PublicLinkSet
+    {
+    public:
+        enum class LinkDeletionReason : uint8_t
+        {
+            NO_REMOVED = 0,
+            BY_USER,
+            DISPUTE,
+            ETD,
+            ATD,
+        };
+
+        static constexpr uint64_t ETD_REMOVED_API_CODE = 4294967275; // Defined by API
+        static constexpr uint64_t ATD_REMOVED_API_CODE = 4294967274; // Defined by API
+        static constexpr uint64_t USER_REMOVED_API_CODE = 0; // Defined by API
+
+        static LinkDeletionReason apiCodeToDeletionReason(const int64_t apiCode)
+        {
+            switch (apiCode)
+            {
+                case USER_REMOVED_API_CODE:
+                    return LinkDeletionReason::BY_USER;
+                case ETD_REMOVED_API_CODE:
+                    return LinkDeletionReason::ETD;
+                case ATD_REMOVED_API_CODE:
+                    return LinkDeletionReason::ATD;
+                default:
+                    return LinkDeletionReason::DISPUTE;
+            }
+        }
+
+        static std::string LinkDeletionReasonToString(const LinkDeletionReason reason)
+        {
+            switch (reason)
+            {
+                case LinkDeletionReason::NO_REMOVED:
+                    return "not removed";
+                case LinkDeletionReason::BY_USER:
+                    return "by user";
+                case LinkDeletionReason::DISPUTE:
+                    return "dispute";
+                case LinkDeletionReason::ETD:
+                    return "ETD";
+                case LinkDeletionReason::ATD:
+                    return "ATD";
+            }
+            // Silent compilation warning
+            return "";
+        }
+
+        PublicLinkSet():
+            mPublicId(UNDEF)
+        {}
+
+        PublicLinkSet(handle publicId):
+            mPublicId(publicId)
+        {}
+
+        PublicLinkSet* copy() const
+        {
+            return new PublicLinkSet(*this);
+        }
+
+        // set public id of the set (Set exported)
+        void setPublicId(handle pid)
+        {
+            mPublicId = pid;
+        }
+
+        // set if link has been taken down
+        void setTakeDown(bool takedown)
+        {
+            mTakedown = takedown;
+        }
+
+        // set the reason for link removal
+        void setLinkDeletionReason(const LinkDeletionReason deletionReason)
+        {
+            mLinkDeletionReason = deletionReason;
+        }
+
+        // return public id of the set
+        handle getPublicHandle() const
+        {
+            return mPublicId;
+        }
+
+        // returns true if link has been taken down
+        bool isTakenDown() const
+        {
+            return mTakedown;
+        }
+
+        // returns the reason for link removal
+        LinkDeletionReason getLinkDeletionReason() const
+        {
+            return mLinkDeletionReason;
+        }
+
+    protected:
+        handle mPublicId{UNDEF};
+        bool mTakedown{};
+        LinkDeletionReason mLinkDeletionReason{LinkDeletionReason::NO_REMOVED};
+
+        PublicLinkSet(const PublicLinkSet& publicLink):
+            mPublicId(publicLink.mPublicId),
+            mTakedown(publicLink.mTakedown),
+            mLinkDeletionReason(publicLink.mLinkDeletionReason)
+        {}
+    };
+
+    /**
      * @brief Internal representation of a Set
      */
-    class Set : public CommonSE, public Cacheable
+    class Set: public CommonSE, public Cacheable
     {
     public:
         using SetType = uint8_t;
 
         Set() = default;
-        Set(handle id, handle publicId, std::string&& key, handle user, string_map&& attrs,
-            SetType type = TYPE_ALBUM)
-            : CommonSE(id, std::move(key), std::move(attrs)), mPublicId(publicId), mUser(user),
-              mType(type) {}
+
+        Set(handle id,
+            std::string&& key,
+            handle user,
+            string_map&& attrs,
+            SetType type = TYPE_ALBUM):
+            CommonSE(id, std::move(key), std::move(attrs)),
+            mUser(user),
+            mType(type)
+        {}
+
+        Set(const Set& s):
+            CommonSE(s),
+            mUser(s.mUser),
+            mCTs(s.mCTs),
+            mType(s.mType),
+            mChanges(s.mChanges)
+        {
+            if (s.getPublicLink())
+            {
+                mPublicLink.reset(s.getPublicLink()->copy());
+            }
+        }
+
+        Set(Set&& s):
+            CommonSE(s),
+            mUser(s.mUser),
+            mCTs(s.mCTs),
+            mType(s.mType),
+            mChanges(s.mChanges),
+            mPublicLink(std::move(s.mPublicLink))
+        {}
+
+        Set& operator=(const Set& src)
+        {
+            mId = src.mId;
+            mKey = src.mKey;
+            mAttrs.reset(src.mAttrs ? new string_map(*src.mAttrs) : nullptr);
+            mTs = src.mTs;
+            mEncryptedAttrs.reset(src.mEncryptedAttrs ? new std::string(*src.mEncryptedAttrs) :
+                                                        nullptr);
+            mUser = src.mUser;
+            mCTs = src.mCTs;
+            mType = src.mType;
+            mChanges = src.mChanges;
+            if (src.getPublicLink())
+            {
+                mPublicLink.reset(src.getPublicLink()->copy());
+            }
+
+            return *this;
+        }
+
+        Set& operator=(Set&& src)
+        {
+            mId = src.mId;
+            mKey = src.mKey;
+            mAttrs = std::move(src.mAttrs);
+            mTs = src.mTs;
+            mEncryptedAttrs = std::move(src.mEncryptedAttrs);
+            mUser = src.mUser;
+            mCTs = src.mCTs;
+            mType = src.mType;
+            mChanges = src.mChanges;
+            mPublicLink = std::move(src.mPublicLink);
+            return *this;
+        }
 
         // return public id of the set
-        const handle& publicId() const { return mPublicId; }
+        handle publicId() const
+        {
+            return mPublicLink ? mPublicLink->getPublicHandle() : UNDEF;
+        }
 
         // return id of the user that owns this Set
         const handle& user() const { return mUser; }
@@ -270,8 +450,11 @@ namespace mega {
         // get Set type
         SetType type() const { return mType; }
 
-        // set public id of the set (Set exported); UNDEF received when disabled
-        void setPublicId(handle pid) { mPublicId = pid; }
+        // get public link info
+        const PublicLinkSet* getPublicLink() const
+        {
+            return mPublicLink.get();
+        }
 
         // set id of the user that owns this Set
         void setUser(handle uh) { mUser = uh; }
@@ -284,6 +467,18 @@ namespace mega {
 
         // set Set type
         void setType(SetType t) { mType = t; }
+
+        // set public link info (take ownership)
+        void setPublicLink(std::unique_ptr<PublicLinkSet>&& publicLink)
+        {
+            mPublicLink = std::move(publicLink);
+        }
+
+        // set public link info (No take ownership)
+        void setPublicLink(const PublicLinkSet* publicLink)
+        {
+            mPublicLink.reset(publicLink ? publicLink->copy() : nullptr);
+        }
 
         // replace internal parameters with the ones of 's', and mark any CH_XXX change
         bool updateWith(Set&& s);
@@ -309,7 +504,11 @@ namespace mega {
                        false;
         }
 
-        bool isExported() const { return mPublicId != UNDEF; }
+        // Returns true if Set is exported
+        bool isExported() const
+        {
+            return publicId() != UNDEF;
+        }
 
         bool serialize(std::string*) const override;
         static std::unique_ptr<Set> unserialize(std::string* d);
@@ -334,12 +533,13 @@ namespace mega {
         };
 
     private:
-        handle mPublicId = UNDEF;
         handle mUser = UNDEF;
         m_time_t mCTs = 0; // creation timestamp
         SetType mType = TYPE_ALBUM;
 
         std::bitset<CH_SIZE> mChanges;
+
+        std::unique_ptr<PublicLinkSet> mPublicLink;
 
         static const std::string coverTag; // "c", used for 'cover' attribute
     };
