@@ -84,12 +84,19 @@ public:
 
     ~FileServiceContext();
 
+    // Retrieve a reference to this service's client.
+    common::Client& client();
+
+    // Retrieve information about a file managed by this service.
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
 
+    // Open a file for reading or writing.
     auto open(FileID id) -> FileServiceResultOr<File>;
 
+    // Remove a file context from our index.
     auto removeFromIndex(FileContextBadge badge, FileID id) -> void;
 
+    // Remove a file info context from our index.
     auto removeFromIndex(FileInfoContextBadge badge, FileID id) -> void;
 }; // FileServiceContext
 

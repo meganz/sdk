@@ -24,12 +24,16 @@ public:
 
     ~FileService();
 
+    // Deinitialize the file service.
     void deinitialize();
 
+    // Retrieve information about a file managed by the file service.
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
 
+    // Initialize the file service.
     auto initialize(common::Client& client) -> FileServiceResult;
 
+    // Open a file for reading or writing.
     auto open(FileID id) -> FileServiceResultOr<File>;
 }; // FileService
 

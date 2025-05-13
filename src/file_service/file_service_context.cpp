@@ -197,6 +197,11 @@ FileServiceContext::FileServiceContext(Client& client):
 
 FileServiceContext::~FileServiceContext() = default;
 
+Client& FileServiceContext::client()
+{
+    return mClient;
+}
+
 auto FileServiceContext::info(FileID id) -> FileServiceResultOr<FileInfo>
 try
 {
