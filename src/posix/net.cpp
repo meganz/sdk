@@ -1085,6 +1085,10 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                 curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
             }
         }
+        else if (httpio->proxytype == Proxy::NONE)
+        {
+            curl_easy_setopt(curl, CURLOPT_PROXY, "");
+        }
 
         if (!httpio->dnsservers.empty())
         {
