@@ -65,7 +65,7 @@ pipeline {
             }
         }
         stage('Build'){
-            agent { label 'ci-debian-11-64-5' }
+            agent { label 'linux && amd64' }
             stages {
                 stage('clean previous runs'){
                     steps{
