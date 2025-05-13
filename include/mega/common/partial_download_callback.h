@@ -4,9 +4,13 @@
 #include <mega/common/partial_download_callback_forward.h>
 
 #include <cstdint>
+#include <variant>
 
 namespace mega
 {
+
+class Error;
+
 namespace common
 {
 
