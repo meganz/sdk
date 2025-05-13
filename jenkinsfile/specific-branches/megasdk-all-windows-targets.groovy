@@ -43,6 +43,12 @@ pipeline {
                 }
                 stages {
                     stage("Build") {
+                        environment {
+                            VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
+                            AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
+                            AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
+                            AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
+                        }
                         steps{
                             script {
                                 def BUILD_DIR = "${WORKSPACE}\\build_dir_${ARCHITECTURE}"

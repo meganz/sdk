@@ -16,7 +16,10 @@ pipeline {
     }
     environment {
         VCPKGPATH = "/opt/vcpkg"
-        VCPKGPATH_CACHE = "${HOME}/.cache/vcpkg"
+        VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
+        AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
+        AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
+        AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
     }
     stages {
         stage('Clean previous runs'){
@@ -65,8 +68,8 @@ pipeline {
                         expression { params.BUILD_ARM == true }
                     }
                     steps {
-                        sh "docker run --name android-builder-arm-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=arm meganz/android-build-env:${env.BUILD_NUMBER}"
-                        sh "docker run --name android-builder-arm-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=arm -e BUILD_SHARED_LIBS=ON meganz/android-build-env:${env.BUILD_NUMBER}"                    
+                        sh "docker run --name android-builder-arm-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=arm -e VCPKG_BINARY_SOURCES -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_ENDPOINT_URL meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-arm-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=arm -e BUILD_SHARED_LIBS=ON -e VCPKG_BINARY_SOURCES -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_ENDPOINT_URL meganz/android-build-env:${env.BUILD_NUMBER}"                    
                     }
                     post{
                         aborted {
@@ -88,8 +91,8 @@ pipeline {
                         expression { params.BUILD_ARM64 == true }
                     }
                     steps {
-                        sh "docker run --name android-builder-arm64-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=arm64 meganz/android-build-env:${env.BUILD_NUMBER}"
-                        sh "docker run --name android-builder-arm64-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=arm64 -e BUILD_SHARED_LIBS=ON meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-arm64-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=arm64 -e VCPKG_BINARY_SOURCES -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_ENDPOINT_URL meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-arm64-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=arm64 -e BUILD_SHARED_LIBS=ON -e VCPKG_BINARY_SOURCES -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_ENDPOINT_URL meganz/android-build-env:${env.BUILD_NUMBER}"
                     }
                     post{
                         aborted {
@@ -111,8 +114,8 @@ pipeline {
                         expression { params.BUILD_X86 == true }
                     }
                     steps {
-                        sh "docker run --name android-builder-x86-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=x86 meganz/android-build-env:${env.BUILD_NUMBER}"
-                        sh "docker run --name android-builder-x86-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=x86 -e BUILD_SHARED_LIBS=ON meganz/android-build-env:${env.BUILD_NUMBER}"                    
+                        sh "docker run --name android-builder-x86-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=x86 -e VCPKG_BINARY_SOURCES -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_ENDPOINT_URL meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-x86-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=x86 -e BUILD_SHARED_LIBS=ON -e VCPKG_BINARY_SOURCES -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_ENDPOINT_URL meganz/android-build-env:${env.BUILD_NUMBER}"                    
                     }
                     post{
                         aborted {
@@ -134,8 +137,8 @@ pipeline {
                         expression { params.BUILD_X64 == true }
                     }
                     steps {
-                        sh "docker run --name android-builder-x64-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=x64 meganz/android-build-env:${env.BUILD_NUMBER}"
-                        sh "docker run --name android-builder-x64-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg -e ARCH=x64 -e BUILD_SHARED_LIBS=ON meganz/android-build-env:${env.BUILD_NUMBER}" 
+                        sh "docker run --name android-builder-x64-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=x64 -e VCPKG_BINARY_SOURCES -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_ENDPOINT_URL meganz/android-build-env:${env.BUILD_NUMBER}"
+                        sh "docker run --name android-builder-x64-dynamiclib-${env.BUILD_NUMBER} --rm -v ${WORKSPACE}:/mega/sdk -v ${VCPKGPATH}:/mega/vcpkg -e ARCH=x64 -e BUILD_SHARED_LIBS=ON -e VCPKG_BINARY_SOURCES -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_ENDPOINT_URL meganz/android-build-env:${env.BUILD_NUMBER}" 
                     }
                     post{
                         aborted {
