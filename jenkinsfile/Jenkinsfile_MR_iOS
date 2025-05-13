@@ -6,7 +6,7 @@ String uploadFileToGitLab(String fileName, String projectId) {
     String link = ""
     String response = ""
     withCredentials([string(credentialsId: 'gitlab-api-token', variable: 'TOKEN')]) {
-        response = sh(script: "curl -s --request POST --header 'PRIVATE-TOKEN:$TOKEN' --form file=@${fileName} ${env.GITLAB_BASE_URL}/api/v4/projects/${projectId}/uploads", returnStdout: true).trim()
+        response = sh(script: "curl -s --request POST --header 'PRIVATE-TOKEN:\$TOKEN' --form file=@${fileName} ${env.GITLAB_BASE_URL}/api/v4/projects/${projectId}/uploads", returnStdout: true).trim()
     }
     link = new JsonSlurperClassic().parseText(response).markdown
     echo "Logs uploaded to: ${link}"
@@ -16,7 +16,7 @@ String uploadFileToGitLab(String fileName, String projectId) {
 // Downloads the console log from this Jenkins build
 void downloadJenkinsConsoleLog(String fileName) {
     withCredentials([usernameColonPassword(credentialsId: 'jenkins-ro', variable: 'CREDENTIALS')]) {
-        sh "curl -u '${CREDENTIALS}' ${BUILD_URL}consoleText -o ${fileName}"
+        sh "curl -u \"\${CREDENTIALS}\" ${BUILD_URL}consoleText -o ${fileName}"
     }
 }
 
