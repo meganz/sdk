@@ -20388,8 +20388,8 @@ TEST_F(SdkTest, HashCash)
 TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
 {
     LOG_info << "___TEST SdkTestRemovePublicLinkSet";
-    constexpr unsigned long primaryClientIdx{0};
-    constexpr unsigned long secondaryClientIdx{1};
+    static const unsigned long primaryClientIdx{0};
+    static const unsigned long secondaryClientIdx{1};
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Client 2 is other client from user 1
