@@ -2495,17 +2495,25 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
     }
 #endif /* __linux__ || __ANDROID__ */
 
-#if defined(__APPLE__) || defined(USE_IOS)
+#if defined(__APPLE__) || defined(USE_IOS)) || defined(__FreeBSD__) || defined(__OpenBSD__) || \
+    defined(__NetBSD__) || defined(__DragonFly__)
     static const map<string, FileSystemType> filesystemTypes = {
         {"apfs",        FS_APFS},
         {"exfat",       FS_EXFAT},
+        {"ext2fs",      FS_EXT},
+        {"ffs",         FS_FFS},  // NetBSD, OpenBSD
+        {"hammer",      FS_HAMMER},  // DragonFly BSD
+        {"hammer2",     FS_HAMMER},  // DragonFly BSD
         {"hfs",         FS_HFS},
         {"msdos",       FS_FAT32},
+        {"msdosfs",     FS_FAT32},
         {"nfs",         FS_NFS},
         {"ntfs",        FS_NTFS}, // Apple NTFS
         {"smbfs",       FS_SMB},
         {"tuxera_ntfs", FS_NTFS}, // Tuxera NTFS for Mac
         {"ufsd_NTFS",   FS_NTFS},  // Paragon NTFS for Mac
+        {"ufs",         FS_UFS},  // FreeBSD
+        {"zfs",         FS_ZFS},
         {"lifs",        FS_LIFS},  // on macos (in Ventura at least), external USB with exFAT are reported as "lifs"
     }; /* filesystemTypes */
 
@@ -2524,7 +2532,7 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
         type = FS_UNKNOWN;
         return true;
     }
-#endif /* __APPLE__ || USE_IOS */
+#endif /* __APPLE__ || USE_IOS || BSDs */
 
     type = FS_UNKNOWN;
     return false;
