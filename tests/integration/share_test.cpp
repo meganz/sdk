@@ -1149,55 +1149,64 @@ TEST_F(SdkTestShareOrder, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime
 
 TEST_F(SdkTestShare, TestSharesPermission)
 {
-    LOG_info << "___TEST TestSharesPermission___";
-
+    static const auto logPre = getLogPrefix();
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
 
     // Ensure no account has the other verified from previous unfinished tests.
     ASSERT_NO_FATAL_FAILURE(resetCredential(0, 1));
     ASSERT_NO_FATAL_FAILURE(resetCredential(0, 2));
 
-    LOG_info << "Invite from account 0 to 1 and verify credential";
+    LOG_info << logPre
+             << "#### Test preconditions. Invite from account 0 to 1 and verify "
+                "credential ####";
     ASSERT_NO_FATAL_FAILURE(addContactsAndVerifyCredential(0, 1));
-    LOG_info << "Invite from account 0 to 2 and verify credential";
+    LOG_info << logPre
+             << "#### Test preconditions. Invite from account 0 to 2 and verify "
+                "credential ####";
     ASSERT_NO_FATAL_FAILURE(addContactsAndVerifyCredential(0, 2));
 
     // Root node
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
 
-    LOG_info << "Create folders";
+    LOG_info << logPre << "#### Test preconditions. Create folders ####";
     auto [handle1, shareNode1] = createFolder(0, "share1", remoteRootNode.get());
     auto [handle2, shareNode2] = createFolder(0, "share2", remoteRootNode.get());
     ASSERT_THAT(shareNode1, testing::NotNull());
     ASSERT_THAT(shareNode2, testing::NotNull());
 
-    LOG_info << "Share (full access) folder from account 0 to account 1 share node 1";
+    LOG_info << logPre
+             << "#### Test1 Share (full access) folder from account 0 to account "
+                "1 share node 1 ####";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode1.get(), true, true, MegaShare::ACCESS_FULL));
     {
         string sharedPath = megaApi[0]->getMyEmail();
         sharedPath.append(":share1");
         RequestTracker listener{megaApi[1].get()};
-        auto sharedNode = megaApi[1]->getNodeByPath(sharedPath.c_str());
-        megaApi[1]->setNodeLabel(sharedNode, 1, &listener);
+        std::unique_ptr<MegaNode> sharedNode(megaApi[1]->getNodeByPath(sharedPath.c_str()));
+        ASSERT_TRUE(sharedNode) << logPre << "Cannot find node by path: " << sharedPath;
+        megaApi[1]->setNodeLabel(sharedNode.get(), 1, &listener);
         ASSERT_TRUE(API_OK == listener.waitForResult());
         ASSERT_TRUE(WaitFor(
             [this]() -> bool
             {
-                auto sharedNode = megaApi[0]->getNodeByPath("/share1");
+                std::unique_ptr<MegaNode> sharedNode(megaApi[0]->getNodeByPath("/share1"));
                 return (1 == sharedNode->getLabel());
             },
             20 * 1000));
     }
 
-    LOG_info << "Share (Read and Write) folder from account 0 to account 2 share node 2";
+    LOG_info << logPre
+             << "#### Test2. Share (Read and Write) folder from account 0 to "
+                "account 2 share node 2 ####";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode2.get(), {0, true}, {2, true}));
     {
         string sharedPath = megaApi[0]->getMyEmail();
         RequestTracker listener{megaApi[2].get()};
         sharedPath.append(":share2");
-        auto sharedNode = megaApi[2]->getNodeByPath(sharedPath.c_str());
-        megaApi[2]->setNodeLabel(sharedNode, 1, &listener);
+        std::unique_ptr<MegaNode> sharedNode(megaApi[2]->getNodeByPath(sharedPath.c_str()));
+        ASSERT_TRUE(sharedNode) << logPre << "Cannot find node by path: " << sharedPath;
+        megaApi[2]->setNodeLabel(sharedNode.get(), 1, &listener);
         ASSERT_TRUE(API_EACCESS == listener.waitForResult());
     }
 }
