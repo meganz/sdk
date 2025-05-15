@@ -91,6 +91,8 @@ class MegaSemaphore : public CppSemaphore {};
     class MegaWaiter : public PosixWaiter {};
     #ifdef __APPLE__
     class MegaFileSystemAccess : public MacFileSystemAccess {};
+    #elif defined(USE_PERIODIC)
+    class MegaFileSystemAccess : public FallbackFileSystemAccess {};
     #else
     class MegaFileSystemAccess : public LinuxFileSystemAccess {};
     #endif
