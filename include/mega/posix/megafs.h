@@ -259,6 +259,29 @@ private:
 
 #endif // ENABLE_SYNC
 
+#elif defined(USE_PERIODIC)
+
+#define FSACCESS_CLASS FallbackFileSystemAccess
+
+class FallbackFileSystemAccess : public PosixFileSystemAccess
+{
+public:
+    DirNotify* newdirnotify(LocalNode& root,
+                            const LocalPath& rootPath,
+                            Waiter* waiter) override;
+
+    void addevents(Waiter*, int) override;
+
+    int checkevents(Waiter*) override;
+
+}; // class FallbackFileSystemAccess
+
+class FallbackDirNotify : public DirNotify
+{
+public:
+    FallbackDirNotify(const LocalPath& rootPath);
+};
+
 #endif // __linux__
 
 } // namespace
