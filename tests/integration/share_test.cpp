@@ -86,7 +86,7 @@ void SdkTestShare::createShareAtoB(MegaNode* node,
     // convinience
     auto& apiA = mApi[partyA.apiIndex];
     auto& apiB = mApi[partyB.apiIndex];
-
+    apiA.nodeUpdated = apiB.nodeUpdated = false;
     apiA.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
                                                               MegaNode::CHANGE_TYPE_OUTSHARE,
                                                               apiA.nodeUpdated);
