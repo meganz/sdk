@@ -23,6 +23,12 @@ if(VCPKG_LIBRARY_LINKAGE STREQUAL "dynamic")
     )
 endif()
 
+if(NOT "wide-char" IN_LIST FEATURES)
+    list(APPEND OPTIONS
+        --disable-widec # Enabled by default starting at 6.5. Disabled by default here for compatibility.
+    )
+endif()
+
 if(NOT VCPKG_TARGET_IS_MINGW)
     list(APPEND OPTIONS
         --enable-mixed-case
