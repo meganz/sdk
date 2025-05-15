@@ -2883,6 +2883,9 @@ void MegaClient::exec()
                         app->useralerts_updated(NULL, int(useralerts.alerts.size())); // there are no 'removed' alerts at this point
                     }
                     pendingscUserAlerts.reset();
+                    app->notify_network_activity(NetworkActivityChannel::SC,
+                                                 NetworkActivityType::REQUEST_RECEIVED,
+                                                 API_OK);
                     break;
                 }
 
@@ -2949,6 +2952,9 @@ void MegaClient::exec()
                     insca_notlast = false;
                     jsonsc.begin(pendingsc->in.c_str());
                     jsonsc.enterobject();
+                    app->notify_network_activity(NetworkActivityChannel::SC,
+                                                 NetworkActivityType::REQUEST_RECEIVED,
+                                                 API_OK);
                     break;
                 }
                 else
@@ -3095,6 +3101,9 @@ void MegaClient::exec()
                 pendingscUserAlerts->posturl.append(getAuthURI());
                 pendingscUserAlerts->type = REQ_JSON;
                 pendingscUserAlerts->post(this);
+                app->notify_network_activity(NetworkActivityChannel::SC,
+                                             NetworkActivityType::REQUEST_SENT,
+                                             API_OK);
             }
             else
             {
@@ -3134,6 +3143,9 @@ void MegaClient::exec()
 
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
+                app->notify_network_activity(NetworkActivityChannel::SC,
+                                             NetworkActivityType::REQUEST_RECEIVED,
+                                             API_OK);
             }
             jsonsc.pos = NULL;
         }
