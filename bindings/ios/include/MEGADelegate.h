@@ -179,7 +179,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param api MEGASdk object connected to the account
  * @param sets Array that contains the new or updated Sets
  */
-- (void)onSetsUpdate:(MEGASdk *)api sets:(nullable NSArray<MEGASet *> *)sets;
+- (void)onSetsUpdate:(MEGASdk *)api sets:(NSArray<MEGASet *> *)sets;
 
 /**
  * @brief This function is called when a SetElement has been updated (created / updated / removed)
@@ -187,7 +187,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param api MEGASdk object connected to the account
  * @param setElements Array that contains the new or updated Set-Elements
  */
-- (void)onSetElementsUpdate:(MEGASdk *)api setElements:(nullable NSArray<MEGASetElement *> *)setElements;
+- (void)onSetElementsUpdate:(MEGASdk *)api setElements:(NSArray<MEGASetElement *> *)setElements;
 
 /**
  * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
