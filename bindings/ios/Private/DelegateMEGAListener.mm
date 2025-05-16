@@ -179,38 +179,44 @@ void DelegateMEGAListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNodeList 
 
 void DelegateMEGAListener::onSetsUpdate(mega::MegaApi *api, mega::MegaSetList *setList) {
     if (listener !=nil && [listener respondsToSelector:@selector(onSetsUpdate:sets:)]) {
-        int size = setList->size();
-        NSMutableArray *sets = [[NSMutableArray alloc] initWithCapacity:size];
-        
-        for (int i = 0; i < size; i++) {
-            MEGASet *megaSet = [[MEGASet alloc] initWithMegaSet:setList->get(i)->copy() cMemoryOwn:YES];
-            [sets addObject:megaSet];
+        NSMutableArray<MEGASet *> *sets = nil;
+        if (setList) {
+            int size = setList->size();
+            sets = [[NSMutableArray alloc] initWithCapacity:size];
+            
+            for (int i = 0; i < size; i++) {
+                MEGASet *megaSet = [[MEGASet alloc] initWithMegaSet:setList->get(i)->copy() cMemoryOwn:YES];
+                [sets addObject:megaSet];
+            }
         }
         
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGADelegate> tempListener = this->listener;
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            [tempListener onSetsUpdate:tempListener sets:[sets copy]];
+            [tempListener onSetsUpdate:tempListener sets:sets ? [sets copy] : nil];
         });
     }
 }
 
 void DelegateMEGAListener::onSetElementsUpdate(mega::MegaApi* api, mega::MegaSetElementList* setElementList) {
     if (listener !=nil && [listener respondsToSelector:@selector(onSetElementsUpdate:setElements:)]) {
-        int size = setElementList->size();
-        NSMutableArray *setsElements = [[NSMutableArray alloc] initWithCapacity:size];
-        
-        for (int i = 0; i < size; i++) {
-            MEGASetElement *megaSetElement = [[MEGASetElement alloc] initWithMegaSetElement:setElementList->get(i)->copy() cMemoryOwn:YES];
-            [setsElements addObject:megaSetElement];
+        NSMutableArray<MEGASetElement *> *setsElements = nil;
+        if (setElementList) {
+            int size = setElementList->size();
+            setsElements = [[NSMutableArray alloc] initWithCapacity:size];
+            
+            for (int i = 0; i < size; i++) {
+                MEGASetElement *megaSetElement = [[MEGASetElement alloc] initWithMegaSetElement:setElementList->get(i)->copy() cMemoryOwn:YES];
+                [setsElements addObject:megaSetElement];
+            }
         }
         
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGADelegate> tempListener = this->listener;
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            [tempListener onSetElementsUpdate:tempMegaSDK setElements:[setsElements copy]];
+            [tempListener onSetElementsUpdate:tempMegaSDK setElements:setsElements ? [setsElements copy] : nil];
         });
     }
 }
