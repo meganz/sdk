@@ -3775,7 +3775,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                     client->syncs.setSdsBackupsFullSync(records);
                                 }
 #endif
-                                u->setAttribute(at, value, version);
+                                u->updateAttributeIfDifferentVersion(at, value, version);
                                 mCompletionTLV(std::move(records), at);
                             }
                             else
@@ -3786,7 +3786,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                 {
                                     // Store the attribute so we can update it later with valid
                                     // values
-                                    u->setAttribute(at, value, version);
+                                    u->updateAttributeIfDifferentVersion(at, value, version);
                                     mCompletionErr(API_EKEY);
                                 }
                                 else
@@ -3799,7 +3799,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         }
                         case ATTR_SCOPE_PUBLIC_UNENCRYPTED:
                         {
-                            u->setAttribute(at, value, version);
+                            u->updateAttributeIfDifferentVersion(at, value, version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
                             if (!u->isTemporary && u->userhandle != client->me)
@@ -3817,7 +3817,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         }
                         case ATTR_SCOPE_PROTECTED_UNENCRYPTED:
                         {
-                            u->setAttribute(at, value, version);
+                            u->updateAttributeIfDifferentVersion(at, value, version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                             break;
                         }
@@ -3841,7 +3841,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             }
 
                             // store the value in cache in binary format
-                            u->setAttribute(at, value, version);
+                            u->updateAttributeIfDifferentVersion(at, value, version);
 
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
