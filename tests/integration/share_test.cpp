@@ -1175,16 +1175,30 @@ TEST_F(SdkTestShare, TestSharesPermission)
     ASSERT_THAT(shareNode1, testing::NotNull());
     ASSERT_THAT(shareNode2, testing::NotNull());
 
+    auto waitForNode = [this](const unsigned idx,
+                              const std::string& sharedPath,
+                              std::shared_ptr<MegaNode>& sharedNode) -> std::function<bool()>
+    {
+        // Wait until node attr's is decrypted, otherwise getNodeByPath could not retrieve
+        // it, even if it has already been received
+        return [=, &sharedNode]()
+        {
+            sharedNode.reset(megaApi[idx]->getNodeByPath(sharedPath.c_str()));
+            return !!sharedNode;
+        };
+    };
+
     LOG_info << logPre
              << "#### Test1 Share (full access) folder from account 0 to account "
                 "1 share node 1 ####";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode1.get(), true, true, MegaShare::ACCESS_FULL));
     {
+        std::shared_ptr<MegaNode> sharedNode;
         string sharedPath = megaApi[0]->getMyEmail();
         sharedPath.append(":share1");
         RequestTracker listener{megaApi[1].get()};
-        std::unique_ptr<MegaNode> sharedNode(megaApi[1]->getNodeByPath(sharedPath.c_str()));
-        ASSERT_TRUE(sharedNode) << logPre << "Cannot find node by path: " << sharedPath;
+        ASSERT_TRUE(WaitFor(waitForNode(1, sharedPath, sharedNode), 60 * 1000))
+            << "Cannot get outshare in A account.";
         megaApi[1]->setNodeLabel(sharedNode.get(), 1, &listener);
         ASSERT_TRUE(API_OK == listener.waitForResult());
         ASSERT_TRUE(WaitFor(
@@ -1201,11 +1215,12 @@ TEST_F(SdkTestShare, TestSharesPermission)
                 "account 2 share node 2 ####";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(shareNode2.get(), {0, true}, {2, true}));
     {
+        std::shared_ptr<MegaNode> sharedNode;
         string sharedPath = megaApi[0]->getMyEmail();
         RequestTracker listener{megaApi[2].get()};
         sharedPath.append(":share2");
-        std::unique_ptr<MegaNode> sharedNode(megaApi[2]->getNodeByPath(sharedPath.c_str()));
-        ASSERT_TRUE(sharedNode) << logPre << "Cannot find node by path: " << sharedPath;
+        ASSERT_TRUE(WaitFor(waitForNode(2, sharedPath, sharedNode), 60 * 1000))
+            << "Cannot get outshare in A account.";
         megaApi[2]->setNodeLabel(sharedNode.get(), 1, &listener);
         ASSERT_TRUE(API_EACCESS == listener.waitForResult());
     }

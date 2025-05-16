@@ -21559,8 +21559,7 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
     attr_map attrUpdates;
     if (const auto isOfficial = request->getFlag(); isOfficial)
     {
-        int type = request->getParamType();
-        if (type == MegaApi::NODE_ATTR_DURATION)
+        if (int type = request->getParamType(); type == MegaApi::NODE_ATTR_DURATION)
         {
             int secs = int(request->getNumber());
             if (node->type != FILENODE || secs < MegaNode::INVALID_DURATION)
