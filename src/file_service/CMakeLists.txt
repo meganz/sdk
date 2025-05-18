@@ -22,6 +22,7 @@ target_sources(SDKlib PRIVATE
                       file_info_context.cpp
                       file_range.cpp
                       file_read_request_set.cpp
+                      file_read_write_state.cpp
                       file_result.cpp
                       file_service.cpp
                       file_service_context.cpp
