@@ -307,13 +307,32 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::s
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getChildByName(const std::string& name)
 {
-    const auto sameName = [&name](const auto& child) -> bool
+    JNIEnv* env{nullptr};
+    MEGAjvm->AttachCurrentThread(&env, NULL);
+    jmethodID methodID =
+        env->GetMethodID(fileWrapper, GET_CHILD_BY_NAME, "(Ljava/lang/String;)Ljava/lang/String;");
+    if (!methodID)
     {
-        return child->getName() == name;
-    };
-    const auto children{getChildren()};
-    const auto it = std::find_if(begin(children), end(children), sameName);
-    return it == std::end(children) ? nullptr : *it;
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        LOG_err << "Error: AndroidFileWrapper::getChildByName";
+        return nullptr;
+    }
+
+    jstring jname{env->NewStringUTF(name.c_str())};
+    jstring uriString =
+        static_cast<jstring>(env->CallObjectMethod(mAndroidFileObject, methodID, jname));
+    env->DeleteLocalRef(jname);
+    if (!uriString)
+    {
+        return nullptr;
+    }
+
+    const char* elementStr = env->GetStringUTFChars(uriString, nullptr);
+    auto aux = AndroidFileWrapper::getAndroidFileWrapper(elementStr);
+    env->ReleaseStringUTFChars(uriString, elementStr);
+    env->DeleteLocalRef(uriString);
+    return aux;
 }
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getParent() const

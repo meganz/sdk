@@ -94,6 +94,7 @@ private:
     static constexpr char GET_CHILDREN_URIS[] = "getChildrenUris";
     static constexpr char CHILD_EXISTS[] = "childFileExists";
     static constexpr char CREATE_CHILD[] = "createChildFile";
+    static constexpr char GET_CHILD_BY_NAME[] = "getChildByName";
     static constexpr char GET_PARENT[] = "getParentFile";
     static constexpr char GET_PATH[] = "getPath";
     static constexpr char DELETE_FILE[] = "deleteFile";
