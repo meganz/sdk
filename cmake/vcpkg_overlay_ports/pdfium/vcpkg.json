@@ -1,6 +1,6 @@
 {
   "name": "pdfium",
-  "version": "5247",
+  "version": "6778",
   "port-version": 1,
   "description": "Library to render PDF files",
   "homepage": "https://pdfium.googlesource.com/pdfium/",
@@ -12,7 +12,6 @@
     "lcms",
     "libjpeg-turbo",
     "openjpeg",
-    "bzip2",
     "libpng",
     "freetype"
   ]
