@@ -3728,9 +3728,9 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     // if there's no avatar, the value is "none" (not Base64 encoded)
                     if (u && at == ATTR_AVATAR && buf == "none")
                     {
-                        u->setAttribute(ATTR_AVATAR,
-                                        buf, // actual value will be ignored
-                                        version);
+                        u->updateAttributeIfDifferentVersion(ATTR_AVATAR,
+                                                             buf, // actual value will be ignored
+                                                             version);
                         u->setTag(tag ? tag : -1);
                         mCompletionErr(API_ENOENT);
                         client->notifyuser(u);
