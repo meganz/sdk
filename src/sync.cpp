@@ -2812,7 +2812,10 @@ bool Sync::checkForCompletedFolderCreateHere(SyncRow& row,
         }
         else if (folderCreate->succeededHandle.isUndef())
         {
-            SYNC_verbose << syncname << "Cloud folder move already issued for this node, waiting for it to complete. " << logTriplet(row, fullPath);
+            SYNC_verbose
+                << syncname
+                << "Cloud folder create already issued for this node, waiting for it to complete. "
+                << logTriplet(row, fullPath);
             rowResult = false;
             return true;  // row processed (no further action) but not synced
         }
@@ -2838,9 +2841,21 @@ bool Sync::checkForCompletedFolderCreateHere(SyncRow& row,
             rowResult = false;
             return true;
         }
+        else if (syncs.triggerHandlesPending())
+        {
+            SYNC_verbose << syncname
+                         << "Cloud folder create completed, cloud node does not match, but there "
+                            "are pending trigger handles to process. Skip until next loop."
+                         << logTriplet(row, fullPath);
+            rowResult = false;
+            return true; // row processed (no further action) but not synced
+        }
         else
         {
-            SYNC_verbose << syncname << "Folder Create completed, but cloud Node does not match now.  Reset to reevaluate." << logTriplet(row, fullPath);
+            SYNC_verbose << syncname
+                         << "Cloud folder create completed, but cloud node does not match now. "
+                            "Reset to reevaluate."
+                         << logTriplet(row, fullPath);
             folderCreate.reset();
             row.syncNode->updateMoveInvolvement();
         }
@@ -3159,9 +3174,21 @@ bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row,
             rowResult = false;
             return true;
         }
+        else if (syncs.triggerHandlesPending())
+        {
+            SYNC_verbose << syncname
+                         << "Cloud move completed, cloud node does not match, but there "
+                            "are pending trigger handles to process. Skip until next loop."
+                         << logTriplet(row, fullPath);
+            rowResult = false;
+            return true; // row processed (no further action) but not synced
+        }
         else
         {
-            SYNC_verbose << syncname << "Cloud move completed, but cloud Node does not match now.  Reset to reevaluate." << logTriplet(row, fullPath);
+            SYNC_verbose
+                << syncname
+                << "Cloud move completed, but cloud node does not match now. Reset to reevaluate."
+                << logTriplet(row, fullPath);
             moveHerePtr->syncCodeProcessedResult = true;
             moveHerePtr.reset();
             row.syncNode->updateMoveInvolvement();
@@ -11746,6 +11773,18 @@ void Syncs::triggerSync(NodeHandle h, bool recurse)
     lock_guard<mutex> g(triggerMutex);
     auto& entry = triggerHandles[h];
     if (recurse) entry = true;
+}
+
+bool Syncs::triggerHandlesPending() const
+{
+    lock_guard<mutex> g(triggerMutex);
+    return !triggerHandles.empty();
+}
+
+bool Syncs::triggerLocalpathsPending() const
+{
+    lock_guard<mutex> g(triggerMutex);
+    return !triggerLocalpaths.empty();
 }
 
 void Syncs::processTriggerLocalpaths()
