@@ -45,7 +45,7 @@ public:
     std::string getName();
     std::vector<std::shared_ptr<AndroidFileWrapper>> getChildren();
     // Check if tree exists
-    bool pathExists(const std::vector<std::string>& subPaths);
+    std::shared_ptr<AndroidFileWrapper> pathExists(const std::vector<std::string>& subPaths);
     // Returns last level file wrapper
     // if some level doesn't exist, it is created
     std::shared_ptr<AndroidFileWrapper>

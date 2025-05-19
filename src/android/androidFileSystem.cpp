@@ -224,7 +224,9 @@ std::vector<std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::getChildren
     return children;
 }
 
-bool AndroidFileWrapper::pathExists(const std::vector<std::string>& subPaths)
+std::shared_ptr<AndroidFileWrapper>
+    AndroidFileWrapper::pathExists(const std::vector<std::string>& subPaths)
+
 {
     std::shared_ptr<AndroidFileWrapper> child;
     for (const auto& childName: subPaths)
@@ -233,11 +235,11 @@ bool AndroidFileWrapper::pathExists(const std::vector<std::string>& subPaths)
         child = !child ? getChildByName(childName) : child->getChildByName(childName);
         if (!child)
         {
-            return false;
+            return nullptr;
         }
     }
 
-    return true;
+    return child;
 }
 
 std::shared_ptr<AndroidFileWrapper>
@@ -470,9 +472,10 @@ std::shared_ptr<AndroidFileWrapper>
 
         if (children.size())
         {
-            if (!uriFileWrapper->pathExists(children) && !create)
+            if (auto auxFileWrapper = uriFileWrapper->pathExists(children);
+                auxFileWrapper || !create)
             {
-                return nullptr;
+                return auxFileWrapper;
             }
 
             uriFileWrapper = uriFileWrapper->returnOrCreateByPath(children, lastIsFolder);
