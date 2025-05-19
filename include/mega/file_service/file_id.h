@@ -48,6 +48,9 @@ public:
 
     static FileID from(NodeHandle handle);
 
+    static FileID from(const std::string& string);
+    static FileID from(const char* string);
+
     static FileID from(std::uint64_t u64);
 
     NodeHandle toHandle() const;

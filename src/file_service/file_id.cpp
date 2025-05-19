@@ -78,6 +78,29 @@ FileID FileID::from(NodeHandle handle)
     return FileID();
 }
 
+FileID FileID::from(const std::string& string)
+{
+    if (!string.empty())
+        return from(string.c_str());
+
+    return FileID();
+}
+
+FileID FileID::from(const char* string)
+{
+    FileID id;
+
+    if (!string)
+        return id;
+
+    auto length = Base64::atob(string, reinterpret_cast<byte*>(&id.mID), sizeof(id.mID));
+
+    if (static_cast<std::size_t>(length) < sizeof(id.mID))
+        return FileID();
+
+    return id;
+}
+
 FileID FileID::from(std::uint64_t u64)
 {
     assert(!synthetic(u64));
