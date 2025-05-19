@@ -52,6 +52,8 @@ public:
 
     NodeHandle toHandle() const;
 
+    std::string toString() const;
+
     std::uint64_t toU64() const;
 }; // FileID
 

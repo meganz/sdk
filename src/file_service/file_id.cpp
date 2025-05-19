@@ -1,7 +1,7 @@
+#include <mega/base64.h>
 #include <mega/common/query.h>
 #include <mega/file_service/file_id.h>
 #include <mega/types.h>
-#include <mega/utils.h>
 
 #include <cinttypes>
 #include <limits>
@@ -95,6 +95,17 @@ NodeHandle FileID::toHandle() const
     return NodeHandle();
 }
 
+std::string FileID::toString() const
+{
+    std::string string(16, '\x0');
+
+    auto length = Base64::btoa(reinterpret_cast<const byte*>(&mID), sizeof(mID), string.data());
+
+    string.resize(static_cast<std::size_t>(length));
+
+    return string;
+}
+
 std::uint64_t FileID::toU64() const
 {
     return mID;
@@ -112,7 +123,7 @@ bool synthetic(std::uint64_t u64)
 
 std::string toString(FileID id)
 {
-    return toHandle(id.toU64());
+    return id.toString();
 }
 
 } // file_service
