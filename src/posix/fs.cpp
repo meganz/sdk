@@ -719,7 +719,11 @@ bool PosixFileAccess::fopen(const LocalPath& f,
     // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
 
     errorcode = 0;
-    fd = open(fstr.c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY), defaultfilepermissions);
+    fd = open(fstr.c_str(),
+              (!mFollowSymLinks && mIsSymLink) ?
+                  (O_PATH | O_NOFOLLOW) :
+                  (write ? (read ? O_RDWR : O_WRONLY) | O_CREAT : O_RDONLY),
+              defaultfilepermissions);
     if (fd < 0)
     {
         errorcode = errno; // streaming may set errno
