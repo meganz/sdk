@@ -2703,8 +2703,8 @@ void MegaClient::exec()
                         {
                             if (pendingcs->in == "-3")
                             {
-                                app->notify_network_activity(NetworkActivityChannel::SC,
-                                                             NetworkActivityType::REQUEST_ERROR,
+                                app->notify_network_activity(NetworkActivityChannel::CS,
+                                                             NetworkActivityType::REQUEST_RECEIVED,
                                                              API_EAGAIN);
                                 reason = RETRY_API_LOCK;
                             }
@@ -2926,8 +2926,8 @@ void MegaClient::exec()
                         LOG_warn << "Backing off before retrying useralerts request: "
                                  << btsc.retryin();
                         app->notify_network_activity(NetworkActivityChannel::SC,
-                                                     NetworkActivityType::REQUEST_ERROR,
-                                                     API_EAGAIN);
+                                                     NetworkActivityType::REQUEST_RECEIVED,
+                                                     e);
                         break;
                     }
                     LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
@@ -2993,6 +2993,9 @@ void MegaClient::exec()
                     else if (e == API_ETOOMANY)
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType::REQUEST_RECEIVED,
+                                                     e);
 
                         // Stop the sc channel to prevent the reception of multiple
                         // API_ETOOMANY errors causing multiple consecutive reloads
@@ -3019,8 +3022,8 @@ void MegaClient::exec()
                             fnstats.eAgainCount++;
                         }
                         app->notify_network_activity(NetworkActivityChannel::SC,
-                                                     NetworkActivityType::REQUEST_ERROR,
-                                                     API_EAGAIN);
+                                                     NetworkActivityType::REQUEST_RECEIVED,
+                                                     e);
                     }
                     else if (e == API_EBLOCKED)
                     {
@@ -3072,6 +3075,13 @@ void MegaClient::exec()
                         {
                             scsn.stopScsn();
                         }
+                    }
+
+                    if (!scsn.stopped())
+                    {
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType ::REQUEST_RECEIVED,
+                                                     pendingsc->httpstatus);
                     }
 
                     pendingsc.reset();
