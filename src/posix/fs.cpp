@@ -735,7 +735,7 @@ bool PosixFileAccess::fopen(const LocalPath& f,
 
         // Caller only wants to write the file.
         if (!read)
-            flags = flags - O_RDWR + O_WRONLY;
+            flags = (flags & ~O_RDWR) | O_WRONLY;
 
         // Return flags to caller.
         return flags;
