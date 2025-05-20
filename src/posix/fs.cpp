@@ -715,15 +715,34 @@ bool PosixFileAccess::fopen(const LocalPath& f,
 
     assert(fd < 0 && "There should be no opened file descriptor at this point");
     sysclose();
-    // if mFollowSymLinks is true (open normally: it will open the targeted file/folder),
-    // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
+
+    // Compute open flags.
+    auto openFlags = [&]()
+    {
+        // We're dealing with a symlink that isn't being followed.
+        if (!mFollowSymLinks && mIsSymLink)
+            return O_NOFOLLOW | O_PATH;
+
+        // Sanity.
+        assert(read || write);
+
+        // Caller only wants to read the file.
+        if (!write)
+            return O_RDONLY;
+
+        // Assume caller wants to read and write the file.
+        auto flags = O_CREAT | O_RDWR;
+
+        // Caller only wants to write the file.
+        if (!read)
+            flags = flags - O_RDWR + O_WRONLY;
+
+        // Return flags to caller.
+        return flags;
+    }();
 
     errorcode = 0;
-    fd = open(fstr.c_str(),
-              (!mFollowSymLinks && mIsSymLink) ?
-                  (O_PATH | O_NOFOLLOW) :
-                  (write ? (read ? O_RDWR : O_WRONLY) | O_CREAT : O_RDONLY),
-              defaultfilepermissions);
+    fd = open(fstr.c_str(), openFlags, defaultfilepermissions);
     if (fd < 0)
     {
         errorcode = errno; // streaming may set errno
