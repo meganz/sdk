@@ -2989,6 +2989,9 @@ void MegaClient::exec()
                     {
                         app->request_error(e);
                         scsn.stopScsn();
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType::REQUEST_RECEIVED,
+                                                     e);
                     }
                     else if (e == API_ETOOMANY)
                     {
