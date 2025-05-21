@@ -1926,8 +1926,10 @@ public:
 
     void dodiscarduser(User* u, bool discardnotified);
 
-    void enabletransferresumption(const char *loggedoutid = NULL);
-    void disabletransferresumption(const char *loggedoutid = NULL);
+    void enabletransferresumption();
+    void disabletransferresumption();
+
+    void resumeTransfersForNotLoggedInInstance();
 
     // application callbacks
     struct MegaApp* app;
@@ -2283,6 +2285,9 @@ public:
 private:
     // Private helper method for getRecentActions
     recentactions_vector getRecentActionsFromSharedNodeVector(sharedNode_vector&& v);
+
+    std::string getTransferDBName();
+
 public:
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount,

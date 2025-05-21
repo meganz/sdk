@@ -15282,34 +15282,21 @@ void MegaClient::closetc(bool remove)
     tctable.reset();
 }
 
-void MegaClient::enabletransferresumption(const char *loggedoutid)
+void MegaClient::enabletransferresumption()
 {
     if (!dbaccess || tctable)
     {
         return;
     }
 
-    string dbname;
-    if (sid.size() >= SIDLEN)
+    string dbname = getTransferDBName();
+
+    if (sid.size() >= SIDLEN || loggedIntoFolder())
     {
-        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-        dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)sid.data() + sizeof key.key,
-                                                       SIDLEN - sizeof key.key,
-                                                       (char*)dbname.c_str())));
-        tckey = key;
-    }
-    else if (loggedIntoFolder())
-    {
-        dbname.resize(static_cast<size_t>(NODEHANDLE * 4 / 3 + 3));
-        dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
-                                                       NODEHANDLE,
-                                                       (char*)dbname.c_str())));
         tckey = key;
     }
     else
     {
-        dbname = loggedoutid ? loggedoutid : "default";
-
         string lok;
         Hash hash;
         hash.add((const byte *)dbname.c_str(), unsigned(dbname.size() + 1));
@@ -15328,6 +15315,13 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     {
         return;
     }
+
+    // TODO: After SDK-5196 client without session can save transfer in DB cache
+    // (Folder link instance download nodes using main instance).
+    // However, if the user logs in on the main instance, previously cached
+    // transfers from non-logged-in instances are discarded.
+    // If we want to resume those transfers after logging in on the main instance,
+    // we should read them from the default cache and resume them.
 
     uint32_t id;
     string data;
@@ -15399,7 +15393,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     }
 }
 
-void MegaClient::disabletransferresumption(const char *loggedoutid)
+void MegaClient::disabletransferresumption()
 {
     if (!dbaccess)
     {
@@ -15408,6 +15402,48 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     purgeOrphanTransfers(true);
     closetc(true);
 
+    std::string dbname = getTransferDBName();
+    dbname.insert(0, "transfers_");
+
+    tctable.reset(dbaccess->open(rng,
+                                 *fsaccess,
+                                 dbname,
+                                 DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED,
+                                 [this](DBError error)
+                                 {
+                                     handleDbError(error);
+                                 }));
+
+    if (!tctable)
+    {
+        return;
+    }
+
+    purgeOrphanTransfers(true);
+    closetc(true);
+}
+
+void MegaClient::resumeTransfersForNotLoggedInInstance()
+{
+    if (loggedin() != NOTLOGGEDIN)
+    {
+        return;
+    }
+
+    string dbname = getTransferDBName();
+    dbname.insert(0, "transfers_");
+
+    // Only call enableTransferresumption if db default exist
+    // Avoid create unnecesary files
+    if (LocalPath path = dbaccess->databasePath(*fsaccess.get(), dbname, DbAccess::DB_VERSION);
+        fsaccess->newfileaccess()->fopen(path, FSLogging::noLogging))
+    {
+        enabletransferresumption();
+    }
+}
+
+string MegaClient::getTransferDBName()
+{
     string dbname;
     if (sid.size() >= SIDLEN)
     {
@@ -15425,22 +15461,10 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     else
     {
-        dbname = loggedoutid ? loggedoutid : "default";
-    }
-    dbname.insert(0, "transfers_");
-
-    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
-    {
-        handleDbError(error);
-    }));
-
-    if (!tctable)
-    {
-        return;
+        dbname = "default";
     }
 
-    purgeOrphanTransfers(true);
-    closetc(true);
+    return dbname;
 }
 
 void MegaClient::handleDbError(DBError error)
@@ -18134,6 +18158,15 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
     // Is caller trying to start a download?
     if (d == GET)
     {
+        // Force to enable transfer resumption when apps isn't logged in but try
+        // to download a node Probably is logged into a folder link with one
+        // instance and try to download nodes from main instance without previous
+        // login
+        if (loggedin() == NOTLOGGEDIN)
+        {
+            enabletransferresumption();
+        }
+
         auto targetPath = f->getLocalname().parentPath();
 
         assert(f->size >= 0);

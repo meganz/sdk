@@ -6679,6 +6679,8 @@ class MegaTransfer
          * @note The identifiers may not be consecutive and can be reused once the transfer is
          * completed or cancelled.
          *
+         * @note The identifiers are reset a after fresh login (without session)
+         *
          * @return 32-bits unsigned integer that identifies this transfer
          */
         virtual uint32_t getUniqueId() const;
@@ -16690,6 +16692,24 @@ class MegaApi
          * @return true if transfers on that direction are paused, false otherwise
          */
         bool areTransfersPaused(int direction);
+
+        /**
+         * @brief Resumes cached transfers when not logged in
+         *
+         * This method resumes transfers that were cached while using a non-logged-in MegaApi
+         * instance
+         *
+         * The recommended way of using this function to resume transfers is calling it
+         * when we know that the instance isn't logged in
+         *
+         * @note If MegaApi instance is logged in while there is live transfer, they would be
+         * removed. Logging in or out automatically disables this feature.
+         *
+         * Please avoid calling this method when logged in.
+         *
+         * A default name and key are used to open the data base
+         */
+        void resumeTransfersForNotLoggedInInstance();
 
         /**
          * @deprecated This version of the function is deprecated. Please, use \c setMaxUploadSpeed.
