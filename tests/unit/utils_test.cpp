@@ -1774,3 +1774,68 @@ TEST(RangeTest, VerifySingleElementRange)
     EXPECT_EQ(count, 1);
     EXPECT_EQ(valueCollected, 7u);
 }
+
+struct FileAccessTest: ::testing::Test
+{
+    FileAccessTest():
+        Test(),
+        mFSAccess(),
+        mName(LocalPath::fromAbsolutePath("file"))
+    {}
+
+    // Called before any test in the fixture is executed.
+    void SetUp() override
+    {
+        // Remove the file if it's present after a previous test run.
+        ASSERT_TRUE(mFSAccess.unlinklocal(mName) || !mFSAccess.target_exists);
+    }
+
+    // Convenience.
+    ::mega::FSLogging NO_LOGGING = ::mega::FSLogging::noLogging;
+
+    // So we can get our hands on a FileAccess instance.
+    FSACCESS_CLASS mFSAccess;
+
+    // The name of our test file.
+    ::mega::LocalPath mName;
+}; // FileAccessTest
+
+TEST_F(FileAccessTest, OpenForReadWriteSucceeds)
+{
+    // So we can open a file.
+    auto fileAccess = mFSAccess.newfileaccess(false);
+
+    // Sanity.
+    ASSERT_TRUE(fileAccess);
+
+    // Opening for reading and writing should create a new file if necessary.
+    EXPECT_TRUE(fileAccess->fopen(mName, true, true, NO_LOGGING));
+}
+
+TEST_F(FileAccessTest, OpenEquivalence)
+{
+    auto fileAccess0 = mFSAccess.newfileaccess(false);
+    auto fileAccess1 = mFSAccess.newfileaccess(false);
+
+    // Sanity.
+    ASSERT_TRUE(fileAccess0);
+    ASSERT_TRUE(fileAccess1);
+
+    // Create a new file.
+    ASSERT_TRUE(fileAccess0->fopen(mName, true, true, NO_LOGGING));
+
+    // Open an existing file.
+    EXPECT_TRUE(fileAccess1->fopen(mName, true, true, NO_LOGGING));
+
+    // Convenience.
+    auto& lhs = *fileAccess0;
+    auto& rhs = *fileAccess1;
+
+    // Make sure selected state is equivalent.
+    EXPECT_EQ(lhs.fopenSucceeded, rhs.fopenSucceeded);
+    EXPECT_EQ(lhs.size, rhs.size);
+    EXPECT_EQ(lhs.mtime, rhs.mtime);
+    EXPECT_EQ(lhs.fsid, rhs.fsid);
+    EXPECT_EQ(lhs.type, rhs.type);
+    EXPECT_EQ(lhs.mIsSymLink, rhs.mIsSymLink);
+}
