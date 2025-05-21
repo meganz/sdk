@@ -1780,7 +1780,7 @@ struct FileAccessTest: ::testing::Test
     FileAccessTest():
         Test(),
         mFSAccess(),
-        mName(LocalPath::fromRelativePath("file"))
+        mName(LocalPath::fromAbsolutePath("file"))
     {}
 
     // Called before any test in the fixture is executed.
