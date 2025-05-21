@@ -213,6 +213,7 @@ set(SDKLIB_HEADERS
     include/mega/user_attribute_types.h
     include/mega/log_level.h
     include/mega/log_level_forward.h
+    include/mega/overloaded.h
 
     # megaapi_impl related headers
     include/impl/share.h
