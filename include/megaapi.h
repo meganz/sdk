@@ -8645,7 +8645,7 @@ public:
          * @brief Returns the user status
          *
          * This method only returns a valid value when hasExtraInfo is true
-         * Possible values refer to MegaError::UserErrorCode
+         * Possible values are defined in MegaError::UserErrorCode
          *
          * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
          *
