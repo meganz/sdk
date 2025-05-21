@@ -13777,6 +13777,31 @@ class MegaApi
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the thumbnail of a node by its handle
+         *
+         * If the node doesn't have a thumbnail, the request fails with the MegaError::API_ENOENT
+         * error code.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_FILE.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getFile - Returns the destination path
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         *
+         * @param handle Handle of the node to get the thumbnail
+         * @param dstFilePath Destination path for the thumbnail.
+         * If this path is a local folder, it must end with a '\' or '/' character and
+         * (Base64-encoded handle + "0.jpg") will be used as the file name inside that folder. If
+         * the path doesn't finish with one of these characters, the file will be downloaded to a
+         * file in that path.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getThumbnail(MegaHandle handle,
+                          const char* dstFilePath,
+                          MegaRequestListener* listener = NULL);
+
+        /**
          * @brief Get the preview of a node
          *
          * If the node doesn't have a preview the request fails with the MegaError::API_ENOENT

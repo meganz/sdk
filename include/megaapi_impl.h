@@ -3757,7 +3757,10 @@ class MegaApiImpl : public MegaApp
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
-		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
+        void getThumbnail(MegaHandle handle,
+                          const char* dstFilePath,
+                          MegaRequestListener* listener = NULL);
+        void cancelGetThumbnail(MegaNode* node, MegaRequestListener* listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void putThumbnail(MegaBackgroundMediaUpload* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setThumbnailByHandle(MegaNode* node, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
@@ -5016,6 +5019,10 @@ public:
         std::shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
 
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
+        void getNodeAttribute(MegaHandle handle,
+                              int type,
+                              const char* dstFilePath,
+                              MegaRequestListener* listener = NULL);
         void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);

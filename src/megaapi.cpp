@@ -2781,6 +2781,13 @@ void MegaApi::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestL
     pImpl->getThumbnail(node, dstFilePath, listener);
 }
 
+void MegaApi::getThumbnail(MegaHandle handle,
+                           const char* dstFilePath,
+                           MegaRequestListener* listener)
+{
+    pImpl->getThumbnail(handle, dstFilePath, listener);
+}
+
 void MegaApi::cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener)
 {
 	pImpl->cancelGetThumbnail(node, listener);
