@@ -192,7 +192,8 @@ FileServiceContext::FileServiceContext(Client& client):
     mFileContexts(),
     mInfoContexts(),
     mLock(),
-    mActivities()
+    mActivities(),
+    mExecutor(TaskExecutorFlags(), logger())
 {}
 
 FileServiceContext::~FileServiceContext() = default;
@@ -200,6 +201,11 @@ FileServiceContext::~FileServiceContext() = default;
 Client& FileServiceContext::client()
 {
     return mClient;
+}
+
+auto FileServiceContext::execute(std::function<void(const Task&)> function) -> Task
+{
+    return mExecutor.execute(std::move(function), true);
 }
 
 auto FileServiceContext::info(FileID id) -> FileServiceResultOr<FileInfo>

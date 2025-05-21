@@ -4,6 +4,8 @@
 #include <mega/common/client_forward.h>
 #include <mega/common/database.h>
 #include <mega/common/shared_mutex.h>
+#include <mega/common/task_executor.h>
+#include <mega/common/task_queue_forward.h>
 #include <mega/file_service/file_context_badge_forward.h>
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_forward.h>
@@ -70,14 +72,17 @@ class FileServiceContext
     // explicitly lock mDatabase, too.
     common::SharedMutex mLock;
 
-    // This member should always come last as it will ensure the context
-    // isn't destroyed until any related activities have been completed.
+    // This member will ensure the context isn't destroyed until any related
+    // activities have been completed.
     //
     // Since each File(Info)?Context is passed an activity when they are
     // instantiated, this means that this member's destructor will wait
     // until all File(Info)?Contexts that refer to this context have been
     // destroyed before allowing this context itself to be destroyed.
     common::ActivityMonitor mActivities;
+
+    // Lets us execute tasks on a thread pool.
+    common::TaskExecutor mExecutor;
 
 public:
     FileServiceContext(common::Client& client);
@@ -86,6 +91,9 @@ public:
 
     // Retrieve a reference to this service's client.
     common::Client& client();
+
+    // Execute a task on this service's thread pool.
+    auto execute(std::function<void(const common::Task&)> function) -> common::Task;
 
     // Retrieve information about a file managed by this service.
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
