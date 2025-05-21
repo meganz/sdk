@@ -242,15 +242,15 @@ class Error
 public:
     typedef enum
     {
-        USER_ETD_UNKNOWN = -1, ///< Unknown state
+        USER_ETD_UNKNOWN = -1,
         USER_ENABLED = 0,
         USER_PENDINGCONFIRMATION = 1,
         USER_SUSPENDED_GENERIC = 2,
         USER_SUSPENDED_PAYMENT = 3,
-        USER_COPYRIGHT_SUSPENSION = 4, /// Account suspended by copyright
+        USER_COPYRIGHT_SUSPENSION = 4,
         USER_SUSPENDED_ADMIN_FULLDISABLE = 5,
         USER_SUSPENDED_ADMIN_PARTIALDISABLE = 6,
-        USER_ETD_SUSPENSION = 7, ///< Account suspend by an ETD/ToS 'severe'
+        USER_ETD_SUSPENSION = 7,
         USER_SUSPENDED_SMSVERIFICATIONREQUIRED = 8,
         USER_SUSPENDED_EMAILVERIFICATIONREQUIRED = 9,
         USER_SUBACCOUNT_PENDINGCONFIRMATION = 10,
