@@ -18,6 +18,7 @@ target_sources(SDKlib PRIVATE
                       file_info_context.h
                       file_info_context_badge.h
                       file_info_context_badge_forward.h
+                      file_range_context.h
                       file_range_context_forward.h
                       file_range_context_manager.h
                       file_range_context_manager_forward.h
