@@ -1,4 +1,5 @@
 #include <mega/file_service/file_result.h>
+#include <mega/types.h>
 
 #include <cassert>
 
@@ -6,6 +7,19 @@ namespace mega
 {
 namespace file_service
 {
+
+FileResult fileResultFromError(Error result)
+{
+    switch (result)
+    {
+        case API_EINCOMPLETE:
+            return FILE_CANCELLED;
+        case API_OK:
+            return FILE_SUCCESS;
+        default:
+            return FILE_FAILED;
+    }
+}
 
 const char* toDescription(FileResult result)
 {

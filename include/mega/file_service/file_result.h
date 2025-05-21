@@ -4,10 +4,16 @@
 
 namespace mega
 {
+
+class Error;
+
 namespace file_service
 {
 
-#define DEFINE_FILE_RESULTS(expander) expander(CANCELLED, "The file operation has been cancelled")
+#define DEFINE_FILE_RESULTS(expander) \
+    expander(CANCELLED, "The file operation has been cancelled") \
+    expander(FAILED, "The file operation has failed") \
+    expander(SUCCESS, "The file operation has succeeded")
 
 enum FileResult : unsigned int
 {
@@ -15,6 +21,8 @@ enum FileResult : unsigned int
     DEFINE_FILE_RESULTS(DEFINE_ENUMERANT)
 #undef DEFINE_ENUMERANT
 }; // FileResult
+
+FileResult fileResultFromError(Error result);
 
 const char* toDescription(FileResult result);
 
