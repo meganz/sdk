@@ -12109,7 +12109,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     string sessionID;
 
     // Sync Backup ID.
-    handle id;
+    handle id{UNDEF};
 
     // Sync Root Handle.
     NodeHandle rootHandle;
@@ -12151,15 +12151,24 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Disable the sync when it starts uploading a file.
-        cb.mOnFileAdded = [&cb, &id](File&)
+        cb.mOnFileAdded = [&cb, &id, &TIMEOUT](File&)
         {
             // the upload has been set super slow so there's loads of time.
 
             // get the single sync
             SyncConfig config;
-            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config))
+
+            const auto getBackupResult = cb.waitFor(
+                [&id, &config](StandardClient& backupClient)
+                {
+                    return id != UNDEF &&
+                           backupClient.client.syncs.syncConfigByBackupId(id, config);
+                },
+                TIMEOUT);
+
+            ASSERT_TRUE(getBackupResult)
                 << "BackupId: " << id
-                << ". SyncVec is empty: " << (cb.client.syncs.mNumSyncsActive > 0);
+                << ". SyncVec is empty: " << (cb.client.syncs.mNumSyncsActive == 0);
 
             // Make sure the sync's in mirroring mode.
             ASSERT_EQ(config.mBackupId, id);
