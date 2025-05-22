@@ -8538,9 +8538,24 @@ public:
      */
     enum UserErrorCode
     {
-        USER_ETD_UNKNOWN = -1,          ///< Unknown state
-        USER_COPYRIGHT_SUSPENSION = 4,  /// Account suspended by copyright
-        USER_ETD_SUSPENSION = 7,        ///< Account suspend by an ETD/ToS 'severe'
+        USER_ETD_UNKNOWN = -1,
+        USER_ENABLED = 0,
+        USER_PENDINGCONFIRMATION = 1,
+        USER_SUSPENDED_GENERIC = 2,
+        USER_SUSPENDED_PAYMENT = 3,
+        USER_COPYRIGHT_SUSPENSION = 4,
+        USER_SUSPENDED_ADMIN_FULLDISABLE = 5,
+        USER_SUSPENDED_ADMIN_PARTIALDISABLE = 6,
+        USER_ETD_SUSPENSION = 7,
+        USER_SUSPENDED_SMSVERIFICATIONREQUIRED = 8,
+        USER_SUSPENDED_EMAILVERIFICATIONREQUIRED = 9,
+        USER_SUBACCOUNT_PENDINGCONFIRMATION = 10,
+        USER_SUBACCOUNT_DISABLED = 11,
+        USER_SUBACCOUNT_DELETED = 12,
+        USER_BUSINESSACCOUNT = 20,
+        USER_SUSPENDED_PASSWORD_CHANGE_REQUIRED = 21,
+        USER_EPHEMERAL_RESELLER_USER = 22,
+        USER_SUSPENDED_NOUSER = 99,
     };
 
     /**
@@ -8630,9 +8645,7 @@ public:
          * @brief Returns the user status
          *
          * This method only returns a valid value when hasExtraInfo is true
-         * Possible values:
-         *  MegaError::UserErrorCode::USER_COPYRIGHT_SUSPENSION
-         *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
+         * Possible values are defined in MegaError::UserErrorCode
          *
          * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
          *
