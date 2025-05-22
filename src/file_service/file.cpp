@@ -1,5 +1,9 @@
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_context.h>
+#include <mega/file_service/file_range.h>
+#include <mega/file_service/file_read_request.h>
+#include <mega/file_service/file_result.h>
+#include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_service_context_badge.h>
 
 namespace mega
@@ -12,6 +16,18 @@ File::File(FileServiceContextBadge, FileContextPtr context):
 {}
 
 File::~File() = default;
+
+void File::read(FileReadCallback callback, std::uint64_t offset, std::uint64_t length)
+{
+    // Delegate.
+    read(std::move(callback), FileRange(offset, offset + length));
+}
+
+void File::read(FileReadCallback callback, const FileRange& range)
+{
+    // Ask the context to perform the read.
+    mContext->read(FileReadRequest{std::move(callback), range});
+}
 
 } // file_service
 } // mega
