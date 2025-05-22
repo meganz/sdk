@@ -85,6 +85,15 @@ namespace fs = std::filesystem;
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/service_flags.h>
 
+// File Service.
+#include <mega/file_service/file.h>
+#include <mega/file_service/file_id.h>
+#include <mega/file_service/file_info.h>
+#include <mega/file_service/file_result.h>
+#include <mega/file_service/file_result_or.h>
+#include <mega/file_service/file_service_result.h>
+#include <mega/file_service/file_service_result_or.h>
+
 using namespace mega;
 using std::cout;
 using std::cerr;
@@ -4970,6 +4979,51 @@ void exec_udp_send_recv(autocomplete::ACState& state)
     }
 }
 
+static file_service::FileID toFileID(autocomplete::ACState& state)
+{
+    using file_service::FileID;
+
+    // User's passed us an encoded ID.
+    if (auto id = state.extractflagparam("-id"))
+        return FileID::from(*id);
+
+    // User's passed us a path.
+    if (auto path = state.extractflagparam("-path"))
+    {
+        // Found the node denoted by the user's path.
+        if (auto node = nodebypath(path->c_str()))
+            return FileID::from(node->nodeHandle());
+    }
+
+    // User's passed us bad flags or a bad node path.
+    return FileID();
+}
+
+static void exec_fileserviceinfo(autocomplete::ACState& state)
+{
+    using file_service::toString;
+
+    // What file does the user want us to describe?
+    auto id = toFileID(state);
+
+    // Try and retrieve a description of the file the user's specified.
+    auto info = client->mFileService.info(id);
+
+    // Couldn't retrieve a description.
+    if (!info)
+    {
+        conlock(std::cerr) << "Couldn't retrieve file information: " << toString(info.error())
+                           << std::endl;
+        return;
+    }
+
+    // Print the description.
+    conlock(std::cout) << "File " << toString(id) << ":\n"
+                       << "Handle: " << toNodeHandle(info->handle()) << "\n"
+                       << "Modified: " << displayTime(info->modified()) << "\n"
+                       << "Size: " << info->size() << std::endl;
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -5578,6 +5632,12 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_dnsservers, sequence(text("setdns"), either(param("dnslist"), flag("-clear"))));
 
     p->Add(exec_cleanVault, text("cleanvault"));
+
+    p->Add(exec_fileserviceinfo,
+           sequence(text("file-service"),
+                    text("info"),
+                    either(sequence(flag("-id"), param("id")),
+                           sequence(flag("-path"), remoteFSFile(client, &cwd)))));
 
     return autocompleteTemplate = std::move(p);
 }
