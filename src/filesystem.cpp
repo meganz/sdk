@@ -887,13 +887,23 @@ bool FileAccess::fopen(const LocalPath& name, FSLogging fsl)
 
 bool FileAccess::isfile(const LocalPath& path)
 {
-    return fopen(path, FSLogging::noLogging) && type == FILENODE;
+    auto name = std::move(nonblocking_localname);
+
+    updatelocalname(path, true);
+    sysstat(&mtime, &size, FSLogging::noLogging);
+    updatelocalname(name, true);
+
+    return type == FILENODE;
 }
 
 bool FileAccess::isfolder(const LocalPath& path)
 {
+    auto name = std::move(nonblocking_localname);
+
     updatelocalname(path, true);
     sysstat(&mtime, &size, FSLogging::noLogging);
+    updatelocalname(name, true);
+
     return type == FOLDERNODE;
 }
 
