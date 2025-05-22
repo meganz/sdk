@@ -24,6 +24,11 @@ public:
         return mState == State::VALID;
     }
 
+    void setValid()
+    {
+        mState = State::VALID;
+    }
+
     void setExpired()
     {
         mState = State::EXPIRED;
