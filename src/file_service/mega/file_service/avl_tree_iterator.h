@@ -3,6 +3,8 @@
 #include <mega/file_service/avl_tree_traits.h>
 
 #include <cassert>
+#include <cstdint>
+#include <iterator>
 #include <type_traits>
 
 namespace mega
@@ -72,6 +74,13 @@ class AVLTreeIterator
     NodeType* mNode{};
 
 public:
+    // Minimal STL support.
+    using difference_type = std::ptrdiff_t;
+    using iterator_category = std::bidirectional_iterator_tag;
+    using pointer = NodeType*;
+    using reference = NodeType&;
+    using value_type = NodeType;
+
     AVLTreeIterator() = default;
 
     AVLTreeIterator(NodeType* node):

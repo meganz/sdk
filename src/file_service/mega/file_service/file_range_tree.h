@@ -30,6 +30,11 @@ class FileRangeTree
     class IteratorAdapter: public IteratorType
     {
     public:
+        // Minimal STL support;
+        using pointer = ValueType*;
+        using reference = ValueType&;
+        using value_type = ValueType;
+
         // Inherit constructors from IteratorType.
         using IteratorType::IteratorType;
 
