@@ -87,7 +87,7 @@ auto FileServiceContext::infoFromIndex(FileID id, Lock&& lock, bool open)
     -> std::pair<FileInfoContextPtr, FileAccessPtr>
 {
     auto info = getFromIndex(id, std::forward<Lock>(lock), mInfoContexts);
-    auto file = open ? mStorage.getFile(id) : nullptr;
+    auto file = info && open ? mStorage.getFile(id) : nullptr;
 
     return std::make_pair(std::move(info), std::move(file));
 }
