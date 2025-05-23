@@ -1424,6 +1424,9 @@ void ClientPartialDownload::completed(Error result)
     if (result == API_EINCOMPLETE)
         mStatus |= SF_CANCELLED;
 
+    // Signal that we're executing a callback.
+    auto executing = makeScopedValue(mExecuting, true);
+
     // Let the user know the download's completed.
     mCallback.completed(result);
 }
