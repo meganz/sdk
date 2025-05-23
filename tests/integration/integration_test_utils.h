@@ -51,6 +51,11 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi,
                                                    ::mega::MegaSync::Error err);
 
 /**
+ * @brief Waits for the sync stall state to be set certain amount of time (10 seconds).
+ */
+bool waitForSyncStallState(::mega::MegaApi* const megaApi);
+
+/**
  * @brief Synchronously start a TWO_WAY sync between the given local path and the remote node with
  * the given handle.
  *
@@ -115,6 +120,11 @@ bool suspendSync(::mega::MegaApi* megaApi, const ::mega::handle backupID);
  * @return true if the operation succeed, false otherwise
  */
 bool disableSync(::mega::MegaApi* megaApi, const ::mega::handle backupID);
+
+/**
+ * @brief Check MegaApi flags for sync stall state.
+ */
+bool isSyncStalled(::mega::MegaApi* const megaApi);
 
 /**
  * @brief Get a vector with all the reported stalls.

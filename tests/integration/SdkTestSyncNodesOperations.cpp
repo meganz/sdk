@@ -231,6 +231,7 @@ void SdkTestSyncNodesOperations::checkCurrentLocalMatchesMirror() const
 {
     ASSERT_THAT(getLocalFirstChildrenNames(),
                 UnorderedElementsAre("testFile", "testCommonFile", "testFile1", "testFile2"));
+    ASSERT_TRUE(sdk_test::waitForSyncStallState(megaApi[0].get()));
     ASSERT_NO_FATAL_FAILURE(thereIsAStall("testFile"));
 }
 
