@@ -1569,7 +1569,9 @@ public:
     std::shared_ptr<Node> getovnode(Node *parent, string *name);
 
     // Load from db node children at first level
-    sharedNode_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
+    sharedNode_list getChildren(const Node* parent,
+                                CancelToken cancelToken = CancelToken(),
+                                bool includeVersions = false);
 
     // Get number of children from a node
     size_t getNumberOfChildren(NodeHandle parentHandle);
@@ -2962,7 +2964,7 @@ private:
     error readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetadata>& nodes);
     error readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& node);
     bool decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& encryptionKey);
-    error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
+    error readExportedSet(JSON& j, Set& s);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
     void fixSetElementWithWrongKey(const Set& set);

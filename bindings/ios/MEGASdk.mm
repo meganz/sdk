@@ -983,6 +983,12 @@ using namespace mega;
     }
 }
 
+- (void)checkRecoveryKey:(NSString *)link recoveryKey:(NSString *)recoveryKey delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->checkRecoveryKey(link.UTF8String, recoveryKey.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 - (void)cancelAccountWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->cancelAccount([self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -3285,15 +3291,9 @@ using namespace mega;
     }
 }
 
-- (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setContactLinksOption:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->setContactLinksOption(disable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)setContactLinksOptionDisable:(BOOL)disable {
-    if (self.megaApi) {
-        self.megaApi->setContactLinksOption(disable);
+        self.megaApi->setContactLinksOption(enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 

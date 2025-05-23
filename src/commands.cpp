@@ -3728,9 +3728,9 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     // if there's no avatar, the value is "none" (not Base64 encoded)
                     if (u && at == ATTR_AVATAR && buf == "none")
                     {
-                        u->setAttribute(ATTR_AVATAR,
-                                        buf, // actual value will be ignored
-                                        version);
+                        u->updateAttributeIfDifferentVersion(ATTR_AVATAR,
+                                                             buf, // actual value will be ignored
+                                                             version);
                         u->setTag(tag ? tag : -1);
                         mCompletionErr(API_ENOENT);
                         client->notifyuser(u);
@@ -3775,7 +3775,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                     client->syncs.setSdsBackupsFullSync(records);
                                 }
 #endif
-                                u->setAttribute(at, value, version);
+                                u->updateAttributeIfDifferentVersion(at, value, version);
                                 mCompletionTLV(std::move(records), at);
                             }
                             else
@@ -3786,7 +3786,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                 {
                                     // Store the attribute so we can update it later with valid
                                     // values
-                                    u->setAttribute(at, value, version);
+                                    u->updateAttributeIfDifferentVersion(at, value, version);
                                     mCompletionErr(API_EKEY);
                                 }
                                 else
@@ -3799,7 +3799,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         }
                         case ATTR_SCOPE_PUBLIC_UNENCRYPTED:
                         {
-                            u->setAttribute(at, value, version);
+                            u->updateAttributeIfDifferentVersion(at, value, version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
                             if (!u->isTemporary && u->userhandle != client->me)
@@ -3817,7 +3817,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                         }
                         case ATTR_SCOPE_PROTECTED_UNENCRYPTED:
                         {
-                            u->setAttribute(at, value, version);
+                            u->updateAttributeIfDifferentVersion(at, value, version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                             break;
                         }
@@ -3841,7 +3841,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             }
 
                             // store the value in cache in binary format
-                            u->setAttribute(at, value, version);
+                            u->updateAttributeIfDifferentVersion(at, value, version);
 
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
@@ -10537,8 +10537,15 @@ bool CommandDismissBanner::procresult(Result r, JSON&)
 // Sets and Elements
 //
 
-bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts,
-                               handle* s, int64_t* o, handle* ph, uint8_t* t) const
+bool CommandSE::procjsonobject(JSON& json,
+                               handle& id,
+                               m_time_t& ts,
+                               handle* u,
+                               m_time_t* cts,
+                               handle* s,
+                               int64_t* o,
+                               mega::PublicLinkSet* publicLinkSet,
+                               uint8_t* t) const
 {
     for (;;)
     {
@@ -10583,7 +10590,10 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
         case makeNameid("ph"):
             {
                 const auto buf = json.gethandle(MegaClient::PUBLICSETHANDLE);
-                if (ph) *ph = buf;
+                if (publicLinkSet)
+                {
+                    publicLinkSet->setPublicId(buf);
+                }
             }
             break;
 
@@ -10607,10 +10617,18 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
     }
 }
 
-bool CommandSE::procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u,
-                             m_time_t* cts, handle* s, int64_t* o, handle* ph, uint8_t* t) const
+bool CommandSE::procresultid(JSON& json,
+                             const Result& r,
+                             handle& id,
+                             m_time_t& ts,
+                             handle* u,
+                             m_time_t* cts,
+                             handle* s,
+                             int64_t* o,
+                             PublicLinkSet* publicLinkSet,
+                             uint8_t* t) const
 {
-    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, ph, t);
+    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, publicLinkSet, t);
 }
 
 bool CommandSE::procerrorcode(const Result& r, Error& e) const
@@ -11138,10 +11156,12 @@ CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool makePublic, std
 bool CommandExportSet::procresult(Result r, JSON& json)
 {
     handle sid = mSet->id();
-    handle publicId = UNDEF;
     m_time_t ts = m_time(nullptr); // made it up for case that API returns [0] (like for "d":1)
     Error e = API_OK;
-    const bool parsedOk = procerrorcode(r, e) || procresultid(json, r, sid, ts, nullptr, nullptr, nullptr, nullptr, &publicId);
+    PublicLinkSet publicLinkSet;
+    const bool parsedOk =
+        procerrorcode(r, e) ||
+        procresultid(json, r, sid, ts, nullptr, nullptr, nullptr, nullptr, &publicLinkSet);
 
     if (sid != mSet->id())
     {
@@ -11152,7 +11172,7 @@ bool CommandExportSet::procresult(Result r, JSON& json)
 
     if ((parsedOk) && e == API_OK)
     {
-        mSet->setPublicId(publicId);
+        mSet->setPublicLink(&publicLinkSet);
         mSet->setTs(ts);
         mSet->setChanged(Set::CH_EXPORTED);
         if (!client->updateSet(std::move(*mSet)))

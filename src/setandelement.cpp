@@ -178,7 +178,8 @@ namespace mega {
         CacheableWriter r(*d);
 
         r.serializehandle(mId);
-        r.serializehandle(mPublicId);
+        handle publicId = mPublicLink ? mPublicLink->getPublicHandle() : UNDEF;
+        r.serializehandle(publicId);
         r.serializehandle(mUser);
         r.serializecompressedi64(mTs);
         r.serializestring(mKey);
@@ -194,9 +195,14 @@ namespace mega {
             }
         }
 
-        r.serializeexpansionflags(true, true);
+        r.serializeexpansionflags(true, true, !!mPublicLink);
         r.serializecompressedi64(mCTs);
         r.serializeu8(mType);
+        if (mPublicLink)
+        {
+            r.serializeu8(static_cast<uint8_t>(mPublicLink->getLinkDeletionReason()));
+            r.serializebool(mPublicLink->isTakenDown());
+        }
 
         return true;
     }
@@ -235,16 +241,34 @@ namespace mega {
         unsigned char expansionsS[8];
         m_time_t cts = 0;
         SetType t = TYPE_ALBUM; // by default, for migration of existing Sets
-        if (!r.unserializeexpansionflags(expansionsS, 2) ||
+        if (!r.unserializeexpansionflags(expansionsS, 3) ||
             (expansionsS[0] && !r.unserializecompressedi64(cts)) || // creation timestamp
-            (expansionsS[1] && !r.unserializeu8(t)))  // type
+            (expansionsS[1] && !r.unserializeu8(t))) // type
         {
             return nullptr;
         }
 
-        auto s = std::make_unique<Set>(id, publicId, std::move(k), u, std::move(attrs), t);
+        bool publicLink = static_cast<bool>(expansionsS[2]);
+        std::unique_ptr<PublicLinkSet> publicLinkSet;
+        if (publicLink)
+        {
+            uint8_t reason;
+            bool takeDown;
+            if (!r.unserializeu8(reason) || !r.unserializebool(takeDown))
+            {
+                return nullptr;
+            }
+
+            publicLinkSet = std::make_unique<PublicLinkSet>(publicId);
+            publicLinkSet->setLinkDeletionReason(
+                static_cast<PublicLinkSet::LinkDeletionReason>(reason));
+            publicLinkSet->setTakeDown(takeDown);
+        }
+
+        auto s = std::make_unique<Set>(id, std::move(k), u, std::move(attrs), t);
         s->setTs(ts);
         s->setCTs(cts);
+        s->setPublicLink(std::move(publicLinkSet));
 
         return s;
     }
@@ -253,10 +277,11 @@ namespace mega {
     {
         setTs(s.ts());
 
-        if (s.publicId() != mPublicId)
+        if (s.publicId() != publicId() ||
+            (getPublicLink() && s.getPublicLink()->isTakenDown() != getPublicLink()->isTakenDown()))
         {
             setChanged(CH_EXPORTED);
-            setPublicId(s.publicId());
+            setPublicLink(s.getPublicLink());
         }
         else
         {

@@ -2942,6 +2942,43 @@ void exec_findemptysubfoldertrees(autocomplete::ACState& s)
     }
 }
 
+void exec_fileversions(autocomplete::ACState& s)
+{
+    if (std::shared_ptr<Node> node = client->nodeByPath(s.words[1].s.c_str()))
+    {
+        std::shared_ptr<Node> current = client->nodebyhandle(node->nodehandle);
+        if (current && current->type == FILENODE)
+        {
+            vector<std::shared_ptr<Node>> versions;
+            versions.push_back(current);
+            bool lookingFor = true;
+            while (lookingFor)
+            {
+                sharedNode_list nodeList =
+                    client->getChildren(current.get(), mega::CancelToken(), true);
+                if (nodeList.empty())
+                {
+                    lookingFor = false;
+                }
+                else
+                {
+                    assert(nodeList.back()->parent == current);
+                    current = nodeList.back();
+                    assert(current->type == FILENODE);
+                    versions.push_back(current);
+                }
+            }
+            cout << "Versions: " << endl;
+            int i = 1;
+            for (auto v: versions)
+            {
+                cout << i << ". " << v->displayname() << " - " << v->nodeHandle() << endl;
+                i++;
+            }
+        }
+    }
+}
+
 bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
 {
     switch (pathtype)
@@ -5163,6 +5200,7 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
     p->Add(exec_findemptysubfoldertrees, sequence(text("findemptysubfoldertrees"), opt(flag("-movetotrash"))));
+    p->Add(exec_fileversions, sequence(text("fversions"), param("path")));
 
 #ifdef MEGA_MEASURE_CODE
     p->Add(exec_deferRequests, sequence(text("deferrequests"), repeat(either(flag("-putnodes")))));
@@ -12185,6 +12223,13 @@ void printSet(const Set* s)
     cout << "Set " << toHandle(s->id()) << endl;
     cout << "\ttype: " << setTypeToString(s->type()) << endl;
     cout << "\tpublic id: " << toHandle(s->publicId()) << endl;
+    if (s->getPublicLink() && s->getPublicLink()->isTakenDown())
+    {
+        cout << "\t\ttake down reason: "
+             << PublicLinkSet::LinkDeletionReasonToString(
+                    s->getPublicLink()->getLinkDeletionReason())
+             << endl;
+    }
     cout << "\tkey: " << Base64::btoa(s->key()) << endl;
     cout << "\tuser: " << toHandle(s->user()) << endl;
     cout << "\tts: " << s->ts() << endl;

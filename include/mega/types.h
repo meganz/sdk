@@ -885,6 +885,21 @@ typedef enum {
     REASON_ERROR_REGENERATE_JSCD = 6,
 } ErrorReason;
 
+// enum matching 1:1 MegaEvent::NetworkActivityChannel
+enum NetworkActivityChannel : int
+{
+    SC,
+    CS,
+};
+
+// enum matching 1:1 MegaEvent::NetworkActivityType
+enum NetworkActivityType : int
+{
+    REQUEST_SENT,
+    REQUEST_RECEIVED,
+    REQUEST_ERROR,
+};
+
 //#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
 
 namespace CodeCounter

@@ -256,8 +256,12 @@ TEST_F(FUSECommonTests, cloud_replace)
 
 TEST_F(FUSECommonTests, duplicate_names)
 {
-    // Add a duplicate directory.
+    // Add a few duplicate directories.
     ASSERT_EQ(ClientW()->makeDirectory("sd0", "/x/s").errorOr(API_OK), API_OK);
+    ASSERT_EQ(ClientW()->makeDirectory("sd0", "/x/s").errorOr(API_OK), API_OK);
+
+    // Sanity.
+    EXPECT_EQ(ClientW()->childNames("/x/s").count("sd0"), 0u);
 
     // Wait for the directory to become inaccessible.
     std::error_code error;

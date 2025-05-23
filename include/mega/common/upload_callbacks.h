@@ -2,7 +2,6 @@
 
 #include <functional>
 
-#include <mega/common/bind_handle_forward.h>
 #include <mega/common/error_or_forward.h>
 
 #include <mega/types.h>
@@ -18,8 +17,7 @@ using BoundCallback =
 using BindCallback =
   std::function<void(BoundCallback, NodeHandle)>;
 
-using UploadResult =
-  std::pair<BindCallback, BindHandle>;
+using UploadResult = BindCallback;
 
 using UploadCallback =
   std::function<void(ErrorOr<UploadResult>)>;

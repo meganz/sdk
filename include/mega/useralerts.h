@@ -24,6 +24,8 @@
 
 #include "json.h"
 #include "name_id.h"
+#include "setandelement.h"
+#include "utils.h"
 
 #include <bitset>
 
@@ -299,6 +301,26 @@ namespace UserAlert
 
         bool serialize(string*) const override;
         static Takedown* unserialize(string*, unsigned id);
+    };
+
+    struct SetTakedown: public Base
+    {
+        bool isTakedown;
+        bool isReinstate;
+        PublicLinkSet::LinkDeletionReason reason;
+        handle setId;
+
+        SetTakedown(UserAlertRaw& un, unsigned int id);
+        SetTakedown(bool down,
+                    bool reinstate,
+                    PublicLinkSet::LinkDeletionReason downReason,
+                    handle sId,
+                    m_time_t timestamp,
+                    unsigned int id);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+
+        bool serialize(string*) const override;
+        static SetTakedown* unserialize(string*, unsigned id);
     };
 
 #ifdef ENABLE_CHAT

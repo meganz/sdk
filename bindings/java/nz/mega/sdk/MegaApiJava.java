@@ -9384,21 +9384,24 @@ public class MegaApiJava {
     }
 
     /**
-     * Enable or disable the automatic approval of incoming contact requests using a contact link
+     * Enable or disable the automatic approval of incoming contact requests using a
+     * contact link
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
      * <p>
      * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+     * - MegaRequest::getParamType - Returns the value
+     * MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
      * <p>
      * Valid data in the MegaRequest object received in onRequestFinish:
      * - MegaRequest::getText - "0" for disable, "1" for enable
      *
-     * @param disable  True to disable the automatic approval of incoming contact requests using a contact link
+     * @param enable   True to enable the automatic approval of incoming contact requests using a
+     *                 contact link
      * @param listener MegaRequestListener to track this request
      */
-    public void setContactLinksOption(boolean disable, MegaRequestListenerInterface listener) {
-        megaApi.setContactLinksOption(disable, createDelegateRequestListener(listener));
+    public void setContactLinksOption(boolean enable, MegaRequestListenerInterface listener) {
+        megaApi.setContactLinksOption(enable, createDelegateRequestListener(listener));
     }
 
     /**

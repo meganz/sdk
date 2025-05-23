@@ -39,6 +39,7 @@ static constexpr nameid psts = makeNameid("psts");
 static constexpr nameid psts_v2 = makeNameid("psts_v2");
 static constexpr nameid pses = makeNameid("pses");
 static constexpr nameid ph = makeNameid("ph");
+static constexpr nameid ass = makeNameid("ass");
 #ifdef ENABLE_CHAT
 static constexpr nameid mcsmp = makeNameid("mcsmp");
 static constexpr nameid mcsmr = makeNameid("mcsmr");

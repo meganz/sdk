@@ -99,8 +99,7 @@ public:
 
     // Query what a child's node handle is.
     NodeHandle handle(NodeHandle parent,
-                      const std::string& name,
-                      BindHandle* bindHandle = nullptr) const override;
+                      const std::string& name) const override;
 
     // Query whether a parent contains any children.
     ErrorOr<bool> hasChildren(NodeHandle parent) const override;

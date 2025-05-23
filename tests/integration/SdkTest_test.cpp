@@ -466,27 +466,37 @@ void SdkTest::Cleanup()
 
     for (auto nApi = unsigned(megaApi.size()); nApi--; )
     {
-        // Remove auxiliar contact
-        std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
-        for (int i = 0; i < contacts->size(); i++)
+        if (megaApi[nApi])
         {
-            // avoid removing the same contact again in a 2nd client of the same account (actionpackets from the first may not have arrived yet)
-            // or removing via the other account, again the original disconnection may not have arrived by actionpacket yet
-            string email1 = string(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()}.get());
-            string email2 = string(contacts->get(i)->getEmail());
-            if (alreadyRemoved.find(email1+email2) != alreadyRemoved.end()) continue;
-            if (alreadyRemoved.find(email2+email1) != alreadyRemoved.end()) continue;
-            alreadyRemoved.insert(email1+email2);
+            // Remove auxiliar contact
+            std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
+            for (int i = 0; i < contacts->size(); i++)
+            {
+                // avoid removing the same contact again in a 2nd client of the same account
+                // (actionpackets from the first may not have arrived yet) or removing via the other
+                // account, again the original disconnection may not have arrived by actionpacket
+                // yet
+                string email1 = string(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()}.get());
+                string email2 = string(contacts->get(i)->getEmail());
+                if (alreadyRemoved.find(email1 + email2) != alreadyRemoved.end())
+                    continue;
+                if (alreadyRemoved.find(email2 + email1) != alreadyRemoved.end())
+                    continue;
+                alreadyRemoved.insert(email1 + email2);
 
-            auto result = synchronousRemoveContact(nApi, contacts->get(i));
-            if (result == API_EARGS)
-            {
-                // let's have a look at which other users the jenkins users have been connected to
-                out() << "Contact " << contacts->get(i)->getEmail() << " of megaapi " << nApi << " already 'invisible'";
-            }
-            else if (result != API_OK)
-            {
-                LOG_err << "Could not remove contact " << i << ": " << contacts->get(i)->getEmail() << " from megaapi " << nApi;
+                auto result = synchronousRemoveContact(nApi, contacts->get(i));
+                if (result == API_EARGS)
+                {
+                    // let's have a look at which other users the jenkins users have been connected
+                    // to
+                    out() << "Contact " << contacts->get(i)->getEmail() << " of megaapi " << nApi
+                          << " already 'invisible'";
+                }
+                else if (result != API_OK)
+                {
+                    LOG_err << "Could not remove contact " << i << ": "
+                            << contacts->get(i)->getEmail() << " from megaapi " << nApi;
+                }
             }
         }
     }
@@ -3037,6 +3047,49 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     delete n3;
     delete n4;
     delete n5;
+}
+
+/**
+ * @brief TEST_F SdkTestDownloadConflictFolderExistingName
+ *
+ * This test tries to download a File node into a local folder, that already contains a folder with
+ * the same name as downloaded file.
+ *
+ * Note: We call MegaApi::startDownload with collisionCheck(COLLISION_CHECK_ASSUMEDIFFERENT) and
+ * collisionResolution(COLLISION_RESOLUTION_OVERWRITE), so transfer will be retried sometimes by SDK
+ * and finally will fail with API_EWRITE.
+ */
+TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
+{
+    LOG_info << "___TEST SdkTestDownloadConflictFolderExistingName___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << cwd();
+
+    fs::path basePath = fs::current_path();
+    const std::string itemName{"testItem"};
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+
+    LOG_debug << "#### TEST1: Create Folder in local FS ####";
+    sdk_test::LocalTempDir d(basePath / itemName);
+
+    LOG_debug << "#### TEST2: Create File in cloud drive ####";
+    const auto newNode =
+        sdk_test::uploadFile(megaApi[0].get(),
+                             sdk_test::LocalTempFile{basePath / itemName / itemName, 1},
+                             rootNode.get());
+    ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
+
+    LOG_debug << "#### TEST3: Download file at dir with Folder with same name ####";
+    const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
+                                                newNode.get(),
+                                                basePath / itemName,
+                                                180s /*timeout*/,
+                                                MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
+                                                MegaTransfer::COLLISION_RESOLUTION_OVERWRITE);
+
+    ASSERT_TRUE(errCode.has_value()) << "test_utils(downloadFile) has returned nullopt";
+    ASSERT_EQ(*errCode, API_EWRITE)
+        << "test_utils(downloadFile) has returned unexpected errorCode: " << errCode.has_value();
 }
 
 /**
@@ -14698,6 +14751,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
  *      Payment                         skipped (out of user control)
  *      PaymentReminder                 skipped (out of user control)
  *      Takedown                        skipped (out of user control)
+ *      SetTakedown                     skipped (out of user control)
  */
 TEST_F(SdkTest, SdkUserAlerts)
 {
@@ -20290,4 +20344,160 @@ TEST_F(SdkTest, ExportNodeWithExpiryDate)
     // Exporting a node with an expiry date should now succeed.
     auto link = exportNode(client, *value(node), tomorrow);
     ASSERT_EQ(result(link), API_OK);
+}
+
+TEST_F(SdkTest, HashCash)
+{
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_FALSE(email.empty() || pass.empty());
+    megaApi.resize(1);
+    mApi.resize(1);
+    configureTestInstance(0, email, pass, true, MegaApi::CLIENT_TYPE_DEFAULT);
+    std::string ua = "HashcashDemo";
+    megaApi[0]->getClient()->httpio->setuseragent(&ua);
+    megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
+    std::unique_ptr<RequestTracker> tracker;
+    if (!gResumeSessions || gSessionIDs[0].empty() || gSessionIDs[0] == "invalid")
+    {
+        out() << "Starting new session of account #0: " << mApi[0].email;
+        tracker = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    }
+    else
+    {
+        out() << "Resuming session of account #0";
+        tracker = asyncRequestFastLogin(0, gSessionIDs[0].c_str());
+    }
+    auto loginResult = tracker->waitForResult();
+    ASSERT_EQ(API_OK, loginResult)
+        << " Login error  " << loginResult << " for account " << mApi[0].email;
+    megaApi[0]->getClient()->httpio->setuseragent(&USER_AGENT); // stop hashcash, speed up cleanup
+}
+
+/**
+ * @brief SdkTestRemovePublicLinkSet
+ *
+ *  - Login client 1 and client 2 with same account
+ *  - Create a set
+ *  - Generate a public link
+ *  - Resume session with client 1 and check if Set is recover properly
+ *  - Remove public link
+ *  - Resume session with client 1 and check if Set is recover properly
+ *  - Generate a public link again
+ *  - Resume session with client 1 and check if Set is recover properly
+ */
+TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
+{
+    LOG_info << "___TEST SdkTestRemovePublicLinkSet";
+    static const unsigned long primaryClientIdx{0};
+    static const unsigned long secondaryClientIdx{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Client 2 is other client from user 1
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_FALSE(email.empty() || pass.empty());
+    mApi.resize(2);
+    megaApi.resize(2);
+    configureTestInstance(secondaryClientIdx, email, pass); // index 1 = User B
+    auto loginTracker = std::make_unique<RequestTracker>(megaApi[secondaryClientIdx].get());
+    megaApi[secondaryClientIdx]->login(email.c_str(), pass.c_str(), loginTracker.get());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(secondaryClientIdx));
+
+    const MrProper cleanUp(
+        [this]()
+        {
+            // release secondary instance to avoid failure at tear down
+            releaseMegaApi(secondaryClientIdx);
+        });
+
+    LOG_debug << "# Create set";
+    const string name = "Set-test";
+
+    mApi[secondaryClientIdx].setUpdated = false;
+    RequestTracker trackerCreateSet{megaApi[primaryClientIdx].get()};
+    megaApi[primaryClientIdx]->createSet(name.c_str(), MegaSet::SET_TYPE_ALBUM, &trackerCreateSet);
+    ASSERT_EQ(trackerCreateSet.waitForResult(), API_OK);
+    const MegaHandle sh = trackerCreateSet.request->getMegaSet()->id();
+    ASSERT_TRUE(waitForResponse(&mApi[secondaryClientIdx].setUpdated));
+    std::unique_ptr<MegaSet> setSecondAccount{megaApi[secondaryClientIdx]->getSet(sh)};
+    ASSERT_TRUE(setSecondAccount);
+
+    LOG_debug << "Set handle: " << Base64Str<MegaClient::USERHANDLE>(sh);
+
+    auto exportSet = [this, sh]()
+    {
+        std::unique_ptr<MegaSet> set{megaApi[primaryClientIdx]->getSet(sh)};
+        mApi[secondaryClientIdx].setUpdated = false;
+        RequestTracker trackerExportSet{megaApi[primaryClientIdx].get()};
+        megaApi[primaryClientIdx]->exportSet(set->id(), &trackerExportSet);
+        ASSERT_EQ(trackerExportSet.waitForResult(), API_OK);
+        ASSERT_TRUE(waitForResponse(&mApi[secondaryClientIdx].setUpdated));
+        MegaSet* exportedSet = trackerExportSet.request->getMegaSet();
+        ASSERT_TRUE(exportedSet->isExported());
+        ASSERT_EQ(exportedSet->id(), set->id());
+        ASSERT_TRUE(exportedSet->getLinkDeletionReason() == MegaSet::DELETION_LINK_NO_REMOVED);
+        std::unique_ptr<MegaSet> setSecondAccount{megaApi[secondaryClientIdx]->getSet(sh)};
+        ASSERT_TRUE(setSecondAccount);
+        ASSERT_TRUE(setSecondAccount->getLinkDeletionReason() == MegaSet::DELETION_LINK_NO_REMOVED);
+    };
+
+    auto disableExportSet = [this, sh]()
+    {
+        std::unique_ptr<MegaSet> set{megaApi[primaryClientIdx]->getSet(sh)};
+        mApi[secondaryClientIdx].setUpdated = false;
+        RequestTracker trackerDisableSet{megaApi[primaryClientIdx].get()};
+        megaApi[primaryClientIdx]->disableExportSet(sh, &trackerDisableSet);
+        ASSERT_EQ(trackerDisableSet.waitForResult(), API_OK);
+        ASSERT_TRUE(waitForResponse(&mApi[secondaryClientIdx].setUpdated));
+        MegaSet* noExportedSet = megaApi[primaryClientIdx]->getSet(sh);
+        ASSERT_FALSE(noExportedSet->isExported());
+        ASSERT_EQ(noExportedSet->id(), set->id());
+        std::unique_ptr<MegaSet> setSecondAccount{megaApi[secondaryClientIdx]->getSet(sh)};
+        ASSERT_TRUE(setSecondAccount);
+        ASSERT_FALSE(setSecondAccount->isExported());
+    };
+
+    auto checkDeletionReasonAfterResumeSession = [this, sh](bool exported)
+    {
+        PerApi& target = mApi[primaryClientIdx];
+        target.resetlastEvent();
+        std::unique_ptr<char[]> session(megaApi[primaryClientIdx]->dumpSession());
+        ASSERT_NO_FATAL_FAILURE(locallogout());
+        ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(primaryClientIdx));
+        // make sure that client is up to date (upon logout, recent changes might not be committed
+        // to DB)
+        ASSERT_TRUE(WaitFor(
+            [&target]()
+            {
+                return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT);
+            },
+            10000))
+            << "Timeout expired to receive actionpackets";
+
+        std::unique_ptr<MegaSet> setPrimaryAccount{megaApi[primaryClientIdx]->getSet(sh)};
+        ASSERT_TRUE(setPrimaryAccount);
+        ASSERT_EQ(setPrimaryAccount->isExported(), exported);
+    };
+
+    LOG_debug << "# Check if Set is exported (false)";
+    ASSERT_FALSE(megaApi[primaryClientIdx]->isExportedSet(sh)) << "Set should not be public yet";
+
+    LOG_debug << "# Enable Set export (creates public link)";
+    ASSERT_NO_FATAL_FAILURE(exportSet());
+
+    LOG_debug << "# Check state after resume session 1";
+    checkDeletionReasonAfterResumeSession(true);
+
+    LOG_debug << "# Disable public link";
+    ASSERT_NO_FATAL_FAILURE(disableExportSet());
+
+    LOG_debug << "# Check state after resume session 2";
+    checkDeletionReasonAfterResumeSession(false);
+
+    LOG_debug << "# Enable Set export again";
+    ASSERT_NO_FATAL_FAILURE(exportSet());
+
+    LOG_debug << "# Check state after resume session 3";
+    checkDeletionReasonAfterResumeSession(true);
 }

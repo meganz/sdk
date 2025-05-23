@@ -2,7 +2,6 @@
 
 #include <string>
 
-#include <mega/common/bind_handle_forward.h>
 #include <mega/common/node_event_forward.h>
 #include <mega/common/node_event_type_forward.h>
 #include <mega/common/node_info_forward.h>
@@ -22,9 +21,6 @@ protected:
     ~NodeEvent() = default;
 
 public:
-    // What is this node's bind handle?
-    virtual BindHandle bindHandle() const = 0;
-
     // Is this node a directory?
     virtual bool isDirectory() const = 0;
 

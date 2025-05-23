@@ -28,6 +28,7 @@
 #include "network_connectivity_test_helpers.h"
 #include "node.h"
 #include "nodemanager.h"
+#include "setandelement.h"
 #include "textchat.h"
 #include "types.h"
 
@@ -1709,20 +1710,31 @@ public:
     CommandDismissBanner(MegaClient*, int id, m_time_t ts);
 };
 
-
 //
 // Sets and Elements
 //
-
 class CommandSE : public Command // intermediary class to avoid code duplication
 {
 protected:
-    bool procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr,
-                        handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr,
+    bool procjsonobject(JSON& json,
+                        handle& id,
+                        m_time_t& ts,
+                        handle* u,
+                        m_time_t* cts = nullptr,
+                        handle* s = nullptr,
+                        int64_t* o = nullptr,
+                        PublicLinkSet* publicLinkSet = nullptr,
                         uint8_t* setType = nullptr) const;
-    bool procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u,
-                      m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr,
-                      handle* ph = nullptr, uint8_t* setType = nullptr) const;
+    bool procresultid(JSON& json,
+                      const Result& r,
+                      handle& id,
+                      m_time_t& ts,
+                      handle* u,
+                      m_time_t* cts = nullptr,
+                      handle* s = nullptr,
+                      int64_t* o = nullptr,
+                      PublicLinkSet* publicLinkSet = nullptr,
+                      uint8_t* setType = nullptr) const;
     bool procerrorcode(const Result& r, Error& e) const;
     bool procExtendedError(JSON& json, int64_t& errCode, handle& eid) const;
 };

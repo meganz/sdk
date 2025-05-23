@@ -345,6 +345,8 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaSyncStats::copy;
 %newobject mega::MegaRecentActionBucket::copy;
 %newobject mega::MegaRecentActionBucketList::copy;
+%newobject mega::MegaSyncStall::copy;
+%newobject mega::MegaSyncStallList::copy;
 %newobject mega::MegaStringMap::copy;
 %newobject mega::MegaContactRequest::copy;
 %newobject mega::MegaContactRequestList::copy;

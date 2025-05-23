@@ -1938,6 +1938,18 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 - (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(nullable NSString *)masterKey;
 
 /**
+ * @brief Check that the provided recovery key (master key) is correct
+ *
+ * The associated request type with this request is MEGARequestTypeCheckRecoveryKey
+ * No data in the MEGARequest object received on all callbacks
+ *
+ * @param link The recovery link sent to the user's email address.
+ * @param recoveryKey Base64-encoded string containing the recoveryKey (masterKey).
+ * @param delegate Delegate to track this request
+ */
+- (void)checkRecoveryKey:(NSString *)link recoveryKey:(NSString *)recoveryKey delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Initialize the cancellation of an account.
  *
  * The associated request type with this request is MEGARequestTypeGetCancelLink.
@@ -8221,25 +8233,10 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * Valid data in the MEGARequest object received in onRequestFinish:
  * - [MEGARequest text] - "0" for disable, "1" for enable
  *
- * @param disable YES to disable the automatic approval of incoming contact requests using a contact link
+ * @param enable YES to enable the automatic approval of incoming contact requests using a contact link
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
- *
- * The associated request type with this request is MEGARequestTypeSetAttrUser
- *
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
- *
- * Valid data in the MEGARequest object received in onRequestFinish:
- * - [MEGARequest text] - "0" for disable, "1" for enable
- *
- * @param disable YES to disable the automatic approval of incoming contact requests using a contact link
- */
-- (void)setContactLinksOptionDisable:(BOOL)disable;
+- (void)setContactLinksOption:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled

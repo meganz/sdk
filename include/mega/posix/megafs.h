@@ -99,6 +99,9 @@ public:
     void osversion(string*, bool includeArchitecture) const override;
     void statsid(string*) const override;
 
+    // Returns true if provided error as param is considered a transient error (an error lasting
+    // only for a short period of time). Otherwise returns false
+    static bool isTransient(const int e);
     static void emptydirlocal(const LocalPath&, dev_t = 0);
 
     int getdefaultfilepermissions() override;

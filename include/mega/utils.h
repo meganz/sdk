@@ -1639,9 +1639,17 @@ inline Range range(const unsigned start, const unsigned end)
  * @param end The ending value of the range (exclusive).
  * @return A Range object representing the range from 0 to end.
  */
-inline Range range(const unsigned end)
+template<typename T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>, int> = 0>
+inline Range range(const T end)
 {
-    return range(0, end);
+    if constexpr (std::is_signed_v<T>)
+    {
+        if (end <= 0)
+        {
+            return range(0u);
+        }
+    }
+    return range(0u, static_cast<unsigned>(end));
 }
 
 /**

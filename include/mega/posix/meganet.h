@@ -147,6 +147,12 @@ protected:
     static bool crackurl(const string*, string*, string*, int*);
     static int debug_callback(CURL*, curl_infotype, char*, size_t, void*);
     bool ipv6available();
+    const char* pubkeyForUrl(const char* url) const;
+
+    const char* pubkeyForUrl(const std::string& url) const
+    {
+        return pubkeyForUrl(url.c_str());
+    }
     bool curlipv6;
     bool reset;
     bool statechange;

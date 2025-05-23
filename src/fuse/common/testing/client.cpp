@@ -2,7 +2,6 @@
 #include <future>
 #include <mutex>
 
-#include <mega/common/bind_handle.h>
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
 #include <mega/common/normalized_path.h>

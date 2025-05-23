@@ -1153,10 +1153,23 @@ private:
 class MegaSetPrivate : public MegaSet
 {
 public:
-
-    MegaSetPrivate(const Set& s)
-        : mId(s.id()), mPublicId(s.publicId()), mUser(s.user()), mTs(s.ts()), mCTs(s.cts()),
-          mName(s.name()), mCover(s.cover()), mChanges(s.changes()), mType(s.type()) {}
+    MegaSetPrivate(const Set& s):
+        mId(s.id()),
+        mPublicId(s.publicId()),
+        mUser(s.user()),
+        mTs(s.ts()),
+        mCTs(s.cts()),
+        mName(s.name()),
+        mCover(s.cover()),
+        mChanges(s.changes()),
+        mType(s.type())
+    {
+        if (s.getPublicLink())
+        {
+            mLinkDeletionReason = s.getPublicLink()->getLinkDeletionReason();
+            mIsTakenDown = s.getPublicLink()->isTakenDown();
+        }
+    }
 
     MegaHandle id() const override { return mId; }
     MegaHandle publicId() const override { return mPublicId; }
@@ -1171,6 +1184,16 @@ public:
     uint64_t getChanges() const override { return mChanges.to_ullong(); }
     bool isExported() const override { return mPublicId != UNDEF; }
 
+    int getLinkDeletionReason() const override
+    {
+        return static_cast<int>(mLinkDeletionReason);
+    }
+
+    bool isTakenDown() const override
+    {
+        return mIsTakenDown;
+    }
+
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
 private:
@@ -1183,6 +1206,9 @@ private:
     MegaHandle mCover;
     std::bitset<Set::CH_SIZE> mChanges;
     Set::SetType mType;
+    PublicLinkSet::LinkDeletionReason mLinkDeletionReason{
+        PublicLinkSet::LinkDeletionReason::NO_REMOVED};
+    bool mIsTakenDown{false};
 };
 
 
@@ -2272,19 +2298,22 @@ public:
     const char *getText() const override;
     int64_t getNumber() const override;
     MegaHandle getHandle() const override;
-    const char *getEventString() const override;
+    const char* getEventString() const override;
+    std::optional<int64_t> getNumber(const std::string& key) const override;
 
     std::string getValidDataToString() const;
     static const char* getEventString(int type);
 
     void setText(const char* newText);
     void setNumber(int64_t newNumber);
-    void setHandle(const MegaHandle &handle);
+    void setHandle(const MegaHandle& handle);
+    void setNumber(const std::string& key, int64_t value);
 
 protected:
     int type;
     const char* text = nullptr;
     int64_t number = -1;
+    std::map<std::string, int64_t> numberMap;
     MegaHandle mHandle = INVALID_HANDLE;
 };
 
@@ -4234,7 +4263,7 @@ public:
         void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
         void getFileVersionsOption(MegaRequestListener *listener = NULL);
 
-        void setContactLinksOption(bool disable, MegaRequestListener *listener = NULL);
+        void setContactLinksOption(bool enable, MegaRequestListener* listener = NULL);
         void getContactLinksOption(MegaRequestListener *listener = NULL);
 
         void retrySSLerrors(bool enable);
@@ -4977,6 +5006,10 @@ public:
         void sendPendingRequests();
         unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr, m_off_t availableDiskSpace = 0);
         void updateBackups();
+
+        void notify_network_activity(int networkActivityChannel,
+                                     int networkActivityType,
+                                     int code) override;
 
         //Internal
         std::shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint);

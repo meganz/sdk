@@ -3,7 +3,6 @@
 #include <map>
 #include <tuple>
 
-#include <mega/common/bind_handle.h>
 #include <mega/common/database.h>
 #include <mega/common/error_or.h>
 #include <mega/common/node_event.h>
@@ -93,14 +92,13 @@ public:
 
 InodeDB::Queries::Queries(Database& database)
   : mAddInode(database.query())
-  , mClearBindHandles(database.query())
   , mGetChildrenByParentHandle(database.query())
   , mGetExtensionAndInodeIDByHandle(database.query())
   , mGetExtensionAndInodeIDByNameAndParentHandle(database.query())
   , mGetHandleByID(database.query())
   , mGetInodeByHandle(database.query())
   , mGetInodeByID(database.query())
-  , mGetInodeIDByBindHandleOrHandle(database.query())
+  , mGetInodeIDByHandle(database.query())
   , mGetInodeIDByNameAndParentHandle(database.query())
   , mGetInodeIDByParentHandle(database.query())
   , mGetModifiedByID(database.query())
@@ -108,13 +106,11 @@ InodeDB::Queries::Queries(Database& database)
   , mGetNextInodeID(database.query())
   , mIncrementNextInodeID(database.query())
   , mRemoveInodeByID(database.query())
-  , mSetBindHandleByID(database.query())
-  , mSetBindHandleHandleNameParentHandleByID(database.query())
+  , mSetHandleNameParentHandleByID(database.query())
   , mSetModifiedByID(database.query())
   , mSetNameParentHandleByID(database.query())
 {
     mAddInode = "insert into inodes values ( "
-                "  :bind_handle, "
                 "  :extension, "
                 "  :handle, "
                 "  :id, "
@@ -123,10 +119,7 @@ InodeDB::Queries::Queries(Database& database)
                 "  :parent_handle "
                 ")";
 
-    mClearBindHandles = "update inodes set bind_handle = null";
-
-    mGetChildrenByParentHandle = "select bind_handle "
-                                 "     , extension "
+    mGetChildrenByParentHandle = "select extension "
                                  "     , handle "
                                  "     , id "
                                  "     , name "
@@ -155,11 +148,9 @@ InodeDB::Queries::Queries(Database& database)
                     "  from inodes "
                     " where id = :id";
 
-    mGetInodeIDByBindHandleOrHandle = "select id "
-                                      "  from inodes "
-                                      " where handle = :handle "
-                                      "    or bind_handle not null "
-                                      "   and bind_handle = :bind_handle";
+    mGetInodeIDByHandle = "select id "
+                          "  from inodes "
+                          " where handle = :handle;";
 
     mGetInodeIDByNameAndParentHandle =
       "select id "
@@ -185,16 +176,11 @@ InodeDB::Queries::Queries(Database& database)
 
     mRemoveInodeByID = "delete from inodes where id = :id";
 
-    mSetBindHandleByID = "update inodes "
-                         "   set bind_handle = :bind_handle "
-                         " where id = :id";
-
-    mSetBindHandleHandleNameParentHandleByID = "update inodes "
-                                               "   set bind_handle = :bind_handle "
-                                               "     , handle = :handle "
-                                               "     , name = :name "
-                                               "     , parent_handle = :parent_handle "
-                                               " where id = :id";
+    mSetHandleNameParentHandleByID = "update inodes "
+                                     "   set handle = :handle "
+                                     "     , name = :name "
+                                     "     , parent_handle = :parent_handle "
+                                     " where id = :id";
 
     mSetModifiedByID = "update inodes "
                        "   set modified = :modified"
@@ -254,7 +240,6 @@ InodeID InodeDB::addFile(const FileExtension& extension,
     // Add the file to the database.
     query = transaction.query(mQueries.mAddInode);
 
-    query.param(":bind_handle").set(nullptr);
     query.param(":extension").set(extension.get());
     query.param(":handle").set(nullptr);
     query.param(":id").set(id);
@@ -661,13 +646,6 @@ InodeRef InodeDB::get(Client& client, NodeHandle handle) const
     if (h != mByHandle.end())
         return InodeRef(h->second->accessed());
 
-    // Is this node associated with an inode that's being bound?
-    auto b = mByBindHandle.find(info->mBindHandle);
-
-    // Nodes associated with an inode that's being bound.
-    if (b != mByBindHandle.end())
-        return InodeRef(b->second->accessed());
-
     // Assume we're instantiating a file inode.
     auto build = &InodeDB::buildFile;
 
@@ -841,9 +819,8 @@ InodeRef InodeDB::get(FileCache& fileCache,
 
         // We don't record the name or parent of a file in the cloud.
         transaction = mContext.mDatabase.transaction();
-        query = transaction.query(mQueries.mSetBindHandleHandleNameParentHandleByID);
+        query = transaction.query(mQueries.mSetHandleNameParentHandleByID);
 
-        query.param(":bind_handle").set(nullptr);
         query.param(":handle").set(info.mHandle);
         query.param(":id").set(id);
         query.param(":name").set(nullptr);
@@ -893,10 +870,9 @@ void InodeDB::handle(FileInode& file,
     std::swap(oldHandle, newHandle);
 
     auto transaction = mContext.mDatabase.transaction();
-    auto query = transaction.query(mQueries.mSetBindHandleHandleNameParentHandleByID);
+    auto query = transaction.query(mQueries.mSetHandleNameParentHandleByID);
 
     // Record the inode's new handle in the database.
-    query.param(":bind_handle").set(nullptr);
     query.param(":handle").set(oldHandle);
     query.param(":id").set(file.id());
     query.param(":name").set(nullptr);
@@ -928,11 +904,10 @@ InodeID InodeDB::hasChild(const DirectoryInode& parent,
     assert(!name.empty());
 
     // Convenience.
-    auto bindHandle = BindHandle();
     auto parentHandle = parent.handle();
 
     // Does the child exist in the cloud?
-    auto childHandle = client().handle(parentHandle, name, &bindHandle);
+    auto childHandle = client().handle(parentHandle, name);
     
     // Acquire locks.
     auto guard = lockAll(mContext.mDatabase, *this);
@@ -940,17 +915,13 @@ InodeID InodeDB::hasChild(const DirectoryInode& parent,
     // Child exists in the cloud.
     if (!childHandle.isUndef())
     {
-        // Sanity.
-        assert(bindHandle);
-
         // Assume the child's inode ID is its node handle.
         auto id = InodeID(childHandle);
 
         auto transaction = mContext.mDatabase.transaction();
-        auto query = transaction.query(mQueries.mGetInodeIDByBindHandleOrHandle);
+        auto query = transaction.query(mQueries.mGetInodeIDByHandle);
 
         // Check if the inode is known locally.
-        query.param(":bind_handle").set(bindHandle);
         query.param(":handle").set(childHandle);
         query.execute();
 
@@ -961,9 +932,8 @@ InodeID InodeDB::hasChild(const DirectoryInode& parent,
             id = query.field("id").get<InodeID>();
 
             // We don't track a cloud node's name or parent.
-            query = transaction.query(mQueries.mSetBindHandleHandleNameParentHandleByID);
+            query = transaction.query(mQueries.mSetHandleNameParentHandleByID);
 
-            query.param(":bind_handle").set(nullptr);
             query.param(":handle").set(childHandle);
             query.param(":id").set(id);
             query.param(":name").set(nullptr);
@@ -1507,7 +1477,6 @@ Error InodeDB::unlink(FileInodeRef file)
 
 InodeDB::InodeDB(platform::ServiceContext& context)
   : Lockable()
-  , mByBindHandle()
   , mByHandle()
   , mByID()
   , mByParentHandleAndName()
@@ -1517,14 +1486,6 @@ InodeDB::InodeDB(platform::ServiceContext& context)
   , mQueries(context.mDatabase)
 {
     FUSEDebug1("Inode DB constructed");
-
-    // For now, ensure the bind handle of all inodes is clear.
-    auto transaction = mContext.mDatabase.transaction();
-    auto query = transaction.query(mQueries.mClearBindHandles);
-
-    query.execute();
-
-    transaction.commit();
 }
 
 InodeDB::~InodeDB()
@@ -1547,7 +1508,6 @@ void InodeDB::add(const FileInode& inode)
     auto query = transaction.query(mQueries.mAddInode);
 
     // Add the inode to the database.
-    query.param(":bind_handle").set(nullptr);
     query.param(":extension").set(extension.get());
     query.param(":handle").set(handle);
     query.param(":id").set(id);
@@ -1558,71 +1518,6 @@ void InodeDB::add(const FileInode& inode)
     query.execute();
 
     // Persist changes.
-    transaction.commit();
-}
-
-auto InodeDB::binding(const FileInode& file, const BindHandle& handle)
-  -> ToInodeRawPtrMap<BindHandle>::iterator
-{
-    // Acquire locks.
-    auto lock = lockAll(mContext.mDatabase, *this);
-
-    // Try and associate file with handle.
-    auto result = mByBindHandle.emplace(handle, const_cast<FileInode*>(&file));
-
-    // Sanity.
-    assert(result.second);
-
-    // Persist the inode's bind handle in the database.
-    auto transaction = mContext.mDatabase.transaction();
-    auto query = transaction.query(mQueries.mSetBindHandleByID);
-
-    query.param(":id").set(file.id());
-    query.param(":bind_handle").set(handle);
-    query.execute();
-
-    transaction.commit();
-
-    // Return iterator to caller.
-    return result.first;
-}
-
-FileInodeRef InodeDB::binding(const BindHandle& handle) const
-{
-    // Acquire lock.
-    InodeDBLock guard(*this);
-
-    // Is an inode being bound using the specified handle?
-    auto i = mByBindHandle.find(handle);
-
-    // No inode is being bound with this handle.
-    if (i == mByBindHandle.end())
-        return FileInodeRef();
-
-    // An inode is being bound with this handle.
-    return i->second->file();
-}
-
-void InodeDB::bound(const FileInode& file,
-                    ToInodeRawPtrMap<BindHandle>::iterator iterator)
-{
-    // Acquire locks.
-    auto lock = lockAll(mContext.mDatabase, *this);
-
-    // Sanity.
-    assert(iterator->second == &file);
-
-    // File is no longer being bound to a name in the cloud.
-    mByBindHandle.erase(iterator);
-
-    // Clear the inode's bind handle in the database.
-    auto transaction = mContext.mDatabase.transaction();
-    auto query = transaction.query(mQueries.mSetBindHandleByID);
-
-    query.param(":id").set(file.id());
-    query.param(":bind_handle").set(nullptr);
-    query.execute();
-
     transaction.commit();
 }
 
@@ -1665,7 +1560,6 @@ void InodeDB::clear()
     InodeDBLock guard(*this);
 
     // Sanity.
-    assert(mByBindHandle.empty());
     assert(mByID.empty());
     assert(mByHandle.empty());
     assert(mByParentHandleAndName.empty());
@@ -1942,25 +1836,6 @@ void InodeDB::EventObserver::added(const NodeEvent& event)
                name.c_str(),
                toNodeHandle(handle).c_str(),
                toNodeHandle(parentHandle).c_str());
-
-    // Node was added because an inode was bound.
-    if (auto ref = mInodeDB.binding(event.bindHandle()))
-    {
-        FUSEDebugF("%s (%s) [%s] is the future identity of inode %s",
-                   name.c_str(),
-                   toNodeHandle(handle).c_str(),
-                   toNodeHandle(parentHandle).c_str(),
-                   toString(ref->id()).c_str());
-
-        // Partially complete the binding.
-        ref->info(event.info());
-
-        // Inode's no longer a candidate for removal.
-        ref->removed(false);
-
-        // FileIOContext will invalidate the bind handle as needed.
-        return;
-    }
 
     // Node replaces an in-memory inode.
     if (auto ref = mInodeDB.child(name, parentHandle, MemoryOnly))

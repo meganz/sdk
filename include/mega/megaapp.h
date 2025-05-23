@@ -463,6 +463,11 @@ struct MEGA_API MegaApp
 
     // Called when a mount has been added, disabled, enabled or removed.
     virtual void onFuseEvent(const fuse::MountEvent&) { }
+
+    virtual void notify_network_activity(int /* networkActivityChannel */,
+                                         int /* networkActivityType */,
+                                         int /* code */)
+    {}
 };
 } // namespace
 

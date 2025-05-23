@@ -5,7 +5,6 @@
 #include <string>
 #include <tuple>
 
-#include <mega/common/bind_handle_forward.h>
 #include <mega/common/client_callbacks.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
@@ -91,8 +90,7 @@ public:
 
     // Query what a child's node handle is.
     virtual NodeHandle handle(NodeHandle parent,
-                              const std::string& name,
-                              BindHandle* bindHandle = nullptr) const = 0;
+                              const std::string& name) const = 0;
 
     // Query whether a parent contains any children.
     virtual ErrorOr<bool> hasChildren(NodeHandle parent) const = 0;

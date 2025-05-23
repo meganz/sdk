@@ -134,7 +134,8 @@ pipeline {
                         } 
                         axis { 
                             name 'DISTRO'; 
-                            values  'DEB_Arch_Extra','Debian_11','xUbuntu_20.04','xUbuntu_24.04','Fedora_40','openSUSE_Tumbleweed'
+                            values  'DEB_Arch_Extra','Debian_11','xUbuntu_20.04','xUbuntu_24.04','Fedora_40',
+                                    'Raspbian_11', 'Raspbian_12','openSUSE_Tumbleweed'
                         }
                     }
                 }
@@ -228,7 +229,7 @@ pipeline {
                                         ]
                                     }
                                     ]
-                                }' ${SLACK_WEBHOOK_URL}
+                                }' \${SLACK_WEBHOOK_URL}
                         """
                     }
                 }

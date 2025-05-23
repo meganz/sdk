@@ -2779,6 +2779,24 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
     }
     break;
+    case name_id::ass:
+    {
+        UserAlert::SetTakedown* p = static_cast<UserAlert::SetTakedown*>(b);
+        if (p->isTakedown)
+        {
+            type = TYPE_SET_TAKEDOWN;
+        }
+        else if (p->isReinstate)
+        {
+            type = TYPE_SET_TAKEDOWN_REINSTATED;
+        }
+        nodeHandle = p->setId;
+        if (const Set* set = mc->getSet(nodeHandle); set)
+        {
+            nodeName = set->name();
+        }
+    }
+    break;
 #ifdef ENABLE_CHAT
     case name_id::mcsmp:
     {
@@ -2891,6 +2909,10 @@ const char *MegaUserAlertPrivate::getTypeString() const
     case TYPE_SCHEDULEDMEETING_NEW:                     return "SCHEDULEDMEETING_NEW";
     case TYPE_SCHEDULEDMEETING_UPDATED:                 return "SCHEDULEDMEETING_UPDATED";
     case TYPE_SCHEDULEDMEETING_DELETED:                 return "SCHEDULEDMEETING_DELETED";
+    case TYPE_SET_TAKEDOWN:
+        return "SET_TAKEDOWN";
+    case TYPE_SET_TAKEDOWN_REINSTATED:
+        return "SET_TAKEDOWN_REINSTATED";
     }
     return "<new type>";
 }
@@ -12599,9 +12621,9 @@ void MegaApiImpl::getFileVersionsOption(MegaRequestListener *listener)
     getUserAttr(NULL, MegaApi::USER_ATTR_DISABLE_VERSIONS, NULL, 0, listener);
 }
 
-void MegaApiImpl::setContactLinksOption(bool disable, MegaRequestListener *listener)
+void MegaApiImpl::setContactLinksOption(bool enable, MegaRequestListener* listener)
 {
-    string av = disable ? "1" : "0";
+    string av = enable ? "1" : "0";
     setUserAttr(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, av.data(), listener);
 }
 
@@ -18269,7 +18291,7 @@ MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
     bool lookingFor = true;
     while (lookingFor)
     {
-        sharedNode_list nodeList = client->getChildren(current.get());
+        sharedNode_list nodeList = client->getChildren(current.get(), mega::CancelToken(), true);
         if (nodeList.empty())
         {
             lookingFor = false;
@@ -38515,6 +38537,20 @@ void MegaEventPrivate::setNumber(int64_t newNumber)
     number = newNumber;
 }
 
+std::optional<int64_t> MegaEventPrivate::getNumber(const std::string& key) const
+{
+    if (auto it = numberMap.find(key); it != numberMap.end())
+    {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
+void MegaEventPrivate::setNumber(const std::string& key, int64_t value)
+{
+    numberMap[key] = value;
+}
+
 MegaHandle MegaEventPrivate::getHandle() const
 {
     return mHandle;
@@ -38549,9 +38585,14 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
         case MegaEvent::EVENT_RELOADING: return "RELOADING";
         case MegaEvent::EVENT_FATAL_ERROR: return "FATAL_ERROR";
-        case MegaEvent::EVENT_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
-        case MegaEvent::EVENT_DOWNGRADE_ATTACK: return "DOWNGRADE_ATTACK";
-        case MegaEvent::EVENT_CREDIT_CARD_EXPIRY: return "CREDIT_CARD_EXPIRY";
+        case MegaEvent::EVENT_UPGRADE_SECURITY:
+            return "UPGRADE_SECURITY";
+        case MegaEvent::EVENT_DOWNGRADE_ATTACK:
+            return "DOWNGRADE_ATTACK";
+        case MegaEvent::EVENT_CREDIT_CARD_EXPIRY:
+            return "CREDIT_CARD_EXPIRY";
+        case MegaEvent::EVENT_NETWORK_ACTIVITY:
+            return "NETWORK_ACTIVITY";
     }
 
     return "UNKNOWN";
@@ -40099,7 +40140,10 @@ fuse::MountInfo MegaMountPrivate::asInfo() const
 
     info.mFlags = static_cast<MegaMountFlagsPrivate&>(*mFlags).getFlags();
     info.mHandle.set6byte(mHandle);
-    info.mPath = LocalPath::fromAbsolutePath(mPath);
+    if (!mPath.empty())
+    {
+        info.mPath = LocalPath::fromAbsolutePath(mPath);
+    }
 
     return info;
 }
@@ -40121,10 +40165,7 @@ MegaHandle MegaMountPrivate::getHandle() const
 
 const char* MegaMountPrivate::getPath() const
 {
-    if (!mPath.empty())
-        return mPath.c_str();
-
-    return nullptr;
+    return mPath.c_str();
 }
 
 void MegaMountPrivate::setFlags(const MegaMountFlags* flags)
@@ -40285,6 +40326,17 @@ size_t MegaCancelSubscriptionReasonListPrivate::size() const
 MegaCancelSubscriptionReasonListPrivate* MegaCancelSubscriptionReasonListPrivate::copy() const
 {
     return new MegaCancelSubscriptionReasonListPrivate(*this);
+}
+
+void MegaApiImpl::notify_network_activity(int networkActivityChannel,
+                                          int networkActivityType,
+                                          int code)
+{
+    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_NETWORK_ACTIVITY);
+    event->setNumber("channel", networkActivityChannel);
+    event->setNumber("activity_type", networkActivityType);
+    event->setNumber("error_code", code);
+    fireOnEvent(event);
 }
 
 } // namespace mega

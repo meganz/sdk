@@ -4309,9 +4309,9 @@ void MegaApi::setFileVersionsOption(bool disable, MegaRequestListener *listener)
     pImpl->setFileVersionsOption(disable, listener);
 }
 
-void MegaApi::setContactLinksOption(bool disable, MegaRequestListener *listener)
+void MegaApi::setContactLinksOption(bool enable, MegaRequestListener* listener)
 {
-    pImpl->setContactLinksOption(disable, listener);
+    pImpl->setContactLinksOption(enable, listener);
 }
 
 void MegaApi::getFileVersionsOption(MegaRequestListener *listener)
@@ -7562,6 +7562,11 @@ MegaHandle MegaEvent::getHandle() const
 const char *MegaEvent::getEventString() const
 {
     return NULL;
+}
+
+std::optional<int64_t> MegaEvent::getNumber(const std::string& /* key */) const
+{
+    return std::nullopt;
 }
 
 MegaHandleList *MegaHandleList::createInstance()
