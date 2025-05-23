@@ -212,7 +212,7 @@ auto FileServiceContext::info(FileID id) -> FileServiceResultOr<FileInfo>
 try
 {
     if (auto [context, _] = info(id, false); context)
-        return FileInfo({}, std::move(context));
+        return FileInfo(FileServiceContextBadge(), std::move(context));
 
     return unexpected(FILE_SERVICE_UNKNOWN_FILE);
 }

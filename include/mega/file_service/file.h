@@ -21,6 +21,9 @@ public:
 
     ~File();
 
+    // Retrieve information about this file.
+    FileInfo info() const;
+
     // Read data from this file.
     void read(FileReadCallback callback, std::uint64_t offset, std::uint64_t length);
 

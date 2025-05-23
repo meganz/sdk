@@ -4,7 +4,9 @@
 #include <mega/file_service/buffer_pointer.h>
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
+#include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
+#include <mega/file_service/file_info_forward.h>
 #include <mega/file_service/file_range_context_manager.h>
 #include <mega/file_service/file_range_context_pointer_map.h>
 #include <mega/file_service/file_range_forward.h>
@@ -105,6 +107,9 @@ public:
                 FileServiceContext& service);
 
     ~FileContext();
+
+    // Retrieve information about this file.
+    FileInfo info() const;
 
     // Read data from this file.
     void read(FileReadRequest request);

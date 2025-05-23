@@ -5,6 +5,7 @@
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
 #include <mega/file_service/file_id.h>
+#include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_range_context.h>
 #include <mega/file_service/file_read_request.h>
@@ -268,6 +269,11 @@ FileContext::~FileContext()
 
     // Remove ourselves from our service's index.
     mService.removeFromIndex(FileContextBadge(), mInfo->id());
+}
+
+FileInfo FileContext::info() const
+{
+    return FileInfo(FileContextBadge(), mInfo);
 }
 
 void FileContext::read(FileReadRequest request)

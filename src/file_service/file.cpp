@@ -1,5 +1,6 @@
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_context.h>
+#include <mega/file_service/file_info.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_result.h>
@@ -16,6 +17,11 @@ File::File(FileServiceContextBadge, FileContextPtr context):
 {}
 
 File::~File() = default;
+
+FileInfo File::info() const
+{
+    return mContext->info();
+}
 
 void File::read(FileReadCallback callback, std::uint64_t offset, std::uint64_t length)
 {
