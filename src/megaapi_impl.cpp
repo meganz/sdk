@@ -20988,39 +20988,70 @@ error MegaApiImpl::performRequest_logout(MegaRequestPrivate* request)
             return API_OK;
 }
 
-void MegaApiImpl::getNodeAttribute(MegaNode* node, int type, const char* dstFilePath, MegaRequestListener* listener)
+void MegaApiImpl::getNodeAttribute(std::variant<MegaNode*, MegaHandle> nodeOrHandle,
+                                   int type,
+                                   const char* dstFilePath,
+                                   MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_FILE, listener);
     if (dstFilePath)
     {
         string path(dstFilePath);
-
         int c = path[path.size() - 1];
+
         if ((c == '/') || (c == '\\'))
         {
-            const char* base64Handle = node->getBase64Handle();
-            path.append(base64Handle);
-            path.push_back(static_cast<char>('0' + type));
-            path.append(".jpg");
-            delete[] base64Handle;
+            const char* base64Handle = std::visit(
+                [](auto&& arg) -> const char*
+                {
+                    using T = std::decay_t<decltype(arg)>;
+                    if constexpr (std::is_same_v<T, MegaNode*>)
+                    {
+                        return arg ? arg->getBase64Handle() : nullptr;
+                    }
+                    else
+                    {
+                        return handleToBase64(arg);
+                    }
+                },
+                nodeOrHandle);
+
+            if (base64Handle)
+            {
+                path.append(base64Handle);
+                path.push_back(static_cast<char>('0' + type));
+                path.append(".jpg");
+                delete[] base64Handle;
+            }
         }
 
         request->setFile(path.c_str());
     }
 
     request->setParamType(type);
-    if (node)
+
+    if (std::holds_alternative<MegaNode*>(nodeOrHandle))
     {
-        request->setNodeHandle(node->getHandle());
-        const char* fileAttributes = node->getFileAttrString();
-        if (fileAttributes)
+        MegaNode* node = std::get<MegaNode*>(nodeOrHandle);
+        if (node)
         {
-            request->setText(fileAttributes);
-            const char* nodekey = node->getBase64Key();
-            request->setPrivateKey(nodekey);
-            delete[] nodekey;
-            delete[] fileAttributes;
+            request->setNodeHandle(node->getHandle());
+
+            const char* fileAttributes = node->getFileAttrString();
+            if (fileAttributes)
+            {
+                request->setText(fileAttributes);
+                const char* nodekey = node->getBase64Key();
+                request->setPrivateKey(nodekey);
+                delete[] nodekey;
+                delete[] fileAttributes;
+            }
         }
+    }
+    else
+    {
+        MegaHandle handle = std::get<MegaHandle>(nodeOrHandle);
+        request->setNodeHandle(handle);
     }
 
     request->performRequest = [this, request]()
@@ -21056,6 +21087,7 @@ void MegaApiImpl::getNodeAttribute(MegaNode* node, int type, const char* dstFile
             }
             key.assign((const char*)nodekey, sizeof nodekey);
         }
+
         error e = client->getfa(h, &fileattrstring, key, (fatype)type);
         if (e == API_EEXIST)
         {
@@ -21098,90 +21130,20 @@ void MegaApiImpl::getNodeAttribute(MegaNode* node, int type, const char* dstFile
     waiter->notify();
 }
 
+void MegaApiImpl::getNodeAttribute(MegaNode* node,
+                                   int type,
+                                   const char* dstFilePath,
+                                   MegaRequestListener* listener)
+{
+    getNodeAttribute(std::variant<MegaNode*, MegaHandle>{node}, type, dstFilePath, listener);
+}
+
 void MegaApiImpl::getNodeAttribute(MegaHandle handle,
                                    int type,
                                    const char* dstFilePath,
                                    MegaRequestListener* listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_FILE, listener);
-    if (dstFilePath)
-    {
-        string path(dstFilePath);
-
-        int c = path[path.size() - 1];
-        if ((c == '/') || (c == '\\'))
-        {
-            const char* base64Handle = handleToBase64(handle);
-            path.append(base64Handle);
-            path.push_back(static_cast<char>('0' + type));
-            path.append(".jpg");
-            delete[] base64Handle;
-        }
-
-        request->setFile(path.c_str());
-    }
-
-    request->setParamType(type);
-    request->setNodeHandle(handle);
-
-    request->performRequest = [this, request]()
-    {
-        const char* dstFilePath = request->getFile();
-        int type = request->getParamType();
-        MegaHandle h = request->getNodeHandle();
-
-        std::shared_ptr<Node> node = client->nodebyhandle(h);
-
-        if (!dstFilePath || !node || ISUNDEF(h))
-        {
-            return API_EARGS;
-        }
-
-        string fileattrstring;
-        string key;
-        fileattrstring = node->fileattrstring;
-        key = node->nodekey();
-
-        error e = client->getfa(h, &fileattrstring, key, (fatype)type);
-        if (e == API_EEXIST)
-        {
-            e = API_OK;
-            int prevtag = client->restag;
-            MegaRequestPrivate* req = NULL;
-            while (prevtag)
-            {
-                if (requestMap.find(prevtag) == requestMap.end())
-                {
-                    LOG_err << "Invalid duplicate getattr request";
-                    req = NULL;
-                    e = API_EINTERNAL;
-                    break;
-                }
-
-                req = requestMap.at(prevtag);
-                if (!req || (req->getType() != MegaRequest::TYPE_GET_ATTR_FILE))
-                {
-                    LOG_err << "Invalid duplicate getattr type";
-                    req = NULL;
-                    e = API_EINTERNAL;
-                    break;
-                }
-
-                prevtag = int(req->getNumber());
-            }
-
-            if (req)
-            {
-                LOG_debug << "Duplicate getattr detected";
-                req->setNumber(request->getTag());
-            }
-        }
-
-        return e;
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
+    getNodeAttribute(std::variant<MegaNode*, MegaHandle>{handle}, type, dstFilePath, listener);
 }
 
 error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)

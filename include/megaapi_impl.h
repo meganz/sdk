@@ -5018,6 +5018,10 @@ public:
         std::shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint);
         std::shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
 
+        void getNodeAttribute(std::variant<MegaNode*, MegaHandle> nodeOrHandle,
+                              int type,
+                              const char* dstFilePath,
+                              MegaRequestListener* listener);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getNodeAttribute(MegaHandle handle,
                               int type,
