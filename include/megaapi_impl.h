@@ -3759,7 +3759,7 @@ class MegaApiImpl : public MegaApp
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getThumbnail(MegaHandle handle,
                           const char* dstFilePath,
-                          MegaRequestListener* listener = NULL);
+                          MegaRequestListener* listener = nullptr);
         void cancelGetThumbnail(MegaNode* node, MegaRequestListener* listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void putThumbnail(MegaBackgroundMediaUpload* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
@@ -5026,7 +5026,7 @@ public:
         void getNodeAttribute(MegaHandle handle,
                               int type,
                               const char* dstFilePath,
-                              MegaRequestListener* listener = NULL);
+                              MegaRequestListener* listener = nullptr);
         void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);

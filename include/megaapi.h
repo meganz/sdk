@@ -13788,7 +13788,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
          *
-         * @param handle Handle of the node to get the thumbnail
+         * @param handle Handle of the node to get the thumbnail.
          * @param dstFilePath Destination path for the thumbnail.
          * If this path is a local folder, it must end with a '\' or '/' character and
          * (Base64-encoded handle + "0.jpg") will be used as the file name inside that folder. If
@@ -13799,7 +13799,7 @@ class MegaApi
          */
         void getThumbnail(MegaHandle handle,
                           const char* dstFilePath,
-                          MegaRequestListener* listener = NULL);
+                          MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Get the preview of a node
