@@ -2,6 +2,7 @@
 
 #include <mega/common/client_forward.h>
 #include <mega/common/directory.h>
+#include <mega/common/node_info_forward.h>
 #include <mega/types.h>
 
 namespace mega
@@ -19,7 +20,7 @@ class FileStorage
     //
     // It's an error if mustCreate is true and a file for id already exists.
     // It's an error if mustCreate is false but no file for id exists.
-    FileAccessPtr openFile(FileID id, bool mustCreate);
+    FileAccessPtr openFile(const LocalPath& path, bool mustCreate);
 
     LocalPath userFilePath(FileID id) const;
 
@@ -32,7 +33,7 @@ public:
 
     ~FileStorage();
 
-    FileAccessPtr addFile(FileID id);
+    FileAccessPtr addFile(const common::NodeInfo& info);
 
     LocalPath databasePath() const;
 

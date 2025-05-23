@@ -1,4 +1,5 @@
 #include <mega/common/client.h>
+#include <mega/common/node_info.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_storage.h>
 #include <mega/file_service/logging.h>
@@ -12,10 +13,9 @@ namespace file_service
 
 using namespace common;
 
-FileAccessPtr FileStorage::openFile(FileID id, bool mustCreate)
+FileAccessPtr FileStorage::openFile(const LocalPath& path, bool mustCreate)
 {
     auto file = mFilesystem->newfileaccess(false);
-    auto path = userFilePath(id);
 
     // Vulnerable to TOCTOU race.
     if (file->isfile(path) == !mustCreate && file->fopen(path, true, true, FSLogging::noLogging))
@@ -44,9 +44,26 @@ FileStorage::FileStorage(const Client& client):
 
 FileStorage::~FileStorage() = default;
 
-FileAccessPtr FileStorage::addFile(FileID id)
+FileAccessPtr FileStorage::addFile(const NodeInfo& info)
 {
-    return openFile(id, true);
+    // Translate node handle to a FileID.
+    auto id = FileID::from(info.mHandle);
+
+    // Compute the file's path.
+    auto path = userFilePath(id);
+
+    // Create the file.
+    auto file = openFile(path, true);
+
+    // Make sure the file's correctly sized.
+    if (file->ftruncate(info.mSize) && file->fstat())
+        return file;
+
+    // Try and remove the file.
+    mFilesystem->unlinklocal(path);
+
+    // Let our caller know we couldn't create the file.
+    throw FSErrorF("Couldn't set file size: %s", path.toPath(false).c_str());
 }
 
 LocalPath FileStorage::databasePath() const
@@ -62,7 +79,7 @@ LocalPath FileStorage::databasePath() const
 
 FileAccessPtr FileStorage::getFile(FileID id)
 {
-    return openFile(id, false);
+    return openFile(userFilePath(id), false);
 }
 
 const LocalPath& FileStorage::storageDirectory() const

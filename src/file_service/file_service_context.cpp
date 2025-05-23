@@ -132,7 +132,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
 
     query.execute();
 
-    auto file = mStorage.addFile(id);
+    auto file = mStorage.addFile(*node);
 
     transaction.commit();
 
