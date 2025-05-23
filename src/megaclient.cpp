@@ -15316,10 +15316,9 @@ void MegaClient::enabletransferresumption()
         return;
     }
 
-    // TODO: After SDK-5196 client without session can save transfer in DB cache
-    // (Folder link instance download nodes using main instance).
-    // However, if the user logs in on the main instance, previously cached
-    // transfers from non-logged-in instances are discarded.
+    // TODO: After SDK-5196, not logged-in clients will persist transfers for authorized
+    // nodes (from folder links, but using the main MegaApi instance) in a default DB cache.
+    // However, upon login into an account, previously cached transfers are discarded.
     // If we want to resume those transfers after logging in on the main instance,
     // we should read them from the default cache and resume them.
 
@@ -18158,10 +18157,9 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
     // Is caller trying to start a download?
     if (d == GET)
     {
-        // Force to enable transfer resumption when apps isn't logged in but try
-        // to download a node Probably is logged into a folder link with one
-        // instance and try to download nodes from main instance without previous
-        // login
+        // Force to enable transfer resumption when app is not logged-in and attempts
+        // to download an authorized node, retrieved by another instance of SDK logged-in
+        // into a folder link.
         if (loggedin() == NOTLOGGEDIN)
         {
             enabletransferresumption();
