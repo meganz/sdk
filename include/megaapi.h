@@ -25148,11 +25148,13 @@ class MegaAchievementsDetails
 public:
 
     enum {
-        MEGA_ACHIEVEMENT_WELCOME            = 1,
-        MEGA_ACHIEVEMENT_INVITE             = 3,
-        MEGA_ACHIEVEMENT_DESKTOP_INSTALL    = 4,
-        MEGA_ACHIEVEMENT_MOBILE_INSTALL     = 5,
-        MEGA_ACHIEVEMENT_ADD_PHONE          = 9
+        MEGA_ACHIEVEMENT_WELCOME = 1,
+        MEGA_ACHIEVEMENT_INVITE = 3,
+        MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4,
+        MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5,
+        MEGA_ACHIEVEMENT_ADD_PHONE = 9,
+        MEGA_ACHIEVEMENT_PWM_TRIAL = 10,
+        MEGA_ACHIEVEMENT_VPN_TRIAL = 11
     };
 
     virtual ~MegaAchievementsDetails();
@@ -25172,6 +25174,8 @@ public:
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
      *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
+     *  - MEGA_ACHIEVEMENT_PWM_TRIAL = 10
+     *  - MEGA_ACHIEVEMENT_VPN_TRIAL = 11
      *
      * @param class_id Id of the MEGA achievement
      * @return Storage granted by this MEGA achievement class, in bytes
@@ -25187,6 +25191,8 @@ public:
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
      *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
+     *  - MEGA_ACHIEVEMENT_PWM_TRIAL = 10
+     *  - MEGA_ACHIEVEMENT_VPN_TRIAL = 11
      *
      * @param class_id Id of the MEGA achievement
      * @return Transfer quota granted by this MEGA achievement class, in bytes
@@ -25202,6 +25208,8 @@ public:
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
      *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
+     *  - MEGA_ACHIEVEMENT_PWM_TRIAL = 10
+     *  - MEGA_ACHIEVEMENT_VPN_TRIAL = 11
      *
      * The storage and transfer quota resulting from a MEGA achievement may expire after
      * certain number of days. In example, the "Welcome" reward lasts for 30 days and afterwards
