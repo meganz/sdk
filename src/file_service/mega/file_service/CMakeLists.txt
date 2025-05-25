@@ -4,6 +4,9 @@ target_sources(SDKlib PRIVATE
                       avl_tree_iterator.h
                       avl_tree_node.h
                       avl_tree_traits.h
+                      buffer.h
+                      buffer_forward.h
+                      buffer_pointer.h
                       database_builder.h
                       file_context.h
                       file_context_badge.h
