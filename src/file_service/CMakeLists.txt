@@ -14,6 +14,7 @@ target_include_directories(
 target_link_libraries(SDKlib PRIVATE FileServiceHeaders)
 
 target_sources(SDKlib PRIVATE
+                      buffer.cpp
                       database_builder.cpp
                       displaced_buffer.cpp
                       file.cpp

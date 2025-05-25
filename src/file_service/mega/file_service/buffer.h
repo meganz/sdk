@@ -1,10 +1,14 @@
 #pragma once
 
+#include <mega/file_service/buffer_pointer.h>
 #include <mega/file_service/sink.h>
 #include <mega/file_service/source.h>
 
 namespace mega
 {
+
+struct FileAccess;
+
 namespace file_service
 {
 
@@ -15,6 +19,9 @@ protected:
 
 public:
     virtual ~Buffer() = default;
+
+    // Create a buffer.
+    static BufferPtr create(FileAccess& file, std::uint64_t offset, std::uint64_t length);
 
     // Transfer data from this buffer into another buffer.
     virtual bool transfer(Buffer& target,
