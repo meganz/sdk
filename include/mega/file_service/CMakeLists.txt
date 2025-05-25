@@ -25,5 +25,7 @@ target_sources(SDKlib PRIVATE
                       file_service_result_or_forward.h
                       sink.h
                       sink_forward.h
+                      source.h
+                      source_forward.h
 )
 
