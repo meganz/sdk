@@ -16,6 +16,7 @@ target_link_libraries(SDKlib PRIVATE FileServiceHeaders)
 target_sources(SDKlib PRIVATE
                       database_builder.cpp
                       file.cpp
+                      file_buffer.cpp
                       file_context.cpp
                       file_id.cpp
                       file_info.cpp
