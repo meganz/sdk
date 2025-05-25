@@ -8,6 +8,9 @@ target_sources(SDKlib PRIVATE
                       buffer_forward.h
                       buffer_pointer.h
                       database_builder.h
+                      displaced_buffer.h
+                      displaced_buffer_forward.h
+                      displaced_buffer_pointer.h
                       file_buffer.h
                       file_context.h
                       file_context_badge.h
