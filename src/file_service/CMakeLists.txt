@@ -30,6 +30,7 @@ target_sources(SDKlib PRIVATE
                       file_service_result.cpp
                       file_storage.cpp
                       logger.cpp
+                      memory_buffer.cpp
 )
 
 add_subdirectory(testing)
