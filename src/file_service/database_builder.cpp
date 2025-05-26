@@ -28,7 +28,7 @@ DatabaseBuilder::DatabaseBuilder(Database& database):
 
 void downgrade10(Query& query)
 {
-    static const char* tables[] = {"file_id", "file_ids", "file_chunks", "files"}; // tables
+    static const char* tables[] = {"file_id", "file_ids", "file_ranges", "files"}; // tables
 
     for (const auto* table: tables)
     {
@@ -55,23 +55,23 @@ void upgrade01(Query& query)
 
     query.execute();
 
-    query = "create table file_chunks ( "
+    query = "create table file_ranges ( "
             "  begin integer "
-            "  constraint nn_file_chunks_begin "
+            "  constraint nn_file_ranges_begin "
             "             not null, "
             "  end integer "
-            "  constraint nn_file_chunks_end "
+            "  constraint nn_file_ranges_end "
             "             not null, "
             "  id integer "
-            "  constraint nn_file_chunks_id "
+            "  constraint nn_file_ranges_id "
             "             not null, "
-            "  constraint fk_file_chunks_files "
+            "  constraint fk_file_ranges_files "
             "             foreign key (id) "
             "             references files (id) "
             "             on delete cascade, "
-            "  constraint pk_file_chunks "
+            "  constraint pk_file_ranges "
             "             primary key (begin, id), "
-            "  constraint uq_file_chunks_end_id "
+            "  constraint uq_file_ranges_end_id "
             "             unique (end, id) "
             ")";
 
