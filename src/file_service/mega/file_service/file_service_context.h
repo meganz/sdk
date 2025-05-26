@@ -92,6 +92,9 @@ public:
     // Retrieve a reference to this service's client.
     common::Client& client();
 
+    // Retrieve a reference to this service's database.
+    common::Database& database();
+
     // Execute a task on this service's thread pool.
     auto execute(std::function<void(const common::Task&)> function) -> common::Task;
 

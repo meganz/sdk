@@ -203,6 +203,11 @@ Client& FileServiceContext::client()
     return mClient;
 }
 
+Database& FileServiceContext::database()
+{
+    return mDatabase;
+}
+
 auto FileServiceContext::execute(std::function<void(const Task&)> function) -> Task
 {
     return mExecutor.execute(std::move(function), true);
