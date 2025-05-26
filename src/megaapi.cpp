@@ -7631,6 +7631,11 @@ long long MegaAchievementsDetails::getBaseStorage()
     return 0;
 }
 
+bool MegaAchievementsDetails::isValidClass(int /*class_id*/)
+{
+    return false;
+}
+
 long long MegaAchievementsDetails::getClassStorage(int /*class_id*/)
 {
     return 0;

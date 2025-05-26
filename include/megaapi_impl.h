@@ -2576,6 +2576,7 @@ public:
     MegaAchievementsDetails* copy() override;
 
     long long getBaseStorage() override;
+    bool isValidClass(int class_id) override;
     long long getClassStorage(int class_id) override;
     long long getClassTransfer(int class_id) override;
     int getClassExpire(int class_id) override;

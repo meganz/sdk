@@ -25166,6 +25166,25 @@ public:
     virtual long long getBaseStorage();
 
     /**
+     * @brief Checks if the corresponding achievement is valid
+     *
+     * Some achievements are valid only for some users.
+     *
+     * The following classes are valid:
+     *  - MEGA_ACHIEVEMENT_WELCOME = 1
+     *  - MEGA_ACHIEVEMENT_INVITE = 3
+     *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
+     *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
+     *  - MEGA_ACHIEVEMENT_PWM_TRIAL = 10
+     *  - MEGA_ACHIEVEMENT_VPN_TRIAL = 11
+     *
+     * @param class_id Id of the achievement.
+     * @return True if it is valid, false otherwise
+     */
+    virtual bool isValidClass(int class_id);
+
+    /**
      * @brief Get the storage granted by a MEGA achievement class
      *
      * The following classes are valid:
