@@ -9241,12 +9241,12 @@ bool CommandGetMegaAchievements::procresult(Result r, JSON& json)
                 {
                     for (;;)
                     {
-                        achievement_class_id id = achievement_class_id(json.getnameid());
-                        if (id == EOO)
+                        string idStr = json.getname();
+                        if (idStr.empty())
                         {
-                            break;
+                            break; // no more "id"s to read
                         }
-                        id -= '0';   // convert to number
+                        achievement_class_id id = achievement_class_id(std::stoi(idStr));
 
                         if (json.enterarray())
                         {
@@ -9353,14 +9353,14 @@ bool CommandGetMegaAchievements::procresult(Result r, JSON& json)
                 {
                     for (;;)
                     {
-                        nameid id = json.getnameid();
-                        if (id == EOO)
+                        string idStr = json.getname();
+                        if (idStr.empty())
                         {
-                            break;
+                            break; // no more "id"s to read
                         }
 
                         Reward reward;
-                        reward.award_id = int(id - '0');   // convert to number
+                        reward.award_id = std::stoi(idStr); // convert to number
 
                         json.enterarray();
 
