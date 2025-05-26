@@ -21130,22 +21130,6 @@ void MegaApiImpl::getNodeAttribute(std::variant<MegaNode*, MegaHandle> nodeOrHan
     waiter->notify();
 }
 
-void MegaApiImpl::getNodeAttribute(MegaNode* node,
-                                   int type,
-                                   const char* dstFilePath,
-                                   MegaRequestListener* listener)
-{
-    getNodeAttribute(std::variant<MegaNode*, MegaHandle>{node}, type, dstFilePath, listener);
-}
-
-void MegaApiImpl::getNodeAttribute(MegaHandle handle,
-                                   int type,
-                                   const char* dstFilePath,
-                                   MegaRequestListener* listener)
-{
-    getNodeAttribute(std::variant<MegaNode*, MegaHandle>{handle}, type, dstFilePath, listener);
-}
-
 error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
 {
             attr_t type = static_cast<attr_t>(request->getParamType());

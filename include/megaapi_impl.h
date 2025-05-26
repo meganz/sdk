@@ -5022,11 +5022,6 @@ public:
                               int type,
                               const char* dstFilePath,
                               MegaRequestListener* listener);
-        void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-        void getNodeAttribute(MegaHandle handle,
-                              int type,
-                              const char* dstFilePath,
-                              MegaRequestListener* listener = nullptr);
         void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
