@@ -104,6 +104,9 @@ public:
     // Open a file for reading or writing.
     auto open(FileID id) -> FileServiceResultOr<File>;
 
+    // Return a reference to this service's queries.
+    FileServiceQueries& queries();
+
     // Remove a file context from our index.
     auto removeFromIndex(FileContextBadge badge, FileID id) -> void;
 

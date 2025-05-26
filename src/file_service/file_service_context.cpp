@@ -250,6 +250,11 @@ catch (std::runtime_error& exception)
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
+FileServiceQueries& FileServiceContext::queries()
+{
+    return mQueries;
+}
+
 void FileServiceContext::removeFromIndex(FileContextBadge, FileID id)
 {
     removeFromIndex(id, mFileContexts);
