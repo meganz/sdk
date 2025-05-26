@@ -1,5 +1,8 @@
+#include <mega/common/database.h>
 #include <mega/common/partial_download.h>
+#include <mega/common/scoped_query.h>
 #include <mega/common/task_queue.h>
+#include <mega/common/transaction.h>
 #include <mega/common/utility.h>
 #include <mega/file_service/file_buffer.h>
 #include <mega/file_service/file_context.h>
@@ -70,23 +73,100 @@ void FileContext::completed(Buffer& buffer,
                             const FileRange& range)
 {
     // Convenience.
-    auto [begin, end] = range;
+    auto offset = range.mBegin;
+    auto length = range.mEnd - offset;
 
-    // No data for the range was downloaded.
-    if (begin == end)
+    // No data for this range was downloaded.
+    if (!length)
         return mRanges.remove(iterator), void();
 
-    // Couldn't flush the range's data to storage.
-    if (!buffer.transfer(*mBuffer, 0, begin, end - begin))
+    // Can't flush this range's data to the storage.
+    if (!buffer.transfer(*mBuffer, 0, offset, length))
         return mRanges.remove(iterator), void();
 
-    // All the data for this range was downloaded.
-    if (iterator->first.mEnd == end)
-        return iterator->second.reset();
+    // Figure out what ranges we can coalesce with.
+    auto begin = [&]()
+    {
+        // We don't have a left neighbor.
+        if (iterator == mRanges.begin())
+            return iterator;
 
-    // Recreate the range to track what we managed to download.
-    mRanges.remove(iterator);
-    mRanges.add(range, nullptr);
+        // Get an iterator to our left neighbor.
+        auto candidate = std::prev(iterator);
+
+        // Neighbor hasn't completed downloading.
+        if (candidate->second)
+            return iterator;
+
+        // Neighbor isn't contiguous.
+        if (candidate->first.mEnd != offset)
+            return iterator;
+
+        // Recompute offset and length.
+        offset = candidate->first.mBegin;
+        length = range.mEnd - offset;
+
+        // Return iterator to caller.
+        return candidate;
+    }();
+
+    auto end = [&]()
+    {
+        // Get an iterator to our right neighbor.
+        auto candidate = std::next(iterator);
+
+        // We don't have a right neighbor.
+        if (candidate == mRanges.end())
+            return candidate;
+
+        // Neighbor hasn't completed downloading.
+        if (candidate->second)
+            return candidate;
+
+        // Neighbor isn't contiguous.
+        if (candidate->first.mBegin != range.mEnd)
+            return candidate;
+
+        // Recompute length.
+        length = candidate->first.mEnd - offset;
+
+        // Return iterator to caller.
+        return std::next(candidate);
+    }();
+
+    // Mark range as present.
+    iterator->second.reset();
+
+    // Convenience.
+    auto& queries = mService.queries();
+
+    // Remove obsolete ranges from the database.
+    auto transaction = mService.database().transaction();
+    auto query = transaction.query(queries.mRemoveFileRanges);
+
+    query.param(":begin").set(offset);
+    query.param(":end").set(offset + length);
+    query.param(":id").set(mInfo->id());
+    query.execute();
+
+    // Add our new range to the database.
+    query = transaction.query(queries.mAddFileRange);
+
+    query.param(":begin").set(offset);
+    query.param(":end").set(offset + length);
+    query.param(":id").set(mInfo->id());
+    query.execute();
+
+    // Persist database changes.
+    transaction.commit();
+
+    // Remove contiguous ranges.
+    mRanges.remove(begin, end);
+
+    // Add updated range.
+    mRanges.add(std::piecewise_construct,
+                std::forward_as_tuple(offset, offset + length),
+                std::forward_as_tuple(nullptr));
 }
 
 void FileContext::completed(BufferPtr buffer, FileReadRequest& request)
@@ -260,7 +340,28 @@ FileContext::FileContext(Activity activity,
     mRequestsLock(),
     mService(service),
     mActivities()
-{}
+{
+    auto transaction = mService.database().transaction();
+    auto query = transaction.query(mService.queries().mGetFileRanges);
+
+    // What ranges have we already downloaded?
+    query.param(":id").set(mInfo->id());
+    query.execute();
+
+    // Add each downloaded range to our map.
+    for (FileRange range; query; ++query)
+    {
+        // Convenience.
+        auto& [begin, end] = range;
+
+        // Load range's bounds.
+        begin = query.field("begin").get<std::uint64_t>();
+        end = query.field("end").get<std::uint64_t>();
+
+        // Add the range to our map.
+        mRanges.add(range, nullptr);
+    }
+}
 
 FileContext::~FileContext()
 {
