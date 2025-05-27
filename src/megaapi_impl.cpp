@@ -38832,6 +38832,12 @@ long long MegaAchievementsDetailsPrivate::getBaseStorage()
     return details.permanent_size;
 }
 
+bool MegaAchievementsDetailsPrivate::isValidClass(int class_id)
+{
+    return details.achievements.find(static_cast<achievement_class_id>(class_id)) !=
+           details.achievements.end();
+}
+
 long long MegaAchievementsDetailsPrivate::getClassStorage(int class_id)
 {
     achievements_map::iterator it =
