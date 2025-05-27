@@ -10,6 +10,10 @@
 #include <mega/common/task_queue_forward.h>
 #include <mega/common/upload_callbacks.h>
 #include <mega/common/upload_forward.h>
+#include <mega/file_service/file_forward.h>
+#include <mega/file_service/file_info_forward.h>
+#include <mega/file_service/file_service_forward.h>
+#include <mega/file_service/file_service_result_or_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount_event_forward.h>
 #include <mega/fuse/common/mount_flags_forward.h>
@@ -44,6 +48,9 @@ class Client
 
     // Retrieve the handle associated with the specified child.
     NodeHandle handle(NodeHandle parent, const std::string& name) const;
+
+    // Get our hands on the client's FileService interface.
+    virtual file_service::FileService& fileService() const = 0;
 
     using MakeDirectoryCallback =
       std::function<void(common::ErrorOr<NodeHandle>)>;
@@ -175,6 +182,13 @@ public:
 
     // Execute some function on the client thread.
     common::Task execute(std::function<void(const common::Task&)> function);
+
+    // Retrieve information about a file managed by the File Service.
+    auto fileInfo(CloudPath path) const
+        -> file_service::FileServiceResultOr<file_service::FileInfo>;
+
+    // Open a file managed by the File Service.
+    auto fileOpen(CloudPath path) const -> file_service::FileServiceResultOr<file_service::File>;
 
     // Retrieve information about a specific child.
     common::ErrorOr<common::NodeInfo> get(CloudPath parentPath, const std::string& name) const;

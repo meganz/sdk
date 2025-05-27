@@ -24,6 +24,7 @@ namespace testing
 {
 
 using namespace common;
+using namespace file_service;
 
 static std::unique_ptr<GfxProc> createGfxProc()
 {
@@ -529,6 +530,12 @@ bool RealClient::hasFileAttribute(NodeHandle handle, fatype type) const
         return false;
 
     return node->hasfileattribute(type) != 0;
+}
+
+// Get our hands on the client's FileService interface.
+FileService& RealClient::fileService() const
+{
+    return mClient->mFileService;
 }
 
 auto RealClient::invite(const std::string& email) -> ErrorOr<InvitePtr>

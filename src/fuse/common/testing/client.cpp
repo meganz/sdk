@@ -1,13 +1,13 @@
-#include <atomic>
-#include <future>
-#include <mutex>
-
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
 #include <mega/common/normalized_path.h>
-#include <mega/common/normalized_path.h>
 #include <mega/common/upload.h>
 #include <mega/common/utility.h>
+#include <mega/file_service/file.h>
+#include <mega/file_service/file_id.h>
+#include <mega/file_service/file_info.h>
+#include <mega/file_service/file_service_result.h>
+#include <mega/file_service/file_service_result_or.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/logging.h>
@@ -17,9 +17,12 @@
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/mount_event_observer.h>
-
-#include <tests/integration/test.h>
 #include <tests/integration/env_var_accounts.h>
+#include <tests/integration/test.h>
+
+#include <atomic>
+#include <future>
+#include <mutex>
 
 namespace mega
 {
@@ -29,6 +32,9 @@ namespace testing
 {
 
 using namespace common;
+using namespace file_service;
+
+using file_service::File;
 
 class Client::Uploader
 {
@@ -335,6 +341,16 @@ Task Client::execute(std::function<void(const Task&)> function)
 
     // Queue the function for execution.
     return client().execute(std::move(function));
+}
+
+auto Client::fileInfo(CloudPath path) const -> FileServiceResultOr<FileInfo>
+{
+    return fileService().info(FileID::from(path.resolve(*this)));
+}
+
+auto Client::fileOpen(CloudPath path) const -> FileServiceResultOr<File>
+{
+    return fileService().open(FileID::from(path.resolve(*this)));
 }
 
 ErrorOr<NodeInfo> Client::get(CloudPath parentPath,
