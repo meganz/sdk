@@ -20556,3 +20556,111 @@ TEST_F(SdkTest, SdkTestGetThumbnailUsingNodeAndHandle)
     ASSERT_EQ(buffer1.size(), buffer2.size()) << "Thumbnail sizes differ";
     ASSERT_EQ(buffer1, buffer2) << "Thumbnail contents differ";
 }
+
+/**
+ * @brief SdkTest.SdkTestUploadNodeAttribute
+ *
+ * Tests if node attributes consistency on file uploading as follows
+ *  Uploading same file again - Node attribute shoul retainted
+ *  Uploading updated file content - Node attribute shoul retainted
+ *  Uploading the same file with different name - Node attribute should not be copied from previous
+ * node
+ *
+ */
+TEST_F(SdkTest, SdkTestUploadNodeAttribute)
+{
+    // Get an account for us to play with.
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Convenience.
+    auto& client = *megaApi[0];
+
+    // Get our hands on this account's root node.
+    auto root = makeUniqueFrom(client.getRootNode());
+    ASSERT_NE(root, nullptr);
+
+    // Create a directory for us to try and export.
+    auto dirNode = createDirectory(client, *root, "UploadDirTest");
+    ASSERT_EQ(result(dirNode), API_OK);
+
+    MegaHandle fileHandle = 0;
+    const auto fileName = "testFileAttr.txt";
+    ASSERT_TRUE(createFile(fileName, false));
+
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            fileName,
+                            value(dirNode).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << fileName;
+
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+
+    auto fileNode = client.getNodeByPath("/UploadDirTest/testFileAttr.txt");
+    ASSERT_EQ(API_OK, synchronousSetNodeFavourite(0, fileNode, true)) << "Error setting fav";
+    ASSERT_EQ(API_OK, synchronousSetNodeLabel(0, fileNode, 4)) << "Error setting label";
+
+    // Re-upload the same file with same content.
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            fileName,
+                            value(dirNode).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << fileName;
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+    fileNode = client.getNodeByPath("/UploadDirTest/testFileAttr.txt");
+    ASSERT_EQ(fileNode->getLabel(), 4) << "Node label is not retained after re-uploading the file";
+    ASSERT_EQ(fileNode->isFavourite(), true)
+        << "Favourite flag is not retained after re-uploading the file";
+
+    // Let's update the file and upload again.
+    sdk_test::appendToFile(fs::path(fileName), 20000);
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            fileName,
+                            value(dirNode).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << fileName;
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+    fileNode = client.getNodeByPath("/UploadDirTest/testFileAttr.txt");
+    ASSERT_EQ(fileNode->getLabel(), 4) << "Node label is not retained after updating the file";
+    ASSERT_EQ(fileNode->isFavourite(), true)
+        << "Favourite flag is not retained after updating the file";
+
+    // Upload the same file with different name.
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            fileName,
+                            value(dirNode).get(),
+                            "testFileAttr_1.txt" /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << fileName;
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+    fileNode = client.getNodeByPath("/UploadDirTest/testFileAttr_1.txt");
+    ASSERT_NE(fileNode->getLabel(), 4) << "Node label is copied for for renamed file upload";
+    ASSERT_NE(fileNode->isFavourite(), true)
+        << "Favourite flag is copied for for renamed file upload";
+}
