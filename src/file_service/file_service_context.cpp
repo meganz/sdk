@@ -72,7 +72,13 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     id = query.field("id").get<FileID>();
 
     auto file = mStorage.getFile(id);
-    auto info = std::make_shared<FileInfoContext>(mActivities.begin(), *file, handle, id, *this);
+
+    auto info = std::make_shared<FileInfoContext>(mActivities.begin(),
+                                                  handle,
+                                                  id,
+                                                  query.field("modified").get<std::int64_t>(),
+                                                  *this,
+                                                  static_cast<std::uint64_t>(file->size));
 
     mInfoContexts.emplace(id, info);
 
@@ -129,6 +135,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
 
     query.param(":handle").set(node->mHandle);
     query.param(":id").set(id);
+    query.param(":modified").set(node->mModified);
 
     query.execute();
 
@@ -136,8 +143,12 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
 
     transaction.commit();
 
-    auto info =
-        std::make_shared<FileInfoContext>(mActivities.begin(), *file, node->mHandle, id, *this);
+    auto info = std::make_shared<FileInfoContext>(mActivities.begin(),
+                                                  node->mHandle,
+                                                  id,
+                                                  node->mModified,
+                                                  *this,
+                                                  static_cast<std::uint64_t>(node->mSize));
 
     mInfoContexts.emplace(id, info);
 

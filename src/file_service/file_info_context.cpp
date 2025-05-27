@@ -21,17 +21,18 @@ auto FileInfoContext::get(T FileInfoContext::* const property) const
 }
 
 FileInfoContext::FileInfoContext(Activity activity,
-                                 FileAccess& file,
                                  NodeHandle handle,
                                  FileID id,
-                                 FileServiceContext& service):
+                                 std::int64_t modified,
+                                 FileServiceContext& service,
+                                 std::uint64_t size):
     mActivity(std::move(activity)),
     mHandle(handle),
     mID(id),
     mLock(),
-    mModified(file.mtime),
+    mModified(modified),
     mService(service),
-    mSize(static_cast<std::uint64_t>(file.size))
+    mSize(size)
 {}
 
 FileInfoContext::~FileInfoContext()

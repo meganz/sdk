@@ -18,6 +18,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFile = "insert into files values ( "
                "  :handle, "
                "  :id, "
+               "  :modified, "
                "  0 "
                ")";
 
