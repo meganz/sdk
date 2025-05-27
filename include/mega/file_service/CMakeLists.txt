@@ -13,6 +13,7 @@ target_sources(SDKlib PRIVATE
                       file_info_forward.h
                       file_range.h
                       file_range_forward.h
+                      file_range_vector.h
                       file_read_result.h
                       file_result.h
                       file_result_forward.h
