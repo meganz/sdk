@@ -83,6 +83,10 @@ using namespace mega;
     return self.megaAchievementsDetails ? self.megaAchievementsDetails->getRewardsCount() : -1;
 }
 
+- (bool)isValidClass:(NSInteger)classId {
+    return self.megaAchievementsDetails ? self.megaAchievementsDetails->isValidClass((int)classId) : NO;
+}
+
 - (long long)classStorageForClassId:(NSInteger)classId {
     return self.megaAchievementsDetails ? self.megaAchievementsDetails->getClassStorage((int)classId) : -1;
 }
