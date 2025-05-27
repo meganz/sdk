@@ -3511,6 +3511,11 @@ void MegaApi::pauseTransferByTag(int transferTag, bool pause, MegaRequestListene
     pImpl->pauseTransfer(transferTag, pause, listener);
 }
 
+void MegaApi::resumeTransfersForNotLoggedInInstance()
+{
+    pImpl->resumeTransfersForNotLoggedInInstance();
+}
+
 bool MegaApi::areTransfersPaused(int direction)
 {
     return pImpl->areTransfersPaused(direction);

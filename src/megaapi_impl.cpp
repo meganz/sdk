@@ -22571,6 +22571,12 @@ void MegaApiImpl::pauseTransfer(int transferTag, bool pause, MegaRequestListener
     waiter->notify();
 }
 
+void MegaApiImpl::resumeTransfersForNotLoggedInInstance()
+{
+    SdkMutexGuard g(sdkMutex);
+    client->resumeTransfersForNotLoggedInInstance();
+}
+
 error MegaApiImpl::performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer)
 {
             bool automove = request->getFlag();
