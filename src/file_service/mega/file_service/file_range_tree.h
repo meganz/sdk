@@ -54,6 +54,30 @@ class FileRangeTree
         {
             return &operator*();
         }
+
+        IteratorAdapter& operator++()
+        {
+            IteratorType::operator++();
+
+            return *this;
+        }
+
+        IteratorAdapter operator++(int)
+        {
+            return static_cast<IteratorType&>(*this)++;
+        }
+
+        IteratorAdapter& operator--()
+        {
+            IteratorType::operator--();
+
+            return *this;
+        }
+
+        IteratorAdapter operator--(int)
+        {
+            return static_cast<IteratorType&>(*this)--;
+        }
     }; // IteratorBase
 
     using NodeType = typename ByRangeBeginTree::NodeType;
