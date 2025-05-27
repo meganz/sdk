@@ -14,6 +14,7 @@
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_service_context.h>
+#include <mega/file_service/type_traits.h>
 #include <mega/filesystem.h>
 #include <mega/overloaded.h>
 
@@ -326,6 +327,7 @@ void FileContext::queue(Request&& request)
 FileContext::FileContext(Activity activity,
                          FileAccessPtr file,
                          FileInfoContextPtr info,
+                         const FileRangeVector& ranges,
                          FileServiceContext& service):
     FileRangeContextManager(),
     enable_shared_from_this(),
@@ -341,26 +343,9 @@ FileContext::FileContext(Activity activity,
     mService(service),
     mActivities()
 {
-    auto transaction = mService.database().transaction();
-    auto query = transaction.query(mService.queries().mGetFileRanges);
-
-    // What ranges have we already downloaded?
-    query.param(":id").set(mInfo->id());
-    query.execute();
-
-    // Add each downloaded range to our map.
-    for (FileRange range; query; ++query)
-    {
-        // Convenience.
-        auto& [begin, end] = range;
-
-        // Load range's bounds.
-        begin = query.field("begin").get<std::uint64_t>();
-        end = query.field("end").get<std::uint64_t>();
-
-        // Add the range to our map.
+    // Remember what ranges we've already downloaded.
+    for (auto& range: ranges)
         mRanges.add(range, nullptr);
-    }
 }
 
 FileContext::~FileContext()
@@ -382,6 +367,21 @@ void FileContext::read(FileReadRequest request)
     // Couldn't execute the read as a write is in progress.
     if (!execute(request))
         queue(std::move(request));
+}
+
+FileRangeVector FileContext::ranges() const
+{
+    // Will store the ranges we'll return our caller.
+    FileRangeVector ranges;
+
+    // Get exclusive access to mRanges.
+    std::lock_guard guard(mRangesLock);
+
+    // Populate our range vector.
+    std::transform(mRanges.begin(), mRanges.end(), std::back_inserter(ranges), SelectFirst());
+
+    // Return ranges to our caller.
+    return ranges;
 }
 
 } // file_service

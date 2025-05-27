@@ -11,6 +11,7 @@
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_info_context_badge.h>
+#include <mega/file_service/file_range.h>
 #include <mega/file_service/file_service_context.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
@@ -152,8 +153,11 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
 
     mInfoContexts.emplace(id, info);
 
-    auto context =
-        std::make_shared<FileContext>(mActivities.begin(), std::move(file), std::move(info), *this);
+    auto context = std::make_shared<FileContext>(mActivities.begin(),
+                                                 std::move(file),
+                                                 std::move(info),
+                                                 FileRangeVector(),
+                                                 *this);
 
     mFileContexts.emplace(id, context);
 
@@ -162,21 +166,34 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
 
 auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<FileContextPtr>
 {
+    // Try and get our hands on the file's information.
     auto [info, file] = this->info(id, true);
 
+    // File isn't in storage so open it from the cloud.
     if (!info)
         return openFromCloud(id);
 
+    // Acquire lock.
     UniqueLock lock(mLock);
 
+    // File's was opened while we were waiting for our lock.
     if (auto context = openFromIndex(info->id(), lock))
         return context;
 
-    auto context =
-        std::make_shared<FileContext>(mActivities.begin(), std::move(file), std::move(info), *this);
+    // What ranges of the file have we already downloaded?
+    auto ranges = rangesFromDatabase(id, lock);
 
+    // Instantiate a new file context.
+    auto context = std::make_shared<FileContext>(mActivities.begin(),
+                                                 std::move(file),
+                                                 std::move(info),
+                                                 ranges.value_or(FileRangeVector()),
+                                                 *this);
+
+    // Add the context to our index.
     mFileContexts.emplace(id, context);
 
+    // Return the context to our caller.
     return context;
 }
 
@@ -184,6 +201,69 @@ template<typename Lock>
 auto FileServiceContext::openFromIndex(FileID id, Lock&& lock) -> FileContextPtr
 {
     return getFromIndex(id, std::forward<Lock>(lock), mFileContexts);
+}
+
+template<typename Lock>
+auto FileServiceContext::rangesFromDatabase(FileID id, Lock&& lock)
+    -> std::optional<FileRangeVector>
+{
+    // Acquire database lock.
+    UniqueLock lockDatabase(mDatabase);
+
+    // File was opened while we were waiting for our locks.
+    if (auto ranges = rangesFromIndex(id, lock))
+        return std::move(*ranges);
+
+    // Check if the file's present in the database.
+    auto transaction = mDatabase.transaction();
+    auto query = transaction.query(mQueries.mGetFile);
+
+    query.param(":handle").set(nullptr);
+    query.param(":id").set(id);
+
+    if (!synthetic(id))
+        query.param(":handle").set(id.toHandle());
+
+    query.execute();
+
+    // File's not in the database.
+    if (!query)
+        return std::nullopt;
+
+    // Latch ID as it may be distinct from what we were passed.
+    id = query.field("id").get<FileID>();
+
+    // Read the ranges from the database.
+    query = transaction.query(mQueries.mGetFileRanges);
+
+    query.param(":id").set(id);
+    query.execute();
+
+    FileRangeVector ranges;
+
+    while (query)
+    {
+        // Convenience.
+        auto begin = query.field("begin").get<std::uint64_t>();
+        auto end = query.field("end").get<std::uint64_t>();
+
+        // Add the range to our vector.
+        ranges.emplace_back(begin, end);
+    }
+
+    // Return ranges to our caller.
+    return ranges;
+}
+
+template<typename Lock>
+auto FileServiceContext::rangesFromIndex(FileID id, Lock&& lock) -> std::optional<FileRangeVector>
+{
+    // File's in memory so return its ranges directly.
+    if (auto file = openFromIndex(id, lock))
+        return file->ranges();
+
+    // Let the caller know they need to get the ranges from the database.
+    return std::nullopt;
 }
 
 template<typename T>
@@ -264,6 +344,28 @@ catch (std::runtime_error& exception)
 FileServiceQueries& FileServiceContext::queries()
 {
     return mQueries;
+}
+
+auto FileServiceContext::ranges(FileID id) -> FileServiceResultOr<FileRangeVector>
+try
+{
+    // Try and get the ranges from the index.
+    if (auto ranges = rangesFromIndex(id, SharedLock(mLock)))
+        return std::move(*ranges);
+
+    // Try and get the ranges from the database.
+    if (auto ranges = rangesFromDatabase(id, UniqueLock(mLock)))
+        return std::move(*ranges);
+
+    // File isn't being managed by the service.
+    return unexpected(FILE_SERVICE_UNKNOWN_FILE);
+}
+
+catch (std::runtime_error& exception)
+{
+    FSErrorF("Unable to retrieve file ranges: %s: %s", toString(id).c_str(), exception.what());
+
+    return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
 void FileServiceContext::removeFromIndex(FileContextBadge, FileID id)

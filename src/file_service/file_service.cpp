@@ -2,6 +2,7 @@
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
+#include <mega/file_service/file_range.h>
 #include <mega/file_service/file_service.h>
 #include <mega/file_service/file_service_context.h>
 #include <mega/file_service/file_service_result.h>
@@ -75,6 +76,16 @@ catch (std::runtime_error& exception)
     FSErrorF("Unable to initialize File Service: %s", exception.what());
 
     return FILE_SERVICE_UNEXPECTED;
+}
+
+auto FileService::ranges(FileID id) -> FileServiceResultOr<FileRangeVector>
+{
+    SharedLock guard(mContextLock);
+
+    if (mContext)
+        return mContext->ranges(id);
+
+    return unexpected(FILE_SERVICE_UNINITIALIZED);
 }
 
 } // file_service

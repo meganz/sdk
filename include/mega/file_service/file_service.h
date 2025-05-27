@@ -5,6 +5,7 @@
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_forward.h>
+#include <mega/file_service/file_range_vector.h>
 #include <mega/file_service/file_service_context_pointer.h>
 #include <mega/file_service/file_service_forward.h>
 #include <mega/file_service/file_service_result_forward.h>
@@ -36,6 +37,9 @@ public:
 
     // Open a file for reading or writing.
     auto open(FileID id) -> FileServiceResultOr<File>;
+
+    // Determine what ranges of a file are currently in storage.
+    auto ranges(FileID id) -> FileServiceResultOr<FileRangeVector>;
 }; // FileService
 
 } // file_service

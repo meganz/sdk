@@ -13,11 +13,14 @@
 #include <mega/file_service/file_info_context_badge_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_info_forward.h>
+#include <mega/file_service/file_range_vector.h>
 #include <mega/file_service/file_service_context_forward.h>
 #include <mega/file_service/file_service_queries.h>
 #include <mega/file_service/file_service_result_or_forward.h>
 #include <mega/file_service/file_storage.h>
 #include <mega/file_service/from_file_id_map.h>
+
+#include <optional>
 
 namespace mega
 {
@@ -44,6 +47,12 @@ class FileServiceContext
 
     template<typename Lock>
     auto openFromIndex(FileID id, Lock&& lock) -> FileContextPtr;
+
+    template<typename Lock>
+    auto rangesFromDatabase(FileID id, Lock&& lock) -> std::optional<FileRangeVector>;
+
+    template<typename Lock>
+    auto rangesFromIndex(FileID id, Lock&& lock) -> std::optional<FileRangeVector>;
 
     template<typename T>
     auto removeFromIndex(FileID id, FromFileIDMap<T>& map) -> void;
@@ -106,6 +115,9 @@ public:
 
     // Return a reference to this service's queries.
     FileServiceQueries& queries();
+
+    // Determine what ranges of a file are currently in storage.
+    auto ranges(FileID id) -> FileServiceResultOr<FileRangeVector>;
 
     // Remove a file context from our index.
     auto removeFromIndex(FileContextBadge badge, FileID id) -> void;

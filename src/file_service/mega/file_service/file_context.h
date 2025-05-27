@@ -10,6 +10,7 @@
 #include <mega/file_service/file_range_context_manager.h>
 #include <mega/file_service/file_range_context_pointer_map.h>
 #include <mega/file_service/file_range_forward.h>
+#include <mega/file_service/file_range_vector.h>
 #include <mega/file_service/file_read_request_forward.h>
 #include <mega/file_service/file_read_write_state.h>
 #include <mega/file_service/file_service_context_forward.h>
@@ -104,6 +105,7 @@ public:
     FileContext(common::Activity activity,
                 FileAccessPtr file,
                 FileInfoContextPtr info,
+                const FileRangeVector& ranges,
                 FileServiceContext& service);
 
     ~FileContext();
@@ -113,6 +115,9 @@ public:
 
     // Read data from this file.
     void read(FileReadRequest request);
+
+    // What ranges of this file are currently in storage?
+    FileRangeVector ranges() const;
 }; // FileContext
 
 } // file_service

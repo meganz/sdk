@@ -35,5 +35,10 @@ void File::read(FileReadCallback callback, const FileRange& range)
     mContext->read(FileReadRequest{std::move(callback), range});
 }
 
+FileRangeVector File::ranges() const
+{
+    return mContext->ranges();
+}
+
 } // file_service
 } // mega
