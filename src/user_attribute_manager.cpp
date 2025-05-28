@@ -45,6 +45,18 @@ bool UserAttributeManager::setIfNewVersion(attr_t at, const string& value, const
     UserAttribute& attr = insertResult.first->second;
     if (!insertResult.second && attr.version() == version)
     {
+        if (attr.isExpired())
+        {
+            /*
+             * In case we previously has marked an attr as expired, due to a version mismatch, and
+             * we later receive the same attr version that we keep with expired status, we should
+             * restore it's valid status.
+             *
+             * This prevent that an expired attr get stucked with expired status.
+             */
+            attr.setValid();
+            return true;
+        }
         return false;
     }
 
