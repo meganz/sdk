@@ -29,7 +29,9 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
     MEGAAchievementInvite = 3,
     MEGAAchievementDesktopInstall = 4,
     MEGAAchievementMobileInstall = 5,
-    MEGAAchievementAddPhone = 9
+    MEGAAchievementAddPhone = 9,
+    MEGAAchievementPassFreeTrial = 10,
+    MEGAAchievementVPNFreeTrial = 11
 };
 
 /**
@@ -127,6 +129,25 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
 @property (nonatomic, readonly) NSInteger rewardsCount;
 
 /**
+ * @brief Checks if the corresponding achievement is valid
+ *
+ * Some achievements are valid only for some users.
+ *
+ * The following classes are valid:
+ *  - MEGAAchievementWelcome = 1
+ *  - MEGAAchievementInvite = 3
+ *  - MEGAAchievementDesktopInstall = 4
+ *  - MEGAAchievementMobileInstall = 5
+ *  - MEGAAchievementAddPhone = 9
+ *  - MEGAAchievementPassFreeTrial = 10
+ *  - MEGAAchievementVPNFreeTrial = 11
+ *
+ * @param classId Id of the achievement.
+ * @return True if it is valid, false otherwise
+ */
+- (bool)isValidClass:(NSInteger)classId;
+
+/**
  * @brief Get the storage granted by a MEGA achievement class
  *
  * The following classes are valid:
@@ -135,6 +156,8 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  *  - MEGAAchievementDesktopInstall = 4
  *  - MEGAAchievementMobileInstall = 5
  *  - MEGAAchievementAddPhone = 9
+ *  - MEGAAchievementPassFreeTrial = 10
+ *  - MEGAAchievementVPNFreeTrial = 11
  *
  * @param classId Id of the MEGA achievement
  * @return Storage granted by this MEGA achievement class, in bytes
@@ -150,6 +173,8 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  *  - MEGAAchievementDesktopInstall = 4
  *  - MEGAAchievementMobileInstall = 5
  *  - MEGAAchievementAddPhone = 9
+ *  - MEGAAchievementPassFreeTrial = 10
+ *  - MEGAAchievementVPNFreeTrial = 11
  *
  * @param classId Id of the MEGA achievement
  * @return Transfer quota granted by this MEGA achievement class, in bytes
@@ -165,6 +190,8 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  *  - MEGAAchievementDesktopInstall = 4
  *  - MEGAAchievementMobileInstall = 5
  *  - MEGAAchievementAddPhone = 9
+ *  - MEGAAchievementPassFreeTrial = 10
+ *  - MEGAAchievementVPNFreeTrial = 11
  *
  * The storage and transfer quota resulting from a MEGA achievement may expire after
  * certain number of days. In example, the "Welcome" reward lasts for 30 days and afterwards
