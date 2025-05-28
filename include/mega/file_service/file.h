@@ -20,7 +20,15 @@ class File
 public:
     File(FileServiceContextBadge badge, FileContextPtr context);
 
+    File(const File& other) = default;
+
+    File(File&& other);
+
     ~File();
+
+    File& operator=(const File& rhs) = default;
+
+    File& operator=(File&& rhs);
 
     // Retrieve information about this file.
     FileInfo info() const;

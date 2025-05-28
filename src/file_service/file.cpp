@@ -7,6 +7,8 @@
 #include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_service_context_badge.h>
 
+#include <utility>
+
 namespace mega
 {
 namespace file_service
@@ -17,6 +19,20 @@ File::File(FileServiceContextBadge, FileContextPtr context):
 {}
 
 File::~File() = default;
+
+File::File(File&& other):
+    mContext(std::move(other.mContext))
+{}
+
+File& File::operator=(File&& rhs)
+{
+    using std::swap;
+
+    if (this != &rhs)
+        swap(mContext, rhs.mContext);
+
+    return *this;
+}
 
 FileInfo File::info() const
 {
