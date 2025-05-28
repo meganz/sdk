@@ -2751,39 +2751,53 @@ unsigned StandardClient::deleteTestBaseFolder(bool mayNeedDeleting)
     return result.get();
 }
 
-void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, PromiseUnsignedSP result)
+void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting,
+                                          bool deleted,
+                                          PromiseUnsignedSP result)
 {
-    if (std::shared_ptr<Node> root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
+    std::shared_ptr<Node> root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles());
+    if (!root)
     {
-        std::shared_ptr<Node> basenode = client.childnodebyname(root.get(), "mega_test_sync", false);
-        if (basenode && !basenode->changed.removed) // ensure it isn't already marked as removed
-        {
-            if (mayNeedDeleting)
-            {
-                auto completion = [this, result](NodeHandle, Error e) {
-                    EXPECT_EQ(e, API_OK);
-                    if (e) out() << "delete of test base folder reply reports: " << e;
-                    deleteTestBaseFolder(false, true, result);
-                };
-
-                resultproc.prepresult(COMPLETION, ++next_request_tag,
-                    [=](){ client.unlink(basenode.get(), false, 0, false, std::move(completion)); },
-                    nullptr);
-                return;
-            }
-            out() << "base folder found, but not expected, failing";
-            result->set_value(0);
-            return;
-        }
-        else
-        {
-            //out() << "base folder not found, wasn't present or delete successful";
-            result->set_value(deleted ? 2 : 1);
-            return;
-        }
+        out() << "err: deleteTestBaseFolder. base folder not found, as root was not found!";
+        result->set_value(0);
+        return;
     }
-    out() << "base folder not found, as root was not found!";
-    result->set_value(0);
+
+    if (std::shared_ptr<Node> basenode =
+            client.childnodebyname(root.get(), "mega_test_sync", false);
+        basenode && !basenode->changed.removed) // ensure it isn't already marked as removed
+    {
+        if (mayNeedDeleting)
+        {
+            auto completion = [this, result](NodeHandle, Error e)
+            {
+                EXPECT_EQ(e, API_OK);
+                if (e)
+                    out()
+                        << "debug: deleteTestBaseFolder. delete of test base folder reply reports: "
+                        << e;
+                deleteTestBaseFolder(false /*mayNeedDeleting*/, true /*deleted*/, result);
+            };
+
+            resultproc.prepresult(
+                COMPLETION,
+                ++next_request_tag,
+                [=]()
+                {
+                    client.unlink(basenode.get(), false, 0, false, std::move(completion));
+                },
+                nullptr);
+            return;
+        }
+
+        out() << "err: deleteTestBaseFolder. base folder found, but not expected, failing";
+        result->set_value(0);
+        return;
+    }
+
+    out() << "debug: deleteTestBaseFolder. base folder not found, wasn't present or delete "
+             "successful";
+    result->set_value(deleted ? 2 : 1);
 }
 
 void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
