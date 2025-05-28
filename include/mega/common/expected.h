@@ -246,20 +246,22 @@ public:
         return std::get<E>(std::move(mValue));
     }
 
-    E errorOr(E&& defaultValue) &&
+    template<typename U>
+    auto errorOr(U&& defaultValue) && -> std::enable_if_t<std::is_convertible_v<U, E>, E>
     {
         if (hasError())
             return std::get<E>(std::move(mValue));
 
-        return std::move(defaultValue);
+        return std::forward<U>(defaultValue);
     }
 
-    E errorOr(E&& defaultValue) const&
+    template<typename U>
+    auto errorOr(U&& defaultValue) const& -> std::enable_if_t<std::is_convertible_v<U, E>, E>
     {
         if (hasError())
             return std::get<E>(mValue);
 
-        return std::move(defaultValue);
+        return std::forward<U>(defaultValue);
     }
 
     void swap(Expected& other)
