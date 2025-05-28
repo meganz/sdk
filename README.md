@@ -137,8 +137,8 @@ To run the example app `megacli`, go to the `examples/megacli` directory in the 
 
 - Arch
 - Debian 11
-- Fedora 38
-- OpenSUSE Leap 15.5
+- Fedora 40
+- OpenSUSE Leap 15.6
 - Raspberry Pi OS Lite (Debian 11)
 - Ubuntu 20.04 LTS
 
