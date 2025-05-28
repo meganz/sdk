@@ -12883,8 +12883,8 @@ void Syncs::syncLoop()
 
         // execute any requests from the MegaClient
         waiter->bumpds();
-        QueuedSyncFunc f;
-        while (syncThreadActions.popFront(f))
+
+        for (auto& f: syncThreadActions.popAll())
         {
             if (!f.first)
             {
