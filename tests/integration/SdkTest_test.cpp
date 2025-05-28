@@ -20645,6 +20645,8 @@ TEST_F(SdkTest, SdkTestUploadNodeAttribute)
     ASSERT_EQ(fileNode->isFavourite(), true)
         << "Favourite flag is not retained after updating the file";
 
+    bool hasFingerprint = !!fileNode->getFingerprint();
+
     // Upload the same file with different name.
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
@@ -20663,4 +20665,8 @@ TEST_F(SdkTest, SdkTestUploadNodeAttribute)
     ASSERT_NE(fileNode->getLabel(), 4) << "Node label is copied for for renamed file upload";
     ASSERT_NE(fileNode->isFavourite(), true)
         << "Favourite flag is copied for for renamed file upload";
+    if (hasFingerprint)
+    {
+        ASSERT_NE(fileNode->getFingerprint(), nullptr) << "Finger print has been copied";
+    }
 }
