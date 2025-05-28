@@ -72,6 +72,15 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(MegaApi* megaApi,
                             });
 }
 
+bool waitForSyncStallState(MegaApi* const megaApi)
+{
+    const auto isSyncStalledPred = [&megaApi]() -> bool
+    {
+        return isSyncStalled(megaApi);
+    };
+    return waitFor(isSyncStalledPred, 10s);
+}
+
 static handle createSyncAux(MegaApi* megaApi,
                             const MegaSync::SyncType syncType,
                             const std::string& localRootPath,
@@ -160,6 +169,14 @@ bool suspendSync(MegaApi* megaApi, const handle backupID)
 bool disableSync(MegaApi* megaApi, const handle backupID)
 {
     return setSyncRunState(megaApi, backupID, MegaSync::SyncRunningState::RUNSTATE_DISABLED);
+}
+
+bool isSyncStalled(MegaApi* const megaApi)
+{
+    if (megaApi == nullptr)
+        return false;
+
+    return megaApi->isSyncStalled();
 }
 
 std::vector<std::unique_ptr<MegaSyncStall>> getStalls(MegaApi* megaApi)
