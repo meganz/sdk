@@ -2105,7 +2105,12 @@ private:
     // When the node tree changes, this structure lets the sync code know which LocalNodes need to be flagged
     map<NodeHandle, bool> triggerHandles;
     map<LocalPath, bool> triggerLocalpaths;
-    mutex triggerMutex;
+    mutable std::mutex triggerMutex;
+
+public:
+    bool triggerHandlesPending() const;
+
+    bool triggerLocalpathsPending() const;
 
     // Keep track of files that we can't move yet because they are changing
     struct FileChangingState
