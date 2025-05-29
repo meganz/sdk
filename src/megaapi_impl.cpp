@@ -18894,10 +18894,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             AttrMap attrs;
                             string attrstring;
                             key.setkey((const byte*)tc.nn[0].nodekey.data(), samenode->type);
-                            attrs = samenode->attrs;
                             string sname = fileName;
                             LocalPath::utf8_normalize(&sname);
                             attrs.map['n'] = sname;
+                            attrs.map['c'] = samenode->attrs.map['c'];
                             attrs.getjson(&attrstring);
                             client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                             if (tc.nn[0].type == FILENODE)
