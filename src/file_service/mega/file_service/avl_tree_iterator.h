@@ -29,18 +29,26 @@ class AVLTreeIterator
 
         if (auto* node = LinkTraits::right(*mNode))
         {
-            for (mNode = node; (node = LinkTraits::left(*mNode));)
+            mNode = node;
+            node = LinkTraits::left(*node);
+
+            for (; node; node = LinkTraits::left(*node))
                 mNode = node;
 
             return *this;
         }
 
-        for (auto* node = mNode; (mNode = LinkTraits::parent(*node));)
+        while (true)
         {
-            if (LinkTraits::right(*mNode) != node)
+            auto* node = mNode;
+
+            mNode = LinkTraits::parent(*node);
+
+            if (!mNode)
                 break;
 
-            node = mNode;
+            if (LinkTraits::right(*mNode) != node)
+                break;
         }
 
         return *this;
@@ -53,18 +61,26 @@ class AVLTreeIterator
 
         if (auto* node = LinkTraits::left(*mNode))
         {
-            for (mNode = node; (node = LinkTraits::right(*mNode));)
+            mNode = node;
+            node = LinkTraits::right(*node);
+
+            for (; node; node = LinkTraits::right(*node))
                 mNode = node;
 
             return *this;
         }
 
-        for (auto* node = mNode; (mNode = LinkTraits::parent(*node));)
+        while (true)
         {
-            if (LinkTraits::left(*mNode) != node)
+            auto* node = mNode;
+
+            mNode = LinkTraits::parent(*node);
+
+            if (!mNode)
                 break;
 
-            node = mNode;
+            if (LinkTraits::left(*mNode) != node)
+                break;
         }
 
         return *this;

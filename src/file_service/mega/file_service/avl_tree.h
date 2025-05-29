@@ -96,12 +96,17 @@ private:
     // Rebalance the tree, traversing upwards from node.
     void rebalance(NodeType* node)
     {
-        NodeType* parent;
-
         assert(node);
 
-        while ((parent = LT::parent(*node)))
+        while (true)
         {
+            // Try and get our hands on this node's parent.
+            auto* parent = LT::parent(*node);
+
+            // No parent so we've reached the root node.
+            if (!parent)
+                break;
+
             // Is node parent's left or right child?
             auto* left = LT::left(*parent);
             auto& link = LT::child(*parent, left != node);
@@ -195,7 +200,10 @@ private:
         // If replacement is not null, node is a left or right branch.
         //
         // replacement will take node's place in the tree.
-        if ((*link = replacement))
+        *link = replacement;
+
+        // Update the replacement's parent if necessary.
+        if (replacement)
             LT::parent(*replacement) = parent;
 
         // Rebalance the tree starting from node's parent, if any.
@@ -409,8 +417,11 @@ public:
         // The root node has no parent.
         NodeType* parent{};
 
-        for (NodeType* child; (child = *link);)
+        while (*link)
         {
+            // Convenience.
+            auto* child = *link;
+
             // How does the user's key relate to the child's?
             auto relationship = KT::compare(key, KT::key(*child));
 
