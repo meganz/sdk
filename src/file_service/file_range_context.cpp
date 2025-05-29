@@ -121,8 +121,8 @@ FileRangeContext::~FileRangeContext()
 void FileRangeContext::cancel()
 {
     // Download's alive so cancel it.
-    if (mDownload)
-        mDownload->cancel();
+    if (auto download = mDownload)
+        download->cancel();
 }
 
 auto FileRangeContext::download(Client& client, FileAccess& file, NodeHandle handle)
