@@ -2197,6 +2197,12 @@ void MegaClient::exec()
                 case REQ_FAILURE:
                     if (!req->httpstatus && (!req->maxretries || (req->numretry + 1) < req->maxretries))
                     {
+                        if (req->mDnsFailure)
+                        {
+                            app->notify_network_activity(NetworkActivityChannel::CS,
+                                                         NetworkActivityType ::REQUEST_SENT,
+                                                         LOCAL_ENETWORK);
+                        }
                         req->numretry++;
                         req->status = REQ_PREPARED;
                         req->bt.backoff();
@@ -2748,6 +2754,12 @@ void MegaClient::exec()
                             }
                             else if (pendingcs->httpstatus == 0)
                             {
+                                if (pendingcs->mDnsFailure)
+                                {
+                                    app->notify_network_activity(NetworkActivityChannel::CS,
+                                                                 NetworkActivityType ::REQUEST_SENT,
+                                                                 LOCAL_ENETWORK);
+                                }
                                 reason = RETRY_CONNECTIVITY;
                             }
                         }
@@ -2931,7 +2943,15 @@ void MegaClient::exec()
                     }
                     LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
                 }
+
                 LOG_warn << "Useralerts request failed, continuing without them";
+
+                if (pendingscUserAlerts->mDnsFailure)
+                {
+                    app->notify_network_activity(NetworkActivityChannel::SC,
+                                                 NetworkActivityType ::REQUEST_SENT,
+                                                 LOCAL_ENETWORK);
+                }
 
                 if (useralerts.begincatchup)
                 {
@@ -3081,9 +3101,18 @@ void MegaClient::exec()
 
                     if (!scsn.stopped())
                     {
-                        app->notify_network_activity(NetworkActivityChannel::SC,
-                                                     NetworkActivityType ::REQUEST_RECEIVED,
-                                                     pendingsc->httpstatus);
+                        if (pendingsc->mDnsFailure)
+                        {
+                            app->notify_network_activity(NetworkActivityChannel::SC,
+                                                         NetworkActivityType ::REQUEST_SENT,
+                                                         LOCAL_ENETWORK);
+                        }
+                        else
+                        {
+                            app->notify_network_activity(NetworkActivityChannel::SC,
+                                                         NetworkActivityType ::REQUEST_RECEIVED,
+                                                         pendingsc->httpstatus);
+                        }
                     }
 
                     pendingsc.reset();

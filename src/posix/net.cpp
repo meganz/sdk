@@ -1800,6 +1800,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         dnsEntry.ipv4timestamp = 0;
                     }
 
+                    req->mDnsFailure = true;
                     ipv6requestsenabled = !httpctx->isIPv6 && ipv6available();
 
                     if (ipv6requestsenabled)
