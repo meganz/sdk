@@ -19,6 +19,7 @@
 #include <mega/overloaded.h>
 
 #include <iterator>
+#include <limits>
 #include <type_traits>
 #include <variant>
 
@@ -28,6 +29,41 @@ namespace file_service
 {
 
 using namespace common;
+
+void FileContext::adjustRef(std::int64_t adjustment)
+{
+    // Convenience.
+    auto& queries = mService.queries();
+
+    // Retrieve this file's reference count.
+    auto transaction = mService.database().transaction();
+    auto query = transaction.query(queries.mGetFileReferences);
+
+    query.param(":id").set(mInfo->id());
+    query.execute();
+
+    // Latch the file's reference count.
+    auto count = query.field("num_references").get<std::uint64_t>();
+
+    // If we're increasing the count, make sure we don't overflow.
+    assert(adjustment < 0 || count < UINT64_MAX);
+
+    // If we're decreasing the count, make sure we don't underflow.
+    assert(adjustment >= 0 || count);
+
+    // Compute the file's new reference count.
+    count += static_cast<std::uint64_t>(adjustment);
+
+    // Update the file's reference count.
+    query = transaction.query(queries.mSetFileReferences);
+
+    query.param(":id").set(mInfo->id());
+    query.param(":num_references").set(count);
+    query.execute();
+
+    // Persist our changes.
+    transaction.commit();
+}
 
 void FileContext::cancel(FileRequest& request)
 {
@@ -382,6 +418,16 @@ FileRangeVector FileContext::ranges() const
 
     // Return ranges to our caller.
     return ranges;
+}
+
+void FileContext::ref()
+{
+    adjustRef(1);
+}
+
+void FileContext::unref()
+{
+    adjustRef(-1);
 }
 
 } // file_service

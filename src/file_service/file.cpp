@@ -56,5 +56,15 @@ FileRangeVector File::ranges() const
     return mContext->ranges();
 }
 
+void File::ref()
+{
+    mContext->ref();
+}
+
+void File::unref()
+{
+    mContext->unref();
+}
+
 } // file_service
 } // mega

@@ -32,6 +32,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     using FileRequest = std::variant<FileReadRequest>;
     using FileRequestList = std::forward_list<FileRequest>;
 
+    // Adjust this file's reference count.
+    void adjustRef(std::int64_t adjustment);
+
     // Cancel a pending request.
     void cancel(FileRequest& request);
 
@@ -118,6 +121,12 @@ public:
 
     // What ranges of this file are currently in storage?
     FileRangeVector ranges() const;
+
+    // Let the service know you want it to keep this file in storage.
+    void ref();
+
+    // Let the service know you're happy for it to remove this file.
+    void unref();
 }; // FileContext
 
 } // file_service

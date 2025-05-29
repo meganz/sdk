@@ -54,8 +54,11 @@ class FileServiceContext
     template<typename Lock>
     auto rangesFromIndex(FileID id, Lock&& lock) -> std::optional<FileRangeVector>;
 
+    template<typename Lock, typename T>
+    bool removeFromIndex(FileID id, Lock&& lock, FromFileIDMap<T>& map);
+
     template<typename T>
-    auto removeFromIndex(FileID id, FromFileIDMap<T>& map) -> void;
+    bool removeFromIndex(FileID id, FromFileIDMap<T>& map);
 
     common::Client& mClient;
 

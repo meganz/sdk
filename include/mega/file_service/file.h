@@ -40,6 +40,12 @@ public:
 
     // What ranges of this file are currently in storage?
     FileRangeVector ranges() const;
+
+    // Let the service know you want it to keep this file in storage.
+    void ref();
+
+    // Let the service know you're happy for it to remove this file.
+    void unref();
 }; // File
 
 } // file_service

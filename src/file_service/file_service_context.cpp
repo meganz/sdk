@@ -266,13 +266,34 @@ auto FileServiceContext::rangesFromIndex(FileID id, Lock&& lock) -> std::optiona
     return std::nullopt;
 }
 
-template<typename T>
-void FileServiceContext::removeFromIndex(FileID id, FromFileIDMap<T>& map)
+template<typename Lock, typename T>
+bool FileServiceContext::removeFromIndex(FileID id, Lock&& lock, FromFileIDMap<T>& map)
 {
-    UniqueLock guard(mLock);
+    assert(lock.mutex() == &mLock);
+    assert(lock.owns_lock());
 
-    if (auto entry = map.find(id); entry != map.end() && entry->second.expired())
-        map.erase(id);
+    // Is id in the map?
+    auto entry = map.find(id);
+
+    // id's not in the map.
+    if (entry == map.end())
+        return false;
+
+    // id's in the map but refers a different instance.
+    if (!entry->second.expired())
+        return false;
+
+    // Remove id from the map.
+    map.erase(id);
+
+    // Let the caller know id was removed.
+    return true;
+}
+
+template<typename T>
+bool FileServiceContext::removeFromIndex(FileID id, FromFileIDMap<T>& map)
+{
+    return removeFromIndex(id, UniqueLock(mLock), map);
 }
 
 FileServiceContext::FileServiceContext(Client& client):
@@ -375,7 +396,38 @@ void FileServiceContext::removeFromIndex(FileContextBadge, FileID id)
 
 void FileServiceContext::removeFromIndex(FileInfoContextBadge, FileID id)
 {
-    removeFromIndex(id, mInfoContexts);
+    // Make sure we have exclusive access to mInfoContexts.
+    UniqueLock lockContexts(mLock);
+
+    // mInfoContexts contains a distinct info instance for this file.
+    if (!removeFromIndex(id, lockContexts, mInfoContexts))
+        return;
+
+    // Make sure we have exclusive access to mDatabase.
+    UniqueLock lockDatabase(mDatabase);
+
+    // Retrieve this file's reference count.
+    auto transaction = mDatabase.transaction();
+    auto query = transaction.query(mQueries.mGetFileReferences);
+
+    query.param(":id").set(id);
+    query.execute();
+
+    // Don't purge the file as it still has references.
+    if (query.field("num_references").get<std::uint64_t>())
+        return;
+
+    // Remove the file from the database.
+    query = transaction.query(mQueries.mRemoveFile);
+
+    query.param(":id").set(id);
+    query.execute();
+
+    // Remove the file from storage.
+    mStorage.removeFile(id);
+
+    // Persist our changes.
+    transaction.commit();
 }
 
 Database createDatabase(const LocalPath& databasePath)
