@@ -5269,6 +5269,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "TYPE_GET_SYNC_UPLOAD_THROTTLE_VALUES";
         case TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS:
             return "TYPE_GET_SYNC_UPLOAD_THROTTLE_LIMITS";
+        case TYPE_RUN_NETWORK_CONNECTIVITY_TEST:
+            return "TYPE_RUN_NETWORK_CONNECTIVITY_TEST";
         case TYPE_ADD_SYNC_PREVALIDATION:
             return "TYPE_ADD_SYNC_PREVALIDATION";
     }
