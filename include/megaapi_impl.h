@@ -3800,7 +3800,11 @@ class MegaApiImpl : public MegaApp
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener);
-        void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
+        void setNodeCoordinates(std::variant<MegaNode*, MegaHandle> nodeOrNodeHandle,
+                                bool unshareable,
+                                double latitude,
+                                double longitude,
+                                MegaRequestListener* listener = NULL);
         void setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener = NULL);
         void addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
         void removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
