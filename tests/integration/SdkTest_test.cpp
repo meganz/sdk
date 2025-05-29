@@ -20561,10 +20561,10 @@ TEST_F(SdkTest, SdkTestGetThumbnailUsingNodeAndHandle)
  * @brief SdkTest.SdkTestUploadNodeAttribute
  *
  * Tests if node attributes consistency on file uploading as follows
- *  Uploading same file again - Node attribute shoul retainted
- *  Uploading updated file content - Node attribute shoul retainted
- *  Uploading the same file with different name - Node attribute should not be copied from previous
- * node
+ *  Uploading same file again - Node attribute should be kept
+ *  Uploading updated file content - Node attribute should be kept
+ *  Uploading the same file with different name - Node attributes should not be copied from previous
+ * node except fingerprint
  *
  */
 TEST_F(SdkTest, SdkTestUploadNodeAttribute)
