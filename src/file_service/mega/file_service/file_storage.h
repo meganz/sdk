@@ -39,6 +39,8 @@ public:
 
     FileAccessPtr getFile(FileID id);
 
+    void removeFile(FileID id);
+
     const LocalPath& storageDirectory() const;
 
     const LocalPath& userStorageDirectory() const;
