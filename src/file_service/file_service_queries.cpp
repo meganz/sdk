@@ -13,7 +13,10 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileRange(database.query()),
     mGetFile(database.query()),
     mGetFileRanges(database.query()),
-    mRemoveFileRanges(database.query())
+    mGetFileReferences(database.query()),
+    mRemoveFile(database.query()),
+    mRemoveFileRanges(database.query()),
+    mSetFileReferences(database.query())
 {
     mAddFile = "insert into files values ( "
                "  :handle, "
@@ -38,10 +41,21 @@ FileServiceQueries::FileServiceQueries(Database& database):
                      "  from file_ranges "
                      " where id = :id";
 
+    mGetFileReferences = "select num_references "
+                         "  from files "
+                         " where id = :id";
+
+    mRemoveFile = "delete from files "
+                  " where id = :id";
+
     mRemoveFileRanges = "delete from file_ranges "
                         " where begin >= :begin "
                         "   and end <= :end "
                         "   and id = :id";
+
+    mSetFileReferences = "update files "
+                         "   set num_references = :num_references "
+                         " where id = :id";
 }
 
 } // file_service
