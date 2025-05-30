@@ -8750,7 +8750,10 @@ void MegaApiImpl::setNodeCoordinates(std::variant<MegaNode*, MegaHandle> nodeOrN
     MegaHandle nodeHandle{INVALID_HANDLE};
     if (std::holds_alternative<MegaNode*>(nodeOrNodeHandle))
     {
-        nodeHandle = std::get<MegaNode*>(nodeOrNodeHandle)->getHandle();
+        if (auto node{std::get<MegaNode*>(nodeOrNodeHandle)})
+        {
+            nodeHandle = node->getHandle();
+        }
     }
     else if (std::holds_alternative<MegaHandle>(nodeOrNodeHandle))
     {
