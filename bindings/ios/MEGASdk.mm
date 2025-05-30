@@ -1808,6 +1808,18 @@ using namespace mega;
 
 #pragma mark - Attributes Requests
 
+- (void)getThumbnailWithNodeHandle:(uint64_t)nodeHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getThumbnail(nodeHandle, destinationFilePath.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)getThumbnailWithNodeHandle:(uint64_t)nodeHandle destinationFilePath:(NSString *)destinationFilePath {
+    if (self.megaApi) {
+        self.megaApi->getThumbnail(nodeHandle, destinationFilePath.UTF8String);
+    }
+}
+
 - (void)getThumbnailNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getThumbnail(node.getCPtr, destinationFilePath.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
