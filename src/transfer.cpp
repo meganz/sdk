@@ -2412,7 +2412,6 @@ bool DirectReadSlot::doio()
 
 void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t connectionNum)
 {
-    decreaseReqsInflight();
     if (!mDr->hasValidCallback())
     {
         LOG_err << "DirectReadSlot [conn " << connectionNum
