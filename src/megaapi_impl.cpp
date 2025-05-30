@@ -10633,6 +10633,14 @@ void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBac
         NodeHandle root = NodeHandle().set6byte(deconfiguredBackupRoot);
         NodeHandle destination = NodeHandle().set6byte(backupDestination);
 
+        if (n2 && n2->hasChildWithName(n1->displayname()))
+        {
+            LOG_err << "A node with the same name already exists in the destination. Can't move "
+                       "the backup node "
+                    << toNodeHandle(root) << " into " << toNodeHandle(destination);
+            return API_EEXIST;
+        }
+
         client->unlinkOrMoveBackupNodes(root, destination, [request, this](Error e) {
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             });

@@ -1195,7 +1195,10 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
     };
 
     // step 1: fetch Backup/sync data from Backup Centre
-    getBackupInfo([this, bkpId, bkpRoot, updateSds, isBackup, finalCompletion](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+    getBackupInfo(
+        [this, bkpId, bkpRoot, updateSds, isBackup, targetDest, finalCompletion](
+            const Error& e,
+            const vector<CommandBackupSyncFetch::Data>& data)
         {
             if (e != API_OK)
             {
@@ -1204,17 +1207,37 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
                 return;
             }
 
-            for (auto& d : data)
+            for (auto& d: data)
             {
-                if (d.backupId == bkpId)
+                if (d.backupId != bkpId)
                 {
-                    *bkpRoot = d.rootNode;
-                    *isBackup = d.backupType == BackupType::BACKUP_UPLOAD;
-
-                    // step 2: remove backup/sync
-                    reqs.add(new CommandBackupRemove(this, bkpId, updateSds));
-                    return;
+                    continue;
                 }
+
+                *bkpRoot = d.rootNode;
+                *isBackup = d.backupType == BackupType::BACKUP_UPLOAD;
+
+                // Check for destination clash before proceeding.
+                if (*isBackup && targetDest != UNDEF)
+                {
+                    const std::shared_ptr<Node> backupRootNode{nodebyhandle(*bkpRoot)};
+                    const std::shared_ptr<Node> backupDestinationNode{nodebyhandle(targetDest)};
+                    if (backupRootNode && backupDestinationNode)
+                    {
+                        if (backupDestinationNode->hasChildWithName(backupRootNode->displayname()))
+                        {
+                            LOG_err << "A node with the same name already exists in the "
+                                       "destination. Failed to remove backup "
+                                    << toHandle(bkpId);
+                            finalCompletion(API_EEXIST);
+                            return;
+                        }
+                    }
+                }
+
+                // step 2: remove backup/sync
+                reqs.add(new CommandBackupRemove(this, bkpId, updateSds));
+                return;
             }
 
             LOG_err << "Remove backup/sync: " << toHandle(bkpId) << " not returned by 'sr' command";
@@ -10009,7 +10032,14 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
 
     if (destination.isUndef())
     {
-        error e = unlink(n.get(), false, 0, true, [completion](NodeHandle, Error e){ completion(e); });
+        error e = unlink(n.get(),
+                         false,
+                         0,
+                         true,
+                         [completion](NodeHandle, Error e)
+                         {
+                             completion(e);
+                         });
         if (e)
         {
             // error before we sent a request so call completion directly
@@ -10024,6 +10054,13 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
         if (!p || p->firstancestor()->nodeHandle() != mNodeManager.getRootNodeFiles())
         {
             completion(API_EARGS);
+            return;
+        }
+
+        if (p->hasChildWithName(n->displayname()))
+        {
+            LOG_err << "Name clash. A node with the same name already exists in the destination";
+            completion(API_EEXIST);
             return;
         }
 
