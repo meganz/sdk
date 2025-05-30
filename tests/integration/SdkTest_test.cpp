@@ -20687,3 +20687,93 @@ TEST_F(SdkTest, SdkTestUploadNodeAttribute)
         ASSERT_NE(fileNode->getFingerprint(), nullptr) << "Finger print has been copied";
     }
 }
+
+class SdkTestNodeGpsCoordinates: public SdkTest
+{
+protected:
+    const unsigned int mApiIndex{0};
+
+    MegaHandle mNodeHandle{INVALID_HANDLE};
+
+    std::unique_ptr<MegaNode> mNode;
+
+    struct GpsCoordinates
+    {
+        double latitude;
+        double longitude;
+    };
+
+    const GpsCoordinates mGpsCoordinates{40.966095795138365, -5.662973159866294};
+
+public:
+    void SetUp() override
+    {
+        // Configure test instance
+        const unsigned int numberOfTestInstances{1};
+        ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+        // Upload file
+        std::unique_ptr<MegaNode> rootNode{megaApi[mApiIndex]->getRootNode()};
+        ASSERT_THAT(rootNode.get(), ::testing::NotNull());
+
+        const std::string filename{"test.txt"};
+        ASSERT_TRUE(createFile(filename, false, ""));
+
+        ASSERT_EQ(doStartUpload(mApiIndex,
+                                &mNodeHandle,
+                                filename.c_str(),
+                                rootNode.get(),
+                                nullptr,
+                                MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr,
+                                false,
+                                false,
+                                nullptr),
+                  MegaError::API_OK);
+        ASSERT_NE(mNodeHandle, INVALID_HANDLE);
+
+        // Get node
+        mNode.reset(megaApi[mApiIndex]->getNodeByHandle(mNodeHandle));
+        ASSERT_THAT(mNode.get(), ::testing::NotNull());
+    }
+};
+
+TEST_F(SdkTestNodeGpsCoordinates, SetUnshareableNodeCoordinatesWithNullNode)
+{
+    std::unique_ptr<RequestTracker> requestTracker{
+        asyncSetUnshareableNodeCoordinates(mApiIndex,
+                                           nullptr,
+                                           mGpsCoordinates.latitude,
+                                           mGpsCoordinates.longitude)};
+    ASSERT_EQ(requestTracker->waitForResult(), API_EARGS);
+}
+
+TEST_F(SdkTestNodeGpsCoordinates, SetUnshareableNodeCoordinatesWithNode)
+{
+    std::unique_ptr<RequestTracker> requestTracker{
+        asyncSetUnshareableNodeCoordinates(mApiIndex,
+                                           mNode.get(),
+                                           mGpsCoordinates.latitude,
+                                           mGpsCoordinates.longitude)};
+    ASSERT_EQ(requestTracker->waitForResult(), API_OK);
+
+    // Check if the user can read the GPS coordinates
+    std::unique_ptr<MegaNode> node(megaApi[mApiIndex]->getNodeByHandle(mNode->getHandle()));
+    ASSERT_TRUE(veryclose(node->getLatitude(), mGpsCoordinates.latitude));
+    ASSERT_TRUE(veryclose(node->getLongitude(), mGpsCoordinates.longitude));
+}
+
+TEST_F(SdkTestNodeGpsCoordinates, SetUnshareableNodeCoordinatesWithNodeHandle)
+{
+    std::unique_ptr<RequestTracker> requestTracker{
+        asyncSetUnshareableNodeCoordinates(mApiIndex,
+                                           mNodeHandle,
+                                           mGpsCoordinates.latitude,
+                                           mGpsCoordinates.longitude)};
+    ASSERT_EQ(requestTracker->waitForResult(), API_OK);
+
+    // Check if the user can read the GPS coordinates
+    std::unique_ptr<MegaNode> node(megaApi[mApiIndex]->getNodeByHandle(mNode->getHandle()));
+    ASSERT_TRUE(veryclose(node->getLatitude(), mGpsCoordinates.latitude));
+    ASSERT_TRUE(veryclose(node->getLongitude(), mGpsCoordinates.longitude));
+}
