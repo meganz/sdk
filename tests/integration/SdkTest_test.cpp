@@ -20708,6 +20708,8 @@ protected:
 public:
     void SetUp() override
     {
+        SdkTest::SetUp();
+
         // Configure test instance
         const unsigned int numberOfTestInstances{1};
         ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
