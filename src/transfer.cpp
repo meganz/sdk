@@ -1698,7 +1698,7 @@ std::pair<std::set<size_t>, size_t> DirectReadSlot::searchSlowConnsUnderThreshol
     m_off_t slowestThroughput = 0; // init slowest throughput
     for (size_t i = 0; i < mReqs.size(); ++i)
     {
-        if (!mReqs[i] || i == mUnusedConn.getNum())
+        if (!mReqs[i] || i == mUnusedConn.getNum() || mReqs[i]->status != REQ_INFLIGHT)
         {
             continue;
         }
@@ -1914,6 +1914,17 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(const size_t connectio
     return false;
 }
 
+bool DirectReadSlot::areAllReqsReadyOrInFlight()
+{
+    return std::all_of(mReqs.begin(),
+                       mReqs.end(),
+                       [](const std::unique_ptr<HttpReq>& req)
+                       {
+                           return req != nullptr &&
+                                  (req->status == REQ_READY || req->status == REQ_INFLIGHT);
+                       });
+}
+
 bool DirectReadSlot::decreaseReqsInflight()
 {
     if (isRaidedTransfer())
@@ -2026,7 +2037,6 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
     {
         LOG_warn << "DirectReadSlot Watchdog: a raided part has already reported as failed. "
                     "Skipping watchdog";
-        mLowMeanSpeedButNoSlowConnsCounter = 0;
         resetWatchdogPartialValues();
         return false;
     }
@@ -2060,6 +2070,18 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
                 maxUnusedConnSwitchesReached(UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD);
             unusedConnNotReusable || mNumReqsInflight < EFFECTIVE_RAIDPARTS)
         {
+            if (mNumReqsInflight < EFFECTIVE_RAIDPARTS && areAllReqsReadyOrInFlight())
+            {
+                LOG_warn << "DirectReadSlot Watchdog: Skipping retryEntireTransfer. Wait until "
+                            "requests with status REQ_INFLIGHT reach REQ_READY. Also, increase "
+                            "UnusedConnSwitches(TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD) to prevent "
+                            "this scenario from repeating indefinitely.";
+
+                increaseUnusedConnSwitches(UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD);
+                resetWatchdogPartialValues();
+                return false;
+            }
+
             LOG_err
                 << "DirectReadSlot Watchdog: [conn " << slowestConnectionIndex << "]: "
                 << " Cannot replace unused connection by " << slowestConnectionIndex

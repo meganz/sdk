@@ -771,6 +771,12 @@ public:
     }
 
     /**
+     * @brief Check if all requests are inflight or in ready status
+     * @return True if all requests are inflight or in ready status
+     */
+    bool areAllReqsReadyOrInFlight();
+
+    /**
     *   @brief Decrease counter for requests with REQ_INFLIGHT status
     *
     *   Valid only for 2+ connections
