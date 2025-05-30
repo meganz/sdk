@@ -38,6 +38,10 @@
 #include "mega/transfer.h"
 #include "mega/user_attribute.h"
 
+#ifdef __ANDROID__
+#include "mega/android/androidFileSystem.h"
+#endif
+
 namespace mega {
 
 const int Sync::SCANNING_DELAY_DS = 5;
@@ -2041,7 +2045,8 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
     const NodeMatchByFSIDAttributes fsNodeAttributes{row.fsNode->type,
                                                      fsfp(),
                                                      cloudRootOwningUser,
-                                                     row.fsNode->fingerprint};
+                                                     row.fsNode->fingerprint,
+                                                     FileFingerprint{}};
     const auto [foundExclusionUnknown, sourceSyncNode] = syncs.findLocalNodeBySyncedFsid(
         row.fsNode->fsid,
         fsNodeAttributes,
@@ -2314,7 +2319,8 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                             syncNode.type,
                             fsfp,
                             cloudRootOwningUser,
-                            syncNode.syncedFingerprint};
+                            syncNode.syncedFingerprint,
+                            FileFingerprint{}};
 
                         return syncs.findLocalNodeByScannedFsid(syncNode.fsid_lastSynced,
                                                                 syncNodeAttributes,
@@ -3990,7 +3996,7 @@ bool Sync::movetolocaldebrisSubfolder(const LocalPath& localpath, const LocalPat
     }
 
     LocalPath moveTarget = targetFolder;
-    moveTarget.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex()), true);
+    moveTarget.appendWithSeparator(localpath.leafName(), true);
 
     syncs.fsaccess->skip_targetexists_errorreport = !logFailReason;
     bool success = syncs.fsaccess->renamelocal(localpath, moveTarget, false);
@@ -4603,6 +4609,14 @@ void Syncs::startSync_inThread(UnifiedSync& us,
         LOG_debug << "Final error for sync start: " << e;
         if (completion) completion(e, us.mConfig.mError, us.mConfig.mBackupId);
     };
+
+#ifdef __ANDROID__
+    if (!us.mConfig.mLocalPath.isURI())
+    {
+        LOG_warn << "startSync_inThread: sync path is not from URIPath type";
+        return fail(API_EFAILED, UNABLE_TO_ADD_WATCH);
+    }
+#endif
 
     us.mConfig.mRunState = SyncRunState::Loading;
     us.changedConfigState(false, true);
@@ -7419,6 +7433,7 @@ void SyncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<SyncRow>& chi
                     {
                         childIt.second->setScannedFsid(UNDEF, localnodeByScannedFsid, LocalPath(), FileFingerprint());
                         childIt.second->scannedFingerprint = FileFingerprint();
+                        childIt.second->realScannedFingerprint = FileFingerprint();
                     }
                 }
                 else if (childIt.second->fsid_asScanned != UNDEF)
@@ -7685,6 +7700,36 @@ bool SyncRow::isNoName() const
         return true;
     }
     return false;
+}
+
+void SyncRow::reassignFingerprints()
+{
+    if (!fsNode || fsNode->type != FILENODE || !syncNode)
+    {
+        return;
+    }
+
+    if (syncNode->realScannedFingerprint != fsNode->fingerprint)
+    {
+        syncNode->realScannedFingerprint = fsNode->fingerprint;
+    }
+
+#ifdef __ANDROID__
+    // In Android is not possible set mtime when file is download
+    // Update fsNode->fingerprint with syncNode->syncedFingerprint in case they only have mtime
+    // different This means it has scanned but it is already synced Real value that it is obtained
+    // from file system is stored at syncNode->realScannedFingerprint
+    if (syncNode->syncedFingerprint.isvalid &&
+        syncNode->syncedFingerprint.equalExceptMtime(fsNode->fingerprint))
+    {
+        fsNode->fingerprint.mtime = syncNode->syncedFingerprint.mtime;
+    }
+#endif
+
+    if (syncNode->scannedFingerprint != fsNode->fingerprint)
+    {
+        syncNode->scannedFingerprint = fsNode->fingerprint;
+    }
 }
 
 void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::iterator b) const
@@ -8114,6 +8159,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
     if (!row.fsNode || belowRemovedFsNode)
     {
         row.syncNode->scanAgain = TREE_RESOLVED;
+        row.syncNode->realScannedFingerprint = FileFingerprint();
         row.syncNode->setScannedFsid(UNDEF, syncs.localnodeByScannedFsid, LocalPath(), FileFingerprint());
         syncHere = row.syncNode->parent ? row.syncNode->parent->scanAgain < TREE_ACTION_HERE : true;
         recurseHere = false;  // If we need to scan, we need the folder to exist first - revisit later
@@ -8122,16 +8168,13 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
     }
     else
     {
+        row.reassignFingerprints();
+
         if (row.syncNode->fsid_asScanned == UNDEF ||
             row.syncNode->fsid_asScanned != row.fsNode->fsid)
         {
             row.syncNode->scanAgain = TREE_ACTION_HERE;
             row.syncNode->setScannedFsid(row.fsNode->fsid, syncs.localnodeByScannedFsid, row.fsNode->localname, row.fsNode->fingerprint);
-        }
-        else if (row.syncNode->scannedFingerprint != row.fsNode->fingerprint)
-        {
-            // this can change anytime, set it anyway
-            row.syncNode->scannedFingerprint = row.fsNode->fingerprint;
         }
     }
 
@@ -8328,15 +8371,11 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         if (auto* f = childRow.fsNode)
                         {
                             // Maintain scanned FSID.
+                            childRow.reassignFingerprints();
                             if (s->fsid_asScanned != f->fsid)
                             {
                                 syncs.setScannedFsidReused(fsfp(), f->fsid);
                                 s->setScannedFsid(f->fsid, syncs.localnodeByScannedFsid, f->localname, f->fingerprint);
-                            }
-                            else if (s->scannedFingerprint != f->fingerprint)
-                            {
-                                // Maintain the scanned fingerprint.
-                                s->scannedFingerprint = f->fingerprint;
                             }
                         }
 
@@ -9037,7 +9076,23 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
             // Mark the row as synced with the original Node downloaded, so that
             // we can chain any cloud moves/renames that occurred in the meantime
             row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
+            row.syncNode->realScannedFingerprint = row.fsNode->fingerprint;
+            row.fsNode->fingerprint.mtime = downloadPtr->mtime;
             row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
+            // It has been scanned previously to receive syncItem_checkDownloadCompletion.
+            // At scannedFingerprint we have a fingerprint with mtime from file system.
+            // Set mtime that is received at download
+            if (row.syncNode->scannedFingerprint == row.syncNode->realScannedFingerprint)
+            {
+                row.syncNode->scannedFingerprint.mtime = row.fsNode->fingerprint.mtime;
+            }
+
+            if (row.syncNode->syncedFingerprint != row.syncNode->realScannedFingerprint)
+            {
+                SYNC_verbose << syncname
+                             << "mtime hasn't been set correctly at fs file (usually Android)";
+            }
+
             row.syncNode->setSyncedNodeHandle(downloadPtr->h);
             statecacheadd(row.syncNode);
         }
@@ -9765,7 +9820,8 @@ bool Sync::resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath)
     const NodeMatchByFSIDAttributes moveNodeAttributes{movePtr->sourceType,
                                                        *movePtr->sourceFsfp,
                                                        cloudRootOwningUser,
-                                                       movePtr->sourceFingerprint};
+                                                       movePtr->sourceFingerprint,
+                                                       FileFingerprint{}};
     const auto [sourceExclusionUnknown, source] =
         syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid,
                                         moveNodeAttributes,
@@ -9848,7 +9904,8 @@ bool Sync::resolve_checkMoveComplete(SyncRow& row, SyncRow& /*parentRow*/, SyncP
     const NodeMatchByFSIDAttributes moveNodeAttributes{movePtr->sourceType,
                                                        *movePtr->sourceFsfp,
                                                        cloudRootOwningUser,
-                                                       movePtr->sourceFingerprint};
+                                                       movePtr->sourceFingerprint,
+                                                       FileFingerprint{}};
     const auto [sourceExclusionUnknown, sourceSyncNode] =
         syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid,
                                         moveNodeAttributes,
@@ -10035,6 +10092,7 @@ bool Sync::makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
     if (row.fsNode->type == FILENODE)
     {
         row.syncNode->scannedFingerprint = row.fsNode->fingerprint;
+        row.syncNode->realScannedFingerprint = row.fsNode->fingerprint;
     }
 
     if (considerSynced)
@@ -10207,7 +10265,8 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
             const NodeMatchByFSIDAttributes syncNodeAttributes{row.syncNode->type,
                                                                fsfp(),
                                                                cloudRootOwningUser,
-                                                               row.syncNode->syncedFingerprint};
+                                                               row.syncNode->syncedFingerprint,
+                                                               FileFingerprint{}};
             const auto [sourceFsidExclusionUnknown, fsElsewhere] =
                 syncs.findLocalNodeByScannedFsid(row.syncNode->fsid_lastSynced,
                                                  syncNodeAttributes,
@@ -10837,7 +10896,11 @@ bool Sync::resolve_downsync(SyncRow& row,
 					// setting synced variables here means we can skip a scan of the parent folder, if just the one expected notification arrives for it
                     row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
                     row.syncNode->setSyncedFsid(fsnode->fsid, syncs.localnodeBySyncedFsid, fsnode->localname, fsnode->cloneShortname());
-					row.syncNode->setScannedFsid(fsnode->fsid, syncs.localnodeByScannedFsid, fsnode->localname, fsnode->fingerprint);
+                    row.reassignFingerprints();
+                    row.syncNode->setScannedFsid(fsnode->fsid,
+                                                 syncs.localnodeByScannedFsid,
+                                                 fsnode->localname,
+                                                 fsnode->fingerprint);
                     statecacheadd(row.syncNode);
 
                     // So that we can recurse into the new directory immediately.
@@ -11306,7 +11369,8 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
             sourceSyncNodeOriginal->type,
             sourceSyncNodeOriginal->sync->fsfp(),
             sourceSyncNodeOriginal->sync->cloudRootOwningUser,
-            sourceSyncNodeOriginal->syncedFingerprint};
+            sourceSyncNodeOriginal->syncedFingerprint,
+            FileFingerprint{}};
         std::tie(unsureDueToUnknownExclusionMoveSource, sourceSyncNodeCurrent) =
             findLocalNodeByScannedFsid(sourceSyncNodeOriginal->fsid_lastSynced,
                                        sourceSyncNodeOriginalAttributes,
@@ -11492,7 +11556,8 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& /*parentRow*/, SyncPath& fu
                 const NodeMatchByFSIDAttributes syncNodeAttributes{syncNode.type,
                                                                    fsfp,
                                                                    cloudRootOwningUser,
-                                                                   syncNode.syncedFingerprint};
+                                                                   syncNode.syncedFingerprint,
+                                                                   FileFingerprint{}};
                 return syncs.findLocalNodeByScannedFsid(syncNode.fsid_lastSynced,
                                                         syncNodeAttributes,
                                                         fullPath.localPath,
@@ -11639,6 +11704,7 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& /*parentRow*/, SyncPath& fu
 
                     // Node's no longer associated with any file.
                     s.setScannedFsid(UNDEF, syncs.localnodeByScannedFsid, LocalPath(), FileFingerprint());
+                    s.scannedFingerprint = FileFingerprint();
                     s.setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, s.localname, nullptr);
 
                     // Persist above changes.

@@ -147,7 +147,7 @@ class MegaFileLoggerLoggingThread
     int mFlushOnLevel = mega::MegaApi::LOG_LEVEL_WARNING;
     std::chrono::seconds mLogFlushPeriod = std::chrono::seconds(10);
     std::chrono::steady_clock::time_point mNextFlushTime = std::chrono::steady_clock::now() + mLogFlushPeriod;
-    std::unique_ptr<mega::MegaFileSystemAccess> mFsAccess;
+    std::unique_ptr<FileSystemAccess> mFsAccess;
     ArchiveType mArchiveType = archiveTypeTimestamp;
     std::atomic<std::chrono::seconds> mArchiveMaxFileAgeSeconds = std::chrono::seconds(30 * 86400); // one month
     std::atomic_int mMaxArchiveLogsToKeep = 50;
@@ -156,10 +156,10 @@ class MegaFileLoggerLoggingThread
     friend MegaFileLogger;
 
 public:
-    MegaFileLoggerLoggingThread(MegaFileLogger &logger)
-        : mLogger(logger)
-        , mFsAccess(new mega::MegaFileSystemAccess())
+    MegaFileLoggerLoggingThread(MegaFileLogger& logger):
+        mLogger(logger)
     {
+        mFsAccess = mega::createFSA();
     }
 
     ~MegaFileLoggerLoggingThread()
@@ -219,8 +219,8 @@ public:
         // We must release the open file handle or the unlink below will fail
         file.close();
 
-        mega::MegaFileSystemAccess fsAccess;
-        fsAccess.unlinklocal(source);
+        auto fsAccess = mega::createFSA();
+        fsAccess->unlinklocal(source);
     }
 
 private:
@@ -769,7 +769,7 @@ void MegaFileLogger::initialize(const char * logsPath, const char * logFileName,
 
     mLogToStdout = logToStdout;
 
-    std::unique_ptr<mega::MegaFileSystemAccess> fsAccess(new mega::MegaFileSystemAccess());
+    auto fsAccess = mega::createFSA();
     fsAccess->mkdirlocal(logsPathLocalPath, false, false);
 
     if (mLoggingThread)

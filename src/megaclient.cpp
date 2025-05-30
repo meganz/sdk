@@ -47,6 +47,10 @@
 #undef min // avoid issues with std::min and std::max
 #undef max
 
+#ifdef __ANDROID__
+#include "mega/android/androidFileSystem.h"
+#endif
+
 namespace mega {
 
 // FIXME: generate cr element for file imports
@@ -824,25 +828,26 @@ bool MegaClient::setlang(string *code)
 // -- MegaClient JourneyID methods --
 string MegaClient::getJourneyId() const
 {
-    return mJourneyId.getValue();
+    return mJourneyId->getValue();
 }
 
 bool MegaClient::trackJourneyId() const
 {
-    return !getJourneyId().empty() && mJourneyId.isTrackingOn();
+    return !getJourneyId().empty() && mJourneyId->isTrackingOn();
 }
 
 // Load the JourneyID values from the local cache.
 bool MegaClient::loadJourneyIdCacheValues()
 {
-    return mJourneyId.loadValuesFromCache();
+    return mJourneyId->loadValuesFromCache();
 }
 
 bool MegaClient::setJourneyId(const string& jid)
 {
-    if (mJourneyId.setValue(jid))
+    if (mJourneyId->setValue(jid))
     {
-        LOG_debug << "[MegaClient::setJourneyID] Set journeyID from string = '" << jid << "') [tracking: " << mJourneyId.isTrackingOn() << "]";
+        LOG_debug << "[MegaClient::setJourneyID] Set journeyID from string = '" << jid
+                  << "') [tracking: " << mJourneyId->isTrackingOn() << "]";
         return true;
     }
     return false;
@@ -1881,30 +1886,49 @@ void MegaClient::init()
     mLastKnownCapacity = -1;
 }
 
-MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount, ClientType clientType)
-   : mAsyncQueue(*w, workerThreadCount)
-   , mCachedStatus(this)
-   , useralerts(*this)
-   , btugexpiration(rng)
-   , btcs(rng)
-   , btbadhost(rng)
-   , btworkinglock(rng)
-   , btreqstat(rng)
-   , btsc(rng)
-   , btpfa(rng)
-   , fsaccess(new FSACCESS_CLASS())
-   , dbaccess(d)
-   , mNodeManager(*this)
+MegaClient::MegaClient(MegaApp* a,
+                       shared_ptr<Waiter> w,
+                       HttpIO* h,
+                       DbAccess* d,
+                       GfxProc* g,
+                       const char* k,
+                       const char* u,
+                       unsigned workerThreadCount,
+                       ClientType clientType):
+    mAsyncQueue(*w, workerThreadCount),
+    mCachedStatus(this),
+    useralerts(*this),
+    btugexpiration(rng),
+    btcs(rng),
+    btbadhost(rng),
+    btworkinglock(rng),
+    btreqstat(rng),
+    btsc(rng),
+    btpfa(rng),
+    fsaccess(new FSACCESS_CLASS()),
+    dbaccess(d),
+    mNodeManager(*this),
 #ifdef ENABLE_SYNC
-    , syncs(*this)
+    syncs(*this),
 #endif
-   , reqs(rng)
-   , mKeyManager(*this)
-   , mClientType(clientType)
-   , mJourneyId(fsaccess, dbaccess ? dbaccess->rootPath() : LocalPath())
-   , mFuseClientAdapter(*this)
-   , mFuseService(mFuseClientAdapter)
+    reqs(rng),
+    mKeyManager(*this),
+    mClientType(clientType),
+    mJourneyId(),
+    mFuseClientAdapter(*this),
+    mFuseService(mFuseClientAdapter)
 {
+#ifdef __ANDROID__
+    if (!AndroidFileSystemAccess::isFileWrapperActive(fsaccess.get()))
+    {
+        LOG_verbose << "[MegaClient::MegaClient] replacing AndroidFileSystemAccess by "
+                       "LinuxFileSystemAccess due to missing FileWrapper in JNI";
+        fsaccess = std::make_unique<LinuxFileSystemAccess>();
+    }
+#endif
+    mJourneyId =
+        std::make_unique<JourneyID>(fsaccess, dbaccess ? dbaccess->rootPath() : LocalPath());
+
     mNodeManager.reset();
     sctable.reset();
     pendingsccommit = false;
@@ -2852,7 +2876,7 @@ void MegaClient::exec()
                     if (trackJourneyId())
                     {
                         pendingcs->posturl.append("&j=");
-                        pendingcs->posturl.append(mJourneyId.getValue());
+                        pendingcs->posturl.append(mJourneyId->getValue());
                     }
                     pendingcs->type = REQ_JSON;
 
@@ -4998,7 +5022,7 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
 
 void MegaClient::removeCaches()
 {
-    mJourneyId.resetCacheAndValues();
+    mJourneyId->resetCacheAndValues();
 
     if (sctable)
     {
@@ -11016,7 +11040,7 @@ error MegaClient::readmiscflags(JSON *json)
                     if (!trackJourneyId()) // If there is already a value and tracking flag is true, do nothing
                     {
                         LOG_verbose << "[MegaClient::readmiscflags] set jid: '" << jid << "'";
-                        mJourneyId.setValue(jid);
+                        mJourneyId->setValue(jid);
                     }
                 }
             }
@@ -11025,7 +11049,7 @@ error MegaClient::readmiscflags(JSON *json)
             if (!journeyIdFound && trackJourneyId()) // If there is no value or tracking flag is false, do nothing
             {
                 LOG_verbose << "[MegaClient::readmiscflags] No JourneyId found -> set tracking to false";
-                mJourneyId.setValue("");
+                mJourneyId->setValue("");
             }
             return API_OK;
         default:
@@ -17330,7 +17354,7 @@ std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& new
 SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
                                                const handle backupIdToExclude) const
 {
-    if (!localPath.isAbsolute())
+    if (!localPath.isAbsolute() && !localPath.isURI())
         return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
 
     const auto rootPathWithoutEndingSeparator = std::invoke(

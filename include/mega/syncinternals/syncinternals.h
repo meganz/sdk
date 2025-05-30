@@ -105,10 +105,19 @@ struct NodeMatchByFSIDAttributes
      */
     handle owningUser;
 
+    // In Android we can't set mtime, then we have two fingerprints
+    // fingerprint -> expected fingerprint (fingerprint of the file with modified mtime)
+    // realFingerprint -> fingerprint from file system
+    // In no Android systems, this values should be the same
     /**
      * @brief The file fingerprint for comparison.
      */
     const FileFingerprint& fingerprint;
+
+    /**
+     * @brief The real file fingerprint for comparison.
+     */
+    const FileFingerprint realFingerprint;
 };
 
 /**
