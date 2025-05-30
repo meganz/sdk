@@ -8192,6 +8192,8 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
 {
     typedef ::mega::byte byte;
 
+    std::atomic<bool> mFinished{false};
+    MegaApi* mApi;
     size_t reserved;
     size_t receiveBufPos;
     size_t file_start_offset;
@@ -8203,16 +8205,20 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     bool comparedEqual;
     m_off_t numFailedRequests{};
 
-    CheckStreamedFile_MegaTransferListener(size_t receiveStartPoint, size_t receiveSizeExpected, byte* fileCompareData)
-        : reserved(0)
-        , receiveBufPos(0)
-        , file_start_offset(0)
-        , receiveBuf(NULL)
-        , completedSuccessfully(false)
-        , completedUnsuccessfully(false)
-        , completedUnsuccessfullyError(NULL)
-        , compareDecryptedData(fileCompareData)
-        , comparedEqual(true)
+    CheckStreamedFile_MegaTransferListener(MegaApi* const megaApi,
+                                           const size_t receiveStartPoint,
+                                           const size_t receiveSizeExpected,
+                                           byte* const fileCompareData):
+        mApi(megaApi),
+        reserved(0),
+        receiveBufPos(0),
+        file_start_offset(0),
+        receiveBuf(NULL),
+        completedSuccessfully(false),
+        completedUnsuccessfully(false),
+        completedUnsuccessfullyError(NULL),
+        compareDecryptedData(fileCompareData),
+        comparedEqual(true)
     {
         file_start_offset = receiveStartPoint;
         reserved = receiveSizeExpected;
@@ -8222,6 +8228,12 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
 
     ~CheckStreamedFile_MegaTransferListener()
     {
+        if (!mFinished)
+        {
+            assert(mApi);
+            mApi->removeTransferListener(this);
+        }
+
         delete[] receiveBuf;
     }
 
@@ -8240,6 +8252,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
                 comparedEqual = false;
             completedSuccessfully = true;
         }
+        mFinished = true;
     }
 
     void onTransferUpdate(MegaApi*, MegaTransfer*) override {}
@@ -8275,7 +8288,11 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
     globalMegaTestHooks.onSetIsRaid = smallpieces ? &DebugTestHook::onSetIsRaid_smallchunks10 : NULL;
 #endif
 
-    CheckStreamedFile_MegaTransferListener* p = new CheckStreamedFile_MegaTransferListener(size_t(start), size_t(end - start), filecomparedata);
+    CheckStreamedFile_MegaTransferListener* p =
+        new CheckStreamedFile_MegaTransferListener(megaApi,
+                                                   size_t(start),
+                                                   size_t(end - start),
+                                                   filecomparedata);
     megaApi->setStreamingMinimumRate(0);
     megaApi->startStreaming(raid ? raidFileNode : nonRaidFileNode, start, end - start, p);
     return p;
