@@ -1678,6 +1678,7 @@ bool DirectReadSlot::isRaidedTransfer() const
 
 void DirectReadSlot::retryEntireTransfer(const Error& e, const dstime timeleft)
 {
+    resetConnSwitchesCountersIfTimeoutExpired(true /*force*/);
     mUnusedConn.clear();
     mDr->drn->retry(e, timeleft);
 }
@@ -2003,7 +2004,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
     const auto [minTransferspeed, transferMeanspeed] = getMinAndMeanSpeed(dsSinceLastWatch);
     if (!mDr->hasValidCallback())
     {
-        LOG_err << "DirectReadSlot: Watchdog -> Transfer is already deleted."
+        LOG_err << "DirectReadSlot Watchdog: Transfer is already deleted."
                 << (transferMeanspeed >= minTransferspeed ?
                         " Transfer speed too low for streaming, Skipping retry" :
                         "")
@@ -2016,18 +2017,22 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
     if (!minTransferspeed)
     {
         // no limits set by client, so no performance check is required
+        LOG_verbose << "DirectReadSlot Watchdog: No minTransferspeed";
         resetWatchdogPartialValues();
         return false;
     }
 
     if (isAnyRaidedPartFailed())
     {
+        LOG_warn << "DirectReadSlot Watchdog: a raided part has already reported as failed. "
+                    "Skipping watchdog";
+        mLowMeanSpeedButNoSlowConnsCounter = 0;
         resetWatchdogPartialValues();
         return false;
     }
 
     const auto [slowConns, slowestConnectionIndex] = searchSlowConnsUnderThreshold();
-    LOG_debug << "watchOverDirectReadPerformance: number of detected slow connections = "
+    LOG_debug << "DirectReadSlot Watchdog: number of detected slow connections = "
               << slowConns.size();
     if (slowConns.empty())
     {
@@ -2055,6 +2060,10 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
                 maxUnusedConnSwitchesReached(UnusedConn::TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD);
             unusedConnNotReusable || mNumReqsInflight < EFFECTIVE_RAIDPARTS)
         {
+            LOG_err
+                << "DirectReadSlot Watchdog: [conn " << slowestConnectionIndex << "]: "
+                << " Cannot replace unused connection by " << slowestConnectionIndex
+                << " . Reason: unusedConnection cannot be reused or maxUnusedConnSwitchesReached";
             retryEntireTransfer(API_EAGAIN);
             return true;
         }
@@ -2067,15 +2076,17 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         return false;
     }
 
-    // too many slow connections detected
+    LOG_err << "DirectReadSlot Watchdog: [conn " << slowestConnectionIndex << "]: "
+            << " Cannot replace unused connection by " << slowestConnectionIndex
+            << " . Reason: too many slow connections detected";
     retryEntireTransfer(API_EAGAIN);
     return true;
 }
 
-void DirectReadSlot::resetConnSwitchesCountersIfTimeoutExpired()
+void DirectReadSlot::resetConnSwitchesCountersIfTimeoutExpired(bool force)
 {
     if (const auto now = std::chrono::steady_clock::now();
-        (now - mConnectionSwitchesLimitLastReset) > CONNECTION_SWITCHES_LIMIT_RESET_TIME)
+        ((now - mConnectionSwitchesLimitLastReset) > CONNECTION_SWITCHES_LIMIT_RESET_TIME) || force)
     {
         mNumConnSwitchesSlowestPart = 0;
         mNumConnSwitchesBelowSpeedThreshold = 0;

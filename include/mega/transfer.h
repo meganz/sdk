@@ -573,7 +573,7 @@ public:
      * @brief Reset all connection switches counters if timeout
      * (CONNECTION_SWITCHES_LIMIT_RESET_TIME) has expired
      */
-    void resetConnSwitchesCountersIfTimeoutExpired();
+    void resetConnSwitchesCountersIfTimeoutExpired(bool force = false);
 
     // Returns true if any raided Req has failed, otherwise returns false
     bool isAnyRaidedPartFailed() const;
