@@ -2204,11 +2204,13 @@ void MegaClient::exec()
                         LOG_warn << "Request failed (" << req->posturl << ") retrying ("
                                  << (req->numretry + 1) << " of " << req->maxretries << ")";
                         it++;
-                        app->notify_network_activity(NetworkActivityChannel::CS,
-                                                     NetworkActivityType::REQUEST_ERROR,
-                                                     req->httpstatus);
                         break;
                     }
+                    app->notify_network_activity(NetworkActivityChannel::CS,
+                                                 NetworkActivityType::REQUEST_ERROR,
+                                                 req->httpstatus == 0 ? API_EFAILED :
+                                                                        req->httpstatus);
+
                     // no retry -> fall through
                     // fall through
                 case REQ_SUCCESS:
@@ -2703,9 +2705,6 @@ void MegaClient::exec()
                         {
                             if (pendingcs->in == "-3")
                             {
-                                app->notify_network_activity(NetworkActivityChannel::CS,
-                                                             NetworkActivityType::REQUEST_RECEIVED,
-                                                             API_EAGAIN);
                                 reason = RETRY_API_LOCK;
                             }
                             else
@@ -3188,7 +3187,7 @@ void MegaClient::exec()
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
                 app->notify_network_activity(NetworkActivityChannel::SC,
-                                             NetworkActivityType::REQUEST_RECEIVED,
+                                             NetworkActivityType::REQUEST_SENT,
                                              API_OK);
             }
             jsonsc.pos = NULL;
