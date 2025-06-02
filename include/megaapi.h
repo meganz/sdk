@@ -18875,10 +18875,10 @@ class MegaApi
          * - MegaApi::ORDER_CREATION_DESC = 6
          * Sort by node creation time in MEGA, older elements last
          *
-         * - MegaApi::ORDER_SHARE_CREATION_ASC = 20
+         * - MegaApi::ORDER_SHARE_CREATION_ASC = 21
          * Sort by share creation time in MEGA, older elements first
          *
-         * - MegaApi::ORDER_SHARE_CREATION_DESC = 21
+         * - MegaApi::ORDER_SHARE_CREATION_DESC = 22
          * Sort by share creation time in MEGA, older elements last
          *
          * @return List of MegaShare objects
@@ -18952,10 +18952,10 @@ class MegaApi
          * - MegaApi::ORDER_CREATION_DESC = 6
          * Sort by node creation time in MEGA, older elements last
          *
-         * - MegaApi::ORDER_SHARE_CREATION_ASC = 20
+         * - MegaApi::ORDER_SHARE_CREATION_ASC = 21
          * Sort by share creation time in MEGA, older elements first
          *
-         * - MegaApi::ORDER_SHARE_CREATION_DESC = 21
+         * - MegaApi::ORDER_SHARE_CREATION_DESC = 22
          * Sort by share creation time in MEGA, older elements last
          *
          * @return List of MegaShare objects

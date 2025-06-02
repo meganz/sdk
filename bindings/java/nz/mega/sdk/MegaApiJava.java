@@ -205,6 +205,8 @@ public class MegaApiJava {
     public final static int ORDER_SIZE_DESC = MegaApi.ORDER_SIZE_DESC;
     public final static int ORDER_CREATION_ASC = MegaApi.ORDER_CREATION_ASC;
     public final static int ORDER_CREATION_DESC = MegaApi.ORDER_CREATION_DESC;
+    public final static int ORDER_SHARE_CREATION_ASC = MegaApi.ORDER_SHARE_CREATION_ASC;
+    public final static int ORDER_SHARE_CREATION_DESC = MegaApi.ORDER_SHARE_CREATION_DESC;
     public final static int ORDER_MODIFICATION_ASC = MegaApi.ORDER_MODIFICATION_ASC;
     public final static int ORDER_MODIFICATION_DESC = MegaApi.ORDER_MODIFICATION_DESC;
     public final static int ORDER_LINK_CREATION_ASC = MegaApi.ORDER_LINK_CREATION_ASC;
