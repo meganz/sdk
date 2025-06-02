@@ -39,19 +39,20 @@ public:
         ASSERT_NO_FATAL_FAILURE(initializeSecondSession());
     }
 
-    bool resumeFromDeviceCenter()
+    bool resumeFromDeviceCenter(error expectedError = API_OK)
     {
-        return doChangeFromDeviceCenter(DeviceCenterOperations::RESUME);
+        return doChangeFromDeviceCenter(DeviceCenterOperations::RESUME, expectedError);
     }
 
-    bool pauseFromDeviceCenter()
+    bool pauseFromDeviceCenter(error expectedError = API_OK)
     {
-        return doChangeFromDeviceCenter(DeviceCenterOperations::PAUSE);
+        return doChangeFromDeviceCenter(DeviceCenterOperations::PAUSE, expectedError);
     }
 
-    bool deleteFromDeviceCenter()
+    bool deleteFromDeviceCenter(error expectedError = API_OK,
+                                MegaHandle destination = INVALID_HANDLE)
     {
-        return doChangeFromDeviceCenter(DeviceCenterOperations::REMOVE);
+        return doChangeFromDeviceCenter(DeviceCenterOperations::REMOVE, expectedError, destination);
     }
 
     const fs::path& getLocalFolder()
@@ -94,9 +95,12 @@ private:
         REMOVE
     };
 
-    bool doChangeFromDeviceCenter(const DeviceCenterOperations operation)
+    bool doChangeFromDeviceCenter(const DeviceCenterOperations operation,
+                                  error expectedError = API_OK,
+                                  MegaHandle destination = INVALID_HANDLE)
     {
         NiceMock<MockRequestListener> reqTracker{megaApi[1].get()};
+        reqTracker.setErrorExpectations(expectedError);
 
         switch (operation)
         {
@@ -107,7 +111,7 @@ private:
                 megaApi[1]->resumeFromBC(mBackupID, &reqTracker);
                 break;
             case DeviceCenterOperations::REMOVE:
-                megaApi[1]->removeFromBC(mBackupID, INVALID_HANDLE, &reqTracker);
+                megaApi[1]->removeFromBC(mBackupID, destination, &reqTracker);
                 break;
         }
         return reqTracker.waitForFinishOrTimeout(MAX_TIMEOUT);
@@ -190,6 +194,98 @@ TEST_F(SdkTestDeviceCenterFullSync, FullSyncOperations)
         << "Full-sync still exists after 3 minutes";
 
     megaApi[0]->removeListener(&listener);
+}
+
+/**
+ * @brief Test fixture to test Backups from the Device Center.
+ *
+ * It configures a backup from the first account and a folder to potentially stotre backups once
+ * removed.
+ *
+ * It inherits functionality to perform operations from the Device Center using a secondary account.
+ */
+class SdkTestDeviceCenterBackup: public SdkTestDeviceCenter
+{
+public:
+    void SetUp() override
+    {
+        SdkTestDeviceCenter::SetUp();
+
+        ASSERT_NO_FATAL_FAILURE(setupBackup());
+        ASSERT_NO_FATAL_FAILURE(setupDestinationDirectory());
+    }
+
+    void TearDown() override
+    {
+        if (const std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByBackupId(mBackupID)}; sync)
+        {
+            removeSync(megaApi[0].get(), mBackupID);
+        }
+        SdkTestDeviceCenter::TearDown();
+    }
+
+    void duplicateDestinationBackupFolder()
+    {
+        // Get parent folder
+        const unique_ptr<MegaNode> parentFolder{
+            megaApi[0]->getNodeByHandle(mDestinationFolderHandle)};
+        ASSERT_TRUE(parentFolder);
+
+        // Create a folder in the destination with the same name as the backup
+        const MegaHandle newFolder = createFolder(0, mBackupName.c_str(), parentFolder.get());
+        ASSERT_NE(newFolder, INVALID_HANDLE) << "Invalid destination folder handle";
+
+        // Ensure that the second client can see the new folder
+        unique_ptr<MegaNode> newFolderNode;
+        waitFor(
+            [&api = megaApi[1], newFolder, &newFolderNode]()
+            {
+                newFolderNode.reset(api->getNodeByHandle(newFolder));
+                return newFolderNode != nullptr;
+            },
+            120s);
+        ASSERT_TRUE(newFolderNode) << "Second account can't see the new folder.";
+    }
+
+    bool deleteFromDeviceCenterAndArchive(error expectedError)
+    {
+        return deleteFromDeviceCenter(expectedError, mDestinationFolderHandle);
+    }
+
+private:
+    const fs::path mDestinationFolderName{"BackupArchive"};
+    const std::string mBackupName{"myBackup"};
+    MegaHandle mDestinationFolderHandle{INVALID_HANDLE};
+
+    void setupBackup()
+    {
+        LOG_debug << "Creating a backup";
+        mBackupID = backupFolder(megaApi[0].get(), getLocalFolder().u8string(), mBackupName);
+        ASSERT_NE(mBackupID, INVALID_HANDLE) << "Invalid Backup ID";
+    }
+
+    void setupDestinationDirectory()
+    {
+        const unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+        ASSERT_TRUE(rootnode) << "Account root node not available.";
+        mDestinationFolderHandle =
+            createFolder(0, mDestinationFolderName.u8string().c_str(), rootnode.get());
+        ASSERT_NE(mDestinationFolderHandle, INVALID_HANDLE) << "Invalid destination folder handle";
+    }
+};
+
+TEST_F(SdkTestDeviceCenterBackup, RemoveDestinationClash)
+{
+    static const auto logPre{getLogPrefix()};
+
+    LOG_debug << logPre << "Duplicate destination folder to cause a clash.";
+    duplicateDestinationBackupFolder();
+
+    LOG_debug
+        << logPre
+        << "Try to remove backup from the second session and move the data to the destination.";
+    ASSERT_TRUE(deleteFromDeviceCenterAndArchive(API_EEXIST))
+        << "Backups should not have been removed.";
 }
 
 #endif // ENABLE_SYNC

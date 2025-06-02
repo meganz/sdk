@@ -9678,6 +9678,30 @@ TEST_F(SdkTest, SdkBackupFolder)
     destChildren.reset(megaApi[0]->getChildren(remoteDestNode.get()));
     ASSERT_TRUE(destChildren && destChildren->size() == 1);
     ASSERT_STREQ(destChildren->get(0)->getName(), backupName2);
+
+    // Recreate the second backup to test clashes in the destination when moving the contents.
+    err = synchronousSyncFolder(0,
+                                nullptr,
+                                MegaSync::TYPE_BACKUP,
+                                localFolderPath2.u8string().c_str(),
+                                backupName2,
+                                INVALID_HANDLE,
+                                nullptr);
+    ASSERT_TRUE(err == API_OK) << "Recreate backup folder 2 failed (error: " << err << ")";
+    bkpId = mApi[0].lastSyncBackupId;
+    newBkp.reset(megaApi[0]->getSyncByBackupId(bkpId));
+    ASSERT_TRUE(newBkp) << "Sync not found for recreated second backup";
+
+    // Remove the recreated second backup, with the same name, to test clahes when moving contents.
+    RequestTracker removeTracker3{megaApi[0].get()};
+    megaApi[0]->removeSync(bkpId, &removeTracker3);
+    ASSERT_EQ(API_OK, removeTracker3.waitForResult());
+    RequestTracker moveNodesTracker2{megaApi[0].get()};
+    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(newBkp->getMegaHandle(),
+                                                    nhrb,
+                                                    &moveNodesTracker2);
+    ASSERT_EQ(API_EEXIST, moveNodesTracker2.waitForResult());
+
 #endif
 }
 
