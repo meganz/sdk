@@ -39,6 +39,11 @@ FileInfo File::info() const
     return mContext->info();
 }
 
+FileRangeVector File::ranges() const
+{
+    return mContext->ranges();
+}
+
 void File::read(FileReadCallback callback, std::uint64_t offset, std::uint64_t length)
 {
     // Delegate.
@@ -49,11 +54,6 @@ void File::read(FileReadCallback callback, const FileRange& range)
 {
     // Ask the context to perform the read.
     mContext->read(FileReadRequest{std::move(callback), range});
-}
-
-FileRangeVector File::ranges() const
-{
-    return mContext->ranges();
 }
 
 void File::ref()

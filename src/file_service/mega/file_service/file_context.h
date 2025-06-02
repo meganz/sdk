@@ -116,11 +116,11 @@ public:
     // Retrieve information about this file.
     FileInfo info() const;
 
-    // Read data from this file.
-    void read(FileReadRequest request);
-
     // What ranges of this file are currently in storage?
     FileRangeVector ranges() const;
+
+    // Read data from this file.
+    void read(FileReadRequest request);
 
     // Let the service know you want it to keep this file in storage.
     void ref();

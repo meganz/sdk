@@ -398,13 +398,6 @@ FileInfo FileContext::info() const
     return FileInfo(FileContextBadge(), mInfo);
 }
 
-void FileContext::read(FileReadRequest request)
-{
-    // Couldn't execute the read as a write is in progress.
-    if (!execute(request))
-        queue(std::move(request));
-}
-
 FileRangeVector FileContext::ranges() const
 {
     // Will store the ranges we'll return our caller.
@@ -418,6 +411,13 @@ FileRangeVector FileContext::ranges() const
 
     // Return ranges to our caller.
     return ranges;
+}
+
+void FileContext::read(FileReadRequest request)
+{
+    // Couldn't execute the read as a write is in progress.
+    if (!execute(request))
+        queue(std::move(request));
 }
 
 void FileContext::ref()

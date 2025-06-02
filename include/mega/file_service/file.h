@@ -33,13 +33,13 @@ public:
     // Retrieve information about this file.
     FileInfo info() const;
 
+    // What ranges of this file are currently in storage?
+    FileRangeVector ranges() const;
+
     // Read data from this file.
     void read(FileReadCallback callback, std::uint64_t offset, std::uint64_t length);
 
     void read(FileReadCallback callback, const FileRange& range);
-
-    // What ranges of this file are currently in storage?
-    FileRangeVector ranges() const;
 
     // Let the service know you want it to keep this file in storage.
     void ref();
