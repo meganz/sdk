@@ -1855,6 +1855,8 @@ bool CommandLogin::procresult(Result r, JSON& json)
     bool fa = false;
     bool ach = false;
 
+    bool missingRSAkeys = false;
+
     for (;;)
     {
         switch (json.getnameid())
@@ -1961,8 +1963,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     }
 
                     // add missing RSA keypair
-                    LOG_info << "Generating and adding missing RSA keypair";
-                    client->setkeypair();
+                    missingRSAkeys = true;
                 }
                 else
                 {
@@ -1977,8 +1978,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         else if (!client->ephemeralSessionPlusPlus && !client->ephemeralSession)
                         {
                             // logging in with tsid to an account without a RSA keypair
-                            LOG_info << "Generating and adding missing RSA keypair";
-                            client->setkeypair();
+                            missingRSAkeys = true;
                         }
                     }
                     else
@@ -2032,6 +2032,11 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 client->achievements_enabled = ach;
                 // Force to create own user
                 client->finduser(me, 1);
+
+                if (missingRSAkeys)
+                {
+                    client->initializekeys();
+                }
 
                 if (len_sek)
                 {

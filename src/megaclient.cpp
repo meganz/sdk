@@ -14718,7 +14718,7 @@ void MegaClient::confirmsignuplink2(const byte *code, unsigned len)
 }
 
 // generate and configure encrypted private key, plaintext public key
-void MegaClient::setkeypair()
+pair<string, string> MegaClient::setkeypair()
 {
     CryptoPP::Integer newPubKey[AsymmCipher::PUBKEY];
 
@@ -14736,15 +14736,18 @@ void MegaClient::setkeypair()
                   ~(static_cast<size_t>(SymmCipher::BLOCKSIZE) - 1));
     rng.genblock((byte*)(privks.data() + t), privks.size() - t);
 
-    key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), privks.size());
+    string privkEncrypted;
+    privkEncrypted.resize(privks.size());
+    key.ecb_encrypt((byte*)privks.data(), (byte*)privkEncrypted.data(), privks.size());
 
     reqs.add(new CommandSetKeyPair(this,
-                                      (const byte*)privks.data(),
-                                      unsigned(privks.size()),
-                                      (const byte*)pubks.data(),
-                                      unsigned(pubks.size())));
+                                   (const byte*)privkEncrypted.data(),
+                                   unsigned(privkEncrypted.size()),
+                                   (const byte*)pubks.data(),
+                                   unsigned(pubks.size())));
 
     mKeyManager.setPostRegistration(true);
+    return {privks, pubks};
 }
 
 bool MegaClient::fetchsc(DbTable* stateCacheTable)
@@ -14922,7 +14925,7 @@ bool MegaClient::fetchsc(DbTable* stateCacheTable)
     {
         // nodes are not loaded, proceed to load them only after Users and PCRs are loaded,
         // since Node::unserialize() will call mergenewshare(), and the latter requires
-        // Users and PCRs to be available
+        // Users and setkeypairs to be available
         if (!mNodeManager.loadNodes())
         {
             return false;
@@ -15596,6 +15599,19 @@ void MegaClient::resetScForFetchnodes()
 
 void MegaClient::initializekeys()
 {
+    string privRSA = mPrivKey;
+    string pubRSA;
+    if (pubk.isvalid())
+        pubk.serializekey(&pubRSA, AsymmCipher::PUBKEY);
+    if (!pubk.isvalid() && loggedin() != EPHEMERALACCOUNTPLUSPLUS)
+    {
+        LOG_info << "Generating and adding missing RSA keypair";
+        assert(privRSA.empty() && pubRSA.empty());
+        auto RSAkeys = setkeypair();
+        privRSA = Base64::btoa(RSAkeys.first);
+        pubRSA = Base64::btoa(RSAkeys.second);
+    }
+
     string prEd255, puEd255;    // keypair for Ed25519  --> MegaClient::signkey
     string prCu255, puCu255;    // keypair for Cu25519  --> MegaClient::chatkey
     string sigCu255, sigPubk;   // signatures for Cu25519 and RSA
@@ -15780,8 +15796,10 @@ void MegaClient::initializekeys()
     else if (!signkey && !chatkey)       // THERE ARE NO KEYS
     {
         // Check completeness of keypairs
-        if (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size()
-                || (!pubk.isvalid() && loggedin() != EPHEMERALACCOUNTPLUSPLUS))  // E++ accounts don't have RSA keys
+        sessiontype_t sessionType = loggedin();
+        if (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size() ||
+            (!pubk.isvalid() && sessionType != EPHEMERALACCOUNTPLUSPLUS &&
+             sessionType != FULLACCOUNT)) // E++ accounts don't have RSA keys
         {
             LOG_warn << "Public keys and/or signatures found without their respective private key.";
 
@@ -15819,7 +15837,7 @@ void MegaClient::initializekeys()
             // save private keys into the ^!keys attribute
             assert(mKeyManager.generation() == 0);  // creating them, no init() done yet
             mKeyManager.setKey(key);
-            mKeyManager.init(prEd255, prCu255, mPrivKey);
+            mKeyManager.init(prEd255, prCu255, privRSA);
 
             // We are initializing the keys, so it's safe to assume that authrings are empty
             mAuthRings.emplace(ATTR_AUTHRING, AuthRing(ATTR_AUTHRING));
@@ -15847,6 +15865,8 @@ void MegaClient::initializekeys()
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
             {
                 // prepare signatures
+                AsymmCipher pubk;
+                pubk.setkey(AsymmCipher::PUBKEY, (const byte*)pubRSA.data(), (int)pubRSA.size());
                 string pubkStr;
                 pubk.serializekeyforjs(pubkStr);
                 newSignKey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);

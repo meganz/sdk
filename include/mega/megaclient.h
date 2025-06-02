@@ -617,7 +617,7 @@ public:
     void resendsignuplink2(const char*, const char *);
 
     void confirmsignuplink2(const byte*, unsigned);
-    void setkeypair();
+    pair<string, string> setkeypair();
 
     // prelogin: e-mail
     void prelogin(const char* email, CommandPrelogin::Completion completion = nullptr);
