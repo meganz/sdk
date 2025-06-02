@@ -1430,7 +1430,8 @@ reexecute:
                  *
                  * See: https://tools.ietf.org/html/rfc7230#section-3.2.2
                  */
-                parser->flags &= ~F_CHUNKED;
+                parser->flags &= static_cast<unsigned char>(~F_CHUNKED & 0x7F);
+                // flags is 7 bits, apply mask to avoid data type conversion warning
               }
               break;
 
