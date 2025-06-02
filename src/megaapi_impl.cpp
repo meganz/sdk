@@ -8806,14 +8806,27 @@ static void encodeCoordinates(double latitude, double longitude, int& lat, int& 
     }
 }
 
-void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener)
+void MegaApiImpl::setNodeCoordinates(std::variant<MegaNode*, MegaHandle> nodeOrNodeHandle,
+                                     bool unshareable,
+                                     double latitude,
+                                     double longitude,
+                                     MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
 
-    if(node)
+    MegaHandle nodeHandle{INVALID_HANDLE};
+    if (std::holds_alternative<MegaNode*>(nodeOrNodeHandle))
     {
-        request->setNodeHandle(node->getHandle());
+        if (auto node{std::get<MegaNode*>(nodeOrNodeHandle)})
+        {
+            nodeHandle = node->getHandle();
+        }
     }
+    else if (std::holds_alternative<MegaHandle>(nodeOrNodeHandle))
+    {
+        nodeHandle = std::get<MegaHandle>(nodeOrNodeHandle);
+    }
+    request->setNodeHandle(nodeHandle);
 
     int lat, lon;
     encodeCoordinates(latitude, longitude, lat, lon);
