@@ -11,6 +11,7 @@ namespace file_service
 {
 
 #define DEFINE_FILE_RESULTS(expander) \
+    expander(INVALID_ARGUMENTS, "The file operation was passed invalid arguments") \
     expander(CANCELLED, "The file operation has been cancelled") \
     expander(FAILED, "The file operation has failed") \
     expander(SUCCESS, "The file operation has succeeded")
