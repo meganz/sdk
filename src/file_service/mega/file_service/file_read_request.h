@@ -2,6 +2,7 @@
 
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_range.h>
+#include <mega/file_service/file_read_request_forward.h>
 
 namespace mega
 {
