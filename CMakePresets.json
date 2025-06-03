@@ -141,6 +141,41 @@
                 "ENABLE_SYNC": "OFF",
                 "USE_LIBUV": "OFF"
             }
+        },
+        {
+            "name": "dev",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_ASAN": "OFF",
+                "ENABLE_C_ARES_BACKEND": "OFF",
+                "ENABLE_CHAT": "OFF",
+                "ENABLE_DRIVE_NOTIFICATIONS": "OFF",
+                "ENABLE_ISOLATED_GFX": "ON",
+                "ENABLE_JAVA_BINDINGS": "OFF",
+                "ENABLE_LOG_PERFORMANCE": "OFF",
+                "ENABLE_QT_BINDINGS": "OFF",
+                "ENABLE_SDKLIB_EXAMPLES": "ON",
+                "ENABLE_SDKLIB_TESTS": "ON",
+                "ENABLE_SDKLIB_WERROR": "ON",
+                "ENABLE_SYNC": "ON",
+                "ENABLE_TSAN": "OFF",
+                "ENABLE_UBSAN": "OFF"
+            }
+        },
+        {
+            "name": "dev-unix",
+            "inherits": [
+                "unix",
+                "dev"
+            ]
+        },
+        {
+            "name": "dev-windows",
+            "inherits": [
+                "windows",
+                "dev"
+            ]
         }
     ]
 }
