@@ -18,6 +18,7 @@ target_sources(SDKlib PRIVATE
                       database_builder.cpp
                       displaced_buffer.cpp
                       file.cpp
+                      file_access.cpp
                       file_buffer.cpp
                       file_context.cpp
                       file_id.cpp
