@@ -32,6 +32,17 @@ namespace file_service
 
 using namespace common;
 
+void FileContext::addRange(const FileRange& range, Transaction& transaction)
+{
+    auto query = transaction.query(mService.queries().mAddFileRange);
+
+    query.param(":begin").set(range.mBegin);
+    query.param(":end").set(range.mEnd);
+    query.param(":id").set(mInfo->id());
+
+    query.execute();
+}
+
 void FileContext::adjustRef(std::int64_t adjustment)
 {
     // Convenience.
@@ -145,19 +156,15 @@ void FileContext::cancel()
 
 void FileContext::completed(Buffer& buffer,
                             FileRangeContextPtrMap::Iterator iterator,
-                            const FileRange& range)
+                            FileRange range)
 try
 {
-    // Convenience.
-    auto offset = range.mBegin;
-    auto length = range.mEnd - offset;
-
     // No data for this range was downloaded.
-    if (!length)
+    if (range.mBegin == range.mEnd)
         return mRanges.remove(iterator), void();
 
     // Can't flush this range's data to the storage.
-    if (!buffer.copy(*mBuffer, 0, offset, length))
+    if (!buffer.copy(*mBuffer, 0, range.mBegin, range.mEnd - range.mBegin))
         return mRanges.remove(iterator), void();
 
     // Figure out what ranges we can coalesce with.
@@ -175,12 +182,11 @@ try
             return iterator;
 
         // Neighbor isn't contiguous.
-        if (candidate->first.mEnd != offset)
+        if (candidate->first.mEnd != range.mBegin)
             return iterator;
 
-        // Recompute offset and length.
-        offset = candidate->first.mBegin;
-        length = range.mEnd - offset;
+        // Update range.
+        range.mBegin = candidate->first.mBegin;
 
         // Return iterator to caller.
         return candidate;
@@ -203,8 +209,8 @@ try
         if (candidate->first.mBegin != range.mEnd)
             return candidate;
 
-        // Recompute length.
-        length = candidate->first.mEnd - offset;
+        // Update range.
+        range.mEnd = candidate->first.mEnd;
 
         // Return iterator to caller.
         return std::next(candidate);
@@ -213,36 +219,22 @@ try
     // Mark range as present.
     iterator->second.reset();
 
-    // Convenience.
-    auto& queries = mService.queries();
+    auto transaction = mService.database().transaction();
 
     // Remove obsolete ranges from the database.
-    auto transaction = mService.database().transaction();
-    auto query = transaction.query(queries.mRemoveFileRanges);
-
-    query.param(":begin").set(offset);
-    query.param(":end").set(offset + length);
-    query.param(":id").set(mInfo->id());
-    query.execute();
+    removeRanges(range, transaction);
 
     // Add our new range to the database.
-    query = transaction.query(queries.mAddFileRange);
+    addRange(range, transaction);
 
-    query.param(":begin").set(offset);
-    query.param(":end").set(offset + length);
-    query.param(":id").set(mInfo->id());
-    query.execute();
-
-    // Persist database changes.
-    transaction.commit();
-
-    // Remove contiguous ranges.
+    // Remove obsolete ranges from memory.
     mRanges.remove(begin, end);
 
-    // Add updated range.
-    mRanges.add(std::piecewise_construct,
-                std::forward_as_tuple(offset, offset + length),
-                std::forward_as_tuple(nullptr));
+    // Add our new range to memory.
+    mRanges.add(range, nullptr);
+
+    // Persist our changes.
+    transaction.commit();
 }
 
 catch (std::runtime_error& exception)
@@ -451,6 +443,17 @@ void FileContext::queue(Request&& request)
     // Push the request onto the end of our queue.
     mRequests.emplace_back(std::in_place_type_t<std::remove_reference_t<Request>>(),
                            std::forward<Request>(request));
+}
+
+void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
+{
+    auto query = transaction.query(mService.queries().mRemoveFileRanges);
+
+    query.param(":begin").set(range.mBegin);
+    query.param(":end").set(range.mEnd);
+    query.param(":id").set(mInfo->id());
+
+    query.execute();
 }
 
 FileContext::FileContext(Activity activity,

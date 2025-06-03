@@ -25,7 +25,7 @@ public:
     // Called when a file range has been downloaded.
     virtual void completed(Buffer& buffer,
                            FileRangeContextPtrMap::Iterator iterator,
-                           const FileRange& range) = 0;
+                           FileRange range) = 0;
 
     // Called when a file read request has been completed.
     virtual void completed(BufferPtr buffer, FileReadRequest&& request) = 0;

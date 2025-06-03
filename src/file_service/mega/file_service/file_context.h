@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mega/common/activity_monitor.h>
+#include <mega/common/transaction_forward.h>
 #include <mega/file_service/buffer_pointer.h>
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
@@ -32,6 +33,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     using FileRequest = std::variant<FileReadRequest>;
     using FileRequestList = std::list<FileRequest>;
 
+    // Add a range to the database.
+    void addRange(const FileRange& range, common::Transaction& transaction);
+
     // Adjust this file's reference count.
     void adjustRef(std::int64_t adjustment);
 
@@ -44,7 +48,7 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Called when a file range has been downloaded.
     void completed(Buffer& buffer,
                    FileRangeContextPtrMap::Iterator iterator,
-                   const FileRange& range) override;
+                   FileRange range) override;
 
     // Called when a file read request has been completed.
     void completed(BufferPtr buffer, FileReadRequest&& request) override;
@@ -81,6 +85,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Queue a request for later execution.
     template<typename Request>
     void queue(Request&& request);
+
+    // Remove zero or more ranges from the database.
+    void removeRanges(const FileRange& range, common::Transaction& transaction);
 
     // Keep our service alive until we're dead.
     common::Activity mActivity;
