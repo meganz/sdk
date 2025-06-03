@@ -2378,7 +2378,8 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         arg("msg", msg);
     }
 
-    if (action != OPCA_REMIND)  // for reminders, need the actionpacket to update `uts`
+    if (action != OPCA_REMIND &&
+        action != OPCA_ADD) // for reminders, need the actionpacket to update `uts`
     {
         notself(client);
     }
@@ -2441,6 +2442,7 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
     }
 
     // if the PCR has been added, the response contains full details
+    // Validate returned values. PCR should have been added by the "opc" action packet.
     handle p = UNDEF;
     m_time_t ts = 0;
     m_time_t uts = 0;
@@ -2485,10 +2487,24 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
                     return true;
                 }
 
-                pcr = new PendingContactRequest(p, eValue, m, ts, uts, msg, true);
-                client->mappcr(p, unique_ptr<PendingContactRequest>(pcr));
+                pcr = client->pcrindex.count(p) ? client->pcrindex[p].get() : nullptr;
 
-                client->notifypcr(pcr);
+                if (!pcr)
+                {
+                    LOG_err << "Error in CommandSetPendingContact. Pending Contact Request "
+                            << toHandle(p) << " has not been added by the action packet.";
+                }
+                else
+                {
+                    // Update the message if it was received empty in the action packet.
+                    // API may send it empty in the action packets to avoid spamming.
+                    if (msg && pcr->msg.empty())
+                    {
+                        pcr->update(nullptr, nullptr, pcr->ts, pcr->uts, msg, pcr->isoutgoing);
+                        client->notifypcr(pcr);
+                    }
+                }
+
                 doComplete(p, API_OK, this->action);
                 return true;
 
