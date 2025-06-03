@@ -70,11 +70,12 @@ void FileContext::adjustRef(std::int64_t adjustment)
 void FileContext::cancel(FileRequest& request)
 {
     // Cancel the request.
-    std::visit(overloaded{[&](FileReadRequest& request)
-                          {
-                              failed(std::move(request), FILE_CANCELLED);
-                          }},
-               request);
+    std::visit(
+        [&](auto& request)
+        {
+            failed(std::move(request), FILE_CANCELLED);
+        },
+        request);
 }
 
 void FileContext::cancel()
@@ -261,20 +262,30 @@ void FileContext::completed(BufferPtr buffer, FileReadRequest&& request)
     // Sanity.
     assert(buffer);
 
+    // Convenience.
+    auto [begin, end] = request.mRange;
+
+    // Complete the user's request.
+    completed(&FileReadWriteState::readCompleted,
+              std::move(request),
+              FileReadResult{*buffer, begin, end - begin},
+              std::move(buffer));
+}
+
+template<typename Request, typename Result, typename... Captures>
+void FileContext::completed(void (FileReadWriteState::*complete)(),
+                            Request&& request,
+                            Result result,
+                            Captures&&... captures)
+{
     // Called to complete the user's request.
-    auto callback = [](auto& buffer, auto& context, auto& request, auto&)
+    auto callback = [=](auto& callback, auto& context, auto&, auto&&...)
     {
-        // Convenience.
-        auto [begin, end] = request.mRange;
-
-        // Populate result.
-        FileReadResult result = {*buffer, begin, end - begin}; // result
-
         // Let the user know their read has completed.
-        request.mCallback(std::move(result));
+        callback(result);
 
         // Let the context know the read has completed.
-        context->mReadWriteState.readCompleted();
+        (context->mReadWriteState.*complete)();
 
         // See if we can't execute any queued requests.
         context->execute();
@@ -282,10 +293,10 @@ void FileContext::completed(BufferPtr buffer, FileReadRequest&& request)
 
     // Queue the user's request for completion.
     mService.execute(std::bind(std::move(callback),
-                               std::move(buffer),
+                               std::move(request.mCallback),
                                shared_from_this(),
-                               std::move(request),
-                               std::placeholders::_1));
+                               std::placeholders::_1,
+                               std::forward<Captures>(captures)...));
 }
 
 bool FileContext::execute(FileReadRequest& request)
@@ -356,11 +367,12 @@ bool FileContext::execute(FileReadRequest& request)
 
 bool FileContext::execute(FileRequest& request)
 {
-    return std::visit(overloaded{[this](FileReadRequest& request)
-                                 {
-                                     return execute(request);
-                                 }},
-                      request);
+    return std::visit(
+        [this](auto& request)
+        {
+            return execute(request);
+        },
+        request);
 }
 
 void FileContext::execute()
@@ -382,14 +394,42 @@ void FileContext::execute()
 
 void FileContext::failed(FileReadRequest&& request, FileResult result)
 {
-    // Queue the user's callback for execution.
-    mService.execute(std::bind(std::move(request.mCallback), unexpected(result)));
+    failed(&FileReadWriteState::readCompleted, std::move(request), result);
+}
 
-    // Let the context know the read's completed.
-    mReadWriteState.readCompleted();
+template<typename Request>
+void FileContext::failed(void (FileReadWriteState::*complete)(),
+                         Request&& request,
+                         FileResult result)
+{
+    // Sanity.
+    assert(complete);
 
-    // See if we can't execute any queued requests.
-    execute();
+    // Called to fail the user's request.
+    auto callback = [=](auto& cookie, auto& request, auto&)
+    {
+        // Let the user know their request has failed.
+        request.mCallback(unexpected(result));
+
+        // Check if our context is still alive.
+        auto context = cookie.lock();
+
+        // Context isn't alive.
+        if (!context)
+            return;
+
+        // Let the context know the request has completed.
+        (context->mReadWriteState.*complete)();
+
+        // Try and execute any queued requests.
+        execute();
+    }; // callback
+
+    // Queue the user's request for completion.
+    mService.execute(std::bind(std::move(callback),
+                               weak_from_this(),
+                               std::move(request),
+                               std::placeholders::_1));
 }
 
 std::unique_lock<std::recursive_mutex> FileContext::lock() const

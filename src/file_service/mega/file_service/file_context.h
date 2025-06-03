@@ -49,6 +49,13 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Called when a file read request has been completed.
     void completed(BufferPtr buffer, FileReadRequest&& request) override;
 
+    // Called when a file request has been completed.
+    template<typename Request, typename Result, typename... Captures>
+    void completed(void (FileReadWriteState::*complete)(),
+                   Request&& request,
+                   Result result,
+                   Captures&&... captures);
+
     // Try and execute a read request.
     bool execute(FileReadRequest& request);
 
@@ -60,6 +67,10 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Called when a file read request has failed.
     void failed(FileReadRequest&& request, FileResult result) override;
+
+    // Called when a file request has failed.
+    template<typename Request>
+    void failed(void (FileReadWriteState::*complete)(), Request&& request, FileResult result);
 
     // Acquire a lock on this manager.
     std::unique_lock<std::recursive_mutex> lock() const override;
