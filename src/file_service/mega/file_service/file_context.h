@@ -16,7 +16,7 @@
 #include <mega/file_service/file_service_context_forward.h>
 #include <mega/types.h>
 
-#include <forward_list>
+#include <list>
 #include <memory>
 #include <mutex>
 #include <variant>
@@ -30,7 +30,7 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 {
     // Convenience.
     using FileRequest = std::variant<FileReadRequest>;
-    using FileRequestList = std::forward_list<FileRequest>;
+    using FileRequestList = std::list<FileRequest>;
 
     // Adjust this file's reference count.
     void adjustRef(std::int64_t adjustment);

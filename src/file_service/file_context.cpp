@@ -354,10 +354,12 @@ std::recursive_mutex& FileContext::mutex() const
 template<typename Request>
 void FileContext::queue(Request&& request)
 {
+    // Make sure we're the only one changing the queue.
+    std::lock_guard guard(mRequestsLock);
+
     // Push the request onto the end of our queue.
-    mRequests.emplace_after(mRequests.end(),
-                            std::in_place_type_t<std::remove_reference_t<Request>>(),
-                            std::forward<Request>(request));
+    mRequests.emplace_back(std::in_place_type_t<std::remove_reference_t<Request>>(),
+                           std::forward<Request>(request));
 }
 
 FileContext::FileContext(Activity activity,
