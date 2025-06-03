@@ -33,6 +33,8 @@ std::ostream& operator<<(std::ostream& ostream, const FileRange& range);
 
 FileRange combine(const FileRange& lhs, const FileRange& rhs);
 
+FileRange extend(const FileRange& range, std::uint64_t adjustment);
+
 std::string toString(const FileRange& range);
 
 } // file_service

@@ -25,6 +25,14 @@ FileRange combine(const FileRange& lhs, const FileRange& rhs)
     return FileRange(begin, end);
 }
 
+FileRange extend(const FileRange& range, std::uint64_t adjustment)
+{
+    auto begin = range.mBegin - std::min(adjustment, range.mBegin);
+    auto end = range.mEnd + adjustment;
+
+    return FileRange(begin, end);
+}
+
 std::string toString(const FileRange& range)
 {
     return format("[0x%" PRIx64 "-0x%" PRIx64 "]", range.mBegin, range.mEnd);
