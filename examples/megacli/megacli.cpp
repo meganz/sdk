@@ -5091,7 +5091,13 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_encryptLink, sequence(text("encryptlink"), param("link"), param("password")));
     p->Add(exec_decryptLink, sequence(text("decryptlink"), param("link"), param("password")));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
-    p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
+    p->Add(exec_invite,
+           sequence(text("invite"),
+                    param("dstemail"),
+                    opt(either(sequence(text("clink"), param("link")),
+                               text("del"),
+                               text("rmd"),
+                               param("origemail")))));
 
     p->Add(exec_clink, sequence(text("clink"), either(text("renew"), sequence(text("query"), param("handle")), sequence(text("del"), opt(param("handle"))))));
 
