@@ -220,7 +220,7 @@ public:
      * location.
      */
     void renameDBToMatchTarget(const SyncConfig& targetConfig,
-                               const FileSystemAccess& fsAccess,
+                               FileSystemAccess& fsAccess,
                                const MegaClient& client) const;
 
     // How should the engine detect filesystem changes?

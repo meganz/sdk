@@ -564,20 +564,20 @@ std::optional<std::filesystem::path> SyncConfig::getSyncDbPath(const FileSystemA
 }
 
 void SyncConfig::renameDBToMatchTarget(const SyncConfig& targetConfig,
-                                       const FileSystemAccess& fsAccess,
+                                       FileSystemAccess& fsAccess,
                                        const MegaClient& client) const
 {
-    const auto currentDbPath = getSyncDbPath(fsAccess, client);
-    if (!currentDbPath)
-        return;
-
     const auto newDbFileName = targetConfig.getSyncDbStateCacheName(targetConfig.mLocalPathFsid,
                                                                     targetConfig.mRemoteNode,
                                                                     client.me);
-    std::filesystem::path newDbPath{
-        client.dbaccess->databasePath(fsAccess, newDbFileName, DbAccess::DB_VERSION)
-            .asPlatformEncoded(false)};
-    std::filesystem::rename(*currentDbPath, newDbPath);
+
+    const auto currentDbFileName =
+        targetConfig.getSyncDbStateCacheName(mLocalPathFsid, mRemoteNode, client.me);
+
+    client.dbaccess->renameDBFiles(
+        fsAccess,
+        client.dbaccess->databasePath(fsAccess, currentDbFileName, DbAccess::DB_VERSION),
+        client.dbaccess->databasePath(fsAccess, newDbFileName, DbAccess::DB_VERSION));
 }
 
 std::pair<error, SyncConfig> buildSyncConfig(const SyncConfig::Type syncType,
