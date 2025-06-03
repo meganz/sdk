@@ -482,10 +482,20 @@ struct MEGA_API FileAccess
     virtual void updatelocalname(const LocalPath&, bool force) = 0;
 
     // absolute position read, with NUL padding
-    bool fread(string*, unsigned, unsigned, m_off_t, FSLogging);
+    bool fread(string* buffer,
+               unsigned long length,
+               unsigned long padding,
+               m_off_t offset,
+               FSLogging logging,
+               bool* retry = nullptr);
 
     // absolute position read to byte buffer
-    bool frawread(byte *, unsigned, m_off_t, bool caller_opened, FSLogging);
+    bool frawread(void* buffer,
+                  unsigned long length,
+                  m_off_t offset,
+                  bool alreadyOpened,
+                  FSLogging logging,
+                  bool* retry = nullptr);
 
     // After a successful nonblocking fopen(), call openf() to really open the file (by localname)
     // (this is a lazy-type approach in case we don't actually need to open the file after finding out type/size/mtime).
@@ -499,7 +509,11 @@ struct MEGA_API FileAccess
     virtual void fclose() = 0;
 
     // absolute position write
-    virtual bool fwrite(const byte *, unsigned, m_off_t) = 0;
+    virtual bool fwrite(const void* buffer,
+                        unsigned long length,
+                        m_off_t position,
+                        unsigned long* numWritten = nullptr,
+                        bool* retry = nullptr) = 0;
 
     // Stat an already open file.
     virtual bool fstat(m_time_t& modified, m_off_t& size) = 0;
@@ -533,7 +547,7 @@ protected:
     int numAsyncReads;
 
     // system-specific raw read/open/close to be provided by platform implementation.   fopen / openf / fread etc are implemented by calling these.
-    virtual bool sysread(byte *, unsigned, m_off_t) = 0;
+    virtual bool sysread(void* buffer, unsigned long length, m_off_t offset, bool* retry) = 0;
     virtual bool sysstat(m_time_t*, m_off_t*, FSLogging) = 0;
     virtual bool sysopen(bool async, FSLogging) = 0;
     virtual void sysclose() = 0;

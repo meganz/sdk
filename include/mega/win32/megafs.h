@@ -180,13 +180,17 @@ public:
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     void fclose() override;
-    bool fwrite(const byte *, unsigned, m_off_t);
+    bool fwrite(const void* buffer,
+                unsigned long length,
+                m_off_t position,
+                unsigned long* numWritten = nullptr,
+                bool* retry = nullptr) override;
 
     bool fstat(m_time_t& modified, m_off_t& fileSize) override;
 
     bool ftruncate(m_off_t newSize) override;
 
-    bool sysread(byte *, unsigned, m_off_t) override;
+    bool sysread(void* buffer, unsigned long length, m_off_t offset, bool* retry) override;
     bool sysstat(m_time_t*, m_off_t*, FSLogging) override;
     bool sysopen(bool async, FSLogging) override;
     void sysclose() override;

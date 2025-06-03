@@ -1151,43 +1151,54 @@ AsyncIOContext *FileAccess::newasynccontext()
     return new AsyncIOContext();
 }
 
-bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos, FSLogging fsl)
+bool FileAccess::fread(string* buffer,
+                       unsigned long length,
+                       unsigned long padding,
+                       m_off_t offset,
+                       FSLogging logging,
+                       bool* cretry)
 {
-    if (!openf(fsl))
-    {
+    // Make sure the file's been opened.
+    if (!openf(logging))
         return false;
-    }
 
-    bool r;
+    // Make sure our buffer is large enough.
+    buffer->resize(length + padding);
 
-    dst->resize(len + pad);
+    // Try and perform the read.
+    auto result = sysread(buffer->data(), length, offset, cretry);
 
-    r = sysread((byte*)dst->data(), len, pos);
-    if (r)
-    {
-        memset((char*)dst->data() + len, 0, pad);
-    }
+    // Read was successful so zero pad bytes.
+    if (result && padding)
+        std::memset(buffer->data() + length, 0, padding);
 
+    // Close the file if necessary.
     closef();
 
-    return r;
+    // Let the caller know if the read was successful.
+    return result;
 }
 
-bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos, bool caller_opened, FSLogging fsl)
+bool FileAccess::frawread(void* buffer,
+                          unsigned long length,
+                          m_off_t offset,
+                          bool alreadyOpened,
+                          FSLogging logging,
+                          bool* cretry)
 {
-    if (!caller_opened && !openf(fsl))
-    {
+    // Couldn't open the file.
+    if (!alreadyOpened && !openf(logging))
         return false;
-    }
 
-    bool r = sysread(dst, len, pos);
+    // Try and perform the read.
+    auto result = sysread(buffer, length, offset, cretry);
 
-    if (!caller_opened)
-    {
+    // Close the file if necessary.
+    if (!alreadyOpened)
         closef();
-    }
 
-    return r;
+    // Let the caller know if the read was successful.
+    return result;
 }
 
 AsyncIOContext::~AsyncIOContext()

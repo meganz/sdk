@@ -505,15 +505,34 @@ void PosixFileAccess::updatelocalname(const LocalPath& name, bool force)
     }
 }
 
-bool PosixFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
+bool PosixFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* retry)
 {
-    retry = false;
+    // Sanity.
+    assert(buffer);
+    assert(offset >= 0);
+
+    // Reads are never retriable on POSIX systems.
+    if (retry)
+        *retry = false;
+
 #ifndef __ANDROID__
-    return pread(fd, (char*)dst, len, pos) == len;
+    // Perform the read.
+    auto result = pread(fd, buffer, length, offset);
 #else
-    lseek64(fd, pos, SEEK_SET);
-    return read(fd, (char*)dst, len) == len;
+    // Couldn't set the file position.
+    if (lseek64(fd, offset, SEEK_SET) < 0)
+        return false;
+
+    // Perform the read.
+    auto result = read(fd, buffer, length);
 #endif
+
+    // Read failed.
+    if (result < 0)
+        return false;
+
+    // Read was successful if all bytes were read.
+    return static_cast<unsigned long>(result) == length;
 }
 
 void PosixFileAccess::fclose()
@@ -531,15 +550,49 @@ void PosixFileAccess::fclose()
     fd = -1;
 }
 
-bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
+bool PosixFileAccess::fwrite(const void* buffer,
+                             unsigned long length,
+                             m_off_t offset,
+                             unsigned long* numWritten,
+                             bool* retry)
 {
-    retry = false;
+    // Sanity.
+    assert(buffer);
+    assert(offset >= 0);
+
+    // Keeps logic simple.
+    auto numWritten_ = 0ul;
+
+    if (!numWritten)
+        numWritten = &numWritten_;
+
+    // Assume we can't write any data to file.
+    *numWritten = 0;
+
+    // Write failures are not retriable on POSIX systems.
+    if (retry)
+        *retry = false;
+
 #ifndef __ANDROID__
-    return pwrite(fd, data, len, pos) == len;
+    // Try and perform the write.
+    auto result = pwrite(fd, buffer, length, offset);
 #else
-    lseek64(fd, pos, SEEK_SET);
-    return write(fd, data, len) == len;
+    // Couldn't set file position.
+    if (lseek64(fd, pos, SEEK_SET) < 0)
+        return false;
+
+    // Try and perform the write.
+    auto result = write(fd, buffer, length);
 #endif
+    // Couldn't perform the write.
+    if (result < 0)
+        return false;
+
+    // Let the user know how many bytes were written.
+    *numWritten = static_cast<unsigned long>(result);
+
+    // Write is successful if all bytes were be written.
+    return length == *numWritten;
 }
 
 bool PosixFileAccess::fstat(m_time_t& modified, m_off_t& size)
