@@ -26,12 +26,16 @@ bool FileBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) 
     if (!buffer)
         return false;
 
+    // To avoid races in FileAccess.
+    [[maybe_unused]] auto retry = false;
+
     // Try and populate the user's buffer.
     return mFile.frawread(reinterpret_cast<byte*>(buffer),
                           static_cast<unsigned>(length),
                           static_cast<m_off_t>(offset),
                           true,
-                          FSLogging::noLogging);
+                          FSLogging::noLogging,
+                          &retry);
 }
 
 bool FileBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
@@ -46,10 +50,15 @@ bool FileBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t l
     if (!buffer)
         return false;
 
+    // To avoid races in FileAccess.
+    [[maybe_unused]] auto retry = false;
+
     // Try and write the caller's buffer to file.
     return mFile.fwrite(reinterpret_cast<const byte*>(buffer),
                         static_cast<unsigned>(length),
-                        static_cast<m_off_t>(offset));
+                        static_cast<m_off_t>(offset),
+                        nullptr,
+                        &retry);
 }
 
 bool FileBuffer::transfer(Buffer& target,
