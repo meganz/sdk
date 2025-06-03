@@ -1,5 +1,5 @@
+#include <mega/file_service/file_access.h>
 #include <mega/file_service/file_buffer.h>
-#include <mega/filesystem.h>
 
 #include <cassert>
 #include <memory>
@@ -26,16 +26,11 @@ bool FileBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) 
     if (!buffer)
         return false;
 
-    // To avoid races in FileAccess.
-    [[maybe_unused]] auto retry = false;
+    // Disambiguate.
+    using file_service::read;
 
     // Try and populate the user's buffer.
-    return mFile.frawread(reinterpret_cast<byte*>(buffer),
-                          static_cast<unsigned>(length),
-                          static_cast<m_off_t>(offset),
-                          true,
-                          FSLogging::noLogging,
-                          &retry);
+    return read(mFile, buffer, offset, length) == length;
 }
 
 bool FileBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
@@ -50,15 +45,11 @@ bool FileBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t l
     if (!buffer)
         return false;
 
-    // To avoid races in FileAccess.
-    [[maybe_unused]] auto retry = false;
+    // Disambiguate.
+    using file_service::write;
 
     // Try and write the caller's buffer to file.
-    return mFile.fwrite(reinterpret_cast<const byte*>(buffer),
-                        static_cast<unsigned>(length),
-                        static_cast<m_off_t>(offset),
-                        nullptr,
-                        &retry);
+    return write(mFile, buffer, offset, length) == length;
 }
 
 bool FileBuffer::transfer(Buffer& target,
