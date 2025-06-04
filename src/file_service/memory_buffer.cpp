@@ -64,10 +64,10 @@ bool MemoryBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t
     return true;
 }
 
-bool MemoryBuffer::transfer(Buffer& target,
-                            std::uint64_t offset0,
-                            std::uint64_t offset1,
-                            std::uint64_t length) const
+bool MemoryBuffer::copy(Buffer& target,
+                        std::uint64_t offset0,
+                        std::uint64_t offset1,
+                        std::uint64_t length) const
 {
     // Transfers to the same buffer are a no-op.
     if (this == &target)

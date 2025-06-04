@@ -51,17 +51,17 @@ bool DisplacedBuffer::write(const void* buffer, std::uint64_t offset, std::uint6
     return mBuffer->write(buffer, mDisplacement + offset, length);
 }
 
-bool DisplacedBuffer::transfer(Buffer& target,
-                               std::uint64_t offset0,
-                               std::uint64_t offset1,
-                               std::uint64_t length) const
+bool DisplacedBuffer::copy(Buffer& target,
+                           std::uint64_t offset0,
+                           std::uint64_t offset1,
+                           std::uint64_t length) const
 {
     // No buffer to delegate to.
     if (!mBuffer)
         return false;
 
     // Delegate transfer.
-    return mBuffer->transfer(target, mDisplacement + offset0, offset1, length);
+    return mBuffer->copy(target, mDisplacement + offset0, offset1, length);
 }
 
 DisplacedBufferPtr displace(BufferPtr buffer, std::uint64_t displacement)

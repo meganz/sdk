@@ -119,7 +119,7 @@ void FileContext::completed(Buffer& buffer,
         return mRanges.remove(iterator), void();
 
     // Can't flush this range's data to the storage.
-    if (!buffer.transfer(*mBuffer, 0, offset, length))
+    if (!buffer.copy(*mBuffer, 0, offset, length))
         return mRanges.remove(iterator), void();
 
     // Figure out what ranges we can coalesce with.

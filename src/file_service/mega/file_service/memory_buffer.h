@@ -24,11 +24,11 @@ public:
     // Write data into the buffer.
     bool write(const void* buffer, std::uint64_t offset, std::uint64_t length) override;
 
-    // Transfer data from this buffer into another buffer.
-    bool transfer(Buffer& target,
-                  std::uint64_t offset0,
-                  std::uint64_t offset1,
-                  std::uint64_t length) const override;
+    // Copy data from this buffer to another.
+    bool copy(Buffer& target,
+              std::uint64_t offset0,
+              std::uint64_t offset1,
+              std::uint64_t length) const override;
 }; // MemoryBuffer
 
 } // file_service
