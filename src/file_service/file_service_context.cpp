@@ -241,7 +241,7 @@ auto FileServiceContext::rangesFromDatabase(FileID id, Lock&& lock)
 
     FileRangeVector ranges;
 
-    while (query)
+    for (; query; ++query)
     {
         // Convenience.
         auto begin = query.field("begin").get<std::uint64_t>();
