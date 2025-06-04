@@ -120,13 +120,7 @@ NodeHandle FileID::toHandle() const
 
 std::string FileID::toString() const
 {
-    std::string string(16, '\x0');
-
-    auto length = Base64::btoa(reinterpret_cast<const byte*>(&mID), sizeof(mID), string.data());
-
-    string.resize(static_cast<std::size_t>(length));
-
-    return string;
+    return std::string(Base64Str<sizeof(mID)>(&mID));
 }
 
 std::uint64_t FileID::toU64() const
