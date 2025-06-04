@@ -4,6 +4,7 @@
 #include <mega/common/task_queue.h>
 #include <mega/common/transaction.h>
 #include <mega/common/utility.h>
+#include <mega/file_service/displaced_buffer.h>
 #include <mega/file_service/file_buffer.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
@@ -269,12 +270,12 @@ bool FileContext::execute(FileReadRequest& request)
     // We have a range that could satisfy this request.
     if (!added)
     {
-        // We've already downloaded the range.
-        if (!context)
-            return completed(mBuffer, request), true;
-
         // Range is still being downloaded.
-        context->queue(request);
+        if (context)
+            return context->queue(request), true;
+
+        // Range has already been downloaded.
+        completed(displace(mBuffer, begin), request);
 
         // Let our caller know the request was executed.
         return true;
