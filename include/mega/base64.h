@@ -54,30 +54,20 @@ struct Base64Str
     // provides a way to build the C string on the stack efficiently, using minimal space
     enum { STRLEN = (BINARYSIZE * 4 + 2) / 3};
     char chars[STRLEN + 1]; // sizeof(chars) can be larger due to alignment etc
-    Base64Str(const byte* b)
+
+    Base64Str(const void* b):
+        Base64Str(b, BINARYSIZE)
+    {}
+
+    Base64Str(const void* b, int size)
     {
-        #ifndef NDEBUG
-        int n =
-        #endif
-        Base64::btoa(b, BINARYSIZE, chars);
-        assert(static_cast<size_t>(n + 1) == sizeof(chars));
-    }
-    Base64Str(const byte* b, int size)
-    {
-        #ifndef NDEBUG
-        int n =
-        #endif
-        Base64::btoa(b, size, chars);
+        [[maybe_unused]] int n = Base64::btoa(reinterpret_cast<const byte*>(b), size, chars);
         assert(static_cast<size_t>(n + 1) <= sizeof(chars));
     }
-    Base64Str(const handle& h)
-    {
-        #ifndef NDEBUG
-        int n =
-        #endif
-        Base64::btoa((const byte*)&h, BINARYSIZE, chars);
-        assert(static_cast<size_t>(n + 1) == sizeof(chars));
-    }
+
+    Base64Str(const handle& h):
+        Base64Str(&h)
+    {}
     operator const char* () const
     {
         return chars;
