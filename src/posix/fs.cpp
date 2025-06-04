@@ -557,13 +557,16 @@ bool PosixFileAccess::fwrite(const void* buffer,
                              unsigned long length,
                              m_off_t offset,
                              unsigned long* numWritten,
-                             bool* retry)
+                             bool* cretry)
 {
     // Sanity.
     assert(buffer || !length);
     assert(offset >= 0);
 
     // Keeps logic simple.
+    if (!cretry)
+        cretry = &retry;
+
     auto numWritten_ = 0ul;
 
     if (!numWritten)
@@ -573,8 +576,7 @@ bool PosixFileAccess::fwrite(const void* buffer,
     *numWritten = 0;
 
     // Write failures are not retriable on POSIX systems.
-    if (retry)
-        *retry = false;
+    *cretry = false;
 
 #ifndef __ANDROID__
     // Try and perform the write.
