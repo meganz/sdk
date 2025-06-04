@@ -508,7 +508,7 @@ void PosixFileAccess::updatelocalname(const LocalPath& name, bool force)
 bool PosixFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* retry)
 {
     // Sanity.
-    assert(buffer);
+    assert(buffer || !length);
     assert(offset >= 0);
 
     // Reads are never retriable on POSIX systems.
@@ -557,7 +557,7 @@ bool PosixFileAccess::fwrite(const void* buffer,
                              bool* retry)
 {
     // Sanity.
-    assert(buffer);
+    assert(buffer || !length);
     assert(offset >= 0);
 
     // Keeps logic simple.

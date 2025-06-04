@@ -1158,6 +1158,9 @@ bool FileAccess::fread(string* buffer,
                        FSLogging logging,
                        bool* cretry)
 {
+    // Sanity.
+    assert(buffer);
+
     // Make sure the file's been opened.
     if (!openf(logging))
         return false;
@@ -1186,6 +1189,9 @@ bool FileAccess::frawread(void* buffer,
                           FSLogging logging,
                           bool* cretry)
 {
+    // Sanity.
+    assert(buffer || !length);
+
     // Couldn't open the file.
     if (!alreadyOpened && !openf(logging))
         return false;

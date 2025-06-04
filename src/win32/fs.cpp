@@ -199,7 +199,7 @@ WinFileAccess::~WinFileAccess()
 bool WinFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* cretry)
 {
     // Sanity.
-    assert(buffer);
+    assert(buffer || !length);
     assert(hFile != INVALID_HANDLE_VALUE);
 
     // Keeps logic simple.
@@ -276,7 +276,7 @@ bool WinFileAccess::fwrite(const void* buffer,
                            bool* cretry)
 {
     // Sanity.
-    assert(buffer);
+    assert(buffer || !length);
     assert(offset >= 0);
 
     // Keeps logic simple.
