@@ -36,20 +36,26 @@ auto FileService::info(FileID id) -> FileServiceResultOr<FileInfo>
 {
     SharedLock guard(mContextLock);
 
-    if (mContext)
-        return mContext->info(id);
+    if (!mContext)
+        return unexpected(FILE_SERVICE_UNINITIALIZED);
 
-    return unexpected(FILE_SERVICE_UNINITIALIZED);
+    if (!id)
+        return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+
+    return mContext->info(id);
 }
 
 auto FileService::open(FileID id) -> FileServiceResultOr<File>
 {
     SharedLock guard(mContextLock);
 
-    if (mContext)
-        return mContext->open(id);
+    if (!mContext)
+        return unexpected(FILE_SERVICE_UNINITIALIZED);
 
-    return unexpected(FILE_SERVICE_UNINITIALIZED);
+    if (!id)
+        return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+
+    return mContext->open(id);
 }
 
 auto FileService::initialize(Client& client) -> FileServiceResult
@@ -82,10 +88,13 @@ auto FileService::ranges(FileID id) -> FileServiceResultOr<FileRangeVector>
 {
     SharedLock guard(mContextLock);
 
-    if (mContext)
-        return mContext->ranges(id);
+    if (!mContext)
+        return unexpected(FILE_SERVICE_UNINITIALIZED);
 
-    return unexpected(FILE_SERVICE_UNINITIALIZED);
+    if (!id)
+        return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+
+    return mContext->ranges(id);
 }
 
 } // file_service
