@@ -295,6 +295,9 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
         // Latch error.
         auto error = GetLastError();
 
+        // Should the caller retry the write?
+        retry = WinFileSystemAccess::istransient(error);
+
         // Leave a trail.
         LOG_err << "WriteFile failed. Error: " << error;
 
