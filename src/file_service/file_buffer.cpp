@@ -81,8 +81,8 @@ bool FileBuffer::copy(Buffer& target,
     // Need to use an in-memory buffer.
     if (threshold < length)
     {
-        // A 16MiB block should be enough for our needs.
-        size = std::min<std::uint64_t>(length, 1u << 24);
+        // A 128KiB block should be enough for our needs.
+        size = std::min<std::uint64_t>(length, 1u << 17);
 
         // Instantiate buffer.
         memoryBuffer.reset(new std::uint8_t[static_cast<std::size_t>(size)]);
