@@ -11,7 +11,7 @@ namespace file_service
 BufferPtr Buffer::create(FileAccess& file, std::uint64_t offset, std::uint64_t length)
 {
     // How large can a buffer be before we write directly to file?
-    constexpr std::uint64_t maximum = 1u << 24;
+    constexpr std::uint64_t maximum = 1u << 22;
 
     // Buffer's small enough that we can hold it in memory.
     if (length <= maximum)
