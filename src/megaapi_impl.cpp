@@ -21756,192 +21756,218 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
 
 error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
 {
-            std::shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
-            bool isOfficial = request->getFlag();
-            error e = API_OK;
+    constexpr char logPre[] = "performRequest_setAttrNode. ";
+    const handle h = request->getNodeHandle();
+    if (h == INVALID_HANDLE)
+    {
+        LOG_err << logPre << "invalid handle";
+        return API_EARGS;
+    }
 
-            if (!node)
+    error e = API_OK;
+    std::shared_ptr<Node> node = client->nodebyhandle(h);
+    if (!node)
+    {
+        LOG_err << logPre << "node not found with handle" << Base64Str<MegaClient::NODEHANDLE>(h);
+        return API_EARGS;
+    }
+
+    if (!client->checkaccess(node.get(), FULL))
+    {
+        LOG_err << logPre
+                << "unexpected access level for node: " << Base64Str<MegaClient::NODEHANDLE>(h);
+        return API_EACCESS;
+    }
+
+    attr_map attrUpdates;
+    if (const auto isOfficial = request->getFlag(); isOfficial)
+    {
+        if (int type = request->getParamType(); type == MegaApi::NODE_ATTR_DURATION)
+        {
+            int secs = int(request->getNumber());
+            if (node->type != FILENODE || secs < MegaNode::INVALID_DURATION)
             {
+                LOG_err << logPre << "invalid duration: " << secs;
                 return API_EARGS;
             }
 
-            if (!client->checkaccess(node.get(), FULL))
+            if (secs == MegaNode::INVALID_DURATION)
             {
-                return API_EACCESS;
+                attrUpdates['d'] = "";
             }
-
-            attr_map attrUpdates;
-
-            if (isOfficial)
+            else
             {
-                int type = request->getParamType();
-                if (type == MegaApi::NODE_ATTR_DURATION)
+                string attrVal;
+                Base64::itoa(secs, &attrVal);
+                if (attrVal.size())
                 {
-                    int secs = int(request->getNumber());
-                    if (node->type != FILENODE || secs < MegaNode::INVALID_DURATION)
-                    {
-                        return API_EARGS;
-                    }
-
-                    if (secs == MegaNode::INVALID_DURATION)
-                    {
-                        attrUpdates['d'] = "";
-                    }
-                    else
-                    {
-                        string attrVal;
-                        Base64::itoa(secs, &attrVal);
-                        if (attrVal.size())
-                        {
-                            attrUpdates['d'] = attrVal;
-                        }
-                    }
-                }
-                else if (type == MegaApi::NODE_ATTR_COORDINATES)
-                {
-                    if (node->type != FILENODE)
-                    {
-                        return API_EARGS;
-                    }
-
-                    int longitude = request->getNumDetails();
-                    int latitude = request->getTransferTag();
-                    int unshareable = request->getAccess();
-
-                    e = updateAttributesMapWithCoordinates(attrUpdates, latitude, longitude, !!unshareable, client);
-                    if (e != API_OK)
-                    {
-                        return e;
-                    }
-                }
-                else if (type == MegaApi::NODE_ATTR_ORIGINALFINGERPRINT)
-                {
-                    nameid nid = AttrMap::string2nameid("c0");
-                    if (!request->getText())
-                    {
-                        attrUpdates[nid] = "";
-                    }
-                    else
-                    {
-                        attrUpdates[nid] = request->getText();
-                    }
-                }
-                else if (type == MegaApi::NODE_ATTR_LABEL || type == MegaApi::NODE_ATTR_FAV || type == MegaApi::NODE_ATTR_SEN)
-                {
-                    std::shared_ptr<Node> current = node;
-                    bool remove = false;
-                    nameid nid = 0;
-                    int value = 0;
-                    if (type == MegaApi::NODE_ATTR_LABEL)
-                    {
-                        value = request->getNumDetails();
-                        if (value < LBL_UNKNOWN || value > LBL_GREY)
-                        {
-                            return API_EARGS;
-                        }
-
-                        nid = AttrMap::string2nameid("lbl");
-                        remove = (value == LBL_UNKNOWN);
-                    }
-                    else if (type == MegaApi::NODE_ATTR_SEN)
-                    {
-                        nid = AttrMap::string2nameid("sen");
-                        remove = !request->getNumDetails();
-                        value = 1;
-                    }
-                    else
-                    {
-                        nid = AttrMap::string2nameid("fav");
-                        remove = !request->getNumDetails();
-                        value = 1;
-                    }
-
-                    if (remove)
-                    {
-                        attrUpdates[nid] = "";
-                    }
-                    else
-                    {
-                        attrUpdates[nid] = std::to_string(value);
-                    }
-
-                    // update file versions if any
-                    if (current->type == FILENODE)
-                    {
-                        sharedNode_list childrens = client->getChildren(current.get());
-                        while (childrens.size())
-                        {
-                            assert(childrens.size() == 1);  // versions are 1-child chains
-                            std::shared_ptr<Node> n = *childrens.begin();
-                            client->setattr(n, attr_map(attrUpdates), nullptr, false); // no callback for these
-                            childrens = client->getChildren(n.get());
-                        }
-                    }
-
-                    return client->setattr(current, std::move(attrUpdates),
-                        [request, this](NodeHandle h, Error e)
-                        {
-                            request->setNodeHandle(h.as8byte());
-                            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                        }, false);
-                }
-                else if (bool isTypeS4 = (type == MegaApi::NODE_ATTR_S4);
-                         isTypeS4 || type == MegaApi::NODE_ATTR_DESCRIPTION)
-                {
-                    const char* attrValue = request->getText();
-                    if (type == MegaApi::NODE_ATTR_DESCRIPTION && attrValue &&
-                        strlen(attrValue) > MegaApi::MAX_NODE_DESCRIPTION_SIZE)
-                    {
-                        return API_EARGS;
-                    }
-
-                    const char* attributeName =
-                        isTypeS4 ? "s4" : MegaClient::NODE_ATTRIBUTE_DESCRIPTION;
-                    attrUpdates[AttrMap::string2nameid(attributeName)] = attrValue ? attrValue : "";
-                }
-                else
-                {
-                    return API_EARGS;
+                    attrUpdates['d'] = attrVal;
                 }
             }
-            else    // custom attribute, not official
+        }
+        else if (type == MegaApi::NODE_ATTR_COORDINATES)
+        {
+            if (node->type != FILENODE)
             {
-                const char* attrName = request->getName();
-                const char* attrValue = request->getText();
+                LOG_err << logPre << "invalid nodetype: " << node->type;
+                return API_EARGS;
+            }
 
-                if (!attrName || !attrName[0] || strlen(attrName) > 7)
+            int longitude = request->getNumDetails();
+            int latitude = request->getTransferTag();
+            int unshareable = request->getAccess();
+
+            e = updateAttributesMapWithCoordinates(attrUpdates,
+                                                   latitude,
+                                                   longitude,
+                                                   !!unshareable,
+                                                   client);
+            if (e != API_OK)
+            {
+                return e;
+            }
+        }
+        else if (type == MegaApi::NODE_ATTR_ORIGINALFINGERPRINT)
+        {
+            nameid nid = AttrMap::string2nameid("c0");
+            if (!request->getText())
+            {
+                attrUpdates[nid] = "";
+            }
+            else
+            {
+                attrUpdates[nid] = request->getText();
+            }
+        }
+        else if (type == MegaApi::NODE_ATTR_LABEL || type == MegaApi::NODE_ATTR_FAV ||
+                 type == MegaApi::NODE_ATTR_SEN)
+        {
+            std::shared_ptr<Node> current = node;
+            bool remove = false;
+            nameid nid = 0;
+            int value = 0;
+            if (type == MegaApi::NODE_ATTR_LABEL)
+            {
+                value = request->getNumDetails();
+                if (value < LBL_UNKNOWN || value > LBL_GREY)
                 {
+                    LOG_err << logPre << "invalid label: " << value;
                     return API_EARGS;
                 }
 
-                string sname = attrName;
-                LocalPath::utf8_normalize(&sname);
-                sname.insert(0, "_");
-                nameid attr = AttrMap::string2nameid(sname.c_str());
-
-                if (attrValue)
-                {
-                    string svalue = attrValue;
-                    LocalPath::utf8_normalize(&svalue);
-                    attrUpdates[attr] = svalue;
-                }
-                else
-                {
-                    attrUpdates[attr] = "";
-                }
+                nid = AttrMap::string2nameid("lbl");
+                remove = (value == LBL_UNKNOWN);
             }
-
-            if (!e && !attrUpdates.empty())
+            else if (type == MegaApi::NODE_ATTR_SEN)
             {
-                e = client->setattr(node, std::move(attrUpdates),
-                    [request, this](NodeHandle h, Error e)
-                    {
-                        request->setNodeHandle(h.as8byte());
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-                    }, false);
+                nid = AttrMap::string2nameid("sen");
+                remove = !request->getNumDetails();
+                value = 1;
+            }
+            else
+            {
+                nid = AttrMap::string2nameid("fav");
+                remove = !request->getNumDetails();
+                value = 1;
             }
 
-            return e;
+            if (remove)
+            {
+                attrUpdates[nid] = "";
+            }
+            else
+            {
+                attrUpdates[nid] = std::to_string(value);
+            }
+
+            // update file versions if any
+            if (current->type == FILENODE)
+            {
+                sharedNode_list childrens = client->getChildren(current.get());
+                while (childrens.size())
+                {
+                    assert(childrens.size() == 1); // versions are 1-child chains
+                    std::shared_ptr<Node> n = *childrens.begin();
+                    client->setattr(n,
+                                    attr_map(attrUpdates),
+                                    nullptr,
+                                    false); // no callback for these
+                    childrens = client->getChildren(n.get());
+                }
+            }
+
+            return client->setattr(
+                current,
+                std::move(attrUpdates),
+                [request, this](NodeHandle h, Error e)
+                {
+                    request->setNodeHandle(h.as8byte());
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                },
+                false);
+        }
+        else if (bool isTypeS4 = (type == MegaApi::NODE_ATTR_S4);
+                 isTypeS4 || type == MegaApi::NODE_ATTR_DESCRIPTION)
+        {
+            const char* attrValue = request->getText();
+            if (type == MegaApi::NODE_ATTR_DESCRIPTION && attrValue &&
+                strlen(attrValue) > MegaApi::MAX_NODE_DESCRIPTION_SIZE)
+            {
+                LOG_err << logPre << "invalid attrValue len";
+                return API_EARGS;
+            }
+
+            const char* attributeName = isTypeS4 ? "s4" : MegaClient::NODE_ATTRIBUTE_DESCRIPTION;
+            attrUpdates[AttrMap::string2nameid(attributeName)] = attrValue ? attrValue : "";
+        }
+        else
+        {
+            LOG_err << logPre << "invalid attrType: " << type;
+            return API_EARGS;
+        }
+    }
+    else // custom attribute, not official
+    {
+        const char* attrName = request->getName();
+        const char* attrValue = request->getText();
+
+        if (!attrName || !attrName[0] || strlen(attrName) > 7)
+        {
+            LOG_err << logPre << "invalid attrName: " << (attrName && attrName[0] ? attrName : "");
+            return API_EARGS;
+        }
+
+        string sname = attrName;
+        LocalPath::utf8_normalize(&sname);
+        sname.insert(0, "_");
+        nameid attr = AttrMap::string2nameid(sname.c_str());
+
+        if (attrValue)
+        {
+            string svalue = attrValue;
+            LocalPath::utf8_normalize(&svalue);
+            attrUpdates[attr] = svalue;
+        }
+        else
+        {
+            attrUpdates[attr] = "";
+        }
+    }
+
+    if (!e && !attrUpdates.empty())
+    {
+        e = client->setattr(
+            node,
+            std::move(attrUpdates),
+            [request, this](NodeHandle h, Error e)
+            {
+                request->setNodeHandle(h.as8byte());
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            },
+            false);
+    }
+
+    return e;
 }
 
 void MegaApiImpl::getFavourites(MegaNode* node, int count, MegaRequestListener* listener)
