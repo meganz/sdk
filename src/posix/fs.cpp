@@ -505,15 +505,18 @@ void PosixFileAccess::updatelocalname(const LocalPath& name, bool force)
     }
 }
 
-bool PosixFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* retry)
+bool PosixFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* cretry)
 {
     // Sanity.
     assert(buffer || !length);
     assert(offset >= 0);
 
+    // Keeps logic simple.
+    if (!cretry)
+        cretry = &retry;
+
     // Reads are never retriable on POSIX systems.
-    if (retry)
-        *retry = false;
+    *cretry = false;
 
 #ifndef __ANDROID__
     // Perform the read.
