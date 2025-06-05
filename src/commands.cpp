@@ -2378,12 +2378,6 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         arg("msg", msg);
     }
 
-    if (action != OPCA_REMIND &&
-        action != OPCA_ADD) // for reminders, need the actionpacket to update `uts`
-    {
-        notself(client);
-    }
-
     tag = client->reqtag;
     this->action = action;
     this->temail = temail;
@@ -2412,28 +2406,14 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
                 }
             }
 
-            if (!pcr)
+            if (action == OPCA_DELETE && pcr)
             {
-                LOG_err << "Reminded/deleted PCR not found";
+                LOG_err << "Deleted PCR is still present.";
             }
-            else if (action == OPCA_DELETE)
+
+            if (action == OPCA_REMIND && !pcr)
             {
-                pcr->changed.deleted = true;
-                client->notifypcr(pcr);
-
-                // remove pending shares related to the deleted PCR
-                sharedNode_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
-                for (auto& n : nodes)
-                {
-                    if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
-                    {
-                        client->newshares.push_back(
-                                    new NewShare(n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                 0, NULL, NULL, pcr->id, false));
-                    }
-                }
-
-                client->mergenewshares(1);
+                LOG_err << "Reminded PCR not found";
             }
         }
 
