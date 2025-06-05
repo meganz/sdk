@@ -1678,7 +1678,7 @@ bool DirectReadSlot::isRaidedTransfer() const
 
 void DirectReadSlot::retryEntireTransfer(const Error& e, const dstime timeleft)
 {
-    resetConnSwitchesCountersIfTimeoutExpired(true /*force*/);
+    resetConnSwitchesCounters(std::chrono::steady_clock::now());
     mUnusedConn.clear();
     mDr->drn->retry(e, timeleft);
 }
@@ -2105,15 +2105,20 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
     return true;
 }
 
-void DirectReadSlot::resetConnSwitchesCountersIfTimeoutExpired(bool force)
+void DirectReadSlot::resetConnSwitchesCounters(const std::chrono::steady_clock::time_point& now)
+{
+    mNumConnSwitchesSlowestPart = 0;
+    mNumConnSwitchesBelowSpeedThreshold = 0;
+    mNumConnDetectedBelowSpeedThreshold.clear();
+    mConnectionSwitchesLimitLastReset = now;
+}
+
+void DirectReadSlot::resetConnSwitchesCountersIfTimeoutExpired()
 {
     if (const auto now = std::chrono::steady_clock::now();
-        ((now - mConnectionSwitchesLimitLastReset) > CONNECTION_SWITCHES_LIMIT_RESET_TIME) || force)
+        ((now - mConnectionSwitchesLimitLastReset) > CONNECTION_SWITCHES_LIMIT_RESET_TIME))
     {
-        mNumConnSwitchesSlowestPart = 0;
-        mNumConnSwitchesBelowSpeedThreshold = 0;
-        mNumConnDetectedBelowSpeedThreshold.clear();
-        mConnectionSwitchesLimitLastReset = now;
+        resetConnSwitchesCounters(now);
     }
 }
 

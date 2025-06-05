@@ -569,11 +569,13 @@ public:
      */
     std::pair<std::set<size_t>, size_t> searchSlowConnsUnderThreshold();
 
+    void resetConnSwitchesCounters(const std::chrono::steady_clock::time_point& now);
+
     /**
      * @brief Reset all connection switches counters if timeout
      * (CONNECTION_SWITCHES_LIMIT_RESET_TIME) has expired
      */
-    void resetConnSwitchesCountersIfTimeoutExpired(bool force = false);
+    void resetConnSwitchesCountersIfTimeoutExpired();
 
     // Returns true if any raided Req has failed, otherwise returns false
     bool isAnyRaidedPartFailed() const;
