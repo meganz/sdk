@@ -15314,7 +15314,7 @@ void MegaApiImpl::notify_business_status(BizStatus status)
     fireOnEvent(event);
 }
 
-void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
+void MegaApiImpl::http_result(error e, int httpCode, byte* data, m_off_t size)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
