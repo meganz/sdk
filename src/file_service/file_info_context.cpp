@@ -2,8 +2,11 @@
 #include <mega/common/utility.h>
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_info_context_badge.h>
+#include <mega/file_service/file_range.h>
 #include <mega/file_service/file_service_context.h>
 #include <mega/filesystem.h>
+
+#include <utility>
 
 namespace mega
 {
@@ -58,6 +61,17 @@ std::int64_t FileInfoContext::modified() const
 std::uint64_t FileInfoContext::size() const
 {
     return get(&FileInfoContext::mSize);
+}
+
+void FileInfoContext::written(const FileRange& range, std::int64_t modified)
+{
+    UniqueLock guard(mLock);
+
+    // Update the file's modification time.
+    mModified = modified;
+
+    // Extend the file's size if necessary.
+    mSize = std::max(mSize, range.mEnd);
 }
 
 } // file_service

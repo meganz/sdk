@@ -27,12 +27,16 @@ public:
 
     ~FileInfo();
 
+    // What node is this file associated with?
     NodeHandle handle() const;
 
+    // What node is this file associated with?
     FileID id() const;
 
+    // When was this file last modified?
     std::int64_t modified() const;
 
+    // How large is this file?
     std::uint64_t size() const;
 }; // FileInfo
 
