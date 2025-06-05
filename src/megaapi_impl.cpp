@@ -39017,7 +39017,7 @@ long long MegaAchievementsDetailsPrivate::currentStorage()
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
     {
-        if (it->expire > ts)
+        if (it->expire > ts || it->expire == 0)
         {
             for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
             {
@@ -39039,7 +39039,7 @@ long long MegaAchievementsDetailsPrivate::currentTransfer()
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
     {
-        if (it->expire > ts)
+        if (it->expire > ts || it->expire == 0)
         {
             for (vector<Reward>::iterator itr = details.rewards.begin(); itr != details.rewards.end(); itr++)
             {
