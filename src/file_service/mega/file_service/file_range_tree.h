@@ -117,8 +117,9 @@ protected:
 
 public:
     using ConstIterator = IteratorAdapter<typename ByRangeBeginTree::ConstIterator>;
-
+    using ConstReverseIterator = IteratorAdapter<typename ByRangeBeginTree::ConstReverseIterator>;
     using Iterator = IteratorAdapter<typename ByRangeBeginTree::Iterator>;
+    using ReverseIterator = IteratorAdapter<typename ByRangeBeginTree::ReverseIterator>;
 
     FileRangeTree() = default;
 
@@ -212,6 +213,11 @@ public:
         return mByRangeBegin.begin();
     }
 
+    ConstIterator cbegin() const
+    {
+        return begin();
+    }
+
     // Remove all ranges from the tree.
     void clear()
     {
@@ -220,6 +226,24 @@ public:
         // Destroy all the nodes in the tree.
         while ((iterator = mByRangeBegin.root()))
             delete mByRangeBegin.remove(iterator);
+    }
+
+    // Return an iterator to the end of the tree.
+    ConstIterator cend() const
+    {
+        return end();
+    }
+
+    // Return a reverse iterator to the last node in the tree.
+    ConstReverseIterator crbegin() const
+    {
+        return rbegin();
+    }
+
+    // Return a reverse iterator to the end of the tree.
+    ConstReverseIterator crend() const
+    {
+        return rend();
     }
 
     // Does this tree contain any ranges?
@@ -263,6 +287,17 @@ public:
     auto find(const FileRange& range) const -> std::pair<ConstIterator, ConstIterator>
     {
         return const_cast<FileRangeTree&>(*this).find(range);
+    }
+
+    // Return a reverse iterator to the last node in the tree.
+    ReverseIterator rbegin()
+    {
+        return mByRangeBegin.rbegin();
+    }
+
+    ReverseIterator rbegin() const
+    {
+        return mByRangeBegin.rbegin();
     }
 
     // Remove all ranges contained in the specified range.
@@ -312,6 +347,17 @@ public:
 
         // Return an iterator to the next range in the tree.
         return iterator;
+    }
+
+    // Return a reverse iterator to the end of the tree.
+    ReverseIterator rend()
+    {
+        return mByRangeBegin.rend();
+    }
+
+    ConstReverseIterator rend() const
+    {
+        return mByRangeBegin.rend();
     }
 
     // Get an iterator to the tree's root node.
