@@ -16,6 +16,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mGetFileReferences(database.query()),
     mRemoveFile(database.query()),
     mRemoveFileRanges(database.query()),
+    mSetFileModificationTime(database.query()),
     mSetFileReferences(database.query())
 {
     mAddFile = "insert into files values ( "
@@ -52,6 +53,10 @@ FileServiceQueries::FileServiceQueries(Database& database):
                         " where begin >= :begin "
                         "   and end <= :end "
                         "   and id = :id";
+
+    mSetFileModificationTime = "update files "
+                               "   set modified = :modified "
+                               " where id = :id";
 
     mSetFileReferences = "update files "
                          "   set num_references = :num_references "

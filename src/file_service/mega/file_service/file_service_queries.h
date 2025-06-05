@@ -19,6 +19,7 @@ struct FileServiceQueries
     common::Query mGetFileReferences;
     common::Query mRemoveFile;
     common::Query mRemoveFileRanges;
+    common::Query mSetFileModificationTime;
     common::Query mSetFileReferences;
 }; // FileServiceQueries
 
