@@ -89,6 +89,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Remove zero or more ranges from the database.
     void removeRanges(const FileRange& range, common::Transaction& transaction);
 
+    // Update this file's modification time in the database.
+    void updateModificationTime(std::int64_t modified, common::Transaction& transaction);
+
     // Keep our service alive until we're dead.
     common::Activity mActivity;
 

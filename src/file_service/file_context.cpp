@@ -456,6 +456,16 @@ void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
     query.execute();
 }
 
+void FileContext::updateModificationTime(std::int64_t modified, Transaction& transaction)
+{
+    auto query = transaction.query(mService.queries().mSetFileModificationTime);
+
+    query.param(":modified").set(modified);
+    query.param(":id").set(mInfo->id());
+
+    query.execute();
+}
+
 FileContext::FileContext(Activity activity,
                          FileAccessPtr file,
                          FileInfoContextPtr info,
