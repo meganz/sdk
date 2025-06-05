@@ -154,7 +154,7 @@ class ClientPartialDownload:
     Lock<std::shared_mutex> lock() const;
 
     // Called when the SDK wants to notify us about our download.
-    void notify(PartialDownloadWeakPtr cookie, Event& event);
+    static void notify(PartialDownloadWeakPtr cookie, Event& event);
 
     // The callback that will receive file content.
     PartialDownloadCallback& mCallback;
@@ -1531,7 +1531,7 @@ void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
     using Valid = DirectRead::IsValid;
 
     // Try and get a reference to ourselves.
-    auto download = cookie.lock();
+    auto download = std::static_pointer_cast<ClientPartialDownload>(cookie.lock());
 
     // Download's been destroyed.
     if (!download)
@@ -1557,25 +1557,25 @@ void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
     }
 
     // Acquire the lock so other threads must wait to cancel us.
-    auto lock = this->lock<std::unique_lock>();
+    auto lock = download->lock<std::unique_lock>();
 
     // We're executing in the context of a callback.
-    auto executing = makeScopedValue(mExecuting, true);
+    auto executing = makeScopedValue(download->mExecuting, true);
 
     // Dispatch the event.
     std::visit(overloaded{[&](Data& data)
                           {
                               // Process the data only if we haven't been cancelled.
-                              if (!cancelled())
-                                  return this->data(data);
+                              if (!download->cancelled())
+                                  return download->data(data);
 
                               data.ret = false;
                           },
                           [&](Failure& failure)
                           {
                               // Handle the failure if we haven't been cancelled.
-                              if (!cancelled())
-                                  return this->failure(failure);
+                              if (!download->cancelled())
+                                  return download->failure(failure);
 
                               failure.ret = NEVER;
                           },
@@ -1587,7 +1587,7 @@ void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
                           [&](Valid& valid)
                           {
                               // We're valid if we're sane.
-                              valid.ret = !cancelled();
+                              valid.ret = !download->cancelled();
                           }},
                event);
 }
@@ -1664,17 +1664,13 @@ void ClientPartialDownload::begin()
             if (!mRemaining)
                 return completed(API_OK);
 
-            // So we can use our notify method as a callback.
-            auto notify = [=](Event& event) mutable
-            {
-                this->notify(cookie, event);
-            }; // notify
-
             // Begin the download.
             mClient.client().pread(node.get(),
                                    static_cast<m_off_t>(mOffset),
                                    static_cast<m_off_t>(mRemaining),
-                                   std::move(notify));
+                                   std::bind(&ClientPartialDownload::notify,
+                                             std::move(cookie),
+                                             std::placeholders::_1));
         });
 }
 
