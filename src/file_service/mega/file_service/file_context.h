@@ -15,6 +15,7 @@
 #include <mega/file_service/file_read_request_forward.h>
 #include <mega/file_service/file_read_write_state.h>
 #include <mega/file_service/file_service_context_forward.h>
+#include <mega/file_service/file_write_request_forward.h>
 #include <mega/types.h>
 
 #include <list>
@@ -30,7 +31,7 @@ namespace file_service
 class FileContext final: FileRangeContextManager, public std::enable_shared_from_this<FileContext>
 {
     // Convenience.
-    using FileRequest = std::variant<FileReadRequest>;
+    using FileRequest = std::variant<FileReadRequest, FileWriteRequest>;
     using FileRequestList = std::list<FileRequest>;
 
     // Add a range to the database.
@@ -60,8 +61,14 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
                    Result result,
                    Captures&&... captures);
 
+    // Called when a file write request has been completed.
+    void completed(FileWriteRequest& request);
+
     // Try and execute a read request.
     bool execute(FileReadRequest& request);
+
+    // Try and execute a write request.
+    bool execute(FileWriteRequest& request);
 
     // Try and execute a request.
     bool execute(FileRequest& request);
@@ -75,6 +82,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Called when a file request has failed.
     template<typename Request>
     void failed(void (FileReadWriteState::*complete)(), Request&& request, FileResult result);
+
+    // Called when a file write request has failed.
+    void failed(FileWriteRequest&& request, FileResult result);
 
     // Acquire a lock on this manager.
     std::unique_lock<std::recursive_mutex> lock() const override;
@@ -148,6 +158,9 @@ public:
 
     // Let the service know you're happy for it to remove this file.
     void unref();
+
+    // Write data to this file.
+    void write(FileWriteRequest request);
 }; // FileContext
 
 } // file_service

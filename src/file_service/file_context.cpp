@@ -5,6 +5,7 @@
 #include <mega/common/transaction.h>
 #include <mega/common/utility.h>
 #include <mega/file_service/displaced_buffer.h>
+#include <mega/file_service/file_access.h>
 #include <mega/file_service/file_buffer.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
@@ -15,11 +16,13 @@
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_service_context.h>
+#include <mega/file_service/file_write_request.h>
 #include <mega/file_service/logging.h>
 #include <mega/file_service/type_traits.h>
 #include <mega/filesystem.h>
 #include <mega/overloaded.h>
 
+#include <chrono>
 #include <iterator>
 #include <limits>
 #include <type_traits>
@@ -291,6 +294,15 @@ void FileContext::completed(void (FileReadWriteState::*complete)(),
                                std::forward<Captures>(captures)...));
 }
 
+void FileContext::completed(FileWriteRequest& request)
+{
+    // Convenience.
+    auto [begin, end] = request.mRange;
+
+    // Complete the user's request.
+    completed(&FileReadWriteState::writeCompleted, request, FileWriteResult{begin, end - begin});
+}
+
 bool FileContext::execute(FileReadRequest& request)
 {
     // Can't execute a read if there's a write in progress.
@@ -354,6 +366,103 @@ bool FileContext::execute(FileReadRequest& request)
     download->begin();
 
     // Let our caller know the request was executed.
+    return true;
+}
+
+bool FileContext::execute(FileWriteRequest& request)
+{
+    // Can't execute a write if there's another request in progress.
+    if (!mReadWriteState.write())
+        return false;
+
+    // Convenience.
+    auto& range = request.mRange;
+
+    auto length = range.mEnd - range.mBegin;
+
+    // Caller doesn't actually want to write anything.
+    if (!length)
+        return completed(request), true;
+
+    // Caller hasn't passed us a valid buffer.
+    if (!request.mBuffer)
+        return failed(std::move(request), FILE_INVALID_ARGUMENTS), true;
+
+    // Get exclusive access to mRanges.
+    std::unique_lock lock(mRangesLock);
+
+    // Disambiguate.
+    using file_service::write;
+
+    // Try and write the caller's content to storage.
+    length = write(*mFile, request.mBuffer, range.mBegin, length);
+
+    // Couldn't write any content to storage.
+    if (!length)
+        return failed(std::move(request), FILE_FAILED), true;
+
+    // Compute actual end of the written range.
+    range.mEnd = range.mBegin + length;
+
+    // Find out which ranges we've touched.
+    auto [begin, end] = mRanges.find(extend(range, 1));
+
+    // Compute effective range.
+    auto effectiveRange = [&]()
+    {
+        // Assume range has no contiguous siblings.
+        auto from = range.mBegin;
+        auto to = range.mEnd;
+
+        // Range has a left sibling.
+        if (begin != mRanges.end())
+            from = std::min(from, begin->first.mBegin);
+
+        // Range has a right sibling.
+        if (end != mRanges.end())
+            return FileRange(from, std::max(std::prev(end)->first.mEnd, to));
+
+        // Range may have a right sibling.
+        auto candidate = mRanges.crbegin();
+
+        // Range has a right sibling.
+        if (candidate != mRanges.crend())
+            to = std::max(candidate->first.mEnd, to);
+
+        // Return effective range to caller.
+        return FileRange(from, to);
+    }();
+
+    auto transaction = mService.database().transaction();
+
+    // Remove obsolete ranges from the database.
+    removeRanges(effectiveRange, transaction);
+
+    // Add a new range to the database.
+    addRange(effectiveRange, transaction);
+
+    // Compute the file's new modification time.
+    auto modified = now();
+
+    // Update the file's modification time in the database.
+    updateModificationTime(modified, transaction);
+
+    // Remove obsolete ranges from memory.
+    mRanges.remove(begin, end);
+
+    // Add our new range to memory.
+    mRanges.add(effectiveRange, nullptr);
+
+    // Persist our changes.
+    transaction.commit();
+
+    // Update the file's attributes.
+    mInfo->written(range, modified);
+
+    // Queue the user's request for completion.
+    completed(request);
+
+    // Let the caller know the write was successful.
     return true;
 }
 
@@ -422,6 +531,11 @@ void FileContext::failed(void (FileReadWriteState::*complete)(),
                                weak_from_this(),
                                std::move(request),
                                std::placeholders::_1));
+}
+
+void FileContext::failed(FileWriteRequest&& request, FileResult result)
+{
+    failed(&FileReadWriteState::writeCompleted, std::move(request), result);
 }
 
 std::unique_lock<std::recursive_mutex> FileContext::lock() const
@@ -534,6 +648,13 @@ void FileContext::ref()
 void FileContext::unref()
 {
     adjustRef(-1);
+}
+
+void FileContext::write(FileWriteRequest request)
+{
+    // Couldn't execute the read as another request is in progress.
+    if (!execute(request))
+        queue(std::move(request));
 }
 
 } // file_service

@@ -46,6 +46,14 @@ public:
 
     // Let the service know you're happy for it to remove this file.
     void unref();
+
+    // Write data to this file.
+    void write(const void* buffer,
+               FileWriteCallback callback,
+               std::uint64_t offset,
+               std::uint64_t length);
+
+    void write(const void* buffer, FileWriteCallback callback, const FileRange& range);
 }; // File
 
 } // file_service

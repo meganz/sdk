@@ -6,6 +6,7 @@
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_service_context_badge.h>
+#include <mega/file_service/file_write_request.h>
 
 #include <utility>
 
@@ -64,6 +65,21 @@ void File::ref()
 void File::unref()
 {
     mContext->unref();
+}
+
+void File::write(const void* buffer,
+                 FileWriteCallback callback,
+                 std::uint64_t offset,
+                 std::uint64_t length)
+{
+    // Delegate.
+    write(buffer, std::move(callback), FileRange(offset, offset + length));
+}
+
+void File::write(const void* buffer, FileWriteCallback callback, const FileRange& range)
+{
+    // Ask the context to perform the write.
+    mContext->write(FileWriteRequest{buffer, std::move(callback), range});
 }
 
 } // file_service

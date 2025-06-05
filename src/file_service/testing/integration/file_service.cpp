@@ -10,6 +10,7 @@
 #include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
+#include <mega/file_service/file_write_result.h>
 #include <mega/file_service/source.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
@@ -17,7 +18,6 @@
 #include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/common/testing/utility.h>
-#include <mega/logging.h>
 
 namespace mega
 {
@@ -49,9 +49,19 @@ NodeHandle FileServiceTests::mFileHandle;
 static std::uint64_t operator""_KiB(unsigned long long value);
 static std::uint64_t operator""_MiB(unsigned long long value);
 
+// Compare content.
+static bool compare(const std::string& computed,
+                    const std::string& expected,
+                    std::uint64_t offset,
+                    std::uint64_t length);
+
 // Read some content from the specified file.
 static auto read(File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResultOr<std::string>>;
+
+// Write some content to the specified file.
+static auto write(const void* buffer, File file, std::uint64_t offset, std::uint64_t length)
+    -> std::future<FileResult>;
 
 TEST_F(FileServiceTests, info_directory_fails)
 {
@@ -175,24 +185,6 @@ TEST_F(FileServiceTests, read_succeeds)
     // Convenience.
     auto timeout = std::future_status::timeout;
 
-    // Compare file content.
-    auto compare = [this](std::string& content, std::uint64_t offset, std::uint64_t length)
-    {
-        // Convenience.
-        std::uint64_t size = mFileContent.size();
-
-        // Offset and/or length is out of bounds.
-        if (offset + length > size)
-            return false;
-
-        // Content is smaller than expected.
-        if (content.size() < length)
-            return false;
-
-        // Make sure the content matches our file.
-        return !mFileContent.compare(offset, length, content);
-    }; // compare
-
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -209,7 +201,7 @@ TEST_F(FileServiceTests, read_succeeds)
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // And that it provided the data we expected.
-    EXPECT_TRUE(compare(*result, 0, 64_KiB));
+    EXPECT_TRUE(compare(*result, mFileContent, 0, 64_KiB));
 
     // Make sure the range is considered to be in storage.
     auto ranges = file->ranges();
@@ -229,7 +221,7 @@ TEST_F(FileServiceTests, read_succeeds)
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // And that it provided the data we expected.
-    EXPECT_TRUE(compare(*result, 64_KiB, 64_KiB));
+    EXPECT_TRUE(compare(*result, mFileContent, 64_KiB, 64_KiB));
 
     // We should have one 128KiB range in storage.
     ranges = file->ranges();
@@ -255,8 +247,8 @@ TEST_F(FileServiceTests, read_succeeds)
     ASSERT_FALSE(HasFailure());
 
     // Make sure both reads gave us what we expected.
-    EXPECT_TRUE(compare(*result0, 128_KiB, 64_KiB));
-    EXPECT_TRUE(compare(*result1, 192_KiB, 64_KiB));
+    EXPECT_TRUE(compare(*result0, mFileContent, 128_KiB, 64_KiB));
+    EXPECT_TRUE(compare(*result1, mFileContent, 192_KiB, 64_KiB));
 
     // We should have one 256KiB range in storage.
     ranges = file->ranges();
@@ -278,7 +270,7 @@ TEST_F(FileServiceTests, read_succeeds)
 
     result = waiter.get();
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
-    EXPECT_TRUE(compare(*result, 768_KiB, 256_KiB));
+    EXPECT_TRUE(compare(*result, mFileContent, 768_KiB, 256_KiB));
 }
 
 TEST_F(FileServiceTests, ref_succeeds)
@@ -312,6 +304,165 @@ TEST_F(FileServiceTests, ref_succeeds)
 
     // Let the service know it can remove the file.
     file->unref();
+}
+
+TEST_F(FileServiceTests, write_succeeds)
+{
+    // File content that's updated as we write.
+    auto expected = mFileContent;
+
+    // Open a file for writing.
+    auto file = ClientW()->fileOpen(mFileHandle);
+
+    // Make sure we could actually open the file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Convenience.
+    auto timeout = std::future_status::timeout;
+
+    // Read content from the file and make sure it matches our expectations.
+    auto read = [&](std::uint64_t offset, std::uint64_t length)
+    {
+        // Try and read content from our file.
+        auto waiter = testing::read(*file, offset, length);
+
+        // Read timed out.
+        if (waiter.wait_for(mDefaultTimeout) == timeout)
+            return FILE_FAILED;
+
+        // Get our hands on the read's result.
+        auto result = waiter.get();
+
+        // Read failed.
+        if (!result)
+            return result.error();
+
+        // Content isn't what we expected.
+        if (!compare(*result, expected, offset, length))
+            return FILE_FAILED;
+
+        // Content satisfies our expectations.
+        return FILE_SUCCESS;
+    }; // read
+
+    // Write content to our file.
+    auto write = [&](const void* content, std::uint64_t offset, std::uint64_t length)
+    {
+        // Get our hands on the file's information.
+        auto info = file->info();
+
+        // Latch the file's current modification time and size.
+        auto modified = info.modified();
+
+        // Try and write content to our file.
+        auto waiter = testing::write(content, *file, offset, length);
+
+        // Write timed out.
+        if (waiter.wait_for(mDefaultTimeout) == timeout)
+            return FILE_FAILED;
+
+        // Write failed.
+        if (auto result = waiter.get(); result != FILE_SUCCESS)
+            return result;
+
+        // Compute size of local file content.
+        auto size = std::max(expected.size(), offset + length);
+
+        // Extend local file content as necessary.
+        expected.resize(static_cast<std::size_t>(size));
+
+        // Copy written content into our local file content buffer.
+        std::memcpy(&expected[offset], content, length);
+
+        // Make sure the file's modification time hasn't gone backwards.
+        if (info.modified() < modified)
+            return FILE_FAILED;
+
+        // Make sure the file's size has been updated correctly.
+        if (info.size() != size)
+            return FILE_FAILED;
+
+        // Let our caller know the write was successful.
+        return FILE_SUCCESS;
+    }; // write
+
+    // Convenience.
+    using fuse::testing::randomBytes;
+
+    // Generate some content for us to write to the file.
+    auto computed = randomBytes(256u * 1024);
+
+    // Write 64KiB to the file.
+    ASSERT_EQ(write(computed.data(), 64_KiB, 64_KiB), FILE_SUCCESS);
+
+    // Make sure we can read back what we wrote.
+    ASSERT_EQ(read(64_KiB, 64_KiB), FILE_SUCCESS);
+
+    // And that the file has a single range.
+    auto ranges = file->ranges();
+
+    // Which is from 64KiB..128KiB.
+    ASSERT_EQ(ranges.size(), 1u);
+    EXPECT_EQ(ranges.front(), FileRange(64_KiB, 128_KiB));
+
+    // Read 128KiB from the file.
+    //
+    // This should cause us to download the first 64KiB of the file.
+    ASSERT_EQ(read(0, 128_KiB), FILE_SUCCESS);
+
+    // We should have a single 128KiB range.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 1u);
+    EXPECT_EQ(ranges.front(), FileRange(0, 128_KiB));
+
+    // Read 128KiB from the file.
+    //
+    // This should cause the download of two new ranges.
+    ASSERT_EQ(read(192_KiB, 64_KiB), FILE_SUCCESS);
+    ASSERT_EQ(read(320_KiB, 64_KiB), FILE_SUCCESS);
+
+    // We should now have three ranges.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 3u);
+    EXPECT_EQ(ranges[0], FileRange(0, 128_KiB));
+    EXPECT_EQ(ranges[1], FileRange(192_KiB, 256_KiB));
+    EXPECT_EQ(ranges[2], FileRange(320_KiB, 384_KiB));
+
+    // Write 192KiB to the file.
+    ASSERT_EQ(write(computed.data(), 160_KiB, 192_KiB), FILE_SUCCESS);
+
+    // We should now have two ranges.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 2u);
+    EXPECT_EQ(ranges[0], FileRange(0, 128_KiB));
+    EXPECT_EQ(ranges[1], FileRange(160_KiB, 384_KiB));
+
+    // Read 384KiB from the file.
+    //
+    // This should cause us to download another range.
+    ASSERT_EQ(read(0, 384_KiB), FILE_SUCCESS);
+
+    // Which should coalesce with all the other ranges.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 1u);
+    EXPECT_EQ(ranges.front(), FileRange(0, 384_KiB));
+
+    // Make sure writes can extend the file's size.
+    ASSERT_EQ(write(computed.data(), 1_MiB, 64_KiB), FILE_SUCCESS);
+
+    // We should now have two ranges.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 2u);
+    EXPECT_EQ(ranges[0], FileRange(0, 384_KiB));
+    EXPECT_EQ(ranges[1], FileRange(1024_KiB, 1088_KiB));
+
+    // Make sure we can read back what we wrote.
+    ASSERT_EQ(read(1_MiB, 64_KiB), FILE_SUCCESS);
 }
 
 void FileServiceTests::SetUp()
@@ -360,6 +511,26 @@ std::uint64_t operator""_KiB(unsigned long long value)
 std::uint64_t operator""_MiB(unsigned long long value)
 {
     return value * 1024_KiB;
+}
+
+bool compare(const std::string& computed,
+             const std::string& expected,
+             std::uint64_t offset,
+             std::uint64_t length)
+{
+    // Convenience.
+    std::uint64_t size = expected.size();
+
+    // Offset and/or length is out of bounds.
+    if (offset + length > size)
+        return false;
+
+    // Content is smaller than expected.
+    if (computed.size() != length)
+        return false;
+
+    // Make sure the content matches our file.
+    return !expected.compare(offset, length, computed);
 }
 
 auto read(File file, std::uint64_t offset, std::uint64_t length)
@@ -438,6 +609,76 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
     // Kick off the read.
     file.read(
         std::bind(&ReadContext::onRead, context.get(), std::move(context), std::placeholders::_1),
+        offset,
+        length);
+
+    // Return waiter to our caller.
+    return waiter;
+}
+
+auto write(const void* buffer, File file, std::uint64_t offset, std::uint64_t length)
+    -> std::future<FileResult>
+{
+    struct WriteContext;
+
+    // Convenience.
+    using WriteContextPtr = std::shared_ptr<WriteContext>;
+
+    // Tracks state necessary for our write.
+    struct WriteContext
+    {
+        WriteContext(const void* buffer, File file, std::uint64_t length):
+            mBuffer(static_cast<const std::uint8_t*>(buffer)),
+            mFile(std::move(file)),
+            mLength(length)
+        {}
+
+        // Called when we've written file content.
+        void onWrite(WriteContextPtr& context, FileResultOr<FileWriteResult> result)
+        {
+            // Couldn't write content.
+            if (!result)
+                return mNotifier.set_value(result.error());
+
+            // No more content to write.
+            if (!result->mLength)
+                return mNotifier.set_value(FILE_SUCCESS);
+
+            // Bump buffer and length.
+            mBuffer += result->mLength;
+            mLength -= result->mLength;
+
+            // Write remaning content, if any.
+            mFile.write(
+                mBuffer,
+                std::bind(&WriteContext::onWrite, this, std::move(context), std::placeholders::_1),
+                result->mLength + result->mOffset,
+                mLength);
+        }
+
+        // The content we want to write.
+        const std::uint8_t* mBuffer;
+
+        // What file we should write content to.
+        File mFile;
+
+        // How much content we should write to our file.
+        std::uint64_t mLength;
+
+        // Who should we notify when the write is complete?
+        std::promise<FileResult> mNotifier;
+    }; // WriteContext
+
+    // Create a context to track our write state.
+    auto context = std::make_shared<WriteContext>(buffer, file, length);
+
+    // Get our hands on the context's future.
+    auto waiter = context->mNotifier.get_future();
+
+    // Kick off the write.
+    file.write(
+        buffer,
+        std::bind(&WriteContext::onWrite, context.get(), std::move(context), std::placeholders::_1),
         offset,
         length);
 
