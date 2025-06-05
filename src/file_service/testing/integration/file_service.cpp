@@ -409,7 +409,7 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
             // Read remaining content, if any.
             mFile.read(
                 std::bind(&ReadContext::onRead, this, std::move(context), std::placeholders::_1),
-                result->mOffset + mOffset,
+                result->mOffset + result->mLength,
                 mLength);
         }
 
