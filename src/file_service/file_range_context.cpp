@@ -72,14 +72,15 @@ void FileRangeContext::completed(Error result)
     completed(mManager.lock(), result);
 }
 
-void FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t length)
+auto FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t length)
+    -> std::variant<Abort, Continue>
 {
     // Convenience.
     auto offset = mEnd - mIterator->first.mBegin;
 
     // Couldn't write data to our buffer.
     if (!mBuffer->write(buffer, offset, length))
-        return mDownload->cancel(), void();
+        return Abort();
 
     // Lock our manager.
     auto lock = mManager.lock();
@@ -89,6 +90,9 @@ void FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t len
 
     // Dispatch what requests we can.
     dispatch(displace(mBuffer, 0), mManager, FileRange(mIterator->first.mBegin, mEnd), mRequests);
+
+    // Let the caller know the download should continue.
+    return Continue();
 }
 
 auto FileRangeContext::failed(Error, int) -> std::variant<Abort, Retry>
@@ -111,9 +115,6 @@ FileRangeContext::FileRangeContext(Activity activity,
 
 FileRangeContext::~FileRangeContext()
 {
-    // Download should be completed.
-    assert(mDownload->completed());
-
     // No requests should be queued at this point.
     assert(mRequests.empty());
 }

@@ -24,6 +24,10 @@ public:
     struct Abort
     {}; // Abort
 
+    // Indicates that the download should continue.
+    struct Continue
+    {}; // Continue
+
     // Indicates the download should be retried.
     struct Retry
     {
@@ -41,7 +45,8 @@ public:
     virtual void completed(Error result) = 0;
 
     // Called repeatedly as data is downloaded from the cloud.
-    virtual void data(const void* buffer, std::uint64_t offset, std::uint64_t length) = 0;
+    virtual auto data(const void* buffer, std::uint64_t offset, std::uint64_t length)
+        -> std::variant<Abort, Continue> = 0;
 
     // Called when the download has failed.
     virtual auto failed(Error result, int retries) -> std::variant<Abort, Retry> = 0;

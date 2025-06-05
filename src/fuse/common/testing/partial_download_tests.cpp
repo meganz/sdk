@@ -50,7 +50,8 @@ class PartialDownloadCallback: public common::PartialDownloadCallback
     }
 
     // Called when we've received some content.
-    void data(const void* buffer, std::uint64_t, std::uint64_t length)
+    auto data(const void* buffer, std::uint64_t, std::uint64_t length)
+        -> std::variant<Abort, Continue>
     {
         // Convenience.
         auto* buffer_ = static_cast<const char*>(buffer);
@@ -60,16 +61,15 @@ class PartialDownloadCallback: public common::PartialDownloadCallback
 
         // Cancel the download if it's been injected.
         if (auto download = mDownload.lock())
-            download->cancel();
+            return Abort();
+
+        // Continue the download.
+        return Continue();
     }
 
     // Called when the download has experienced some failure.
     auto failed(Error, int) -> std::variant<Abort, Retry> override
     {
-        // Cancel the download if it's been injected.
-        if (auto download = mDownload.lock())
-            download->cancel();
-
         // Always abort the download.
         return Abort();
     }
