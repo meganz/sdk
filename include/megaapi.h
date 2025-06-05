@@ -25320,6 +25320,8 @@ public:
      * returned by \c getClassExpire, since the award can be unlocked but not yet granted. It
      * typically takes 2 days from unlocking the award until the user is actually rewarded.
      *
+     * If this function returns 0, it means the award is permanent (does not expire).
+     *
      * @param index Position of the award in the list of unlocked awards
      * @return The expiration timestamp of the award in position \c index
      */
