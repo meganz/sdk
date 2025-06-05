@@ -60,6 +60,18 @@ std::string formatv(std::va_list arguments, const char* format)
     return buffer;
 }
 
+std::int64_t now()
+{
+    // Convenience.
+    using std::chrono::system_clock;
+
+    // Get our hands on the current time.
+    auto now = system_clock::now();
+
+    // Return the current time to our caller as a time_t value.
+    return system_clock::to_time_t(now);
+}
+
 } // common
 } // mega
 
