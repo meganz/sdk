@@ -355,7 +355,9 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
     return true;
 }
 
-bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath)
+bool SqliteDbAccess::renameDBFiles(FileSystemAccess& fsAccess,
+                                   const LocalPath& legacyPath,
+                                   const LocalPath& dbPath)
 {
     // Main DB file should exits
     if (!fsAccess.renamelocal(legacyPath, dbPath))
@@ -366,11 +368,11 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
     std::unique_ptr<FileAccess> fileAccess = fsAccess.newfileaccess();
 
 #if !(TARGET_OS_IPHONE)
-    std::string suffix{"-shm"};
+    auto suffix = LocalPath::fromRelativePath("-shm");
     auto from = legacyPath;
-    from.insertFilenameSuffix(suffix);
+    from.append(suffix);
     auto to = dbPath;
-    to.insertFilenameSuffix(suffix);
+    to.append(suffix);
 
     // -shm could or couldn't be present
     if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
@@ -380,11 +382,11 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
         return false;
     }
 
-    suffix = std::string{"-wal"};
+    suffix = LocalPath::fromRelativePath("-wal");
     from = legacyPath;
-    from.insertFilenameSuffix(suffix);
+    from.append(suffix);
     to = dbPath;
-    to.insertFilenameSuffix(suffix);
+    to.append(suffix);
 
     // -wal could or couldn't be present
     if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))

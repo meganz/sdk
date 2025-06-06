@@ -222,9 +222,16 @@ public:
 
     const LocalPath& rootPath() const override;
 
+    bool renameDBFiles(FileSystemAccess& fsAccess,
+                       const LocalPath& legacyPath,
+                       const LocalPath& dbPath) override;
+
 private:
-    bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
-    bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
+    bool openDBAndCreateStatecache(sqlite3** db,
+                                   FileSystemAccess& fsAccess,
+                                   const string& name,
+                                   mega::LocalPath& dbPath,
+                                   const int flags);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
 
     // We should add new type for every new column that was added to DB
