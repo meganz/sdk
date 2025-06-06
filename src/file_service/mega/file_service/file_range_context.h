@@ -36,6 +36,12 @@ class FileRangeContext: private common::PartialDownloadCallback
     auto data(const void* buffer, std::uint64_t offset, std::uint64_t length)
         -> std::variant<Abort, Continue> override;
 
+    // Dispatch zero or more read requests.
+    void dispatch();
+
+    // Check if a request can be dispatched.
+    bool dispatchable(const FileReadRequest& request) const;
+
     // Called when our download's encountered a failure.
     virtual auto failed(Error result, int retries) -> std::variant<Abort, Retry> override;
 

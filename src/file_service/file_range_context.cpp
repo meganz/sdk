@@ -19,13 +19,6 @@ namespace file_service
 
 using namespace common;
 
-static void dispatch(DisplacedBufferPtr buffer,
-                     FileRangeContextManager& manager,
-                     const FileRange& range,
-                     FileReadRequestSet& requests);
-
-static bool dispatchable(std::uint64_t end, const FileReadRequest& request);
-
 template<typename Lock>
 void FileRangeContext::completed(Lock&& lock, Error result)
 {
@@ -33,20 +26,17 @@ void FileRangeContext::completed(Lock&& lock, Error result)
     assert(lock.owns_lock());
     assert(lock.mutex() == &mManager.mutex());
 
-    // Latch context state.
-    //
-    // Necessary as mManager.completed(...) will destroy this instance.
-    auto activity = std::make_pair(std::move(mActivity), std::move(lock));
-    auto buffer = std::move(mBuffer);
-    auto manager = &mManager;
-    auto range = FileRange(mIterator->first.mBegin, mEnd);
-    auto requests = std::move(mRequests);
+    // Grab a reference to this context.
+    [[maybe_unused]] auto context = std::move(mIterator->second);
+
+    // Convenience.
+    FileRange range(mIterator->first.mBegin, mEnd);
 
     // Let the manager know this download has completed.
-    manager->completed(*buffer, mIterator, range);
+    mManager.completed(*mBuffer, mIterator, range);
 
     // Complete as many requests as we can.
-    dispatch(displace(buffer, 0), *manager, range, requests);
+    dispatch();
 
     // Download completed successfully.
     if (result == API_OK)
@@ -56,16 +46,16 @@ void FileRangeContext::completed(Lock&& lock, Error result)
     auto result_ = fileResultFromError(result);
 
     // Fail any remaining requests.
-    for (auto i = requests.begin(); i != requests.end();)
+    for (auto i = mRequests.begin(); i != mRequests.end();)
     {
         // Convenience.
         auto& request = const_cast<FileReadRequest&>(*i);
 
         // Fail the request.
-        manager->failed(std::move(request), result_);
+        mManager.failed(std::move(request), result_);
 
         // Remove the request from our set.
-        i = requests.erase(i);
+        i = mRequests.erase(i);
     }
 }
 
@@ -92,10 +82,63 @@ auto FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t len
     mEnd += length;
 
     // Dispatch what requests we can.
-    dispatch(displace(mBuffer, 0), mManager, FileRange(mIterator->first.mBegin, mEnd), mRequests);
+    dispatch();
 
     // Let the caller know the download should continue.
     return Continue();
+}
+
+void FileRangeContext::dispatch()
+{
+    // Convenience.
+    auto begin = mIterator->first.mBegin;
+
+    // Necessary as some requests may have displaced reads.
+    auto buffer = displace(mBuffer, 0);
+
+    // What requests might we be able to satisfy?
+    auto i = mRequests.begin();
+    auto j = mRequests.upper_bound(mEnd);
+
+    // Dispatch as many requests as we can.
+    while (i != j)
+    {
+        // Copying the iterator keeps logic clean.
+        auto k = i++;
+
+        // Evil but necessary.
+        auto& request = const_cast<FileReadRequest&>(*k);
+
+        // Can't dispatch this request.
+        if (!dispatchable(request))
+            continue;
+
+        // Tweak the request.
+        request.mRange.mEnd = mEnd;
+
+        // Set the buffer's displacement for this request.
+        buffer->displacement(request.mRange.mBegin - begin);
+
+        // Dispatch the request.
+        mManager.completed(buffer, std::move(request));
+
+        // Remove the request from our set.
+        mRequests.erase(k);
+    }
+}
+
+bool FileRangeContext::dispatchable(const FileReadRequest& request) const
+{
+    // Convenience.
+    auto& [m, n] = request.mRange;
+
+    // Minimum number of bytes needed to dispatch a request.
+    constexpr std::uint64_t minimumLength = 1u << 18;
+
+    // Request is dispatchable if:
+    // - We have enough data to fully satisfy the read.
+    // - We have enough data to provide minimumLength bytes of data.
+    return n <= mEnd || mEnd - m >= minimumLength;
 }
 
 auto FileRangeContext::failed(Error, int) -> std::variant<Abort, Retry>
@@ -161,7 +204,7 @@ auto FileRangeContext::download(Client& client, FileAccess& file, NodeHandle han
 void FileRangeContext::queue(FileReadRequest request)
 {
     // Request isn't dispatchable so queue it for later execution.
-    if (!dispatchable(mEnd, request))
+    if (!dispatchable(request))
         return mRequests.emplace(std::move(request)), void();
 
     // Assume the request requires no displacement.
@@ -176,59 +219,6 @@ void FileRangeContext::queue(FileReadRequest request)
 
     // Dispatch the request.
     mManager.completed(std::move(buffer), std::move(request));
-}
-
-void dispatch(DisplacedBufferPtr buffer,
-              FileRangeContextManager& manager,
-              const FileRange& range,
-              FileReadRequestSet& requests)
-{
-    // Convenience.
-    auto [begin, end] = range;
-
-    // What requests might we be able to satisfy?
-    auto i = requests.begin();
-    auto j = requests.upper_bound(end);
-
-    // Dispatch as many requests as we can.
-    while (i != j)
-    {
-        // Copying the iterator keeps logic clean.
-        auto k = i++;
-
-        // Evil but necessary.
-        auto& request = const_cast<FileReadRequest&>(*k);
-
-        // Can't dispatch this request.
-        if (!dispatchable(end, request))
-            continue;
-
-        // Tweak the request.
-        request.mRange.mEnd = end;
-
-        // Set the buffer's displacement for this request.
-        buffer->displacement(request.mRange.mBegin - begin);
-
-        // Dispatch the request.
-        manager.completed(buffer, std::move(request));
-
-        // Remove the request from our set.
-        requests.erase(k);
-    }
-}
-
-bool dispatchable(std::uint64_t end, const FileReadRequest& request)
-{
-    // Convenience.
-    auto& [m, n] = request.mRange;
-
-    // Minimum number of bytes needed to dispatch a request.
-    constexpr std::uint64_t minimumLength = 1u << 18;
-
-    // Request is dispatchable if:
-    // - We have enough data to fully satisfy the read.
-    // - We have enough data to provide minimumLength bytes of data.
-    return n <= end || end - m >= minimumLength;
 }
 
 } // file_service
