@@ -63,7 +63,10 @@
     },
     "dependencies": [
         "cryptopp",
-        "curl",
+        {
+          "name": "curl",
+          "features": [ "zstd" ]
+        },
         "icu",
         "libsodium",
         "sqlite3"
