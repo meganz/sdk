@@ -47,7 +47,7 @@ Ensure you have installed Visual Studio, with the necessary components for build
 
  - [Visual Studio 2022](https://visualstudio.microsoft.com/vs/)
  - MSVC v142
- - Windows 10 SDK (10.0.19041.0)
+ - Windows 10 SDK (10.0.22621.0)
 
 #### MacOS
 
