@@ -36,10 +36,22 @@ auto FileServiceContext::getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std:
     assert(lock.mutex() == &mLock);
     assert(lock.owns_lock());
 
-    if (auto entry = map.find(id); entry != map.end())
-        return entry->second.lock();
+    // Try and find the entry in the map.
+    auto entry = map.find(id);
 
-    return nullptr;
+    // No entry in the map.
+    if (entry == map.end())
+        return nullptr;
+
+    // Try and get a strong reference to the entry's instance.
+    auto instance = entry->second.lock();
+
+    // Entry references a dead instance.
+    if (!instance)
+        map.erase(entry);
+
+    // Return instance to caller.
+    return instance;
 }
 
 auto FileServiceContext::infoFromDatabase(FileID id, bool open)
