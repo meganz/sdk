@@ -71,7 +71,7 @@ void FileContext::cancel(FileRequest& request)
     // Cancel the request.
     std::visit(overloaded{[&](FileReadRequest& request)
                           {
-                              failed(request, FILE_CANCELLED);
+                              failed(std::move(request), FILE_CANCELLED);
                           }},
                request);
 }
@@ -207,7 +207,7 @@ void FileContext::completed(Buffer& buffer,
                 std::forward_as_tuple(nullptr));
 }
 
-void FileContext::completed(BufferPtr buffer, FileReadRequest& request)
+void FileContext::completed(BufferPtr buffer, FileReadRequest&& request)
 {
     // Sanity.
     assert(buffer);
@@ -253,7 +253,7 @@ bool FileContext::execute(FileReadRequest& request)
 
     // Caller doesn't actually want to read anything.
     if (begin == end)
-        return completed(mBuffer, request), true;
+        return completed(mBuffer, std::move(request)), true;
 
     // Get exclusive access to mRanges.
     std::unique_lock lock(mRangesLock);
@@ -275,7 +275,7 @@ bool FileContext::execute(FileReadRequest& request)
             return context->queue(request), true;
 
         // Range has already been downloaded.
-        completed(displace(mBuffer, begin), request);
+        completed(displace(mBuffer, begin), std::move(request));
 
         // Let our caller know the request was executed.
         return true;
@@ -330,7 +330,7 @@ void FileContext::execute()
     }
 }
 
-void FileContext::failed(FileReadRequest& request, FileResult result)
+void FileContext::failed(FileReadRequest&& request, FileResult result)
 {
     // Queue the user's callback for execution.
     mService.execute(std::bind(std::move(request.mCallback), unexpected(result)));

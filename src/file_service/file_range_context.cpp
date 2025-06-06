@@ -58,8 +58,11 @@ void FileRangeContext::completed(Lock&& lock, Error result)
     // Fail any remaining requests.
     for (auto i = requests.begin(); i != requests.end();)
     {
+        // Convenience.
+        auto& request = const_cast<FileReadRequest&>(*i);
+
         // Fail the request.
-        manager->failed(const_cast<FileReadRequest&>(*i), result_);
+        manager->failed(std::move(request), result_);
 
         // Remove the request from our set.
         i = requests.erase(i);
@@ -172,7 +175,7 @@ void FileRangeContext::queue(FileReadRequest request)
         buffer = displace(std::move(buffer), displacement);
 
     // Dispatch the request.
-    mManager.completed(std::move(buffer), request);
+    mManager.completed(std::move(buffer), std::move(request));
 }
 
 void dispatch(DisplacedBufferPtr buffer,
@@ -207,7 +210,7 @@ void dispatch(DisplacedBufferPtr buffer,
         buffer->displacement(request.mRange.mBegin - begin);
 
         // Dispatch the request.
-        manager.completed(buffer, request);
+        manager.completed(buffer, std::move(request));
 
         // Remove the request from our set.
         requests.erase(k);

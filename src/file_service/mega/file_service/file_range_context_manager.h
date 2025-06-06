@@ -28,10 +28,10 @@ public:
                            const FileRange& range) = 0;
 
     // Called when a file read request has been completed.
-    virtual void completed(BufferPtr buffer, FileReadRequest& request) = 0;
+    virtual void completed(BufferPtr buffer, FileReadRequest&& request) = 0;
 
     // Called when a file read request has failed.
-    virtual void failed(FileReadRequest& request, FileResult result) = 0;
+    virtual void failed(FileReadRequest&& request, FileResult result) = 0;
 
     // Acquire a lock on this manager.
     virtual std::unique_lock<std::recursive_mutex> lock() const = 0;
