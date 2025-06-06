@@ -1378,19 +1378,17 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
         {
             (*it)->abort();
 
-            LOG_debug << "[DirectReadNode::retry] Calling onFailure for DirectRead ("
-                      << (void*)(*it) << ")"
-                      << " [this = " << this << "]";
-
-            // Treat API_OK as API_EINCOMPLETE.
-            auto effectiveError = e ? e : Error(API_EINCOMPLETE);
-
-            // Let waiters know the read's encountered a failure.
-            dstime retryds = (*it)->onFailure(effectiveError, retries, timeleft);
-
-            if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
+            if (e)
             {
-                minretryds = retryds;
+                LOG_debug << "[DirectReadNode::retry] Calling onFailure for DirectRead ("
+                          << (void*)(*it) << ")"
+                          << " [this = " << this << "]";
+                dstime retryds = (*it)->onFailure(e, retries, timeleft);
+
+                if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
+                {
+                    minretryds = retryds;
+                }
             }
         }
         else

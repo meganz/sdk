@@ -5105,6 +5105,9 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
         removeCaches();
     }
 
+    // Abort any active direct reads.
+    abortreads();
+
     // Deinitialize the FUSE Client Adapter.
     //
     // Keep in mind that at this point, FUSE mounts may be active and one or
