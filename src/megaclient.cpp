@@ -2240,8 +2240,9 @@ void MegaClient::exec()
                 case REQ_SUCCESS:
                 {
                     restag = it->first;
-                    m_off_t actualLength =
-                        req->buf == nullptr ? req->bufpos : static_cast<m_off_t>(req->in.size());
+                    m_off_t actualLength = req->buf == nullptr || req->mChunked ?
+                                               req->bufpos :
+                                               static_cast<m_off_t>(req->in.size());
                     app->http_result(req->httpstatus ? API_OK : API_EFAILED,
                                      req->httpstatus,
                                      req->buf ? (byte*)req->buf : (byte*)req->in.data(),
