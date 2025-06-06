@@ -95,6 +95,9 @@ void FileContext::cancel()
         }
     }
 
+    // Make sure nothing else is messing with our request queue.
+    std::unique_lock guard(mRequestsLock);
+
     // Cancel any pending requests.
     while (!mRequests.empty())
     {
