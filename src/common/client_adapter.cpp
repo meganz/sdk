@@ -1488,11 +1488,11 @@ void ClientPartialDownload::data(Data& data, Lock&& lock)
 
     // The user's callback cancelled the download.
     if (std::holds_alternative<Abort>(result))
-        return completed(lock, API_EINCOMPLETE);
+        return completed(std::forward<Lock>(lock), API_EINCOMPLETE);
 
     // We've got all the data we asked for.
     if (!mRemaining)
-        return completed(lock, API_OK);
+        return completed(std::forward<Lock>(lock), API_OK);
 
     // Continue the download.
     data.ret = true;
@@ -1510,7 +1510,7 @@ void ClientPartialDownload::failure(Failure& failure, Lock&& lock)
 
     // Client's being torn down or the read's been aborted.
     if (failure.e == API_EINCOMPLETE)
-        return completed(lock, API_EINCOMPLETE);
+        return completed(std::forward<Lock>(lock), API_EINCOMPLETE);
 
     // Dispatch the callback.
     auto result = mCallback.failed(failure.e, failure.retry);
@@ -1522,7 +1522,7 @@ void ClientPartialDownload::failure(Failure& failure, Lock&& lock)
     std::visit(overloaded{[&](const Abort&)
                           {
                               // Let the user know why the read has completed.
-                              completed(lock, failure.e);
+                              completed(std::forward<Lock>(lock), failure.e);
                           },
                           [&](const Retry& retry)
                           {
