@@ -213,7 +213,7 @@ void FileContext::completed(BufferPtr buffer, FileReadRequest&& request)
     assert(buffer);
 
     // Called to complete the user's request.
-    auto callback = [=](FileContextPtr&, FileReadRequest& request, const Task&)
+    auto callback = [](auto& buffer, auto& context, auto& request, auto&)
     {
         // Convenience.
         auto [begin, end] = request.mRange;
@@ -225,14 +225,15 @@ void FileContext::completed(BufferPtr buffer, FileReadRequest&& request)
         request.mCallback(std::move(result));
 
         // Let the context know the read has completed.
-        mReadWriteState.readCompleted();
+        context->mReadWriteState.readCompleted();
 
         // See if we can't execute any queued requests.
-        execute();
+        context->execute();
     }; // callback
 
     // Queue the user's request for completion.
     mService.execute(std::bind(std::move(callback),
+                               std::move(buffer),
                                shared_from_this(),
                                std::move(request),
                                std::placeholders::_1));
