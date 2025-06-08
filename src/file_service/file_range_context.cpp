@@ -36,7 +36,7 @@ void FileRangeContext::completed(Lock&& lock, Error result)
     mManager.completed(*mBuffer, mIterator, range);
 
     // Complete as many requests as we can.
-    dispatch();
+    dispatch(range.mBegin);
 
     // Download completed successfully.
     if (result == API_OK)
@@ -82,17 +82,14 @@ auto FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t len
     mEnd += length;
 
     // Dispatch what requests we can.
-    dispatch();
+    dispatch(mIterator->first.mBegin);
 
     // Let the caller know the download should continue.
     return Continue();
 }
 
-void FileRangeContext::dispatch()
+void FileRangeContext::dispatch(const std::uint64_t begin)
 {
-    // Convenience.
-    auto begin = mIterator->first.mBegin;
-
     // Necessary as some requests may have displaced reads.
     auto buffer = displace(mBuffer, 0);
 

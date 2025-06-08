@@ -37,7 +37,7 @@ class FileRangeContext: private common::PartialDownloadCallback
         -> std::variant<Abort, Continue> override;
 
     // Dispatch zero or more read requests.
-    void dispatch();
+    void dispatch(std::uint64_t begin);
 
     // Check if a request can be dispatched.
     bool dispatchable(const FileReadRequest& request) const;
