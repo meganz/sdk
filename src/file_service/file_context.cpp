@@ -78,9 +78,21 @@ void FileContext::cancel(FileRequest& request)
 
 void FileContext::cancel()
 {
+    // When we execute this function, we know that no live references to
+    // this instance can exist. We know this because this function is only
+    // called from the instance's destructor.
+    //
+    // This doesn't mean that the instance is idle, however, as it is
+    // possible that one or more downloads may still be in progress which
+    // means that the client servicing those downloads may be executing
+    // within us or about to execute within us.
+
     // Cancel any downloads in progress.
     {
         // Make sure no one else changes mRanges.
+        //
+        // This is necessary as FileRangeContext instances acquire this lock
+        // when they are servicing a partial download callback.
         std::lock_guard guard(mRangesLock);
 
         // Cancel any downloads in progress.
@@ -90,6 +102,10 @@ void FileContext::cancel()
             auto j = i++;
 
             // Range is being downloaded.
+            //
+            // Calling cancel on a FileRangeContext with an active download
+            // will cause that context to call us immediately to remove
+            // itself from mRanges.
             if (j->second)
                 j->second->cancel();
         }
@@ -99,6 +115,9 @@ void FileContext::cancel()
     std::unique_lock guard(mRequestsLock);
 
     // Cancel any pending requests.
+    //
+    // We know this won't cause any other requests to be queued as we know
+    // there are no live references to this instance.
     while (!mRequests.empty())
     {
         // Cancel the request.
