@@ -96,7 +96,7 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     FileRequestList mRequests;
 
     // Serializes access to mRequests.
-    std::recursive_mutex mRequestsLock;
+    std::mutex mRequestsLock;
 
     // The service that manages this context.
     FileServiceContext& mService;
