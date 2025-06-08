@@ -345,7 +345,6 @@ try
 
     return unexpected(FILE_SERVICE_UNKNOWN_FILE);
 }
-
 catch (std::runtime_error& exception)
 {
     FSErrorF("Unable to get file information: %s: %s", toString(id).c_str(), exception.what());
@@ -366,7 +365,6 @@ try
 
     return unexpected(context.error());
 }
-
 catch (std::runtime_error& exception)
 {
     FSErrorF("Unable to open file: %s: %s", toString(id).c_str(), exception.what());
@@ -393,7 +391,6 @@ try
     // File isn't being managed by the service.
     return unexpected(FILE_SERVICE_UNKNOWN_FILE);
 }
-
 catch (std::runtime_error& exception)
 {
     FSErrorF("Unable to retrieve file ranges: %s: %s", toString(id).c_str(), exception.what());
@@ -407,6 +404,7 @@ void FileServiceContext::removeFromIndex(FileContextBadge, FileID id)
 }
 
 void FileServiceContext::removeFromIndex(FileInfoContextBadge, FileID id)
+try
 {
     // Make sure we have exclusive access to mInfoContexts.
     UniqueLock lockContexts(mLock);
@@ -440,6 +438,11 @@ void FileServiceContext::removeFromIndex(FileInfoContextBadge, FileID id)
 
     // Persist our changes.
     transaction.commit();
+}
+
+catch (std::runtime_error& exception)
+{
+    FSWarningF("Unable to purge %s from storage: %s", toString(id).c_str(), exception.what());
 }
 
 Database createDatabase(const LocalPath& databasePath)
