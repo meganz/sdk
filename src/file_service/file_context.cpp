@@ -112,20 +112,33 @@ void FileContext::cancel()
         }
     }
 
-    // Make sure nothing else is messing with our request queue.
-    std::unique_lock guard(mRequestsLock);
+    // Latch the request queue.
+    auto requests = [this]()
+    {
+        // Make sure no one else is messing with our request queue.
+        std::lock_guard guard(mRequestsLock);
+
+        // Latch the request queue.
+        auto requests = std::move(mRequests);
+
+        // Make sure the queue's in a sane state.
+        mRequests.clear();
+
+        // Return queue to caller.
+        return requests;
+    }();
 
     // Cancel any pending requests.
     //
     // We know this won't cause any other requests to be queued as we know
     // there are no live references to this instance.
-    while (!mRequests.empty())
+    while (!requests.empty())
     {
         // Cancel the request.
-        cancel(mRequests.front());
+        cancel(requests.front());
 
         // Remove the request from our queue.
-        mRequests.pop_front();
+        requests.pop_front();
     }
 }
 
