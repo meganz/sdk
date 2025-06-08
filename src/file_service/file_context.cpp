@@ -15,6 +15,7 @@
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_service_context.h>
+#include <mega/file_service/logging.h>
 #include <mega/file_service/type_traits.h>
 #include <mega/filesystem.h>
 #include <mega/overloaded.h>
@@ -131,6 +132,7 @@ void FileContext::cancel()
 void FileContext::completed(Buffer& buffer,
                             FileRangeContextPtrMap::Iterator iterator,
                             const FileRange& range)
+try
 {
     // Convenience.
     auto offset = range.mBegin;
@@ -227,6 +229,18 @@ void FileContext::completed(Buffer& buffer,
     mRanges.add(std::piecewise_construct,
                 std::forward_as_tuple(offset, offset + length),
                 std::forward_as_tuple(nullptr));
+}
+
+catch (std::runtime_error& exception)
+{
+    // Let debuggers know what went wrong.
+    FSWarningF("Unable to complete file range download: %s: %s: %s",
+               toString(mInfo->id()).c_str(),
+               toString(range).c_str(),
+               exception.what());
+
+    // Consider the range absent.
+    mRanges.remove(iterator);
 }
 
 void FileContext::completed(BufferPtr buffer, FileReadRequest&& request)
