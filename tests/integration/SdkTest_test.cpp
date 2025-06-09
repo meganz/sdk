@@ -8435,7 +8435,7 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
         randomRunsBytes += end - start;
 
         LOG_info << "beginning stream test, " << start << " to " << end << "(len " << end - start << ") " << (nonraid ? " non-raid " : " RAID ") << (!nonraid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
-
+        megaApi[0]->setStreamingMinimumRate(0);
         CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0].get(),
                                                                        start,
                                                                        end,
@@ -8601,7 +8601,9 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                                                 int cd429,
                                                 int cd503,
                                                 m_off_t nFailedReqs,
-                                                unsigned int transfer_timeout_in_seconds)
+                                                const int streamingMinimumRateBps = 0,
+                                                const long long downloadLimitBps = -1,
+                                                unsigned int transfer_timeout_in_seconds = 180)
     {
         ASSERT_TRUE(DebugTestHook::resetForTests())
             << "SDK test hooks are not enabled in release mode";
@@ -8613,6 +8615,8 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
             ::mega::DebugTestHook::onHookNumberOfConnections;
 #endif
 
+        megaApi[0]->setStreamingMinimumRate(streamingMinimumRateBps);
+        megaApi[0]->setMaxDownloadSpeed(downloadLimitBps);
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         DebugTestHook::countdownTo404 = cd404;
         DebugTestHook::countdownTo403 = cd403;
@@ -8641,54 +8645,113 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
             << "Unexpected number of retries for streaming download";
     };
 
-    LOG_debug << "#### Test1: Streaming Download, forcing 1 Raided Part Failure (403). No transfer "
-                 "retry ####";
-    startStreaming(-1 /*cd404*/,
-                   2 /*cd403*/,
-                   -1 /*cd429*/,
-                   -1 /*cd503*/,
-                   0 /*nFailedReqs*/,
-                   180 /*timeout*/);
-
-    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure(503) No transfer "
-                 "retry ####";
+    LOG_debug << "#### Test1: Streaming Download, no forced errors. No transfer retry ####";
     startStreaming(-1 /*cd404*/,
                    -1 /*cd403*/,
                    -1 /*cd429*/,
-                   1 /*cd503*/,
+                   -1 /*cd503*/,
                    0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
-    LOG_debug << "#### Test3: Streaming Download, forcing 1 Raided Part Failure (404)."
-                 "Transfer will be retried immediately due to 404(onTransferTemporaryError "
-                 "received) ####";
+    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure (404). No transfer "
+                 "retry ####";
     startStreaming(2 /*cd404*/,
                    -1 /*cd403*/,
                    -1 /*cd429*/,
                    -1 /*cd503*/,
-                   1 /*nFailedReqs*/,
+                   0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
-    LOG_debug << "#### Test4: Streaming Download, forcing 1 Raided Part Failure (429)."
-                 "Transfer will be retried immediately due to 429(onTransferTemporaryError "
-                 "received) ####";
-    startStreaming(-1 /*cd404*/,
-                   -1 /*cd403*/,
-                   2 /*cd429*/,
-                   -1 /*cd503*/,
-                   1 /*nFailedReqs*/,
-                   180 /*timeout*/);
-
-    LOG_debug << "#### Test5: Streaming Download forcing 2 Raided Parts Failures(403 | 503)."
-                 "Transfer will be retried immediately due to 403 and 503(onTransferTemporaryError "
-                 "received) ####";
+    LOG_debug << "#### Test3: Streaming Download forcing 2 Raided Parts Failures(403 | 503)."
+                 "Transfer will be retried (onTransferTemporaryError received) ####";
     startStreaming(-1 /*cd404*/,
                    2 /*cd403*/,
                    -1 /*cd429*/,
                    2 /*cd503*/,
                    1 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
+    LOG_debug << "#### Test4: Streaming Download limiting min streaming rate and max download "
+                 "speed, no forced errors. No transfer retry ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test5: Streaming Download limiting min streaming rate and max download "
+                 "speed, forcing 1 Raided Part Failure (429). No transfer retry ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   2 /*cd429*/,
+                   -1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test6: Streaming Download limiting min streaming rate and max download "
+                 "speed, forcing 2 Raided Parts Failures (403 | 503). Transfer will be retried "
+                 "(onTransferTemporaryError received) ####";
+    startStreaming(-1 /*cd404*/,
+                   2 /*cd403*/,
+                   -1 /*cd429*/,
+                   2 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   30000 /*streamingMinimumRateBps*/,
+                   300000 /*downloadLimitBps*/,
+                   180 /*timeout*/);
+
+    LOG_info
+        << "___TEST Streaming Raided Transfer With Connection Failures. Tests cases completed___";
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+}
+
+TEST_F(SdkTest, SdkTestStreamingRaidedTransferBestCase)
+{
+    LOG_info << "___TEST Streaming Raided Transfer Best Case___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
+    std::string url100MB =
+        "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; // https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
+    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL + url100MB, rootnode.get());
+    std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot get CloudRaidNode node from public link";
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+    mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+    std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
+        StreamRaidFilePart(megaApi[0].get(),
+                           0,
+                           cloudRaidNode->getSize(),
+                           true /*raid*/,
+                           false,
+                           cloudRaidNode.get(),
+                           nullptr,
+                           nullptr));
+
+    ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180))
+        << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Cannot finish streaming download for the cloudraid file (error: " << mApi[0].lastError
+        << ")";
+
+    LOG_info << "___TEST Streaming Raided Transfer Best Case. Tests cases completed___";
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 

@@ -10307,6 +10307,7 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
 void MegaApiImpl::setStreamingMinimumRate(int bytesPerSecond)
 {
     SdkMutexGuard g(sdkMutex);
+    LOG_debug << "Setting minimum acceptable speed for streaming: " << bytesPerSecond << "B/s";
     client->minstreamingrate = bytesPerSecond;
 }
 
