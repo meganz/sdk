@@ -13,6 +13,7 @@ namespace file_service
 {
 
 using FileReadCallback = std::function<void(FileResultOr<FileReadResult>)>;
+using FileTruncateCallback = std::function<void(FileResult)>;
 using FileWriteCallback = std::function<void(FileResultOr<FileWriteResult>)>;
 
 } // file_service
