@@ -37,6 +37,8 @@ target_sources(SDKlib PRIVATE
                       file_service_context.h
                       file_service_queries.h
                       file_storage.h
+                      file_truncate_request.h
+                      file_truncate_request_forward.h
                       file_write_request.h
                       file_write_request_forward.h
                       from_file_id_map.h
