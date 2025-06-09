@@ -15,12 +15,12 @@ namespace file_service
 template<typename BaseNodeType, typename LinkTraits, auto IsConstIterator, auto IsReverseIterator>
 class AVLTreeIterator
 {
+    // Convenience.
+    template<auto IsConst, auto IsReverse>
+    using CompatibleIteratorType = AVLTreeIterator<BaseNodeType, LinkTraits, IsConst, IsReverse>;
+
     // Determine our actual node type.
     using NodeType = std::conditional_t<IsConstIterator, const BaseNodeType, BaseNodeType>;
-
-    // Convenience.
-    using OtherIteratorType =
-        AVLTreeIterator<BaseNodeType, LinkTraits, !IsConstIterator, IsReverseIterator>;
 
     // Move the iterator forward one node.
     AVLTreeIterator& next()
@@ -103,7 +103,8 @@ public:
         mNode(node)
     {}
 
-    AVLTreeIterator(const OtherIteratorType& other):
+    template<auto IsConst, auto IsReverse>
+    AVLTreeIterator(const CompatibleIteratorType<IsConst, IsReverse>& other):
         mNode(const_cast<NodeType*>(other.nodePointer()))
     {}
 
