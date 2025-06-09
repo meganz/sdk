@@ -263,6 +263,17 @@ public:
         return mByRangeBegin.end();
     }
 
+    // Find the first range that ends at or after position.
+    Iterator endsAfter(std::uint64_t position)
+    {
+        return mByRangeEnd.lower_bound(position).nodePointer();
+    }
+
+    auto endsAfter(std::uint64_t position) const
+    {
+        return const_cast<FileRangeTree&>(*this).endsAfter(position);
+    }
+
     // Find all ranges that overlap range.
     auto find(const FileRange& range) -> std::pair<Iterator, Iterator>
     {
