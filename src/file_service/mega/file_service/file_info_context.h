@@ -60,6 +60,9 @@ public:
     // How large is this file?
     auto size() const -> std::uint64_t;
 
+    // Signal that the file has been truncated.
+    void truncated(std::int64_t modified, std::uint64_t size);
+
     // Signal that data has been written to the file.
     void written(const FileRange& range, std::int64_t modified);
 }; // FileInfoContext
