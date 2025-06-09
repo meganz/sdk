@@ -35,6 +35,10 @@ namespace file_service
 
 using namespace common;
 
+// Check if T is a file read request.
+template<typename T>
+constexpr auto IsFileReadRequestV = IsOneOfV<T, FileReadRequest>;
+
 void FileContext::addRange(const FileRange& range, Transaction& transaction)
 {
     auto query = transaction.query(mService.queries().mAddFileRange);
@@ -261,18 +265,20 @@ void FileContext::completed(BufferPtr buffer, FileReadRequest&& request)
     auto [begin, end] = request.mRange;
 
     // Complete the user's request.
-    completed(&FileReadWriteState::readCompleted,
-              std::move(request),
-              FileReadResult{*buffer, begin, end - begin},
-              std::move(buffer));
+    completed(std::move(request), FileReadResult{*buffer, begin, end - begin}, std::move(buffer));
 }
 
 template<typename Request, typename Result, typename... Captures>
-void FileContext::completed(void (FileReadWriteState::*complete)(),
-                            Request&& request,
-                            Result result,
-                            Captures&&... captures)
+auto FileContext::completed(Request&& request, Result result, Captures&&... captures)
+    -> std::enable_if_t<IsFileRequestV<Request>>
 {
+    // Make sure request has been passed by rvalue reference.
+    static_assert(!std::is_reference_v<Request>);
+
+    // What kind of request are we completing?
+    constexpr auto complete = IsFileReadRequestV<Request> ? &FileReadWriteState::readCompleted :
+                                                            &FileReadWriteState::writeCompleted;
+
     // Called to complete the user's request.
     auto callback = [=](auto& callback, auto& context, auto&, auto&&...)
     {
@@ -294,13 +300,13 @@ void FileContext::completed(void (FileReadWriteState::*complete)(),
                                std::forward<Captures>(captures)...));
 }
 
-void FileContext::completed(FileWriteRequest& request)
+void FileContext::completed(FileWriteRequest&& request)
 {
     // Convenience.
     auto [begin, end] = request.mRange;
 
     // Complete the user's request.
-    completed(&FileReadWriteState::writeCompleted, request, FileWriteResult{begin, end - begin});
+    completed(std::move(request), FileWriteResult{begin, end - begin});
 }
 
 bool FileContext::execute(FileReadRequest& request)
@@ -382,7 +388,7 @@ bool FileContext::execute(FileWriteRequest& request)
 
     // Caller doesn't actually want to write anything.
     if (!length)
-        return completed(request), true;
+        return completed(std::move(request)), true;
 
     // Caller hasn't passed us a valid buffer.
     if (!request.mBuffer)
@@ -460,7 +466,7 @@ bool FileContext::execute(FileWriteRequest& request)
     mInfo->written(range, modified);
 
     // Queue the user's request for completion.
-    completed(request);
+    completed(std::move(request));
 
     // Let the caller know the write was successful.
     return true;
@@ -493,18 +499,33 @@ void FileContext::execute()
     }
 }
 
+template<typename Request>
+auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>
+{
+    // Make sure the request's been passed by rvalue reference.
+    static_assert(!std::is_reference_v<Request>);
+
+    // Can't execute the request so queue it for later execution.
+    if (!execute(request))
+        queue(std::forward<Request>(request));
+}
+
 void FileContext::failed(FileReadRequest&& request, FileResult result)
 {
-    failed(&FileReadWriteState::readCompleted, std::move(request), result);
+    // Delegate to template function.
+    failed<>(std::move(request), result);
 }
 
 template<typename Request>
-void FileContext::failed(void (FileReadWriteState::*complete)(),
-                         Request&& request,
-                         FileResult result)
+auto FileContext::failed(Request&& request, FileResult result)
+    -> std::enable_if_t<IsFileRequestV<Request>>
 {
-    // Sanity.
-    assert(complete);
+    // Make sure request has been passed by rvalue reference.
+    static_assert(!std::is_reference_v<Request>);
+
+    // What kind of request are we failing?
+    constexpr auto complete = IsFileReadRequestV<Request> ? &FileReadWriteState::readCompleted :
+                                                            &FileReadWriteState::writeCompleted;
 
     // Called to fail the user's request.
     auto callback = [=](auto& cookie, auto& request, auto&)
@@ -533,11 +554,6 @@ void FileContext::failed(void (FileReadWriteState::*complete)(),
                                std::placeholders::_1));
 }
 
-void FileContext::failed(FileWriteRequest&& request, FileResult result)
-{
-    failed(&FileReadWriteState::writeCompleted, std::move(request), result);
-}
-
 std::unique_lock<std::recursive_mutex> FileContext::lock() const
 {
     return std::unique_lock(mRangesLock);
@@ -549,14 +565,16 @@ std::recursive_mutex& FileContext::mutex() const
 }
 
 template<typename Request>
-void FileContext::queue(Request&& request)
+auto FileContext::queue(Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>
 {
     // Make sure we're the only one changing the queue.
     std::lock_guard guard(mRequestsLock);
 
+    // Convenience.
+    using Tag = std::in_place_type_t<std::remove_reference_t<Request>>;
+
     // Push the request onto the end of our queue.
-    mRequests.emplace_back(std::in_place_type_t<std::remove_reference_t<Request>>(),
-                           std::forward<Request>(request));
+    mRequests.emplace_back(Tag(), std::forward<Request>(request));
 }
 
 void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
@@ -635,9 +653,7 @@ FileRangeVector FileContext::ranges() const
 
 void FileContext::read(FileReadRequest request)
 {
-    // Couldn't execute the read as a write is in progress.
-    if (!execute(request))
-        queue(std::move(request));
+    executeOrQueue(std::move(request));
 }
 
 void FileContext::ref()
@@ -652,9 +668,7 @@ void FileContext::unref()
 
 void FileContext::write(FileWriteRequest request)
 {
-    // Couldn't execute the read as another request is in progress.
-    if (!execute(request))
-        queue(std::move(request));
+    executeOrQueue(std::move(request));
 }
 
 } // file_service

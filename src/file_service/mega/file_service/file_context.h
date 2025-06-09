@@ -21,6 +21,7 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <type_traits>
 #include <variant>
 
 namespace mega
@@ -33,6 +34,10 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Convenience.
     using FileRequest = std::variant<FileReadRequest, FileWriteRequest>;
     using FileRequestList = std::list<FileRequest>;
+
+    // Check if T is a file request.
+    template<typename T>
+    static constexpr auto IsFileRequestV = std::is_constructible_v<FileRequest, T>;
 
     // Add a range to the database.
     void addRange(const FileRange& range, common::Transaction& transaction);
@@ -56,13 +61,11 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Called when a file request has been completed.
     template<typename Request, typename Result, typename... Captures>
-    void completed(void (FileReadWriteState::*complete)(),
-                   Request&& request,
-                   Result result,
-                   Captures&&... captures);
+    auto completed(Request&& request, Result result, Captures&&... captures)
+        -> std::enable_if_t<IsFileRequestV<Request>>;
 
     // Called when a file write request has been completed.
-    void completed(FileWriteRequest& request);
+    void completed(FileWriteRequest&& request);
 
     // Try and execute a read request.
     bool execute(FileReadRequest& request);
@@ -76,15 +79,16 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Execute zero or more queued requests.
     void execute();
 
+    // Execute a request if possible otherwise queue it for later execution.
+    template<typename Request>
+    auto executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>;
+
     // Called when a file read request has failed.
     void failed(FileReadRequest&& request, FileResult result) override;
 
     // Called when a file request has failed.
     template<typename Request>
-    void failed(void (FileReadWriteState::*complete)(), Request&& request, FileResult result);
-
-    // Called when a file write request has failed.
-    void failed(FileWriteRequest&& request, FileResult result);
+    auto failed(Request&& request, FileResult result) -> std::enable_if_t<IsFileRequestV<Request>>;
 
     // Acquire a lock on this manager.
     std::unique_lock<std::recursive_mutex> lock() const override;
@@ -94,7 +98,7 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Queue a request for later execution.
     template<typename Request>
-    void queue(Request&& request);
+    auto queue(Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>;
 
     // Remove zero or more ranges from the database.
     void removeRanges(const FileRange& range, common::Transaction& transaction);
