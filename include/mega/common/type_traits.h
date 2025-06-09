@@ -38,6 +38,9 @@ struct IsOneOf
 {
 }; // IsOneOf<T, U, Us...>
 
+template<typename T, typename U, typename... Us>
+constexpr auto IsOneOfV = IsOneOf<T, U, Us...>::value;
+
 } // common
 } // mega
 
