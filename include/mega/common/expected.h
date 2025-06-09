@@ -30,6 +30,10 @@ class Expected
     template<typename F, typename U>
     friend class Expected;
 
+    template<typename U, typename V>
+    static constexpr auto IsConstructibleV =
+        std::is_constructible_v<U, V> || std::is_convertible_v<V, U>;
+
     std::variant<E, T> mValue;
 
 public:
@@ -67,18 +71,9 @@ public:
         mValue(std::in_place_type_t<E>(), other.value())
     {}
 
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsConstructibleV<T, U>>* = nullptr>
     Expected(U&& other):
-        mValue(std::in_place_type_t<T>(), std::move(other))
-    {}
-
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
-    Expected(const U& other):
-        mValue(std::in_place_type_t<T>(), other)
+        mValue(std::in_place_type_t<T>(), std::forward<U>(other))
     {}
 
     operator bool() const
@@ -106,24 +101,10 @@ public:
         return *this;
     }
 
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsConstructibleV<T, U>>* = nullptr>
     Expected& operator=(U&& rhs)
     {
-        Expected temp(std::move(rhs));
-
-        swap(temp);
-
-        return *this;
-    }
-
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
-    Expected& operator=(const U& rhs)
-    {
-        Expected temp(rhs);
+        Expected temp(std::forward<U>(rhs));
 
         swap(temp);
 
@@ -175,9 +156,7 @@ public:
         return hasError() && error() == rhs.value();
     }
 
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsConstructibleV<T, U>>* = nullptr>
     bool operator==(const U& rhs) const
     {
         return hasValue() && value() == rhs;
@@ -200,9 +179,7 @@ public:
         return !(*this == rhs);
     }
 
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsConstructibleV<T, U>>* = nullptr>
     bool operator!=(const U& rhs) const
     {
         return !(*this == rhs);
