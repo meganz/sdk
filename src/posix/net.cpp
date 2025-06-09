@@ -237,6 +237,11 @@ CurlHttpIO::CurlHttpIO()
         LOG_debug << "libz version: " << data->libz_version;
     }
 
+    if (data->zstd_version)
+    {
+        LOG_debug << "zstd version: " << data->zstd_version;
+    }
+
     int i;
     for (i = 0; data->protocols[i]; i++)
     {
@@ -1281,7 +1286,14 @@ int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t siz
         NET_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->getLogName() : string())
                     << "cURL: " << data << errnoInfo;
     }
-
+    else if (type == CURLINFO_HEADER_IN && size)
+    {
+        NET_verbose << "CURL incoming header: " << std::string(data, size);
+    }
+    else if (type == CURLINFO_HEADER_OUT && size)
+    {
+        NET_verbose << "CURL outgoing header: " << std::string(data, size);
+    }
     return 0;
 }
 
