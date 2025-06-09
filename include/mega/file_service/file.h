@@ -44,6 +44,9 @@ public:
     // Let the service know you want it to keep this file in storage.
     void ref();
 
+    // Truncate this file to a specified size.
+    void truncate(FileTruncateCallback callback, std::uint64_t size);
+
     // Let the service know you're happy for it to remove this file.
     void unref();
 

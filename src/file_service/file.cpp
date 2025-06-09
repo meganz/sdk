@@ -6,6 +6,7 @@
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_service_context_badge.h>
+#include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request.h>
 
 #include <utility>
@@ -60,6 +61,11 @@ void File::read(FileReadCallback callback, const FileRange& range)
 void File::ref()
 {
     mContext->ref();
+}
+
+void File::truncate(FileTruncateCallback callback, std::uint64_t size)
+{
+    mContext->truncate(FileTruncateRequest{std::move(callback), size});
 }
 
 void File::unref()

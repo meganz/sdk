@@ -59,6 +59,9 @@ static bool compare(const std::string& computed,
 static auto read(File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResultOr<std::string>>;
 
+// Truncate the specified file to a particular size.
+static auto truncate(File file, std::uint64_t size) -> std::future<FileResult>;
+
 // Write some content to the specified file.
 static auto write(const void* buffer, File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResult>;
@@ -304,6 +307,186 @@ TEST_F(FileServiceTests, ref_succeeds)
 
     // Let the service know it can remove the file.
     file->unref();
+}
+
+TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
+{
+    // Convenience.
+    auto timeout = std::future_status::timeout;
+
+    // Open the file for truncation.
+    auto file = ClientW()->fileOpen(mFileHandle);
+
+    // Make sure the file was opened.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Reads a range from the file.
+    auto read = [&](std::uint64_t offset, std::uint64_t length)
+    {
+        // Assume the read fails.
+        FileResultOr<std::string> result(unexpected(FILE_FAILED));
+
+        // Initiate the read request.
+        auto waiter = testing::read(*file, offset, length);
+
+        // Wait for the request to complete.
+        if (waiter.wait_for(mDefaultTimeout) != timeout)
+            result = waiter.get();
+
+        // Return the result to our caller.
+        return result;
+    }; // read
+
+    // Download a range from the file.
+    auto fetch = [&](std::uint64_t offset, std::uint64_t length)
+    {
+        return read(offset, length).errorOr(FILE_SUCCESS);
+    }; // fetch
+
+    // Truncate the file to a particular size.
+    auto truncate = [&](std::uint64_t size)
+    {
+        // Get our hands on the file's attributes.
+        auto info = file->info();
+
+        // Latch the file's current modification time.
+        auto modified = info.modified();
+
+        // Initiate the truncate request.
+        auto waiter = testing::truncate(*file, size);
+
+        // Truncate timed out.
+        if (waiter.wait_for(mDefaultTimeout) == timeout)
+            return FILE_FAILED;
+
+        // Make sure the file's attributes have been updated.
+        EXPECT_GE(info.modified(), modified);
+        EXPECT_EQ(info.size(), size);
+
+        // One of the above expectations wasn't met.
+        if (HasFailure())
+            return FILE_FAILED;
+
+        // Let the caller know the truncation was successful.
+        return FILE_SUCCESS;
+    }; // truncate
+
+    // Read a few ranges from the file.
+    EXPECT_EQ(fetch(32_KiB, 32_KiB), FILE_SUCCESS);
+    EXPECT_EQ(fetch(96_KiB, 32_KiB), FILE_SUCCESS);
+    EXPECT_EQ(fetch(160_KiB, 32_KiB), FILE_SUCCESS);
+
+    // Make sure we have the ranges we requested.
+    auto ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 3u);
+    EXPECT_EQ(ranges[0], FileRange(32_KiB, 64_KiB));
+    EXPECT_EQ(ranges[1], FileRange(96_KiB, 128_KiB));
+    EXPECT_EQ(ranges[2], FileRange(160_KiB, 192_KiB));
+
+    // Truncate the file to 256KiB.
+    ASSERT_EQ(truncate(256_KiB), FILE_SUCCESS);
+
+    // Existing ranges should be unchanged.
+    ASSERT_EQ(file->ranges(), ranges);
+
+    // Truncate the file to 160KiB.
+    ASSERT_EQ(truncate(160_KiB), FILE_SUCCESS);
+
+    // The range [160, 192] should have been removed.
+    ranges.pop_back();
+    ASSERT_EQ(file->ranges(), ranges);
+
+    // Truncate the file to 112KiB.
+    ASSERT_EQ(truncate(112_KiB), FILE_SUCCESS);
+
+    // The range [96, 128] should become [96, 112].
+    ranges.back().mEnd = 112_KiB;
+    ASSERT_EQ(file->ranges(), ranges);
+
+    // Extend the file to 256KiB.
+    ASSERT_EQ(truncate(256_KiB), FILE_SUCCESS);
+
+    // The range [96, 112] should become [96, 256].
+    ranges.back().mEnd = 256_KiB;
+    ASSERT_EQ(file->ranges(), ranges);
+}
+
+TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
+{
+    // Convenience.
+    auto timeout = std::future_status::timeout;
+
+    // Open the file for truncation.
+    auto file = ClientW()->fileOpen(mFileHandle);
+
+    // Make sure the file was opened.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Get our hands on the file's attributes.
+    auto info = file->info();
+
+    // Make sure the file has no active ranges.
+    ASSERT_EQ(file->ranges().size(), 0u);
+
+    // Latch the file's current modification time and size.
+    auto modified = info.modified();
+    auto size = info.size();
+
+    // We should be able to reduce the file's size.
+    auto waiterT = truncate(*file, size / 2);
+
+    // Wait for the request to complete.
+    ASSERT_NE(waiterT.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the request succeeded.
+    ASSERT_EQ(waiterT.get(), FILE_SUCCESS);
+
+    // Make sure the file's modification time and size were updated.
+    EXPECT_GE(info.modified(), modified);
+    EXPECT_EQ(info.size(), size / 2);
+
+    // The file should still have no active ranges.
+    EXPECT_EQ(file->ranges().size(), 0u);
+
+    // Latch the file's current modification time.
+    modified = info.modified();
+
+    // We should be able to grow the file's size.
+    waiterT = truncate(*file, size);
+
+    ASSERT_NE(waiterT.wait_for(mDefaultTimeout), timeout);
+    ASSERT_EQ(waiterT.get(), FILE_SUCCESS);
+
+    // Make sure the file's attributes were updated.
+    EXPECT_GE(info.modified(), modified);
+    EXPECT_EQ(info.size(), size);
+
+    // There should be a single active range.
+    auto ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 1u);
+    EXPECT_EQ(ranges[0], FileRange(size / 2, size));
+
+    // Make sure we can still read the file's content.
+    auto waiterR = read(*file, 0, size);
+
+    // Wait for the read to complete.
+    ASSERT_NE(waiterR.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the read succeeded.
+    auto result = waiterR.get();
+
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(result->size(), static_cast<std::size_t>(size));
+
+    // Convenience.
+    auto length = size / 2;
+    auto npos = std::string::npos;
+
+    // Make sure we read what we expected.
+    EXPECT_EQ(mFileContent.compare(0, length, *result, 0, length), 0);
+    EXPECT_EQ(result->find_first_not_of('\0', length), npos);
 }
 
 TEST_F(FileServiceTests, write_succeeds)
@@ -613,6 +796,29 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
         length);
 
     // Return waiter to our caller.
+    return waiter;
+}
+
+auto truncate(File file, std::uint64_t size) -> std::future<FileResult>
+{
+    // Convenience.
+    using common::makeSharedPromise;
+
+    // So we can notify our waiter when the request completes.
+    auto notifier = makeSharedPromise<FileResult>();
+
+    // So our caller can wait until the request completes.
+    auto waiter = notifier->get_future();
+
+    // Try and truncate the file.
+    file.truncate(
+        [notifier](FileResult result)
+        {
+            notifier->set_value(result);
+        },
+        size);
+
+    // Return the waiter to our caller.
     return waiter;
 }
 

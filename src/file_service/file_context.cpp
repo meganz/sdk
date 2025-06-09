@@ -16,6 +16,7 @@
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_service_context.h>
+#include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request.h>
 #include <mega/file_service/logging.h>
 #include <mega/file_service/type_traits.h>
@@ -375,6 +376,83 @@ bool FileContext::execute(FileReadRequest& request)
     return true;
 }
 
+bool FileContext::execute(FileTruncateRequest& request)
+{
+    // Can't truncate if there's another request in progress.
+    if (!mReadWriteState.write())
+        return false;
+
+    // User isn't changing the file's size.
+    if (mInfo->size() == request.mSize)
+        return completed(std::move(request), FILE_SUCCESS), true;
+
+    // What range is affected by the truncation?
+    FileRange range(mInfo->size(), request.mSize);
+
+    // Whether we should add a new range.
+    auto resize = request.mSize > mInfo->size();
+
+    // Convenience.
+    auto size = range.mBegin;
+
+    // Make sure we have exclusive access to mRanges.
+    std::unique_lock lock(mRangesLock);
+
+    // Find the first range that begins after size.
+    auto begin = mRanges.endsAfter(size);
+
+    // Range contains size.
+    if (begin != mRanges.end() && begin->first.mBegin < size)
+    {
+        // Tweak our effective range.
+        range.mBegin = begin->first.mBegin;
+
+        // Remember that we need to resize an existing range.
+        resize = true;
+    }
+
+    auto transaction = mService.database().transaction();
+
+    // Remove affected ranges.
+    removeRanges(range, transaction);
+
+    // Tweak effective range.
+    range.mEnd = request.mSize;
+
+    // Readd existing range to database if necessary.
+    if (resize)
+        addRange(range, transaction);
+
+    // Compute the file's new modification time.
+    auto modified = now();
+
+    // Update the file's modification time.
+    updateModificationTime(modified, transaction);
+
+    // Remove obsolete ranges from memory.
+    mRanges.remove(begin, mRanges.end());
+
+    // Readd existing range to memory if necessary.
+    if (resize)
+        mRanges.add(range, nullptr);
+
+    // Couldn't truncate this file's storage.
+    if (!mFile->ftruncate(static_cast<m_off_t>(request.mSize)))
+        return failed(std::move(request), FILE_FAILED), true;
+
+    // Persist changes.
+    transaction.commit();
+
+    // Update the file's attributes.
+    mInfo->truncated(modified, request.mSize);
+
+    // Queue the user's request for completion.
+    completed(std::move(request), FILE_SUCCESS);
+
+    // Let the caller know the request's been executed.
+    return true;
+}
+
 bool FileContext::execute(FileWriteRequest& request)
 {
     // Can't execute a write if there's another request in progress.
@@ -530,8 +608,14 @@ auto FileContext::failed(Request&& request, FileResult result)
     // Called to fail the user's request.
     auto callback = [=](auto& cookie, auto& request, auto&)
     {
-        // Let the user know their request has failed.
-        request.mCallback(unexpected(result));
+        // Determine the callback's type.
+        using Callback = decltype(request.mCallback);
+
+        // Let the user know their request's failed.
+        if constexpr (std::is_invocable_v<Callback, FileResult>)
+            request.mCallback(result);
+        else
+            request.mCallback(unexpected(result));
 
         // Check if our context is still alive.
         auto context = cookie.lock();
@@ -659,6 +743,11 @@ void FileContext::read(FileReadRequest request)
 void FileContext::ref()
 {
     adjustRef(1);
+}
+
+void FileContext::truncate(FileTruncateRequest request)
+{
+    executeOrQueue(std::move(request));
 }
 
 void FileContext::unref()

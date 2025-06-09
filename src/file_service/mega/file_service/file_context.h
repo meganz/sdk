@@ -15,6 +15,7 @@
 #include <mega/file_service/file_read_request_forward.h>
 #include <mega/file_service/file_read_write_state.h>
 #include <mega/file_service/file_service_context_forward.h>
+#include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request_forward.h>
 #include <mega/types.h>
 
@@ -32,7 +33,7 @@ namespace file_service
 class FileContext final: FileRangeContextManager, public std::enable_shared_from_this<FileContext>
 {
     // Convenience.
-    using FileRequest = std::variant<FileReadRequest, FileWriteRequest>;
+    using FileRequest = std::variant<FileReadRequest, FileTruncateRequest, FileWriteRequest>;
     using FileRequestList = std::list<FileRequest>;
 
     // Check if T is a file request.
@@ -69,6 +70,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Try and execute a read request.
     bool execute(FileReadRequest& request);
+
+    // Try and execute a truncate request.
+    bool execute(FileTruncateRequest& request);
 
     // Try and execute a write request.
     bool execute(FileWriteRequest& request);
@@ -159,6 +163,9 @@ public:
 
     // Let the service know you want it to keep this file in storage.
     void ref();
+
+    // Truncate this file to a specified size.
+    void truncate(FileTruncateRequest request);
 
     // Let the service know you're happy for it to remove this file.
     void unref();
