@@ -1748,7 +1748,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
 
                 // check httpstatus, redirecturl and response length
-                m_off_t actualLength = req->buf == nullptr || req->mChunked ?
+                m_off_t actualLength = req->buf != nullptr || req->mChunked ?
                                            req->bufpos :
                                            static_cast<m_off_t>(req->in.size());
                 req->status =
