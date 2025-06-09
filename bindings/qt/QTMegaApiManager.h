@@ -13,13 +13,15 @@ public:
     static void createMegaApi(MegaApi*& api,
                               const char* appKey,
                               const char* basePath,
-                              const char* userAgent);
+                              const char* userAgent,
+                              bool enableKeyPinning);
 
     static void createMegaApi(MegaApi*& api,
                               const char* appKey,
                               MegaGfxProvider* gfxProvider,
                               const char* basePath,
-                              const char* userAgent);
+                              const char* userAgent,
+                              bool enableKeyPinning);
 
     static bool isMegaApiValid(MegaApi* api);
     static void removeMegaApis();
