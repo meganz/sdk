@@ -5856,6 +5856,38 @@ vector<SyncWaitResult> waitonsyncs(WaitOnSyncsEndCondition&& endCondition,
     }
 }
 
+void printStallIssues(StandardClient& sc)
+{
+    SyncStallInfoTests stalls;
+    sc.stallsDetected(stalls);
+    auto printStallIssue = [](const bool local, const std::string& pathstr, SyncStallEntry& stall)
+    {
+        LOG_debug << "[Stall issue - " << (local ? "waitingForLocal" : "waitingForCloud")
+                  << "]: " << pathstr << "\n\t\t- Reason (" << static_cast<unsigned>(stall.reason)
+                  << ")"
+                  << "\n\t\t- cloudPath1 (" << stall.cloudPath1.debugReport() << ")"
+                  << "\n\t\t- cloudPath2 (" << stall.cloudPath2.debugReport() << ")"
+                  << "\n\t\t- localPath1 (" << stall.localPath1.debugReport() << ")"
+                  << "\n\t\t- localPath2 (" << stall.localPath2.debugReport() << ")";
+    };
+
+    LOG_debug << "Printing cloud stall issues:";
+    std::for_each(stalls.cloud.begin(),
+                  stalls.cloud.end(),
+                  [&printStallIssue](auto& s)
+                  {
+                      printStallIssue(true, s.first, s.second);
+                  });
+
+    LOG_debug << "Printing local stall issues:";
+    std::for_each(stalls.local.begin(),
+                  stalls.local.end(),
+                  [&printStallIssue](auto& s)
+                  {
+                      printStallIssue(true, s.first.toPath(false), s.second);
+                  });
+}
+
 vector<SyncWaitResult> waitonsyncs(const std::chrono::seconds timeout = std::chrono::seconds(4),
                                    StandardClient* c1 = nullptr,
                                    StandardClient* c2 = nullptr,
@@ -19416,7 +19448,11 @@ TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
 
     // Wait for the synchronization to complete.
     auto waitResult = waitonsyncs(std::chrono::seconds(5), client);
-    ASSERT_TRUE(noSyncStalled(waitResult));
+    if (auto stallsDetected = !noSyncStalled(waitResult); stallsDetected)
+    {
+        printStallIssues(*client);
+        ASSERT_TRUE(!stallsDetected) << "stall issues detected";
+    }
 
     Model model;
     model.addfile(name1)->fsName(name2);
