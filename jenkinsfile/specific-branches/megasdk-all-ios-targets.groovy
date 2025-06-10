@@ -40,6 +40,10 @@ pipeline {
                 BUILD_DIR_ARM64 = "build_dir_arm64"
                 BUILD_DIR_ARM64_SIM = "build_dir_arm64_sim"
                 BUILD_DIR_X64_SIM = "build_dir_x64_sim"
+                VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
+                AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
+                AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
+                AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
             }
             steps{
                 //Build SDK for arm64-iphoneos

@@ -6679,6 +6679,8 @@ class MegaTransfer
          * @note The identifiers may not be consecutive and can be reused once the transfer is
          * completed or cancelled.
          *
+         * @note The identifiers are reset a after fresh login (without session)
+         *
          * @return 32-bits unsigned integer that identifies this transfer
          */
         virtual uint32_t getUniqueId() const;
@@ -8538,9 +8540,24 @@ public:
      */
     enum UserErrorCode
     {
-        USER_ETD_UNKNOWN = -1,          ///< Unknown state
-        USER_COPYRIGHT_SUSPENSION = 4,  /// Account suspended by copyright
-        USER_ETD_SUSPENSION = 7,        ///< Account suspend by an ETD/ToS 'severe'
+        USER_ETD_UNKNOWN = -1,
+        USER_ENABLED = 0,
+        USER_PENDINGCONFIRMATION = 1,
+        USER_SUSPENDED_GENERIC = 2,
+        USER_SUSPENDED_PAYMENT = 3,
+        USER_COPYRIGHT_SUSPENSION = 4,
+        USER_SUSPENDED_ADMIN_FULLDISABLE = 5,
+        USER_SUSPENDED_ADMIN_PARTIALDISABLE = 6,
+        USER_ETD_SUSPENSION = 7,
+        USER_SUSPENDED_SMSVERIFICATIONREQUIRED = 8,
+        USER_SUSPENDED_EMAILVERIFICATIONREQUIRED = 9,
+        USER_SUBACCOUNT_PENDINGCONFIRMATION = 10,
+        USER_SUBACCOUNT_DISABLED = 11,
+        USER_SUBACCOUNT_DELETED = 12,
+        USER_BUSINESSACCOUNT = 20,
+        USER_SUSPENDED_PASSWORD_CHANGE_REQUIRED = 21,
+        USER_EPHEMERAL_RESELLER_USER = 22,
+        USER_SUSPENDED_NOUSER = 99,
     };
 
     /**
@@ -8630,9 +8647,7 @@ public:
          * @brief Returns the user status
          *
          * This method only returns a valid value when hasExtraInfo is true
-         * Possible values:
-         *  MegaError::UserErrorCode::USER_COPYRIGHT_SUSPENSION
-         *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
+         * Possible values are defined in MegaError::UserErrorCode
          *
          * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
          *
@@ -13777,6 +13792,31 @@ class MegaApi
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the thumbnail of a node by its handle
+         *
+         * If the node doesn't have a thumbnail, the request fails with the MegaError::API_ENOENT
+         * error code.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_FILE.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getFile - Returns the destination path
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         *
+         * @param handle Handle of the node to get the thumbnail.
+         * @param dstFilePath Destination path for the thumbnail.
+         * If this path is a local folder, it must end with a '\' or '/' character and
+         * (Base64-encoded handle + "0.jpg") will be used as the file name inside that folder. If
+         * the path doesn't finish with one of these characters, the file will be downloaded to a
+         * file in that path.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getThumbnail(MegaHandle handle,
+                          const char* dstFilePath,
+                          MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Get the preview of a node
          *
          * If the node doesn't have a preview the request fails with the MegaError::API_ENOENT
@@ -16677,6 +16717,23 @@ class MegaApi
          * @return true if transfers on that direction are paused, false otherwise
          */
         bool areTransfersPaused(int direction);
+
+        /**
+         * @brief Resume incomplete transfers started while not logged in
+         *
+         * This method resumes transfers that were cached while using a non-logged-in MegaApi
+         * instance
+         *
+         * This method can be called when the app detects that there is no session to resume.
+         * If a valid session exists, the app should proceed with resuming it, and calling
+         * this method will have no effect.
+         *
+         * @note If there are transfers in progress and the app logs in,
+         * any incomplete transfers will be aborted immediately.
+         *
+         * Please avoid calling this method when logged in.
+         */
+        void resumeTransfersForNotLoggedInInstance();
 
         /**
          * @deprecated This version of the function is deprecated. Please, use \c setMaxUploadSpeed.
@@ -25135,11 +25192,13 @@ class MegaAchievementsDetails
 public:
 
     enum {
-        MEGA_ACHIEVEMENT_WELCOME            = 1,
-        MEGA_ACHIEVEMENT_INVITE             = 3,
-        MEGA_ACHIEVEMENT_DESKTOP_INSTALL    = 4,
-        MEGA_ACHIEVEMENT_MOBILE_INSTALL     = 5,
-        MEGA_ACHIEVEMENT_ADD_PHONE          = 9
+        MEGA_ACHIEVEMENT_WELCOME = 1,
+        MEGA_ACHIEVEMENT_INVITE = 3,
+        MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4,
+        MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5,
+        MEGA_ACHIEVEMENT_ADD_PHONE = 9,
+        MEGA_ACHIEVEMENT_PWM_TRIAL = 10,
+        MEGA_ACHIEVEMENT_VPN_TRIAL = 11
     };
 
     virtual ~MegaAchievementsDetails();
@@ -25151,6 +25210,25 @@ public:
     virtual long long getBaseStorage();
 
     /**
+     * @brief Checks if the corresponding achievement is valid
+     *
+     * Some achievements are valid only for some users.
+     *
+     * The following classes are valid:
+     *  - MEGA_ACHIEVEMENT_WELCOME = 1
+     *  - MEGA_ACHIEVEMENT_INVITE = 3
+     *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
+     *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
+     *  - MEGA_ACHIEVEMENT_PWM_TRIAL = 10
+     *  - MEGA_ACHIEVEMENT_VPN_TRIAL = 11
+     *
+     * @param class_id Id of the achievement.
+     * @return True if it is valid, false otherwise
+     */
+    virtual bool isValidClass(int class_id);
+
+    /**
      * @brief Get the storage granted by a MEGA achievement class
      *
      * The following classes are valid:
@@ -25159,6 +25237,8 @@ public:
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
      *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
+     *  - MEGA_ACHIEVEMENT_PWM_TRIAL = 10
+     *  - MEGA_ACHIEVEMENT_VPN_TRIAL = 11
      *
      * @param class_id Id of the MEGA achievement
      * @return Storage granted by this MEGA achievement class, in bytes
@@ -25174,6 +25254,8 @@ public:
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
      *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
+     *  - MEGA_ACHIEVEMENT_PWM_TRIAL = 10
+     *  - MEGA_ACHIEVEMENT_VPN_TRIAL = 11
      *
      * @param class_id Id of the MEGA achievement
      * @return Transfer quota granted by this MEGA achievement class, in bytes
@@ -25189,6 +25271,8 @@ public:
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
      *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
+     *  - MEGA_ACHIEVEMENT_PWM_TRIAL = 10
+     *  - MEGA_ACHIEVEMENT_VPN_TRIAL = 11
      *
      * The storage and transfer quota resulting from a MEGA achievement may expire after
      * certain number of days. In example, the "Welcome" reward lasts for 30 days and afterwards
@@ -25235,6 +25319,8 @@ public:
      * @note The expiration time may not be the \c getAwardTimestamp plus the number of days
      * returned by \c getClassExpire, since the award can be unlocked but not yet granted. It
      * typically takes 2 days from unlocking the award until the user is actually rewarded.
+     *
+     * If this function returns 0, it means the award is permanent (does not expire).
      *
      * @param index Position of the award in the list of unlocked awards
      * @return The expiration timestamp of the award in position \c index

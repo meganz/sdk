@@ -20501,3 +20501,58 @@ TEST_F(SdkTest, SdkTestRemovePublicLinkSet)
     LOG_debug << "# Check state after resume session 3";
     checkDeletionReasonAfterResumeSession(true);
 }
+
+/**
+ * @test SdkTestGetThumbnailUsingNodeAndHandle
+ * @brief Verifies that thumbnails retrieved via MegaNode and MegaHandle are identical.
+ *
+ * Steps:
+ * - Upload an image to the cloud.
+ * - Retrieve its thumbnail using MegaNode.
+ * - Retrieve the same thumbnail using MegaHandle.
+ * - Compare the two thumbnail files byte by byte.
+ */
+TEST_F(SdkTest, SdkTestGetThumbnailUsingNodeAndHandle)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, IMAGEFILE));
+
+    // Upload image file
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    MegaHandle uploadResultHandle = UNDEF;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &uploadResultHandle,
+                            IMAGEFILE.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Uploaded file with wrong name (error: " << mApi[0].lastError << ")";
+
+    // Get thumbnail using MegaNode
+    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(uploadResultHandle));
+    std::string megaNodeThumbnailPath = THUMBNAIL;
+    ASSERT_EQ(API_OK, doGetThumbnail(0, n1.get(), megaNodeThumbnailPath.c_str()));
+
+    // Get thumbnail using the MegaHandle
+    std::string megaHandleThumbnailPath =
+        std::string(THUMBNAIL).insert(THUMBNAIL.rfind(".png"), "2");
+    ASSERT_EQ(API_OK, doGetThumbnail(0, uploadResultHandle, megaHandleThumbnailPath.c_str()));
+
+    // Check both images are equal
+    std::ifstream file1(megaNodeThumbnailPath, std::ios::binary);
+    std::ifstream file2(megaHandleThumbnailPath, std::ios::binary);
+
+    ASSERT_TRUE(file1.is_open()) << "Failed to open " << megaNodeThumbnailPath;
+    ASSERT_TRUE(file2.is_open()) << "Failed to open " << megaHandleThumbnailPath;
+
+    std::vector<char> buffer1((std::istreambuf_iterator<char>(file1)), {});
+    std::vector<char> buffer2((std::istreambuf_iterator<char>(file2)), {});
+
+    ASSERT_EQ(buffer1.size(), buffer2.size()) << "Thumbnail sizes differ";
+    ASSERT_EQ(buffer1, buffer2) << "Thumbnail contents differ";
+}

@@ -1,6 +1,4 @@
 
-get_filename_component(GIT_PATH ${GIT} DIRECTORY)
-
 # From V8 port file in vcpkg repo: https://github.com/microsoft/vcpkg/blob/master/ports/v8/portfile.cmake
 function(pdfium_from_git)
     set(pdfiumArgs DESTINATION URL REF SOURCE)
@@ -13,7 +11,7 @@ function(pdfium_from_git)
             LOGNAME build-${TARGET_TRIPLET})
     else()
         vcpkg_execute_required_process(
-            COMMAND ${GIT} clone --depth 1 ${pdfium_URL} ${pdfium_DESTINATION}
+            COMMAND ${GIT} clone ${pdfium_URL} ${pdfium_DESTINATION}
             WORKING_DIRECTORY ${pdfium_SOURCE}
             LOGNAME build-${TARGET_TRIPLET})
         vcpkg_execute_required_process(
@@ -27,13 +25,15 @@ function(pdfium_from_git)
     endif()
 endfunction()
 
+vcpkg_find_acquire_program(GIT)
+
 vcpkg_from_git(
     OUT_SOURCE_PATH SOURCE_PATH
     URL https://pdfium.googlesource.com/pdfium.git
-    REF ee44620f2b58999b0d272d58fa0b994d5935f688 # chromium/5247
+    REF 7a8409531fbb58d7d15ae331e645977b113d7ced # chromium/6778
     PATCHES
-        "fix_win_build.patch"
-	"cstdint.patch"
+        gcc_parentheses_init.patch # gcc9, no aggregate initialization with parentheses in C++20.
+        win-compilation-v142.patch # Compiler fails auto type deduction in v142 platform
 )
 
 message(STATUS "Working on submodules and other dependencies...")
@@ -41,14 +41,21 @@ message(STATUS "Working on submodules and other dependencies...")
 pdfium_from_git(
     DESTINATION build
     URL https://chromium.googlesource.com/chromium/src/build.git
-    REF 26f8da34750ac3bccf683ed5f70d86f21c54b22b  # The one in pdfium DEPS file, field 'build_revision'
+    REF 9b11bd3a6a523134ac35bcc9d1f59d04cc6f5821  # The one in pdfium DEPS file, field 'build_revision'
     SOURCE ${SOURCE_PATH}
 )
 
 pdfium_from_git(
     DESTINATION third_party/abseil-cpp
     URL https://chromium.googlesource.com/chromium/src/third_party/abseil-cpp.git
-    REF 62a4d6866aeeca02036c510b2f3f286084dd62af  # The one in pdfium DEPS file, field 'abseil_revision'
+    REF d2ea9f0eb1a31f0e5a0ab11837ed19333700ab4c  # The one in pdfium DEPS file, field 'abseil_revision'
+    SOURCE ${SOURCE_PATH}
+)
+
+pdfium_from_git(
+    DESTINATION third_party/fast_float/src
+    URL https://chromium.googlesource.com/external/github.com/fastfloat/fast_float.git
+    REF 3e57d8dcfb0a04b5a8a26b486b54490a2e9b310f  # The one in pdfium DEPS file, field 'abseil_revision'
     SOURCE ${SOURCE_PATH}
 )
 
@@ -64,14 +71,6 @@ vcpkg_cmake_install()
 vcpkg_cmake_config_fixup(PACKAGE_NAME pdfium CONFIG_PATH share/pdfium)
 
 set(PDFIUM_PREFIX ${CURRENT_PACKAGES_DIR})
-configure_file("${CMAKE_CURRENT_LIST_DIR}/pdfium.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/pdfium.pc" @ONLY)
-if(NOT VCPKG_BUILD_TYPE)
-  set(PDFIUM_PREFIX ${CURRENT_PACKAGES_DIR}/debug)
-  configure_file("${CMAKE_CURRENT_LIST_DIR}/pdfium.pc.in" "${PDFIUM_PREFIX}/lib/pkgconfig/pdfium.pc" @ONLY)
-  vcpkg_replace_string("${PDFIUM_PREFIX}/lib/pkgconfig/pdfium.pc" "-lbz2" " -lbz2d")
-  vcpkg_replace_string("${PDFIUM_PREFIX}/lib/pkgconfig/pdfium.pc" "-lpng16" " -lpng16d")
-  vcpkg_replace_string("${PDFIUM_PREFIX}/lib/pkgconfig/pdfium.pc" "-lfreetype" " -lfreetyped")
-endif()
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file(${CMAKE_CURRENT_LIST_DIR}/Config.cmake.in

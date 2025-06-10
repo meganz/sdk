@@ -1,0 +1,59 @@
+diff --git a/core/fpdfdoc/cpdf_action.cpp b/core/fpdfdoc/cpdf_action.cpp
+index a5b687d76..369511362 100644
+--- a/core/fpdfdoc/cpdf_action.cpp
++++ b/core/fpdfdoc/cpdf_action.cpp
+@@ -21,7 +21,7 @@
+
+ namespace {
+
+-constexpr auto kActionTypeStrings = fxcrt::ToArray<const char*>({
++constexpr std::array<const char *, 18> kActionTypeStrings = {
+     "GoTo",
+     "GoToR",
+     "GoToE",
+@@ -40,7 +40,7 @@ constexpr auto kActionTypeStrings = fxcrt::ToArray<const char*>({
+     "Rendition",
+     "Trans",
+     "GoTo3DView",
+-});
++};
+
+ }  // namespace
+
+diff --git a/core/fpdfdoc/cpdf_dest.cpp b/core/fpdfdoc/cpdf_dest.cpp
+index 8026a75d5..abcfc863f 100644
+--- a/core/fpdfdoc/cpdf_dest.cpp
++++ b/core/fpdfdoc/cpdf_dest.cpp
+@@ -21,12 +21,12 @@ namespace {
+
+ // These arrays are indexed by the PDFDEST_VIEW_* constants.
+
+-constexpr auto kZoomModes =
+-    fxcrt::ToArray<const char*>({"Unknown", "XYZ", "Fit", "FitH", "FitV",
+-                                 "FitR", "FitB", "FitBH", "FitBV"});
++constexpr class std::array<const char *, 9> kZoomModes =
++    {"Unknown", "XYZ", "Fit", "FitH", "FitV",
++    "FitR", "FitB", "FitBH", "FitBV"};
+
+-constexpr auto kZoomModeMaxParamCount =
+-    fxcrt::ToArray<const uint8_t>({0, 3, 0, 1, 1, 4, 0, 1, 1});
++constexpr std::array<const uint8_t, 9> kZoomModeMaxParamCount =
++    {0, 3, 0, 1, 1, 4, 0, 1, 1};
+
+ }  // namespace
+
+diff --git a/fpdfsdk/fpdf_annot.cpp b/fpdfsdk/fpdf_annot.cpp
+index e42e6db0c..b90551d71 100644
+--- a/fpdfsdk/fpdf_annot.cpp
++++ b/fpdfsdk/fpdf_annot.cpp
+@@ -1085,8 +1085,8 @@ FPDFAnnot_SetAP(FPDF_ANNOTATION annot,
+   if (appearanceMode < 0 || appearanceMode >= FPDF_ANNOT_APPEARANCEMODE_COUNT)
+     return false;
+
+-  static constexpr auto kModeKeyForMode =
+-      fxcrt::ToArray<const char*>({"N", "R", "D"});
++  static constexpr std::array<const char *, 3> kModeKeyForMode =
++      {"N", "R", "D"};
+   static_assert(kModeKeyForMode.size() == FPDF_ANNOT_APPEARANCEMODE_COUNT,
+                 "length of kModeKeyForMode should be equal to "
+                 "FPDF_ANNOT_APPEARANCEMODE_COUNT");

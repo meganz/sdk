@@ -2781,6 +2781,13 @@ void MegaApi::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestL
     pImpl->getThumbnail(node, dstFilePath, listener);
 }
 
+void MegaApi::getThumbnail(MegaHandle handle,
+                           const char* dstFilePath,
+                           MegaRequestListener* listener)
+{
+    pImpl->getThumbnail(handle, dstFilePath, listener);
+}
+
 void MegaApi::cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener)
 {
 	pImpl->cancelGetThumbnail(node, listener);
@@ -3502,6 +3509,11 @@ void MegaApi::pauseTransfer(MegaTransfer *transfer, bool pause, MegaRequestListe
 void MegaApi::pauseTransferByTag(int transferTag, bool pause, MegaRequestListener *listener)
 {
     pImpl->pauseTransfer(transferTag, pause, listener);
+}
+
+void MegaApi::resumeTransfersForNotLoggedInInstance()
+{
+    pImpl->resumeTransfersForNotLoggedInInstance();
 }
 
 bool MegaApi::areTransfersPaused(int direction)
@@ -7629,6 +7641,11 @@ MegaAchievementsDetails::~MegaAchievementsDetails()
 long long MegaAchievementsDetails::getBaseStorage()
 {
     return 0;
+}
+
+bool MegaAchievementsDetails::isValidClass(int /*class_id*/)
+{
+    return false;
 }
 
 long long MegaAchievementsDetails::getClassStorage(int /*class_id*/)

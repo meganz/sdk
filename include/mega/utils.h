@@ -698,6 +698,13 @@ public:
         return mNotifications.size();
     }
 
+    std::deque<T> popAll()
+    {
+        std::lock_guard<std::mutex> g(m);
+        std::deque<T> batch;
+        batch.swap(mNotifications);
+        return batch;
+    }
 };
 
 template<class K, class V>

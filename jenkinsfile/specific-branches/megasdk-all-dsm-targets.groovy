@@ -14,7 +14,10 @@ pipeline {
     }
     environment {
         VCPKGPATH = "/opt/vcpkg"
-        VCPKGPATH_CACHE = "${HOME}/.cache/vcpkg"
+        VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
+        AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
+        AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
+        AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
     }
     stages {
         stage('Clean previous runs'){
@@ -59,8 +62,12 @@ pipeline {
                         docker run --name dsm-builder-${params.PLATFORM_TO_BUILD}-${env.BUILD_NUMBER} --rm \
                             -v ${sdk_sources_workspace}:/mega/sdk \
                             -v ${VCPKGPATH}:/mega/vcpkg \
-                            -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg \
-                            -e PLATFORM=${params.PLATFORM_TO_BUILD} meganz/dsm-build-env:${env.BUILD_NUMBER}
+                            -e PLATFORM=${params.PLATFORM_TO_BUILD} \
+                            -e VCPKG_BINARY_SOURCES \
+                            -e AWS_ACCESS_KEY_ID \
+                            -e AWS_SECRET_ACCESS_KEY \
+                            -e AWS_ENDPOINT_URL \
+                            meganz/dsm-build-env:${env.BUILD_NUMBER}
                     """
                 }
             }
@@ -105,7 +112,10 @@ pipeline {
                                     docker run --name dsm-builder-${PLATFORM}-${env.BUILD_NUMBER} --rm \
                                         -v ${sdk_sources_workspace}:/mega/sdk \
                                         -v ${VCPKGPATH}:/mega/vcpkg \
-                                        -v ${VCPKGPATH_CACHE}:/mega/.cache/vcpkg \
+                                        -e VCPKG_BINARY_SOURCES \
+                                        -e AWS_ACCESS_KEY_ID \
+                                        -e AWS_SECRET_ACCESS_KEY \
+                                        -e AWS_ENDPOINT_URL \
                                         -e PLATFORM=${PLATFORM} meganz/dsm-build-env:${env.BUILD_NUMBER}
                                 """
                             }

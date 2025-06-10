@@ -2576,6 +2576,7 @@ public:
     MegaAchievementsDetails* copy() override;
 
     long long getBaseStorage() override;
+    bool isValidClass(int class_id) override;
     long long getClassStorage(int class_id) override;
     long long getClassTransfer(int class_id) override;
     int getClassExpire(int class_id) override;
@@ -3757,7 +3758,10 @@ class MegaApiImpl : public MegaApp
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
-		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
+        void getThumbnail(MegaHandle handle,
+                          const char* dstFilePath,
+                          MegaRequestListener* listener = nullptr);
+        void cancelGetThumbnail(MegaNode* node, MegaRequestListener* listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void putThumbnail(MegaBackgroundMediaUpload* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setThumbnailByHandle(MegaNode* node, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
@@ -3892,6 +3896,7 @@ class MegaApiImpl : public MegaApp
         void moveTransferBefore(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
         bool areTransfersPaused(int direction);
         void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
+        void resumeTransfersForNotLoggedInInstance();
         void setDownloadMethod(int method);
         void setUploadMethod(int method);
         bool setMaxDownloadSpeed(m_off_t bpslimit);
@@ -5015,7 +5020,10 @@ public:
         std::shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint);
         std::shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
 
-        void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
+        void getNodeAttribute(std::variant<MegaNode*, MegaHandle> nodeOrHandle,
+                              int type,
+                              const char* dstFilePath,
+                              MegaRequestListener* listener);
         void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);

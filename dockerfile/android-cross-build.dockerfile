@@ -34,6 +34,12 @@ RUN apt-get --quiet=2 update && DEBCONF_NOWARNINGS=yes apt-get --quiet=2 install
     zip \
     1> /dev/null
 
+# Install AWS CLI v2
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+unzip awscliv2.zip && \
+./aws/install && \
+rm -rf awscliv2.zip aws
+
 # Download, extract and set the Android NDK
 RUN mkdir -p /mega/android-ndk && \
     chmod 777 /mega && \
@@ -80,7 +86,7 @@ CMD ["sh", "-c", "\
         echo 'Valid values are: ON | OFF' && \
         echo 'Build stopped.' && exit 1;; \
     esac && \
-    su - me -w 'ANDROID_NDK_HOME,PATH,JAVA_HOME,ANDROID_ARCH,DEFINE_BUILD_SHARED_LIBS_ON' -c ' \
+    su - me -w 'ANDROID_NDK_HOME,PATH,JAVA_HOME,ANDROID_ARCH,DEFINE_BUILD_SHARED_LIBS_ON,VCPKG_BINARY_SOURCES,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_ENDPOINT_URL' -c ' \
     cmake --preset mega-android -B buildAndroid -S sdk \
         ${DEFINE_BUILD_SHARED_LIBS_ON} \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \

@@ -2142,6 +2142,9 @@ void MegaClient::exec()
             &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
     {
         LOG_debug << clientname << "Request timeout. Triggering a lock request";
+        app->notify_network_activity(NetworkActivityChannel::CS,
+                                     NetworkActivityType::REQUEST_ERROR,
+                                     LOCAL_ETIMEOUT);
         requestLock = true;
     }
 
@@ -2160,6 +2163,9 @@ void MegaClient::exec()
                 (*it)->failure = false;
                 (*it)->lastdata = Waiter::ds;
                 LOG_warn << "Transfer error count raised: " << (*it)->errorcount;
+                app->notify_network_activity(NetworkActivityChannel::SC,
+                                             NetworkActivityType::REQUEST_ERROR,
+                                             API_EFAILED);
             }
         }
     }
@@ -2198,6 +2204,9 @@ void MegaClient::exec()
                         LOG_warn << "Request failed (" << req->posturl << ") retrying ("
                                  << (req->numretry + 1) << " of " << req->maxretries << ")";
                         it++;
+                        app->notify_network_activity(NetworkActivityChannel::CS,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     req->httpstatus);
                         break;
                     }
                     // no retry -> fall through
@@ -2238,6 +2247,9 @@ void MegaClient::exec()
                     if (req->maxbt.nextset() && req->maxbt.armed())
                     {
                         LOG_debug << "Max total time exceeded for request: " << req->posturl;
+                        app->notify_network_activity(NetworkActivityChannel::CS,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     API_EFAILED);
                         restag = it->first;
                         app->http_result(API_EFAILED, 0, NULL, 0);
                         delete req;
@@ -2363,6 +2375,9 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         // repeat request with exponential backoff
                         LOG_warn << "Error setting file attribute. Will retry after backoff";
+                        app->notify_network_activity(NetworkActivityChannel::CS,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     API_EFAILED);
                         activefa.erase(erasePos);
                         fa->status = REQ_READY;
                         queuedfa.push_back(fa);
@@ -2467,6 +2482,9 @@ void MegaClient::exec()
                         // fall through
                     case REQ_FAILURE:
                         LOG_warn << "Error getting file attr";
+                        app->notify_network_activity(NetworkActivityChannel::CS,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     API_EFAILED);
 
                         if (fc->req.httpstatus &&
                             fc->req.contenttype.find("text/html") != string::npos &&
@@ -2685,8 +2703,8 @@ void MegaClient::exec()
                         {
                             if (pendingcs->in == "-3")
                             {
-                                app->notify_network_activity(NetworkActivityChannel::SC,
-                                                             NetworkActivityType::REQUEST_ERROR,
+                                app->notify_network_activity(NetworkActivityChannel::CS,
+                                                             NetworkActivityType::REQUEST_RECEIVED,
                                                              API_EAGAIN);
                                 reason = RETRY_API_LOCK;
                             }
@@ -2768,6 +2786,10 @@ void MegaClient::exec()
                                     app->reqstat_progress(-1);
                                 }
 
+                                app->notify_network_activity(NetworkActivityChannel::CS,
+                                                             NetworkActivityType::REQUEST_ERROR,
+                                                             API_ESSL);
+
                                 break;
                             }
                         }
@@ -2784,6 +2806,9 @@ void MegaClient::exec()
                         app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
                         LOG_warn << "Retrying cs request in " << btcs.retryin() << " ds";
+                        app->notify_network_activity(NetworkActivityChannel::CS,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     API_EAGAIN);
 
                         // the in-progress request will be resent, unchanged (for idempotence), when we are ready again.
                         reqs.inflightFailure(reason);
@@ -2883,6 +2908,9 @@ void MegaClient::exec()
                         app->useralerts_updated(NULL, int(useralerts.alerts.size())); // there are no 'removed' alerts at this point
                     }
                     pendingscUserAlerts.reset();
+                    app->notify_network_activity(NetworkActivityChannel::SC,
+                                                 NetworkActivityType::REQUEST_RECEIVED,
+                                                 API_OK);
                     break;
                 }
 
@@ -2898,8 +2926,8 @@ void MegaClient::exec()
                         LOG_warn << "Backing off before retrying useralerts request: "
                                  << btsc.retryin();
                         app->notify_network_activity(NetworkActivityChannel::SC,
-                                                     NetworkActivityType::REQUEST_ERROR,
-                                                     API_EAGAIN);
+                                                     NetworkActivityType::REQUEST_RECEIVED,
+                                                     e);
                         break;
                     }
                     LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
@@ -2949,6 +2977,9 @@ void MegaClient::exec()
                     insca_notlast = false;
                     jsonsc.begin(pendingsc->in.c_str());
                     jsonsc.enterobject();
+                    app->notify_network_activity(NetworkActivityChannel::SC,
+                                                 NetworkActivityType::REQUEST_RECEIVED,
+                                                 API_OK);
                     break;
                 }
                 else
@@ -2958,10 +2989,16 @@ void MegaClient::exec()
                     {
                         app->request_error(e);
                         scsn.stopScsn();
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType::REQUEST_RECEIVED,
+                                                     e);
                     }
                     else if (e == API_ETOOMANY)
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType::REQUEST_RECEIVED,
+                                                     e);
 
                         // Stop the sc channel to prevent the reception of multiple
                         // API_ETOOMANY errors causing multiple consecutive reloads
@@ -2988,8 +3025,8 @@ void MegaClient::exec()
                             fnstats.eAgainCount++;
                         }
                         app->notify_network_activity(NetworkActivityChannel::SC,
-                                                     NetworkActivityType::REQUEST_ERROR,
-                                                     API_EAGAIN);
+                                                     NetworkActivityType::REQUEST_RECEIVED,
+                                                     e);
                     }
                     else if (e == API_EBLOCKED)
                     {
@@ -2999,6 +3036,9 @@ void MegaClient::exec()
                     else
                     {
                         LOG_err << "Unexpected sc response: " << pendingsc->in;
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType::REQUEST_ERROR,
+                                                     e);
                         scsn.stopScsn();
                     }
                 }
@@ -3040,11 +3080,21 @@ void MegaClient::exec()
                         }
                     }
 
+                    if (!scsn.stopped())
+                    {
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType ::REQUEST_RECEIVED,
+                                                     pendingsc->httpstatus);
+                    }
+
                     pendingsc.reset();
                 }
 
                 if (scsn.stopped())
                 {
+                    app->notify_network_activity(NetworkActivityChannel::SC,
+                                                 NetworkActivityType::REQUEST_ERROR,
+                                                 API_ESSL);
                     btsc.backoff(NEVER);
                 }
                 else
@@ -3095,6 +3145,9 @@ void MegaClient::exec()
                 pendingscUserAlerts->posturl.append(getAuthURI());
                 pendingscUserAlerts->type = REQ_JSON;
                 pendingscUserAlerts->post(this);
+                app->notify_network_activity(NetworkActivityChannel::SC,
+                                             NetworkActivityType::REQUEST_SENT,
+                                             API_OK);
             }
             else
             {
@@ -3134,6 +3187,9 @@ void MegaClient::exec()
 
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
+                app->notify_network_activity(NetworkActivityChannel::SC,
+                                             NetworkActivityType::REQUEST_RECEIVED,
+                                             API_OK);
             }
             jsonsc.pos = NULL;
         }
@@ -15226,34 +15282,21 @@ void MegaClient::closetc(bool remove)
     tctable.reset();
 }
 
-void MegaClient::enabletransferresumption(const char *loggedoutid)
+void MegaClient::enabletransferresumption()
 {
     if (!dbaccess || tctable)
     {
         return;
     }
 
-    string dbname;
-    if (sid.size() >= SIDLEN)
+    string dbname = getTransferDBName();
+
+    if (sid.size() >= SIDLEN || loggedIntoFolder())
     {
-        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-        dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)sid.data() + sizeof key.key,
-                                                       SIDLEN - sizeof key.key,
-                                                       (char*)dbname.c_str())));
-        tckey = key;
-    }
-    else if (loggedIntoFolder())
-    {
-        dbname.resize(static_cast<size_t>(NODEHANDLE * 4 / 3 + 3));
-        dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
-                                                       NODEHANDLE,
-                                                       (char*)dbname.c_str())));
         tckey = key;
     }
     else
     {
-        dbname = loggedoutid ? loggedoutid : "default";
-
         string lok;
         Hash hash;
         hash.add((const byte *)dbname.c_str(), unsigned(dbname.size() + 1));
@@ -15272,6 +15315,12 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     {
         return;
     }
+
+    // TODO: After SDK-5196, not logged-in clients will persist transfers for authorized
+    // nodes (from folder links, but using the main MegaApi instance) in a default DB cache.
+    // However, upon login into an account, previously cached transfers are discarded.
+    // If we want to resume those transfers after logging in on the main instance,
+    // we should read them from the default cache and resume them.
 
     uint32_t id;
     string data;
@@ -15343,7 +15392,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     }
 }
 
-void MegaClient::disabletransferresumption(const char *loggedoutid)
+void MegaClient::disabletransferresumption()
 {
     if (!dbaccess)
     {
@@ -15352,6 +15401,48 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     purgeOrphanTransfers(true);
     closetc(true);
 
+    std::string dbname = getTransferDBName();
+    dbname.insert(0, "transfers_");
+
+    tctable.reset(dbaccess->open(rng,
+                                 *fsaccess,
+                                 dbname,
+                                 DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED,
+                                 [this](DBError error)
+                                 {
+                                     handleDbError(error);
+                                 }));
+
+    if (!tctable)
+    {
+        return;
+    }
+
+    purgeOrphanTransfers(true);
+    closetc(true);
+}
+
+void MegaClient::resumeTransfersForNotLoggedInInstance()
+{
+    if (loggedin() != NOTLOGGEDIN)
+    {
+        return;
+    }
+
+    string dbname = getTransferDBName();
+    dbname.insert(0, "transfers_");
+
+    // Only call enableTransferresumption if db default exist
+    // Avoid create unnecesary files
+    if (LocalPath path = dbaccess->databasePath(*fsaccess.get(), dbname, DbAccess::DB_VERSION);
+        fsaccess->newfileaccess()->fopen(path, FSLogging::noLogging))
+    {
+        enabletransferresumption();
+    }
+}
+
+string MegaClient::getTransferDBName()
+{
     string dbname;
     if (sid.size() >= SIDLEN)
     {
@@ -15369,22 +15460,10 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     else
     {
-        dbname = loggedoutid ? loggedoutid : "default";
-    }
-    dbname.insert(0, "transfers_");
-
-    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
-    {
-        handleDbError(error);
-    }));
-
-    if (!tctable)
-    {
-        return;
+        dbname = "default";
     }
 
-    purgeOrphanTransfers(true);
-    closetc(true);
+    return dbname;
 }
 
 void MegaClient::handleDbError(DBError error)
@@ -18078,6 +18157,14 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
     // Is caller trying to start a download?
     if (d == GET)
     {
+        // Force to enable transfer resumption when app is not logged-in and attempts
+        // to download an authorized node, retrieved by another instance of SDK logged-in
+        // into a folder link.
+        if (loggedin() == NOTLOGGEDIN)
+        {
+            enabletransferresumption();
+        }
+
         auto targetPath = f->getLocalname().parentPath();
 
         assert(f->size >= 0);
