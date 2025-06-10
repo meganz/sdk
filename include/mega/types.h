@@ -226,6 +226,7 @@ typedef enum ErrorCodes : int
     LOCAL_ENOSPC = -1000,           ///< Insufficient space
     LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
     LOCAL_ABANDONED = -1002,        ///< Request abandoned due to local logout.
+    LOCAL_ENETWORK = -1003, ///< Local network error (DNS resolution failure)
 
     API_FUSE_EBADF = -2000,
     API_FUSE_EISDIR = -2001,

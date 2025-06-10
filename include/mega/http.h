@@ -377,6 +377,9 @@ struct MEGA_API HttpReq
     string mHashcashToken;
     uint8_t mHashcashEasiness{};
 
+    // If the request DNS resolution has failed
+    bool mDnsFailure = false;
+
     // HttpIO implementation-specific identifier for this connection
     void* httpiohandle;
 
