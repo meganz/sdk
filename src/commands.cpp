@@ -2378,11 +2378,6 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         arg("msg", msg);
     }
 
-    if (action != OPCA_REMIND)  // for reminders, need the actionpacket to update `uts`
-    {
-        notself(client);
-    }
-
     tag = client->reqtag;
     this->action = action;
     this->temail = temail;
@@ -2411,28 +2406,14 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
                 }
             }
 
-            if (!pcr)
+            if (action == OPCA_DELETE && pcr)
             {
-                LOG_err << "Reminded/deleted PCR not found";
+                LOG_err << "Deleted PCR is still present.";
             }
-            else if (action == OPCA_DELETE)
+
+            if (action == OPCA_REMIND && !pcr)
             {
-                pcr->changed.deleted = true;
-                client->notifypcr(pcr);
-
-                // remove pending shares related to the deleted PCR
-                sharedNode_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
-                for (auto& n : nodes)
-                {
-                    if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
-                    {
-                        client->newshares.push_back(
-                                    new NewShare(n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                 0, NULL, NULL, pcr->id, false));
-                    }
-                }
-
-                client->mergenewshares(1);
+                LOG_err << "Reminded PCR not found";
             }
         }
 
@@ -2441,6 +2422,7 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
     }
 
     // if the PCR has been added, the response contains full details
+    // Validate returned values. PCR should have been added by the "opc" action packet.
     handle p = UNDEF;
     m_time_t ts = 0;
     m_time_t uts = 0;
@@ -2485,10 +2467,24 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
                     return true;
                 }
 
-                pcr = new PendingContactRequest(p, eValue, m, ts, uts, msg, true);
-                client->mappcr(p, unique_ptr<PendingContactRequest>(pcr));
+                pcr = client->pcrindex.count(p) ? client->pcrindex[p].get() : nullptr;
 
-                client->notifypcr(pcr);
+                if (!pcr)
+                {
+                    LOG_err << "Error in CommandSetPendingContact. Pending Contact Request "
+                            << toHandle(p) << " has not been added by the action packet.";
+                }
+                else
+                {
+                    // Update the message if it was received empty in the action packet.
+                    // API may send it empty in the action packets to avoid spamming.
+                    if (msg && pcr->msg.empty())
+                    {
+                        pcr->update(nullptr, nullptr, pcr->ts, pcr->uts, msg, pcr->isoutgoing);
+                        client->notifypcr(pcr);
+                    }
+                }
+
                 doComplete(p, API_OK, this->action);
                 return true;
 
