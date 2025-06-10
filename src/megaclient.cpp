@@ -2238,15 +2238,19 @@ void MegaClient::exec()
                     // no retry -> fall through
                     // fall through
                 case REQ_SUCCESS:
+                {
                     restag = it->first;
+                    m_off_t actualLength = req->buf != nullptr || req->mChunked ?
+                                               req->bufpos :
+                                               static_cast<m_off_t>(req->in.size());
                     app->http_result(req->httpstatus ? API_OK : API_EFAILED,
                                      req->httpstatus,
                                      req->buf ? (byte*)req->buf : (byte*)req->in.data(),
-                                     req->buf ? static_cast<int>(req->bufpos) :
-                                                static_cast<int>(req->in.size()));
+                                     actualLength);
                     delete req;
                     pendinghttp.erase(it++);
                     break;
+                }
                 case REQ_PREPARED:
                     if (req->bt.armed())
                     {

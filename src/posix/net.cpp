@@ -1760,11 +1760,16 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
 
                 // check httpstatus, redirecturl and response length
-                req->status = ((req->httpstatus == 200 || (req->mExpectRedirect && req->isRedirection() && req->mRedirectURL.size()))
-                               && errorCode != CURLE_PARTIAL_FILE
-                               && (req->contentlength < 0
-                                   || req->contentlength == ((req->buf || req->mChunked) ? req->bufpos : (int)req->in.size())))
-                        ? REQ_SUCCESS : REQ_FAILURE;
+                m_off_t actualLength = req->buf != nullptr || req->mChunked ?
+                                           req->bufpos :
+                                           static_cast<m_off_t>(req->in.size());
+                req->status =
+                    ((req->httpstatus == 200 ||
+                      (req->mExpectRedirect && req->isRedirection() && req->mRedirectURL.size())) &&
+                     errorCode != CURLE_PARTIAL_FILE &&
+                     (req->contentlength < 0 || req->contentlength == actualLength)) ?
+                        REQ_SUCCESS :
+                        REQ_FAILURE;
 
                 if (req->status == REQ_SUCCESS)
                 {
@@ -1777,8 +1782,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     LOG_warn << req->getLogName() << "REQ_FAILURE."
                              << " Status: " << req->httpstatus << " CURLcode: " << errorCode
                              << "  Content-Length: " << req->contentlength << "  buffer? "
-                             << (req->buf != NULL)
-                             << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
+                             << (req->buf != NULL) << "  bufferSize: " << actualLength;
                 }
 
                 if (req->httpstatus)

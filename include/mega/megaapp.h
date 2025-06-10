@@ -394,7 +394,7 @@ struct MEGA_API MegaApp
     virtual void notify_disconnect() { }
 
     // HTTP request finished
-    virtual void http_result(error, int, byte*, int) { }
+    virtual void http_result(error, int, byte*, m_off_t) {}
 
     // Timer ended
     virtual void timer_result(error) { }

@@ -5035,7 +5035,7 @@ public:
         void notify_disconnect() override;
 
         // notify about a finished HTTP request
-        void http_result(error, int, byte *, int) override;
+        void http_result(error, int, byte*, m_off_t) override;
 
         // notify about a business account status change
         void notify_business_status(BizStatus status) override;

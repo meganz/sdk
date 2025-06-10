@@ -430,9 +430,6 @@ struct MEGA_API HttpReq
     // set response content length
     void setcontentlength(m_off_t);
 
-    // reserve space for incoming data
-    byte* reserveput(unsigned* len);
-
     // disconnect open HTTP connection
     void disconnect();
 
