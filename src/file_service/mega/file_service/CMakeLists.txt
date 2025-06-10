@@ -12,6 +12,8 @@ target_sources(SDKlib PRIVATE
                       displaced_buffer_forward.h
                       displaced_buffer_pointer.h
                       file_access.h
+                      file_append_request.h
+                      file_append_request_forward.h
                       file_buffer.h
                       file_context.h
                       file_context_badge.h
