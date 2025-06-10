@@ -5317,6 +5317,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "DEL_ATTR_USER";
         case TYPE_IMPORT_PASSWORDS_FROM_FILE:
             return "IMPORT_PASSWORDS_FROM_FILE";
+        case TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS:
+            return "TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS";
 
         // FUSE requests.
         case TYPE_ADD_MOUNT:       return "TYPE_ADD_MOUNT";
@@ -28528,6 +28530,45 @@ void MegaApiImpl::getMyIp(MegaRequestListener* listener)
                 }
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getSubscriptionCancellationDetails(const char* id,
+                                                     unsigned int gateway,
+                                                     MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS, listener);
+    request->setText(id);
+    request->setNumber(gateway);
+
+    request->performRequest = [this, request]()
+    {
+        const char* idParam = request->getText();
+        unsigned int gw = static_cast<unsigned int>(request->getNumber());
+
+        client->getSubscriptionCancellationDetails(
+            idParam,
+            gw,
+            [this, request](const Error& e,
+                            std::string&& originalTransactionId,
+                            int expiresDate,
+                            int cancelledDate)
+            {
+                if (!e)
+                {
+                    request->setText(originalTransactionId.c_str());
+                    request->setNumber(static_cast<long long>(expiresDate));
+                    request->setNumDetails(cancelledDate ? cancelledDate : -1);
+                }
+
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            });
+
         return API_OK;
     };
 

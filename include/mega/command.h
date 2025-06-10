@@ -2334,6 +2334,23 @@ private:
     Completion mCompletion;
 };
 
+class MEGA_API CommandGetSubscriptionCancellationDetails: public Command
+{
+public:
+    using Cb = std::function<void(const Error& /*e*/,
+                                  string&& /*originalTransactionId*/,
+                                  int /*expiresDate*/,
+                                  int /*cancelledDate*/)>;
+    CommandGetSubscriptionCancellationDetails(MegaClient*,
+                                              const char* id,
+                                              unsigned int gateway,
+                                              Cb&& completion = nullptr);
+    bool procresult(Result, JSON&) override;
+
+private:
+    Cb mCompletion;
+};
+
 } // namespace
 
 #endif
