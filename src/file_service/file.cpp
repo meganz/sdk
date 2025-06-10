@@ -1,4 +1,5 @@
 #include <mega/file_service/file.h>
+#include <mega/file_service/file_append_request.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_range.h>
@@ -34,6 +35,11 @@ File& File::operator=(File&& rhs)
         swap(mContext, rhs.mContext);
 
     return *this;
+}
+
+void File::append(const void* buffer, FileAppendCallback callback, std::uint64_t length)
+{
+    return mContext->append(FileAppendRequest{buffer, std::move(callback), length});
 }
 
 FileInfo File::info() const

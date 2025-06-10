@@ -6,6 +6,7 @@
 #include <mega/common/utility.h>
 #include <mega/file_service/displaced_buffer.h>
 #include <mega/file_service/file_access.h>
+#include <mega/file_service/file_append_request.h>
 #include <mega/file_service/file_buffer.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
@@ -308,6 +309,76 @@ void FileContext::completed(FileWriteRequest&& request)
 
     // Complete the user's request.
     completed(std::move(request), FileWriteResult{begin, end - begin});
+}
+
+bool FileContext::execute(FileAppendRequest& request)
+{
+    // Can't execute an append if there's another request in progress.
+    if (!mReadWriteState.write())
+        return false;
+
+    // Convenience.
+    auto size = mInfo->size();
+
+    // Assume there's no range for us to grow.
+    FileRange range(size, size + request.mLength);
+
+    // Acquire ranges lock.
+    std::unique_lock lock(mRangesLock);
+
+    // Assume we can grow the last range.
+    auto candidate = mRanges.rbegin();
+
+    // Can grow the last range.
+    if (!mRanges.empty() && candidate->first.mEnd == size)
+        range.mBegin = candidate->first.mBegin;
+    else
+        candidate = mRanges.end();
+
+    // Disambiguate.
+    using file_service::write;
+
+    // Try and write the user's data to disk.
+    auto length = write(*mFile, request.mBuffer, size, request.mLength);
+
+    // Couldn't write all of the user's data to disk.
+    if (length < request.mLength)
+        return failed(std::move(request), FILE_FAILED), true;
+
+    auto transaction = mService.database().transaction();
+
+    // Remove obsolete ranges from the database.
+    removeRanges(range, transaction);
+
+    // Add a new range to the database.
+    addRange(range, transaction);
+
+    // Compute the file's new modification time.
+    auto modified = now();
+
+    // Update the file's modification time.
+    updateModificationTime(modified, transaction);
+
+    // Remove obsolete ranges from memory.
+    mRanges.remove(candidate, mRanges.end());
+
+    // Add new range to memory.
+    mRanges.add(range, nullptr);
+
+    // Persist our changes.
+    transaction.commit();
+
+    // Tweak range.
+    range.mBegin = size;
+
+    // Update the file's attributes.
+    mInfo->written(range, modified);
+
+    // Queue the user's request for execution.
+    completed(std::move(request), FILE_SUCCESS);
+
+    // Let the caller know the request was executed.
+    return true;
 }
 
 bool FileContext::execute(FileReadRequest& request)
@@ -713,6 +784,11 @@ FileContext::~FileContext()
 
     // Remove ourselves from our service's index.
     mService.removeFromIndex(FileContextBadge(), mInfo->id());
+}
+
+void FileContext::append(FileAppendRequest request)
+{
+    executeOrQueue(std::move(request));
 }
 
 FileInfo FileContext::info() const

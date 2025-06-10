@@ -3,6 +3,7 @@
 #include <mega/common/activity_monitor.h>
 #include <mega/common/transaction_forward.h>
 #include <mega/file_service/buffer_pointer.h>
+#include <mega/file_service/file_append_request_forward.h>
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_forward.h>
@@ -33,7 +34,9 @@ namespace file_service
 class FileContext final: FileRangeContextManager, public std::enable_shared_from_this<FileContext>
 {
     // Convenience.
-    using FileRequest = std::variant<FileReadRequest, FileTruncateRequest, FileWriteRequest>;
+    using FileRequest =
+        std::variant<FileAppendRequest, FileReadRequest, FileTruncateRequest, FileWriteRequest>;
+
     using FileRequestList = std::list<FileRequest>;
 
     // Check if T is a file request.
@@ -67,6 +70,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Called when a file write request has been completed.
     void completed(FileWriteRequest&& request);
+
+    // Try and execute an append request.
+    bool execute(FileAppendRequest& request);
 
     // Try and execute a read request.
     bool execute(FileReadRequest& request);
@@ -151,6 +157,9 @@ public:
                 FileServiceContext& service);
 
     ~FileContext();
+
+    // Append data to the end of this file.
+    void append(FileAppendRequest request);
 
     // Retrieve information about this file.
     FileInfo info() const;

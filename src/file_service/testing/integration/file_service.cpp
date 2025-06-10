@@ -49,6 +49,9 @@ NodeHandle FileServiceTests::mFileHandle;
 static std::uint64_t operator""_KiB(unsigned long long value);
 static std::uint64_t operator""_MiB(unsigned long long value);
 
+// Append content to the end of the specified file.
+static auto append(const void* buffer, File file, std::uint64_t length) -> std::future<FileResult>;
+
 // Compare content.
 static bool compare(const std::string& computed,
                     const std::string& expected,
@@ -65,6 +68,96 @@ static auto truncate(File file, std::uint64_t size) -> std::future<FileResult>;
 // Write some content to the specified file.
 static auto write(const void* buffer, File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResult>;
+
+TEST_F(FileServiceTests, append_succeeds)
+{
+    // Convenience.
+    auto timeout = std::future_status::timeout;
+
+    // Open file for writing.
+    auto file = ClientW()->fileOpen(mFileHandle);
+
+    // Make sure we could open the file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Get our hands on the file's attributes.
+    auto info = file->info();
+
+    // Convenience.
+    FileRange range(info.size() - 64_KiB, info.size() - 32_KiB);
+
+    // Read some data just before the end of the file.
+    {
+        // Convenience.
+        auto offset = range.mBegin;
+        auto length = range.mEnd - range.mBegin;
+
+        // Initiate the read.
+        auto waiter = read(*file, offset, length);
+
+        // Wait for the request to complete.
+        ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+
+        auto result = waiter.get();
+
+        // Make sure the request completed successfully.
+        ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+        ASSERT_EQ(result->size(), static_cast<std::size_t>(length));
+    }
+
+    // Convenience.
+    using fuse::testing::randomBytes;
+
+    // Generate some data for us to append to the file.
+    auto computed = randomBytes(32_KiB);
+
+    // Latch the file's modification time and size.
+    auto modified = info.modified();
+    auto size = info.size();
+
+    // Try and append the data to the end of the file.
+    auto waiter = append(computed.data(), *file, computed.size());
+
+    // Wait for the request to complete.
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the request succeeded.
+    ASSERT_EQ(waiter.get(), FILE_SUCCESS);
+
+    // The file should now have two ranges.
+    auto ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 2u);
+    EXPECT_EQ(ranges[0], range);
+    EXPECT_EQ(ranges[1], FileRange(size, size + computed.size()));
+
+    // Make sure the file's attributes have been updated.
+    ASSERT_GE(info.modified(), modified);
+    ASSERT_EQ(info.size(), size + computed.size());
+
+    // Latch current modification time and size.
+    modified = info.modified();
+    size = info.size();
+
+    // Append again to make sure contigous ranges are extended.
+    waiter = append(computed.data(), *file, computed.size());
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+    ASSERT_EQ(waiter.get(), FILE_SUCCESS);
+    ASSERT_GE(info.modified(), modified);
+    ASSERT_EQ(info.size(), size + computed.size());
+
+    // The file should still have two ranges.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 2u);
+    EXPECT_EQ(ranges[0], range);
+
+    // Convenience.
+    range.mBegin = size - computed.size();
+    range.mEnd = size + computed.size();
+
+    EXPECT_EQ(ranges[1], FileRange(range));
+}
 
 TEST_F(FileServiceTests, info_directory_fails)
 {
@@ -694,6 +787,30 @@ std::uint64_t operator""_KiB(unsigned long long value)
 std::uint64_t operator""_MiB(unsigned long long value)
 {
     return value * 1024_KiB;
+}
+
+auto append(const void* buffer, File file, std::uint64_t length) -> std::future<FileResult>
+{
+    // Convenience.
+    using common::makeSharedPromise;
+
+    // So we can signal when the request has completed.
+    auto notifier = makeSharedPromise<FileResult>();
+
+    // So our caller can wait until the request is completed.
+    auto waiter = notifier->get_future();
+
+    // Execute an append request.
+    file.append(
+        buffer,
+        [=](FileResult result)
+        {
+            notifier->set_value(result);
+        },
+        length);
+
+    // Return waiter to our caller.
+    return waiter;
 }
 
 bool compare(const std::string& computed,

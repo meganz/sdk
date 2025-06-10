@@ -30,6 +30,9 @@ public:
 
     File& operator=(File&& rhs);
 
+    // Append data to the end of this file.
+    void append(const void* buffer, FileAppendCallback callback, std::uint64_t length);
+
     // Retrieve information about this file.
     FileInfo info() const;
 
