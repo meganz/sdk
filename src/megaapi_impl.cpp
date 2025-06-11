@@ -10601,37 +10601,52 @@ void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBac
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES, listener);
     request->setNodeHandle(backupDestination);
 
-    request->performRequest = [deconfiguredBackupRoot, backupDestination, this, request]() {
+    request->performRequest = [deconfiguredBackupRoot, backupDestination, this, request]()
+    {
+        std::shared_ptr<Node> deconfiguredBackupRootNode =
+            client->nodebyhandle(deconfiguredBackupRoot);
+        std::shared_ptr<Node> backupDestinationNode = client->nodebyhandle(backupDestination);
 
-        std::shared_ptr<Node> n1 = client->nodebyhandle(deconfiguredBackupRoot);
-        std::shared_ptr<Node> n2 = client->nodebyhandle(backupDestination);
-
-        if (!n1)
+        if (!deconfiguredBackupRootNode)
         {
             LOG_debug << "Backup root node not found";
             return API_ENOENT;
         }
-        LOG_debug << "About to move/remove backup nodes from " << n1->displaypath();
+        LOG_debug << "About to move/remove backup nodes from "
+                  << deconfiguredBackupRootNode->displaypath();
 
-        if (!n1->parent ||   // device
-            !n1->parent->parent ||  // my backups node
-            !n1->parent->parent->parent ||  // Vault root
-            n1->parent->parent->parent->nodehandle != client->mNodeManager.getRootNodeVault().as8byte())
+        if (!deconfiguredBackupRootNode->parent || // device
+            !deconfiguredBackupRootNode->parent->parent || // my backups node
+            !deconfiguredBackupRootNode->parent->parent->parent || // Vault root
+            deconfiguredBackupRootNode->parent->parent->parent->nodehandle !=
+                client->mNodeManager.getRootNodeVault().as8byte())
         {
             LOG_debug << "Node not in the right place to be a backup root";
             return API_EARGS;
         }
 
-        if (n2 &&
-            n2->firstancestor()->nodeHandle() != client->mNodeManager.getRootNodeFiles().as8byte() &&
-            n2->firstancestor()->nodeHandle() != client->mNodeManager.getRootNodeRubbish().as8byte())
+        if (backupDestinationNode &&
+            backupDestinationNode->firstancestor()->nodeHandle() !=
+                client->mNodeManager.getRootNodeFiles().as8byte() &&
+            backupDestinationNode->firstancestor()->nodeHandle() !=
+                client->mNodeManager.getRootNodeRubbish().as8byte())
         {
-            LOG_debug << "Destination node not in the main files root, or in rubbish: " << n2->displaypath();
+            LOG_debug << "Destination node not in the main files root, or in rubbish: "
+                      << backupDestinationNode->displaypath();
             return API_EARGS;
         }
 
         NodeHandle root = NodeHandle().set6byte(deconfiguredBackupRoot);
         NodeHandle destination = NodeHandle().set6byte(backupDestination);
+
+        if (backupDestinationNode &&
+            backupDestinationNode->hasChildWithName(deconfiguredBackupRootNode->displayname()))
+        {
+            LOG_err << "A node with the same name already exists in the destination. Can't move "
+                       "the backup node "
+                    << toNodeHandle(root) << " into " << toNodeHandle(destination);
+            return API_EEXIST;
+        }
 
         client->unlinkOrMoveBackupNodes(root, destination, [request, this](Error e) {
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));

@@ -18001,17 +18001,20 @@ class MegaApi
          *
          * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
          *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
-         * Valid data in the MegaRequest object received on callbacks:
+         * The associated request type with this request is
+         * MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES. Valid data in the MegaRequest object received
+         * on callbacks:
          * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
          * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
          *                          or backupDestination was not in Files or Rubbish
+         * - MegaError::API_EEXIST - The destination already contains a node with the same name.
          *
          * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
-         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
+         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise
+         * files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
         void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener* listener = NULL);
@@ -22240,20 +22243,24 @@ class MegaApi
          *
          * This method allows to remove a backup from the list of backups displayed in the
          * Backup Centre, and completely remove its contents, either by moving them to
-         * moveDestination or (when the latter has a valid value) by deleting them (when
+         * moveDestination (when the latter has a valid value) or by deleting them (when
          * destination is INVALID_HANDLE).
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE_MD
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns the backup id
-         * - MegaRequest::getNodeHandle - Returns the node handle corresponding to the move destination
+         * - MegaRequest::getNodeHandle - Returns the node handle corresponding to the move
+         * destination
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EEXIST - The destination already contains a node with the same name.
+         *
          * @param backupId backup id of the backup to be removed
-         * @param moveDestination node handle where backup contents will be moved; if INVALID_HANDLE,
-         * backup contents will be deleted; for non-backup syncs it will be ignored
+         * @param moveDestination node handle where backup contents will be moved; if
+         * INVALID_HANDLE, backup contents will be deleted; for non-backup syncs it will be ignored
          * @param listener MegaRequestListener to track this request
-        */
+         */
         void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
 
         /**
