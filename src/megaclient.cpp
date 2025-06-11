@@ -24337,7 +24337,10 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
         {
             LOG_err << "Couldn't retrieve JSC data: " << result;
 
-            fatalError(ErrorReason::REASON_ERROR_NO_JSCD);
+            if (result != API_EBLOCKED)
+            {
+                fatalError(ErrorReason::REASON_ERROR_NO_JSCD);
+            }
 
             // This shouldn't prevent the user from logging on, however.
             return callback(API_OK);
