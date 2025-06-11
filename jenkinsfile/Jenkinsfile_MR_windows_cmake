@@ -128,10 +128,14 @@ pipeline {
                 stage('Build Windows'){
                     environment{
                         VCPKGPATH  = "${windows_sources_workspace}\\..\\vcpkg"
-                        VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
-                        AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
-                        AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
-                        AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
+                        /*
+                         * VCPKG cache in S4 commented out because it takes too long time.
+                         * See CID-839 
+                         * VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
+                         * AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
+                         * AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
+                         * AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
+                         */
                         _MSPDBSRV_ENDPOINT_ = "${BUILD_TAG}"
                         TMP       = "${windows_sources_workspace}\\tmp"
                         TEMP      = "${windows_sources_workspace}\\tmp"
