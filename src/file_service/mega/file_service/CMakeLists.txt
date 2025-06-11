@@ -39,6 +39,8 @@ target_sources(SDKlib PRIVATE
                       file_service_context.h
                       file_service_queries.h
                       file_storage.h
+                      file_touch_request.h
+                      file_touch_request_forward.h
                       file_truncate_request.h
                       file_truncate_request_forward.h
                       file_write_request.h
