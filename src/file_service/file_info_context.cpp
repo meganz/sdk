@@ -53,6 +53,14 @@ FileID FileInfoContext::id() const
     return mID;
 }
 
+void FileInfoContext::modified(std::int64_t modified)
+{
+    UniqueLock guard(mLock);
+
+    // Update the file's modification time.
+    mModified = modified;
+}
+
 std::int64_t FileInfoContext::modified() const
 {
     return get(&FileInfoContext::mModified);

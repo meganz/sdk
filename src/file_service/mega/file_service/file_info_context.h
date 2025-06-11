@@ -54,6 +54,9 @@ public:
     // What is this file's identifier?
     auto id() const -> FileID;
 
+    // Update the file's modification time.
+    void modified(std::int64_t modified);
+
     // When was this file last modified?
     auto modified() const -> std::int64_t;
 
