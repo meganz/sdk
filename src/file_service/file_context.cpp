@@ -17,6 +17,7 @@
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_service_context.h>
+#include <mega/file_service/file_touch_request.h>
 #include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request.h>
 #include <mega/file_service/logging.h>
@@ -447,6 +448,31 @@ bool FileContext::execute(FileReadRequest& request)
     return true;
 }
 
+bool FileContext::execute(FileTouchRequest& request)
+{
+    // Can't touch if there's another request in progress.
+    if (!mReadWriteState.write())
+        return false;
+
+    // Convenience.
+    auto transaction = mService.database().transaction();
+
+    // Update the file's modification time.
+    updateModificationTime(request.mModified, transaction);
+
+    // Persist our changes.
+    transaction.commit();
+
+    // Update file attributes.
+    mInfo->modified(request.mModified);
+
+    // Queue the user's request for completion.
+    completed(std::move(request), FILE_SUCCESS);
+
+    // Let the caller know the request was executed.
+    return true;
+}
+
 bool FileContext::execute(FileTruncateRequest& request)
 {
     // Can't truncate if there's another request in progress.
@@ -819,6 +845,11 @@ void FileContext::read(FileReadRequest request)
 void FileContext::ref()
 {
     adjustRef(1);
+}
+
+void FileContext::touch(FileTouchRequest request)
+{
+    executeOrQueue(std::move(request));
 }
 
 void FileContext::truncate(FileTruncateRequest request)

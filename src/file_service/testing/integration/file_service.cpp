@@ -62,6 +62,9 @@ static bool compare(const std::string& computed,
 static auto read(File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResultOr<std::string>>;
 
+// Update the specified file's modification time.
+static auto touch(File file, std::int64_t modified) -> std::future<FileResult>;
+
 // Truncate the specified file to a particular size.
 static auto truncate(File file, std::uint64_t size) -> std::future<FileResult>;
 
@@ -400,6 +403,36 @@ TEST_F(FileServiceTests, ref_succeeds)
 
     // Let the service know it can remove the file.
     file->unref();
+}
+
+TEST_F(FileServiceTests, touch_succeeds)
+{
+    // Convenience.
+    auto timeout = std::future_status::timeout;
+
+    // Open a file for modification.
+    auto file = ClientW()->fileOpen(mFileHandle);
+
+    // Make sure the file was opened okay.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Get our hands on the file's attributes.
+    auto info = file->info();
+
+    // Latch the file's current modification time.
+    auto modified = info.modified();
+
+    // Try and update the file's modification time.
+    auto waiter = touch(*file, modified + 1);
+
+    // Wait for the request to complete.
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the request was successful.
+    ASSERT_EQ(waiter.get(), FILE_SUCCESS);
+
+    // Make sure the file's modification time was updated.
+    EXPECT_EQ(info.modified(), modified + 1);
 }
 
 TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
@@ -913,6 +946,29 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
         length);
 
     // Return waiter to our caller.
+    return waiter;
+}
+
+auto touch(File file, std::int64_t modified) -> std::future<FileResult>
+{
+    // Convenience.
+    using common::makeSharedPromise;
+
+    // So we can notify our waiter when the request completes.
+    auto notifier = makeSharedPromise<FileResult>();
+
+    // So our caller can wait until the request completes.
+    auto waiter = notifier->get_future();
+
+    // Try and touch the file.
+    file.touch(
+        [notifier](FileResult result)
+        {
+            notifier->set_value(result);
+        },
+        modified);
+
+    // Return the waiter to our caller.
     return waiter;
 }
 

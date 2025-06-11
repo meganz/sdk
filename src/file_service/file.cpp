@@ -7,6 +7,7 @@
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_service_context_badge.h>
+#include <mega/file_service/file_touch_request.h>
 #include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request.h>
 
@@ -67,6 +68,11 @@ void File::read(FileReadCallback callback, const FileRange& range)
 void File::ref()
 {
     mContext->ref();
+}
+
+void File::touch(FileTouchCallback callback, std::int64_t modified)
+{
+    mContext->touch(FileTouchRequest{std::move(callback), modified});
 }
 
 void File::truncate(FileTruncateCallback callback, std::uint64_t size)

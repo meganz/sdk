@@ -47,6 +47,9 @@ public:
     // Let the service know you want it to keep this file in storage.
     void ref();
 
+    // Update the file's modification time.
+    void touch(FileTouchCallback callback, std::int64_t modified);
+
     // Truncate this file to a specified size.
     void truncate(FileTruncateCallback callback, std::uint64_t size);
 
