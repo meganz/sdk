@@ -224,10 +224,14 @@ public:
                                const MegaClient& client) const;
 
     // How should the engine detect filesystem changes?
+#ifdef USE_PERIODIC
+    ChangeDetectionMethod mChangeDetectionMethod = CDM_PERIODIC_SCANNING;
+#else
     ChangeDetectionMethod mChangeDetectionMethod = CDM_NOTIFICATIONS;
+#endif
 
     // Only meaningful when a sync is in CDM_PERIODIC_SCANNING mode.
-    unsigned mScanIntervalSec = 0;
+    unsigned mScanIntervalSec = 60;
 
     // enum to string conversion
     static const char* synctypename(const Type type);
