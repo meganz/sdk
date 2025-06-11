@@ -33,6 +33,9 @@ public:
     // Append data to the end of this file.
     void append(const void* buffer, FileAppendCallback callback, std::uint64_t length);
 
+    // Fetch all of this file's data from the cloud.
+    void fetch(FileFetchCallback callback);
+
     // Retrieve information about this file.
     FileInfo info() const;
 

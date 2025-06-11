@@ -10,6 +10,7 @@
 #include <mega/file_service/file_buffer.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
+#include <mega/file_service/file_fetch_request.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
@@ -38,9 +39,30 @@ namespace file_service
 
 using namespace common;
 
+class FileContext::FetchContext
+{
+    // Called when the fetch has been completed.
+    void completed(FileResult result);
+
+    // What file are we fetching?
+    FileContext& mContext;
+
+    // What fetch requests are we executing?
+    std::vector<FileFetchRequest> mRequests;
+
+public:
+    FetchContext(FileContext& context, FileFetchRequest request);
+
+    // Called when we've received file data.
+    void operator()(FetchContextPtr& context, FileResultOr<FileReadResult> result);
+
+    // Queue a fetch request for execution.
+    void queue(FileFetchRequest request);
+}; // FetchContext
+
 // Check if T is a file read request.
 template<typename T>
-constexpr auto IsFileReadRequestV = IsOneOfV<T, FileReadRequest>;
+constexpr auto IsFileReadRequestV = IsOneOfV<T, FileFetchRequest, FileReadRequest>;
 
 void FileContext::addRange(const FileRange& range, Transaction& transaction)
 {
@@ -379,6 +401,33 @@ bool FileContext::execute(FileAppendRequest& request)
     completed(std::move(request), FILE_SUCCESS);
 
     // Let the caller know the request was executed.
+    return true;
+}
+
+bool FileContext::execute(FileFetchRequest& request)
+{
+    // Can't execute a fetch if there's a write in progress.
+    if (!mReadWriteState.read())
+        return false;
+
+    // Acquire fetch context lock.
+    std::unique_lock lock(mFetchContextLock);
+
+    // A fetch is already in progress.
+    if (mFetchContext)
+        return mFetchContext->queue(std::move(request)), true;
+
+    // Instantiate a context for our fetch.
+    mFetchContext = std::make_shared<FetchContext>(*this, std::move(request));
+
+    // Release flush context lock.
+    lock.unlock();
+
+    // Try and read all of the file's data.
+    read(FileReadRequest{std::bind(*mFetchContext, mFetchContext, std::placeholders::_1),
+                         FileRange(0, UINT64_MAX)});
+
+    // Let the caller know the request's been executed.
     return true;
 }
 
@@ -789,6 +838,8 @@ FileContext::FileContext(Activity activity,
     mActivity(std::move(activity)),
     mBuffer(std::make_shared<FileBuffer>(*file)),
     mInfo(std::move(info)),
+    mFetchContext(),
+    mFetchContextLock(),
     mFile(std::move(file)),
     mRanges(),
     mRangesLock(),
@@ -813,6 +864,11 @@ FileContext::~FileContext()
 }
 
 void FileContext::append(FileAppendRequest request)
+{
+    executeOrQueue(std::move(request));
+}
+
+void FileContext::fetch(FileFetchRequest request)
 {
     executeOrQueue(std::move(request));
 }
@@ -865,6 +921,77 @@ void FileContext::unref()
 void FileContext::write(FileWriteRequest request)
 {
     executeOrQueue(std::move(request));
+}
+
+void FileContext::FetchContext::completed(FileResult result)
+{
+    // Convenience.
+    using Completer = std::function<void(FileFetchRequest, FileResult)>;
+
+    // Assume the fetch completed successfully.
+    Completer completer = [this](auto request, auto result)
+    {
+        mContext.completed(std::move(request), result);
+    };
+
+    // Fetch actually failed.
+    if (result != FILE_SUCCESS)
+    {
+        completer = [this](auto request, auto result)
+        {
+            mContext.failed(std::move(request), result);
+        };
+    }
+
+    // Let the file know the fetch has completed.
+    {
+        // Acquire fetch context lock.
+        std::lock_guard guard(mContext.mFetchContextLock);
+
+        // Clear fetch context.
+        mContext.mFetchContext = nullptr;
+    }
+
+    // Execute queued requests.
+    for (auto& request: mRequests)
+        completer(std::move(request), result);
+}
+
+FileContext::FetchContext::FetchContext(FileContext& context, FileFetchRequest request):
+    mContext(context),
+    mRequests()
+{
+    // Queue the request.
+    queue(std::move(request));
+}
+
+void FileContext::FetchContext::operator()(FetchContextPtr& context,
+                                           FileResultOr<FileReadResult> result)
+{
+    // Couldn't read this file's data.
+    if (!result)
+        return completed(result.error());
+
+    // No more content to read.
+    if (!result->mLength)
+        return completed(FILE_SUCCESS);
+
+    // Convenience.
+    auto offset = result->mOffset + result->mLength;
+    auto length = UINT64_MAX - offset;
+
+    // Try and read the rest of the file's data.
+    mContext.read(FileReadRequest{std::bind(*this, std::move(context), std::placeholders::_1),
+                                  FileRange(offset, offset + length)});
+}
+
+void FileContext::FetchContext::queue(FileFetchRequest request)
+{
+    // Acquire fetch context lock.
+    std::lock_guard guard(mContext.mFetchContextLock);
+
+    // Queue the request.
+    mRequests.emplace_back(std::move(request));
 }
 
 } // file_service

@@ -1,9 +1,11 @@
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_append_request.h>
 #include <mega/file_service/file_context.h>
+#include <mega/file_service/file_fetch_request.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_read_request.h>
+#include <mega/file_service/file_read_result.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_service_context_badge.h>
@@ -41,6 +43,12 @@ File& File::operator=(File&& rhs)
 void File::append(const void* buffer, FileAppendCallback callback, std::uint64_t length)
 {
     return mContext->append(FileAppendRequest{buffer, std::move(callback), length});
+}
+
+void File::fetch(FileFetchCallback callback)
+{
+    // Queue a fetch request.
+    mContext->fetch(FileFetchRequest{std::move(callback)});
 }
 
 FileInfo File::info() const

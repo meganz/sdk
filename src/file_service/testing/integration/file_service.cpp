@@ -86,6 +86,9 @@ static bool compare(const std::string& computed,
                     std::uint64_t offset,
                     std::uint64_t length);
 
+// Fetch all of a file's content from the cloud.
+static auto fetch(File file) -> std::future<FileResult>;
+
 // Read some content from the specified file.
 static auto read(File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResultOr<std::string>>;
@@ -172,6 +175,36 @@ TEST_F(FileServiceTests, append_succeeds)
     range.mEnd = size + computed.size();
 
     EXPECT_EQ(ranges[1], FileRange(range));
+}
+
+TEST_F(FileServiceTests, fetch_succeeds)
+{
+    // Open a file for reading.
+    auto file = ClientW()->fileOpen(mFileHandle);
+
+    // Make sure we could open the file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Read some ranges from the file.
+    ASSERT_EQ(execute(read, *file, 256_KiB, 256_KiB).errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    ASSERT_EQ(execute(read, *file, 768_KiB, 128_KiB).errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Make sure two ranges are active.
+    auto ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 2u);
+    EXPECT_EQ(ranges[0], FileRange(256_KiB, 512_KiB));
+    EXPECT_EQ(ranges[1], FileRange(768_KiB, 896_KiB));
+
+    // Try and fetch the rest of the file's content.
+    ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+    // We should now have a single range.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 1u);
+    EXPECT_EQ(ranges[0], FileRange(0, 1_MiB));
 }
 
 TEST_F(FileServiceTests, info_directory_fails)
@@ -806,6 +839,28 @@ bool compare(const std::string& computed,
 
     // Make sure the content matches our file.
     return !expected.compare(offset, length, computed);
+}
+
+auto fetch(File file) -> std::future<FileResult>
+{
+    // Convenience.
+    using common::makeSharedPromise;
+
+    // So we can signal when the request has completed.
+    auto notifier = makeSharedPromise<FileResult>();
+
+    // So our caller can wait until the request has completed.
+    auto waiter = notifier->get_future();
+
+    // Execute the fetch request.
+    file.fetch(
+        [=](auto result)
+        {
+            notifier->set_value(result);
+        });
+
+    // Return waiter to our caller.
+    return waiter;
 }
 
 auto read(File file, std::uint64_t offset, std::uint64_t length)

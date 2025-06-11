@@ -6,6 +6,7 @@
 #include <mega/file_service/file_append_request_forward.h>
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
+#include <mega/file_service/file_fetch_request_forward.h>
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_info_forward.h>
@@ -36,12 +37,19 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 {
     // Convenience.
     using FileRequest = std::variant<FileAppendRequest,
+                                     FileFetchRequest,
                                      FileReadRequest,
                                      FileTouchRequest,
                                      FileTruncateRequest,
                                      FileWriteRequest>;
 
     using FileRequestList = std::list<FileRequest>;
+
+    // Tracks state necessary for a fetch.
+    class FetchContext;
+
+    // Convenience.
+    using FetchContextPtr = std::shared_ptr<FetchContext>;
 
     // Check if T is a file request.
     template<typename T>
@@ -77,6 +85,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Try and execute an append request.
     bool execute(FileAppendRequest& request);
+
+    // Try and execute a fetch request.
+    bool execute(FileFetchRequest& request);
 
     // Try and execute a read request.
     bool execute(FileReadRequest& request);
@@ -132,6 +143,12 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // How we get and set our file's attributes.
     FileInfoContextPtr mInfo;
 
+    // Tracks any fetch in progress.
+    FetchContextPtr mFetchContext;
+
+    // Serializes access to mFetchContext.
+    std::recursive_mutex mFetchContextLock;
+
     // The file storing our data.
     FileAccessPtr mFile;
 
@@ -167,6 +184,9 @@ public:
 
     // Append data to the end of this file.
     void append(FileAppendRequest request);
+
+    // Fetch all of this file's data from the cloud.
+    void fetch(FileFetchRequest request);
 
     // Retrieve information about this file.
     FileInfo info() const;
