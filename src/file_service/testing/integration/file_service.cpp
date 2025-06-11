@@ -34,6 +34,34 @@ struct FileServiceTests: fuse::testing::Test
     // Perform fixture-wide setup.
     static void SetUpTestSuite();
 
+    // Execute an asynchronous request synchronously.
+    template<typename Function, typename... Parameters>
+    auto execute(Function&& function, Parameters&&... arguments)
+    {
+        // Execute function to kick off our request.
+        auto waiter =
+            std::invoke(std::forward<Function>(function), std::forward<Parameters>(arguments)...);
+
+        // Figure out the function's result type.
+        using Result = decltype(waiter.get());
+
+        // Request timed out.
+        if (waiter.wait_for(mDefaultTimeout) == std::future_status::timeout)
+        {
+            // Convenience.
+            using common::IsExpected;
+
+            // Return FILE_FAILED as unexpected(...) if needed.
+            if constexpr (IsExpected<Result>::value)
+                return Result(unexpected(FILE_FAILED));
+            else
+                return Result(FILE_FAILED);
+        }
+
+        // Return result to our caller.
+        return waiter.get();
+    }
+
     // The content of the file we want to read.
     static std::string mFileContent;
 
@@ -74,9 +102,6 @@ static auto write(const void* buffer, File file, std::uint64_t offset, std::uint
 
 TEST_F(FileServiceTests, append_succeeds)
 {
-    // Convenience.
-    auto timeout = std::future_status::timeout;
-
     // Open file for writing.
     auto file = ClientW()->fileOpen(mFileHandle);
 
@@ -95,15 +120,10 @@ TEST_F(FileServiceTests, append_succeeds)
         auto offset = range.mBegin;
         auto length = range.mEnd - range.mBegin;
 
-        // Initiate the read.
-        auto waiter = read(*file, offset, length);
+        // Perform the read.
+        auto result = execute(read, *file, offset, length);
 
-        // Wait for the request to complete.
-        ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
-
-        auto result = waiter.get();
-
-        // Make sure the request completed successfully.
+        // Make sure the read completed successfully.
         ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
         ASSERT_EQ(result->size(), static_cast<std::size_t>(length));
     }
@@ -119,13 +139,7 @@ TEST_F(FileServiceTests, append_succeeds)
     auto size = info.size();
 
     // Try and append the data to the end of the file.
-    auto waiter = append(computed.data(), *file, computed.size());
-
-    // Wait for the request to complete.
-    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
-
-    // Make sure the request succeeded.
-    ASSERT_EQ(waiter.get(), FILE_SUCCESS);
+    ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
 
     // The file should now have two ranges.
     auto ranges = file->ranges();
@@ -143,9 +157,7 @@ TEST_F(FileServiceTests, append_succeeds)
     size = info.size();
 
     // Append again to make sure contigous ranges are extended.
-    waiter = append(computed.data(), *file, computed.size());
-    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
-    ASSERT_EQ(waiter.get(), FILE_SUCCESS);
+    ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
     ASSERT_GE(info.modified(), modified);
     ASSERT_EQ(info.size(), size + computed.size());
 
@@ -289,12 +301,7 @@ TEST_F(FileServiceTests, read_succeeds)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // We should be able to read 64KiB from the beginning of the file.
-    auto waiter = read(*file, 0, 64_KiB);
-
-    // Wait for the read to complete.
-    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
-
-    auto result = waiter.get();
+    auto result = execute(read, *file, 0, 64_KiB);
 
     // Make sure the read completed successfully.
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
@@ -309,12 +316,7 @@ TEST_F(FileServiceTests, read_succeeds)
     EXPECT_EQ(ranges.front(), FileRange(0, 64_KiB));
 
     // Read another 64KiB.
-    waiter = read(*file, 64_KiB, 64_KiB);
-
-    // Wait for the read to complete...
-    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
-
-    result = waiter.get();
+    result = execute(read, *file, 64_KiB, 64_KiB);
 
     // Make sure the read completed successfully.
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
@@ -356,18 +358,12 @@ TEST_F(FileServiceTests, read_succeeds)
     EXPECT_EQ(ranges.front(), FileRange(0, 256_KiB));
 
     // Make sure zero length reads are handled correctly.
-    waiter = read(*file, 0, 0);
-    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
-
-    result = waiter.get();
+    result = execute(read, *file, 0, 0);
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
     EXPECT_TRUE(result->empty());
 
     // Make sure reads are clamped.
-    waiter = read(*file, 768_KiB, 512_KiB);
-    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
-
-    result = waiter.get();
+    result = execute(read, *file, 768_KiB, 512_KiB);
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
     EXPECT_TRUE(compare(*result, mFileContent, 768_KiB, 256_KiB));
 }
@@ -407,9 +403,6 @@ TEST_F(FileServiceTests, ref_succeeds)
 
 TEST_F(FileServiceTests, touch_succeeds)
 {
-    // Convenience.
-    auto timeout = std::future_status::timeout;
-
     // Open a file for modification.
     auto file = ClientW()->fileOpen(mFileHandle);
 
@@ -423,13 +416,7 @@ TEST_F(FileServiceTests, touch_succeeds)
     auto modified = info.modified();
 
     // Try and update the file's modification time.
-    auto waiter = touch(*file, modified + 1);
-
-    // Wait for the request to complete.
-    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
-
-    // Make sure the request was successful.
-    ASSERT_EQ(waiter.get(), FILE_SUCCESS);
+    ASSERT_EQ(execute(touch, *file, modified + 1), FILE_SUCCESS);
 
     // Make sure the file's modification time was updated.
     EXPECT_EQ(info.modified(), modified + 1);
@@ -437,9 +424,6 @@ TEST_F(FileServiceTests, touch_succeeds)
 
 TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
 {
-    // Convenience.
-    auto timeout = std::future_status::timeout;
-
     // Open the file for truncation.
     auto file = ClientW()->fileOpen(mFileHandle);
 
@@ -449,18 +433,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
     // Reads a range from the file.
     auto read = [&](std::uint64_t offset, std::uint64_t length)
     {
-        // Assume the read fails.
-        FileResultOr<std::string> result(unexpected(FILE_FAILED));
-
-        // Initiate the read request.
-        auto waiter = testing::read(*file, offset, length);
-
-        // Wait for the request to complete.
-        if (waiter.wait_for(mDefaultTimeout) != timeout)
-            result = waiter.get();
-
-        // Return the result to our caller.
-        return result;
+        return execute(testing::read, *file, offset, length);
     }; // read
 
     // Download a range from the file.
@@ -479,11 +452,11 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         auto modified = info.modified();
 
         // Initiate the truncate request.
-        auto waiter = testing::truncate(*file, size);
+        auto result = execute(testing::truncate, *file, size);
 
-        // Truncate timed out.
-        if (waiter.wait_for(mDefaultTimeout) == timeout)
-            return FILE_FAILED;
+        // Truncate failed.
+        if (result != FILE_SUCCESS)
+            return result;
 
         // Make sure the file's attributes have been updated.
         EXPECT_GE(info.modified(), modified);
@@ -494,7 +467,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
             return FILE_FAILED;
 
         // Let the caller know the truncation was successful.
-        return FILE_SUCCESS;
+        return result;
     }; // truncate
 
     // Read a few ranges from the file.
@@ -540,9 +513,6 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
 
 TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
 {
-    // Convenience.
-    auto timeout = std::future_status::timeout;
-
     // Open the file for truncation.
     auto file = ClientW()->fileOpen(mFileHandle);
 
@@ -560,13 +530,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     auto size = info.size();
 
     // We should be able to reduce the file's size.
-    auto waiterT = truncate(*file, size / 2);
-
-    // Wait for the request to complete.
-    ASSERT_NE(waiterT.wait_for(mDefaultTimeout), timeout);
-
-    // Make sure the request succeeded.
-    ASSERT_EQ(waiterT.get(), FILE_SUCCESS);
+    ASSERT_EQ(execute(truncate, *file, size / 2), FILE_SUCCESS);
 
     // Make sure the file's modification time and size were updated.
     EXPECT_GE(info.modified(), modified);
@@ -579,10 +543,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     modified = info.modified();
 
     // We should be able to grow the file's size.
-    waiterT = truncate(*file, size);
-
-    ASSERT_NE(waiterT.wait_for(mDefaultTimeout), timeout);
-    ASSERT_EQ(waiterT.get(), FILE_SUCCESS);
+    ASSERT_EQ(execute(truncate, *file, size), FILE_SUCCESS);
 
     // Make sure the file's attributes were updated.
     EXPECT_GE(info.modified(), modified);
@@ -595,14 +556,9 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     EXPECT_EQ(ranges[0], FileRange(size / 2, size));
 
     // Make sure we can still read the file's content.
-    auto waiterR = read(*file, 0, size);
-
-    // Wait for the read to complete.
-    ASSERT_NE(waiterR.wait_for(mDefaultTimeout), timeout);
+    auto result = execute(read, *file, 0, size);
 
     // Make sure the read succeeded.
-    auto result = waiterR.get();
-
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
     ASSERT_EQ(result->size(), static_cast<std::size_t>(size));
 
@@ -626,21 +582,11 @@ TEST_F(FileServiceTests, write_succeeds)
     // Make sure we could actually open the file.
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
-    // Convenience.
-    auto timeout = std::future_status::timeout;
-
     // Read content from the file and make sure it matches our expectations.
     auto read = [&](std::uint64_t offset, std::uint64_t length)
     {
         // Try and read content from our file.
-        auto waiter = testing::read(*file, offset, length);
-
-        // Read timed out.
-        if (waiter.wait_for(mDefaultTimeout) == timeout)
-            return FILE_FAILED;
-
-        // Get our hands on the read's result.
-        auto result = waiter.get();
+        auto result = execute(testing::read, *file, offset, length);
 
         // Read failed.
         if (!result)
@@ -664,14 +610,10 @@ TEST_F(FileServiceTests, write_succeeds)
         auto modified = info.modified();
 
         // Try and write content to our file.
-        auto waiter = testing::write(content, *file, offset, length);
-
-        // Write timed out.
-        if (waiter.wait_for(mDefaultTimeout) == timeout)
-            return FILE_FAILED;
+        auto result = execute(testing::write, content, *file, offset, length);
 
         // Write failed.
-        if (auto result = waiter.get(); result != FILE_SUCCESS)
+        if (result != FILE_SUCCESS)
             return result;
 
         // Compute size of local file content.
