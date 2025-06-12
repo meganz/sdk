@@ -60,6 +60,10 @@ public:
     void queue(FileFetchRequest request);
 }; // FetchContext
 
+// Wrap a callback to ensure that exceptions are always handled.
+template<typename Callback>
+Callback swallow(Callback callback, const char* name);
+
 void FileContext::addRange(const FileRange& range, Transaction& transaction)
 {
     auto query = transaction.query(mService.queries().mAddFileRange);
@@ -337,7 +341,7 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
 
     // Queue the user's request for completion.
     mService.execute(std::bind(std::move(callback),
-                               std::move(request.mCallback),
+                               swallow(std::move(request.mCallback), request.name()),
                                weak_from_this(),
                                std::placeholders::_1,
                                std::forward<Captures>(captures)...));
@@ -716,12 +720,29 @@ bool FileContext::execute(FileWriteRequest& request)
 
 bool FileContext::execute(FileRequest& request)
 {
-    return std::visit(
-        [this](auto& request)
+    // Executes a user's request.
+    auto execute = [this](auto& request)
+    {
+        try
         {
-            return execute(request);
-        },
-        request);
+            // Try and execute the request.
+            return this->execute(request);
+        }
+        catch (std::exception& exception)
+        {
+            // Threw an exception while executing request.
+            FSErrorF("Unable to execute %s request: %s", request.name(), exception.what());
+
+            // Try and fail the request.
+            completed(std::move(request), FILE_FAILED);
+
+            // Let the caller know the request was executed.
+            return true;
+        }
+    }; // execute
+
+    // Execute the user's request.
+    return std::visit(std::move(execute), request);
 }
 
 void FileContext::execute()
@@ -948,6 +969,24 @@ void FileContext::FetchContext::queue(FileFetchRequest request)
 
     // Queue the request.
     mRequests.emplace_back(std::move(request));
+}
+
+template<typename Callback>
+Callback swallow(Callback callback, const char* name)
+{
+    return [callback = std::move(callback), name](auto&&... arguments)
+    {
+        try
+        {
+            // Try and execute the user's callback.
+            callback(std::forward<decltype(arguments)>(arguments)...);
+        }
+        catch (std::exception& exception)
+        {
+            // User's callback threw an exception we can log.
+            FSErrorF("User %s callback threw an exception: %s", name, exception.what());
+        }
+    };
 }
 
 } // file_service
