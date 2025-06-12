@@ -18,6 +18,11 @@ FileInfo::FileInfo(FileServiceContextBadge, FileInfoContextPtr context):
 
 FileInfo::~FileInfo() = default;
 
+bool FileInfo::dirty() const
+{
+    return mContext->dirty();
+}
+
 NodeHandle FileInfo::handle() const
 {
     return mContext->handle();

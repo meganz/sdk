@@ -20,6 +20,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mSetFileReferences(database.query())
 {
     mAddFile = "insert into files values ( "
+               "  :dirty, "
                "  :handle, "
                "  :id, "
                "  :modified, "
@@ -55,7 +56,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
                         "   and id = :id";
 
     mSetFileModificationTime = "update files "
-                               "   set modified = :modified "
+                               "   set dirty = 1 "
+                               "     , modified = :modified "
                                " where id = :id";
 
     mSetFileReferences = "update files "

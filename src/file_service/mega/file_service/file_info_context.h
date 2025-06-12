@@ -20,6 +20,9 @@ class FileInfoContext
     // Makes sure mService isn't destroyed until we are.
     common::Activity mActivity;
 
+    // Whether this file's been locally modified.
+    bool mDirty;
+
     // The node in the cloud this file is associated with, if any.
     NodeHandle mHandle;
 
@@ -40,6 +43,7 @@ class FileInfoContext
 
 public:
     FileInfoContext(common::Activity activity,
+                    bool dirty,
                     NodeHandle handle,
                     FileID id,
                     std::int64_t modified,
@@ -47,6 +51,9 @@ public:
                     std::uint64_t size);
 
     ~FileInfoContext();
+
+    // Has the file been locally modified?
+    bool dirty() const;
 
     // What node is this file associated with?
     auto handle() const -> NodeHandle;

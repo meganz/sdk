@@ -129,6 +129,9 @@ TEST_F(FileServiceTests, append_succeeds)
         // Make sure the read completed successfully.
         ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
         ASSERT_EQ(result->size(), static_cast<std::size_t>(length));
+
+        // Reads shouldn't dirty a file.
+        ASSERT_FALSE(info.dirty());
     }
 
     // Convenience.
@@ -152,6 +155,7 @@ TEST_F(FileServiceTests, append_succeeds)
     EXPECT_EQ(ranges[1], FileRange(size, size + computed.size()));
 
     // Make sure the file's attributes have been updated.
+    ASSERT_TRUE(info.dirty());
     ASSERT_GE(info.modified(), modified);
     ASSERT_EQ(info.size(), size + computed.size());
 
@@ -187,8 +191,10 @@ TEST_F(FileServiceTests, fetch_succeeds)
 
     // Read some ranges from the file.
     ASSERT_EQ(execute(read, *file, 256_KiB, 256_KiB).errorOr(FILE_SUCCESS), FILE_SUCCESS);
-
     ASSERT_EQ(execute(read, *file, 768_KiB, 128_KiB).errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Reads shouldn't dirty a file.
+    ASSERT_FALSE(file->info().dirty());
 
     // Make sure two ranges are active.
     auto ranges = file->ranges();
@@ -199,6 +205,9 @@ TEST_F(FileServiceTests, fetch_succeeds)
 
     // Try and fetch the rest of the file's content.
     ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+    // Fetching shouldn't dirty a file.
+    ASSERT_FALSE(file->info().dirty());
 
     // We should now have a single range.
     ranges = file->ranges();
@@ -236,6 +245,9 @@ TEST_F(FileServiceTests, open_file_succeeds)
     // We should be able to get information about that file.
     auto fileInfo = ClientW()->fileInfo(mFileHandle);
     EXPECT_EQ(fileInfo.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Files are initially clean.
+    ASSERT_FALSE(fileInfo->dirty());
 
     // Get our hands on the node's information.
     auto nodeInfo = ClientW()->get(mFileHandle);
@@ -399,6 +411,9 @@ TEST_F(FileServiceTests, read_succeeds)
     result = execute(read, *file, 768_KiB, 512_KiB);
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
     EXPECT_TRUE(compare(*result, mFileContent, 768_KiB, 256_KiB));
+
+    // Reads should never dirty a file.
+    ASSERT_FALSE(file->info().dirty());
 }
 
 TEST_F(FileServiceTests, ref_succeeds)
@@ -445,11 +460,17 @@ TEST_F(FileServiceTests, touch_succeeds)
     // Get our hands on the file's attributes.
     auto info = file->info();
 
+    // Files should be clean initially.
+    ASSERT_FALSE(info.dirty());
+
     // Latch the file's current modification time.
     auto modified = info.modified();
 
     // Try and update the file's modification time.
     ASSERT_EQ(execute(touch, *file, modified + 1), FILE_SUCCESS);
+
+    // Make sure the file's now considered dirty.
+    EXPECT_TRUE(info.dirty());
 
     // Make sure the file's modification time was updated.
     EXPECT_EQ(info.modified(), modified + 1);
@@ -481,6 +502,9 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         // Get our hands on the file's attributes.
         auto info = file->info();
 
+        // Determine whether the file should become dirty.
+        auto dirty = info.size() != size;
+
         // Latch the file's current modification time.
         auto modified = info.modified();
 
@@ -492,6 +516,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
             return result;
 
         // Make sure the file's attributes have been updated.
+        EXPECT_EQ(info.dirty(), dirty);
         EXPECT_GE(info.modified(), modified);
         EXPECT_EQ(info.size(), size);
 
@@ -555,6 +580,9 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     // Get our hands on the file's attributes.
     auto info = file->info();
 
+    // Files should be clean initially.
+    ASSERT_FALSE(info.dirty());
+
     // Make sure the file has no active ranges.
     ASSERT_EQ(file->ranges().size(), 0u);
 
@@ -564,6 +592,9 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
 
     // We should be able to reduce the file's size.
     ASSERT_EQ(execute(truncate, *file, size / 2), FILE_SUCCESS);
+
+    // Mak sure the file's become dirty.
+    EXPECT_TRUE(info.dirty());
 
     // Make sure the file's modification time and size were updated.
     EXPECT_GE(info.modified(), modified);
@@ -658,12 +689,17 @@ TEST_F(FileServiceTests, write_succeeds)
         // Copy written content into our local file content buffer.
         std::memcpy(&expected[offset], content, length);
 
+        // Make sure the file's become dirty.
+        EXPECT_TRUE(info.dirty());
+
         // Make sure the file's modification time hasn't gone backwards.
-        if (info.modified() < modified)
-            return FILE_FAILED;
+        EXPECT_GE(info.modified(), modified);
 
         // Make sure the file's size has been updated correctly.
-        if (info.size() != size)
+        EXPECT_EQ(info.size(), size);
+
+        // One or more of our expectations weren't satisfied.
+        if (HasFailure())
             return FILE_FAILED;
 
         // Let our caller know the write was successful.

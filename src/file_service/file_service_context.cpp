@@ -77,6 +77,7 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     if (!query)
         return {};
 
+    auto dirty = query.field("dirty").get<bool>();
     auto handle = NodeHandle();
 
     if (!query.field("handle").null())
@@ -87,6 +88,7 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     auto file = mStorage.getFile(id);
 
     auto info = std::make_shared<FileInfoContext>(mActivities.begin(),
+                                                  dirty,
                                                   handle,
                                                   id,
                                                   query.field("modified").get<std::int64_t>(),
@@ -146,6 +148,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     auto transaction = mDatabase.transaction();
     auto query = transaction.query(mQueries.mAddFile);
 
+    query.param(":dirty").set(false);
     query.param(":handle").set(node->mHandle);
     query.param(":id").set(id);
     query.param(":modified").set(node->mModified);
@@ -157,6 +160,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     transaction.commit();
 
     auto info = std::make_shared<FileInfoContext>(mActivities.begin(),
+                                                  false,
                                                   node->mHandle,
                                                   id,
                                                   node->mModified,

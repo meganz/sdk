@@ -24,12 +24,14 @@ auto FileInfoContext::get(T FileInfoContext::* const property) const
 }
 
 FileInfoContext::FileInfoContext(Activity activity,
+                                 bool dirty,
                                  NodeHandle handle,
                                  FileID id,
                                  std::int64_t modified,
                                  FileServiceContext& service,
                                  std::uint64_t size):
     mActivity(std::move(activity)),
+    mDirty(dirty),
     mHandle(handle),
     mID(id),
     mLock(),
@@ -41,6 +43,11 @@ FileInfoContext::FileInfoContext(Activity activity,
 FileInfoContext::~FileInfoContext()
 {
     mService.removeFromIndex(FileInfoContextBadge(), mID);
+}
+
+bool FileInfoContext::dirty() const
+{
+    return get(&FileInfoContext::mDirty);
 }
 
 NodeHandle FileInfoContext::handle() const
@@ -56,6 +63,9 @@ FileID FileInfoContext::id() const
 void FileInfoContext::modified(std::int64_t modified)
 {
     UniqueLock guard(mLock);
+
+    // Mark file as having been locally modified.
+    mDirty = true;
 
     // Update the file's modification time.
     mModified = modified;
@@ -78,6 +88,9 @@ void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
 
     UniqueLock guard(mLock);
 
+    // Mark file as having been locally modified.
+    mDirty = true;
+
     // Update the file's modification time.
     mModified = modified;
 
@@ -88,6 +101,9 @@ void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
 void FileInfoContext::written(const FileRange& range, std::int64_t modified)
 {
     UniqueLock guard(mLock);
+
+    // Mark file as having been locally modified.
+    mDirty = true;
 
     // Update the file's modification time.
     mModified = modified;

@@ -27,6 +27,9 @@ public:
 
     ~FileInfo();
 
+    // Has this file been locally modified?
+    bool dirty() const;
+
     // What node is this file associated with?
     NodeHandle handle() const;
 
