@@ -60,10 +60,6 @@ public:
     void queue(FileFetchRequest request);
 }; // FetchContext
 
-// Check if T is a file read request.
-template<typename T>
-constexpr auto IsFileReadRequestV = IsOneOfV<T, FileFetchRequest, FileReadRequest>;
-
 void FileContext::addRange(const FileRange& range, Transaction& transaction)
 {
     auto query = transaction.query(mService.queries().mAddFileRange);

@@ -16,6 +16,8 @@
 #include <mega/file_service/file_range_vector.h>
 #include <mega/file_service/file_read_request_forward.h>
 #include <mega/file_service/file_read_write_state.h>
+#include <mega/file_service/file_request_list.h>
+#include <mega/file_service/file_request_traits.h>
 #include <mega/file_service/file_service_context_forward.h>
 #include <mega/file_service/file_touch_request_forward.h>
 #include <mega/file_service/file_truncate_request.h>
@@ -35,25 +37,11 @@ namespace file_service
 
 class FileContext final: FileRangeContextManager, public std::enable_shared_from_this<FileContext>
 {
-    // Convenience.
-    using FileRequest = std::variant<FileAppendRequest,
-                                     FileFetchRequest,
-                                     FileReadRequest,
-                                     FileTouchRequest,
-                                     FileTruncateRequest,
-                                     FileWriteRequest>;
-
-    using FileRequestList = std::list<FileRequest>;
-
     // Tracks state necessary for a fetch.
     class FetchContext;
 
     // Convenience.
     using FetchContextPtr = std::shared_ptr<FetchContext>;
-
-    // Check if T is a file request.
-    template<typename T>
-    static constexpr auto IsFileRequestV = std::is_constructible_v<FileRequest, T>;
 
     // Add a range to the database.
     void addRange(const FileRange& range, common::Transaction& transaction);

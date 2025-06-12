@@ -38,6 +38,9 @@ target_sources(SDKlib PRIVATE
                       file_read_request_forward.h
                       file_read_request_set.h
                       file_read_write_state.h
+                      file_request.h
+                      file_request_list.h
+                      file_request_tags.h
                       file_service_context.h
                       file_service_queries.h
                       file_storage.h

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mega/file_service/file_callbacks.h>
+#include <mega/file_service/file_request_tags.h>
 #include <mega/file_service/file_touch_request_forward.h>
 
 #include <cstdint>
@@ -12,6 +13,15 @@ namespace file_service
 
 struct FileTouchRequest
 {
+    // What kind of request is this?
+    using Type = FileWriteRequestTag;
+
+    // This request's human readable name.
+    static const char* name()
+    {
+        return "touch";
+    }
+
     // Who should we call when the file's modification time has been updated?
     FileTouchCallback mCallback;
 
