@@ -102,10 +102,6 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Called when a file read request has failed.
     void failed(FileReadRequest&& request, FileResult result) override;
 
-    // Called when a file request has failed.
-    template<typename Request>
-    auto failed(Request&& request, FileResult result) -> std::enable_if_t<IsFileRequestV<Request>>;
-
     // Acquire a lock on this manager.
     std::unique_lock<std::recursive_mutex> lock() const override;
 

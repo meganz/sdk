@@ -112,7 +112,7 @@ void FileContext::cancel(FileRequest& request)
     std::visit(
         [&](auto& request)
         {
-            failed(std::move(request), FILE_CANCELLED);
+            completed(std::move(request), FILE_CANCELLED);
         },
         request);
 }
@@ -301,10 +301,32 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
                                                             &FileReadWriteState::writeCompleted;
 
     // Called to complete the user's request.
-    auto callback = [=](auto& callback, auto& context, auto&, auto&&...)
+    auto callback = [=](auto& callback, auto& cookie, auto&, auto&&...)
     {
-        // Let the user know their read has completed.
-        callback(result);
+        // Are we passing a file result?
+        if constexpr (std::is_same_v<FileResult, Result>)
+        {
+            // Determine the callback's concrete type.
+            using Callback = decltype(callback);
+
+            // Check if we have to pass result as an unexpected.
+            if constexpr (std::is_invocable_v<Callback, FileResult>)
+                callback(result);
+            else
+                callback(unexpected(result));
+        }
+        else
+        {
+            // Pass the result as is.
+            callback(result);
+        }
+
+        // Check if our context is still alive.
+        auto context = cookie.lock();
+
+        // Context isn't alive.
+        if (!context)
+            return;
 
         // Let the context know the read has completed.
         (context->mReadWriteState.*complete)();
@@ -316,7 +338,7 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
     // Queue the user's request for completion.
     mService.execute(std::bind(std::move(callback),
                                std::move(request.mCallback),
-                               shared_from_this(),
+                               weak_from_this(),
                                std::placeholders::_1,
                                std::forward<Captures>(captures)...));
 }
@@ -362,7 +384,7 @@ bool FileContext::execute(FileAppendRequest& request)
 
     // Couldn't write all of the user's data to disk.
     if (length < request.mLength)
-        return failed(std::move(request), FILE_FAILED), true;
+        return completed(std::move(request), FILE_FAILED), true;
 
     auto transaction = mService.database().transaction();
 
@@ -580,7 +602,7 @@ bool FileContext::execute(FileTruncateRequest& request)
 
     // Couldn't truncate this file's storage.
     if (!mFile->ftruncate(static_cast<m_off_t>(request.mSize)))
-        return failed(std::move(request), FILE_FAILED), true;
+        return completed(std::move(request), FILE_FAILED), true;
 
     // Persist changes.
     transaction.commit();
@@ -612,7 +634,7 @@ bool FileContext::execute(FileWriteRequest& request)
 
     // Caller hasn't passed us a valid buffer.
     if (!request.mBuffer)
-        return failed(std::move(request), FILE_INVALID_ARGUMENTS), true;
+        return completed(std::move(request), FILE_INVALID_ARGUMENTS), true;
 
     // Get exclusive access to mRanges.
     std::unique_lock lock(mRangesLock);
@@ -625,7 +647,7 @@ bool FileContext::execute(FileWriteRequest& request)
 
     // Couldn't write any content to storage.
     if (!length)
-        return failed(std::move(request), FILE_FAILED), true;
+        return completed(std::move(request), FILE_FAILED), true;
 
     // Compute actual end of the written range.
     range.mEnd = range.mBegin + length;
@@ -733,51 +755,7 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
 void FileContext::failed(FileReadRequest&& request, FileResult result)
 {
     // Delegate to template function.
-    failed<>(std::move(request), result);
-}
-
-template<typename Request>
-auto FileContext::failed(Request&& request, FileResult result)
-    -> std::enable_if_t<IsFileRequestV<Request>>
-{
-    // Make sure request has been passed by rvalue reference.
-    static_assert(!std::is_reference_v<Request>);
-
-    // What kind of request are we failing?
-    constexpr auto complete = IsFileReadRequestV<Request> ? &FileReadWriteState::readCompleted :
-                                                            &FileReadWriteState::writeCompleted;
-
-    // Called to fail the user's request.
-    auto callback = [=](auto& cookie, auto& request, auto&)
-    {
-        // Determine the callback's type.
-        using Callback = decltype(request.mCallback);
-
-        // Let the user know their request's failed.
-        if constexpr (std::is_invocable_v<Callback, FileResult>)
-            request.mCallback(result);
-        else
-            request.mCallback(unexpected(result));
-
-        // Check if our context is still alive.
-        auto context = cookie.lock();
-
-        // Context isn't alive.
-        if (!context)
-            return;
-
-        // Let the context know the request has completed.
-        (context->mReadWriteState.*complete)();
-
-        // Try and execute any queued requests.
-        execute();
-    }; // callback
-
-    // Queue the user's request for completion.
-    mService.execute(std::bind(std::move(callback),
-                               weak_from_this(),
-                               std::move(request),
-                               std::placeholders::_1));
+    completed<>(std::move(request), result);
 }
 
 std::unique_lock<std::recursive_mutex> FileContext::lock() const
@@ -921,24 +899,6 @@ void FileContext::write(FileWriteRequest request)
 
 void FileContext::FetchContext::completed(FileResult result)
 {
-    // Convenience.
-    using Completer = std::function<void(FileFetchRequest, FileResult)>;
-
-    // Assume the fetch completed successfully.
-    Completer completer = [this](auto request, auto result)
-    {
-        mContext.completed(std::move(request), result);
-    };
-
-    // Fetch actually failed.
-    if (result != FILE_SUCCESS)
-    {
-        completer = [this](auto request, auto result)
-        {
-            mContext.failed(std::move(request), result);
-        };
-    }
-
     // Let the file know the fetch has completed.
     {
         // Acquire fetch context lock.
@@ -950,7 +910,7 @@ void FileContext::FetchContext::completed(FileResult result)
 
     // Execute queued requests.
     for (auto& request: mRequests)
-        completer(std::move(request), result);
+        mContext.completed(std::move(request), result);
 }
 
 FileContext::FetchContext::FetchContext(FileContext& context, FileFetchRequest request):
