@@ -16,6 +16,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mGetFileReferences(database.query()),
     mRemoveFile(database.query()),
     mRemoveFileRanges(database.query()),
+    mSetFileHandle(database.query()),
     mSetFileModificationTime(database.query()),
     mSetFileReferences(database.query())
 {
@@ -54,6 +55,10 @@ FileServiceQueries::FileServiceQueries(Database& database):
                         " where begin >= :begin "
                         "   and end <= :end "
                         "   and id = :id";
+
+    mSetFileHandle = "update files "
+                     "   set handle = :handle "
+                     " where id = :id";
 
     mSetFileModificationTime = "update files "
                                "   set dirty = 1 "
