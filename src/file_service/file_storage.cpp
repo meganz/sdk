@@ -40,16 +40,6 @@ FileAccessPtr FileStorage::openFile(const LocalPath& path, bool mustCreate)
                    path.toPath(false).c_str());
 }
 
-LocalPath FileStorage::userFilePath(FileID id) const
-{
-    auto name = LocalPath::fromRelativePath(toString(id));
-    auto path = userStorageDirectory();
-
-    path.appendWithSeparator(name, false);
-
-    return path;
-}
-
 FileStorage::FileStorage(const Client& client):
     mFilesystem(std::make_unique<FSACCESS_CLASS>()),
     mStorageDirectory(*mFilesystem, logger(), "file-service", client.dbRootPath()),
@@ -125,6 +115,16 @@ void FileStorage::removeFile(FileID id)
 const LocalPath& FileStorage::storageDirectory() const
 {
     return mStorageDirectory;
+}
+
+LocalPath FileStorage::userFilePath(FileID id) const
+{
+    auto name = LocalPath::fromRelativePath(toString(id));
+    auto path = userStorageDirectory();
+
+    path.appendWithSeparator(name, false);
+
+    return path;
 }
 
 const LocalPath& FileStorage::userStorageDirectory() const
