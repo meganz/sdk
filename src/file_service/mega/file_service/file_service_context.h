@@ -24,6 +24,9 @@
 
 namespace mega
 {
+
+class LocalPath;
+
 namespace file_service
 {
 
@@ -115,6 +118,9 @@ public:
 
     // Open a file for reading or writing.
     auto open(FileID id) -> FileServiceResultOr<File>;
+
+    // Find out where the service is storing the specified file.
+    LocalPath path(FileID id) const;
 
     // Return a reference to this service's queries.
     FileServiceQueries& queries();

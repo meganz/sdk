@@ -376,6 +376,11 @@ catch (std::runtime_error& exception)
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
+LocalPath FileServiceContext::path(FileID id) const
+{
+    return mStorage.userFilePath(id);
+}
+
 FileServiceQueries& FileServiceContext::queries()
 {
     return mQueries;
