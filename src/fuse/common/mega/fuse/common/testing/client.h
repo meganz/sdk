@@ -314,6 +314,10 @@ public:
                                        CloudPath parent,
                                        const Path& path);
 
+    common::ErrorOr<NodeHandle> upload(const std::string& content,
+                                       const std::string& name,
+                                       CloudPath parent);
+
     common::ErrorOr<NodeHandle> upload(CloudPath parent,
                                        const Path& path);
 

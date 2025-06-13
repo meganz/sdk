@@ -16,7 +16,9 @@
 #include <mega/fuse/common/service.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
+#include <mega/fuse/common/testing/file.h>
 #include <mega/fuse/common/testing/mount_event_observer.h>
+#include <mega/fuse/common/testing/utility.h>
 #include <tests/integration/env_var_accounts.h>
 #include <tests/integration/test.h>
 
@@ -33,8 +35,6 @@ namespace testing
 
 using namespace common;
 using namespace file_service;
-
-using file_service::File;
 
 class Client::Uploader
 {
@@ -348,7 +348,7 @@ auto Client::fileInfo(CloudPath path) const -> FileServiceResultOr<FileInfo>
     return fileService().info(FileID::from(path.resolve(*this)));
 }
 
-auto Client::fileOpen(CloudPath path) const -> FileServiceResultOr<File>
+auto Client::fileOpen(CloudPath path) const -> FileServiceResultOr<file_service::File>
 {
     return fileService().open(FileID::from(path.resolve(*this)));
 }
@@ -652,6 +652,26 @@ ErrorOr<NodeHandle> Client::upload(const std::string& name,
 
     // Can't upload something that isn't a directory or file.
     return unexpected(API_EARGS);
+}
+
+ErrorOr<NodeHandle> Client::upload(const std::string& content,
+                                   const std::string& name,
+                                   CloudPath parent)
+try
+{
+    // Find out where we can create temporary files.
+    auto temporaryPath = fs::temp_directory_path();
+
+    // Create a temporary file for us to upload.
+    File temporary(content, name, temporaryPath);
+
+    // Upload the file to the cloud.
+    return upload(name, std::move(parent), temporary.path());
+}
+
+catch (...)
+{
+    return unexpected(API_EFAILED);
 }
 
 ErrorOr<NodeHandle> Client::upload(CloudPath parent,
