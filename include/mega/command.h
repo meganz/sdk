@@ -2342,8 +2342,8 @@ public:
                                   int /*expiresDate*/,
                                   int /*cancelledDate*/)>;
     CommandGetSubscriptionCancellationDetails(MegaClient*,
-                                              const char* id,
-                                              unsigned int gateway,
+                                              const char* originalTransactionId,
+                                              unsigned int gatewayId,
                                               Cb&& completion = nullptr);
     bool procresult(Result, JSON&) override;
 

@@ -6177,11 +6177,11 @@ void MegaApi::runNetworkConnectivityTest(MegaRequestListener* listener)
     pImpl->runNetworkConnectivityTest(listener);
 }
 
-void MegaApi::getSubscriptionCancellationDetails(unsigned int gateway,
-                                                 const char* id,
+void MegaApi::getSubscriptionCancellationDetails(unsigned int gatewayId,
+                                                 const char* originalTransactionId,
                                                  MegaRequestListener* listener)
 {
-    pImpl->getSubscriptionCancellationDetails(id, gateway, listener);
+    pImpl->getSubscriptionCancellationDetails(originalTransactionId, gatewayId, listener);
 }
 
 /* END MEGAAPI */

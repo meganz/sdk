@@ -23837,13 +23837,13 @@ class MegaApi
          * - MegaError::API_ENOENT - If the provided transaction ID is not valid, or the user does
          * not have a subscription via the specified gateway
          *
-         * @param id Original transaction ID. Optional. If not provided, the last subscription's
-         * details will be returned.
-         * @param gateway Integer indicating the gateway.
+         * @param originalTransactionId Original transaction ID. Optional. If not provided, the last
+         * subscription's details will be returned.
+         * @param gatewayId Integer indicating the gateway.
          * @param listener MegaRequestListener to track this request,
          */
-        void getSubscriptionCancellationDetails(unsigned int gateway,
-                                                const char* id = nullptr,
+        void getSubscriptionCancellationDetails(unsigned int gatewayId,
+                                                const char* originalTransactionId = nullptr,
                                                 MegaRequestListener* listener = nullptr);
 
     protected:

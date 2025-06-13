@@ -13009,20 +13009,20 @@ bool CommandSetThrottlingParams::procresult(Result r, JSON& json)
 
 CommandGetSubscriptionCancellationDetails::CommandGetSubscriptionCancellationDetails(
     MegaClient* client,
-    const char* id,
-    unsigned int gateway,
+    const char* originalTransactionId,
+    unsigned int gatewayId,
     Cb&& completion)
 {
     assert(completion);
 
     cmd("gsc");
 
-    if (id)
+    if (originalTransactionId)
     {
-        arg("id", id);
+        arg("id", originalTransactionId);
     }
 
-    arg("gw", gateway);
+    arg("gw", gatewayId);
 
     tag = client->reqtag;
 
@@ -13049,7 +13049,7 @@ bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JS
 
     std::string originalTransactionId;
     int expiresDate = 0;
-    int cancelled = -1;
+    int cancelledDate = -1;
 
     for (bool finished = false; !finished;)
     {
@@ -13064,7 +13064,7 @@ bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JS
             case makeNameid("canceled"):
                 if (json.isnumeric())
                 {
-                    canceled = json.getint32();
+                    cancelledDate = json.getint32();
                 }
                 break;
             default:
@@ -13090,7 +13090,7 @@ bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JS
         mCompletion((originalTransactionId.empty() || expiresDate == 0) ? API_EINTERNAL : API_OK,
                     std::move(originalTransactionId),
                     std::move(expiresDate),
-                    std::move(cancelled));
+                    std::move(cancelledDate));
     }
     return true;
 }

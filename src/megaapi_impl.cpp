@@ -28537,14 +28537,14 @@ void MegaApiImpl::getMyIp(MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getSubscriptionCancellationDetails(const char* id,
-                                                     unsigned int gateway,
+void MegaApiImpl::getSubscriptionCancellationDetails(const char* originalTransactionId,
+                                                     unsigned int gatewayId,
                                                      MegaRequestListener* listener)
 {
     MegaRequestPrivate* request =
         new MegaRequestPrivate(MegaRequest::TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS, listener);
-    request->setText(id);
-    request->setNumber(gateway);
+    request->setText(originalTransactionId);
+    request->setNumber(gatewayId);
 
     request->performRequest = [this, request]()
     {
