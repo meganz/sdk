@@ -13018,7 +13018,9 @@ CommandGetSubscriptionCancellationDetails::CommandGetSubscriptionCancellationDet
     cmd("gsc");
 
     if (id)
+    {
         arg("id", id);
+    }
 
     arg("gw", gateway);
 
@@ -13053,10 +13055,10 @@ bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JS
     {
         switch (json.getnameid())
         {
-            case makeNameid("oritrnid"):
+            case makeNameid("id"):
                 json.storeobject(&originalTransactionId);
                 break;
-            case makeNameid("expdt"):
+            case makeNameid("expires"):
                 expiresDate = json.getint32();
                 break;
             case makeNameid("canceled"):
