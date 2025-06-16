@@ -402,6 +402,7 @@ target_sources_conditional(SDKlib
     FLAG ANDROID
     PRIVATE
     include/mega/android/androidFileSystem.h
+    include/mega/android/megafs.h
     src/android/androidFileSystem.cpp
 )
 

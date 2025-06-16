@@ -203,6 +203,7 @@ HEADERS += \
     sdk/include/mega/common/database_builder.h \
     sdk/include/mega/common/database_forward.h \
     sdk/include/mega/common/database_utilities.h \
+    sdk/include/mega/common/directory.h \
     sdk/include/mega/common/error_or.h \
     sdk/include/mega/common/error_or_forward.h \
     sdk/include/mega/common/expected.h \
@@ -260,6 +261,7 @@ CPP_SOURCES += \
     sdk/src/common/client_adapter.cpp \
     sdk/src/common/database.cpp \
     sdk/src/common/database_builder.cpp \
+    sdk/src/common/directory.cpp \
     sdk/src/common/logger.cpp \
     sdk/src/common/node_event_type.cpp \
     sdk/src/common/normalized_path.cpp \
@@ -277,6 +279,69 @@ CPP_SOURCES += \
 # when enable sync
 CPP_SOURCES += \
     sdk/src/common/client_adapter_with_sync.cpp
+
+# File Service (Common headers.)
+HEADERS += \
+    sdk/include/mega/file_service/file.h \
+    sdk/include/mega/file_service/file_callbacks.h \
+    sdk/include/mega/file_service/file_context_badge_forward.h \
+    sdk/include/mega/file_service/file_context_forward.h \
+    sdk/include/mega/file_service/file_context_pointer.h \
+    sdk/include/mega/file_service/file_forward.h \
+    sdk/include/mega/file_service/file_id.h \
+    sdk/include/mega/file_service/file_id_forward.h \
+    sdk/include/mega/file_service/file_info.h \
+    sdk/include/mega/file_service/file_info_context_forward.h \
+    sdk/include/mega/file_service/file_info_context_pointer.h \
+    sdk/include/mega/file_service/file_info_forward.h \
+    sdk/include/mega/file_service/file_range.h \
+    sdk/include/mega/file_service/file_range_forward.h \
+    sdk/include/mega/file_service/file_range_vector.h \
+    sdk/include/mega/file_service/file_read_result.h \
+    sdk/include/mega/file_service/file_result.h \
+    sdk/include/mega/file_service/file_result_forward.h \
+    sdk/include/mega/file_service/file_result_or.h \
+    sdk/include/mega/file_service/file_result_or_forward.h \
+    sdk/include/mega/file_service/file_service.h \
+    sdk/include/mega/file_service/file_service_context_badge.h \
+    sdk/include/mega/file_service/file_service_context_badge_forward.h \
+    sdk/include/mega/file_service/file_service_context_forward.h \
+    sdk/include/mega/file_service/file_service_context_pointer.h \
+    sdk/include/mega/file_service/file_service_forward.h \
+    sdk/include/mega/file_service/file_service_result.h \
+    sdk/include/mega/file_service/file_service_result_forward.h \
+    sdk/include/mega/file_service/file_service_result_or.h \
+    sdk/include/mega/file_service/file_service_result_or_forward.h \
+    sdk/include/mega/file_service/file_write_result.h \
+    sdk/include/mega/file_service/sink.h \
+    sdk/include/mega/file_service/sink_forward.h \
+    sdk/include/mega/file_service/source.h \
+    sdk/include/mega/file_service/source_forward.h
+
+# File Service (Common sources.)
+CPP_SOURCES += \
+    sdk/src/file_service/buffer.cpp \
+    sdk/src/file_service/database_builder.cpp \
+    sdk/src/file_service/displaced_buffer.cpp \
+    sdk/src/file_service/file.cpp \
+    sdk/src/file_service/file_access.cpp \
+    sdk/src/file_service/file_buffer.cpp \
+    sdk/src/file_service/file_context.cpp \
+    sdk/src/file_service/file_id.cpp \
+    sdk/src/file_service/file_info.cpp \
+    sdk/src/file_service/file_info_context.cpp \
+    sdk/src/file_service/file_range.cpp \
+    sdk/src/file_service/file_range_context.cpp \
+    sdk/src/file_service/file_read_request_set.cpp \
+    sdk/src/file_service/file_read_write_state.cpp \
+    sdk/src/file_service/file_result.cpp \
+    sdk/src/file_service/file_service.cpp \
+    sdk/src/file_service/file_service_context.cpp \
+    sdk/src/file_service/file_service_queries.cpp \
+    sdk/src/file_service/file_service_result.cpp \
+    sdk/src/file_service/file_storage.cpp \
+    sdk/src/file_service/logger.cpp \
+    sdk/src/file_service/memory_buffer.cpp
 
 # FUSE (Common headers.)
 HEADERS += \
