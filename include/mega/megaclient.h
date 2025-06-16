@@ -3364,7 +3364,7 @@ public:
     void getSubscriptionCancellationDetails(
         const char* originalTransactionId,
         unsigned int gatewayId,
-        CommandGetSubscriptionCancellationDetails::Cb&& completion);
+        CommandGetSubscriptionCancellationDetails::CompletionCallback&& completion);
 
     // FUSE client adapter.
     common::ClientAdapter mFuseClientAdapter;

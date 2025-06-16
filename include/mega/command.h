@@ -2337,18 +2337,18 @@ private:
 class MEGA_API CommandGetSubscriptionCancellationDetails: public Command
 {
 public:
-    using Cb = std::function<void(const Error& /*e*/,
-                                  string&& /*originalTransactionId*/,
-                                  int /*expiresDate*/,
-                                  int /*cancelledDate*/)>;
+    using CompletionCallback = std::function<void(const Error& /*e*/,
+                                                  string&& /*originalTransactionId*/,
+                                                  int /*expiresDate*/,
+                                                  int /*cancelledDate*/)>;
     CommandGetSubscriptionCancellationDetails(MegaClient*,
                                               const char* originalTransactionId,
                                               unsigned int gatewayId,
-                                              Cb&& completion = nullptr);
+                                              CompletionCallback&& completion = nullptr);
     bool procresult(Result, JSON&) override;
 
 private:
-    Cb mCompletion;
+    CompletionCallback mCompletion;
 };
 
 } // namespace

@@ -24519,7 +24519,7 @@ void MegaClient::getMyIp(CommandGetMyIP::Cb&& completion)
 void MegaClient::getSubscriptionCancellationDetails(
     const char* originalTransactionId,
     unsigned int gatewayId,
-    CommandGetSubscriptionCancellationDetails::Cb&& completion)
+    CommandGetSubscriptionCancellationDetails::CompletionCallback&& completion)
 {
     reqs.add(new CommandGetSubscriptionCancellationDetails(this,
                                                            originalTransactionId,

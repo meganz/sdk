@@ -28548,12 +28548,12 @@ void MegaApiImpl::getSubscriptionCancellationDetails(const char* originalTransac
 
     request->performRequest = [this, request]()
     {
-        const char* idParam = request->getText();
-        unsigned int gw = static_cast<unsigned int>(request->getNumber());
+        const char* transactionId = request->getText();
+        unsigned int gateway = static_cast<unsigned int>(request->getNumber());
 
         client->getSubscriptionCancellationDetails(
-            idParam,
-            gw,
+            transactionId,
+            gateway,
             [this, request](const Error& e,
                             std::string&& originalTransactionId,
                             int expiresDate,
@@ -28563,7 +28563,7 @@ void MegaApiImpl::getSubscriptionCancellationDetails(const char* originalTransac
                 {
                     request->setText(originalTransactionId.c_str());
                     request->setNumber(static_cast<long long>(expiresDate));
-                    request->setNumDetails(cancelledDate ? cancelledDate : -1);
+                    request->setNumDetails(cancelledDate ? cancelledDate : 0);
                 }
 
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));

@@ -13011,7 +13011,7 @@ CommandGetSubscriptionCancellationDetails::CommandGetSubscriptionCancellationDet
     MegaClient* client,
     const char* originalTransactionId,
     unsigned int gatewayId,
-    Cb&& completion)
+    CompletionCallback&& completion)
 {
     assert(completion);
 
@@ -13065,6 +13065,10 @@ bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JS
                 if (json.isnumeric())
                 {
                     cancelledDate = json.getint32();
+                }
+                else
+                {
+                    json.storeobject();
                 }
                 break;
             default:
