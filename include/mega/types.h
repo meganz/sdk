@@ -74,6 +74,15 @@ namespace mega {
 #include <string_view>
 #include <thread>
 
+#include <cstdint>
+#include <functional>
+#include <iostream>
+#include <queue>
+#include <random>
+#include <unordered_map>
+#include <vector>
+#include <fstream>
+
 namespace mega {
 
 // import these select types into the namespace directly, to avoid adding std::byte from c++17
