@@ -9772,6 +9772,37 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  */
 - (void)runNetworkConnectivityTestWithDelegate:(id<MEGARequestDelegate>)delegate;
 
+/**
+ * @brief Retrieve the cancellation details of a subscription
+ *
+ * This function requests information about the cancellation status of a subscription.
+ * If the optional original transaction ID is not provided, the details of the most recent
+ * subscription will be returned.
+ *
+ * The associated request type with this request is
+ * MEGARequestTypeGetSubscriptionCancellationDetails
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the original transaction ID
+ * - [MEGARequest number] - Returns the subscription's expiration timestamp
+ * - [MEGARequest numDetails] - Returns the cancellation timestamp, or 0 if not cancelled
+ *
+ * Possible errors:
+ * - MEGAErrorTypeApiEArgs - If the gateway is not provided or not equal to MEGAPaymentMethodItunes
+ *  (because only Apple is supported as of now), or if the transaction ID is not a string
+ * - MEGAErrorTypeApiENoent - If the provided transaction ID is not valid, or the user does
+ * not have a subscription via the specified gateway
+ *
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ * @param originalTransactionId Original transaction ID. Optional. If not provided, the last
+ * subscription's details will be returned.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)getSubscriptionCancellationDetailsWithGateway:(MEGAPaymentMethod)gateway originalTransactionId:(nullable NSString *)originalTransactionId delegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Password Manager
 
 /**
