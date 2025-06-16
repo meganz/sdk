@@ -50,6 +50,14 @@ bool FileInfoContext::dirty() const
     return get(&FileInfoContext::mDirty);
 }
 
+void FileInfoContext::handle(NodeHandle handle)
+{
+    UniqueLock guard(mLock);
+
+    // Update this file's node handle.
+    mHandle = handle;
+}
+
 NodeHandle FileInfoContext::handle() const
 {
     return get(&FileInfoContext::mHandle);

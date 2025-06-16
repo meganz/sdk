@@ -10,6 +10,9 @@
 
 namespace mega
 {
+
+class LocalPath;
+
 namespace file_service
 {
 
@@ -35,6 +38,10 @@ public:
 
     // Fetch all of this file's data from the cloud.
     void fetch(FileFetchCallback callback);
+
+    // Flush this file's local modifications to the cloud.
+    void flush(FileFlushCallback callback, const LocalPath& logicalPath);
+    void flush(FileFlushCallback callback);
 
     // Retrieve information about this file.
     FileInfo info() const;

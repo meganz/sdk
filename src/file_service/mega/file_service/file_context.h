@@ -7,6 +7,7 @@
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_fetch_request_forward.h>
+#include <mega/file_service/file_flush_request_forward.h>
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_info_forward.h>
@@ -40,8 +41,12 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Tracks state necessary for a fetch.
     class FetchContext;
 
+    // Tracks state necessary for a flush.
+    class FlushContext;
+
     // Convenience.
     using FetchContextPtr = std::shared_ptr<FetchContext>;
+    using FlushContextPtr = std::shared_ptr<FlushContext>;
 
     // Add a range to the database.
     void addRange(const FileRange& range, common::Transaction& transaction);
@@ -76,6 +81,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Try and execute a fetch request.
     bool execute(FileFetchRequest& request);
+
+    // Try and execute a flush request.
+    bool execute(FileFlushRequest& request);
 
     // Try and execute a read request.
     bool execute(FileReadRequest& request);
@@ -136,6 +144,12 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // The file storing our data.
     FileAccessPtr mFile;
 
+    // Tracks any flush in progress.
+    FlushContextPtr mFlushContext;
+
+    // Serializes access to mFlushContext.
+    std::recursive_mutex mFlushContextLock;
+
     // What ranges of the file do we have?
     FileRangeContextPtrMap mRanges;
 
@@ -171,6 +185,9 @@ public:
 
     // Fetch all of this file's data from the cloud.
     void fetch(FileFetchRequest request);
+
+    // Flush this file's local modifications to the cloud.
+    void flush(FileFlushRequest request);
 
     // Retrieve information about this file.
     FileInfo info() const;

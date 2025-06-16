@@ -26,6 +26,13 @@ namespace file_service
 namespace testing
 {
 
+// Convenience.
+using common::makeSharedPromise;
+using fuse::testing::randomBytes;
+using fuse::testing::randomName;
+
+constexpr auto timeout = std::future_status::timeout;
+
 struct FileServiceTests: fuse::testing::Test
 {
     // Perform instance-specific setup.
@@ -46,7 +53,7 @@ struct FileServiceTests: fuse::testing::Test
         using Result = decltype(waiter.get());
 
         // Request timed out.
-        if (waiter.wait_for(mDefaultTimeout) == std::future_status::timeout)
+        if (waiter.wait_for(mDefaultTimeout) == timeout)
         {
             // Convenience.
             using common::IsExpected;
@@ -69,10 +76,6 @@ struct FileServiceTests: fuse::testing::Test
     static NodeHandle mFileHandle;
 }; // FUSEPartialDownloadTests
 
-std::string FileServiceTests::mFileContent;
-
-NodeHandle FileServiceTests::mFileHandle;
-
 // For clarity.
 static std::uint64_t operator""_KiB(unsigned long long value);
 static std::uint64_t operator""_MiB(unsigned long long value);
@@ -89,6 +92,9 @@ static bool compare(const std::string& computed,
 // Fetch all of a file's content from the cloud.
 static auto fetch(File file) -> std::future<FileResult>;
 
+// Flush a file's modified content to the cloud.
+static auto flush(File file) -> std::future<FileResult>;
+
 // Read some content from the specified file.
 static auto read(File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResultOr<std::string>>;
@@ -102,6 +108,10 @@ static auto truncate(File file, std::uint64_t size) -> std::future<FileResult>;
 // Write some content to the specified file.
 static auto write(const void* buffer, File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResult>;
+
+std::string FileServiceTests::mFileContent;
+
+NodeHandle FileServiceTests::mFileHandle;
 
 TEST_F(FileServiceTests, append_succeeds)
 {
@@ -216,6 +226,157 @@ TEST_F(FileServiceTests, fetch_succeeds)
     EXPECT_EQ(ranges[0], FileRange(0, 1_MiB));
 }
 
+TEST_F(FileServiceTests, flush_cancel_on_client_logout_succeeds)
+{
+    // Create a client that we can safely logout.
+    auto client = CreateClient("file_service_" + randomName());
+    ASSERT_TRUE(client);
+
+    // Log the client in.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Upload content so we have a file we can safely mess with.
+    auto handle = client->upload(randomBytes(512_KiB), randomName(), "/z");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Open the file so we can modify it.
+    auto file = client->fileOpen(*handle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Truncate the file so it's considered modified.
+    ASSERT_EQ(execute(truncate, *file, 256_KiB), FILE_SUCCESS);
+
+    // Retrieve the file's remaining content.
+    ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+    // Try and flush our local changes.
+    auto waiter = flush(std::move(*file));
+
+    // Log out the client.
+    client.reset();
+
+    // Wait for the flush to complete.
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the flush was cancelled.
+    ASSERT_EQ(waiter.get(), FILE_CANCELLED);
+}
+
+TEST_F(FileServiceTests, flush_cancel_on_file_destruction_succeeds)
+{
+    // Upload content so we have a file we can safely mess with.
+    auto handle = ClientW()->upload(randomBytes(512_KiB), randomName(), "/z");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Open the file so we can modify it.
+    auto file = ClientW()->fileOpen(*handle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Truncate the file so it's considered modified.
+    ASSERT_EQ(execute(truncate, *file, 256_KiB), FILE_SUCCESS);
+
+    // Retrieve the file's remaining content.
+    ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+    // Flush the file.
+    auto waiter = [](File file)
+    {
+        // So we can wait for the request to complete.
+        auto notifier = makeSharedPromise<FileResult>();
+
+        // Try and flush our changes to the cloud.
+        file.flush(
+            [notifier](FileResult result)
+            {
+                return notifier->set_value(result);
+            });
+
+        // Return waiter to our caller.
+        return notifier->get_future();
+    }(std::move(*file));
+
+    // Wait for the flush to complete.
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the flush was cancelled.
+    ASSERT_EQ(waiter.get(), FILE_CANCELLED);
+}
+
+TEST_F(FileServiceTests, flush_succeeds)
+{
+    // Generate content for us to mutate.
+    auto initial = randomBytes(512_KiB);
+
+    // Upload content so we have a file we can safely mess with.
+    auto oldHandle = ClientW()->upload(initial, randomName(), "/z");
+    ASSERT_EQ(oldHandle.errorOr(API_OK), API_OK);
+
+    // Open the file we uploaded.
+    auto oldFile = ClientW()->fileOpen(*oldHandle);
+    ASSERT_EQ(oldFile.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Generate some content for us to write to the file.
+    auto content = randomBytes(128_KiB);
+
+    // Write content to our file.
+    ASSERT_EQ(execute(write, content.data(), *oldFile, 128_KiB, 128_KiB), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, content.data(), *oldFile, 384_KiB, 128_KiB), FILE_SUCCESS);
+
+    // Keep track of the file's expected content.
+    auto expected = initial;
+
+    expected.replace(128_KiB, 128_KiB, content);
+    expected.replace(384_KiB, 128_KiB, content);
+
+    // Flush our modifications to the cloud.
+    {
+        // Latch the file's ID.
+        auto id = oldFile->info().id();
+
+        // Flush our modifications to the cloud.
+        ASSERT_EQ(execute(flush, *oldFile), FILE_SUCCESS);
+
+        // Make sure the file's ID hasn't changed.
+        ASSERT_EQ(oldFile->info().id(), id);
+    }
+
+    // Latch the file's new handle.
+    auto newHandle = oldFile->info().handle();
+
+    // Make sure the file's handle has changed.
+    ASSERT_NE(newHandle, oldHandle);
+
+    // Make sure we can get information about the file using its new handle.
+    {
+        auto info = ClientW()->fileInfo(newHandle);
+        ASSERT_EQ(info.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+        ASSERT_EQ(info->id(), oldFile->info().id());
+    }
+
+    // Release the file (this will purge it from storage.)
+    [](File) {}(std::move(*oldFile));
+
+    // newHandle and oldHandle now represent distinct files.
+    auto newFile = ClientW()->fileOpen(newHandle);
+    ASSERT_EQ(newFile.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    oldFile = ClientW()->fileOpen(*oldHandle);
+    ASSERT_EQ(oldFile.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure newFile and oldFile are distinct.
+    ASSERT_NE(newFile->info().id(), oldFile->info().id());
+
+    // Make sure oldFile's content is unchanged.
+    auto computed = execute(read, *oldFile, 0, 512_KiB);
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(computed, initial);
+
+    // Make sure newFile's content includes our changes.
+    computed = execute(read, *newFile, 0, 512_KiB);
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(computed, expected);
+}
+
 TEST_F(FileServiceTests, info_directory_fails)
 {
     // Can't get info about a directory.
@@ -268,9 +429,6 @@ TEST_F(FileServiceTests, open_unknown_fails)
 
 TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
 {
-    // Convenience.
-    using fuse::testing::randomName;
-
     // Create a client that we can safely logout.
     auto client = CreateClient("file_service_" + randomName());
     ASSERT_TRUE(client);
@@ -288,9 +446,6 @@ TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
     // Log out the client.
     client.reset();
 
-    // Convenience.
-    auto timeout = std::future_status::timeout;
-
     // Wait for the read to complete.
     ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
 
@@ -300,9 +455,6 @@ TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
 
 TEST_F(FileServiceTests, read_cancel_on_file_destruction_succeeds)
 {
-    // Convenience.
-    using common::makeSharedPromise;
-
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -326,9 +478,6 @@ TEST_F(FileServiceTests, read_cancel_on_file_destruction_succeeds)
         file.read(std::move(callback), 768_KiB, 256_KiB);
     }(std::move(*file));
 
-    // Convenience.
-    auto timeout = std::future_status::timeout;
-
     // Wait for the read to complete.
     ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
 
@@ -338,9 +487,6 @@ TEST_F(FileServiceTests, read_cancel_on_file_destruction_succeeds)
 
 TEST_F(FileServiceTests, read_succeeds)
 {
-    // Convenience.
-    auto timeout = std::future_status::timeout;
-
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -794,9 +940,6 @@ void FileServiceTests::SetUp()
 void FileServiceTests::SetUpTestSuite()
 {
     // Convenience.
-    using fuse::testing::File;
-    using fuse::testing::randomBytes;
-    using fuse::testing::randomName;
     using ::testing::AnyOf;
 
     // Make sure our clients are set up.
@@ -812,11 +955,8 @@ void FileServiceTests::SetUpTestSuite()
     // Generate content for our test file.
     mFileContent = randomBytes(1_MiB);
 
-    // Create a file so we can upload our content to the cloud.
-    File file(mFileContent, randomName(), mScratchPath);
-
-    // Upload the file to the cloud.
-    auto fileHandle = ClientW()->upload(*rootHandle, file.path());
+    // Upload our content to the cloud.
+    auto fileHandle = ClientW()->upload(mFileContent, randomName(), *rootHandle);
     ASSERT_EQ(fileHandle.errorOr(API_OK), API_OK);
 
     // Latch the file's handle for later use.
@@ -835,9 +975,6 @@ std::uint64_t operator""_MiB(unsigned long long value)
 
 auto append(const void* buffer, File file, std::uint64_t length) -> std::future<FileResult>
 {
-    // Convenience.
-    using common::makeSharedPromise;
-
     // So we can signal when the request has completed.
     auto notifier = makeSharedPromise<FileResult>();
 
@@ -879,9 +1016,6 @@ bool compare(const std::string& computed,
 
 auto fetch(File file) -> std::future<FileResult>
 {
-    // Convenience.
-    using common::makeSharedPromise;
-
     // So we can signal when the request has completed.
     auto notifier = makeSharedPromise<FileResult>();
 
@@ -891,6 +1025,25 @@ auto fetch(File file) -> std::future<FileResult>
     // Execute the fetch request.
     file.fetch(
         [=](auto result)
+        {
+            notifier->set_value(result);
+        });
+
+    // Return waiter to our caller.
+    return waiter;
+}
+
+auto flush(File file) -> std::future<FileResult>
+{
+    // So we can signal when the flush has completed.
+    auto notifier = makeSharedPromise<FileResult>();
+
+    // So our caller can wait until the request has completed.
+    auto waiter = notifier->get_future();
+
+    // Execute the flush request.
+    file.flush(
+        [file, notifier](auto result)
         {
             notifier->set_value(result);
         });
@@ -984,9 +1137,6 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
 
 auto touch(File file, std::int64_t modified) -> std::future<FileResult>
 {
-    // Convenience.
-    using common::makeSharedPromise;
-
     // So we can notify our waiter when the request completes.
     auto notifier = makeSharedPromise<FileResult>();
 
@@ -1007,9 +1157,6 @@ auto touch(File file, std::int64_t modified) -> std::future<FileResult>
 
 auto truncate(File file, std::uint64_t size) -> std::future<FileResult>
 {
-    // Convenience.
-    using common::makeSharedPromise;
-
     // So we can notify our waiter when the request completes.
     auto notifier = makeSharedPromise<FileResult>();
 

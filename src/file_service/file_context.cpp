@@ -1,8 +1,11 @@
+#include <mega/common/client.h>
 #include <mega/common/database.h>
+#include <mega/common/node_info.h>
 #include <mega/common/partial_download.h>
 #include <mega/common/scoped_query.h>
 #include <mega/common/task_queue.h>
 #include <mega/common/transaction.h>
+#include <mega/common/upload.h>
 #include <mega/common/utility.h>
 #include <mega/file_service/displaced_buffer.h>
 #include <mega/file_service/file_access.h>
@@ -11,6 +14,7 @@
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
 #include <mega/file_service/file_fetch_request.h>
+#include <mega/file_service/file_flush_request.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
@@ -44,6 +48,9 @@ class FileContext::FetchContext
     // Called when the fetch has been completed.
     void completed(FileResult result);
 
+    // Keep mContext alive as long as we are alive.
+    Activity mActivity;
+
     // What file are we fetching?
     FileContext& mContext;
 
@@ -59,6 +66,40 @@ public:
     // Queue a fetch request for execution.
     void queue(FileFetchRequest request);
 }; // FetchContext
+
+class FileContext::FlushContext
+{
+    // Called when the file's content has been uploaded.
+    void bound(ErrorOr<NodeHandle> result);
+
+    // Called when the flush has been completed.
+    template<typename Lock>
+    void completed(Lock&& lock, FileResult result);
+
+    // Keep mContext alive as long as we are alive.
+    Activity mActivity;
+
+    // What file are we flushing?
+    FileContext& mContext;
+
+    // What flush requests are we executing?
+    std::vector<FileFlushRequest> mRequests;
+
+    // The upload that's pushing our content to the cloud.
+    UploadPtr mUpload;
+
+public:
+    FlushContext(FileContext& context, FileFlushRequest request);
+
+    // Called when we've retrieved all of this file's content.
+    void operator()(FlushContextPtr& context, FileResult result);
+
+    // Cancel the flush.
+    void cancel();
+
+    // Queue a flush request for execution.
+    void queue(FileFlushRequest request);
+}; // FlushContext
 
 // Wrap a callback to ensure that exceptions are always handled.
 template<typename Callback>
@@ -155,6 +196,17 @@ void FileContext::cancel()
                 j->second->cancel();
         }
     }
+
+    // Cancel any flush in progress.
+    auto flush = [this]()
+    {
+        std::lock_guard guard(mFlushContextLock);
+        return std::move(mFlushContext);
+    }();
+
+    // Cancel the flush if necessary.
+    if (flush)
+        flush->cancel();
 
     // Latch the request queue.
     auto requests = [this]()
@@ -453,6 +505,36 @@ bool FileContext::execute(FileFetchRequest& request)
     return true;
 }
 
+bool FileContext::execute(FileFlushRequest& request)
+{
+    // Can't execute a flush if a write's in progress.
+    if (!mReadWriteState.read())
+        return false;
+
+    // The file hasn't been modified.
+    if (!mInfo->dirty())
+        return completed(std::move(request), FILE_SUCCESS), true;
+
+    // Acquire flush context lock.
+    std::unique_lock lock(mFlushContextLock);
+
+    // A flush is already in progress.
+    if (mFlushContext)
+        return mFlushContext->queue(std::move(request)), true;
+
+    // Instantiate a new flush context.
+    mFlushContext = std::make_shared<FlushContext>(*this, std::move(request));
+
+    // Unlock flush context lock.
+    lock.unlock();
+
+    // Fetch all of this file's data.
+    fetch(FileFetchRequest{std::bind(*mFlushContext, mFlushContext, std::placeholders::_1)});
+
+    // Let the caller know the request's been executed.
+    return true;
+}
+
 bool FileContext::execute(FileReadRequest& request)
 {
     // Can't execute a read if there's a write in progress.
@@ -720,13 +802,23 @@ bool FileContext::execute(FileWriteRequest& request)
 
 bool FileContext::execute(FileRequest& request)
 {
+    // Is this context still alive?
+    auto alive = !weak_from_this().expired();
+
     // Executes a user's request.
-    auto execute = [this](auto& request)
+    auto execute = [alive, this](auto& request)
     {
         try
         {
             // Try and execute the request.
-            return this->execute(request);
+            if (alive)
+                return this->execute(request);
+
+            // Context's being destructed so cancel the request.
+            completed(std::move(request), FILE_CANCELLED);
+
+            // Let the caller know the request's been executed.
+            return true;
         }
         catch (std::exception& exception)
         {
@@ -767,6 +859,10 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
 {
     // Make sure the request's been passed by rvalue reference.
     static_assert(!std::is_reference_v<Request>);
+
+    // Context's being destroyed so cancel the request.
+    if (weak_from_this().expired())
+        return completed(std::move(request), FILE_CANCELLED);
 
     // Can't execute the request so queue it for later execution.
     if (!execute(request))
@@ -836,6 +932,8 @@ FileContext::FileContext(Activity activity,
     mFetchContext(),
     mFetchContextLock(),
     mFile(std::move(file)),
+    mFlushContext(),
+    mFlushContextLock(),
     mRanges(),
     mRangesLock(),
     mReadWriteState(),
@@ -864,6 +962,11 @@ void FileContext::append(FileAppendRequest request)
 }
 
 void FileContext::fetch(FileFetchRequest request)
+{
+    executeOrQueue(std::move(request));
+}
+
+void FileContext::flush(FileFlushRequest request)
 {
     executeOrQueue(std::move(request));
 }
@@ -935,6 +1038,7 @@ void FileContext::FetchContext::completed(FileResult result)
 }
 
 FileContext::FetchContext::FetchContext(FileContext& context, FileFetchRequest request):
+    mActivity(context.mActivities.begin()),
     mContext(context),
     mRequests()
 {
@@ -966,6 +1070,148 @@ void FileContext::FetchContext::queue(FileFetchRequest request)
 {
     // Acquire fetch context lock.
     std::lock_guard guard(mContext.mFetchContextLock);
+
+    // Queue the request.
+    mRequests.emplace_back(std::move(request));
+}
+
+void FileContext::FlushContext::bound(ErrorOr<NodeHandle> result)
+{
+    // Acquire flush context lock.
+    std::unique_lock lock(mContext.mFlushContextLock);
+
+    // Couldn't flush the file's content.
+    if (!result)
+        return completed(std::move(lock), fileResultFromError(result.error()));
+
+    // Try and update the file's handle.
+    try
+    {
+        // Convenience.
+        auto& info = *mContext.mInfo;
+        auto& service = mContext.mService;
+
+        // Try and update the file's handle.
+        auto transaction = service.database().transaction();
+        auto query = transaction.query(service.queries().mSetFileHandle);
+
+        query.param(":handle").set(*result);
+        query.param(":id").set(info.id());
+
+        query.execute();
+
+        // Persist our changes.
+        transaction.commit();
+
+        // Remember what our new handle is.
+        info.handle(*result);
+
+        // File's flushed.
+        completed(std::move(lock), FILE_SUCCESS);
+    }
+    catch (std::exception& exception)
+    {
+        // Let debuggers know why the flush failed.
+        FSErrorF("Couldn't update file handle: %s: %s",
+                 toString(mContext.mInfo->id()).c_str(),
+                 exception.what());
+
+        // Couldn't flush the file's content.
+        completed(std::move(lock), FILE_FAILED);
+    }
+}
+
+template<typename Lock>
+void FileContext::FlushContext::completed(Lock&& lock, FileResult result)
+{
+    // Sanity.
+    assert(lock.mutex() == &mContext.mFlushContextLock);
+    assert(lock.owns_lock());
+
+    // Let our file know the flush has been completed.
+    mContext.mFetchContext = nullptr;
+
+    // Release lock.
+    lock.unlock();
+
+    // Execute queued requests.
+    for (auto& request: mRequests)
+        mContext.completed(std::move(request), result);
+}
+
+FileContext::FlushContext::FlushContext(FileContext& context, FileFlushRequest request):
+    mActivity(context.mActivities.begin()),
+    mContext(context),
+    mRequests(),
+    mUpload()
+{
+    // Queue the request.
+    queue(std::move(request));
+}
+
+void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult result)
+{
+    // Acquire flush context lock.
+    std::unique_lock lock(mContext.mFlushContextLock);
+
+    // Couldn't retrieve this file's content.
+    if (result != FILE_SUCCESS)
+        return completed(std::move(lock), result);
+
+    // Release context lock.
+    lock.unlock();
+
+    // Convenience.
+    auto& service = mContext.mService;
+    auto& client = service.client();
+    auto& info = *mContext.mInfo;
+
+    // Try and get our hands on this file's node.
+    auto node = client.get(info.handle());
+
+    // Reacquire context lock.
+    lock.lock();
+
+    // No requests? Flush must have been cancelled.
+    if (mRequests.empty())
+        return;
+
+    // File's been removed from the cloud.
+    if (!node)
+        return completed(std::move(lock), FILE_FAILED);
+
+    // Instantiate an upload.
+    mUpload = client.upload(mRequests.front().mLogicalPath,
+                            node->mName,
+                            node->mParentHandle,
+                            service.path(info.id()));
+
+    // So we can use our bound method as a callback.
+    BoundCallback callback =
+        std::bind(&FlushContext::bound, std::move(context), std::placeholders::_1);
+
+    // Begin the upload.
+    mUpload->begin(std::move(callback));
+}
+
+void FileContext::FlushContext::cancel()
+{
+    // Latch this flush's upload.
+    auto upload = [this]()
+    {
+        std::lock_guard guard(mContext.mFlushContextLock);
+        return std::move(mUpload);
+    }();
+
+    // Cancel the upload if necessary.
+    if (upload)
+        upload->cancel();
+}
+
+void FileContext::FlushContext::queue(FileFlushRequest request)
+{
+    // Acquire flush context lock.
+    std::lock_guard guard(mContext.mFlushContextLock);
 
     // Queue the request.
     mRequests.emplace_back(std::move(request));

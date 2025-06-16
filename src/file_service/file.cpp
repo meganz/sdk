@@ -2,6 +2,7 @@
 #include <mega/file_service/file_append_request.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_fetch_request.h>
+#include <mega/file_service/file_flush_request.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_read_request.h>
@@ -49,6 +50,17 @@ void File::fetch(FileFetchCallback callback)
 {
     // Queue a fetch request.
     mContext->fetch(FileFetchRequest{std::move(callback)});
+}
+
+void File::flush(FileFlushCallback callback, const LocalPath& path)
+{
+    // Queue a flush request.
+    mContext->flush(FileFlushRequest{std::move(callback), path});
+}
+
+void File::flush(FileFlushCallback callback)
+{
+    return flush(std::move(callback), LocalPath());
 }
 
 FileInfo File::info() const

@@ -55,6 +55,9 @@ public:
     // Has the file been locally modified?
     bool dirty() const;
 
+    // Specify the node that this file is associated with.
+    void handle(NodeHandle handle);
+
     // What node is this file associated with?
     auto handle() const -> NodeHandle;
 
