@@ -1474,7 +1474,20 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
 
     sqlite3_stmt *stmt = nullptr;
     bool result = false;
-    int sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE share & ? != 0", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare_v2(
+        db,
+        "SELECT nodehandle, counter, node FROM nodes WHERE "
+        "(?1 = 1 AND share = 1 OR share = 3 OR share = 5 OR share = 7 OR share = "
+        "9 OR share = 11  OR share = 13 OR share = 15) OR"
+        "(?1 = 2 AND share = 2 OR share = 3 OR share = 6 OR share = 7 OR share = "
+        "10 OR share = 11  OR share = 14 OR share = 15) OR"
+        "(?1 = 4 AND share = 4 OR share = 5 OR share = 6 OR share = 7 OR share = "
+        "12 OR share = 13  OR share = 14 OR share = 15) OR"
+        "(?1 = 8 AND share = 8 OR share = 9 OR share = 10 OR share = 11 OR share "
+        "= 12 OR share = 13  OR share = 14 OR share = 15)",
+        -1,
+        &stmt,
+        NULL);
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int(stmt, 1, static_cast<int>(shareType))) == SQLITE_OK)
