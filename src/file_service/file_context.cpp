@@ -738,8 +738,14 @@ bool FileContext::execute(FileWriteRequest& request)
     // Compute actual end of the written range.
     range.mEnd = range.mBegin + length;
 
+    // Convenience.
+    using Iterator = decltype(mRanges.begin());
+
+    Iterator begin;
+    Iterator end;
+
     // Find out which ranges we've touched.
-    auto [begin, end] = mRanges.find(extend(range, 1));
+    std::tie(begin, end) = mRanges.find(extend(range, 1));
 
     // Compute effective range.
     auto effectiveRange = [&]()

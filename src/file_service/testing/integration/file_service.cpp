@@ -827,7 +827,7 @@ TEST_F(FileServiceTests, write_succeeds)
             return result;
 
         // Compute size of local file content.
-        auto size = std::max(expected.size(), offset + length);
+        auto size = std::max<std::uint64_t>(expected.size(), offset + length);
 
         // Extend local file content as necessary.
         expected.resize(static_cast<std::size_t>(size));

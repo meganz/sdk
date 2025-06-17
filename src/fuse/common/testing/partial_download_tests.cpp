@@ -51,7 +51,7 @@ class PartialDownloadCallback: public common::PartialDownloadCallback
 
     // Called when we've received some content.
     auto data(const void* buffer, std::uint64_t, std::uint64_t length)
-        -> std::variant<Abort, Continue>
+        -> std::variant<Abort, Continue> override
     {
         // Convenience.
         auto* buffer_ = static_cast<const char*>(buffer);
@@ -226,7 +226,7 @@ TEST_F(FUSEPartialDownloadTests, download_directory_fails)
 TEST_F(FUSEPartialDownloadTests, download_succeeds)
 {
     // Download some content from our test file.
-    auto download = [this](std::uint64_t begin, std::uint64_t end, std::uint64_t length)
+    auto download = [](std::uint64_t begin, std::uint64_t end, std::uint64_t length)
     {
         // Sanity.
         ASSERT_LE(begin, end);
