@@ -540,6 +540,9 @@ struct MEGA_API FileAccess
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t, FSLogging fsl);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
+    // Mark this file as a sparse file.
+    virtual bool setSparse() = 0;
+
 protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(void *param);

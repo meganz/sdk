@@ -187,6 +187,9 @@ public:
 
     ~PosixFileAccess();
 
+    // Mark this file as a sparse file.
+    bool setSparse() override;
+
 #ifdef HAVE_AIO_RT
 protected:
     AsyncIOContext* newasynccontext() override;

@@ -1017,6 +1017,11 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileAccess::stealFileWrapper()
     return std::exchange(mFileWrapper, nullptr);
 }
 
+bool AndroidFileAccess::setSparse()
+{
+    return true;
+}
+
 bool AndroidFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* cretry)
 {
     // Sanity.

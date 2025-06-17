@@ -196,6 +196,16 @@ WinFileAccess::~WinFileAccess()
     fclose();
 }
 
+bool WinFileAccess::setSparse()
+{
+    // Can't set a file as sparse if it isn't open.
+    if (hFile == INVALID_HANDLE_VALUE)
+        return false;
+
+    // Try and mark the file as a sparse file.
+    return DeviceIoControl(hFile, FSCTL_SET_SPARSE, nullptr, 0, nullptr, 0, nullptr, nullptr);
+}
+
 bool WinFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* cretry)
 {
     // Sanity.

@@ -250,6 +250,12 @@ PosixFileAccess::~PosixFileAccess()
     fclose();
 }
 
+bool PosixFileAccess::setSparse()
+{
+    // Whether or not a file is sparse is up to the filesystem.
+    return true;
+}
+
 bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
     AdjustBasePathResult nameStr = adjustBasePath(nonblocking_localname);

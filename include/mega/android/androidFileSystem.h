@@ -213,6 +213,8 @@ public:
 
     std::shared_ptr<AndroidFileWrapper> stealFileWrapper();
 
+    bool setSparse() override;
+
 protected:
     void fCloseInternal();
     bool sysread(void* buffer, unsigned long length, m_off_t offset, bool* retry) override;

@@ -206,6 +206,9 @@ public:
     WinFileAccess(Waiter *w);
     ~WinFileAccess();
 
+    // Mark this file as a sparse file.
+    bool setSparse() override;
+
 protected:
     AsyncIOContext* newasynccontext() override;
     static VOID CALLBACK asyncopfinished(
