@@ -306,7 +306,7 @@ public:
         return mByRangeBegin.rbegin();
     }
 
-    ReverseIterator rbegin() const
+    ConstReverseIterator rbegin() const
     {
         return mByRangeBegin.rbegin();
     }
