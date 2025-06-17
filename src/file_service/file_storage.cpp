@@ -32,12 +32,16 @@ FileAccessPtr FileStorage::openFile(const LocalPath& path, bool mustCreate)
     auto file = mFilesystem->newfileaccess(false);
 
     // Vulnerable to TOCTOU race.
-    if (file->isfile(path) == !mustCreate && file->fopen(path, true, true, FSLogging::noLogging))
-        return file;
+    if (file->isfile(path) != !mustCreate || !file->fopen(path, true, true, FSLogging::noLogging))
+        throw FSErrorF("Couldn't %s file: %s",
+                       mustCreate ? "create" : "open",
+                       path.toPath(false).c_str());
 
-    throw FSErrorF("Couldn't %s file: %s",
-                   mustCreate ? "create" : "open",
-                   path.toPath(false).c_str());
+    // Try and mark the file as a sparse file.
+    if (!file->setSparse())
+        FSWarningF("Couldn't mark file %s as a sparse file", path.toPath(false).c_str());
+
+    return file;
 }
 
 FileStorage::FileStorage(const Client& client):
