@@ -34,10 +34,6 @@
 #include "mega/osx/osxutils.h"
 #endif
 
-#if TARGET_OS_IPHONE
-#include <resolv.h>
-#endif
-
 namespace mega {
 
 // data receive timeout (ds)
