@@ -1362,6 +1362,7 @@ void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
 #ifdef ENABLE_SYNC
 void SdkTest::purgeVaultTree(unsigned int apiIndex, MegaNode *vault)
 {
+    EXPECT_TRUE(vault) << "purgeVaultTree: Invalid Vault";
     std::unique_ptr<MegaNodeList> vc{megaApi[apiIndex]->getChildren(vault)};
     if (vc->size())
     {
@@ -1374,8 +1375,13 @@ void SdkTest::purgeVaultTree(unsigned int apiIndex, MegaNode *vault)
                 for (int j = 0; j < backupRoots->size(); ++j)
                 {
                     RequestTracker rt(megaApi[apiIndex].get());
-                    megaApi[apiIndex]->moveOrRemoveDeconfiguredBackupNodes(backupRoots->get(j)->getHandle(), INVALID_HANDLE, &rt);
-                    rt.waitForResult();
+                    const auto backup = backupRoots->get(j);
+                    megaApi[apiIndex]->moveOrRemoveDeconfiguredBackupNodes(backup->getHandle(),
+                                                                           INVALID_HANDLE,
+                                                                           &rt);
+                    EXPECT_EQ(rt.waitForResult(), API_OK)
+                        << "purgeVaultTree: Could not remove Backup, " << backup->getName() << "("
+                        << Base64Str<MegaClient::NODEHANDLE>(backup->getHandle()) << ")";
                 }
             }
         }
