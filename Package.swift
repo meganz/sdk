@@ -86,9 +86,6 @@ let package = Package(
             name: "MEGASdk",
             dependencies: ["MEGASdkCpp"],
             path: "bindings/ios",
-            exclude: [
-                "3rdparty/vcpkg/"
-            ],
             cxxSettings: [
                 .headerSearchPath("../../include"),
                 .define("ENABLE_CHAT"),
