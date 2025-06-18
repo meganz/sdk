@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file tests/sdk_test.cpp
  * @brief Mega SDK test file
  *
@@ -13785,7 +13785,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << differentApiIdx;
 
     // 1. Create Set
-    string name = u8"Set name ideograms: 讓我們打破這個"; // "讓我們打破這個"
+    string name = u8"Set name ideograms: 讓我們打破這個";  //"讓我們打破這個"
     differentApiDtls.setUpdated = false;
     MegaSet* newSet = nullptr;
     int err = doCreateSet(0, &newSet, name.c_str(), MegaSet::SET_TYPE_ALBUM);
