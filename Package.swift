@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "MEGASDK",
     platforms: [
-        .iOS(.v14)
+        .iOS(.v15)
     ],
     products: [
         .library(
@@ -29,10 +29,10 @@ let package = Package(
             path: "./",
             exclude: [
                 "bindings",
-                "contrib",
                 "cmake",
-                "doc",
+                "contrib",
                 "examples",
+                "src/android",
                 "src/common/client_adapter_with_sync.cpp",
                 "src/fuse/common/database_builder.cpp",
                 "src/fuse/common/directory_inode.cpp",
@@ -51,7 +51,6 @@ let package = Package(
                 "src/fuse/supported",
                 "src/mega_utf8proc_data.c",
                 "src/win32",
-                "src/wincurl",
                 "tests",
                 "tools"
             ],
@@ -59,6 +58,7 @@ let package = Package(
                 .headerSearchPath("bindings/ios"),
                 .headerSearchPath("include/mega/posix"),
                 .headerSearchPath("src/fuse/unsupported"),
+                .headerSearchPath("third_party/ccronexpr"),
                 .define("ENABLE_CHAT"),
                 .define("HAVE_LIBUV"),
                 .define("NDEBUG", .when(configuration: .release))
@@ -77,7 +77,6 @@ let package = Package(
                 .linkedFramework("UniformTypeIdentifiers"),
                 .linkedFramework("SystemConfiguration", .when(platforms: [.macOS])),
                 // Libraries
-                .linkedLibrary("resolv"),
                 .linkedLibrary("z"),
                 .linkedLibrary("sqlite3"),
                 .linkedLibrary("icucore")
@@ -87,6 +86,9 @@ let package = Package(
             name: "MEGASdk",
             dependencies: ["MEGASdkCpp"],
             path: "bindings/ios",
+            exclude: [
+                "3rdparty/vcpkg/"
+            ],
             cxxSettings: [
                 .headerSearchPath("../../include"),
                 .define("ENABLE_CHAT"),
