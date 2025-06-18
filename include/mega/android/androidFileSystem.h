@@ -84,11 +84,9 @@ private:
     AndroidFileWrapper(jobject fileWrapper);
     jobject mAndroidFileObject{nullptr};
     std::string mURI;
-    std::optional<std::string> mName;
-    std::optional<bool> mIsFolder;
-    std::optional<bool> mIsURI;
     static constexpr char GET_ANDROID_FILE[] = "getFromUri";
     static constexpr char GET_FILE_DESCRIPTOR[] = "getFileDescriptor";
+    static constexpr char IS_PATH[] = "isPath";
     static constexpr char IS_FOLDER[] = "isFolder";
     static constexpr char GET_NAME[] = "getName";
     static constexpr char GET_CHILDREN_URIS[] = "getChildrenUris";
@@ -100,6 +98,17 @@ private:
     static constexpr char DELETE_FILE[] = "deleteFile";
     static constexpr char DELETE_EMPTY_FOLDER[] = "deleteFolderIfEmpty";
     static constexpr char RENAME[] = "rename";
+
+    class URIData
+    {
+    public:
+        std::optional<bool> mIsURI;
+        std::optional<bool> mIsFolder;
+        std::optional<std::string> mName;
+        std::optional<std::string> mPath;
+    };
+
+    static LRUCache<std::string, URIData> URIDataCache;
 };
 
 /**

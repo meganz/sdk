@@ -15,6 +15,8 @@ namespace mega
 
 AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
 
+LRUCache<std::string, AndroidFileWrapper::URIData> AndroidFileWrapper::URIDataCache(300);
+
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mURI(path)
 {
@@ -106,9 +108,14 @@ bool AndroidFileWrapper::isFolder()
         return false;
     }
 
-    if (mIsFolder.has_value())
+    auto data = URIDataCache.get(mURI);
+    if (data.has_value() && data->mIsFolder.has_value())
     {
-        return mIsFolder.value();
+        return data->mIsFolder.value();
+    }
+    else if (!data.has_value())
+    {
+        data = URIData();
     }
 
     JNIEnv* env{nullptr};
@@ -122,8 +129,9 @@ bool AndroidFileWrapper::isFolder()
         return false;
     }
 
-    mIsFolder = env->CallBooleanMethod(mAndroidFileObject, methodID);
-    return mIsFolder.value();
+    data->mIsFolder = env->CallBooleanMethod(mAndroidFileObject, methodID);
+    URIDataCache.put(mURI, data.value());
+    return data->mIsFolder.value();
 }
 
 std::string AndroidFileWrapper::getURI() const
@@ -133,12 +141,16 @@ std::string AndroidFileWrapper::getURI() const
 
 bool AndroidFileWrapper::isURI()
 {
-    if (mIsURI.has_value())
+    auto data = URIDataCache.get(mURI);
+    if (data.has_value() && data->mIsURI.has_value())
     {
-        return mIsURI.value();
+        return data->mIsURI.value();
+    }
+    else if (!data.has_value())
+    {
+        data = URIData();
     }
 
-    constexpr char IS_PATH[] = "isPath";
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetStaticMethodID(fileWrapper, IS_PATH, "(Ljava/lang/String;)Z");
@@ -151,8 +163,10 @@ bool AndroidFileWrapper::isURI()
         return false;
     }
 
-    mIsURI = !env->CallStaticBooleanMethod(fileWrapper, methodID, env->NewStringUTF(mURI.c_str()));
-    return mIsURI.value();
+    data->mIsURI =
+        !env->CallStaticBooleanMethod(fileWrapper, methodID, env->NewStringUTF(mURI.c_str()));
+    URIDataCache.put(mURI, data.value());
+    return data->mIsURI.value();
 }
 
 std::string AndroidFileWrapper::getName()
@@ -162,9 +176,14 @@ std::string AndroidFileWrapper::getName()
         return std::string();
     }
 
-    if (mName.has_value())
+    auto data = URIDataCache.get(mURI);
+    if (data.has_value() && data->mName.has_value())
     {
-        return mName.value();
+        return data->mName.value();
+    }
+    else if (!data.has_value())
+    {
+        data = URIData();
     }
 
     JNIEnv* env{nullptr};
@@ -181,9 +200,10 @@ std::string AndroidFileWrapper::getName()
     jstring name = static_cast<jstring>(env->CallObjectMethod(mAndroidFileObject, methodID));
 
     const char* nameStr = env->GetStringUTFChars(name, nullptr);
-    mName = nameStr;
+    data->mName = nameStr;
+    URIDataCache.put(mURI, data.value());
     env->ReleaseStringUTFChars(name, nameStr);
-    return mName.value();
+    return data->mName.value();
 }
 
 std::vector<std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::getChildren()
@@ -374,6 +394,16 @@ std::optional<std::string> AndroidFileWrapper::getPath()
         return mURI;
     }
 
+    auto data = URIDataCache.get(mURI);
+    if (data.has_value() && data->mPath.has_value())
+    {
+        return data->mPath.value();
+    }
+    else if (!data.has_value())
+    {
+        data = URIData();
+    }
+
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetMethodID(fileWrapper, GET_PATH, "()Ljava/lang/String;");
@@ -397,10 +427,11 @@ std::optional<std::string> AndroidFileWrapper::getPath()
         return std::nullopt;
     }
 
-    std::string outputString(chars);
+    data->mPath = chars;
+    URIDataCache.put(mURI, data.value());
     env->ReleaseStringUTFChars(pathString, chars);
     env->DeleteLocalRef(pathString);
-    return outputString;
+    return data->mPath.value();
 }
 
 bool AndroidFileWrapper::deleteFile()
