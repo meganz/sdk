@@ -350,7 +350,7 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
     -> std::enable_if_t<IsFileRequestV<Request>>
 {
     // Make sure request has been passed by rvalue reference.
-    static_assert(!std::is_reference_v<Request>);
+    static_assert(std::is_rvalue_reference_v<decltype(request)>);
 
     // What kind of request are we completing?
     constexpr auto complete = IsFileReadRequestV<Request> ? &FileReadWriteState::readCompleted :
@@ -864,7 +864,7 @@ template<typename Request>
 auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>
 {
     // Make sure the request's been passed by rvalue reference.
-    static_assert(!std::is_reference_v<Request>);
+    static_assert(std::is_rvalue_reference_v<decltype(request)>);
 
     // Context's being destroyed so cancel the request.
     if (weak_from_this().expired())
