@@ -26908,6 +26908,79 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
     waiter->notify();
 }
 
+//increment packet
+// set a callback for when a packet is complete
+void MegaApiImpl::setPacketCompleteCallback(
+    std::function<void(uint32_t, const std::vector<uint8_t>&)> callback)
+{
+    processor.setPacketCompleteCallback(callback);
+}
+
+// set a callback for packet progress updates
+void MegaApiImpl::setPacketProgressCallback(std::function<void(uint32_t, double)> callback)
+{
+    processor.setPacketProgressCallback(callback);
+}
+
+// precess the received chunk
+void MegaApiImpl::processChunk(uint32_t id,
+                               uint32_t index,
+                               uint32_t total,
+                               const uint8_t* chunkData,
+                               size_t dataSize)
+{
+    PacketChunk chunk(id, index, total, chunkData, dataSize);
+    processor.processChunk(chunk);
+}
+
+// clear all pending packets
+void MegaApiImpl::clearPendingPackets() 
+{
+    processor.clearPendingPackets();
+}
+
+// get the state of a specific packet
+size_t MegaApiImpl::getPendingPacketCount() const
+{
+    return processor.getPendingPacketCount();
+}
+
+void MegaApiImpl::smartUploadFile(const std::string& localFilePath, 
+                                  uint64_t id,
+                                  const std::string name,
+                                  time_t mtime,
+                                  const std::string fingerprint,
+                                  const std::string parenthandle,
+                                  const std::string encryption_key,
+                                  const std::string nonce,
+                                  const std::string mac)
+{
+    // Example: Uploading Files
+    FileDataNode remoteNode;
+    remoteNode.id = id;
+    remoteNode.name = name;
+    remoteNode.mtime = mtime;
+    remoteNode.fingerprint = fingerprint;
+    remoteNode.parenthandle = parenthandle;
+    remoteNode.encryption_key = encryption_key;
+    remoteNode.nonce = nonce;
+    remoteNode.mac = mac;
+
+    std::shared_ptr<CFileUploader> uploader = std::make_shared<CFileUploader>(client);
+    // Initialize the properties of the remote node (fingerprint, encryption credentials, etc.)
+    bool success = uploader->smart_upload(localFilePath, &remoteNode);
+
+    if (success)
+    {
+        std::cout << "File uploaded successfully (via " << (&remoteNode ? "copy" : "full upload")
+                  << ")" << std::endl;
+    }
+    else
+    {
+        std::cout << "File upload failed" << std::endl;
+    }
+}
+
 const char* MegaApiImpl::getPublicLinkForExportedSet(MegaHandle sid)
 {
     string retStr;

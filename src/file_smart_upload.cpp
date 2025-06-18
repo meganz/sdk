@@ -126,9 +126,9 @@ bool CFileUploader::full_upload(const std::string& filePath)
     }
 
     // upload local file
-    File fupfile;
-    fupfile.prepare(*client->fsaccess);
-    fupfile.start();
+    //File fupfile;
+    //fupfile.prepare(*client->fsaccess);
+    //fupfile.start();
     // Implement complete upload logic (omitted)
     return true;
 }

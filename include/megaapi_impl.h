@@ -4012,6 +4012,39 @@ class MegaApiImpl : public MegaApp
         // returns the Pro level based on the current plan and storage usage (MegaAccountDetails::ACCOUNT_TYPE_XYZ)
         static int calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& accDetails);
 
+        // Increment packet processing
+        // precess the received chunk
+        void processChunk(uint32_t id,
+                          uint32_t index,
+                          uint32_t total,
+                          const uint8_t* chunkData,
+                          size_t dataSize);
+        // set a callback for when a packet is complete
+        void setPacketCompleteCallback(
+            std::function<void(uint32_t, const std::vector<uint8_t>&)> callback);
+        // set a callback for packet progress updates
+        void setPacketProgressCallback(std::function<void(uint32_t, double)> callback);
+        // clear all pending packets
+        void clearPendingPackets();
+        // get the state of a specific packet
+        size_t getPendingPacketCount() const;
+
+        private:
+            ActionPacketProcessor processor;
+
+        public:
+       //smart upload
+        void smartUploadFile(const std::string& localFilePath,
+                             uint64_t id,
+                             const std::string name,
+                             time_t mtime,
+                             const std::string fingerprint,
+                             const std::string parenthandle,
+                             const std::string encryption_key,
+                             const std::string nonce,
+                             const std::string mac);
+
+
     private:
         bool nodeInRubbishCheck(handle) const;
         error checkCreateFolderPrecons(const char* name,

@@ -23,6 +23,9 @@
 #include <megaapi.h>
 #include <thread>
 #include <time.h>
+#include <random>
+
+#include "increment_packet_unit_test.h"
 
 // ENTER YOUR CREDENTIALS HERE
 #define MEGA_EMAIL "EMAIL"
@@ -200,6 +203,40 @@ int main()
     // Listener to receive information about all request and transfers
     // It is also possible to register a different listener per request/transfer
     megaApi->addListener(&listener);
+
+
+    std::cout << "Test Increment action packet interface begin:" << std::endl;
+    simulatePacketData simPacketData;
+    simPacketData.simulateDataToUnitTest(megaApi);
+    std::cout << "Test Increment action packet interface end!" << std::endl;
+    std::cout << std::endl;
+    std::cout << std::endl;
+
+     std::cout << "Test smartuploadFile interface begin:" << std::endl;
+    // Test smartuploadFile interface
+     std::string localFilePath = "D:\\Test\\Project1\\Project1\\Project1.cpp";
+     uint64_t id = 10000;
+     std::string name = "localfilename";
+     time_t mtime = 0;
+     std::string fingerprint = "fingerprint";
+     std::string parenthandle = "parenthandle";
+     std::string encryption_key = "encryption_key";
+     std::string nonce = "nonce tag";
+     std::string mac = "mac adr";
+
+     megaApi->smartUploadFile(localFilePath,
+                              id,
+                              name,
+                              mtime,
+                              fingerprint,
+                              parenthandle,
+                              encryption_key,
+                              nonce,
+                              mac);
+
+     std::cout << "Test smartuploadFile interface end!" << std::endl;
+     std::cout << std::endl;
+     std::cout << std::endl;
 
     if (std::string{MEGA_EMAIL} == "EMAIL")
     {
