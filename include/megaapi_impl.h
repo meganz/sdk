@@ -1797,6 +1797,8 @@ protected:
 
         bool mTargetOverride;
 
+        void updateLocalPathInternal(const LocalPath& newPath);
+
     public:
         // use shared_ptr here so callbacks can use a weak_ptr
         // to protect against the operation being cancelled in the meantime
