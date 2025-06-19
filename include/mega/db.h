@@ -47,6 +47,7 @@ enum class DBError
     DB_ERROR_FULL = 1,
     DB_ERROR_IO = 2,
     DB_ERROR_INDEX_OVERFLOW = 3,
+    DB_ERROR_CORRUPT = 4,
 };
 
 using DBErrorCallback = std::function<void(DBError)>;

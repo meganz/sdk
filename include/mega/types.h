@@ -899,6 +899,7 @@ typedef enum {
     REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
     REASON_ERROR_NO_JSCD = 5,
     REASON_ERROR_REGENERATE_JSCD = 6,
+    REASON_ERROR_DB_CORRUPT = 7,
 } ErrorReason;
 
 // enum matching 1:1 MegaEvent::NetworkActivityChannel

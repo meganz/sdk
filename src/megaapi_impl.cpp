@@ -15834,7 +15834,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     }
 }
 
-// reload needed
+// it may need a full reload, depending on the reason of the error
 void MegaApiImpl::notifyError(const char* reason, ErrorReason errorReason)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_FATAL_ERROR);
