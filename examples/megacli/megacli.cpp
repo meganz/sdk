@@ -1510,6 +1510,10 @@ void exec_devcommand(autocomplete::ACState& s)
     const bool isCampaingProvided = s.extractflagparam("-c", campaign);
     std::string groupId;
     const bool isGroupIdProvided = s.extractflagparam("-g", groupId);
+    std::string quotaLengthInMonths;
+    const bool isQuotaLengthInMonths = s.extractflagparam("-q", quotaLengthInMonths);
+    std::string accountLevel;
+    const bool isAccountLevel = s.extractflagparam("-l", accountLevel);
 
     const auto printElement = [](const auto& p){ std::cout << " " << p; };
 
@@ -1572,7 +1576,9 @@ void exec_devcommand(autocomplete::ACState& s)
 
     if (subcommand == "abs")
     {
-        notifyIgnoredParams({Param{isEmailProvided, "-e"}});
+        notifyIgnoredParams({Param{isEmailProvided, "-e"},
+                             Param{isQuotaLengthInMonths, "-q"},
+                             Param{isAccountLevel, "-l"}});
 
         if (!requiredParamsPresent(
                 {Param{isCampaingProvided, "-c"}, Param{isGroupIdProvided, "-g"}}))
@@ -1585,9 +1591,35 @@ void exec_devcommand(autocomplete::ACState& s)
 
         client->senddevcommand(subcommand.data(), nullptr, 0, 0, g, campaign.c_str());
     }
+    else if (subcommand == "sal")
+    {
+        notifyIgnoredParams({Param{isEmailProvided, "-e"},
+                             Param{isCampaingProvided, "-c"},
+                             Param{isGroupIdProvided, "-g"}});
+
+        if (!requiredParamsPresent(
+                {Param{isQuotaLengthInMonths, "-q"}, Param{isAccountLevel, "-l"}}))
+            return;
+
+        size_t l = 0;
+        const long long q = std::stoll(quotaLengthInMonths, &l);
+        if (!checkNatural(l, quotaLengthInMonths, "-q"))
+            return;
+
+        l = 0;
+        const int al = std::stoi(accountLevel, &l);
+        if (!checkNatural(l, accountLevel, "-a"))
+            return;
+
+        constexpr int businessStatus = 0;
+        client->senddevcommand(subcommand.data(), nullptr, q, businessStatus, al);
+    }
     else
     {
-        notifyIgnoredParams({Param{isCampaingProvided, "-c"}, Param{isGroupIdProvided, "-g"}});
+        notifyIgnoredParams({Param{isCampaingProvided, "-c"},
+                             Param{isGroupIdProvided, "-g"},
+                             Param{isQuotaLengthInMonths, "-q"},
+                             Param{isAccountLevel, "-l"}});
 
         client->senddevcommand(subcommand.data(), isEmailProvided ? email.c_str() : nullptr);
     }
@@ -5157,10 +5189,15 @@ autocomplete::ACN autocompleteSyntax()
                                                                           sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
-    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"),
-                                     opt(sequence(flag("-e"), param("email"))),
-                                     opt(sequence(flag("-c"), param("campaign"),
-                                                  flag("-g"), param("group_id")))));
+    p->Add(exec_devcommand,
+           sequence(text("devcommand"),
+                    param("subcommand"),
+                    opt(sequence(flag("-e"), param("email"))),
+                    opt(sequence(flag("-c"), param("campaign"), flag("-g"), param("group_id"))),
+                    opt(sequence(flag("-q"),
+                                 param("quota_in_months"),
+                                 flag("-l"),
+                                 param("account_level")))));
 #endif
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
