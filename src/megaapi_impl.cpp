@@ -3194,7 +3194,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setState(transfer->getState());
     this->setPriority(transfer->getPriority());
     this->setTag(transfer->getTag());
-    this->setLocalPath(transfer->getLocalPath());
+    this->updateLocalPathInternal(transfer->getLocalPath());
     this->setNodeHandle(transfer->getNodeHandle());
     this->setParentHandle(transfer->getParentHandle());
     this->setStartPos(transfer->getStartPos());
@@ -3494,6 +3494,15 @@ MegaNode* MegaTransferPrivate::getNodeToUndelete() const
 LocalPath MegaTransferPrivate::getLocalPath() const
 {
     return mLocalPath;
+}
+
+void MegaTransferPrivate::updateLocalPathInternal(const LocalPath& newPath)
+{
+    if (path)
+        delete[] path;
+
+    mLocalPath = newPath;
+    path = MegaApi::strdup(mLocalPath.toPath(false).c_str());
 }
 
 bool MegaTransferPrivate::serialize(string *d) const
@@ -3996,11 +4005,7 @@ void MegaTransferPrivate::setPath(const char* newPath)
 
 void MegaTransferPrivate::setLocalPath(const LocalPath& newPath)
 {
-    if (path)
-        delete[] path;
-
-    mLocalPath = newPath;
-    path = MegaApi::strdup(mLocalPath.toPath(false).c_str());
+    updateLocalPathInternal(newPath);
     LocalPath name = mLocalPath.leafName();
     setFileName(name.toPath(false).c_str());
     LocalPath parent = mLocalPath.parentPath();
