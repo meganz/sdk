@@ -6148,6 +6148,7 @@ public:
         REASON_ERROR_DB_INDEX_OVERFLOW          = 4,    // Index used to primary key at db overflow
         REASON_ERROR_NO_JSCD = 5, // No JSON Sync Config Data
         REASON_ERROR_REGENERATE_JSCD = 6, // JSON Sync Config Data has been regenerated
+        REASON_ERROR_DB_CORRUPT = 7, // DB file is corrupted
     };
 
     /**
@@ -6335,6 +6336,7 @@ public:
      *     - REASON_ERROR_DB_INDEX_OVERFLOW = 4
      *     - REASON_ERROR_NO_JSCD = 5
      *     - REASON_ERROR_REGENERATE_JSCD = 6
+     *     - REASON_ERROR_DB_CORRUPT = 7
      *
      * - EVENT_ACCOUNT_BLOCKED:
      *   Indicates the reason for account blockage:
