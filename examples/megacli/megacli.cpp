@@ -33,6 +33,7 @@
 #include "mega/user_attribute.h"
 #include "mega/utils_optional.h"
 
+#include <algorithm>
 #include <bitset>
 #include <charconv>
 #include <chrono>
@@ -1511,42 +1512,82 @@ void exec_devcommand(autocomplete::ACState& s)
     const bool isGroupIdProvided = s.extractflagparam("-g", groupId);
 
     const auto printElement = [](const auto& p){ std::cout << " " << p; };
+
+    struct Param
+    {
+        bool exists;
+        std::string_view name;
+    };
+
+    auto notifyIgnoredParams = [&printElement, &subcommand](std::vector<Param> params)
+    {
+        std::vector<std::string_view> toIgnore;
+        std::for_each(begin(params),
+                      end(params),
+                      [&toIgnore](Param& param)
+                      {
+                          if (param.exists)
+                              toIgnore.emplace_back(param.name);
+                      });
+        if (!toIgnore.empty())
+        {
+            std::cout << "devcommand " << subcommand << " will ignore unrequired";
+            std::for_each(std::begin(toIgnore), std::end(toIgnore), printElement);
+            std::cout << " provided options\n";
+        }
+    };
+
+    auto requiredParamsPresent = [&printElement, &subcommand](std::vector<Param> params) -> bool
+    {
+        std::vector<std::string_view> missing;
+        std::for_each(begin(params),
+                      end(params),
+                      [&missing](Param& param)
+                      {
+                          if (!param.exists)
+                              missing.emplace_back(param.name);
+                      });
+        if (!missing.empty())
+        {
+            std::cout << "devcommand " << subcommand << " missing required ";
+            std::for_each(std::begin(missing), std::end(missing), printElement);
+            std::cout << " options\n";
+            return false;
+        }
+        return true;
+    };
+
+    const auto checkNatural = [&subcommand](const size_t& length,
+                                            const std::string& numberAsString,
+                                            const std::string_view p) -> bool
+    {
+        if (length != numberAsString.size())
+        {
+            std::cout << subcommand << " param " << p
+                      << " must be a natural number: " << numberAsString << " provided\n";
+            return false;
+        }
+        return true;
+    };
+
     if (subcommand == "abs")
     {
-        if (isEmailProvided) std::cout << "devcommand abs will ignore unrequired -e provided\n";
+        notifyIgnoredParams({Param{isEmailProvided, "-e"}});
 
-        std::vector<std::string> req;
-        if (!isCampaingProvided) req.emplace_back("-c");
-        if (!isGroupIdProvided) req.emplace_back("-g");
-        if (!req.empty())
-        {
-            std::cout << "devcommand abs is missing required";
-            std::for_each(std::begin(req), std::end(req), printElement);
-            std::cout << " options\n";
+        if (!requiredParamsPresent(
+                {Param{isCampaingProvided, "-c"}, Param{isGroupIdProvided, "-g"}}))
             return;
-        }
 
         size_t l;
         const int g = std::stoi(groupId, &l); // it's okay throwing in megacli for non-numeric
-        if(l != groupId.size())
-        {
-            std::cout << "abs param -g must be a natural number: " << groupId << " provided\n";
+        if (!checkNatural(l, groupId, "-g"))
             return;
-        }
 
         client->senddevcommand(subcommand.data(), nullptr, 0, 0, g, campaign.c_str());
     }
     else
     {
-        std::vector<std::string> param;
-        if (isCampaingProvided) param.emplace_back("-c");
-        if (isGroupIdProvided) param.emplace_back("-g");
-        if (!param.empty())
-        {
-            std::cout << "devcommand " << subcommand << " will ignore unrequired";
-            std::for_each(std::begin(param), std::end(param), printElement);
-            std::cout << " provided options\n";
-        }
+        notifyIgnoredParams({Param{isCampaingProvided, "-c"}, Param{isGroupIdProvided, "-g"}});
 
         client->senddevcommand(subcommand.data(), isEmailProvided ? email.c_str() : nullptr);
     }
