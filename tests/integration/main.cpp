@@ -40,6 +40,7 @@ string gLogName = getDefaultLogName();
 bool gResumeSessions = false;
 bool gScanOnly = false; // will be used in SRW
 bool gManualVerification=false;
+bool gFreeAccounts = false; // force accounts used in tests to remain free level after finishing
 
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
@@ -475,6 +476,10 @@ public:
             {
                 gScanOnly = true;
             }
+            else if (arg == "--FREEACCOUNTS")
+            {
+                gFreeAccounts = true;
+            }
 
             ++it;
         }
@@ -487,6 +492,11 @@ protected:
         cout << buildAlignedHelpString("--CI",             {"Include all 'Continuous Integration' options (same as --LOG)"}) << '\n';
         cout << buildAlignedHelpString("--RESUMESESSIONS", {"Resume previous account sessions, instead of full logins"}) << '\n';
         cout << buildAlignedHelpString("--SCANONLY",       {"Scan synced folders periodically instead of use file system notifications"}) << '\n';
+        cout
+            << buildAlignedHelpString(
+                   "--FREEACCOUNTS",
+                   {"Test accounts used will remain at free account level at the end of the tests"})
+            << '\n';
     }
 
     void printCustomEnvVars() const override

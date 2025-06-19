@@ -25,6 +25,7 @@
 #include "gmock/gmock-matchers.h"
 #include "gtest_common.h"
 #include "integration_test_utils.h"
+#include "mega/account.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/types.h"
@@ -32,6 +33,7 @@
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
+#include "test.h"
 
 #include <gtest/gtest.h>
 
@@ -369,11 +371,19 @@ void MegaApiTestDeleter::operator()(MegaApiTest* p) const
 void SdkTest::SetUp()
 {
     SdkTestBase::SetUp();
+
+    setTestAccountsToFree();
 }
 
 void SdkTest::TearDown()
 {
     out() << "Test done, teardown starts";
+
+    LOG_info << "# SdkTest::TearDown - resetting accounts to initial level";
+    if (!mAccountsRestorer.empty())
+        LOG_info << "## resetting " << mAccountsRestorer.size() << " accounts";
+    mAccountsRestorer.clear();
+
     // do some cleanup
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
@@ -732,6 +742,43 @@ void SdkTest::Cleanup()
             }
         }
     }
+}
+
+void SdkTest::setTestAccountsToFree()
+{
+    LOG_info << "# SdkTest::setTestAccountsToFree";
+    auto totalAccounts = static_cast<unsigned int>(getEnvVarAccounts().size());
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(totalAccounts));
+
+    auto accountsIdx = Range(0u, totalAccounts);
+    std::for_each(begin(accountsIdx),
+                  end(accountsIdx),
+                  [this](const auto idx)
+                  {
+                      auto& client = megaApi[idx];
+                      auto level = value(getAccountLevel(*client));
+                      if (level.plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+                      {
+                          LOG_info << "## Account (" << idx << ") is free already";
+                          releaseMegaApi(idx);
+                          return;
+                      }
+
+                      if (!gFreeAccounts)
+                      {
+                          mAccountsRestorer.push_back(accountLevelRestorer(megaApi, idx));
+                      }
+
+                      LOG_info << "## Force account to free status. Originally at plan: "
+                               << level.plan << " months: " << level.months;
+                      auto result = setAccountLevel(*client,
+                                                    MegaAccountDetails::ACCOUNT_TYPE_FREE,
+                                                    level.months,
+                                                    nullptr);
+                      EXPECT_EQ(result, API_OK) << "Couldn't reset account to free: " << result;
+
+                      releaseMegaApi(idx);
+                  });
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
@@ -2308,6 +2355,26 @@ auto accountLevelRestorer(MegaApi& client) -> ScopedDestructor
     };
 
     // Return destructor to caller.
+    return destructor;
+}
+
+ScopedDestructor accountLevelRestorer(std::vector<MegaApiTestPointer>& clients, unsigned int idx)
+{
+    std::function<void()> destructor = []() {};
+
+    auto accountLevel = getAccountLevel(*clients[idx]);
+    if (auto result = ::result(accountLevel); result != API_OK)
+    {
+        EXPECT_EQ(result, API_OK) << "Couldn't retrieve account " << idx << " level";
+        return destructor;
+    }
+
+    destructor = [&clients, idx, level = value(accountLevel)]()
+    {
+        auto result = setAccountLevel(*clients[idx], level.plan, level.months, nullptr);
+        EXPECT_EQ(result, API_OK) << "Couldn't restore account " << idx << " level";
+    };
+
     return destructor;
 }
 
