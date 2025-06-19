@@ -97,6 +97,8 @@ using std::dec;
 
 MegaClient* client;
 MegaClient* clientFolder;
+std::string megacliUserAgent{"megacli/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
+    MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION)};
 
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
@@ -4913,6 +4915,7 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
+    p->Add(exec_useragent, sequence(text("useragent"), opt(param("new_user_agent"))));
     p->Add(exec_login, sequence(text("login"), opt(flag("-fresh")), either(sequence(param("email"), opt(param("password"))),
                                                       sequence(exportedLink(false, true), opt(param("auth_key"))),
                                                       param("session"),
@@ -8032,6 +8035,25 @@ void exec_apiurl(autocomplete::ACState& s)
         {
             client->httpio->disablepkp = s.words[2].s == "true";
         }
+    }
+}
+
+void exec_useragent(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        cout << "Current UserAgent = " << client->useragent << endl;
+    }
+    else if (client->loggedin() != NOTLOGGEDIN)
+    {
+        cout << "You must not be logged in, to change UserAgent" << endl;
+    }
+    else if (s.words.size() == 2)
+    {
+        auto newUserAgent = s.words[1].s;
+        client->useragent.replace(0, megacliUserAgent.size(), newUserAgent);
+        client->httpio->setuseragent(&newUserAgent);
+        megacliUserAgent = newUserAgent;
     }
 }
 
@@ -11235,9 +11257,7 @@ int main(int argc, char* argv[])
                             dbAccess,
                             gfx,
                             "Gk8DyQBS",
-                            "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
-                            "." TOSTRING(MEGA_MINOR_VERSION)
-                            "." TOSTRING(MEGA_MICRO_VERSION),
+                            megacliUserAgent.c_str(),
                             2,
                             clientType);
 
