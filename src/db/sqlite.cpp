@@ -939,6 +939,10 @@ void SqliteDbTable::errorHandler(int sqliteError, const string& operation, bool 
         dbError = DBError::DB_ERROR_IO;
         break;
 
+    case SQLITE_CORRUPT:
+        dbError = DBError::DB_ERROR_CORRUPT;
+        break;
+
     default:
         dbError = DBError::DB_ERROR_UNKNOWN;
         break;
@@ -948,7 +952,7 @@ void SqliteDbTable::errorHandler(int sqliteError, const string& operation, bool 
     LOG_err << operation << ": " << dbfile << err;
     assert(!operation.c_str());
 
-    if (mDBErrorCallBack && dbError != DBError::DB_ERROR_UNKNOWN)
+    if (mDBErrorCallBack)
     {
         // Only notify DB errors related to disk-is-full and input/output failures
         mDBErrorCallBack(dbError);
