@@ -55,8 +55,8 @@ pipeline {
         }
         stage('Build Windows'){
             options{
-                // timeout: 1 hour per architecture, plus half an hour
-                timeout(time: 210, unit: 'MINUTES')
+                // timeout: 30 min per architecture
+                timeout(time: 90, unit: 'MINUTES')
             }
             stages {
                 stage("Build x64") {
