@@ -134,7 +134,7 @@ pipeline {
                         } 
                         axis { 
                             name 'DISTRO'; 
-                            values  'DEB_Arch_Extra','Debian_11','xUbuntu_20.04','xUbuntu_24.04','Fedora_40',
+                            values  'DEB_Arch_Extra','Debian_11','xUbuntu_20.04','xUbuntu_24.04','Fedora_40', 'Fedora_42',
                                     'Raspbian_11', 'Raspbian_12','openSUSE_Tumbleweed'
                         }
                     }
