@@ -36,10 +36,13 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief This function is called when there are new or updated contacts in the account.
  *
+ * When the full account is reloaded or a large number of server notifications arrives at
+ * once, the second parameter will be nil
+ *
  * @param api MEGASdk object connected to the account.
  * @param userList List that contains the new or updated contacts.
  */
-- (void)onUsersUpdate:(MEGASdk *)api userList:(MEGAUserList *)userList;
+- (void)onUsersUpdate:(MEGASdk *)api userList:(nullable MEGAUserList *)userList;
 
 /**
  * @brief This function is called when there are new or updated user alerts in the account
@@ -49,10 +52,14 @@ NS_ASSUME_NONNULL_BEGIN
  * list, use [MEGAUserAlertList clone]. If you want to save only some of the MEGAUserAlert objects, use [MEGAUserAlert clone]
  * for those objects.
  *
+ * When there is a problem parsing the incoming information from the server or the full
+ * account is reloaded or a large number of server notifications arrives at once, the second
+ * parameter will be nil.
+ *
  * @param api MEGASdk object connected to the account
  * @param userAlertList List that contains the new or updated contacts
  */
-- (void)onUserAlertsUpdate:(MEGASdk *)api userAlertList:(MEGAUserAlertList *)userAlertList;
+- (void)onUserAlertsUpdate:(MEGASdk *)api userAlertList:(nullable MEGAUserAlertList *)userAlertList;
 
 /**
  * @brief This function is called when there are new or updated nodes in the account.
@@ -68,18 +75,24 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief This function is called when a Set has been updated (created / updated / removed)
  *
+ * When the full account is reloaded or a large number of server notifications arrives at
+ * once, the second parameter will be nil.
+ *
  * @param api MEGASdk object connected to the account
  * @param sets Array that contains the new or updated Sets
  */
-- (void)onSetsUpdate:(MEGASdk *)api sets:(NSArray<MEGASet *> *)sets;
+- (void)onSetsUpdate:(MEGASdk *)api sets:(nullable NSArray<MEGASet *> *)sets;
 
 /**
  * @brief This function is called when a SetElement has been updated (created / updated / removed)
  *
+ * When the full account is reloaded or a large number of server notifications arrives at
+ * once, the second parameter will be nil.
+ *
  * @param api MEGASdk object connected to the account
  * @param setElements Array that contains the new or updated Set-Elements
  */
-- (void)onSetElementsUpdate:(MEGASdk *)api setElements:(NSArray<MEGASetElement *> *)setElements;
+- (void)onSetElementsUpdate:(MEGASdk *)api setElements:(nullable NSArray<MEGASetElement *> *)setElements;
 
 /**
  * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
@@ -100,7 +113,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param api MEGASdk object connected to the account
  * @param contactRequestList List that contains the new or updated contact requests
  */
-- (void)onContactRequestsUpdate:(MEGASdk *)api contactRequestList:(MEGAContactRequestList *)contactRequestList;
+- (void)onContactRequestsUpdate:(MEGASdk *)api contactRequestList:(nullable MEGAContactRequestList *)contactRequestList;
 
 /**
  * @brief This function is called when an inconsistency is detected in the local cache.
