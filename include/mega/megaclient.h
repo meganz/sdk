@@ -1404,7 +1404,8 @@ public:
     handle_vector purchase_basket;
 
     // enumerate Pro account purchase options
-    void purchase_enumeratequotaitems();
+    // Optional countryCode to set the desired currency
+    void purchase_enumeratequotaitems(const std::optional<std::string>& countryCode = std::nullopt);
 
     // clear shopping basket
     void purchase_begin();
