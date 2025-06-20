@@ -5463,7 +5463,8 @@ autocomplete::ACN autocompleteSyntax()
                     text("remove"),
                     param("name")));
 
-    p->Add(exec_getpricing, text("getpricing"));
+    p->Add(exec_getpricing,
+           sequence(text("getpricing"), opt(sequence(flag("-country"), param("countryCode")))));
 
     p->Add(exec_collectAndPrintTransferStats,
            sequence(text("getTransferStats"), opt(either(flag("-uploads"), flag("-downloads")))));
@@ -14052,10 +14053,18 @@ void exec_nodeTag(autocomplete::ACState& s)
     }
 }
 
-void exec_getpricing(autocomplete::ACState&)
+void exec_getpricing(autocomplete::ACState& s)
 {
-    cout << "Getting pricing plans... " << endl;
-    client->purchase_enumeratequotaitems();
+    cout << "Getting pricing plans";
+
+    std::optional<std::string> countryCode{s.extractflagparam("-country")};
+    if (countryCode)
+    {
+        cout << " localized for " << *countryCode;
+    }
+    cout << "..." << endl;
+
+    client->purchase_enumeratequotaitems(countryCode);
 }
 
 void exec_collectAndPrintTransferStats(autocomplete::ACState& state)

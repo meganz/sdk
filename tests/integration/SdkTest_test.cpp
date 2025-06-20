@@ -8857,6 +8857,8 @@ TEST_F(SdkTest, SdkGetPricing)
     ASSERT_TRUE(err == API_OK) << "Get pricing failed (error: " << err << ")";
 
     ASSERT_TRUE(strcmp(mApi[0].mMegaCurrency->getCurrencyName(), "EUR") == 0) << "Unexpected currency";
+    ASSERT_STREQ(mApi[0].mMegaCurrency->getLocalCurrencyName(), "")
+        << "Local currency was not expected";
 
     ASSERT_GT(mApi[0].mMegaPricing->getNumProducts(), 0) << "No products available";
     for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
@@ -8865,6 +8867,12 @@ TEST_F(SdkTest, SdkGetPricing)
         ASSERT_GT(mApi[0].mMegaPricing->getTestCategory(i), 0) << "Invalid value for test category in product \""
                                                               << mApi[0].mMegaPricing->getDescription(i) << "\"";
     }
+
+    // Foce local currency to USD.
+    err = synchronousGetPricing(0, "US");
+    ASSERT_TRUE(err == API_OK) << "Get pricing in USD failed (error: " << err << ")";
+    ASSERT_STREQ(mApi[0].mMegaCurrency->getLocalCurrencyName(), "USD")
+        << "No USD local currency found.";
 }
 
 TEST_F(SdkTest, SdkGetBanners)

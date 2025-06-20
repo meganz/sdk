@@ -23637,7 +23637,7 @@ error MegaApiImpl::performRequest_enumeratequotaitems(MegaRequestPrivate* reques
             std::optional<std::string> countryCode;
             if (request->getText())
             {
-                countryCode.emplace(request->getText());
+                countryCode = request->getText();
             }
             client->purchase_enumeratequotaitems(countryCode);
             return API_OK;
