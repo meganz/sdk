@@ -648,7 +648,7 @@ bool FileContext::execute(FileTruncateRequest& request)
     // Make sure we have exclusive access to mRanges.
     std::unique_lock lock(mRangesLock);
 
-    // Find the first range that begins after size.
+    // Find the first range that ends after size.
     auto begin = mRanges.endsAfter(size);
 
     // Range contains size.
