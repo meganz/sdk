@@ -638,74 +638,42 @@ bool FileContext::execute(FileTruncateRequest& request)
     if (!mReadWriteState.write())
         return false;
 
-    // User isn't changing the file's size.
-    if (mInfo->size() == request.mSize)
+    // Convenience.
+    auto newSize = request.mSize;
+    auto oldSize = mInfo->size();
+
+    // User isn't changing this file's size.
+    if (newSize == oldSize)
         return completed(std::move(request), FILE_SUCCESS), true;
 
-    // What range is affected by the truncation?
-    FileRange range(mInfo->size(), request.mSize);
-
-    // Whether we should add a new range.
-    auto resize = request.mSize > mInfo->size();
-
-    // Convenience.
-    auto size = range.mBegin;
-
     // Make sure we have exclusive access to mRanges.
-    std::unique_lock lock(mRangesLock);
+    std::lock_guard guard(mRangesLock);
 
-    // Find the first range that ends after size.
-    auto begin = mRanges.endsAfter(size);
-
-    // Range contains size.
-    if (begin != mRanges.end() && begin->first.mBegin < size)
-    {
-        // Tweak our effective range.
-        range.mBegin = begin->first.mBegin;
-
-        // Remember that we need to resize an existing range.
-        resize = true;
-    }
-
+    // Initiate a transaction so we can safely modify the database.
     auto transaction = mService.database().transaction();
 
-    // Remove affected ranges.
-    removeRanges(range, transaction);
-
-    // Tweak effective range.
-    range.mEnd = request.mSize;
-
-    // Readd existing range to database if necessary.
-    if (resize)
-        addRange(range, transaction);
+    // Grow or shrink the file as necessary.
+    if (newSize > oldSize)
+        grow(newSize, oldSize, transaction);
+    else
+        shrink(newSize, oldSize, transaction);
 
     // Compute the file's new modification time.
     auto modified = now();
 
-    // Update the file's modification time.
+    // Update the file's modification time in the database.
     updateModificationTime(modified, transaction);
 
-    // Remove obsolete ranges from memory.
-    mRanges.remove(begin, mRanges.end());
-
-    // Readd existing range to memory if necessary.
-    if (resize)
-        mRanges.add(range, nullptr);
-
-    // Couldn't truncate this file's storage.
-    if (!mFile->ftruncate(static_cast<m_off_t>(request.mSize)))
-        return completed(std::move(request), FILE_FAILED), true;
-
-    // Persist changes.
+    // Persist our changes.
     transaction.commit();
 
     // Update the file's attributes.
-    mInfo->truncated(modified, request.mSize);
+    mInfo->truncated(modified, newSize);
 
-    // Queue the user's request for completion.
+    // Queue the user's request to for completion.
     completed(std::move(request), FILE_SUCCESS);
 
-    // Let the caller know the request's been executed.
+    // Let our caller know the truncate was executed.
     return true;
 }
 
@@ -824,7 +792,7 @@ bool FileContext::execute(FileWriteRequest& request)
     // Queue the user's request for completion.
     completed(std::move(request));
 
-    // Let the caller know the write was successful.
+    // Let our caller know the write was executed.
     return true;
 }
 
@@ -903,6 +871,34 @@ void FileContext::failed(FileReadRequest&& request, FileResult result)
     completed<>(std::move(request), result);
 }
 
+void FileContext::grow(std::uint64_t newSize, std::uint64_t oldSize, Transaction& transaction)
+{
+    // Get our hands on this file's last range.
+    auto last = mRanges.rbegin();
+
+    // Assume the file has no range for us to enlarge.
+    FileRange range(oldSize, newSize);
+
+    // File has a range we can enlarge.
+    if (last != mRanges.rend() && last->first.mEnd == oldSize)
+    {
+        // Remove the range from the database.
+        removeRanges(last->first, transaction);
+
+        // Tweak our range.
+        range.mBegin = last->first.mBegin;
+
+        // Remove the range from memory.
+        mRanges.remove(last);
+    }
+
+    // (Re)?add the range to the database.
+    addRange(range, transaction);
+
+    // (Re)?add the range to memory.
+    mRanges.add(range, nullptr);
+}
+
 std::unique_lock<std::recursive_mutex> FileContext::lock() const
 {
     return std::unique_lock(mRangesLock);
@@ -935,6 +931,38 @@ void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
     query.param(":id").set(mInfo->id());
 
     query.execute();
+}
+
+void FileContext::shrink(std::uint64_t newSize, std::uint64_t oldSize, Transaction& transaction)
+{
+    // What ranges end at or after our file's new size?
+    auto begin = mRanges.endsAfter(newSize);
+
+    // No ranges end at or after our new size.
+    if (begin == mRanges.end())
+        return;
+
+    // Convenience.
+    FileRange range(begin->first.mBegin, oldSize);
+
+    // Remove affected ranges from the database.
+    removeRanges(range, transaction);
+
+    // Remove affected ranges from memory.
+    mRanges.remove(begin, mRanges.end());
+
+    // First range has been "cut" by the file's new size.
+    if (range.mBegin < newSize)
+    {
+        // Adjust the range's end point.
+        range.mEnd = newSize;
+
+        // Readd the range to the database.
+        addRange(range, transaction);
+
+        // Readd the range to memory.
+        mRanges.add(range, nullptr);
+    }
 }
 
 void FileContext::updateModificationTime(std::int64_t modified, Transaction& transaction)

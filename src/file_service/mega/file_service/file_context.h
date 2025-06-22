@@ -110,6 +110,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Called when a file read request has failed.
     void failed(FileReadRequest&& request, FileResult result) override;
 
+    // Increase this file's size.
+    void grow(std::uint64_t newSize, std::uint64_t oldSize, common::Transaction& transaction);
+
     // Acquire a lock on this manager.
     std::unique_lock<std::recursive_mutex> lock() const override;
 
@@ -122,6 +125,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Remove zero or more ranges from the database.
     void removeRanges(const FileRange& range, common::Transaction& transaction);
+
+    // Decrease this file's size.
+    void shrink(std::uint64_t newSize, std::uint64_t oldSize, common::Transaction& transaction);
 
     // Update this file's modification time in the database.
     void updateModificationTime(std::int64_t modified, common::Transaction& transaction);
