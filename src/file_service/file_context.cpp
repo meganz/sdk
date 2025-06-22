@@ -1209,16 +1209,34 @@ void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult 
 
 void FileContext::FlushContext::cancel()
 {
-    // Latch this flush's upload.
-    auto upload = [this]()
+    // Convenience.
+    using RequestVector = decltype(mRequests);
+
+    RequestVector requests;
+    UploadPtr upload;
+
+    // Check if an upload's in progress.
     {
         std::lock_guard guard(mContext.mFlushContextLock);
-        return std::move(mUpload);
-    }();
 
-    // Cancel the upload if necessary.
+        // Convenience.
+        using std::swap;
+
+        // Latch the upload.
+        swap(mUpload, upload);
+
+        // No upload's in progress.
+        if (!upload)
+            swap(mRequests, requests);
+    }
+
+    // If an upload's in progress, cancel it.
     if (upload)
-        upload->cancel();
+        return upload->cancel(), void();
+
+    // Let waiters know the flush has been cancelled.
+    for (auto& request: requests)
+        mContext.completed(std::move(request), FILE_CANCELLED);
 }
 
 void FileContext::FlushContext::queue(FileFlushRequest request)
