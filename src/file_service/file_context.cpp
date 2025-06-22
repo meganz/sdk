@@ -532,7 +532,10 @@ bool FileContext::execute(FileFlushRequest& request)
     lock.unlock();
 
     // Fetch all of this file's data.
-    fetch(FileFetchRequest{std::bind(*mFlushContext, mFlushContext, std::placeholders::_1)});
+    fetch(FileFetchRequest{std::bind(&FlushContext::operator(),
+                                     mFlushContext.get(),
+                                     mFlushContext,
+                                     std::placeholders::_1)});
 
     // Let the caller know the request's been executed.
     return true;
