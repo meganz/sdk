@@ -760,20 +760,36 @@ bool FileContext::execute(FileWriteRequest& request)
         auto from = range.mBegin;
         auto to = range.mEnd;
 
-        // Range has a left sibling.
-        if (begin != mRanges.end())
-            from = std::min(from, begin->first.mBegin);
+        // Range has no siblings.
+        if (begin == mRanges.end())
+            return FileRange(from, to);
+
+        // Range has a sibling.
+        from = std::min(begin->first.mBegin, from);
+        to = std::max(begin->first.mEnd, to);
 
         // Range has a right sibling.
         if (end != mRanges.end())
-            return FileRange(from, std::max(std::prev(end)->first.mEnd, to));
+        {
+            // Clarity.
+            auto sibling = std::prev(end);
+
+            // Recompute range's end point.
+            to = std::max(sibling->first.mEnd, to);
+
+            // Return effective range to caller.
+            return FileRange(from, to);
+        }
 
         // Range may have a right sibling.
         auto candidate = mRanges.crbegin();
 
-        // Range has a right sibling.
-        if (candidate != mRanges.crend())
-            to = std::max(candidate->first.mEnd, to);
+        // Range doesn't have a right sibling.
+        if (candidate == mRanges.crend())
+            return FileRange(from, to);
+
+        // Recompute range's end point .
+        to = std::max(candidate->first.mEnd, to);
 
         // Return effective range to caller.
         return FileRange(from, to);
