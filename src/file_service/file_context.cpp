@@ -498,7 +498,10 @@ bool FileContext::execute(FileFetchRequest& request)
     lock.unlock();
 
     // Try and read all of the file's data.
-    read(FileReadRequest{std::bind(*mFetchContext, mFetchContext, std::placeholders::_1),
+    read(FileReadRequest{std::bind(&FetchContext::operator(),
+                                   mFetchContext.get(),
+                                   mFetchContext,
+                                   std::placeholders::_1),
                          FileRange(0, UINT64_MAX)});
 
     // Let the caller know the request's been executed.
@@ -1068,8 +1071,9 @@ void FileContext::FetchContext::operator()(FetchContextPtr& context,
     auto length = UINT64_MAX - offset;
 
     // Try and read the rest of the file's data.
-    mContext.read(FileReadRequest{std::bind(*this, std::move(context), std::placeholders::_1),
-                                  FileRange(offset, offset + length)});
+    mContext.read(FileReadRequest{
+        std::bind(&FetchContext::operator(), this, std::move(context), std::placeholders::_1),
+        FileRange(offset, offset + length)});
 }
 
 void FileContext::FetchContext::queue(FileFetchRequest request)
