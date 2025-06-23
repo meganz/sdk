@@ -12366,12 +12366,29 @@ MegaContactRequestList* MegaApiImpl::getOutgoingContactRequests() const
     return new MegaContactRequestListPrivate(vContactRequests.data(), int(vContactRequests.size()));
 }
 
-int MegaApiImpl::getAccess(MegaNode* megaNode)
+int MegaApiImpl::getAccess(const std::variant<MegaNode*, MegaHandle>& nodeOrNodeHandle)
 {
-    if(!megaNode) return MegaShare::ACCESS_UNKNOWN;
+    MegaHandle nodeHandle{INVALID_HANDLE};
+
+    if (auto node = std::get_if<MegaNode*>(&nodeOrNodeHandle))
+    {
+        if (*node)
+        {
+            nodeHandle = (*node)->getHandle();
+        }
+    }
+    else if (auto handle = std::get_if<MegaHandle>(&nodeOrNodeHandle))
+    {
+        nodeHandle = *handle;
+    }
+
+    if (nodeHandle == INVALID_HANDLE)
+    {
+        return MegaShare::ACCESS_UNKNOWN;
+    }
 
     SdkMutexGuard g(sdkMutex);
-    std::shared_ptr<Node> node = client->nodebyhandle(megaNode->getHandle());
+    std::shared_ptr<Node> node = client->nodebyhandle(nodeHandle);
     if(!node)
     {
         return MegaShare::ACCESS_UNKNOWN;

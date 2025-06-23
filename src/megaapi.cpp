@@ -4217,6 +4217,11 @@ int MegaApi::getAccess(MegaNode* megaNode)
     return pImpl->getAccess(megaNode);
 }
 
+int MegaApi::getAccess(MegaHandle handle)
+{
+    return pImpl->getAccess(handle);
+}
+
 void MegaApi::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
 {
     pImpl->getRecentActionsAsync(days, maxnodes, listener);

@@ -4215,7 +4215,7 @@ public:
         MegaContactRequestList* getIncomingContactRequests() const;
         MegaContactRequestList* getOutgoingContactRequests() const;
 
-        int getAccess(MegaNode* node);
+        int getAccess(const std::variant<MegaNode*, MegaHandle>& nodeOrNodeHandle);
         long long getSize(MegaNode *node);
         static void removeRecursively(const char *path);
 
