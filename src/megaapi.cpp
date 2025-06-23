@@ -3542,6 +3542,16 @@ void MegaApi::setMaxConnections(int connections, MegaRequestListener *listener)
     pImpl->setMaxConnections(-1,  connections, listener);
 }
 
+void MegaApi::getMaxUploadConnections(MegaRequestListener* const listener)
+{
+    pImpl->getMaxUploadConnections(listener);
+}
+
+void MegaApi::getMaxDownloadConnections(MegaRequestListener* const listener)
+{
+    pImpl->getMaxDownloadConnections(listener);
+}
+
 void MegaApi::setDownloadMethod(int method)
 {
     pImpl->setDownloadMethod(method);

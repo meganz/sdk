@@ -2037,8 +2037,15 @@ MegaClient::MegaClient(MegaApp* a,
 
     userid = 0;
 
+#if defined(__ANDROID__) || defined(USE_IOS)
     connections[PUT] = 3;
     connections[GET] = 4;
+#else
+    connections[PUT] = 8;
+    connections[GET] = 8;
+#endif
+    LOG_debug << clientname << "MegaClient initial max connections: uploads = " << connections[PUT]
+              << ", downloads = " << connections[GET];
 
     reqtag = 0;
 
@@ -18659,6 +18666,9 @@ void MegaClient::setmaxconnections(direction_t d, int num)
 
         if (connections[d] != num)
         {
+            LOG_debug << "[MegaClient::setmaxconnections] Set max parallel "
+                      << connDirectionToStr(d) << " connections per transfer to " << num
+                      << " [prev: " << connections[d] << "]";
             connections[d] = (unsigned char)num;
             for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
             {
