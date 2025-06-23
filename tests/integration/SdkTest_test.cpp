@@ -1360,39 +1360,50 @@ void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
 }
 
 #ifdef ENABLE_SYNC
-void SdkTest::purgeVaultTree(unsigned int apiIndex, MegaNode *vault)
+void SdkTest::purgeVaultTree(unsigned int apiIndex, MegaNode* vault)
 {
     std::unique_ptr<MegaNodeList> vc{megaApi[apiIndex]->getChildren(vault)};
-    if (vc->size())
+    EXPECT_LE(vc->size(), MAX_VAULT_CHILDREN)
+        << "purgeVaultTree: Vault node contains more than " << MAX_VAULT_CHILDREN << " children";
+
+    const auto getVaultNodeHandle = [this, &apiIndex](const int type) -> MegaHandle
     {
-        if (MegaNode* myBackups = vc->get(0))
+        RequestTracker rt{megaApi[apiIndex].get()};
+        megaApi[apiIndex]->getUserAttribute(type, &rt);
+        return rt.waitForResult() == API_OK ? rt.request->getNodeHandle() : UNDEF;
+    };
+
+    MegaHandle hBackups = getVaultNodeHandle(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+    if (auto myBackups = std::unique_ptr<MegaNode>{megaApi[apiIndex]->getNodeByHandle(hBackups)};
+        myBackups)
+    {
+        std::unique_ptr<MegaNodeList> devices{megaApi[apiIndex]->getChildren(myBackups.get())};
+        for (int i = 0; i < devices->size(); ++i)
         {
-            std::unique_ptr<MegaNodeList> devices{megaApi[apiIndex]->getChildren(myBackups)};
-            for (int i = 0; i < devices->size(); ++i)
+            std::unique_ptr<MegaNodeList> backupRoots{
+                megaApi[apiIndex]->getChildren(devices->get(i))};
+            for (int j = 0; j < backupRoots->size(); ++j)
             {
-                std::unique_ptr<MegaNodeList> backupRoots{megaApi[apiIndex]->getChildren(devices->get(i))};
-                for (int j = 0; j < backupRoots->size(); ++j)
-                {
-                    RequestTracker rt(megaApi[apiIndex].get());
-                    megaApi[apiIndex]->moveOrRemoveDeconfiguredBackupNodes(backupRoots->get(j)->getHandle(), INVALID_HANDLE, &rt);
-                    rt.waitForResult();
-                }
+                RequestTracker rt(megaApi[apiIndex].get());
+                const auto backup = backupRoots->get(j);
+                megaApi[apiIndex]->moveOrRemoveDeconfiguredBackupNodes(backup->getHandle(),
+                                                                       INVALID_HANDLE,
+                                                                       &rt);
+                EXPECT_EQ(rt.waitForResult(), API_OK)
+                    << "purgeVaultTree: Could not remove Backup, " << backup->getName() << "("
+                    << Base64Str<MegaClient::NODEHANDLE>(backup->getHandle()) << ")";
             }
         }
     }
 
     // Get password manager base with user attribute instead of MegaApi::getPasswordManagerBase to
     // avoid create password manager base if it doesn't exist
-    RequestTracker rt{megaApi[apiIndex].get()};
-    megaApi[apiIndex]->getUserAttribute(MegaApi::USER_ATTR_PWM_BASE, &rt);
-    if (rt.waitForResult() == API_OK)
+    MegaHandle pwdBaseHandle = getVaultNodeHandle(MegaApi::USER_ATTR_PWM_BASE);
+    if (auto passwordManagerBase =
+            std::unique_ptr<MegaNode>{megaApi[apiIndex]->getNodeByHandle(pwdBaseHandle)};
+        passwordManagerBase)
     {
-        MegaHandle h{rt.request->getNodeHandle()};
-        std::unique_ptr<MegaNode> passwordManagerBase{megaApi[apiIndex]->getNodeByHandle(h)};
-        if (passwordManagerBase)
-        {
-            purgeTree(apiIndex, passwordManagerBase.get());
-        }
+        purgeTree(apiIndex, passwordManagerBase.get());
     }
 }
 #endif

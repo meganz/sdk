@@ -630,6 +630,7 @@ public:
         shared_ptr<const MegaStringTable> stringTable;
     };
 
+    constexpr static unsigned MAX_VAULT_CHILDREN = 2;
     std::vector<PerApi> mApi;
     std::vector<MegaApiTestPointer> megaApi;
 
