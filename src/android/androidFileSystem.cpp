@@ -26,6 +26,17 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
         return;
     }
 
+    auto data = URIDataCache.get(mURI);
+    if (data.has_value() && data->mJavaObject.get())
+    {
+        mJavaObject = data->mJavaObject;
+        return;
+    }
+    else if (!data.has_value())
+    {
+        data = URIData();
+    }
+
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID getAndroidFileMethod = env->GetStaticMethodID(
@@ -47,24 +58,18 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
 
     if (temporalObject != nullptr)
     {
-        mAndroidFileObject = env->NewGlobalRef(temporalObject);
+        mJavaObject = std::make_shared<JavaObject>(env->NewGlobalRef(temporalObject));
+        data->mJavaObject = mJavaObject;
         env->DeleteLocalRef(temporalObject);
+        setUriData(data.value());
     }
 }
 
-AndroidFileWrapper::AndroidFileWrapper(jobject fileWrapper):
-    mAndroidFileObject(fileWrapper)
+AndroidFileWrapper::AndroidFileWrapper(std::shared_ptr<JavaObject> javaObject):
+    mJavaObject(javaObject)
 {}
 
-AndroidFileWrapper::~AndroidFileWrapper()
-{
-    if (mAndroidFileObject)
-    {
-        JNIEnv* env{nullptr};
-        MEGAjvm->AttachCurrentThread(&env, NULL);
-        env->DeleteGlobalRef(mAndroidFileObject);
-    }
-}
+AndroidFileWrapper::~AndroidFileWrapper() {}
 
 int AndroidFileWrapper::getFileDescriptor(bool write)
 {
@@ -86,7 +91,7 @@ int AndroidFileWrapper::getFileDescriptor(bool write)
         return -1;
     }
 
-    jobject fileDescriptorObj = env->CallObjectMethod(mAndroidFileObject, methodID, write);
+    jobject fileDescriptorObj = env->CallObjectMethod(mJavaObject->mObj, methodID, write);
     if (fileDescriptorObj && integerClass)
     {
         jmethodID intValueMethod = env->GetMethodID(integerClass, "intValue", "()I");
@@ -129,8 +134,8 @@ bool AndroidFileWrapper::isFolder()
         return false;
     }
 
-    data->mIsFolder = env->CallBooleanMethod(mAndroidFileObject, methodID);
-    URIDataCache.put(mURI, data.value());
+    data->mIsFolder = env->CallBooleanMethod(mJavaObject->mObj, methodID);
+    setUriData(data.value());
     return data->mIsFolder.value();
 }
 
@@ -165,7 +170,7 @@ bool AndroidFileWrapper::isURI()
 
     data->mIsURI =
         !env->CallStaticBooleanMethod(fileWrapper, methodID, env->NewStringUTF(mURI.c_str()));
-    URIDataCache.put(mURI, data.value());
+    setUriData(data.value());
     return data->mIsURI.value();
 }
 
@@ -197,11 +202,11 @@ std::string AndroidFileWrapper::getName()
         return "";
     }
 
-    jstring name = static_cast<jstring>(env->CallObjectMethod(mAndroidFileObject, methodID));
+    jstring name = static_cast<jstring>(env->CallObjectMethod(mJavaObject->mObj, methodID));
 
     const char* nameStr = env->GetStringUTFChars(name, nullptr);
     data->mName = nameStr;
-    URIDataCache.put(mURI, data.value());
+    setUriData(data.value());
     env->ReleaseStringUTFChars(name, nameStr);
     return data->mName.value();
 }
@@ -224,7 +229,7 @@ std::vector<std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::getChildren
         return {};
     }
 
-    jobject childrenUris = env->CallObjectMethod(mAndroidFileObject, methodID);
+    jobject childrenUris = env->CallObjectMethod(mJavaObject->mObj, methodID);
     jclass listClass = env->FindClass("java/util/List");
     jmethodID sizeMethod = env->GetMethodID(listClass, "size", "()I");
     jmethodID getMethod = env->GetMethodID(listClass, "get", "(I)Ljava/lang/Object;");
@@ -308,7 +313,7 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::s
     }
 
     jstring jname{env->NewStringUTF(childName.c_str())};
-    jobject temporalObject{env->CallObjectMethod(mAndroidFileObject, methodID, jname, isFolder)};
+    jobject temporalObject{env->CallObjectMethod(mJavaObject->mObj, methodID, jname, isFolder)};
     env->DeleteLocalRef(jname);
     jobject globalObject{nullptr};
     if (temporalObject != nullptr)
@@ -322,7 +327,8 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::s
         return nullptr;
     }
 
-    return std::shared_ptr<AndroidFileWrapper>(new AndroidFileWrapper(globalObject));
+    return std::shared_ptr<AndroidFileWrapper>(
+        new AndroidFileWrapper(std::make_shared<JavaObject>(globalObject)));
 }
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getChildByName(const std::string& name)
@@ -341,7 +347,7 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getChildByName(const std
 
     jstring jname{env->NewStringUTF(name.c_str())};
     jstring uriString =
-        static_cast<jstring>(env->CallObjectMethod(mAndroidFileObject, methodID, jname));
+        static_cast<jstring>(env->CallObjectMethod(mJavaObject->mObj, methodID, jname));
     env->DeleteLocalRef(jname);
     if (!uriString)
     {
@@ -371,7 +377,7 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getParent() const
         return nullptr;
     }
 
-    jobject temporalObject = env->CallObjectMethod(mAndroidFileObject, methodID);
+    jobject temporalObject = env->CallObjectMethod(mJavaObject->mObj, methodID);
     jobject globalObject{nullptr};
     if (temporalObject != nullptr)
     {
@@ -384,7 +390,8 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getParent() const
         return nullptr;
     }
 
-    return std::shared_ptr<AndroidFileWrapper>(new AndroidFileWrapper(globalObject));
+    return std::shared_ptr<AndroidFileWrapper>(
+        new AndroidFileWrapper(std::make_shared<JavaObject>(globalObject)));
 }
 
 std::optional<std::string> AndroidFileWrapper::getPath()
@@ -415,7 +422,7 @@ std::optional<std::string> AndroidFileWrapper::getPath()
         return std::nullopt;
     }
 
-    jstring pathString = static_cast<jstring>(env->CallObjectMethod(mAndroidFileObject, methodID));
+    jstring pathString = static_cast<jstring>(env->CallObjectMethod(mJavaObject->mObj, methodID));
     if (!pathString)
     {
         return std::nullopt;
@@ -428,7 +435,7 @@ std::optional<std::string> AndroidFileWrapper::getPath()
     }
 
     data->mPath = chars;
-    URIDataCache.put(mURI, data.value());
+    setUriData(data.value());
     env->ReleaseStringUTFChars(pathString, chars);
     env->DeleteLocalRef(pathString);
     return data->mPath.value();
@@ -447,7 +454,7 @@ bool AndroidFileWrapper::deleteFile()
         return false;
     }
 
-    return env->CallBooleanMethod(mAndroidFileObject, methodID);
+    return env->CallBooleanMethod(mJavaObject->mObj, methodID);
 }
 
 bool AndroidFileWrapper::deleteEmptyFolder()
@@ -463,7 +470,7 @@ bool AndroidFileWrapper::deleteEmptyFolder()
         return false;
     }
 
-    return env->CallBooleanMethod(mAndroidFileObject, methodID);
+    return env->CallBooleanMethod(mJavaObject->mObj, methodID);
 }
 
 bool AndroidFileWrapper::rename(const std::string& newName)
@@ -483,12 +490,12 @@ bool AndroidFileWrapper::rename(const std::string& newName)
     }
 
     jstring jnewName = env->NewStringUTF(newName.c_str());
-    jobject temporalObject = env->CallObjectMethod(mAndroidFileObject, methodID, jnewName);
+    jobject temporalObject = env->CallObjectMethod(mJavaObject->mObj, methodID, jnewName);
     env->DeleteLocalRef(jnewName);
     if (temporalObject != nullptr)
     {
-        env->DeleteGlobalRef(mAndroidFileObject);
-        mAndroidFileObject = env->NewGlobalRef(temporalObject);
+        env->DeleteGlobalRef(mJavaObject->mObj);
+        mJavaObject->mObj = env->NewGlobalRef(temporalObject);
         env->DeleteLocalRef(temporalObject);
         return true;
     }
@@ -560,7 +567,7 @@ std::shared_ptr<AndroidFileWrapper>
 
 bool AndroidFileWrapper::exists()
 {
-    return mAndroidFileObject != nullptr;
+    return mJavaObject->mObj != nullptr;
 }
 
 std::shared_ptr<AndroidFileWrapper>
@@ -572,6 +579,13 @@ std::shared_ptr<AndroidFileWrapper>
     return androidFileWrapperNew;
 }
 
+void AndroidFileWrapper::setUriData(const URIData& uriData)
+{
+    if (mURI.size())
+    {
+        URIDataCache.put(mURI, uriData);
+    }
+}
 AndroidPlatformURIHelper::AndroidPlatformURIHelper()
 {
     URIHandler::setPlatformHelper(this);

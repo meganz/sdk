@@ -80,9 +80,38 @@ public:
                                                                      bool lastIsFolder);
 
 private:
+    class JavaObject
+    {
+    public:
+        // Note: it should be global reference
+        JavaObject(jobject obj):
+            mObj(obj)
+        {}
+
+        ~JavaObject()
+        {
+            JNIEnv* env{nullptr};
+            MEGAjvm->AttachCurrentThread(&env, NULL);
+            env->DeleteGlobalRef(mObj);
+        }
+
+        jobject mObj;
+    };
+
+    class URIData
+    {
+    public:
+        std::optional<bool> mIsURI;
+        std::optional<bool> mIsFolder;
+        std::optional<std::string> mName;
+        std::optional<std::string> mPath;
+        std::shared_ptr<JavaObject> mJavaObject;
+    };
+
     AndroidFileWrapper(const std::string& path);
-    AndroidFileWrapper(jobject fileWrapper);
-    jobject mAndroidFileObject{nullptr};
+    AndroidFileWrapper(std::shared_ptr<JavaObject>);
+    std::shared_ptr<JavaObject> mJavaObject;
+
     std::string mURI;
     static constexpr char GET_ANDROID_FILE[] = "getFromUri";
     static constexpr char GET_FILE_DESCRIPTOR[] = "getFileDescriptor";
@@ -99,14 +128,7 @@ private:
     static constexpr char DELETE_EMPTY_FOLDER[] = "deleteFolderIfEmpty";
     static constexpr char RENAME[] = "rename";
 
-    class URIData
-    {
-    public:
-        std::optional<bool> mIsURI;
-        std::optional<bool> mIsFolder;
-        std::optional<std::string> mName;
-        std::optional<std::string> mPath;
-    };
+    void setUriData(const URIData& uriData);
 
     static LRUCache<std::string, URIData> URIDataCache;
 };
