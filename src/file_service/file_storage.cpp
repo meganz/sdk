@@ -37,10 +37,10 @@ FileAccessPtr FileStorage::openFile(const LocalPath& path, bool mustCreate)
                        mustCreate ? "create" : "open",
                        path.toPath(false).c_str());
 
-    // Try and mark the file as a sparse file.
-    if (!file->setSparse())
-        FSWarningF("Couldn't mark file %s as a sparse file", path.toPath(false).c_str());
+    // Mark the file as a sparse file if supported.
+    file->setSparse();
 
+    // Return the file to our caller.
     return file;
 }
 
