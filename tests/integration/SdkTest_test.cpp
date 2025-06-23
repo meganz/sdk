@@ -3395,20 +3395,9 @@ TEST_F(SdkTest, SdkTestUndelete)
     LOG_info << "___TEST Undelete___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-
-    // --- Validate the account ---
-    RequestTracker accDetailsTracker(megaApi[0].get());
-    megaApi[0]->getAccountDetails(&accDetailsTracker);
-    ASSERT_EQ(accDetailsTracker.waitForResult(), API_OK) << "Failed to get account details";
-    std::unique_ptr<MegaAccountDetails> accDtls(accDetailsTracker.request->getMegaAccountDetails());
-    ASSERT_TRUE(accDtls) << "Missing account details";
-    if (accDtls->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE)
-    {
-        string msg = "Skipped: actual test cannot be performed because account " + mApi[0].email + " does not have PRO level";
-        cout << msg << endl;
-        LOG_warn << msg;
-        return;
-    }
+    LOG_info << "# Set " << megaApi[0]->getMyEmail() << " account to Pro I plan";
+    auto restorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer), API_OK);
 
     LOG_info << cwd();
 
