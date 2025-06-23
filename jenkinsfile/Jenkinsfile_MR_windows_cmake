@@ -210,7 +210,7 @@ pipeline {
                                         rm gfxworker_test_integration.log
                                     )
                                     if %ERRORLEVEL% NEQ 0 exit 1
-                                    tests\\\\integration\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL}
+                                    tests\\\\integration\\\\Debug\\\\test_integration.exe --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL}
                                     if %ERRORLEVEL% NEQ 0 (
                                         set ERROR_VAL=1
                                         if "${TESTS_PARALLEL}"=="" (
