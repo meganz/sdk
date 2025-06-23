@@ -195,7 +195,6 @@ protected:
 
 private:
     bool mFollowSymLinks = true;
-
 };
 
 #ifdef __linux__

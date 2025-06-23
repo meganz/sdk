@@ -518,8 +518,17 @@ bool PosixFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset
     // Reads are never retriable on POSIX systems.
     *cretry = false;
 
+#ifdef __ANDROID__
+    // Couldn't set the file's position.
+    if (lseek64(fd, offset, SEEK_SET) < 0)
+        return false;
+
+    // Perform the read.
+    auto result = read(fd, buffer, length);
+#else // __ANDROID__
     // Perform the read.
     auto result = pread(fd, buffer, length, offset);
+#endif // ! __ANDROID__
 
     // Read failed.
     if (result < 0)
@@ -569,8 +578,17 @@ bool PosixFileAccess::fwrite(const void* buffer,
     // Write failures are not retriable on POSIX systems.
     *cretry = false;
 
+#ifdef __ANDROID__
+    // Couldn't set the file's position.
+    if (lseek64(fd, offset, SEEK_SET) < 0)
+        return false;
+
+    // Try and perform the write.
+    auto result = write(fd, buffer, length);
+#else // __ANDROID__
     // Try and perform the write.
     auto result = pwrite(fd, buffer, length, offset);
+#endif // ! __ANDROID__
 
     // Couldn't perform the write.
     if (result < 0)
