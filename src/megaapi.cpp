@@ -2978,6 +2978,14 @@ void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, dou
     pImpl->setNodeCoordinates(node, true, latitude, longitude, listener);
 }
 
+void MegaApi::setUnshareableNodeCoordinates(MegaHandle nodeHandle,
+                                            double latitude,
+                                            double longitude,
+                                            MegaRequestListener* listener)
+{
+    pImpl->setNodeCoordinates(nodeHandle, true, latitude, longitude, listener);
+}
+
 void MegaApi::setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener)
 {
     pImpl->setNodeDescription(node, description, listener);

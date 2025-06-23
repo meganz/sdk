@@ -47,7 +47,7 @@ Ensure you have installed Visual Studio, with the necessary components for build
 
  - [Visual Studio 2022](https://visualstudio.microsoft.com/vs/)
  - MSVC v142
- - Windows 10 SDK (10.0.19041.0)
+ - Windows 10 SDK (10.0.22621.0)
 
 #### MacOS
 
@@ -137,8 +137,8 @@ To run the example app `megacli`, go to the `examples/megacli` directory in the 
 
 - Arch
 - Debian 11
-- Fedora 38
-- OpenSUSE Leap 15.5
+- Fedora 40
+- OpenSUSE Leap 15.6
 - Raspberry Pi OS Lite (Debian 11)
 - Ubuntu 20.04 LTS
 
@@ -153,8 +153,8 @@ To run the example app `megacli`, go to the `examples/megacli` directory in the 
 
 ### Windows
 
-- Windows 7
-- Windows Server 2008
+- Windows 8
+- Windows Server 2012
 
 ## Usage
 

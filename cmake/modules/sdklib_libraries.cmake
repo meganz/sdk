@@ -60,7 +60,7 @@ macro(load_sdklib_libraries)
 
         if(USE_LIBUV)
             find_package(libuv REQUIRED)
-            target_link_libraries(SDKlib PRIVATE $<IF:$<TARGET_EXISTS:uv_a>,uv_a,uv>)
+            target_link_libraries(SDKlib PRIVATE $<IF:$<TARGET_EXISTS:libuv::uv_a>,libuv::uv_a,libuv::uv>)
             set(HAVE_LIBUV 1)
         endif()
 

@@ -2751,39 +2751,53 @@ unsigned StandardClient::deleteTestBaseFolder(bool mayNeedDeleting)
     return result.get();
 }
 
-void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, PromiseUnsignedSP result)
+void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting,
+                                          bool deleted,
+                                          PromiseUnsignedSP result)
 {
-    if (std::shared_ptr<Node> root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
+    std::shared_ptr<Node> root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles());
+    if (!root)
     {
-        std::shared_ptr<Node> basenode = client.childnodebyname(root.get(), "mega_test_sync", false);
-        if (basenode && !basenode->changed.removed) // ensure it isn't already marked as removed
-        {
-            if (mayNeedDeleting)
-            {
-                auto completion = [this, result](NodeHandle, Error e) {
-                    EXPECT_EQ(e, API_OK);
-                    if (e) out() << "delete of test base folder reply reports: " << e;
-                    deleteTestBaseFolder(false, true, result);
-                };
-
-                resultproc.prepresult(COMPLETION, ++next_request_tag,
-                    [=](){ client.unlink(basenode.get(), false, 0, false, std::move(completion)); },
-                    nullptr);
-                return;
-            }
-            out() << "base folder found, but not expected, failing";
-            result->set_value(0);
-            return;
-        }
-        else
-        {
-            //out() << "base folder not found, wasn't present or delete successful";
-            result->set_value(deleted ? 2 : 1);
-            return;
-        }
+        out() << "err: deleteTestBaseFolder. base folder not found, as root was not found!";
+        result->set_value(0);
+        return;
     }
-    out() << "base folder not found, as root was not found!";
-    result->set_value(0);
+
+    if (std::shared_ptr<Node> basenode =
+            client.childnodebyname(root.get(), "mega_test_sync", false);
+        basenode && !basenode->changed.removed) // ensure it isn't already marked as removed
+    {
+        if (mayNeedDeleting)
+        {
+            auto completion = [this, result](NodeHandle, Error e)
+            {
+                EXPECT_EQ(e, API_OK);
+                if (e)
+                    out()
+                        << "debug: deleteTestBaseFolder. delete of test base folder reply reports: "
+                        << e;
+                deleteTestBaseFolder(false /*mayNeedDeleting*/, true /*deleted*/, result);
+            };
+
+            resultproc.prepresult(
+                COMPLETION,
+                ++next_request_tag,
+                [=]()
+                {
+                    client.unlink(basenode.get(), false, 0, false, std::move(completion));
+                },
+                nullptr);
+            return;
+        }
+
+        out() << "err: deleteTestBaseFolder. base folder found, but not expected, failing";
+        result->set_value(0);
+        return;
+    }
+
+    out() << "debug: deleteTestBaseFolder. base folder not found, wasn't present or delete "
+             "successful";
+    result->set_value(deleted ? 2 : 1);
 }
 
 void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
@@ -5840,6 +5854,38 @@ vector<SyncWaitResult> waitonsyncs(WaitOnSyncsEndCondition&& endCondition,
             return result;
         }
     }
+}
+
+void printStallIssues(StandardClient& sc)
+{
+    SyncStallInfoTests stalls;
+    sc.stallsDetected(stalls);
+    auto printStallIssue = [](const bool local, const std::string& pathstr, SyncStallEntry& stall)
+    {
+        LOG_debug << "[Stall issue - " << (local ? "waitingForLocal" : "waitingForCloud")
+                  << "]: " << pathstr << "\n\t\t- Reason (" << static_cast<unsigned>(stall.reason)
+                  << ")"
+                  << "\n\t\t- cloudPath1 (" << stall.cloudPath1.debugReport() << ")"
+                  << "\n\t\t- cloudPath2 (" << stall.cloudPath2.debugReport() << ")"
+                  << "\n\t\t- localPath1 (" << stall.localPath1.debugReport() << ")"
+                  << "\n\t\t- localPath2 (" << stall.localPath2.debugReport() << ")";
+    };
+
+    LOG_debug << "Printing cloud stall issues:";
+    std::for_each(stalls.cloud.begin(),
+                  stalls.cloud.end(),
+                  [&printStallIssue](auto& s)
+                  {
+                      printStallIssue(true, s.first, s.second);
+                  });
+
+    LOG_debug << "Printing local stall issues:";
+    std::for_each(stalls.local.begin(),
+                  stalls.local.end(),
+                  [&printStallIssue](auto& s)
+                  {
+                      printStallIssue(true, s.first.toPath(false), s.second);
+                  });
 }
 
 vector<SyncWaitResult> waitonsyncs(const std::chrono::seconds timeout = std::chrono::seconds(4),
@@ -12109,7 +12155,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     string sessionID;
 
     // Sync Backup ID.
-    handle id;
+    handle id{UNDEF};
 
     // Sync Root Handle.
     NodeHandle rootHandle;
@@ -12151,15 +12197,24 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Disable the sync when it starts uploading a file.
-        cb.mOnFileAdded = [&cb, &id](File&)
+        cb.mOnFileAdded = [&cb, &id, &TIMEOUT](File&)
         {
             // the upload has been set super slow so there's loads of time.
 
             // get the single sync
             SyncConfig config;
-            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config))
+
+            const auto getBackupResult = cb.waitFor(
+                [&id, &config](StandardClient& backupClient)
+                {
+                    return id != UNDEF &&
+                           backupClient.client.syncs.syncConfigByBackupId(id, config);
+                },
+                TIMEOUT);
+
+            ASSERT_TRUE(getBackupResult)
                 << "BackupId: " << id
-                << ". SyncVec is empty: " << (cb.client.syncs.mNumSyncsActive > 0);
+                << ". SyncVec is empty: " << (cb.client.syncs.mNumSyncsActive == 0);
 
             // Make sure the sync's in mirroring mode.
             ASSERT_EQ(config.mBackupId, id);
@@ -19393,7 +19448,11 @@ TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
 
     // Wait for the synchronization to complete.
     auto waitResult = waitonsyncs(std::chrono::seconds(5), client);
-    ASSERT_TRUE(noSyncStalled(waitResult));
+    if (auto stallsDetected = !noSyncStalled(waitResult); stallsDetected)
+    {
+        printStallIssues(*client);
+        ASSERT_TRUE(!stallsDetected) << "stall issues detected";
+    }
 
     Model model;
     model.addfile(name1)->fsName(name2);

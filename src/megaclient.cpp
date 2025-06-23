@@ -47,6 +47,10 @@
 #undef min // avoid issues with std::min and std::max
 #undef max
 
+#ifdef __ANDROID__
+#include "mega/android/androidFileSystem.h"
+#endif
+
 namespace mega {
 
 // FIXME: generate cr element for file imports
@@ -824,25 +828,26 @@ bool MegaClient::setlang(string *code)
 // -- MegaClient JourneyID methods --
 string MegaClient::getJourneyId() const
 {
-    return mJourneyId.getValue();
+    return mJourneyId->getValue();
 }
 
 bool MegaClient::trackJourneyId() const
 {
-    return !getJourneyId().empty() && mJourneyId.isTrackingOn();
+    return !getJourneyId().empty() && mJourneyId->isTrackingOn();
 }
 
 // Load the JourneyID values from the local cache.
 bool MegaClient::loadJourneyIdCacheValues()
 {
-    return mJourneyId.loadValuesFromCache();
+    return mJourneyId->loadValuesFromCache();
 }
 
 bool MegaClient::setJourneyId(const string& jid)
 {
-    if (mJourneyId.setValue(jid))
+    if (mJourneyId->setValue(jid))
     {
-        LOG_debug << "[MegaClient::setJourneyID] Set journeyID from string = '" << jid << "') [tracking: " << mJourneyId.isTrackingOn() << "]";
+        LOG_debug << "[MegaClient::setJourneyID] Set journeyID from string = '" << jid
+                  << "') [tracking: " << mJourneyId->isTrackingOn() << "]";
         return true;
     }
     return false;
@@ -1881,30 +1886,49 @@ void MegaClient::init()
     mLastKnownCapacity = -1;
 }
 
-MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount, ClientType clientType)
-   : mAsyncQueue(*w, workerThreadCount)
-   , mCachedStatus(this)
-   , useralerts(*this)
-   , btugexpiration(rng)
-   , btcs(rng)
-   , btbadhost(rng)
-   , btworkinglock(rng)
-   , btreqstat(rng)
-   , btsc(rng)
-   , btpfa(rng)
-   , fsaccess(new FSACCESS_CLASS())
-   , dbaccess(d)
-   , mNodeManager(*this)
+MegaClient::MegaClient(MegaApp* a,
+                       shared_ptr<Waiter> w,
+                       HttpIO* h,
+                       DbAccess* d,
+                       GfxProc* g,
+                       const char* k,
+                       const char* u,
+                       unsigned workerThreadCount,
+                       ClientType clientType):
+    mAsyncQueue(*w, workerThreadCount),
+    mCachedStatus(this),
+    useralerts(*this),
+    btugexpiration(rng),
+    btcs(rng),
+    btbadhost(rng),
+    btworkinglock(rng),
+    btreqstat(rng),
+    btsc(rng),
+    btpfa(rng),
+    fsaccess(new FSACCESS_CLASS()),
+    dbaccess(d),
+    mNodeManager(*this),
 #ifdef ENABLE_SYNC
-    , syncs(*this)
+    syncs(*this),
 #endif
-   , reqs(rng)
-   , mKeyManager(*this)
-   , mClientType(clientType)
-   , mJourneyId(fsaccess, dbaccess ? dbaccess->rootPath() : LocalPath())
-   , mFuseClientAdapter(*this)
-   , mFuseService(mFuseClientAdapter)
+    reqs(rng),
+    mKeyManager(*this),
+    mClientType(clientType),
+    mJourneyId(),
+    mFuseClientAdapter(*this),
+    mFuseService(mFuseClientAdapter)
 {
+#ifdef __ANDROID__
+    if (!AndroidFileSystemAccess::isFileWrapperActive(fsaccess.get()))
+    {
+        LOG_verbose << "[MegaClient::MegaClient] replacing AndroidFileSystemAccess by "
+                       "LinuxFileSystemAccess due to missing FileWrapper in JNI";
+        fsaccess = std::make_unique<LinuxFileSystemAccess>();
+    }
+#endif
+    mJourneyId =
+        std::make_unique<JourneyID>(fsaccess, dbaccess ? dbaccess->rootPath() : LocalPath());
+
     mNodeManager.reset();
     sctable.reset();
     pendingsccommit = false;
@@ -2204,23 +2228,29 @@ void MegaClient::exec()
                         LOG_warn << "Request failed (" << req->posturl << ") retrying ("
                                  << (req->numretry + 1) << " of " << req->maxretries << ")";
                         it++;
-                        app->notify_network_activity(NetworkActivityChannel::CS,
-                                                     NetworkActivityType::REQUEST_ERROR,
-                                                     req->httpstatus);
                         break;
                     }
+                    app->notify_network_activity(NetworkActivityChannel::CS,
+                                                 NetworkActivityType::REQUEST_ERROR,
+                                                 req->httpstatus == 0 ? API_EFAILED :
+                                                                        req->httpstatus);
+
                     // no retry -> fall through
                     // fall through
                 case REQ_SUCCESS:
+                {
                     restag = it->first;
+                    m_off_t actualLength = req->buf != nullptr || req->mChunked ?
+                                               req->bufpos :
+                                               static_cast<m_off_t>(req->in.size());
                     app->http_result(req->httpstatus ? API_OK : API_EFAILED,
                                      req->httpstatus,
                                      req->buf ? (byte*)req->buf : (byte*)req->in.data(),
-                                     req->buf ? static_cast<int>(req->bufpos) :
-                                                static_cast<int>(req->in.size()));
+                                     actualLength);
                     delete req;
                     pendinghttp.erase(it++);
                     break;
+                }
                 case REQ_PREPARED:
                     if (req->bt.armed())
                     {
@@ -2703,9 +2733,6 @@ void MegaClient::exec()
                         {
                             if (pendingcs->in == "-3")
                             {
-                                app->notify_network_activity(NetworkActivityChannel::CS,
-                                                             NetworkActivityType::REQUEST_RECEIVED,
-                                                             API_EAGAIN);
                                 reason = RETRY_API_LOCK;
                             }
                             else
@@ -2853,7 +2880,7 @@ void MegaClient::exec()
                     if (trackJourneyId())
                     {
                         pendingcs->posturl.append("&j=");
-                        pendingcs->posturl.append(mJourneyId.getValue());
+                        pendingcs->posturl.append(mJourneyId->getValue());
                     }
                     pendingcs->type = REQ_JSON;
 
@@ -3188,7 +3215,7 @@ void MegaClient::exec()
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
                 app->notify_network_activity(NetworkActivityChannel::SC,
-                                             NetworkActivityType::REQUEST_RECEIVED,
+                                             NetworkActivityType::REQUEST_SENT,
                                              API_OK);
             }
             jsonsc.pos = NULL;
@@ -4999,7 +5026,7 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
 
 void MegaClient::removeCaches()
 {
-    mJourneyId.resetCacheAndValues();
+    mJourneyId->resetCacheAndValues();
 
     if (sctable)
     {
@@ -11017,7 +11044,7 @@ error MegaClient::readmiscflags(JSON *json)
                     if (!trackJourneyId()) // If there is already a value and tracking flag is true, do nothing
                     {
                         LOG_verbose << "[MegaClient::readmiscflags] set jid: '" << jid << "'";
-                        mJourneyId.setValue(jid);
+                        mJourneyId->setValue(jid);
                     }
                 }
             }
@@ -11026,7 +11053,7 @@ error MegaClient::readmiscflags(JSON *json)
             if (!journeyIdFound && trackJourneyId()) // If there is no value or tracking flag is false, do nothing
             {
                 LOG_verbose << "[MegaClient::readmiscflags] No JourneyId found -> set tracking to false";
-                mJourneyId.setValue("");
+                mJourneyId->setValue("");
             }
             return API_OK;
         default:
@@ -15537,7 +15564,7 @@ void MegaClient::fatalError(ErrorReason errorReason)
             break;
         case ErrorReason::REASON_ERROR_UNKNOWN:
             reason = "Unknown fatal error";
-            sendevent(99489, reason.c_str(), 0);
+            sendevent(99496, reason.c_str(), 0);
             break;
         default:
             reason = "Unknown reason";
@@ -17331,7 +17358,7 @@ std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& new
 SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
                                                const handle backupIdToExclude) const
 {
-    if (!localPath.isAbsolute())
+    if (!localPath.isAbsolute() && !localPath.isURI())
         return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
 
     const auto rootPathWithoutEndingSeparator = std::invoke(

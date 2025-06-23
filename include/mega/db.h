@@ -321,6 +321,10 @@ struct MEGA_API DbAccess
     // Where are we storing our databases?
     virtual const LocalPath& rootPath() const = 0;
 
+    virtual bool renameDBFiles(FileSystemAccess& fsAccess,
+                               const LocalPath& legacyPath,
+                               const LocalPath& dbPath) = 0;
+
     int currentDbVersion;
 };
 

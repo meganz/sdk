@@ -14707,6 +14707,36 @@ class MegaApi
         void setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Set the GPS coordinates of media files as a node attribute that is private
+         *
+         * To remove the existing coordinates, set both the latitude and longitude to
+         * the value MegaNode::INVALID_COORDINATE.
+         *
+         * Compared to MegaApi::setNodeCoordinates, this function stores the coordinates with an
+         * extra layer of encryption which only this user can decrypt, so that even if this node is
+         * shared with others, they cannot read the coordinates.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_COORDINATES
+         * - MegaRequest::getNumDetails - Returns the longitude, scaled to integer in the range of
+         * [0, 2^24]
+         * - MegaRequest::getTransferTag() - Returns the latitude, scaled to integer in the range of
+         * [0, 2^24)
+         *
+         * @param nodeHandle Node handle of the node that will receive the information.
+         * @param latitude Latitude in signed decimal degrees notation
+         * @param longitude Longitude in signed decimal degrees notation
+         * @param listener MegaRequestListener to track this request
+         */
+        void setUnshareableNodeCoordinates(MegaHandle nodeHandle,
+                                           double latitude,
+                                           double longitude,
+                                           MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Set node description as a node attribute
          *
          * To remove node description, set description to NULL
@@ -18845,10 +18875,10 @@ class MegaApi
          * - MegaApi::ORDER_CREATION_DESC = 6
          * Sort by node creation time in MEGA, older elements last
          *
-         * - MegaApi::ORDER_SHARE_CREATION_ASC = 20
+         * - MegaApi::ORDER_SHARE_CREATION_ASC = 21
          * Sort by share creation time in MEGA, older elements first
          *
-         * - MegaApi::ORDER_SHARE_CREATION_DESC = 21
+         * - MegaApi::ORDER_SHARE_CREATION_DESC = 22
          * Sort by share creation time in MEGA, older elements last
          *
          * @return List of MegaShare objects
@@ -18922,10 +18952,10 @@ class MegaApi
          * - MegaApi::ORDER_CREATION_DESC = 6
          * Sort by node creation time in MEGA, older elements last
          *
-         * - MegaApi::ORDER_SHARE_CREATION_ASC = 20
+         * - MegaApi::ORDER_SHARE_CREATION_ASC = 21
          * Sort by share creation time in MEGA, older elements first
          *
-         * - MegaApi::ORDER_SHARE_CREATION_DESC = 21
+         * - MegaApi::ORDER_SHARE_CREATION_DESC = 22
          * Sort by share creation time in MEGA, older elements last
          *
          * @return List of MegaShare objects

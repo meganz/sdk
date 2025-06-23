@@ -24,6 +24,7 @@
 
 #include "mega.h"
 #include "mega/command.h"
+#include "mega/filesystem.h"
 #include "mega/gfx/external.h"
 #include "mega/heartbeats.h"
 #include "mega/totp.h"
@@ -50,6 +51,10 @@
 
 #if TARGET_OS_IPHONE
 #include "mega/gfx/GfxProcCG.h"
+#endif
+
+#ifdef __ANDROID__
+#include "mega/android/androidFileSystem.h"
 #endif
 
 #include "impl/share.h"
@@ -83,17 +88,17 @@ class MegaSemaphore : public CppSemaphore {};
 #endif
 
 #ifdef WIN32
-    class MegaHttpIO : public CurlHttpIO {};
-    class MegaFileSystemAccess : public WinFileSystemAccess {};
-    class MegaWaiter : public WinWaiter {};
+class MegaHttpIO: public CurlHttpIO
+{};
+
+class MegaWaiter: public WinWaiter
+{};
 #else
-    class MegaHttpIO : public CurlHttpIO {};
-    class MegaWaiter : public PosixWaiter {};
-    #ifdef __APPLE__
-    class MegaFileSystemAccess : public MacFileSystemAccess {};
-    #else
-    class MegaFileSystemAccess : public LinuxFileSystemAccess {};
-    #endif
+class MegaHttpIO: public CurlHttpIO
+{};
+
+class MegaWaiter: public PosixWaiter
+{};
 #endif
 
 #ifdef HAVE_LIBUV
@@ -1611,6 +1616,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setTransferredBytes(long long newByteCount);
         void setTotalBytes(long long newByteCount);
         void setPath(const char* newPath);
+        void setLocalPath(const LocalPath& newPath);
         void setParentPath(const char* newParentPath);
         void setNodeHandle(MegaHandle newNodeHandle);
         void setParentHandle(MegaHandle newParentHandle);
@@ -1718,6 +1724,8 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         MegaNode* getNodeToUndelete() const;
 
+        LocalPath getLocalPath() const;
+
         // for uploads, we fingerprint the file before queueing
         // as that way, it can be done without the main mutex locked
         error fingerprint_error = API_OK;
@@ -1768,6 +1776,7 @@ protected:
         const char* path;
         const char* parentPath; //used as targetUser for uploads
         const char* fileName;
+        LocalPath mLocalPath;
         char *lastBytes;
         MegaNode *publicNode;
         std::unique_ptr<MegaNode> nodeToUndelete;
@@ -1787,6 +1796,8 @@ protected:
         uint8_t mStage;
 
         bool mTargetOverride;
+
+        void updateLocalPathInternal(const LocalPath& newPath);
 
     public:
         // use shared_ptr here so callbacks can use a weak_ptr
@@ -3800,7 +3811,11 @@ class MegaApiImpl : public MegaApp
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener);
-        void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
+        void setNodeCoordinates(std::variant<MegaNode*, MegaHandle> nodeOrNodeHandle,
+                                bool unshareable,
+                                double latitude,
+                                double longitude,
+                                MegaRequestListener* listener = NULL);
         void setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener = NULL);
         void addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
         void removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
@@ -3878,9 +3893,35 @@ class MegaApiImpl : public MegaApp
         //Transfers
         void startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener* listener);
-        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener *listener, const FileFingerprint* preFingerprintedFile = nullptr);
+        MegaTransferPrivate*
+            createUploadTransfer(bool startFirst,
+                                 const LocalPath& localPath,
+                                 MegaNode* parent,
+                                 const char* fileName,
+                                 const char* targetUser,
+                                 int64_t mtime,
+                                 int folderTransferTag,
+                                 bool isBackup,
+                                 const char* appData,
+                                 bool isSourceFileTemporary,
+                                 bool forceNewUpload,
+                                 FileSystemType fsType,
+                                 CancelToken cancelToken,
+                                 MegaTransferListener* listener,
+                                 const FileFingerprint* preFingerprintedFile = nullptr);
         void startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener);
-        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener, FileSystemType fsType);
+        MegaTransferPrivate* createDownloadTransfer(bool startFirst,
+                                                    MegaNode* node,
+                                                    const LocalPath& localPath,
+                                                    const char* customName,
+                                                    int folderTransferTag,
+                                                    const char* appData,
+                                                    CancelToken cancelToken,
+                                                    int collisionCheck,
+                                                    int collisionResolution,
+                                                    bool undelete,
+                                                    MegaTransferListener* listener,
+                                                    FileSystemType fsType);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
@@ -4640,7 +4681,7 @@ public:
         MegaClient *client;
         MegaHttpIO *httpio;
         shared_ptr<MegaWaiter> waiter;
-        unique_ptr<MegaFileSystemAccess> fsAccess;
+        unique_ptr<FileSystemAccess> fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
         string basePath;
@@ -4649,7 +4690,7 @@ public:
         // for fingerprinting off-thread
         // one at a time is enough
         mutex fingerprintingFsAccessMutex;
-        MegaFileSystemAccess fingerprintingFsAccess;
+        unique_ptr<FileSystemAccess> fingerprintingFsAccess;
 
         mutex mLastRecievedLoggedMeMutex;
         sessiontype_t mLastReceivedLoggedInState = NOTLOGGEDIN;
@@ -4996,7 +5037,7 @@ public:
         void notify_disconnect() override;
 
         // notify about a finished HTTP request
-        void http_result(error, int, byte *, int) override;
+        void http_result(error, int, byte*, m_off_t) override;
 
         // notify about a business account status change
         void notify_business_status(BizStatus status) override;
@@ -5415,7 +5456,7 @@ protected:
 public:
     const bool useIPv6;
     const bool useTLS;
-    MegaFileSystemAccess *fsAccess;
+    std::unique_ptr<FileSystemAccess> fsAccess;
 
     std::string basePath;
 
@@ -6335,6 +6376,8 @@ public:
 private:
     std::vector<std::shared_ptr<MegaCancelSubscriptionReason>> mReasons;
 };
+
+std::unique_ptr<FileSystemAccess> createFSA();
 }
 
 // Specializations of std::hash for custom Sync types

@@ -4150,6 +4150,49 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * - [MEGARequest file] - Returns the destination path
  * - [MEGARequest paramType] - Returns MEGAAttributeTypeThumbnail
  *
+ * @param nodeHandle Handle of the Node to get the thumbnail.
+ * @param destinationFilePath Destination path for the thumbnail.
+ * If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ * @param delegate Delegate to track this request.
+ */
+- (void)getThumbnailWithNodeHandle:(uint64_t)nodeHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the thumbnail of a node.
+ *
+ * If the node doesn't have a thumbnail the request fails with the MEGAErrorTypeApiENoent
+ * error code.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest paramType] - Returns MEGAAttributeTypeThumbnail
+ *
+ * @param nodeHandle Handle of the Node to get the thumbnail.
+ * @param destinationFilePath Destination path for the thumbnail.
+ * If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
+ */
+- (void)getThumbnailWithNodeHandle:(uint64_t)nodeHandle destinationFilePath:(NSString *)destinationFilePath;
+
+/**
+ * @brief Get the thumbnail of a node.
+ *
+ * If the node doesn't have a thumbnail the request fails with the MEGAErrorTypeApiENoent
+ * error code.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrFile.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest paramType] - Returns MEGAAttributeTypeThumbnail
+ *
  * @param node Node to get the thumbnail.
  * @param destinationFilePath Destination path for the thumbnail.
  * If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")

@@ -13,6 +13,8 @@
 #elif TARGET_OS_MAC
 #include <mega/osx/megafs.h>
 #include <mega/osx/osxutils.h>
+#elif __ANDROID__
+#include "mega/android/androidFileSystem.h"
 #else
 #include <mega/posix/megafs.h>
 #endif
@@ -32,14 +34,45 @@ bool URIHandler::isURI(const string_type& uri)
     return false;
 }
 
-string_type URIHandler::getName(const string_type& uri)
+std::optional<string_type> URIHandler::getName(const string_type& uri)
 {
     if (mPlatformHelper)
     {
         return mPlatformHelper->getName(uri);
     }
 
-    return {};
+    return std::nullopt;
+}
+
+std::optional<string_type> URIHandler::getParentURI(const string_type& uri)
+{
+    if (mPlatformHelper)
+    {
+        return mPlatformHelper->getParentURI(uri);
+    }
+
+    return std::nullopt;
+}
+
+std::optional<string_type> URIHandler::getPath(const string_type& uri)
+{
+    if (mPlatformHelper)
+    {
+        return mPlatformHelper->getPath(uri);
+    }
+
+    return std::nullopt;
+}
+
+std::optional<string_type> URIHandler::getURI(const string_type& uri,
+                                              const std::vector<string_type> leaves)
+{
+    if (mPlatformHelper)
+    {
+        return mPlatformHelper->getURI(uri, leaves);
+    }
+
+    return std::nullopt;
 }
 
 void URIHandler::setPlatformHelper(PlatformURIHelper* platformHelper)
@@ -64,11 +97,13 @@ public:
     std::string leafOrParentName() const override;
     void append(const LocalPath& additionalPath) override;
     void appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways) override;
+
     void prependWithSeparator(const LocalPath& additionalPath) override;
     LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const override;
     void trimNonDriveTrailingSeparator() override;
     bool findPrevSeparator(size_t& separatorBytePos,
                            const FileSystemAccess& fsaccess) const override;
+
     bool beginsWithSeparator() const override;
     bool endsInSeparator() const override;
 
@@ -80,10 +115,6 @@ public:
     LocalPath parentPath() const override;
 
     LocalPath insertFilenameSuffix(const std::string& suffix) const override;
-
-    bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const override;
-    bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const override;
-    bool hasNextPathComponent(const size_t index) const override;
 
     std::string toPath(const bool normalize) const override;
 
@@ -122,6 +153,11 @@ public:
         mPathType = type;
     }
 
+    std::string serialize() const override;
+    bool unserialize(const std::string& data) override;
+
+    string_type getRealPath() const override;
+
 private:
     string_type mLocalpath;
     // Track whether this LocalPath is from the root of a filesystem (ie, an absolute path)
@@ -131,7 +167,7 @@ private:
     void removeTrailingSeparators();
     void truncate(size_t bytePos);
     LocalPath subpathTo(size_t bytePos) const;
-    bool findNextSeparator(size_t& separatorBytePos) const;
+    bool findNextSeparator(size_t& separatorBytePos) const override;
 };
 
 class PathURI: public mega::AbstractLocalPath
@@ -148,11 +184,13 @@ public:
     std::string leafOrParentName() const override;
     void append(const LocalPath& additionalPath) override;
     void appendWithSeparator(const LocalPath& additionalPath, const bool separatorAlways) override;
+
     void prependWithSeparator(const LocalPath& additionalPath) override;
     LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const override;
     void trimNonDriveTrailingSeparator() override;
     bool findPrevSeparator(size_t& separatorBytePos,
                            const FileSystemAccess& fsaccess) const override;
+
     bool beginsWithSeparator() const override;
     bool endsInSeparator() const override;
 
@@ -164,10 +202,6 @@ public:
     LocalPath parentPath() const override;
 
     LocalPath insertFilenameSuffix(const std::string& suffix) const override;
-
-    bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const override;
-    bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const override;
-    bool hasNextPathComponent(const size_t index) const override;
 
     std::string toPath(const bool normalize) const override;
 
@@ -185,23 +219,34 @@ public:
 
     bool related(const LocalPath& other) const override;
 
-    string_type getRealPath() const;
     bool invariant() const override;
 
     PathURI(const string_type& path):
         mUri(path)
     {}
 
+    PathURI() = default;
+
     std::unique_ptr<AbstractLocalPath> clone() const override
     {
         return std::make_unique<PathURI>(*this);
     }
 
+    std::string serialize() const override;
+    bool unserialize(const std::string& data) override;
+    string_type getRealPath() const override;
+
 private:
+    // String allows to identify a file or folder
     string_type mUri;
+    // Chain of elements that identify leaves from the tree
+    // It isn't possible concat element as in a standard path
+    // They are stored as elements in a vector
     std::vector<string_type> mAuxPath;
+    void removeLastElement();
+    bool findNextSeparator(size_t& separatorBytePos) const override;
 };
-}; // end anonymous namespace
+} // end anonymous namespace
 
 class LocalPathImplementationHelper
 {
@@ -361,6 +406,7 @@ void LocalPath::path2local(const std::string* path, std::wstring* local)
                                          -1,
                                          const_cast<wchar_t*>(local->data()),
                                          int(local->size()));
+
     if (len)
     {
         // resize to actual result
@@ -586,6 +632,34 @@ LocalPath LocalPath::tmpNameLocal()
     return LocalPath::fromRelativePath(buf);
 }
 
+std::string LocalPath::serialize() const
+{
+    return mImplementation ? mImplementation->serialize() : std::string{};
+}
+
+std::optional<LocalPath> LocalPath::unserialize(const std::string& d)
+{
+    CacheableReader r(d);
+    uint8_t type;
+    r.unserializeu8(type);
+    LocalPath p{};
+    if (static_cast<PathType>(type) == PathType::URI_PATH)
+    {
+        p.mImplementation = std::make_unique<PathURI>();
+    }
+    else
+    {
+        p.mImplementation = std::make_unique<Path>();
+    }
+
+    if (p.mImplementation->unserialize(d))
+    {
+        return p;
+    }
+
+    return std::nullopt;
+}
+
 bool LocalPath::operator==(const LocalPath& p) const
 {
     return toPath(false) == p.toPath(false);
@@ -686,8 +760,13 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
     {
         const auto previousPath = this->toPath(false);
         mImplementation =
-            std::make_unique<PathURI>(*LocalPathImplementationHelper::getPathURI(*this));
-        mImplementation->appendWithSeparator(LocalPath::fromRelativePath(previousPath), true);
+            std::make_unique<PathURI>(*LocalPathImplementationHelper::getPathURI(additionalPath));
+        auto leaves = splitString<std::vector<string>>(previousPath, localPathSeparator);
+        for (auto& leaf: leaves)
+        {
+            mImplementation->appendWithSeparator(LocalPath::fromRelativePath(leaf), true);
+        }
+
         return;
     }
     else if (!mImplementation)
@@ -897,6 +976,16 @@ bool LocalPath::invariant() const
     }
 
     return false;
+}
+
+string_type LocalPath::getRealPath() const
+{
+    if (mImplementation)
+    {
+        return mImplementation->getRealPath();
+    }
+
+    return {};
 }
 
 auto Path::asPlatformEncoded([[maybe_unused]] const bool skipPrefix) const -> string_type
@@ -1194,40 +1283,31 @@ LocalPath Path::insertFilenameSuffix(const std::string& suffix) const
     return LocalPathImplementationHelper::buildLocalPath(result);
 }
 
-bool Path::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
+bool AbstractLocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
 {
-    string_type parameterLocalPath;
-    if (path.isURI())
-    {
-        const PathURI* uri = LocalPathImplementationHelper::getPathURI(path);
-        assert(uri);
-        parameterLocalPath = uri->getRealPath();
-    }
-    else
-    {
-        parameterLocalPath = path.asPlatformEncoded(false);
-    }
+    string_type parameterLocalPath{path.getRealPath()};
+    string_type thisLocalPath{getRealPath()};
 
-    if (parameterLocalPath.size() >= mLocalpath.size() &&
-        !Utils::pcasecmp(parameterLocalPath, mLocalpath, mLocalpath.size()))
+    if (parameterLocalPath.size() >= thisLocalPath.size() &&
+        !Utils::pcasecmp(parameterLocalPath, thisLocalPath, thisLocalPath.size()))
     {
-        if (parameterLocalPath.size() == mLocalpath.size())
+        if (parameterLocalPath.size() == thisLocalPath.size())
         {
             if (subpathIndex)
-                *subpathIndex = mLocalpath.size();
+                *subpathIndex = thisLocalPath.size();
             return true;
         }
-        else if (parameterLocalPath[mLocalpath.size()] == LocalPath::localPathSeparator)
+        else if (parameterLocalPath[thisLocalPath.size()] == LocalPath::localPathSeparator)
         {
             if (subpathIndex)
-                *subpathIndex = mLocalpath.size() + 1;
+                *subpathIndex = thisLocalPath.size() + 1;
             return true;
         }
-        else if (!mLocalpath.empty() &&
-                 parameterLocalPath[mLocalpath.size() - 1] == LocalPath::localPathSeparator)
+        else if (!thisLocalPath.empty() &&
+                 parameterLocalPath[thisLocalPath.size() - 1] == LocalPath::localPathSeparator)
         {
             if (subpathIndex)
-                *subpathIndex = mLocalpath.size();
+                *subpathIndex = thisLocalPath.size();
             return true;
         }
     }
@@ -1235,52 +1315,45 @@ bool Path::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
     return false;
 }
 
-bool Path::nextPathComponent(size_t& subpathIndex, LocalPath& component) const
+bool AbstractLocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component) const
 {
-    string_type parameterLocalPath;
-    if (component.isURI())
-    {
-        const PathURI* uri = LocalPathImplementationHelper::getPathURI(component);
-        assert(uri);
-        parameterLocalPath = uri->getRealPath();
-    }
-    else
-    {
-        parameterLocalPath = component.asPlatformEncoded(false);
-    }
+    string_type parameterLocalPath{component.getRealPath()};
+    string_type thisLocalPath{getRealPath()};
 
-    while (subpathIndex < mLocalpath.size() &&
-           mLocalpath[subpathIndex] == LocalPath::localPathSeparator)
+    while (subpathIndex < thisLocalPath.size() &&
+           thisLocalPath[subpathIndex] == LocalPath::localPathSeparator)
     {
         ++subpathIndex;
     }
+
     const auto start = subpathIndex;
-    if (start >= mLocalpath.size())
+    if (start >= thisLocalPath.size())
     {
         return false;
     }
     else if (findNextSeparator(subpathIndex))
     {
-        parameterLocalPath = mLocalpath.substr(start, subpathIndex - start);
+        parameterLocalPath = thisLocalPath.substr(start, subpathIndex - start);
         component = LocalPath::fromPlatformEncodedRelative(std::move(parameterLocalPath));
         assert(component.invariant());
         return true;
     }
     else
     {
-        parameterLocalPath = mLocalpath.substr(start, mLocalpath.size() - start);
+        parameterLocalPath = thisLocalPath.substr(start, thisLocalPath.size() - start);
         component.clear();
         component = LocalPath::fromPlatformEncodedRelative(std::move(parameterLocalPath));
-        subpathIndex = mLocalpath.size();
+        subpathIndex = thisLocalPath.size();
         assert(component.invariant());
         return true;
     }
 }
 
-bool Path::hasNextPathComponent(size_t index) const
+bool AbstractLocalPath::hasNextPathComponent(size_t index) const
 {
     assert(invariant());
-    return index < mLocalpath.size();
+    string_type thisLocalPath{getRealPath()};
+    return index < thisLocalPath.size();
 }
 
 std::string Path::toPath(const bool normalize) const
@@ -1576,13 +1649,59 @@ bool Path::findNextSeparator(size_t& separatorBytePos) const
     return separatorBytePos != std::string::npos;
 }
 
+std::string Path::serialize() const
+{
+    std::string d;
+    CacheableWriter w(d);
+    w.serializeu8(static_cast<uint8_t>(mPathType));
+    w.serializestring(mLocalpath);
+    return d;
+}
+
+bool Path::unserialize(const std::string& data)
+{
+    CacheableReader r(data);
+    uint8_t type;
+    r.unserializeu8(type);
+    mPathType = static_cast<PathType>(type);
+    return r.unserializestring(mLocalpath);
+}
+
+string_type Path::getRealPath() const
+{
+    return asPlatformEncoded(false);
+}
+
 auto PathURI::asPlatformEncoded(const bool) const -> string_type
 {
-    return getRealPath();
+    string_type path{mUri};
+
+    for (const auto& leaf: mAuxPath)
+    {
+        path.push_back(LocalPath::uriPathSeparator_utf8);
+        path.append(leaf);
+    }
+
+    return path;
 }
 
 string PathURI::platformEncoded() const
 {
+    auto src = std::invoke(
+        [this]() -> std::optional<mega::string_type>
+        {
+            if (mAuxPath.empty())
+                return mUri;
+            return URIHandler::getURI(mUri, mAuxPath);
+        });
+
+    if (src)
+    {
+        std::string aux;
+        LocalPath::local2path(&src.value(), &aux, false);
+        return aux;
+    }
+
     return toPath(false);
 }
 
@@ -1599,23 +1718,38 @@ void PathURI::clear()
 
 LocalPath PathURI::leafName() const
 {
-    return LocalPath::fromRelativePath(leafOrParentName());
+    if (mAuxPath.size())
+    {
+        std::string aux;
+        LocalPath::local2path(&mAuxPath.back(), &aux, false);
+        return LocalPath::fromRelativePath(aux);
+    }
+    else if (std::optional<string_type> optionalName = URIHandler::getName(mUri);
+             optionalName.has_value())
+    {
+        std::string aux;
+        LocalPath::local2path(&optionalName.value(), &aux, false);
+        return LocalPath::fromRelativePath(aux);
+    }
+
+    return {};
 }
 
 std::string PathURI::leafOrParentName() const
 {
-    std::string aux;
     if (mAuxPath.size())
     {
+        std::string aux;
         LocalPath::local2path(&mAuxPath.back(), &aux, false);
         return aux;
     }
     else
     {
-        string_type name = URIHandler::getName(mUri);
-        if (!name.empty())
+        std::optional<string_type> optionalName = URIHandler::getName(mUri);
+        if (optionalName.has_value())
         {
-            LocalPath::local2path(&name, &aux, false);
+            std::string aux;
+            LocalPath::local2path(&optionalName.value(), &aux, false);
             return aux;
         }
     }
@@ -1630,15 +1764,17 @@ void PathURI::append(const LocalPath& additionalPath)
     mAuxPath.back().append(additionalPath.asPlatformEncoded(false));
 }
 
-void PathURI::appendWithSeparator(const LocalPath& additionalPath, const bool withSeparator)
+void PathURI::appendWithSeparator(const LocalPath& additionalPath, const bool)
 {
-    if (withSeparator)
+    assert(!additionalPath.isAbsolute() && !additionalPath.isURI());
+    const auto auxPath = additionalPath.toPath(false);
+    auto leaves =
+        splitString<std::vector<std::string>>(auxPath, LocalPath::localPathSeparator_utf8);
+    for (const auto& leaf: leaves)
     {
-        mAuxPath.emplace_back(additionalPath.asPlatformEncoded(false));
-    }
-    else
-    {
-        append(additionalPath);
+        string_type auxLeaf;
+        LocalPath::path2local(&leaf, &auxLeaf);
+        mAuxPath.emplace_back(auxLeaf);
     }
 }
 
@@ -1679,9 +1815,7 @@ bool PathURI::beginsWithSeparator() const
 
 bool PathURI::endsInSeparator() const
 {
-    LOG_err << "Invalid operation for URI Path (endsInSeparator)";
-    assert(false);
-    return false;
+    return mAuxPath.empty();
 }
 
 size_t PathURI::getLeafnameByteIndex() const
@@ -1698,53 +1832,61 @@ LocalPath PathURI::subpathFrom(const size_t) const
     return LocalPath{};
 }
 
-void PathURI::changeLeaf(const LocalPath&)
+void PathURI::changeLeaf(const LocalPath& newLeaf)
 {
-    LOG_err << "Invalid operation for URI Path (changeLeaf)";
-    assert(false);
+    if (newLeaf.isAbsolute() || newLeaf.isURI())
+    {
+        LOG_err << "Invalid parameter type (appendWithSeparator)";
+        assert(false);
+        return;
+    }
+
+    if (auto leaves = splitString<std::vector<std::string>>(newLeaf.toPath(false),
+                                                            LocalPath::localPathSeparator);
+        leaves.size() > 1)
+    {
+        LOG_err << "Invalid newLeaf (contains multiple leaves)";
+        assert(false);
+        return;
+    }
+
+    if (mAuxPath.size())
+    {
+        mAuxPath.pop_back();
+    }
+    else if (const auto uri = URIHandler::getParentURI(mUri); !uri.has_value())
+    {
+        mUri = uri.value();
+    }
+    else
+    {
+        LOG_err << "Error change leaf with uri";
+        assert(false && "Error change leaf with uri");
+    }
+
+    mAuxPath.emplace_back(newLeaf.asPlatformEncoded(false));
 }
 
 LocalPath PathURI::parentPath() const
 {
-    LOG_err << "Invalid operation for URI Path (parentPath)";
-    assert(false);
-    return {};
+    PathURI newPathUri{*this};
+    newPathUri.removeLastElement();
+    return LocalPathImplementationHelper::buildLocalPath(newPathUri);
 }
 
 LocalPath PathURI::insertFilenameSuffix(const std::string& suffix) const
 {
     PathURI newPathUri{*this};
-    std::string name = newPathUri.leafName().toPath(false);
-    name.append(suffix);
-    newPathUri.changeLeaf(LocalPath::fromRelativePath(name));
+    auto auxPathName = newPathUri.leafName();
+    assert(!auxPathName.isRootPath() && !auxPathName.isURI());
+    newPathUri.changeLeaf(auxPathName.insertFilenameSuffix(suffix));
     return LocalPathImplementationHelper::buildLocalPath(newPathUri);
-}
-
-bool PathURI::isContainingPathOf(const LocalPath&, size_t*) const
-{
-    LOG_err << "Invalid operation for URI Path (isContainingPathOf)";
-    assert(false);
-    return false;
-}
-
-bool PathURI::nextPathComponent(size_t&, LocalPath&) const
-{
-    LOG_err << "Invalid operation for URI Path (nextPathComponent)";
-    assert(false);
-    return false;
-}
-
-bool PathURI::hasNextPathComponent(const size_t) const
-{
-    LOG_err << "Invalid operation for URI Path (hasNextPathComponent)";
-    assert(false);
-    return false;
 }
 
 std::string PathURI::toPath(const bool) const
 {
     std::string aux;
-    string_type name = getRealPath();
+    string_type name = asPlatformEncoded(false);
     LocalPath::local2path(&name, &aux, false);
     return aux;
 }
@@ -1756,7 +1898,7 @@ std::string PathURI::toName(const FileSystemAccess&) const
 
 bool PathURI::isRootPath() const
 {
-    return false;
+    return mAuxPath.empty();
 }
 
 bool PathURI::extension(std::string& extension) const
@@ -1776,9 +1918,82 @@ bool PathURI::related(const LocalPath&) const
     return false;
 }
 
+bool PathURI::invariant() const
+{
+    return true;
+}
+
+void PathURI::removeLastElement()
+{
+    if (mAuxPath.size())
+    {
+        mAuxPath.pop_back();
+    }
+    else if (std::optional<string_type> parentPath = URIHandler::getParentURI(mUri);
+             parentPath.has_value())
+    {
+        mUri = parentPath.value();
+    }
+}
+
+std::string PathURI::serialize() const
+{
+    std::string d;
+    CacheableWriter w(d);
+    uint8_t type = static_cast<uint8_t>(PathType::URI_PATH);
+    w.serializeu8(type);
+    std::string aux;
+    LocalPath::local2path(&mUri, &aux, false);
+    w.serializestring(aux);
+    uint32_t numElements = static_cast<uint32_t>(mAuxPath.size()); // URI + leaves
+    w.serializeu32(numElements);
+    for (const auto& leaf: mAuxPath)
+    {
+        LocalPath::local2path(&leaf, &aux, false);
+        w.serializestring(aux);
+    }
+
+    return d;
+}
+
+bool PathURI::unserialize(const std::string& data)
+{
+    bool success = true;
+    CacheableReader r(data);
+    uint8_t type;
+    r.unserializeu8(type);
+    assert(type == static_cast<uint8_t>(PathType::URI_PATH));
+    std::string aux;
+    success = r.unserializestring(aux);
+    LocalPath::path2local(&aux, &mUri);
+    uint32_t numElements;
+    success = r.unserializeu32(numElements);
+    for (uint32_t i = 0; i < numElements; ++i)
+    {
+        success = r.unserializestring(aux);
+        string_type leaf;
+        LocalPath::path2local(&aux, &leaf);
+        mAuxPath.emplace_back(leaf);
+    }
+
+    return success;
+}
+
+bool PathURI::findNextSeparator(size_t& separatorBytePos) const
+{
+    separatorBytePos = getRealPath().find(LocalPath::localPathSeparator, separatorBytePos);
+    return separatorBytePos != std::string::npos;
+}
+
 string_type PathURI::getRealPath() const
 {
     string_type path{mUri};
+    auto pathOptional = URIHandler::getPath(mUri);
+    if (pathOptional.has_value())
+    {
+        path = pathOptional.value();
+    }
+
     for (const auto& leaf: mAuxPath)
     {
         path.push_back(LocalPath::localPathSeparator);
@@ -1786,10 +2001,5 @@ string_type PathURI::getRealPath() const
     }
 
     return path;
-}
-
-bool PathURI::invariant() const
-{
-    return true;
 }
 }

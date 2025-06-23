@@ -39,6 +39,10 @@
 #include "mega/osx/osxutils.h"
 #endif
 
+#ifdef __ANDROID__
+#include "mega/android/androidFileSystem.h"
+#endif
+
 namespace mega
 {
 std::atomic<int> FileSystemAccess::mMinimumDirectoryPermissions{0700};
@@ -1890,6 +1894,12 @@ bool FSNode::debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, c
     if (unique_ptr<FSNode> od = fromPath(fsAccess, path, false, FSLogging::logOnError))
     {
         if (od->fingerprint == ff) return true;
+#ifdef __ANDROID__
+        if (od->fingerprint.equalExceptMtime(ff))
+        {
+            return true;
+        }
+#endif
 
         LOG_debug << "fingerprint mismatch at path: " << path;
         LOG_debug << "size: " << od->fingerprint.size << " should have been " << ff.size;

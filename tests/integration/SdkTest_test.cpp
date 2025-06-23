@@ -63,8 +63,7 @@ static const string THUMBNAIL   = "logo_thumbnail.png";
 static const string PREVIEW     = "logo_preview.png";
 static const string PUBLIC_IMAGE_URL = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns"; //gitleaks:allow
 
-
-MegaFileSystemAccess fileSystemAccess;
+std::unique_ptr<::mega::FileSystemAccess> fileSystemAccess = ::mega::createFSA();
 
 #ifdef _WIN32
 DWORD ThreadId()
@@ -109,7 +108,7 @@ void copyFile(std::string& from, std::string& to)
 {
     LocalPath f = LocalPath::fromAbsolutePath(from);
     LocalPath t = LocalPath::fromAbsolutePath(to);
-    fileSystemAccess.copylocal(f, t, m_time());
+    fileSystemAccess->copylocal(f, t, m_time());
 }
 
 std::string megaApiCacheFolder(int index)
@@ -138,7 +137,7 @@ std::string megaApiCacheFolder(int index)
 
     } else
     {
-        std::unique_ptr<DirAccess> da(fileSystemAccess.newdiraccess());
+        std::unique_ptr<DirAccess> da(fileSystemAccess->newdiraccess());
         auto lp = LocalPath::fromAbsolutePath(p);
         if (!da->dopen(&lp, nullptr, false))
         {
@@ -8192,6 +8191,8 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
 {
     typedef ::mega::byte byte;
 
+    std::atomic<bool> mFinished{false};
+    MegaApi* mApi;
     size_t reserved;
     size_t receiveBufPos;
     size_t file_start_offset;
@@ -8203,16 +8204,20 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     bool comparedEqual;
     m_off_t numFailedRequests{};
 
-    CheckStreamedFile_MegaTransferListener(size_t receiveStartPoint, size_t receiveSizeExpected, byte* fileCompareData)
-        : reserved(0)
-        , receiveBufPos(0)
-        , file_start_offset(0)
-        , receiveBuf(NULL)
-        , completedSuccessfully(false)
-        , completedUnsuccessfully(false)
-        , completedUnsuccessfullyError(NULL)
-        , compareDecryptedData(fileCompareData)
-        , comparedEqual(true)
+    CheckStreamedFile_MegaTransferListener(MegaApi* const megaApi,
+                                           const size_t receiveStartPoint,
+                                           const size_t receiveSizeExpected,
+                                           byte* const fileCompareData):
+        mApi(megaApi),
+        reserved(0),
+        receiveBufPos(0),
+        file_start_offset(0),
+        receiveBuf(NULL),
+        completedSuccessfully(false),
+        completedUnsuccessfully(false),
+        completedUnsuccessfullyError(NULL),
+        compareDecryptedData(fileCompareData),
+        comparedEqual(true)
     {
         file_start_offset = receiveStartPoint;
         reserved = receiveSizeExpected;
@@ -8222,6 +8227,12 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
 
     ~CheckStreamedFile_MegaTransferListener()
     {
+        if (!mFinished)
+        {
+            assert(mApi);
+            mApi->removeTransferListener(this);
+        }
+
         delete[] receiveBuf;
     }
 
@@ -8240,6 +8251,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
                 comparedEqual = false;
             completedSuccessfully = true;
         }
+        mFinished = true;
     }
 
     void onTransferUpdate(MegaApi*, MegaTransfer*) override {}
@@ -8275,7 +8287,11 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
     globalMegaTestHooks.onSetIsRaid = smallpieces ? &DebugTestHook::onSetIsRaid_smallchunks10 : NULL;
 #endif
 
-    CheckStreamedFile_MegaTransferListener* p = new CheckStreamedFile_MegaTransferListener(size_t(start), size_t(end - start), filecomparedata);
+    CheckStreamedFile_MegaTransferListener* p =
+        new CheckStreamedFile_MegaTransferListener(megaApi,
+                                                   size_t(start),
+                                                   size_t(end - start),
+                                                   filecomparedata);
     megaApi->setStreamingMinimumRate(0);
     megaApi->startStreaming(raid ? raidFileNode : nonRaidFileNode, start, end - start, p);
     return p;
@@ -8419,7 +8435,7 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
         randomRunsBytes += end - start;
 
         LOG_info << "beginning stream test, " << start << " to " << end << "(len " << end - start << ") " << (nonraid ? " non-raid " : " RAID ") << (!nonraid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
-
+        megaApi[0]->setStreamingMinimumRate(0);
         CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0].get(),
                                                                        start,
                                                                        end,
@@ -8585,7 +8601,9 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                                                 int cd429,
                                                 int cd503,
                                                 m_off_t nFailedReqs,
-                                                unsigned int transfer_timeout_in_seconds)
+                                                const int streamingMinimumRateBps = 0,
+                                                const long long downloadLimitBps = -1,
+                                                unsigned int transfer_timeout_in_seconds = 180)
     {
         ASSERT_TRUE(DebugTestHook::resetForTests())
             << "SDK test hooks are not enabled in release mode";
@@ -8597,6 +8615,8 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
             ::mega::DebugTestHook::onHookNumberOfConnections;
 #endif
 
+        megaApi[0]->setStreamingMinimumRate(streamingMinimumRateBps);
+        megaApi[0]->setMaxDownloadSpeed(downloadLimitBps);
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         DebugTestHook::countdownTo404 = cd404;
         DebugTestHook::countdownTo403 = cd403;
@@ -8625,54 +8645,113 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
             << "Unexpected number of retries for streaming download";
     };
 
-    LOG_debug << "#### Test1: Streaming Download, forcing 1 Raided Part Failure (403). No transfer "
-                 "retry ####";
-    startStreaming(-1 /*cd404*/,
-                   2 /*cd403*/,
-                   -1 /*cd429*/,
-                   -1 /*cd503*/,
-                   0 /*nFailedReqs*/,
-                   180 /*timeout*/);
-
-    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure(503) No transfer "
-                 "retry ####";
+    LOG_debug << "#### Test1: Streaming Download, no forced errors. No transfer retry ####";
     startStreaming(-1 /*cd404*/,
                    -1 /*cd403*/,
                    -1 /*cd429*/,
-                   1 /*cd503*/,
+                   -1 /*cd503*/,
                    0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
-    LOG_debug << "#### Test3: Streaming Download, forcing 1 Raided Part Failure (404)."
-                 "Transfer will be retried immediately due to 404(onTransferTemporaryError "
-                 "received) ####";
+    LOG_debug << "#### Test2: Streaming Download, forcing 1 Raided Part Failure (404). No transfer "
+                 "retry ####";
     startStreaming(2 /*cd404*/,
                    -1 /*cd403*/,
                    -1 /*cd429*/,
                    -1 /*cd503*/,
-                   1 /*nFailedReqs*/,
+                   0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
-    LOG_debug << "#### Test4: Streaming Download, forcing 1 Raided Part Failure (429)."
-                 "Transfer will be retried immediately due to 429(onTransferTemporaryError "
-                 "received) ####";
-    startStreaming(-1 /*cd404*/,
-                   -1 /*cd403*/,
-                   2 /*cd429*/,
-                   -1 /*cd503*/,
-                   1 /*nFailedReqs*/,
-                   180 /*timeout*/);
-
-    LOG_debug << "#### Test5: Streaming Download forcing 2 Raided Parts Failures(403 | 503)."
-                 "Transfer will be retried immediately due to 403 and 503(onTransferTemporaryError "
-                 "received) ####";
+    LOG_debug << "#### Test3: Streaming Download forcing 2 Raided Parts Failures(403 | 503)."
+                 "Transfer will be retried (onTransferTemporaryError received) ####";
     startStreaming(-1 /*cd404*/,
                    2 /*cd403*/,
                    -1 /*cd429*/,
                    2 /*cd503*/,
                    1 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
+    LOG_debug << "#### Test4: Streaming Download limiting min streaming rate and max download "
+                 "speed, no forced errors. No transfer retry ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test5: Streaming Download limiting min streaming rate and max download "
+                 "speed, forcing 1 Raided Part Failure (429). No transfer retry ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   2 /*cd429*/,
+                   -1 /*cd503*/,
+                   0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test6: Streaming Download limiting min streaming rate and max download "
+                 "speed, forcing 2 Raided Parts Failures (403 | 503). Transfer will be retried "
+                 "(onTransferTemporaryError received) ####";
+    startStreaming(-1 /*cd404*/,
+                   2 /*cd403*/,
+                   -1 /*cd429*/,
+                   2 /*cd503*/,
+                   1 /*nFailedReqs*/,
+                   30000 /*streamingMinimumRateBps*/,
+                   300000 /*downloadLimitBps*/,
+                   180 /*timeout*/);
+
+    LOG_info
+        << "___TEST Streaming Raided Transfer With Connection Failures. Tests cases completed___";
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+}
+
+TEST_F(SdkTest, SdkTestStreamingRaidedTransferBestCase)
+{
+    LOG_info << "___TEST Streaming Raided Transfer Best Case___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
+    std::string url100MB =
+        "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; // https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
+    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL + url100MB, rootnode.get());
+    std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
+    ASSERT_NE(rootnode.get(), nullptr) << "Cannot get CloudRaidNode node from public link";
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+    mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+    std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
+        StreamRaidFilePart(megaApi[0].get(),
+                           0,
+                           cloudRaidNode->getSize(),
+                           true /*raid*/,
+                           false,
+                           cloudRaidNode.get(),
+                           nullptr,
+                           nullptr));
+
+    ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180))
+        << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Cannot finish streaming download for the cloudraid file (error: " << mApi[0].lastError
+        << ")";
+
+    LOG_info << "___TEST Streaming Raided Transfer Best Case. Tests cases completed___";
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
@@ -10236,7 +10315,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     auto aux = LocalPath::fromAbsolutePath(fs::current_path().u8string());
 
 #if defined (__linux__) || defined (__ANDROID__)
-    if (fileSystemAccess.getlocalfstype(aux) == FS_EXT)
+    if (fileSystemAccess->getlocalfstype(aux) == FS_EXT)
     {
         // Escape set of characters and check if it's the expected one
         const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
@@ -10256,8 +10335,8 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
         delete [] name;
     }
 #elif defined  (__APPLE__) || defined (USE_IOS)
-    if (fileSystemAccess.getlocalfstype(aux) == FS_APFS
-            || fileSystemAccess.getlocalfstype(aux) == FS_HFS)
+    if (fileSystemAccess->getlocalfstype(aux) == FS_APFS ||
+        fileSystemAccess->getlocalfstype(aux) == FS_HFS)
     {
         // Escape set of characters and check if it's the expected one
         const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
@@ -10277,7 +10356,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
         delete [] name;
     }
 #elif defined(_WIN32) || defined(_WIN64)
-    if (fileSystemAccess.getlocalfstype(aux) == FS_NTFS)
+    if (fileSystemAccess->getlocalfstype(aux) == FS_NTFS)
     {
         // Escape set of characters and check if it's the expected one
         const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().u8string().c_str());
@@ -10424,13 +10503,15 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
 
 #ifdef WIN32
     // double check a few well known paths
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:")), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:\\")), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("C:\\")), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("C:\\Program Files")), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:\\Program Files\\Windows NT")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess->getlocalfstype(LocalPath::fromAbsolutePath("c:")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess->getlocalfstype(LocalPath::fromAbsolutePath("c:\\")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess->getlocalfstype(LocalPath::fromAbsolutePath("C:\\")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess->getlocalfstype(LocalPath::fromAbsolutePath("C:\\Program Files")),
+              FS_NTFS);
+    ASSERT_EQ(fileSystemAccess->getlocalfstype(
+                  LocalPath::fromAbsolutePath("c:\\Program Files\\Windows NT")),
+              FS_NTFS);
 #endif
-
 }
 TEST_F(SdkTest, EscapesReservedCharacters)
 {
@@ -20555,4 +20636,210 @@ TEST_F(SdkTest, SdkTestGetThumbnailUsingNodeAndHandle)
 
     ASSERT_EQ(buffer1.size(), buffer2.size()) << "Thumbnail sizes differ";
     ASSERT_EQ(buffer1, buffer2) << "Thumbnail contents differ";
+}
+
+/**
+ * @brief SdkTest.SdkTestUploadNodeAttribute
+ *
+ * Tests if node attributes consistency on file uploading as follows
+ *  Uploading same file again - Node attribute should be kept
+ *  Uploading updated file content - Node attribute should be kept
+ *  Uploading the same file with different name - Node attributes should not be copied from previous
+ * node except fingerprint
+ *
+ */
+TEST_F(SdkTest, SdkTestUploadNodeAttribute)
+{
+    // Get an account for us to play with.
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Convenience.
+    auto& client = *megaApi[0];
+
+    // Get our hands on this account's root node.
+    auto root = makeUniqueFrom(client.getRootNode());
+    ASSERT_NE(root, nullptr);
+
+    // Create a directory for us to try and export.
+    auto dirNode = createDirectory(client, *root, "UploadDirTest");
+    ASSERT_EQ(result(dirNode), API_OK);
+
+    MegaHandle fileHandle = 0;
+    const auto fileName = "testFileAttr.txt";
+    ASSERT_TRUE(createFile(fileName, false));
+
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            fileName,
+                            value(dirNode).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << fileName;
+
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+
+    auto fileNode = client.getNodeByPath("/UploadDirTest/testFileAttr.txt");
+    ASSERT_EQ(API_OK, synchronousSetNodeFavourite(0, fileNode, true)) << "Error setting fav";
+    ASSERT_EQ(API_OK, synchronousSetNodeLabel(0, fileNode, 4)) << "Error setting label";
+
+    // Re-upload the same file with same content.
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            fileName,
+                            value(dirNode).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << fileName;
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+    fileNode = client.getNodeByPath("/UploadDirTest/testFileAttr.txt");
+    ASSERT_EQ(fileNode->getLabel(), 4) << "Node label is not retained after re-uploading the file";
+    ASSERT_EQ(fileNode->isFavourite(), true)
+        << "Favourite flag is not retained after re-uploading the file";
+
+    // Let's update the file and upload again.
+    sdk_test::appendToFile(fs::path(fileName), 20000);
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            fileName,
+                            value(dirNode).get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << fileName;
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+    fileNode = client.getNodeByPath("/UploadDirTest/testFileAttr.txt");
+    ASSERT_EQ(fileNode->getLabel(), 4) << "Node label is not retained after updating the file";
+    ASSERT_EQ(fileNode->isFavourite(), true)
+        << "Favourite flag is not retained after updating the file";
+
+    bool hasFingerprint = !!fileNode->getFingerprint();
+
+    // Upload the same file with different name.
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            fileName,
+                            value(dirNode).get(),
+                            "testFileAttr_1.txt" /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << fileName;
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+    fileNode = client.getNodeByPath("/UploadDirTest/testFileAttr_1.txt");
+    ASSERT_NE(fileNode->getLabel(), 4) << "Node label is copied for for renamed file upload";
+    ASSERT_NE(fileNode->isFavourite(), true)
+        << "Favourite flag is copied for for renamed file upload";
+    if (hasFingerprint)
+    {
+        ASSERT_NE(fileNode->getFingerprint(), nullptr) << "Finger print has been copied";
+    }
+}
+
+class SdkTestNodeGpsCoordinates: public SdkTest
+{
+protected:
+    const unsigned int mApiIndex{0};
+
+    MegaHandle mNodeHandle{INVALID_HANDLE};
+
+    std::unique_ptr<MegaNode> mNode;
+
+    struct GpsCoordinates
+    {
+        double latitude;
+        double longitude;
+    };
+
+    const GpsCoordinates mGpsCoordinates{40.966095795138365, -5.662973159866294};
+
+public:
+    void SetUp() override
+    {
+        SdkTest::SetUp();
+
+        // Configure test instance
+        const unsigned int numberOfTestInstances{1};
+        ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+        // Upload file
+        std::unique_ptr<MegaNode> rootNode{megaApi[mApiIndex]->getRootNode()};
+        ASSERT_THAT(rootNode.get(), ::testing::NotNull());
+
+        const std::string filename{"test.txt"};
+        ASSERT_TRUE(createFile(filename, false, ""));
+
+        ASSERT_EQ(doStartUpload(mApiIndex,
+                                &mNodeHandle,
+                                filename.c_str(),
+                                rootNode.get(),
+                                nullptr,
+                                MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr,
+                                false,
+                                false,
+                                nullptr),
+                  MegaError::API_OK);
+        ASSERT_NE(mNodeHandle, INVALID_HANDLE);
+
+        // Get node
+        mNode.reset(megaApi[mApiIndex]->getNodeByHandle(mNodeHandle));
+        ASSERT_THAT(mNode.get(), ::testing::NotNull());
+    }
+};
+
+TEST_F(SdkTestNodeGpsCoordinates, SetUnshareableNodeCoordinatesWithNullNode)
+{
+    std::unique_ptr<RequestTracker> requestTracker{
+        asyncSetUnshareableNodeCoordinates(mApiIndex,
+                                           nullptr,
+                                           mGpsCoordinates.latitude,
+                                           mGpsCoordinates.longitude)};
+    ASSERT_EQ(requestTracker->waitForResult(), API_EARGS);
+}
+
+TEST_F(SdkTestNodeGpsCoordinates, SetUnshareableNodeCoordinatesWithNode)
+{
+    std::unique_ptr<RequestTracker> requestTracker{
+        asyncSetUnshareableNodeCoordinates(mApiIndex,
+                                           mNode.get(),
+                                           mGpsCoordinates.latitude,
+                                           mGpsCoordinates.longitude)};
+    ASSERT_EQ(requestTracker->waitForResult(), API_OK);
+
+    // Check if the user can read the GPS coordinates
+    std::unique_ptr<MegaNode> node(megaApi[mApiIndex]->getNodeByHandle(mNode->getHandle()));
+    ASSERT_TRUE(veryclose(node->getLatitude(), mGpsCoordinates.latitude));
+    ASSERT_TRUE(veryclose(node->getLongitude(), mGpsCoordinates.longitude));
+}
+
+TEST_F(SdkTestNodeGpsCoordinates, SetUnshareableNodeCoordinatesWithNodeHandle)
+{
+    std::unique_ptr<RequestTracker> requestTracker{
+        asyncSetUnshareableNodeCoordinates(mApiIndex,
+                                           mNodeHandle,
+                                           mGpsCoordinates.latitude,
+                                           mGpsCoordinates.longitude)};
+    ASSERT_EQ(requestTracker->waitForResult(), API_OK);
+
+    // Check if the user can read the GPS coordinates
+    std::unique_ptr<MegaNode> node(megaApi[mApiIndex]->getNodeByHandle(mNode->getHandle()));
+    ASSERT_TRUE(veryclose(node->getLatitude(), mGpsCoordinates.latitude));
+    ASSERT_TRUE(veryclose(node->getLongitude(), mGpsCoordinates.longitude));
 }

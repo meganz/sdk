@@ -516,39 +516,6 @@ void HttpReq::setcontentlength(m_off_t len)
     contentlength = len;
 }
 
-// make space for receiving data; adjust len if out of space
-byte* HttpReq::reserveput(unsigned* len)
-{
-    if (buf)
-    {
-        if (bufpos + *len > buflen)
-        {
-            *len = static_cast<unsigned>(buflen - bufpos);
-        }
-
-        return buf + bufpos;
-    }
-    else
-    {
-        if (inpurge)
-        {
-            // FIXME: optimize erase()/resize() -> single copy/resize()
-            in.erase(0, inpurge);
-            bufpos -= inpurge;
-            inpurge = 0;
-        }
-
-        if (bufpos + *len > (int) in.size())
-        {
-            in.resize(static_cast<size_t>(bufpos + *len));
-        }
-
-        *len = static_cast<unsigned>(in.size() - static_cast<unsigned>(bufpos));
-
-        return (byte*)in.data() + bufpos;
-    }
-}
-
 // number of bytes transferred in this request
 m_off_t HttpReq::transferred(MegaClient*)
 {

@@ -220,7 +220,7 @@ public:
      * location.
      */
     void renameDBToMatchTarget(const SyncConfig& targetConfig,
-                               const FileSystemAccess& fsAccess,
+                               FileSystemAccess& fsAccess,
                                const MegaClient& client) const;
 
     // How should the engine detect filesystem changes?
@@ -430,6 +430,8 @@ struct SyncRow
 
     // Does this row represent a "no name" triplet?
     bool isNoName() const;
+
+    void reassignFingerprints();
 };
 
 struct SyncPath
