@@ -99,7 +99,7 @@ void DelegateMEGAGlobalListener::onSetsUpdate(mega::MegaApi *api, mega::MegaSetL
         id<MEGAGlobalDelegate> tempListener = this->listener;
         
         dispatch(this->queueType, ^{
-            [tempListener onSetsUpdate:tempListener sets:[sets copy]];
+            [tempListener onSetsUpdate:tempMegaSDK sets:[sets copy]];
         });
     }
 }

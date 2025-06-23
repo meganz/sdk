@@ -197,7 +197,7 @@ void DelegateMEGAListener::onSetsUpdate(mega::MegaApi *api, mega::MegaSetList *s
     id<MEGADelegate> tempListener = this->listener;
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        [tempListener onSetsUpdate:tempListener sets:[sets copy]];
+        [tempListener onSetsUpdate:tempMegaSDK sets:[sets copy]];
     });
 }
 
