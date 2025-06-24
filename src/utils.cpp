@@ -27,6 +27,7 @@
 #include "mega/mega_utf8proc.h"
 #include "mega/megaclient.h"
 #include "mega/serialize64.h"
+#include "mega/testhooks.h"
 
 #include <cctype>
 #include <iomanip>
@@ -542,8 +543,7 @@ void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progre
             }
         }
     }
-
-    progresscontiguous = chunkpos;
+    setProgressContiguous(chunkpos);
 }
 
 m_off_t chunkmac_map::nextUnprocessedPosFrom(m_off_t pos)
@@ -659,6 +659,20 @@ void chunkmac_map::ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunks
     }
 }
 
+void chunkmac_map::setProgressContiguous(const m_off_t p)
+{
+    progresscontiguous = p;
+    DEBUG_TEST_HOOK_ON_PROGRESS_CONTIGUOUS_UPDATE(progresscontiguous);
+}
+
+void chunkmac_map::swap(chunkmac_map& other)
+{
+    mMacMap.swap(other.mMacMap);
+    std::swap(macsmacSoFarPos, other.macsmacSoFarPos);
+    std::swap(progresscontiguous, other.progresscontiguous);
+    DEBUG_TEST_HOOK_ON_PROGRESS_CONTIGUOUS_UPDATE(progresscontiguous);
+}
+
 void chunkmac_map::finishedUploadChunks(chunkmac_map& macs)
 {
     for (auto& m : macs.mMacMap)
@@ -687,7 +701,8 @@ m_off_t chunkmac_map::updateContiguousProgress(m_off_t fileSize)
 
     while (finishedAt(progresscontiguous))
     {
-        progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, fileSize);
+        const auto p = ChunkedHash::chunkceil(progresscontiguous, fileSize);
+        setProgressContiguous(p);
     }
     return progresscontiguous;
 }

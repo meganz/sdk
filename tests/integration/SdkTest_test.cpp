@@ -7309,6 +7309,7 @@ namespace mega
         static bool isRaid;
         static bool isRaidKnown;
         static m_off_t testProgressCompleted;
+        static m_off_t testProgressContiguous;
 
         static void onSetIsRaid_morechunks(::mega::RaidBufferManager* tbm)
         {
@@ -7435,6 +7436,16 @@ namespace mega
             LOG_info << "onProgressCompletedUpdate:(" << p << ")";
         }
 
+        static void onProgressContiguousUpdate(const m_off_t p)
+        {
+            if (p)
+            {
+                // ignore ProgressContiguous reset(0)
+                testProgressContiguous = p;
+            }
+            LOG_info << "onProgressContiguousUpdate:(" << p << ")";
+        }
+
         static bool resetForTests()
         {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -7448,6 +7459,7 @@ namespace mega
             isRaid = false;
             isRaidKnown = false;
             testProgressCompleted = 0;
+            testProgressContiguous = 0;
             return true;
 #else
             return false;
@@ -7470,6 +7482,7 @@ namespace mega
     int DebugTestHook::countdownTo503 = -1;
     int DebugTestHook::countdownToTimeout = -1;
     m_off_t DebugTestHook::testProgressCompleted = 0;
+    m_off_t DebugTestHook::testProgressContiguous = 0;
 }
 
 /**
@@ -7910,8 +7923,11 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     unique_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     [[maybe_unused]] m_off_t tProgressCompletedPreResume{0};
+    [[maybe_unused]] m_off_t tProgressContiguousPreResume{0};
     globalMegaTestHooks.onProgressCompletedUpdate =
         ::mega::DebugTestHook::onProgressCompletedUpdate;
+    globalMegaTestHooks.onProgressContiguousUpdate =
+        ::mega::DebugTestHook::onProgressContiguousUpdate;
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
     globalMegaTestHooks.onLimitMaxReqSize = DebugTestHook::onLimitMaxReqSize;
     globalMegaTestHooks.onHookNumberOfConnections = DebugTestHook::onHookNumberOfConnections;
@@ -7964,18 +7980,24 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE)
         << "Download interrupted with unexpected code: " << result;
 
-    tProgressCompletedPreResume = DebugTestHook::testProgressCompleted;
-
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    tProgressCompletedPreResume = DebugTestHook::testProgressCompleted;
+    tProgressContiguousPreResume = DebugTestHook::testProgressContiguous;
+
     [[maybe_unused]] m_off_t tProgressCompletedAfterResume{0};
+    [[maybe_unused]] m_off_t tProgressContiguousAfterResume{0};
     [[maybe_unused]] std::atomic<bool> exitFlagAfterResume{false};
+    DebugTestHook::testProgressCompleted = 0;
+    DebugTestHook::testProgressContiguous = 0;
     onTransferStartCustomCb = [&tProgressCompletedAfterResume,
+                               &tProgressContiguousAfterResume,
                                &exitFlagAfterResume](MegaTransfer* t) -> void
     {
         if (t)
         {
             tProgressCompletedAfterResume = t->getTransferredBytes();
         }
+        tProgressContiguousAfterResume = DebugTestHook::testProgressContiguous;
         exitFlagAfterResume = true;
     };
 
@@ -8001,6 +8023,10 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
 
     ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
         << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
+           "have changed)";
+
+    ASSERT_EQ(tProgressContiguousPreResume, tProgressContiguousAfterResume)
+        << "Progress contiguous mismatch between logout and onTransferStart values (it shouldn't "
            "have changed)";
 
     ASSERT_EQ(API_OK, doSetMaxConnections(0, 4))
