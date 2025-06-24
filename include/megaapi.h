@@ -15134,12 +15134,14 @@ class MegaApi
          * - MegaRequest::getPricing - MegaPricing object with all pricing plans
          * - MegaRequest::getCurrency - MegaCurrency object with currency data related to prices
          *
+         * @param countryCode Optional country code for which the currency and prices will be
+         * localized
          * @param listener MegaRequestListener to track this request
          *
          * @see MegaApi::getPaymentId
          * @see MegaApi::getPricing
          */
-        void getPricing(const char* countryCode, MegaRequestListener* listener = NULL);
+        void getPricing(const char* countryCode, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii)

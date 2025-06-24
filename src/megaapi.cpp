@@ -3087,7 +3087,7 @@ MegaIntegerList* MegaApi::getOverquotaWarningsTs()
 
 void MegaApi::getPricing(MegaRequestListener *listener)
 {
-    pImpl->getPricing(nullptr, listener);
+    pImpl->getPricing(std::nullopt, listener);
 }
 
 void MegaApi::getPricing(const char* countryCode, MegaRequestListener* listener)

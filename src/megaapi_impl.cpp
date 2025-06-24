@@ -8952,12 +8952,13 @@ void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getPricing(const char* countryCode, MegaRequestListener* listener)
+void MegaApiImpl::getPricing(const std::optional<std::string>& countryCode,
+                             MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PRICING, listener);
-    if (countryCode && *countryCode)
+    if (countryCode && countryCode->size())
     {
-        request->setText(countryCode);
+        request->setText(countryCode->c_str());
     }
 
     request->performRequest = [this, request]()
