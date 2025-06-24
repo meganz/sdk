@@ -644,6 +644,7 @@ public:
     std::vector<PerApi> mApi;
     std::vector<MegaApiTestPointer> megaApi;
 
+    std::function<void(MegaTransfer*)> onTransferStartCustomCb;
     m_off_t onTransferStart_progress;
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;

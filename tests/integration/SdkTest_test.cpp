@@ -989,6 +989,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 void SdkTest::onTransferStart(MegaApi*, MegaTransfer* transfer)
 {
     onTransferStart_progress = transfer->getTransferredBytes();
+    if (onTransferStartCustomCb)
+    {
+        onTransferStartCustomCb(transfer);
+    }
 }
 
 void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
@@ -7304,6 +7308,7 @@ namespace mega
         static int countdownToTimeout;
         static bool isRaid;
         static bool isRaidKnown;
+        static m_off_t testProgressCompleted;
 
         static void onSetIsRaid_morechunks(::mega::RaidBufferManager* tbm)
         {
@@ -7420,6 +7425,16 @@ namespace mega
             lastAccessTime = 0;
         }
 
+        static void onProgressCompletedUpdate(const m_off_t p)
+        {
+            if (p)
+            {
+                // ignore ProgressCompleted reset(0)
+                testProgressCompleted = p;
+            }
+            LOG_info << "onProgressCompletedUpdate:(" << p << ")";
+        }
+
         static bool resetForTests()
         {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -7432,6 +7447,7 @@ namespace mega
             countdownToTimeout = -1;
             isRaid = false;
             isRaidKnown = false;
+            testProgressCompleted = 0;
             return true;
 #else
             return false;
@@ -7453,6 +7469,7 @@ namespace mega
     int DebugTestHook::countdownTo429 = -1;
     int DebugTestHook::countdownTo503 = -1;
     int DebugTestHook::countdownToTimeout = -1;
+    m_off_t DebugTestHook::testProgressCompleted = 0;
 }
 
 /**
@@ -7891,12 +7908,13 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
         importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
 
     unique_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
-
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    [[maybe_unused]] m_off_t tProgressCompletedPreResume{0};
+    globalMegaTestHooks.onProgressCompletedUpdate =
+        ::mega::DebugTestHook::onProgressCompletedUpdate;
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
     globalMegaTestHooks.onLimitMaxReqSize = DebugTestHook::onLimitMaxReqSize;
     globalMegaTestHooks.onHookNumberOfConnections = DebugTestHook::onHookNumberOfConnections;
-
     if (fromNonRaid)
     {
         globalMegaTestHooks.onHookDownloadRequestSingleUrl =
@@ -7946,7 +7964,21 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE)
         << "Download interrupted with unexpected code: " << result;
 
+    tProgressCompletedPreResume = DebugTestHook::testProgressCompleted;
+
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    [[maybe_unused]] m_off_t tProgressCompletedAfterResume{0};
+    [[maybe_unused]] std::atomic<bool> exitFlagAfterResume{false};
+    onTransferStartCustomCb = [&tProgressCompletedAfterResume,
+                               &exitFlagAfterResume](MegaTransfer* t) -> void
+    {
+        if (t)
+        {
+            tProgressCompletedAfterResume = t->getTransferredBytes();
+        }
+        exitFlagAfterResume = true;
+    };
+
     if (fromNonRaid)
     {
         globalMegaTestHooks.onHookDownloadRequestSingleUrl = nullptr;
@@ -7959,6 +7991,17 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     onTransferStart_progress = 0;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    ASSERT_TRUE(WaitFor(
+        [&exitFlagAfterResume]()
+        {
+            // wait for onTransferStart after login + fetchnodes
+            return exitFlagAfterResume.load();
+        },
+        60000));
+
+    ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
+        << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
+           "have changed)";
 
     ASSERT_EQ(API_OK, doSetMaxConnections(0, 4))
         << "doSetMaxConnections failed or took more than 1 minute";

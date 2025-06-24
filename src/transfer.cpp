@@ -417,6 +417,7 @@ void Transfer::removeAndDeleteSelf(transferstate_t finalState)
 void Transfer::setProgresscompleted(const m_off_t p, const bool append)
 {
     progresscompleted = !append ? p : progresscompleted + p;
+    DEBUG_TEST_HOOK_ON_PROGRESS_COMPLETED_UPDATE(progresscompleted);
 }
 
 // transfer attempt failed, notify all related files, collect request on
