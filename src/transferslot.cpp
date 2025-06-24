@@ -789,13 +789,16 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                     || reqs[j]->status == REQ_UPLOAD_PREPARED_BUT_WAIT))
                                 {
                                     LOG_debug << "Conn " << i << " : Including chunk MACs from incomplete/unprocessed (at this end) from connection " << j;
-                                    transfer->progresscompleted += reqs[j]->size;
+                                    transfer->setProgresscompleted(
+                                        static_cast<m_off_t>(reqs[j]->size),
+                                        true /*append*/);
                                     transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[j].get())->mChunkmacs);
                                 }
                             }
 
                             transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
-                            transfer->progresscompleted += reqs[i]->size;
+                            transfer->setProgresscompleted(static_cast<m_off_t>(reqs[i]->size),
+                                                           true /*append*/);
                             LOG_debug << "Conn " << i << " : Progress completed: " << transfer->progresscompleted << "/" << transfer->size;
                             assert(transfer->progresscompleted == transfer->size);
 
@@ -881,7 +884,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         }
 
                         transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
-                        transfer->progresscompleted += reqs[i]->size;
+                        transfer->setProgresscompleted(static_cast<m_off_t>(reqs[i]->size),
+                                                       true /*append*/);
                         LOG_debug << "Conn " << i << " : Progress completed: " << transfer->progresscompleted << "/" << transfer->size;
 
                         updatecontiguousprogress();

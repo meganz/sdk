@@ -4385,20 +4385,25 @@ void MegaClient::dispatchTransfers()
                     const char *chatauth = NULL;
 
                     nexttransfer->pos = 0;
-                    nexttransfer->progresscompleted = 0;
+                    nexttransfer->setProgresscompleted(0);
 
                     if (nexttransfer->type == GET || nexttransfer->tempurls.size())
                     {
                         m_off_t p = 0;
 
                         // resume at the end of the last contiguous completed block
-                        nexttransfer->chunkmacs.calcprogress(nexttransfer->size, nexttransfer->pos, nexttransfer->progresscompleted, &p);
+                        m_off_t pCompleted{0};
+                        nexttransfer->chunkmacs.calcprogress(nexttransfer->size,
+                                                             nexttransfer->pos,
+                                                             pCompleted,
+                                                             &p);
+                        nexttransfer->setProgresscompleted(pCompleted);
 
                         if (nexttransfer->progresscompleted > nexttransfer->size)
                         {
                             LOG_err << "Invalid transfer progress!";
                             nexttransfer->pos = nexttransfer->size;
-                            nexttransfer->progresscompleted = nexttransfer->size;
+                            nexttransfer->setProgresscompleted(nexttransfer->size);
                         }
 
                         m_off_t progresscontiguous = ts->updatecontiguousprogress();
@@ -18526,7 +18531,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         }
                         t->localfilename.clear();
                         t->chunkmacs.clear();
-                        t->progresscompleted = 0;
+                        t->setProgresscompleted(0);
                         t->pos = 0;
                     }
                 }
@@ -18539,7 +18544,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                             LOG_warn << "The local file has been modified: " << t->localfilename;
                             t->tempurls.clear();
                             t->chunkmacs.clear();
-                            t->progresscompleted = 0;
+                            t->setProgresscompleted(0);
                             t->ultoken.reset();
                             t->pos = 0;
                         }
@@ -18550,7 +18555,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         {
                             LOG_warn << "Truncated temporary file: " << t->localfilename;
                             t->chunkmacs.clear();
-                            t->progresscompleted = 0;
+                            t->setProgresscompleted(0);
                             t->pos = 0;
                         }
                     }
