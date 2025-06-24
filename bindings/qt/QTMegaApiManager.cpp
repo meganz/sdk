@@ -10,11 +10,13 @@ QReadWriteLock QTMegaApiManager::mLock = QReadWriteLock();
 void QTMegaApiManager::createMegaApi(MegaApi*& api,
                                      const char* appKey,
                                      const char* basePath,
-                                     const char* userAgent)
+                                     const char* userAgent,
+                                     bool enableKeyPinning)
 {
     QWriteLocker lock(&mLock);
 
     api = new MegaApi(appKey, basePath, userAgent);
+    api->setPublicKeyPinning(enableKeyPinning);
     mMegaApis.append(std::addressof(api));
 }
 
@@ -22,11 +24,13 @@ void QTMegaApiManager::createMegaApi(MegaApi*& api,
                                      const char* appKey,
                                      MegaGfxProvider* gfxProvider,
                                      const char* basePath,
-                                     const char* userAgent)
+                                     const char* userAgent,
+                                     bool enableKeyPinning)
 {
     QWriteLocker lock(&mLock);
 
     api = new MegaApi(appKey, gfxProvider, basePath, userAgent);
+    api->setPublicKeyPinning(enableKeyPinning);
     mMegaApis.append(std::addressof(api));
 }
 
