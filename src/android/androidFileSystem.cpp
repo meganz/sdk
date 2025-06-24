@@ -16,6 +16,7 @@ namespace mega
 AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
 
 LRUCache<std::string, AndroidFileWrapper::URIData> AndroidFileWrapper::URIDataCache(300);
+std::mutex AndroidFileWrapper::URIDataCacheLock;
 
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mURI(path)
@@ -26,15 +27,15 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
         return;
     }
 
-    auto data = URIDataCache.get(mURI);
-    if (data.has_value() && data->mJavaObject.get())
+    auto data = getURIData(mURI);
+    if (!data.has_value())
+    {
+        data = URIData();
+    }
+    else if (data->mJavaObject.get())
     {
         mJavaObject = data->mJavaObject;
         return;
-    }
-    else if (!data.has_value())
-    {
-        data = URIData();
     }
 
     JNIEnv* env{nullptr};
@@ -113,14 +114,14 @@ bool AndroidFileWrapper::isFolder()
         return false;
     }
 
-    auto data = URIDataCache.get(mURI);
-    if (data.has_value() && data->mIsFolder.has_value())
-    {
-        return data->mIsFolder.value();
-    }
-    else if (!data.has_value())
+    auto data = getURIData(mURI);
+    if (!data.has_value())
     {
         data = URIData();
+    }
+    else if (data->mIsFolder.has_value())
+    {
+        return data->mIsFolder.value();
     }
 
     JNIEnv* env{nullptr};
@@ -146,14 +147,15 @@ std::string AndroidFileWrapper::getURI() const
 
 bool AndroidFileWrapper::isURI()
 {
-    auto data = URIDataCache.get(mURI);
-    if (data.has_value() && data->mIsURI.has_value())
-    {
-        return data->mIsURI.value();
-    }
-    else if (!data.has_value())
+    auto data = getURIData(mURI);
+
+    if (!data.has_value())
     {
         data = URIData();
+    }
+    else if (data->mIsURI.has_value())
+    {
+        return data->mIsURI.value();
     }
 
     JNIEnv* env{nullptr};
@@ -181,14 +183,14 @@ std::string AndroidFileWrapper::getName()
         return std::string();
     }
 
-    auto data = URIDataCache.get(mURI);
-    if (data.has_value() && data->mName.has_value())
-    {
-        return data->mName.value();
-    }
-    else if (!data.has_value())
+    auto data = getURIData(mURI);
+    if (!data.has_value())
     {
         data = URIData();
+    }
+    else if (data->mName.has_value())
+    {
+        return data->mName.value();
     }
 
     JNIEnv* env{nullptr};
@@ -401,14 +403,14 @@ std::optional<std::string> AndroidFileWrapper::getPath()
         return mURI;
     }
 
-    auto data = URIDataCache.get(mURI);
-    if (data.has_value() && data->mPath.has_value())
-    {
-        return data->mPath.value();
-    }
-    else if (!data.has_value())
+    auto data = getURIData(mURI);
+    if (!data.has_value())
     {
         data = URIData();
+    }
+    else if (data->mPath.has_value())
+    {
+        return data->mPath.value();
     }
 
     JNIEnv* env{nullptr};
@@ -583,9 +585,18 @@ void AndroidFileWrapper::setUriData(const URIData& uriData)
 {
     if (mURI.size())
     {
+        std::unique_lock<std::mutex> lock(URIDataCacheLock);
         URIDataCache.put(mURI, uriData);
     }
 }
+
+std::optional<AndroidFileWrapper::URIData>
+    AndroidFileWrapper::getURIData(const std::string& uri) const
+{
+    std::unique_lock<std::mutex> lock(URIDataCacheLock);
+    return URIDataCache.get(uri);
+}
+
 AndroidPlatformURIHelper::AndroidPlatformURIHelper()
 {
     URIHandler::setPlatformHelper(this);

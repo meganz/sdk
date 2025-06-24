@@ -129,8 +129,9 @@ private:
     static constexpr char RENAME[] = "rename";
 
     void setUriData(const URIData& uriData);
-
+    std::optional<URIData> getURIData(const std::string& uri) const;
     static LRUCache<std::string, URIData> URIDataCache;
+    static std::mutex URIDataCacheLock;
 };
 
 /**
