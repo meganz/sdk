@@ -5121,7 +5121,16 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
 #endif
-    p->Add(exec_alerts, sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
+    p->Add(exec_alerts,
+           sequence(text("alerts"),
+                    opt(either(text("new"),
+                               text("old"),
+                               wholenumber(10),
+                               text("notify"),
+                               text("seen"),
+                               text("test_reminder"),
+                               text("test_payment"),
+                               text("test_payment_v2")))));
     p->Add(exec_recentactions,
            sequence(text("recentactions"),
                     param("hours"),
