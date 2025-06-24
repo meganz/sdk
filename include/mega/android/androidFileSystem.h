@@ -80,15 +80,42 @@ public:
                                                                      bool lastIsFolder);
 
 private:
+    class JavaObject
+    {
+    public:
+        // Note: it should be global reference
+        JavaObject(jobject obj):
+            mObj(obj)
+        {}
+
+        ~JavaObject()
+        {
+            JNIEnv* env{nullptr};
+            MEGAjvm->AttachCurrentThread(&env, NULL);
+            env->DeleteGlobalRef(mObj);
+        }
+
+        jobject mObj;
+    };
+
+    class URIData
+    {
+    public:
+        std::optional<bool> mIsURI;
+        std::optional<bool> mIsFolder;
+        std::optional<std::string> mName;
+        std::optional<std::string> mPath;
+        std::shared_ptr<JavaObject> mJavaObject;
+    };
+
     AndroidFileWrapper(const std::string& path);
-    AndroidFileWrapper(jobject fileWrapper);
-    jobject mAndroidFileObject{nullptr};
+    AndroidFileWrapper(std::shared_ptr<JavaObject>);
+    std::shared_ptr<JavaObject> mJavaObject;
+
     std::string mURI;
-    std::optional<std::string> mName;
-    std::optional<bool> mIsFolder;
-    std::optional<bool> mIsURI;
     static constexpr char GET_ANDROID_FILE[] = "getFromUri";
     static constexpr char GET_FILE_DESCRIPTOR[] = "getFileDescriptor";
+    static constexpr char IS_PATH[] = "isPath";
     static constexpr char IS_FOLDER[] = "isFolder";
     static constexpr char GET_NAME[] = "getName";
     static constexpr char GET_CHILDREN_URIS[] = "getChildrenUris";
@@ -100,6 +127,11 @@ private:
     static constexpr char DELETE_FILE[] = "deleteFile";
     static constexpr char DELETE_EMPTY_FOLDER[] = "deleteFolderIfEmpty";
     static constexpr char RENAME[] = "rename";
+
+    void setUriData(const URIData& uriData);
+    std::optional<URIData> getURIData(const std::string& uri) const;
+    static LRUCache<std::string, URIData> URIDataCache;
+    static std::mutex URIDataCacheLock;
 };
 
 /**
