@@ -3002,10 +3002,25 @@ bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64V
 
 void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
 {
-    mCompleted -= rhs.mCompleted;
-    mCompletedBytes -= rhs.mCompletedBytes;
-    mPending -= rhs.mPending;
-    mPendingBytes -= rhs.mPendingBytes;
+    auto updateVal = [](auto& dest, const auto v, const std::string& msg)
+    {
+        using T = std::decay_t<decltype(dest)>;
+        static_assert(std::is_unsigned<T>::value, "dest debe ser unsigned");
+
+        if (v > dest)
+        {
+            LOG_err << "SyncTransferCount::operator-=. Underflow for " << msg;
+            dest = 0;
+            assert(false);
+            return;
+        }
+        dest -= v;
+    };
+
+    updateVal(mCompleted, rhs.mCompleted, "mCompleted");
+    updateVal(mCompletedBytes, rhs.mCompletedBytes, "mCompletedBytes");
+    updateVal(mPending, rhs.mPending, "mPending");
+    updateVal(mPendingBytes, rhs.mPendingBytes, "mPendingBytes");
 }
 
 bool SyncTransferCount::operator==(const SyncTransferCount& rhs) const

@@ -12205,7 +12205,12 @@ void exec_syncstatus(autocomplete::ACState& s)
     auto getProgress = [](SyncStatusInfo& i) -> double
     {
         auto p = i.mTransferCounts.progress(0);
-        assert(p <= 1.0 && "exec_syncstatus: Invalid reportCounts progress value");
+        if (p > 1.0)
+        {
+            const std::string errMsg = "exec_syncstatus: Invalid reportCounts progress value";
+            LOG_err << errMsg;
+            assert(false && errMsg.c_str());
+        }
         return p * 100.0;
     };
 
