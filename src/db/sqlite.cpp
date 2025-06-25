@@ -1124,8 +1124,10 @@ void SqliteAccountState::createIndexes()
     {
         return;
     }
+
     // Create index for column that is not primary key (which already has an index by default)
-    std::string sql = "CREATE INDEX IF NOT EXISTS parenthandleindex on nodes (parenthandle)";
+    std::string sql =
+        "CREATE INDEX IF NOT EXISTS parenthandleindex on nodes (parenthandle, type, name)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -1162,7 +1164,7 @@ void SqliteAccountState::createIndexes()
         LOG_err << "Data base error while creating index (favindex): " << sqlite3_errmsg(db);
     }
 
-    sql = "CREATE INDEX IF NOT EXISTS ctimeindex on nodes (ctime)";
+    sql = "CREATE INDEX IF NOT EXISTS ctimeindex on nodes (type, ctime DESC)";
     result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
