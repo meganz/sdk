@@ -3021,6 +3021,12 @@ bool SyncTransferCount::operator!=(const SyncTransferCount& rhs) const
     return !(*this == rhs);
 }
 
+void SyncTransferCount::clearPendingValues()
+{
+    mPending = 0;
+    mPendingBytes = 0;
+}
+
 void SyncTransferCounts::operator-=(const SyncTransferCounts& rhs)
 {
     mDownloads -= rhs.mDownloads;
@@ -3040,15 +3046,20 @@ bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
 double SyncTransferCounts::progress(m_off_t inflightProgress) const
 {
     auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
-
     if (!pending)
         return 1.0; // 100%
 
     auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes +
                      static_cast<uint64_t>(inflightProgress);
-    auto progress = static_cast<double>(completed) / static_cast<double>(pending);
 
+    auto progress = static_cast<double>(completed) / static_cast<double>(completed + pending);
     return std::min(1.0, progress);
+}
+
+void SyncTransferCounts::clearPendingValues()
+{
+    mDownloads.clearPendingValues();
+    mUploads.clearPendingValues();
 }
 
 #ifdef WIN32

@@ -978,6 +978,7 @@ struct SyncTransferCount
     bool operator==(const SyncTransferCount& rhs) const;
     bool operator!=(const SyncTransferCount& rhs) const;
     void operator-=(const SyncTransferCount& rhs);
+    void clearPendingValues();
 
     uint32_t mCompleted = 0;
     uint32_t mPending = 0;
@@ -993,6 +994,7 @@ struct SyncTransferCounts
 
     // returns progress 0.0 to 1.0
     double progress(m_off_t inflightProgress) const;
+    void clearPendingValues();
 
     SyncTransferCount mDownloads;
     SyncTransferCount mUploads;

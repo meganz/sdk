@@ -352,7 +352,10 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         auto reportCounts = hbs->mSnapshotTransferCounts;
         reportCounts -= hbs->mResolvedTransferCounts;
 
-        auto progress = uint8_t(100.0 * reportCounts.progress(inflightProgress));
+        auto progress = reportCounts.progress(inflightProgress);
+        assert(progress <= 1.0 &&
+               "BackupMonitor::beatBackupInfo: Invalid reportCounts progress value");
+        progress = static_cast<uint8_t>(100.0 * progress);
 
         hbs->mSending = true;
 
@@ -384,6 +387,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         {
             // once we reach 100%, start counting again from 0 for any later sync activity.
             hbs->mResolvedTransferCounts = hbs->mSnapshotTransferCounts;
+            hbs->mResolvedTransferCounts.clearPendingValues();
         }
     }
 }
