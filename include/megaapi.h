@@ -16789,7 +16789,7 @@ class MegaApi
          * Valid values for this parameter are:
          * - MegaTransfer::TYPE_DOWNLOAD = 0
          * - MegaTransfer::TYPE_UPLOAD = 1
-         * @param connections Maximum number of connection (it should between 1 and 6)
+         * @param connections Maximum number of connection (it should between 1 and 100)
          */
         void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
 
@@ -16803,7 +16803,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the number of connections
          *
-         * @param connections Maximum number of connection (it should between 1 and 6)
+         * @param connections Maximum number of connection (it should between 1 and 100)
          */
         void setMaxConnections(int connections, MegaRequestListener* listener = NULL);
 
