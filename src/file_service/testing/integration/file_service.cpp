@@ -191,6 +191,54 @@ TEST_F(FileServiceTests, append_succeeds)
     EXPECT_EQ(ranges[1], FileRange(range));
 }
 
+TEST_F(FileServiceTests, create_succeeds)
+{
+    FileID id0;
+
+    // Create a file and latch its ID.
+    {
+        // Try and create a file.
+        auto file = ClientW()->fileCreate();
+
+        // Make sure the file was created.
+        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Make sure we can get information about the file.
+        auto info0 = file->info();
+        auto info1 = ClientW()->fileInfo(info0.id());
+
+        ASSERT_EQ(info1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+        ASSERT_EQ(info0, *info1);
+
+        // Make sure the file isn't associated with any node.
+        EXPECT_TRUE(info0.handle().isUndef());
+
+        // And that the file's empty.
+        EXPECT_EQ(info0.size(), 0u);
+
+        // Latch the file's ID.
+        id0 = info0.id();
+    }
+
+    // Make sure the file's been purged from storage.
+    auto info = ClientW()->fileInfo(id0);
+    ASSERT_EQ(info.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_UNKNOWN_FILE);
+
+    // Try and create a new file.
+    auto file1 = ClientW()->fileCreate();
+    ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure our original file's ID was recycled.
+    EXPECT_EQ(file1->info().id(), id0);
+
+    // Create a new file.
+    auto file2 = ClientW()->fileCreate();
+    ASSERT_EQ(file2.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure it has a newly generated ID.
+    EXPECT_NE(file2->info().id(), id0);
+}
+
 TEST_F(FileServiceTests, fetch_succeeds)
 {
     // Open a file for reading.
