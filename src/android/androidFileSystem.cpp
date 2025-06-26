@@ -299,6 +299,11 @@ std::shared_ptr<AndroidFileWrapper>
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::string& childName,
                                                                     bool isFolder)
 {
+    if (!exists())
+    {
+        return nullptr;
+    }
+
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetMethodID(
@@ -335,6 +340,11 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::s
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getChildByName(const std::string& name)
 {
+    if (!exists())
+    {
+        return nullptr;
+    }
+
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID =
@@ -365,6 +375,11 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getChildByName(const std
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getParent() const
 {
+    if (!exists())
+    {
+        return nullptr;
+    }
+
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetMethodID(fileWrapper,
@@ -398,6 +413,11 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getParent() const
 
 std::optional<std::string> AndroidFileWrapper::getPath()
 {
+    if (!exists())
+    {
+        return std::nullopt;
+    }
+
     if (!isURI())
     {
         return mURI;
@@ -445,6 +465,11 @@ std::optional<std::string> AndroidFileWrapper::getPath()
 
 bool AndroidFileWrapper::deleteFile()
 {
+    if (!exists())
+    {
+        return false;
+    }
+
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetMethodID(fileWrapper, DELETE_FILE, "()Z");
@@ -461,6 +486,11 @@ bool AndroidFileWrapper::deleteFile()
 
 bool AndroidFileWrapper::deleteEmptyFolder()
 {
+    if (!exists())
+    {
+        return false;
+    }
+
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID = env->GetMethodID(fileWrapper, DELETE_EMPTY_FOLDER, "()Z");
@@ -477,6 +507,11 @@ bool AndroidFileWrapper::deleteEmptyFolder()
 
 bool AndroidFileWrapper::rename(const std::string& newName)
 {
+    if (!exists())
+    {
+        return false;
+    }
+
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID methodID =
@@ -569,7 +604,7 @@ std::shared_ptr<AndroidFileWrapper>
 
 bool AndroidFileWrapper::exists()
 {
-    return mJavaObject->mObj != nullptr;
+    return mJavaObject && mJavaObject->mObj != nullptr;
 }
 
 std::shared_ptr<AndroidFileWrapper>
