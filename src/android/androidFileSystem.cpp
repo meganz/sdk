@@ -602,7 +602,7 @@ std::shared_ptr<AndroidFileWrapper>
     return nullptr;
 }
 
-bool AndroidFileWrapper::exists()
+bool AndroidFileWrapper::exists() const
 {
     return mJavaObject && mJavaObject->mObj != nullptr;
 }
