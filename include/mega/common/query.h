@@ -1,17 +1,17 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <map>
-#include <string>
-
 #include <mega/common/badge_forward.h>
 #include <mega/common/database_forward.h>
 #include <mega/common/logger_forward.h>
 #include <mega/common/query_forward.h>
 #include <mega/common/serialization_traits.h>
-
 #include <mega/types.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <optional>
+#include <string>
 
 struct sqlite3;
 struct sqlite3_stmt;
@@ -189,6 +189,26 @@ struct SerializationTraits<NodeHandle>
 
     static void to(Parameter& parameter, const NodeHandle& value);
 }; // SerializationTraits<NodeHandle>
+
+template<typename T>
+struct SerializationTraits<std::optional<T>>
+{
+    static std::optional<T> from(const Field& field)
+    {
+        if (!field.null())
+            return std::optional<T>(std::in_place, field.get<T>());
+
+        return std::nullopt;
+    }
+
+    static void to(Parameter& parameter, const std::optional<T>& value)
+    {
+        if (value)
+            return parameter.set<T>(*value), void();
+
+        parameter.set(nullptr);
+    }
+}; // SerializationTraits<std::optional<T>>
 
 } // common
 } // mega
