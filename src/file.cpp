@@ -881,8 +881,8 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& cloc
     syncThreadSafeState = std::move(stss);
     syncThreadSafeState->transferBegin(GET, size);
 
-    LOG_debug << "[SyncDownload_inClient()] Name: '" << getLocalname()
-              << "'. Handle: " << h.as8byte() << ". Cloud Fingerprint: " << fingerprintDebugString()
+    LOG_debug << "[SyncDownload_inClient()] Name: '" << getLocalname() << "'. Handle: " << h
+              << ". Cloud Fingerprint: " << fingerprintDebugString()
               << ". Local Fingerprint (overwrite): " << overwriteFF.fingerprintDebugString();
 }
 
@@ -906,8 +906,8 @@ SyncDownload_inClient::~SyncDownload_inClient()
         syncThreadSafeState->transferFailed(GET, size);
     }
 
-    LOG_debug << "[~SyncDownload_inClient()] Name: '" << getLocalname()
-              << "'. Handle: " << h.as8byte() << ". Cloud Fingerprint: " << fingerprintDebugString()
+    LOG_debug << "[~SyncDownload_inClient()] Name: '" << getLocalname() << "'. Handle: " << h
+              << ". Cloud Fingerprint: " << fingerprintDebugString()
               << ". Local Fingerprint (overwrite): " << okToOverwriteFF.fingerprintDebugString();
 }
 
