@@ -1,8 +1,10 @@
 #include "sdk_test_utils.h"
 
 #include "mega/logging.h"
+#include "mega/types.h"
 
 #include <fstream>
+#include <random>
 #include <string_view>
 #include <vector>
 
@@ -39,6 +41,65 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
     fs::copy_file(source, destination);
 }
 
+std::string hashFile(const fs::path& filePath)
+{
+    std::ifstream in{filePath, std::ios::binary};
+    if (!in)
+        throw std::runtime_error("Cannot open file for hashing: " + filePath.string());
+
+    ::mega::HashSHA256 hasher;
+    constexpr std::size_t CHUNK = 64 * 1024;
+    std::vector<::mega::byte> buffer(CHUNK);
+    while (in.good())
+    {
+        in.read(reinterpret_cast<char*>(buffer.data()),
+                static_cast<std::streamsize>(buffer.size()));
+        const auto n = static_cast<unsigned>(in.gcount());
+        if (n > 0)
+            hasher.add(buffer.data(), n);
+    }
+
+    std::string digest;
+    hasher.get(&digest);
+    return digest;
+}
+
+std::string hashFileHex(const fs::path& filePath)
+{
+    const auto bin = hashFile(filePath);
+    std::ostringstream out;
+    out << std::hex << std::setfill('0');
+    for (const unsigned char ch: bin)
+        out << std::setw(2) << static_cast<int>(ch);
+    return out.str();
+}
+
+void createRandomFile(const fs::path& filePath, const std::size_t fileSizeBytes)
+{
+    std::ofstream out(filePath, std::ios::binary | std::ios::trunc);
+    if (!out)
+        throw std::runtime_error("Cannot open file: " + filePath.string());
+
+    constexpr auto CHUNK = std::size_t{64 * 1024};
+    std::vector<char> buffer;
+    buffer.reserve(CHUNK);
+
+    std::mt19937_64 rng{std::random_device{}()};
+    constexpr int minReadableChar = 32;
+    constexpr int maxReadableChar = 126;
+    std::uniform_int_distribution<int> dist(minReadableChar, maxReadableChar);
+
+    for (auto remaining = fileSizeBytes; remaining > 0;)
+    {
+        std::size_t toWrite = std::min(remaining, CHUNK);
+        buffer.clear();
+        for (std::size_t i = 0; i < toWrite; ++i)
+            buffer.push_back(static_cast<char>(dist(rng)));
+        out.write(buffer.data(), static_cast<std::streamsize>(toWrite));
+        remaining -= toWrite;
+    }
+}
+
 void createFile(const fs::path& filePath, const size_t fileSizeBytes)
 {
     writeFileContent<std::size_t>(filePath, std::ios::binary, fileSizeBytes);
@@ -62,7 +123,7 @@ void appendToFile(const fs::path& filePath, const std::string_view contents)
 LocalTempFile::LocalTempFile(const fs::path& _filePath, const size_t fileSizeBytes):
     mFilePath(_filePath)
 {
-    createFile(mFilePath, fileSizeBytes);
+    createRandomFile(mFilePath, fileSizeBytes);
 }
 
 LocalTempFile::LocalTempFile(const fs::path& _filePath, const std::string_view contents):

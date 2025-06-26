@@ -1133,7 +1133,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             File *f = (*it);
             LocalPath localpath = f->getLocalname();
 
-            LOG_debug << "Verifying upload";
+            LOG_debug << "Verifying upload: " << localpath.toPath(false);
 
             auto fa = client->fsaccess->newfileaccess();
             bool isOpen = fa->fopen(localpath, FSLogging::logOnError);
@@ -1160,9 +1160,9 @@ void Transfer::complete(TransferDbCommitter& committer)
                 }
                 else
                 {
-                    LOG_warn << fingerprintIssue
-                             << "Modification detected after upload! Transfer fingerprint: "
-                             << fingerprintDebugString()
+                    LOG_warn << fingerprintIssue << "Modification detected after upload! Path: "
+                             << localpath.toPath(false)
+                             << ". Transfer fingerprint: " << fingerprintDebugString()
                              << ". FA fingerprint: " << f->fingerprintDebugString();
                 }
 

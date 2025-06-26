@@ -792,7 +792,8 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
     sourceFsid = fsid;
     sourceLocalname = localname;
 
-    LOG_debug << "[SyncUpload_inClient()] Name: '" << getLocalname() << "'. Source fsid: " << fsid
+    LOG_debug << "[SyncUpload_inClient()] Name: '" << getLocalname() << "'. Source local name: '"
+              << sourceLocalname.toPath(false) << "'. Source fsid: " << fsid
               << ". Fingerprint: " << fingerprintDebugString();
 }
 
@@ -824,8 +825,9 @@ SyncUpload_inClient::~SyncUpload_inClient()
         syncThreadSafeState->removeExpectedUpload(h, name);
     }
 
-    LOG_debug << "[~SyncUpload_inClient()] Name: '" << getLocalname()
-              << "'. Source fsid: " << sourceFsid << ". Fingerprint: " << fingerprintDebugString();
+    LOG_debug << "[~SyncUpload_inClient()] Name: '" << getLocalname() << "'. Source local name: '"
+              << sourceLocalname.toPath(false) << "'. Source fsid: " << sourceFsid
+              << ". Fingerprint: " << fingerprintDebugString();
 }
 
 void SyncUpload_inClient::prepare(FileSystemAccess&)
