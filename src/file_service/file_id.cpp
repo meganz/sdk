@@ -103,8 +103,6 @@ FileID FileID::from(const char* string)
 
 FileID FileID::from(std::uint64_t u64)
 {
-    assert(!synthetic(u64));
-
     return FileID(kSynthetic | u64);
 }
 
