@@ -1639,6 +1639,10 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
                    "the admin user and tries to perform a disallowed command (currently u and p)";
         case LOCAL_ENOSPC:
             return "Insufficient disk space";
+        case LOCAL_ETIMEOUT:
+            return "Local timeout error";
+        case LOCAL_ENETWORK:
+            return "Local network error";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
