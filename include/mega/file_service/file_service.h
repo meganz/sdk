@@ -26,6 +26,9 @@ public:
 
     ~FileService();
 
+    // Create a new file.
+    auto create() -> FileServiceResultOr<File>;
+
     // Deinitialize the file service.
     void deinitialize();
 

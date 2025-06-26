@@ -32,6 +32,12 @@ namespace file_service
 
 class FileServiceContext
 {
+    template<typename Lock>
+    FileID allocateID(Lock&& lock, common::Transaction& transaction);
+
+    template<typename Lock>
+    void deallocateID(FileID id, Lock&& lock, common::Transaction& transaction);
+
     template<typename Lock, typename T>
     auto getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
         -> std::shared_ptr<T>;
@@ -106,6 +112,9 @@ public:
 
     // Retrieve a reference to this service's client.
     common::Client& client();
+
+    // Create a new file.
+    auto create() -> FileServiceResultOr<File>;
 
     // Retrieve a reference to this service's database.
     common::Database& database();

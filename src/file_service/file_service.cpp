@@ -25,6 +25,16 @@ FileService::FileService():
 
 FileService::~FileService() = default;
 
+auto FileService::create() -> FileServiceResultOr<File>
+{
+    SharedLock guard(mContextLock);
+
+    if (!mContext)
+        return unexpected(FILE_SERVICE_UNINITIALIZED);
+
+    return mContext->create();
+}
+
 void FileService::deinitialize()
 {
     UniqueLock guard(mContextLock);

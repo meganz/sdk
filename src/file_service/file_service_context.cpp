@@ -3,6 +3,7 @@
 #include <mega/common/node_info.h>
 #include <mega/common/scoped_query.h>
 #include <mega/common/transaction.h>
+#include <mega/common/utility.h>
 #include <mega/file_service/database_builder.h>
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_context.h>
@@ -28,6 +29,94 @@ namespace file_service
 using namespace common;
 
 static Database createDatabase(const LocalPath& databasePath);
+
+template<typename Lock>
+FileID FileServiceContext::allocateID(Lock&& lock, Transaction& transaction)
+{
+    assert(lock.mutex() == &mDatabase);
+    assert(lock.owns_lock());
+
+    // Check if we need to generate a new file ID.
+    auto query = transaction.query(mQueries.mGetFileID);
+
+    query.execute();
+
+    // We need to generate a new file ID.
+    if (query.field("free").null())
+    {
+        // Latch the next available ID.
+        auto next = query.field("next").get<std::uint64_t>();
+
+        // Make sure we haven't exhausted the space of synthetic IDs.
+        assert(!synthetic(next));
+
+        if (synthetic(next))
+            throw std::runtime_error("Exhausted space of synthetic IDs");
+
+        // Note that this ID has been allocated.
+        query = transaction.query(mQueries.mSetFileID);
+
+        query.param(":free").set(nullptr);
+        query.param(":next").set(next + 1);
+        query.execute();
+
+        // Return the ID to our caller.
+        return FileID::from(next);
+    }
+
+    // We can recycle a previously allocated ID.
+    auto free = query.field("free").get<std::uint64_t>();
+    auto link = query.field("link").get<std::optional<std::uint64_t>>();
+    auto next = query.field("next").get<std::uint64_t>();
+
+    // Update free to point to the next reusable ID, if any.
+    query = transaction.query(mQueries.mSetFileID);
+
+    query.param(":free").set(link);
+    query.param(":next").set(next);
+    query.execute();
+
+    // Remove our id from the chain.
+    query = transaction.query(mQueries.mRemoveFileID);
+
+    query.param(":id").set(free);
+    query.execute();
+
+    // Return the ID to our caller.
+    return FileID::from(free);
+}
+
+template<typename Lock>
+void FileServiceContext::deallocateID(FileID id, Lock&& lock, Transaction& transaction)
+{
+    assert(synthetic(id));
+    assert(lock.mutex() == &mDatabase);
+    assert(lock.owns_lock());
+
+    // Latch free and next fields.
+    auto query = transaction.query(mQueries.mGetFileID);
+
+    query.execute();
+
+    auto free = query.field("free").get<std::optional<std::uint64_t>>();
+    auto next = query.field("next").get<std::uint64_t>();
+
+    // Add id to the free chain.
+    query = transaction.query(mQueries.mAddFileID);
+
+    query.param(":id").set(id);
+    query.param(":next").set(free);
+
+    query.execute();
+
+    // Update free field.
+    query = transaction.query(mQueries.mSetFileID);
+
+    query.param(":free").set(id);
+    query.param(":next").set(next);
+
+    query.execute();
+}
 
 template<typename Lock, typename T>
 auto FileServiceContext::getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
@@ -331,6 +420,68 @@ Client& FileServiceContext::client()
     return mClient;
 }
 
+auto FileServiceContext::create() -> FileServiceResultOr<File>
+try
+{
+    // Acquire context and database locks.
+    UniqueLock lockContexts(mLock);
+    UniqueLock lockDatabase(mDatabase);
+
+    // Initiate a transaction so we can safely modify the database.
+    auto transaction = mDatabase.transaction();
+
+    // Try and allocate a new file ID.
+    auto id = allocateID(lockDatabase, transaction);
+
+    // Compute the new file's modification time.
+    auto modified = now();
+
+    // Try and add a new file to the database.
+    {
+        auto query = transaction.query(mQueries.mAddFile);
+
+        query.param(":dirty").set(true);
+        query.param(":handle").set(nullptr);
+        query.param(":id").set(id);
+        query.param(":modified").set(modified);
+
+        query.execute();
+    }
+
+    // Instantiate an info context to describe our new file.
+    auto info = std::make_shared<FileInfoContext>(mActivities.begin(),
+                                                  true,
+                                                  NodeHandle(),
+                                                  id,
+                                                  modified,
+                                                  *this,
+                                                  0ul);
+
+    // Instantiate a file context to manipulate our new file.
+    auto file = std::make_shared<FileContext>(mActivities.begin(),
+                                              mStorage.addFile(id),
+                                              info,
+                                              FileRangeVector(),
+                                              *this);
+
+    // Persist our changes.
+    transaction.commit();
+
+    // Add both contexts to our index.
+    mFileContexts.emplace(id, file);
+    mInfoContexts.emplace(id, std::move(info));
+
+    // Return a file instance to our caller.
+    return File(FileServiceContextBadge{}, std::move(file));
+}
+
+catch (std::runtime_error& exception)
+{
+    FSErrorF("Unable to create a new file: %s", exception.what());
+
+    return unexpected(FILE_SERVICE_UNEXPECTED);
+}
+
 Database& FileServiceContext::database()
 {
     return mDatabase;
@@ -441,6 +592,10 @@ try
 
     query.param(":id").set(id);
     query.execute();
+
+    // Deallocate the ID if it's synthetic.
+    if (synthetic(id))
+        deallocateID(id, lockDatabase, transaction);
 
     // Remove the file from storage.
     mStorage.removeFile(id);
