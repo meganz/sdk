@@ -10,13 +10,17 @@ using namespace common;
 
 FileServiceQueries::FileServiceQueries(Database& database):
     mAddFile(database.query()),
+    mAddFileID(database.query()),
     mAddFileRange(database.query()),
     mGetFile(database.query()),
+    mGetFileID(database.query()),
     mGetFileRanges(database.query()),
     mGetFileReferences(database.query()),
     mRemoveFile(database.query()),
+    mRemoveFileID(database.query()),
     mRemoveFileRanges(database.query()),
     mSetFileHandle(database.query()),
+    mSetFileID(database.query()),
     mSetFileModificationTime(database.query()),
     mSetFileReferences(database.query())
 {
@@ -28,6 +32,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  0 "
                ")";
 
+    mAddFileID = "insert into file_ids values (:id, :next)";
+
     mAddFileRange = "insert into file_ranges values ( "
                     "  :begin, "
                     "  :end, "
@@ -38,6 +44,13 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  from files "
                " where (:handle is not null and handle = :handle) "
                "    or (:id is not null and id = :id)";
+
+    mGetFileID = "   select file_id.free "
+                 "        , file_ids.next as link "
+                 "        , file_id.next "
+                 "     from file_id "
+                 "left join file_ids "
+                 "       on file_ids.id = file_id.free";
 
     mGetFileRanges = "select begin "
                      "     , end "
@@ -51,6 +64,9 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mRemoveFile = "delete from files "
                   " where id = :id";
 
+    mRemoveFileID = "delete from file_ids "
+                    " where id = :id";
+
     mRemoveFileRanges = "delete from file_ranges "
                         " where begin >= :begin "
                         "   and end <= :end "
@@ -59,6 +75,10 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mSetFileHandle = "update files "
                      "   set handle = :handle "
                      " where id = :id";
+
+    mSetFileID = "update file_id "
+                 "   set free = :free "
+                 "     , next = :next";
 
     mSetFileModificationTime = "update files "
                                "   set dirty = 1 "

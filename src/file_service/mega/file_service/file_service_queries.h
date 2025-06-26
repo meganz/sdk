@@ -13,13 +13,17 @@ struct FileServiceQueries
     explicit FileServiceQueries(common::Database& database);
 
     common::Query mAddFile;
+    common::Query mAddFileID;
     common::Query mAddFileRange;
     common::Query mGetFile;
+    common::Query mGetFileID;
     common::Query mGetFileRanges;
     common::Query mGetFileReferences;
     common::Query mRemoveFile;
+    common::Query mRemoveFileID;
     common::Query mRemoveFileRanges;
     common::Query mSetFileHandle;
+    common::Query mSetFileID;
     common::Query mSetFileModificationTime;
     common::Query mSetFileReferences;
 }; // FileServiceQueries
