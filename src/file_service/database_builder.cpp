@@ -87,6 +87,9 @@ void upgrade01(Query& query)
             "  id integer "
             "  constraint nn_file_ids_id "
             "             not null, "
+            "  next integer "
+            "  constraint uq_file_ids_next "
+            "             unique, "
             "  constraint pk_file_ids "
             "             primary key (id) "
             ")";
