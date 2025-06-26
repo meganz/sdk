@@ -27,6 +27,18 @@ public:
 
     ~FileInfo();
 
+    // Does rhs describe the same file as we do?
+    bool operator==(const FileInfo& rhs) const
+    {
+        return mContext == rhs.mContext;
+    }
+
+    // Does rhs describe a different file than we do?
+    bool operator!=(const FileInfo& rhs) const
+    {
+        return !operator==(rhs);
+    }
+
     // Has this file been locally modified?
     bool dirty() const;
 
