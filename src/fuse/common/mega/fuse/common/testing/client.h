@@ -183,6 +183,9 @@ public:
     // Execute some function on the client thread.
     common::Task execute(std::function<void(const common::Task&)> function);
 
+    // Create a new file that is to be managed by the File Service.
+    auto fileCreate() -> file_service::FileServiceResultOr<file_service::File>;
+
     // Retrieve information about a file managed by the File Service.
     auto fileInfo(CloudPath path) const
         -> file_service::FileServiceResultOr<file_service::FileInfo>;
