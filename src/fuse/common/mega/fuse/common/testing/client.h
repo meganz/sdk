@@ -11,6 +11,7 @@
 #include <mega/common/upload_callbacks.h>
 #include <mega/common/upload_forward.h>
 #include <mega/file_service/file_forward.h>
+#include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_forward.h>
 #include <mega/file_service/file_service_forward.h>
 #include <mega/file_service/file_service_result_or_forward.h>
@@ -187,6 +188,9 @@ public:
     auto fileCreate() -> file_service::FileServiceResultOr<file_service::File>;
 
     // Retrieve information about a file managed by the File Service.
+    auto fileInfo(file_service::FileID id) const
+        -> file_service::FileServiceResultOr<file_service::FileInfo>;
+
     auto fileInfo(CloudPath path) const
         -> file_service::FileServiceResultOr<file_service::FileInfo>;
 

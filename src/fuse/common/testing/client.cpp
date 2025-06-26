@@ -350,7 +350,12 @@ auto Client::fileCreate() -> FileServiceResultOr<file_service::File>
 
 auto Client::fileInfo(CloudPath path) const -> FileServiceResultOr<FileInfo>
 {
-    return fileService().info(FileID::from(path.resolve(*this)));
+    return fileInfo(FileID::from(path.resolve(*this)));
+}
+
+auto Client::fileInfo(FileID id) const -> file_service::FileServiceResultOr<file_service::FileInfo>
+{
+    return fileService().info(id);
 }
 
 auto Client::fileOpen(CloudPath path) const -> FileServiceResultOr<file_service::File>
