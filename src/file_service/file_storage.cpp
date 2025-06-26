@@ -87,6 +87,11 @@ FileAccessPtr FileStorage::addFile(const NodeInfo& info)
     return file;
 }
 
+FileAccessPtr FileStorage::addFile(FileID id)
+{
+    return openFile(userFilePath(id), true);
+}
+
 LocalPath FileStorage::databasePath() const
 {
     static const auto name = LocalPath::fromRelativePath("metadata");

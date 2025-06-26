@@ -38,6 +38,7 @@ public:
 
     // Add a new file to our storage area.
     FileAccessPtr addFile(const common::NodeInfo& info);
+    FileAccessPtr addFile(FileID id);
 
     // Where is the service storing this user's database?
     LocalPath databasePath() const;
