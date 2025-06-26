@@ -6826,6 +6826,57 @@ TEST_F(SyncTest, BasicSync_RenameLocalFile)
     ASSERT_TRUE(client1->confirmModel_mainthread(model2.findnode("x"), backupId1, true));
 }
 
+TEST_F(SyncTest, TransferCountProgress)
+{
+    const std::string logPre = "SyncTest.TransferCountProgress: ";
+    LOG_debug << logPre + "#### Test preparation ####";
+    auto clientA1 = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
+    clientA1->logcb = true;
+    ASSERT_TRUE(clientA1->resetBaseFolderMulticlient());
+    ASSERT_TRUE(clientA1->makeCloudSubdirs("sync1", 0, 0));
+    ASSERT_TRUE(CatchupClients(clientA1));
+
+    LOG_debug << logPre + "#### Add and start sync ####";
+    const auto backupId1 = clientA1->setupSync_mainthread("sync1", "sync1", false, false);
+    ASSERT_NE(backupId1, UNDEF) << "Cannot add sync";
+    const auto SYNCROOT = clientA1->syncSet(backupId1).localpath;
+
+    LOG_debug << logPre + "#### Build model. ####";
+    Model model1;
+    model1.addfolder("A");
+    model1.generate(SYNCROOT);
+    clientA1->triggerPeriodicScanEarly(backupId1);
+    constexpr auto TIMEOUT = chrono::seconds(30);
+    waitonsyncs(TIMEOUT, clientA1);
+
+    constexpr size_t KB_IN_BYTES{104857u};
+    constexpr size_t MB_IN_BYTES{1048576u};
+    auto addFile = [SYNCROOT](Model& model, const string& path, const size_t s)
+    {
+        auto data = randomData(s);
+        model.addfile(path, data);
+        ASSERT_TRUE(createFile(SYNCROOT / path, data));
+    };
+
+    LOG_debug << logPre + "#### Add some files in local FS. ####";
+    addFile(model1, "A/f1", KB_IN_BYTES);
+    addFile(model1, "A/f2", KB_IN_BYTES);
+    addFile(model1, "A/f3", KB_IN_BYTES);
+    addFile(model1, "A/f4", KB_IN_BYTES);
+    addFile(model1, "A/f5", KB_IN_BYTES);
+    addFile(model1, "A/f6", MB_IN_BYTES * 16);
+    addFile(model1, "A/f7", MB_IN_BYTES * 16);
+    addFile(model1, "A/f8", MB_IN_BYTES * 16);
+    addFile(model1, "A/f9", MB_IN_BYTES * 16);
+    addFile(model1, "A/f10", MB_IN_BYTES * 16);
+
+    LOG_debug << logPre + "#### Wait on sync. ####";
+    waitonsyncs(TIMEOUT, clientA1);
+
+    LOG_debug << logPre + "#### Confirm model. ####";
+    ASSERT_TRUE(clientA1->confirmModel_mainthread(model1.findnode("" /*root*/), backupId1));
+}
+
 TEST_F(SyncTest, BasicSync_AddLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
