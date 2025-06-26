@@ -239,6 +239,57 @@ TEST_F(FileServiceTests, create_succeeds)
     EXPECT_NE(file2->info().id(), id0);
 }
 
+TEST_F(FileServiceTests, create_write_succeeds)
+{
+    // Create a new file.
+    auto file = ClientW()->fileCreate();
+
+    // Make sure the file was created.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Generate some data for us to write to the file.
+    auto data = randomBytes(64_KiB);
+
+    // Try and write data to the file.
+    ASSERT_EQ(execute(write, data.data(), *file, 128_KiB, 64_KiB), FILE_SUCCESS);
+
+    // The file should have one range starting from the beginning of the file.
+    auto ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 1u);
+    ASSERT_EQ(ranges[0], FileRange(0, 192_KiB));
+
+    // All data before what we wrote should be zeroed.
+    auto computed = execute(read, *file, 0, 128_KiB);
+
+    // Make sure the read succeeded.
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Make sure the data we read is nothing but zeroes.
+    ASSERT_EQ(computed->find_first_not_of('\0'), std::string::npos);
+
+    // We should be able to read back what we wrote.
+    computed = execute(read, *file, 128_KiB, 64_KiB);
+
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(data, *computed);
+
+    // Write more data to the file.
+    ASSERT_EQ(execute(write, data.data(), *file, 320_KiB, 64_KiB), FILE_SUCCESS);
+
+    // We should still have a single range.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 1u);
+    ASSERT_EQ(ranges[0], FileRange(0, 384_KiB));
+
+    // We should be able to read back what we wrote.
+    computed = execute(read, *file, 320_KiB, 64_KiB);
+
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(data, *computed);
+}
+
 TEST_F(FileServiceTests, fetch_succeeds)
 {
     // Open a file for reading.
