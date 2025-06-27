@@ -95,7 +95,8 @@ public:
     void operator()(FlushContextPtr& context, FileResult result);
 
     // Cancel the flush.
-    void cancel();
+    template<typename Lock>
+    void cancel(Lock&& lock);
 
     // Queue a flush request for execution.
     void queue(FileFlushRequest request);
@@ -197,16 +198,13 @@ void FileContext::cancel()
         }
     }
 
-    // Cancel any flush in progress.
-    auto flush = [this]()
-    {
-        std::lock_guard guard(mFlushContextLock);
-        return std::move(mFlushContext);
-    }();
-
     // Cancel the flush if necessary.
-    if (flush)
-        flush->cancel();
+    {
+        std::unique_lock lock(mFlushContextLock);
+
+        if (auto context = std::move(mFlushContext))
+            context->cancel(std::move(lock));
+    }
 
     // Latch the request queue.
     auto requests = [this]()
@@ -1251,36 +1249,23 @@ void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult 
     mUpload->begin(std::move(callback));
 }
 
-void FileContext::FlushContext::cancel()
+template<typename Lock>
+void FileContext::FlushContext::cancel(Lock&& lock)
 {
-    // Convenience.
-    using RequestVector = decltype(mRequests);
+    assert(lock.mutex() == &mContext.mFlushContextLock);
+    assert(lock.owns_lock());
 
-    RequestVector requests;
-    UploadPtr upload;
+    auto upload = std::move(mUpload);
 
-    // Check if an upload's in progress.
-    {
-        std::lock_guard guard(mContext.mFlushContextLock);
+    // No upload's in progress.
+    if (!upload)
+        return completed(std::move(lock), FILE_CANCELLED);
 
-        // Convenience.
-        using std::swap;
+    // Release the lock.
+    lock.unlock();
 
-        // Latch the upload.
-        swap(mUpload, upload);
-
-        // No upload's in progress.
-        if (!upload)
-            swap(mRequests, requests);
-    }
-
-    // If an upload's in progress, cancel it.
-    if (upload)
-        return upload->cancel(), void();
-
-    // Let waiters know the flush has been cancelled.
-    for (auto& request: requests)
-        mContext.completed(std::move(request), FILE_CANCELLED);
+    // Cancel the upload.
+    upload->cancel();
 }
 
 void FileContext::FlushContext::queue(FileFlushRequest request)
