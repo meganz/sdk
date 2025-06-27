@@ -39,7 +39,7 @@ public:
     AndroidFileWrapper(AndroidFileWrapper&& other) = delete;
     AndroidFileWrapper& operator=(AndroidFileWrapper&& other) = delete;
 
-    bool exists();
+    bool exists() const;
     int getFileDescriptor(bool write);
     void close();
     std::string getName();
