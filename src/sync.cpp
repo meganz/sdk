@@ -3122,6 +3122,14 @@ bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row,
                                  "different: restoring the moved transfer to the sourceSyncNode "
                                  "(it could belong to a new file with same name)";
                     sourceSyncNode->resetTransfer(std::move(row.syncNode->transferSP));
+
+                    // Restore the path of the transfer too (it should be sourceSyncNode's path).
+                    LocalTreeProcUpdateTransfers tput;
+                    tput.proc(*syncs.fsaccess, sourceSyncNode);
+
+                    assert(sourceSyncNode->transferSP &&
+                           sourceSyncNode->transferSP->getLocalname() ==
+                               sourceSyncNode->getLocalPath());
                 }
                 else if (row.syncNode->transferSP)
                 {
