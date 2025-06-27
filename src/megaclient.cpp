@@ -2044,8 +2044,8 @@ MegaClient::MegaClient(MegaApp* a,
     connections[PUT] = 8;
     connections[GET] = 8;
 #endif
-    LOG_debug << clientname << "MegaClient initial max connections: uploads = " << connections[PUT]
-              << ", downloads = " << connections[GET];
+    LOG_debug << clientname << "MegaClient initial max connections: uploads = " << +connections[PUT]
+              << ", downloads = " << +connections[GET];
 
     reqtag = 0;
 

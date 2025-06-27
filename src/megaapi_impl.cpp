@@ -13390,8 +13390,20 @@ void MegaApiImpl::file_complete(File *f)
     if (!transfer)
         return;
 
-    if (!f->isFuseTransfer() && f->transfer->type == GET)
-        transfer->setLocalPath(f->getLocalname());
+    if (!f->isFuseTransfer())
+    {
+        if (f->transfer->type == GET)
+        {
+            transfer->setLocalPath(f->getLocalname());
+        }
+        else if (f->transfer->type == PUT && (f->getLocalname() != transfer->getLocalPath()))
+        {
+            LOG_debug << "[MegaApiImpl::file_complete] Changing transfer path from '"
+                      << transfer->getLocalPath().toPath(false) << "' to '"
+                      << f->getLocalname().toPath(false) << "'";
+            transfer->setLocalPath(f->getLocalname());
+        }
+    }
 
     processTransferComplete(f->transfer, transfer);
 }
@@ -13434,6 +13446,14 @@ void MegaApiImpl::transfer_update(Transfer *t)
         if (!transfer)
         {
             continue;
+        }
+
+        if ((*it)->getLocalname() != transfer->getLocalPath())
+        {
+            LOG_debug << "[MegaApiImpl::transfer_update] Changing transfer path from '"
+                      << transfer->getLocalPath().toPath(false) << "' to '"
+                      << (*it)->getLocalname().toPath(false) << "'";
+            transfer->setLocalPath((*it)->getLocalname());
         }
 
         if (it == t->files.begin()
