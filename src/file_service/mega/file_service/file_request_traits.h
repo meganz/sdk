@@ -20,6 +20,12 @@ template<typename T, typename U>
 using HasTypeOf = std::is_same<DetectedT<DetectTypeType, T>, U>;
 
 template<typename T>
+using IsFileFlushRequest = std::is_base_of<FileFlushRequest, T>;
+
+template<typename T>
+constexpr auto IsFileFlushRequestV = IsFileFlushRequest<T>::value;
+
+template<typename T>
 using IsFileReadRequest = HasTypeOf<T, FileReadRequestTag>;
 
 template<typename T>
@@ -39,6 +45,8 @@ constexpr auto IsFileWriteRequestV = IsFileWriteRequest<T>::value;
 
 } // detail
 
+using detail::IsFileFlushRequest;
+using detail::IsFileFlushRequestV;
 using detail::IsFileReadRequest;
 using detail::IsFileReadRequestV;
 using detail::IsFileRequest;
