@@ -82,6 +82,9 @@ class FileContext::FlushContext
     // Populates mHandle, mName and mParentHandle.
     Error resolve(Client& client);
 
+    // Called when the file's data has been uploaded.
+    void uploaded(FlushContextPtr& context, ErrorOr<UploadResult> result);
+
     // Keep mContext alive as long as we are alive.
     Activity mActivity;
 
@@ -1239,6 +1242,30 @@ Error FileContext::FlushContext::resolve(Client& client)
     return API_OK;
 }
 
+void FileContext::FlushContext::uploaded(FlushContextPtr& context, ErrorOr<UploadResult> result)
+{
+    // Acquire flush context lock.
+    std::unique_lock lock(mContext.mFlushContextLock);
+
+    // Couldn't upload the file's data.
+    if (!result)
+        return completed(std::move(lock), fileResultFromError(result.error()));
+
+    // Upload's been cancelled.
+    if (mRequests.empty())
+        return;
+
+    // Release the lock.
+    lock.unlock();
+
+    // So we can use our bound method as a callback.
+    BoundCallback bound =
+        std::bind(&FlushContext::bound, std::move(context), std::placeholders::_1);
+
+    // Bind a name to our file's uploaded data.
+    (*result)(std::move(bound), mHandle);
+}
+
 FileContext::FlushContext::FlushContext(FileContext& context, FileExplicitFlushRequest request):
     mActivity(context.mActivities.begin()),
     mContext(context),
@@ -1297,9 +1324,9 @@ void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult 
                             mParentHandle,
                             service.path(info.id()));
 
-    // So we can use our bound method as a callback.
-    BoundCallback callback =
-        std::bind(&FlushContext::bound, std::move(context), std::placeholders::_1);
+    // So we can use our uploaded method as a callback.
+    UploadCallback callback =
+        std::bind(&FlushContext::uploaded, this, std::move(context), std::placeholders::_1);
 
     // Begin the upload.
     mUpload->begin(std::move(callback));
