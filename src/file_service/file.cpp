@@ -58,7 +58,8 @@ void File::flush(FileFlushCallback callback,
                  const std::string& name,
                  NodeHandle parentHandle)
 {
-    mContext->flush(FileExplicitFlushRequest{std::move(callback), logicalPath, name, parentHandle});
+    mContext->flush(
+        FileExplicitFlushRequest{{std::move(callback), logicalPath}, name, parentHandle});
 }
 
 void File::flush(FileFlushCallback callback, const std::string& name, NodeHandle parentHandle)
