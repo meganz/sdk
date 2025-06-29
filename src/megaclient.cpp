@@ -3000,6 +3000,7 @@ void MegaClient::exec()
 
                 if (*pendingsc->in.c_str() == '{')
                 {
+                    LOG_debug << "Incoming action packet: " << pendingsc->in;
                     insca = false;
                     insca_notlast = false;
                     jsonsc.begin(pendingsc->in.c_str());
@@ -3140,6 +3141,25 @@ void MegaClient::exec()
                     pendingscTimedOut = true;
                     pendingsc.reset();
                     btsc.reset();
+                }
+                if (*pendingsc->in.c_str() == '{')
+                {
+                    JSON json;
+                    json.begin(pendingsc->in.c_str());
+                    if (json.enterobject() && json.getnameid() == makeNameid("a") &&
+                        json.enterarray())
+                    {
+                        LOG_debug << "Action packet in progress: " << pendingsc->in;
+                        insca = false;
+                        insca_notlast = false;
+                        jsonsc.begin(pendingsc->in.c_str());
+                        jsonsc.enterobject();
+                        if (!scpaused && procsc())
+                        {
+                            pendingsc->purge(jsonsc.pos - pendingsc->in.c_str());
+                        }
+                        jsonsc.pos = NULL;
+                    }
                 }
                 break;
             default:
