@@ -3000,7 +3000,6 @@ void MegaClient::exec()
 
                 if (*pendingsc->in.c_str() == '{')
                 {
-                    LOG_debug << "Incoming action packet: " << pendingsc->in;
                     insca = false;
                     insca_notlast = false;
                     jsonsc.begin(pendingsc->in.c_str());
@@ -3149,7 +3148,6 @@ void MegaClient::exec()
                     if (json.enterobject() && json.getnameid() == makeNameid("a") &&
                         json.enterarray())
                     {
-                        LOG_debug << "Action packet in progress: " << pendingsc->in;
                         insca = false;
                         insca_notlast = false;
                         jsonsc.begin(pendingsc->in.c_str());
