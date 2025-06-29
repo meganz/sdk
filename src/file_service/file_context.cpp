@@ -13,6 +13,7 @@
 #include <mega/file_service/file_buffer.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
+#include <mega/file_service/file_explicit_flush_request.h>
 #include <mega/file_service/file_fetch_request.h>
 #include <mega/file_service/file_flush_request.h>
 #include <mega/file_service/file_id.h>
@@ -76,11 +77,25 @@ class FileContext::FlushContext
     template<typename Lock>
     void completed(Lock&& lock, FileResult result);
 
+    // Called to check that our upload target is valid.
+    //
+    // Populates mHandle, mName and mParentHandle.
+    Error resolve(Client& client);
+
     // Keep mContext alive as long as we are alive.
     Activity mActivity;
 
     // What file are we flushing?
     FileContext& mContext;
+
+    // The file's current node handle.
+    NodeHandle mHandle;
+
+    // The file's intended name.
+    std::string mName;
+
+    // The file's intended parent.
+    NodeHandle mParentHandle;
 
     // What flush requests are we executing?
     std::vector<FileFlushRequest> mRequests;
@@ -89,6 +104,7 @@ class FileContext::FlushContext
     UploadPtr mUpload;
 
 public:
+    FlushContext(FileContext& context, FileExplicitFlushRequest request);
     FlushContext(FileContext& context, FileFlushRequest request);
 
     // Called when we've retrieved all of this file's content.
@@ -506,7 +522,8 @@ bool FileContext::execute(FileFetchRequest& request)
     return true;
 }
 
-bool FileContext::execute(FileFlushRequest& request)
+template<typename Request>
+auto FileContext::execute(Request& request) -> std::enable_if_t<IsFileFlushRequestV<Request>, bool>
 {
     // Can't execute a flush if a write's in progress.
     if (!mReadWriteState.read())
@@ -1023,10 +1040,14 @@ void FileContext::fetch(FileFetchRequest request)
     executeOrQueue(std::move(request));
 }
 
-void FileContext::flush(FileFlushRequest request)
+template<typename Request>
+auto FileContext::flush(Request&& request) -> std::enable_if_t<IsFileFlushRequestV<Request>>
 {
-    executeOrQueue(std::move(request));
+    executeOrQueue(std::forward<Request>(request));
 }
+
+template void FileContext::flush(FileExplicitFlushRequest&&);
+template void FileContext::flush(FileFlushRequest&&);
 
 FileInfo FileContext::info() const
 {
@@ -1197,51 +1218,83 @@ void FileContext::FlushContext::completed(Lock&& lock, FileResult result)
         mContext.completed(std::move(request), result);
 }
 
-FileContext::FlushContext::FlushContext(FileContext& context, FileFlushRequest request):
+Error FileContext::FlushContext::resolve(Client& client)
+{
+    // File's never been flushed before.
+    if (mHandle.isUndef())
+        return client.get(mParentHandle).errorOr(API_OK);
+
+    // Check if this file's node still exists.
+    auto node = client.get(mHandle);
+
+    // File's node no longer exists.
+    if (!node)
+        return node.error();
+
+    // Latch node's current name and parent.
+    mName = std::move(node->mName);
+    mParentHandle = node->mParentHandle;
+
+    // Let the caller know the node still exists.
+    return API_OK;
+}
+
+FileContext::FlushContext::FlushContext(FileContext& context, FileExplicitFlushRequest request):
     mActivity(context.mActivities.begin()),
     mContext(context),
+    mHandle(context.mInfo->handle()),
+    mName(request.mName),
+    mParentHandle(request.mParentHandle),
     mRequests(),
     mUpload()
 {
-    // Queue the request.
-    queue(std::move(request));
+    mRequests.emplace_back(std::move(request));
+}
+
+FileContext::FlushContext::FlushContext(FileContext& context, FileFlushRequest request):
+    mActivity(context.mActivities.begin()),
+    mContext(context),
+    mHandle(context.mInfo->handle()),
+    mName(),
+    mParentHandle(),
+    mRequests(),
+    mUpload()
+{
+    mRequests.emplace_back(std::move(request));
 }
 
 void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult result)
 {
-    // Acquire flush context lock.
-    std::unique_lock lock(mContext.mFlushContextLock);
+    // Convenience.
+    auto& mutex = mContext.mFlushContextLock;
 
     // Couldn't retrieve this file's content.
     if (result != FILE_SUCCESS)
-        return completed(std::move(lock), result);
-
-    // Release context lock.
-    lock.unlock();
+        return completed(std::unique_lock(mutex), result);
 
     // Convenience.
     auto& service = mContext.mService;
     auto& client = service.client();
     auto& info = *mContext.mInfo;
 
-    // Try and get our hands on this file's node.
-    auto node = client.get(info.handle());
+    // Check whether the file or its intended parent still exists.
+    result = fileResultFromError(resolve(client));
 
-    // Reacquire context lock.
-    lock.lock();
+    // Acquire context lock.
+    std::unique_lock lock(mutex);
+
+    // File or its intended parent no longer exists.
+    if (result != FILE_SUCCESS)
+        return completed(std::move(lock), result);
 
     // No requests? Flush must have been cancelled.
     if (mRequests.empty())
         return;
 
-    // File's been removed from the cloud.
-    if (!node)
-        return completed(std::move(lock), FILE_FAILED);
-
     // Instantiate an upload.
     mUpload = client.upload(mRequests.front().mLogicalPath,
-                            node->mName,
-                            node->mParentHandle,
+                            mName,
+                            mParentHandle,
                             service.path(info.id()));
 
     // So we can use our bound method as a callback.

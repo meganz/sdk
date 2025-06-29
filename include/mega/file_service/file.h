@@ -12,6 +12,7 @@ namespace mega
 {
 
 class LocalPath;
+class NodeHandle;
 
 namespace file_service
 {
@@ -40,6 +41,13 @@ public:
     void fetch(FileFetchCallback callback);
 
     // Flush this file's local modifications to the cloud.
+    void flush(FileFlushCallback callback,
+               const LocalPath& logicalPath,
+               const std::string& name,
+               NodeHandle parentHandle);
+
+    void flush(FileFlushCallback callback, const std::string& name, NodeHandle parentHandle);
+
     void flush(FileFlushCallback callback, const LocalPath& logicalPath);
     void flush(FileFlushCallback callback);
 

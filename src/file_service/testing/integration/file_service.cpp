@@ -74,6 +74,9 @@ struct FileServiceTests: fuse::testing::Test
 
     // The handle of the file we want to read.
     static NodeHandle mFileHandle;
+
+    // The handle of our test root directory.
+    static NodeHandle mRootHandle;
 }; // FUSEPartialDownloadTests
 
 // For clarity.
@@ -88,6 +91,10 @@ static bool compare(const std::string& computed,
                     const std::string& expected,
                     std::uint64_t offset,
                     std::uint64_t length);
+
+// Flush a file's modified content to the cloud.
+static auto explicitFlush(File file, const std::string& name, NodeHandle parentHandle)
+    -> std::future<FileResult>;
 
 // Fetch all of a file's content from the cloud.
 static auto fetch(File file) -> std::future<FileResult>;
@@ -112,6 +119,8 @@ static auto write(const void* buffer, File file, std::uint64_t offset, std::uint
 std::string FileServiceTests::mFileContent;
 
 NodeHandle FileServiceTests::mFileHandle;
+
+NodeHandle FileServiceTests::mRootHandle;
 
 TEST_F(FileServiceTests, append_succeeds)
 {
@@ -237,6 +246,53 @@ TEST_F(FileServiceTests, create_succeeds)
 
     // Make sure it has a newly generated ID.
     EXPECT_NE(file2->info().id(), id0);
+}
+
+TEST_F(FileServiceTests, create_flush_succeeds)
+{
+    // Create a new file.
+    auto file = ClientW()->fileCreate();
+
+    // Make sure the file was created.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Generate some data for us to write to the file.
+    auto expected = randomBytes(128_KiB);
+
+    // Write data to the file.
+    ASSERT_EQ(execute(write, expected.data(), *file, 0, 128_KiB), FILE_SUCCESS);
+
+    // Try and flush the file to the cloud.
+    auto handle = [file = std::move(file), this]() -> FileResultOr<NodeHandle>
+    {
+        // Try and flush the file to the cloud.
+        auto result = execute(explicitFlush, *file, randomName(), mRootHandle);
+
+        // Couldn't flush the file to the cloud.
+        if (result != FILE_SUCCESS)
+            return unexpected(result);
+
+        // Return the file's handle.
+        return file->info().handle();
+    }();
+
+    // Make sure we were able to flush the file to the cloud.
+    ASSERT_EQ(handle.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Check that the file exists in the cloud.
+    ASSERT_EQ(ClientW()->get(*handle).errorOr(API_OK), API_OK);
+
+    // Reopen the file.
+    file = ClientW()->fileOpen(*handle);
+
+    // Make sure the file was opened successfully.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure the data we uploaded was the data we wrote.
+    auto computed = execute(read, *file, 0, 128_KiB);
+
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(*computed, expected);
 }
 
 TEST_F(FileServiceTests, create_write_succeeds)
@@ -1060,6 +1116,9 @@ void FileServiceTests::SetUpTestSuite()
 
     // Latch the file's handle for later use.
     mFileHandle = *fileHandle;
+
+    // Latch the root handle for later use.
+    mRootHandle = *rootHandle;
 }
 
 std::uint64_t operator""_KiB(unsigned long long value)
@@ -1111,6 +1170,28 @@ bool compare(const std::string& computed,
 
     // Make sure the content matches our file.
     return !expected.compare(offset, length, computed);
+}
+
+auto explicitFlush(File file, const std::string& name, NodeHandle parentHandle)
+    -> std::future<FileResult>
+{
+    // So we can signal when the request has completed.
+    auto notifier = makeSharedPromise<FileResult>();
+
+    // So we can wait until the request has completed.
+    auto waiter = notifier->get_future();
+
+    // Try and flush the file to the cloud.
+    file.flush(
+        [file, notifier](FileResult result)
+        {
+            notifier->set_value(result);
+        },
+        name,
+        parentHandle);
+
+    // Return the waiter to our caller.
+    return waiter;
 }
 
 auto fetch(File file) -> std::future<FileResult>
