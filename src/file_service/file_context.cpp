@@ -716,15 +716,18 @@ bool FileContext::execute(FileWriteRequest& request)
     Iterator begin;
     Iterator end;
 
-    // Find out which ranges we've touched.
-    std::tie(begin, end) = mRanges.find(extend(range, 1));
+    // Compute initial effective range.
+    FileRange effectiveRange = {std::min(mInfo->size(), range.mBegin), range.mEnd};
 
-    // Compute effective range.
-    auto effectiveRange = [&]()
+    // Find out which ranges we've touched.
+    std::tie(begin, end) = mRanges.find(extend(effectiveRange, 1));
+
+    // Refine our effective range.
+    effectiveRange = [&]()
     {
         // Assume range has no contiguous siblings.
-        auto from = range.mBegin;
-        auto to = range.mEnd;
+        auto from = effectiveRange.mBegin;
+        auto to = effectiveRange.mEnd;
 
         // Range has no siblings.
         if (begin == mRanges.end())
@@ -754,7 +757,7 @@ bool FileContext::execute(FileWriteRequest& request)
         if (candidate == mRanges.crend())
             return FileRange(from, to);
 
-        // Recompute range's end point .
+        // Recompute range's end point.
         to = std::max(candidate->first.mEnd, to);
 
         // Return effective range to caller.

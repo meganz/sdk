@@ -1017,17 +1017,17 @@ TEST_F(FileServiceTests, write_succeeds)
     EXPECT_EQ(ranges.front(), FileRange(0, 384_KiB));
 
     // Make sure writes can extend the file's size.
-    ASSERT_EQ(write(computed.data(), 1_MiB, 64_KiB), FILE_SUCCESS);
+    ASSERT_EQ(write(computed.data(), 2_MiB, 64_KiB), FILE_SUCCESS);
 
     // We should now have two ranges.
     ranges = file->ranges();
 
     ASSERT_EQ(ranges.size(), 2u);
     EXPECT_EQ(ranges[0], FileRange(0, 384_KiB));
-    EXPECT_EQ(ranges[1], FileRange(1024_KiB, 1088_KiB));
+    EXPECT_EQ(ranges[1], FileRange(1024_KiB, 2112_KiB));
 
     // Make sure we can read back what we wrote.
-    ASSERT_EQ(read(1_MiB, 64_KiB), FILE_SUCCESS);
+    ASSERT_EQ(read(2_MiB, 64_KiB), FILE_SUCCESS);
 }
 
 void FileServiceTests::SetUp()
