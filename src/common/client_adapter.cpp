@@ -134,23 +134,14 @@ class ClientPartialDownload:
     using Event = DirectRead::CallbackParam;
     using Failure = DirectRead::Failure;
 
-    // Check whether the download's been cancelled.
-    template<typename Lock>
-    bool cancelled(Lock&& lock) const;
-
     // Called when the download's been completed.
-    template<typename Lock>
-    void completed(Lock&& lock, Error result);
-
     void completed(Error result);
 
     // Called when the SDK wants to feed us file content.
-    template<typename Lock>
-    void data(Data& data, Lock&& lock);
+    void data(Data& data);
 
     // Called when the SDK wants to report a download failure.
-    template<typename Lock>
-    void failure(Failure& failure, Lock&& lock);
+    void failure(Failure& failure);
 
     // Signal that the download is now in progress.
     //
@@ -168,14 +159,8 @@ class ClientPartialDownload:
     // The client that will perform our download.
     ClientAdapter& mClient;
 
-    // Is the current thread executing a callback?
-    thread_local static bool mExecuting;
-
     // The file that we're downloading.
     const NodeHandle mHandle;
-
-    // Serializes access to instance members.
-    mutable std::shared_mutex mLock;
 
     // At what location in the file should we start downloading?
     std::uint64_t mOffset;
@@ -184,7 +169,7 @@ class ClientPartialDownload:
     std::uint64_t mRemaining;
 
     // Tracks the status of the download.
-    StatusFlags mStatus;
+    std::atomic<StatusFlags> mStatus;
 
 public:
     ClientPartialDownload(PartialDownloadCallback& callback,
@@ -322,8 +307,6 @@ static void describe(NodeInfo& destination,
                      Node& source);
 
 static NodeInfo describe(Node& node);
-
-thread_local bool ClientPartialDownload::mExecuting{};
 
 ClientAdapter::ClientAdapter(MegaClient& client)
   : Client(common::logger())
@@ -1414,63 +1397,45 @@ std::size_t ClientNodeEventQueue::size() const
     return mEvents.size();
 }
 
-template<typename Lock>
-bool ClientPartialDownload::cancelled(Lock&& lock) const
-{
-    // Sanity.
-    assert(lock.mutex() == &mLock);
-    assert(lock.owns_lock());
-
-    return (mStatus & SF_CANCELLED) > 0;
-}
-
-template<typename Lock>
-void ClientPartialDownload::completed(Lock&& lock, Error result)
-{
-    // Sanity.
-    assert(lock.mutex() == &mLock);
-    assert(lock.owns_lock());
-
-    // Download's completed.
-    mStatus = SF_COMPLETED;
-
-    // Download's effectively cancelled.
-    if (result == API_EINCOMPLETE)
-        mStatus |= SF_CANCELLED;
-
-    // Signal that we're executing a callback.
-    auto executing = makeScopedValue(mExecuting, true);
-
-    // Let the user know the download's completed.
-    mCallback.completed(result);
-}
-
 void ClientPartialDownload::completed(Error result)
 {
-    // Acquire lock.
-    std::unique_lock lock(mLock);
+    // Try and complete the download.
+    while (true)
+    {
+        // Latch the download's current status.
+        auto expected = mStatus.load();
 
-    // Download's already been completed.
-    if ((mStatus & SF_COMPLETED))
-        return;
+        // The download's already been completed.
+        if (expected & SF_COMPLETED)
+            return;
 
-    // Delegate.
-    completed(std::move(lock), result);
+        // Convenience.
+        auto mask = SF_CANCELLABLE | SF_IN_PROGRESS;
+
+        // Compute the download's updated status.
+        auto desired = (expected & ~mask) | SF_COMPLETED;
+
+        // Download's been effectively cancelled.
+        if (result == API_EINCOMPLETE)
+            desired |= SF_CANCELLED;
+
+        // Another thread's updated the download's status.
+        if (!mStatus.compare_exchange_weak(expected, desired))
+            continue;
+
+        // Let the user know their download's completed.
+        mCallback.completed(result);
+    }
 }
 
-template<typename Lock>
-void ClientPartialDownload::data(Data& data, Lock&& lock)
+void ClientPartialDownload::data(Data& data)
 {
-    // Sanity.
-    assert(lock.mutex() == &mLock);
-    assert(lock.owns_lock());
-
     // Assume the download should be terminated.
     data.ret = false;
 
     // Download's been cancelled.
-    if (cancelled(lock))
-        return;
+    if (cancelled())
+        return completed(API_EINCOMPLETE);
 
     // Convenience.
     auto buffer = reinterpret_cast<const void*>(data.buffer);
@@ -1488,32 +1453,35 @@ void ClientPartialDownload::data(Data& data, Lock&& lock)
 
     // The user's callback cancelled the download.
     if (std::holds_alternative<Abort>(result))
-        return completed(std::forward<Lock>(lock), API_EINCOMPLETE);
+        return completed(API_EINCOMPLETE);
+
+    // Download's been cancelled.
+    if (cancelled())
+        return completed(API_EINCOMPLETE);
 
     // We've got all the data we asked for.
     if (!mRemaining)
-        return completed(std::forward<Lock>(lock), API_OK);
+        return completed(API_OK);
 
     // Continue the download.
     data.ret = true;
 }
 
-template<typename Lock>
-void ClientPartialDownload::failure(Failure& failure, Lock&& lock)
+void ClientPartialDownload::failure(Failure& failure)
 {
-    // Sanity.
-    assert(lock.mutex() == &mLock);
-    assert(lock.owns_lock());
-
     // Assume the download will be terminated.
     failure.ret = NEVER;
 
     // Client's being torn down or the read's been aborted.
     if (failure.e == API_EINCOMPLETE)
-        return completed(std::forward<Lock>(lock), API_EINCOMPLETE);
+        return completed(API_EINCOMPLETE);
 
     // Dispatch the callback.
     auto result = mCallback.failed(failure.e, failure.retry);
+
+    // Download's been cancelled.
+    if (cancelled())
+        return completed(API_EINCOMPLETE);
 
     // Convenience.
     using Retry = PartialDownloadCallback::Retry;
@@ -1522,7 +1490,7 @@ void ClientPartialDownload::failure(Failure& failure, Lock&& lock)
     std::visit(overloaded{[&](const Abort&)
                           {
                               // Let the user know why the read has completed.
-                              completed(std::forward<Lock>(lock), failure.e);
+                              completed(failure.e);
                           },
                           [&](const Retry& retry)
                           {
@@ -1534,17 +1502,26 @@ void ClientPartialDownload::failure(Failure& failure, Lock&& lock)
 
 bool ClientPartialDownload::inProgress()
 {
-    std::unique_lock guard(mLock);
+    // Try and mark the download as in progress.
+    while (true)
+    {
+        // Latch the download's current status.
+        auto expected = mStatus.load();
 
-    // Download's already begun or already completed.
-    if (mStatus != SF_CANCELLABLE)
-        return false;
+        // The download's already begun or already completed.
+        if (expected != SF_CANCELLABLE)
+            return false;
 
-    // Signal that the download is in progress.
-    mStatus |= SF_IN_PROGRESS;
+        // Compute the download's updated status.
+        auto desired = expected | SF_IN_PROGRESS;
 
-    // Let the caller know the download's now in progress.
-    return true;
+        // Another thread's changed the download's status.
+        if (!mStatus.compare_exchange_weak(expected, desired))
+            continue;
+
+        // Let the caller know the download's in progress.
+        return true;
+    }
 }
 
 void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
@@ -1579,22 +1556,16 @@ void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
                           event);
     }
 
-    // Acquire the lock so other threads must wait to cancel us.
-    std::unique_lock lock(download->mLock);
-
-    // We're executing in the context of a callback.
-    auto executing = makeScopedValue(download->mExecuting, true);
-
     // Dispatch the event.
     std::visit(overloaded{[&](Data& data)
                           {
                               // Delegate.
-                              download->data(data, lock);
+                              download->data(data);
                           },
                           [&](Failure& failure)
                           {
                               // Delegate.
-                              download->failure(failure, lock);
+                              download->failure(failure);
                           },
                           [&](Revoke& revoke)
                           {
@@ -1603,8 +1574,8 @@ void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
                           },
                           [&](Valid& valid)
                           {
-                              // We're valid if we're sane.
-                              valid.ret = !download->cancelled(lock);
+                              // We're valid as the download's still alive.
+                              valid.ret = true;
                           }},
                event);
 }
@@ -1619,23 +1590,19 @@ ClientPartialDownload::ClientPartialDownload(PartialDownloadCallback& callback,
     mCallback(callback),
     mClient(client),
     mHandle(handle),
-    mLock(),
     mOffset(offset),
     mRemaining(length),
-    mStatus(SF_CANCELLABLE)
+    mStatus{SF_CANCELLABLE}
 {}
 
 ClientPartialDownload::~ClientPartialDownload()
 {
-    // Cancel the download if necessary.
-    cancel();
+    // Let the user know the download's been completed.
+    completed(API_EINCOMPLETE);
 }
 
 void ClientPartialDownload::begin()
 {
-    // This should never be called from within a callback.
-    assert(!mExecuting);
-
     // Download's already begun or already been completed.
     if (!inProgress())
         return;
@@ -1660,7 +1627,7 @@ void ClientPartialDownload::begin()
 
             // Download's been cancelled.
             if (cancelled())
-                return;
+                return completed(API_EINCOMPLETE);
 
             // Get our hands on the node we want to download.
             auto node = mClient.client().nodeByHandle(mHandle);
@@ -1692,58 +1659,52 @@ void ClientPartialDownload::begin()
 
 bool ClientPartialDownload::cancel()
 {
-    // This should never be called from within a callback.
-    assert(!mExecuting);
+    // Try and cancel the download.
+    while (true)
+    {
+        // Latch the download's current status.
+        auto expected = mStatus.load();
 
-    // Acquire lock if necessary.
-    std::unique_lock guard(mLock);
+        // Download's already been cancelled or completed.
+        if (!(expected & SF_CANCELLABLE))
+            return false;
 
-    // Download's already been completed.
-    if ((mStatus & SF_COMPLETED))
-        return false;
+        // Compute download's new status.
+        auto desired = (expected ^ SF_CANCELLABLE) | SF_CANCELLED;
 
-    // Signal that the download has been cancelled.
-    mStatus = SF_CANCELLED | SF_COMPLETED;
+        // Couldn't update the download's status.
+        if (!mStatus.compare_exchange_weak(expected, desired))
+            continue;
 
-    // Signal that we're executing a callback.
-    auto executing = makeScopedValue(mExecuting, true);
+        // Download's in progress: Let the client call the user's callback.
+        if (expected & SF_IN_PROGRESS)
+            return true;
 
-    // Invoke the user's callback.
-    mCallback.completed(API_EINCOMPLETE);
+        // Download hasn't started so mark it as complete.
+        mStatus |= SF_COMPLETED;
 
-    // Let the caller know the download's been cancelled.
-    return true;
+        // And call the user's callback directly.
+        mCallback.completed(API_EINCOMPLETE);
+
+        // Let the caller know the download was cancelled.
+        return true;
+    }
 }
 
 bool ClientPartialDownload::cancellable() const
 {
-    // This should never be called from within a callback.
-    assert(!mExecuting);
-
-    // Acquire lock.
-    std::shared_lock guard(mLock);
-
     // Check if we can be cancelled.
     return (mStatus & SF_CANCELLABLE) > 0;
 }
 
 bool ClientPartialDownload::cancelled() const
 {
-    // This should never be called from within a callback.
-    assert(!mExecuting);
-
-    // Check if we've been cancelled.
-    return cancelled(std::shared_lock(mLock));
+    // Check if the download's been cancelled.
+    return (mStatus & SF_CANCELLED) > 0;
 }
 
 bool ClientPartialDownload::completed() const
 {
-    // This should never be called from within a callback.
-    assert(!mExecuting);
-
-    // Acquire lock.
-    std::shared_lock guard(mLock);
-
     // Check if we've been completed.
     return (mStatus & SF_COMPLETED) > 0;
 }
