@@ -376,7 +376,7 @@ bool MegaClient::decryptkey(const char* sk,
         sl = Base64::atob(sk, buf, sl);
 
         // decrypt and set session ID for subsequent API communication
-        if (!asymkey.decrypt(buf, static_cast<size_t>(sl), tk, static_cast<size_t>(tl)))
+        if (!mPrivateRsaKey.decrypt(buf, static_cast<size_t>(sl), tk, static_cast<size_t>(tl)))
         {
             delete[] buf;
             LOG_warn << "Corrupt or invalid RSA node key";
@@ -2010,8 +2010,8 @@ MegaClient::MegaClient(MegaApp* a,
     ststatus = STORAGE_UNKNOWN;
     mOverquotaDeadlineTs = 0;
 
-    signkey = NULL;
-    chatkey = NULL;
+    mEd255Key = NULL;
+    mX255Key = NULL;
 
     init();
 
@@ -5054,9 +5054,9 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
 
     key.setkey(SymmCipher::zeroiv);
     tckey.setkey(SymmCipher::zeroiv);
-    asymkey.resetkey();
-    mPrivKey.clear();
-    pubk.resetkey();
+    mPrivateRsaKey.resetkey();
+    mSerializedPrivateRsaKey.clear();
+    mPublicRsaKey.resetkey();
     sessionkey.clear();
     accountversion = 0;
     accountsalt.clear();
@@ -12386,11 +12386,11 @@ void MegaClient::clearKeys()
 
 void MegaClient::resetKeyring()
 {
-    delete signkey;
-    signkey = NULL;
+    delete mEd255Key;
+    mEd255Key = NULL;
 
-    delete chatkey;
-    chatkey = NULL;
+    delete mX255Key;
+    mX255Key = NULL;
 }
 
 // process node tree (bottom up)
@@ -12545,7 +12545,7 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
     }
 
     mKeyManager.setKey(key);
-    mKeyManager.init(prEd255, prCu255, mPrivKey);
+    mKeyManager.init(prEd255, prCu255, mSerializedPrivateRsaKey);
 
     int migratedInShares = 0;
     int totalInShares = 0;
@@ -14446,7 +14446,7 @@ sessiontype_t MegaClient::loggedin()
         return EPHEMERALACCOUNT;
     }
 
-    if (!asymkey.isvalid(AsymmCipher::PRIVKEY))
+    if (!mPrivateRsaKey.isvalid(AsymmCipher::PRIVKEY))
     {
         return CONFIRMEDACCOUNT;
     }
@@ -14724,10 +14724,10 @@ pair<string, string> MegaClient::setkeypair()
 
     string privks, pubks;
 
-    asymkey.genkeypair(rng, newPubKey, 2048);
+    mPrivateRsaKey.genkeypair(rng, newPubKey, 2048);
 
     AsymmCipher::serializeintarray(newPubKey, AsymmCipher::PUBKEY, &pubks);
-    AsymmCipher::serializeintarray(asymkey.getKey(), AsymmCipher::PRIVKEY, &privks);
+    AsymmCipher::serializeintarray(mPrivateRsaKey.getKey(), AsymmCipher::PRIVKEY, &privks);
 
     // add random padding and ECB-encrypt with master key
     unsigned t = unsigned(privks.size());
@@ -15599,11 +15599,11 @@ void MegaClient::resetScForFetchnodes()
 
 void MegaClient::initializekeys()
 {
-    string privRSA = mPrivKey;
+    string privRSA = mSerializedPrivateRsaKey;
     string pubRSA;
-    if (pubk.isvalid())
-        pubk.serializekey(&pubRSA, AsymmCipher::PUBKEY);
-    if (!pubk.isvalid() && loggedin() != EPHEMERALACCOUNTPLUSPLUS)
+    if (mPublicRsaKey.isvalid())
+        mPublicRsaKey.serializekey(&pubRSA, AsymmCipher::PUBKEY);
+    if (!mPublicRsaKey.isvalid() && loggedin() != EPHEMERALACCOUNTPLUSPLUS)
     {
         LOG_info << "Generating and adding missing RSA keypair";
         assert(privRSA.empty() && pubRSA.empty());
@@ -15659,11 +15659,11 @@ void MegaClient::initializekeys()
     // Initialize private keys
     if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
     {
-        signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
-        if (!signkey->initializationOK)
+        mEd255Key = new EdDSA(rng, (unsigned char*)prEd255.data());
+        if (!mEd255Key->initializationOK)
         {
-            delete signkey;
-            signkey = NULL;
+            delete mEd255Key;
+            mEd255Key = NULL;
             clearKeys();
             return;
         }
@@ -15671,20 +15671,21 @@ void MegaClient::initializekeys()
 
     if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
     {
-        chatkey = new ECDH(prCu255);
-        if (!chatkey->initializationOK)
+        mX255Key = new ECDH(prCu255);
+        if (!mX255Key->initializationOK)
         {
-            delete chatkey;
-            chatkey = NULL;
+            delete mX255Key;
+            mX255Key = NULL;
             clearKeys();
             return;
         }
     }
 
-    if (chatkey && signkey)    // THERE ARE KEYS
+    if (mX255Key && mEd255Key) // THERE ARE KEYS
     {
         // Check Ed25519 public key against derived version
-        if ((puEd255.size() != EdDSA::PUBLIC_KEY_LENGTH) || memcmp(puEd255.data(), signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH))
+        if ((puEd255.size() != EdDSA::PUBLIC_KEY_LENGTH) ||
+            memcmp(puEd255.data(), mEd255Key->pubKey, EdDSA::PUBLIC_KEY_LENGTH))
         {
             LOG_warn << "Public key for Ed25519 mismatch.";
 
@@ -15696,7 +15697,8 @@ void MegaClient::initializekeys()
         }
 
         // Check Cu25519 public key against derive version
-        if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) || memcmp(puCu255.data(), chatkey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH))
+        if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) ||
+            memcmp(puCu255.data(), mX255Key->getPubKey(), ECDH::PUBLIC_KEY_LENGTH))
         {
             LOG_warn << "Public key for Cu25519 mismatch.";
 
@@ -15726,22 +15728,22 @@ void MegaClient::initializekeys()
         if (loggedin() != EPHEMERALACCOUNTPLUSPLUS)   // E++ accounts don't have RSA keys
         {
             // Verify signature for RSA public key
-            if (pubk.isvalid() && sigPubk.empty())
+            if (mPublicRsaKey.isvalid() && sigPubk.empty())
             {
                 string pubkStr;
                 std::string buf;
                 userattr_map attrs;
-                pubk.serializekeyforjs(pubkStr);
-                signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+                mPublicRsaKey.serializekeyforjs(pubkStr);
+                mEd255Key->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
                 buf.assign(sigPubk.data(), sigPubk.size());
                 attrs[ATTR_SIG_RSA_PUBK] = buf;
                 putua(&attrs, 0);
             }
 
             string pubkstr;
-            if (pubk.isvalid())
+            if (mPublicRsaKey.isvalid())
             {
-                pubk.serializekeyforjs(pubkstr);
+                mPublicRsaKey.serializekeyforjs(pubkstr);
             }
             if (!pubkstr.size() || !sigPubk.size())
             {
@@ -15776,12 +15778,13 @@ void MegaClient::initializekeys()
             }
         }
 
-        if (mKeyManager.generation() && asymkey.isvalid(AsymmCipher::PRIVKEY) && !mKeyManager.getPrivRSA().size())
+        if (mKeyManager.generation() && mPrivateRsaKey.isvalid(AsymmCipher::PRIVKEY) &&
+            !mKeyManager.getPrivRSA().size())
         {
             // Ephemeral++ accounts create ^!keys before having RSA keys
             LOG_debug << "Attaching private RSA key into ^!keys";
             std::string privRSA;
-            asymkey.serializekey(&privRSA, AsymmCipher::PRIVKEY_SHORT);
+            mPrivateRsaKey.serializekey(&privRSA, AsymmCipher::PRIVKEY_SHORT);
             mKeyManager.commit(
             [this, privRSA]()
             {
@@ -15793,12 +15796,12 @@ void MegaClient::initializekeys()
         LOG_info << "Keypairs and signatures loaded successfully";
         return;
     }
-    else if (!signkey && !chatkey)       // THERE ARE NO KEYS
+    else if (!mEd255Key && !mX255Key) // THERE ARE NO KEYS
     {
         // Check completeness of keypairs
         sessiontype_t sessionType = loggedin();
         if (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size() ||
-            (!pubk.isvalid() && sessionType != EPHEMERALACCOUNTPLUSPLUS &&
+            (!mPublicRsaKey.isvalid() && sessionType != EPHEMERALACCOUNTPLUSPLUS &&
              sessionType != FULLACCOUNT)) // E++ accounts don't have RSA keys
         {
             LOG_warn << "Public keys and/or signatures found without their respective private key.";
@@ -15910,7 +15913,7 @@ void MegaClient::initializekeys()
     {
         LOG_warn << "Keyring exists, but it's incomplete.";
 
-        if (!chatkey)
+        if (!mX255Key)
         {
             sendevent(99416, "Incomplete keyring detected: private key for Cu25519 not found.", 0);
         }
@@ -23838,7 +23841,7 @@ string KeyManager::computeSymmetricKey(handle user)
     }
 
     std::string sharedSecret;
-    ECDH ecdh(mClient.chatkey->getPrivKey(), attribute->value());
+    ECDH ecdh(mClient.mX255Key->getPrivKey(), attribute->value());
     if (!ecdh.computeSymmetricKey(sharedSecret))
     {
         return std::string();
@@ -23863,7 +23866,7 @@ bool KeyManager::decodeRSAKey()
 //    LOG_verbose << Base64::btoa(mPrivRSA) << "\n\n" << Utils::stringToHex(mPrivRSA);
 
     string currentPK;
-    mClient.asymkey.serializekey(&currentPK, AsymmCipher::PRIVKEY_SHORT);
+    mClient.mPrivateRsaKey.serializekey(&currentPK, AsymmCipher::PRIVKEY_SHORT);
 
     // Compare serialized keys using find just in case pqdKey has extra bytes. It should be found at pos = 0.
     size_t pos = mPrivRSA.find(currentPK);
@@ -23874,7 +23877,9 @@ bool KeyManager::decodeRSAKey()
     // mClient.mPrivKey = Base64::btoa(mPrivRSA);
 
     // update asymcipher to use RSA from ^!keys
-    if (keyOk && !mClient.asymkey.setkey(AsymmCipher::PRIVKEY_SHORT, (const unsigned char*)mPrivRSA.data(), (int)mPrivRSA.size()))
+    if (keyOk && !mClient.mPrivateRsaKey.setkey(AsymmCipher::PRIVKEY_SHORT,
+                                                (const unsigned char*)mPrivRSA.data(),
+                                                (int)mPrivRSA.size()))
     {
         keyOk = false;
     }

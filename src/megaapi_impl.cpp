@@ -7135,9 +7135,11 @@ char *MegaApiImpl::getMyCredentials()
     }
 
     string result;
-    if (client->signkey)
+    if (client->mEd255Key)
     {
-        result = AuthRing::fingerprint(string((const char*)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH), true);
+        result = AuthRing::fingerprint(
+            string((const char*)client->mEd255Key->pubKey, EdDSA::PUBLIC_KEY_LENGTH),
+            true);
     }
 
     return result.size() ? MegaApi::strdup(result.c_str()) : nullptr;

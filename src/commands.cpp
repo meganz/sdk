@@ -1985,11 +1985,15 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     {
                         // decrypt and set private key
                         client->key.ecb_decrypt(privkbuf, static_cast<size_t>(len_privk));
-                        client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
-                        client->mPrivKey.resize(static_cast<size_t>(
-                            Base64::btoa(privkbuf, len_privk, (char*)client->mPrivKey.data())));
+                        client->mSerializedPrivateRsaKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                        client->mSerializedPrivateRsaKey.resize(static_cast<size_t>(
+                            Base64::btoa(privkbuf,
+                                         len_privk,
+                                         (char*)client->mSerializedPrivateRsaKey.data())));
 
-                        if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+                        if (!client->mPrivateRsaKey.setkey(AsymmCipher::PRIVKEY,
+                                                           privkbuf,
+                                                           len_privk))
                         {
                             LOG_warn << "Error checking private key";
                             client->loginResult(std::move(mCompletion), API_ENOENT);
@@ -2008,10 +2012,10 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         byte buf[sizeof me];
 
                         // decrypt and set session ID for subsequent API communication
-                        if (!client->asymkey.decrypt(sidbuf,
-                                                     static_cast<size_t>(len_csid),
-                                                     sidbuf,
-                                                     MegaClient::SIDLEN)
+                        if (!client->mPrivateRsaKey.decrypt(sidbuf,
+                                                            static_cast<size_t>(len_csid),
+                                                            sidbuf,
+                                                            MegaClient::SIDLEN)
                             // additionally, check that the user's handle included in the session
                             // matches the own user's handle (me)
                             ||
@@ -3265,17 +3269,18 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
                         string prEd255{std::move((*records)[EdDSA::TLV_KEY])};
                         if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                         {
-                            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
+                            client->mEd255Key =
+                                new EdDSA(client->rng, (unsigned char*)prEd255.data());
                         }
 
                         string prCu255{std::move((*records)[ECDH::TLV_KEY])};
                         if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                         {
-                            client->chatkey = new ECDH(prCu255);
+                            client->mX255Key = new ECDH(prCu255);
                         }
 
-                        if (!client->chatkey || !client->chatkey->initializationOK ||
-                                !client->signkey || !client->signkey->initializationOK)
+                        if (!client->mX255Key || !client->mX255Key->initializationOK ||
+                            !client->mEd255Key || !client->mEd255Key->initializationOK)
                         {
                             client->resetKeyring();
                             client->sendevent(99418, "Failed to load attached keys", 0);
@@ -4761,12 +4766,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     static_cast<size_t>(Base64::btoa(privkbuf, len_privk, (char*)privk.data())));
 
                 // RSA private key should be already assigned at login
-                assert(privk == client->mPrivKey);
-                if (client->mPrivKey.empty())
+                assert(privk == client->mSerializedPrivateRsaKey);
+                if (client->mSerializedPrivateRsaKey.empty())
                 {
-                    client->mPrivKey = privk;
+                    client->mSerializedPrivateRsaKey = privk;
                     LOG_warn << "Private key not set by login, setting at `ug` response...";
-                    if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+                    if (!client->mPrivateRsaKey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                     {
                         LOG_warn << "Error checking private key at `ug` response";
                     }
@@ -4775,7 +4780,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
             if (len_pubk)
             {
-                client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
+                client->mPublicRsaKey.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
             }
 
             if (v)
@@ -6788,10 +6793,11 @@ bool CommandSetKeyPair::procresult(Result r, JSON& json)
         json.storeobject();
 
         client->key.ecb_decrypt(privkBuffer.get(), len);
-        client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
-        client->mPrivKey.resize(static_cast<size_t>(Base64::btoa(privkBuffer.get(),
-                                                                 static_cast<int>(len),
-                                                                 (char*)client->mPrivKey.data())));
+        client->mSerializedPrivateRsaKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+        client->mSerializedPrivateRsaKey.resize(
+            static_cast<size_t>(Base64::btoa(privkBuffer.get(),
+                                             static_cast<int>(len),
+                                             (char*)client->mSerializedPrivateRsaKey.data())));
 
         client->app->setkeypair_result(API_OK);
         return true;
@@ -6799,7 +6805,7 @@ bool CommandSetKeyPair::procresult(Result r, JSON& json)
     }
     else if (r.wasErrorOrOK())
     {
-        client->asymkey.resetkey(); // clear local value, since it failed to set
+        client->mPrivateRsaKey.resetkey(); // clear local value, since it failed to set
         client->app->setkeypair_result(r.errorOrOK());
         return true;
     }
@@ -7514,10 +7520,10 @@ bool CommandCopySession::procresult(Result r, JSON& json)
                     return false;
                 }
 
-                if (!client->asymkey.decrypt(sidbuf,
-                                             static_cast<size_t>(len_csid),
-                                             sidbuf,
-                                             MegaClient::SIDLEN))
+                if (!client->mPrivateRsaKey.decrypt(sidbuf,
+                                                    static_cast<size_t>(len_csid),
+                                                    sidbuf,
+                                                    MegaClient::SIDLEN))
                 {
                     client->app->copysession_result(NULL, API_EINTERNAL);
                     return false;

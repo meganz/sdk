@@ -8184,9 +8184,9 @@ void exec_whoami(autocomplete::ACState& s)
         if ((u = client->finduser(client->me)))
         {
             cout << "Account e-mail: " << u->email << " handle: " << Base64Str<MegaClient::USERHANDLE>(client->me) << endl;
-            if (client->signkey)
+            if (client->mEd255Key)
             {
-                string pubKey((const char *)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                string pubKey((const char*)client->mEd255Key->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
                 cout << "Credentials: " << AuthRing::fingerprint(pubKey, true) << endl;
             }
         }
