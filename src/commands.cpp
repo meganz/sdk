@@ -13062,14 +13062,7 @@ bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JS
                 expiresDate = json.getint32();
                 break;
             case makeNameid("canceled"):
-                if (json.isnumeric())
-                {
-                    cancelledDate = json.getint32();
-                }
-                else
-                {
-                    json.storeobject();
-                }
+                cancelledDate = json.getint32();
                 break;
             default:
                 if (!json.storeobject())

@@ -28563,7 +28563,7 @@ void MegaApiImpl::getSubscriptionCancellationDetails(const char* originalTransac
                 {
                     request->setText(originalTransactionId.c_str());
                     request->setNumber(static_cast<long long>(expiresDate));
-                    request->setNumDetails(cancelledDate ? cancelledDate : 0);
+                    request->setNumDetails(cancelledDate);
                 }
 
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
