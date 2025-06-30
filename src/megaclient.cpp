@@ -15599,19 +15599,6 @@ void MegaClient::resetScForFetchnodes()
 
 void MegaClient::initializekeys()
 {
-    string privRSA = mSerializedPrivateRsaKey;
-    string pubRSA;
-    if (mPublicRsaKey.isvalid())
-        mPublicRsaKey.serializekey(&pubRSA, AsymmCipher::PUBKEY);
-    if (!mPublicRsaKey.isvalid() && loggedin() != EPHEMERALACCOUNTPLUSPLUS)
-    {
-        LOG_info << "Generating and adding missing RSA keypair";
-        assert(privRSA.empty() && pubRSA.empty());
-        auto RSAkeys = setkeypair();
-        privRSA = Base64::btoa(RSAkeys.first);
-        pubRSA = Base64::btoa(RSAkeys.second);
-    }
-
     string prEd255, puEd255;    // keypair for Ed25519  --> MegaClient::signkey
     string prCu255, puCu255;    // keypair for Cu25519  --> MegaClient::chatkey
     string sigCu255, sigPubk;   // signatures for Cu25519 and RSA
@@ -15798,6 +15785,19 @@ void MegaClient::initializekeys()
     }
     else if (!mEd255Key && !mX255Key) // THERE ARE NO KEYS
     {
+        string privRSA = mSerializedPrivateRsaKey;
+        string pubRSA;
+        if (mPublicRsaKey.isvalid())
+            mPublicRsaKey.serializekey(&pubRSA, AsymmCipher::PUBKEY);
+        if (!mPublicRsaKey.isvalid() && loggedin() != EPHEMERALACCOUNTPLUSPLUS)
+        {
+            LOG_info << "Generating and adding missing RSA keypair";
+            assert(privRSA.empty() && pubRSA.empty());
+            auto RSAkeys = setkeypair();
+            privRSA = Base64::btoa(RSAkeys.first);
+            pubRSA = Base64::btoa(RSAkeys.second);
+        }
+
         // Check completeness of keypairs
         sessiontype_t sessionType = loggedin();
         if (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size() ||
