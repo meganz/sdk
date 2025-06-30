@@ -26,9 +26,6 @@ void FileRangeContext::completed(Lock&& lock, Error result)
     assert(lock.owns_lock());
     assert(lock.mutex() == &mManager.mutex());
 
-    // Grab a reference to this context.
-    [[maybe_unused]] auto context = std::move(mIterator->second);
-
     // Convenience.
     FileRange range(mIterator->first.mBegin, mEnd);
 
@@ -61,6 +58,17 @@ void FileRangeContext::completed(Lock&& lock, Error result)
 
 void FileRangeContext::completed(Error result)
 {
+    // Get a reference to our context.
+    //
+    // We're doing this here for two reasons:
+    //
+    // 1. We want to make sure this instance is kept alive until we've
+    //    finished processing this donwload's completion.
+    //
+    // 2. We want to make sure that the lock we acquire immediately below is
+    //    released before this instance itself is destroyed.
+    [[maybe_unused]] auto context = std::move(mIterator->second);
+
     // Complete the download.
     completed(mManager.lock(), result);
 }
