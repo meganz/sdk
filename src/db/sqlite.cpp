@@ -31,6 +31,7 @@ static const char* NodeSearchFilterPtrStr = "NodeSearchFilterPtrStr";
 SqliteDbAccess::SqliteDbAccess(const LocalPath& rootPath)
   : mRootPath(rootPath)
 {
+    LOG_debug << "sqlite version: " << sqlite3_libversion();
     assert(mRootPath.isAbsolute());
 }
 
