@@ -356,10 +356,8 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaUserAlert::copy;
 %newobject mega::MegaUserAlertList::copy;
 %newobject mega::MegaAchievementsDetails::getAwardEmails;
-%newobject mega::MegaRequest::getPublicMegaNode;
 %newobject mega::MegaTransfer::getPublicMegaNode;
-%newobject mega::MegaNode::getBase64Handle;
-%newobject mega::MegaNode::getFileAttrString;
+
 %newobject mega::MegaApi::getBase64PwKey;
 %newobject mega::MegaApi::getStringHash;
 %newobject mega::MegaApi::handleToBase64;
@@ -412,11 +410,19 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getSessionTransferURL;
 %newobject mega::MegaApi::getAccountAuth;
 %newobject mega::MegaApi::authorizeNode;
+%newobject mega::MegaApi::getSyncs;
+%newobject mega::MegaApi::getEnabledNotifications;
+%newobject mega::MegaApi::getMimeType;
+%newobject mega::MegaApi::isNodeSyncableWithError;
+%newobject mega::MegaApi::getVersions;
 
+%newobject mega::MegaRequest::getPublicMegaNode;
 %newobject mega::MegaRequest::getMegaTimeZoneDetails;
 %newobject mega::MegaRequest::getMegaAccountDetails;
 %newobject mega::MegaRequest::getPricing;
 %newobject mega::MegaRequest::getMegaAchievementsDetails;
+%newobject mega::MegaRequest::getCurrency;
+
 %newobject mega::MegaAccountDetails::getSubscriptionMethod;
 %newobject mega::MegaAccountDetails::getSubscriptionCycle;
 %newobject mega::MegaAccountDetails::copy;
@@ -427,12 +433,18 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaAccountDetails::getPlan;
 %newobject mega::MegaAccountDetails::getSubscription;
 
-%newobject mega::MegaApi::getMimeType;
-
+%newobject mega::MegaNode::getBase64Handle;
+%newobject mega::MegaNode::getFileAttrString;
 %newobject mega::MegaNode::PasswordNodeData::createInstance;
 %newobject mega::MegaNode::unserialize;
 %newobject mega::MegaNode::getTags;
 %newobject mega::MegaNode::getCustomAttrNames;
+%newobject mega::MegaNode::copy;
+%newobject mega::MegaNode::getPublicNode;
+%newobject mega::MegaNode::getPublicLink;
+%newobject mega::MegaNode::getCreditCardData;
+%newobject mega::MegaNode::getPasswordData;
+%newobject mega::MegaNode::serialize;
 
 typedef long long time_t;
 typedef long long uint64_t;
