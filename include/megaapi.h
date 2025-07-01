@@ -6402,9 +6402,12 @@ public:
      *
      * - EVENT_NETWORK_ACTIVITY:
      *   This event uses multiple getNumber keys:
-     *     - getNumber("channel") returns the channel where the activity happened.
-     *     - getNumber("activity_type") returns the type of network activity.
-     *     - getNumber("error_code") returns the status/error code of the activity.
+     *     - getNumber("channel") returns the channel where the activity happened (See
+     * MegaEvent::NetworkActivityChannel).
+     *     - getNumber("activity_type") returns the type of network activity (See
+     * MegaEvent::NetworkActivityType).
+     *     - getNumber("error_code") returns the error code (See MegaError enum) or status (HTTP
+     * status code) of the activity.
      *
      * @param key The key identifying the numeric data.
      *
@@ -8525,6 +8528,8 @@ public:
         PAYMENT_EGENERIC = -106,
 
         LOCAL_ENOSPC = -1000, ///< Insufficient space.
+        LOCAL_ETIMEOUT = -1001, ///< A request timed out.
+        LOCAL_ENETWORK = -1003, ///< Local network error
     };
 
     /**
