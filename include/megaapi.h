@@ -5117,7 +5117,8 @@ class MegaRequest
             TYPE_RUN_NETWORK_CONNECTIVITY_TEST = 206,
             TYPE_ADD_SYNC_PREVALIDATION = 207,
             TYPE_GET_MAX_CONNECTIONS = 208,
-            TOTAL_OF_REQUEST_TYPES = 209,
+            TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS = 209,
+            TOTAL_OF_REQUEST_TYPES = 210,
         };
 
         virtual ~MegaRequest();
@@ -23818,6 +23819,37 @@ class MegaApi
          * @param listener MegaRequestListener to track this request.
          */
         void runNetworkConnectivityTest(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Retrieve the cancellation details of a subscription
+         *
+         * This function requests information about the cancellation status of a subscription.
+         * If the optional original transaction ID is not provided, the details of the most recent
+         * subscription will be returned.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the original transaction ID
+         * - MegaRequest::getNumber - Returns the subscription's expiration timestamp
+         * - MegaRequest::getNumDetails - Returns the cancellation timestamp, or 0 if not cancelled
+         *
+         * Possible errors:
+         * - MegaError::API_EARGS - If the gateway is not provided or not equal to 2, or if the
+         * transaction ID is not a string
+         * - MegaError::API_ENOENT - If the provided transaction ID is not valid, or the user does
+         * not have a subscription via the specified gateway
+         *
+         * @param originalTransactionId Original transaction ID. Optional. If not provided, the last
+         * subscription's details will be returned.
+         * @param gatewayId Integer indicating the gateway.
+         * @param listener MegaRequestListener to track this request,
+         */
+        void getSubscriptionCancellationDetails(unsigned int gatewayId,
+                                                const char* originalTransactionId = nullptr,
+                                                MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;

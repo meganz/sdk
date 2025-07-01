@@ -3361,6 +3361,11 @@ public:
 
     void getMyIp(CommandGetMyIP::Cb&& completion);
 
+    void getSubscriptionCancellationDetails(
+        const char* originalTransactionId,
+        unsigned int gatewayId,
+        CommandGetSubscriptionCancellationDetails::CompletionCallback&& completion);
+
     // FUSE client adapter.
     common::ClientAdapter mFuseClientAdapter;
 

@@ -24515,4 +24515,16 @@ void MegaClient::getMyIp(CommandGetMyIP::Cb&& completion)
     reqs.add(new CommandGetMyIP(this, std::move(completion)));
 }
 
+// Call "gsc" command.
+void MegaClient::getSubscriptionCancellationDetails(
+    const char* originalTransactionId,
+    unsigned int gatewayId,
+    CommandGetSubscriptionCancellationDetails::CompletionCallback&& completion)
+{
+    reqs.add(new CommandGetSubscriptionCancellationDetails(this,
+                                                           originalTransactionId,
+                                                           gatewayId,
+                                                           std::move(completion)));
+}
+
 } // namespace

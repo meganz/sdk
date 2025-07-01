@@ -13007,4 +13007,89 @@ bool CommandSetThrottlingParams::procresult(Result r, JSON& json)
     return true;
 }
 
+CommandGetSubscriptionCancellationDetails::CommandGetSubscriptionCancellationDetails(
+    MegaClient* client,
+    const char* originalTransactionId,
+    unsigned int gatewayId,
+    CompletionCallback&& completion)
+{
+    assert(completion);
+
+    cmd("gsc");
+
+    if (originalTransactionId)
+    {
+        arg("id", originalTransactionId);
+    }
+
+    arg("gw", gatewayId);
+
+    tag = client->reqtag;
+
+    mCompletion = std::move(completion);
+}
+
+bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JSON& json)
+{
+    if (!r.hasJsonObject())
+    {
+        if (mCompletion)
+        {
+            if (r.wasErrorOrOK())
+            {
+                mCompletion(r.errorOrOK(), {}, {}, {});
+            }
+            else
+            {
+                mCompletion(API_EINTERNAL, {}, {}, {});
+            }
+        }
+        return true;
+    }
+
+    std::string originalTransactionId;
+    int expiresDate = 0;
+    int cancelledDate = -1;
+
+    for (bool finished = false; !finished;)
+    {
+        switch (json.getnameid())
+        {
+            case makeNameid("id"):
+                json.storeobject(&originalTransactionId);
+                break;
+            case makeNameid("expires"):
+                expiresDate = json.getint32();
+                break;
+            case makeNameid("canceled"):
+                cancelledDate = json.getint32();
+                break;
+            default:
+                if (!json.storeobject())
+                {
+                    if (mCompletion)
+                    {
+                        mCompletion(API_EINTERNAL, {}, {}, {});
+                    }
+                    return false;
+                }
+                break;
+            case EOO:
+            {
+                finished = true;
+            }
+            break;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion((originalTransactionId.empty() || expiresDate == 0) ? API_EINTERNAL : API_OK,
+                    std::move(originalTransactionId),
+                    std::move(expiresDate),
+                    std::move(cancelledDate));
+    }
+    return true;
+}
+
 } // namespace

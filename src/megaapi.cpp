@@ -6181,6 +6181,13 @@ void MegaApi::runNetworkConnectivityTest(MegaRequestListener* listener)
     pImpl->runNetworkConnectivityTest(listener);
 }
 
+void MegaApi::getSubscriptionCancellationDetails(unsigned int gatewayId,
+                                                 const char* originalTransactionId,
+                                                 MegaRequestListener* listener)
+{
+    pImpl->getSubscriptionCancellationDetails(originalTransactionId, gatewayId, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

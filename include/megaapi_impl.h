@@ -4635,6 +4635,9 @@ public:
         void getWelcomePdfCopied(MegaRequestListener* listener);
         void getMyIp(MegaRequestListener* listener);
         void runNetworkConnectivityTest(MegaRequestListener* listener);
+        void getSubscriptionCancellationDetails(const char* originalTransactionId,
+                                                unsigned int gatewayId,
+                                                MegaRequestListener* listener);
 
     private:
         void init(MegaApi* publicApi,
