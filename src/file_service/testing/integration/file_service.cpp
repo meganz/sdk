@@ -309,6 +309,9 @@ TEST_F(FileServiceTests, create_write_succeeds)
     // Try and write data to the file.
     ASSERT_EQ(execute(write, data.data(), *file, 128_KiB, 64_KiB), FILE_SUCCESS);
 
+    // Make sure the file's size is correct.
+    ASSERT_EQ(file->info().size(), 192_KiB);
+
     // The file should have one range starting from the beginning of the file.
     auto ranges = file->ranges();
 
@@ -332,6 +335,9 @@ TEST_F(FileServiceTests, create_write_succeeds)
 
     // Write more data to the file.
     ASSERT_EQ(execute(write, data.data(), *file, 320_KiB, 64_KiB), FILE_SUCCESS);
+
+    // Make sure the file's size is correct.
+    ASSERT_EQ(file->info().size(), 384_KiB);
 
     // We should still have a single range.
     ranges = file->ranges();
