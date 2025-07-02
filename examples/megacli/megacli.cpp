@@ -5516,6 +5516,8 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_dnsservers, sequence(text("setdns"), either(param("dnslist"), flag("-clear"))));
 
+    p->Add(exec_cleanVault, text("cleanvault"));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -14175,4 +14177,65 @@ void exec_dnsservers(autocomplete::ACState& s)
                 "c-ares support to use this functionality."
              << endl;
     }
+}
+
+void exec_cleanVault(autocomplete::ACState&)
+{
+    std::map<attr_t, NodeHandle> nodeHandles;
+    auto cleanVault = [&nodeHandles]()
+    {
+        // If this method is called and both attributes aren't set, we return without doing nothing
+        // In standard situation both vaules are received at ug response
+        // If one of attributes needs to be requested to server we have to wait until is received to
+        // proceed with clean vault
+        auto itBackup = nodeHandles.find(ATTR_MY_BACKUPS_FOLDER);
+        auto itPwmBase = nodeHandles.find(ATTR_PWM_BASE);
+        if (itBackup == nodeHandles.end() || itPwmBase == nodeHandles.end())
+        {
+            return;
+        }
+
+        auto vault = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
+        if (!vault.get())
+        {
+            return;
+        }
+        auto vaultChildren = client->getChildren(vault.get());
+        for (auto const& child: vaultChildren)
+        {
+            if (child->nodeHandle() != itBackup->second && child->nodeHandle() != itPwmBase->second)
+            {
+                client->unlink(child.get(), false, 0, true);
+            }
+        }
+    };
+
+    // Vault is only clean if both attributes are set
+    auto getUserAttributeAndCleanVault = [&nodeHandles, cleanVault](attr_t attribute)
+    {
+        client->getua(
+            client->ownuser(),
+            attribute,
+            0,
+            [&nodeHandles, attribute, cleanVault](error e)
+            {
+                if (e == API_ENOENT)
+                {
+                    nodeHandles[attribute] = NodeHandle();
+                }
+
+                cleanVault();
+            },
+            [&nodeHandles, cleanVault](byte* buffer, unsigned, attr_t attr)
+            {
+                handle h;
+                memcpy(&h, buffer, MegaClient::NODEHANDLE);
+                nodeHandles[attr].set6byte(h);
+                cleanVault();
+            },
+            nullptr);
+    };
+
+    getUserAttributeAndCleanVault(ATTR_PWM_BASE);
+    getUserAttributeAndCleanVault(ATTR_MY_BACKUPS_FOLDER);
 }
