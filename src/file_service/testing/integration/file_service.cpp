@@ -18,6 +18,7 @@
 #include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/common/testing/utility.h>
+#include <mega/logging.h>
 
 namespace mega
 {
@@ -80,8 +81,15 @@ struct FileServiceTests: fuse::testing::Test
 }; // FUSEPartialDownloadTests
 
 // For clarity.
-static std::uint64_t operator""_KiB(unsigned long long value);
-static std::uint64_t operator""_MiB(unsigned long long value);
+constexpr std::uint64_t operator""_KiB(unsigned long long value)
+{
+    return value * 1024;
+}
+
+constexpr std::uint64_t operator""_MiB(unsigned long long value)
+{
+    return value * 1024_KiB;
+}
 
 // Append content to the end of the specified file.
 static auto append(const void* buffer, File file, std::uint64_t length) -> std::future<FileResult>;
@@ -121,6 +129,87 @@ std::string FileServiceTests::mFileContent;
 NodeHandle FileServiceTests::mFileHandle;
 
 NodeHandle FileServiceTests::mRootHandle;
+
+TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
+{
+    // How large should the test file be?
+    constexpr auto fileSize = 16_MiB;
+
+    // How many samples should we perform?
+    constexpr auto numSamples = 10ul;
+
+    // How large should each individual read be?
+    constexpr auto readSize = 8_KiB;
+
+    // Try and create a test file for us to read from.
+    auto handle = ClientW()->upload(randomBytes(fileSize), randomName(), mRootHandle);
+
+    // Make sure we could create our test file.
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Average read time for the entire file.
+    std::uint64_t averageFileReadTime = 0ul;
+
+    // Average read time for each range.
+    std::uint64_t averageRangeReadTime = 0ul;
+
+    // Figure out how long it takes to linearly read all our file.
+    for (auto i = 0ul; i < numSamples; ++i)
+    {
+        // Try and open our file for reading.
+        auto file = ClientW()->fileOpen(*handle);
+
+        // Make sure we could open our file.
+        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Linearly read the entire file.
+        for (auto offset = 0ul; offset < fileSize; offset += readSize)
+        {
+            // Convenience.
+            using std::chrono::duration_cast;
+            using std::chrono::milliseconds;
+            using std::chrono::steady_clock;
+
+            // Track when this read began.
+            auto began = steady_clock::now();
+
+            // Try and read some data.
+            auto data = execute(read, *file, offset, readSize);
+
+            // Track when the read finished.
+            auto elapsed = steady_clock::now() - began;
+
+            // Make sure the read succeeded.
+            ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+            // Convenience.
+            auto elapsedMs = duration_cast<milliseconds>(elapsed).count();
+
+            // For curiosity.
+            LOG_debug << "Range read time: " << FileRange(offset, offset + readSize) << ": "
+                      << elapsedMs << " millisecond(s)";
+
+            // Make sure our measurements don't overflow.
+            ASSERT_GE(UINT64_MAX - elapsedMs, averageFileReadTime);
+            ASSERT_GE(UINT64_MAX - elapsedMs, averageRangeReadTime);
+
+            // Update our measurements.
+            averageFileReadTime += elapsedMs;
+            averageRangeReadTime += elapsedMs;
+        }
+    }
+
+    // Calculate the average time it took to read the entire file.
+    averageFileReadTime /= numSamples;
+
+    // Calculate the average time it took to read each range.
+    averageRangeReadTime /= (fileSize / readSize) * numSamples;
+
+    // Log our findings.
+    LOG_debug << "Average linear file read time: " << averageFileReadTime << " millisecond(s)";
+
+    LOG_debug << "Average linear range read time: " << averageRangeReadTime << " millisecond(s)";
+}
 
 TEST_F(FileServiceTests, append_succeeds)
 {
@@ -1125,16 +1214,6 @@ void FileServiceTests::SetUpTestSuite()
 
     // Latch the root handle for later use.
     mRootHandle = *rootHandle;
-}
-
-std::uint64_t operator""_KiB(unsigned long long value)
-{
-    return value * 1024;
-}
-
-std::uint64_t operator""_MiB(unsigned long long value)
-{
-    return value * 1024_KiB;
 }
 
 auto append(const void* buffer, File file, std::uint64_t length) -> std::future<FileResult>
