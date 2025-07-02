@@ -1,0 +1,29 @@
+#pragma once
+
+#include <mega/common/deciseconds.h>
+#include <mega/file_service/file_service_options_forward.h>
+
+#include <cstdint>
+
+namespace mega
+{
+namespace file_service
+{
+
+struct FileServiceOptions
+{
+    // How many times will we try to download a range before we give up.
+    std::uint64_t mMaximumRangeRetries = 5u;
+
+    // Specifies the minimum distance between ranges before they are merged.
+    std::uint64_t mMinimumRangeDistance = 1u << 17;
+
+    // Specifies the unit of transfer from the cloud.
+    std::uint64_t mMinimumRangeSize = 1u << 21;
+
+    // How long should we wait between retries?
+    common::deciseconds mRangeRetryBackoff{20};
+}; // FileServiceOptions
+
+} // file_service
+} // mega
