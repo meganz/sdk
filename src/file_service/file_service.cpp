@@ -5,6 +5,7 @@
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_service.h>
 #include <mega/file_service/file_service_context.h>
+#include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
 #include <mega/file_service/logging.h>
@@ -68,7 +69,29 @@ auto FileService::open(FileID id) -> FileServiceResultOr<File>
     return mContext->open(id);
 }
 
-auto FileService::initialize(Client& client) -> FileServiceResult
+auto FileService::options(const FileServiceOptions& options) -> FileServiceResult
+{
+    SharedLock guard(mContextLock);
+
+    if (!mContext)
+        return FILE_SERVICE_UNINITIALIZED;
+
+    mContext->options(options);
+
+    return FILE_SERVICE_SUCCESS;
+}
+
+auto FileService::options() -> FileServiceResultOr<FileServiceOptions>
+{
+    SharedLock guard(mContextLock);
+
+    if (!mContext)
+        return unexpected(FILE_SERVICE_UNINITIALIZED);
+
+    return mContext->options();
+}
+
+auto FileService::initialize(Client& client, const FileServiceOptions& options) -> FileServiceResult
 try
 {
     UniqueLock guard(mContextLock);
@@ -80,18 +103,22 @@ try
         return FILE_SERVICE_ALREADY_INITIALIZED;
     }
 
-    mContext = std::make_unique<FileServiceContext>(client);
+    mContext = std::make_unique<FileServiceContext>(client, options);
 
     FSInfo1("File Service initialized");
 
     return FILE_SERVICE_SUCCESS;
 }
-
 catch (std::runtime_error& exception)
 {
     FSErrorF("Unable to initialize File Service: %s", exception.what());
 
     return FILE_SERVICE_UNEXPECTED;
+}
+
+auto FileService::initialize(Client& client) -> FileServiceResult
+{
+    return initialize(client, FileServiceOptions());
 }
 
 auto FileService::ranges(FileID id) -> FileServiceResultOr<FileRangeVector>

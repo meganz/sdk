@@ -15,6 +15,7 @@
 #include <mega/file_service/file_info_forward.h>
 #include <mega/file_service/file_range_vector.h>
 #include <mega/file_service/file_service_context_forward.h>
+#include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_service_queries.h>
 #include <mega/file_service/file_service_result_or_forward.h>
 #include <mega/file_service/file_storage.h>
@@ -93,6 +94,12 @@ class FileServiceContext
     // explicitly lock mDatabase, too.
     common::SharedMutex mLock;
 
+    // Specifies various metrics that control how the service behaves.
+    FileServiceOptions mOptions;
+
+    // Serializes access to mOptions.
+    common::SharedMutex mOptionsLock;
+
     // This member will ensure the context isn't destroyed until any related
     // activities have been completed.
     //
@@ -106,7 +113,7 @@ class FileServiceContext
     common::TaskExecutor mExecutor;
 
 public:
-    FileServiceContext(common::Client& client);
+    FileServiceContext(common::Client& client, const FileServiceOptions& options);
 
     ~FileServiceContext();
 
@@ -127,6 +134,12 @@ public:
 
     // Open a file for reading or writing.
     auto open(FileID id) -> FileServiceResultOr<File>;
+
+    // Update the file service's options.
+    void options(const FileServiceOptions& options);
+
+    // Retrieve the file service's current options.
+    FileServiceOptions options();
 
     // Find out where the service is storing the specified file.
     LocalPath path(FileID id) const;

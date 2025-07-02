@@ -378,7 +378,7 @@ bool FileServiceContext::removeFromIndex(FileID id, FromFileIDMap<T>& map)
     return removeFromIndex(id, UniqueLock(mLock), map);
 }
 
-FileServiceContext::FileServiceContext(Client& client):
+FileServiceContext::FileServiceContext(Client& client, const FileServiceOptions& options):
     mClient(client),
     mStorage(mClient),
     mDatabase(createDatabase(mStorage.databasePath())),
@@ -386,6 +386,8 @@ FileServiceContext::FileServiceContext(Client& client):
     mFileContexts(),
     mInfoContexts(),
     mLock(),
+    mOptions(options),
+    mOptionsLock(),
     mActivities(),
     mExecutor(TaskExecutorFlags(), logger())
 {}
@@ -502,6 +504,20 @@ catch (std::runtime_error& exception)
     FSErrorF("Unable to open file: %s: %s", toString(id).c_str(), exception.what());
 
     return unexpected(FILE_SERVICE_UNEXPECTED);
+}
+
+void FileServiceContext::options(const FileServiceOptions& options)
+{
+    UniqueLock guard(mOptionsLock);
+
+    mOptions = options;
+}
+
+FileServiceOptions FileServiceContext::options()
+{
+    SharedLock guard(mOptionsLock);
+
+    return mOptions;
 }
 
 LocalPath FileServiceContext::path(FileID id) const
