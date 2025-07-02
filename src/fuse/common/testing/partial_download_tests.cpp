@@ -8,7 +8,10 @@
 #include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/common/testing/utility.h>
+#include <mega/logging.h>
 
+#include <array>
+#include <chrono>
 #include <cstring>
 #include <future>
 
@@ -94,13 +97,147 @@ public:
     }
 }; // PartialDownloadCallback
 
+// For clarity.
+static std::uint64_t operator""_KiB(unsigned long long value);
+static std::uint64_t operator""_MiB(unsigned long long value);
+
 std::string FUSEPartialDownloadTests::mFileContent;
 
 NodeHandle FUSEPartialDownloadTests::mFileHandle;
 
-// For clarity.
-static std::uint64_t operator""_KiB(unsigned long long value);
-static std::uint64_t operator""_MiB(unsigned long long value);
+TEST_F(FUSEPartialDownloadTests, DISABLED_measure_average_fetch_times)
+{
+    // Lets us fetch a file without actually storing its data anywhere.
+    class FetchCallback: public PartialDownloadCallback
+    {
+        // Who should we notify when the download completes.
+        std::promise<Error> mNotifier;
+
+        // Called when the download has completed.
+        void completed(Error result) override
+        {
+            mNotifier.set_value(result);
+        }
+
+        // Called when we've received some content.
+        auto data(const void*, std::uint64_t, std::uint64_t)
+            -> std::variant<Abort, Continue> override
+        {
+            return Continue();
+        }
+
+        // Called when the download has experienced some failure.
+        auto failed(Error result, int retries) -> std::variant<Abort, Retry> override
+        {
+            // Retry a maximum of five times.
+            if (result != API_EAGAIN || retries >= 5)
+                return Abort();
+
+            // Convenience.
+            using mega::common::deciseconds;
+
+            // Retry after 200ms.
+            return Retry(deciseconds(2));
+        }
+
+    public:
+        FetchCallback(std::promise<Error> notifier):
+            mNotifier(std::move(notifier))
+        {}
+    }; // FetchCallback
+
+    // Maximum read size specified as a power of two.
+    constexpr auto maximumReadSize = 24ul;
+
+    // Minimum read size specified as a power of two.
+    constexpr auto minimumReadSize = 8ul;
+
+    // Sanity.
+    static_assert(maximumReadSize > minimumReadSize);
+
+    // How many sizes are we testing?
+    constexpr auto numReadSizes = maximumReadSize - minimumReadSize + 1;
+
+    // How many times we should sample a given read size.
+    constexpr auto numSamplesPerReadSize = 10ul;
+
+    // Convenience.
+    using std::chrono::milliseconds;
+
+    // Allocate space to store our measurements.
+    std::array<std::uint64_t, numReadSizes> measurements{};
+
+    // Try and create a file for us to test against.
+    auto handle = ClientW()->upload(randomBytes((1 << maximumReadSize) + 4096), randomName(), "/y");
+
+    // Make sure we could create our test file.
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Measure the average fetch time for each read size.
+    for (auto i = 0ul; i < numReadSizes; ++i)
+    {
+        // Get a reference to this read size's measurements.
+        auto& measurement = measurements[i];
+
+        // Compute our read size.
+        auto size = 1ul << (i + minimumReadSize);
+
+        // Measure the average fetch time for a given read size.
+        for (auto j = 0ul; j < numSamplesPerReadSize; ++j)
+        {
+            // Convenience.
+            using std::chrono::duration_cast;
+            using std::chrono::milliseconds;
+            using std::chrono::steady_clock;
+
+            // So we can signal when our fetch has completed.
+            std::promise<Error> notifier;
+
+            // So we can wait until our fetch has completed.
+            auto waiter = notifier.get_future();
+
+            // So we can receive updates as our fetch progresses.
+            FetchCallback callback(std::move(notifier));
+
+            // Try and create a partial download for our test file.
+            auto download = ClientW()->partialDownload(callback, *handle, 0, size);
+
+            // Make sure we could create a partial download.
+            ASSERT_EQ(download.errorOr(API_OK), API_OK);
+
+            // Figure out when this sample began.
+            auto began = steady_clock::now();
+
+            // Start the download.
+            (*download)->begin();
+
+            // Wait for the fetch to complete.
+            ASSERT_NE(waiter.wait_for(mDefaultTimeout), std::future_status::timeout);
+
+            // Make sure the fetch was successful.
+            ASSERT_EQ(waiter.get(), API_OK);
+
+            // How much time did the fetch take?
+            auto elapsed = duration_cast<milliseconds>(steady_clock::now() - began);
+
+            LOG_debug << size << " sample #" << j << " took " << elapsed.count()
+                      << " millisecond(s).";
+
+            // Add our fetch time to this size's measurement.
+            measurement += elapsed.count();
+        }
+
+        // Compute this read size's average fetch time.
+        measurement /= numSamplesPerReadSize;
+    }
+
+    // Display profile results.
+    for (auto i = 0ul; i < numReadSizes; ++i)
+    {
+        LOG_debug << "Average fetch time for " << (1ul << (i + minimumReadSize)) << " is "
+                  << measurements[i] << " millisecond(s)";
+    }
+}
 
 TEST_F(FUSEPartialDownloadTests, cancel_completed_fails)
 {
