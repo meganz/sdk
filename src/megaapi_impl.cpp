@@ -22205,6 +22205,11 @@ void MegaApiImpl::inviteContact(const char* email, const char* message, int acti
                 return API_EARGS;
             }
 
+            if (action == OPCA_ADD && client->findpcr(string{email}))
+            {
+                return API_EEXIST;
+            }
+
             client->setpcr(email, (opcactions_t)action, message, NULL, contactLink);
             return API_OK;
         };

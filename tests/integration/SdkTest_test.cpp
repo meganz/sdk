@@ -20989,18 +20989,6 @@ TEST_F(SdkTest, EstablishContactRelationshipAutomatically)
     // Try and send an invitation from client1 to client1.
     auto [invitation1, invitation1Sent] = sendInvitationTo(client1, client0);
 
-    // Make sure that invitation was sent, too.
-    ASSERT_EQ(invitation1Sent, API_OK);
-
-    // Convenience.
-    const std::string email0 = client0.getMyEmail();
-    const std::string email1 = client1.getMyEmail();
-
-    // Wait until both clients are friends.
-    ASSERT_TRUE(WaitFor(
-        [&]()
-        {
-            return hasContact(client0, email1) && hasContact(client1, email0);
-        },
-        defaultTimeoutMs));
+    // Make sure that invitation fails: there's already an incoming PCR
+    ASSERT_EQ(invitation1Sent, API_EEXIST);
 }

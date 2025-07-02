@@ -2548,6 +2548,7 @@ public:
     bool discardnotifieduser(User *);
 
     PendingContactRequest* findpcr(handle);
+    std::optional<PendingContactRequest*> findpcr(const string&);
 
     // queue public key request for user
     User* getUserForSharing(const char* userID);

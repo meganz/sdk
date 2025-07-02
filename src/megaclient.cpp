@@ -12391,6 +12391,21 @@ PendingContactRequest* MegaClient::findpcr(handle p)
     return pcr.get();
 }
 
+// only for incoming PCRs
+std::optional<PendingContactRequest*> MegaClient::findpcr(const string& email)
+{
+    for (auto& pcr: pcrindex)
+    {
+        if (pcr.second->isoutgoing)
+            continue;
+
+        if (pcr.second->originatoremail == email)
+            return pcr.second.get();
+    }
+
+    return std::nullopt;
+}
+
 void MegaClient::mappcr(handle id, unique_ptr<PendingContactRequest>&& pcr)
 {
     pcrindex[id] = std::move(pcr);
