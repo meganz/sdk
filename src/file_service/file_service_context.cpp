@@ -37,13 +37,18 @@ FileID FileServiceContext::allocateID(Lock&& lock, Transaction& transaction)
     assert(lock.owns_lock());
 
     // Check if we need to generate a new file ID.
-    auto query = transaction.query(mQueries.mGetFileID);
+    auto query = transaction.query(mQueries.mGetFreeFileID);
 
     query.execute();
 
     // We need to generate a new file ID.
-    if (query.field("free").null())
+    if (!query)
     {
+        // Determine the next allocable ID.
+        query = transaction.query(mQueries.mGetNextFileID);
+
+        query.execute();
+
         // Latch the next available ID.
         auto next = query.field("next").get<std::uint64_t>();
 
@@ -54,9 +59,8 @@ FileID FileServiceContext::allocateID(Lock&& lock, Transaction& transaction)
             throw std::runtime_error("Exhausted space of synthetic IDs");
 
         // Note that this ID has been allocated.
-        query = transaction.query(mQueries.mSetFileID);
+        query = transaction.query(mQueries.mSetNextFileID);
 
-        query.param(":free").set(nullptr);
         query.param(":next").set(next + 1);
         query.execute();
 
@@ -65,25 +69,16 @@ FileID FileServiceContext::allocateID(Lock&& lock, Transaction& transaction)
     }
 
     // We can recycle a previously allocated ID.
-    auto free = query.field("free").get<std::uint64_t>();
-    auto link = query.field("link").get<std::optional<std::uint64_t>>();
-    auto next = query.field("next").get<std::uint64_t>();
+    auto id = query.field("id").get<std::uint64_t>();
 
-    // Update free to point to the next reusable ID, if any.
-    query = transaction.query(mQueries.mSetFileID);
-
-    query.param(":free").set(link);
-    query.param(":next").set(next);
-    query.execute();
-
-    // Remove our id from the chain.
+    // id is no longer available for allocation.
     query = transaction.query(mQueries.mRemoveFileID);
 
-    query.param(":id").set(free);
+    query.param(":id").set(id);
     query.execute();
 
     // Return the ID to our caller.
-    return FileID::from(free);
+    return FileID::from(id);
 }
 
 template<typename Lock>
@@ -93,28 +88,10 @@ void FileServiceContext::deallocateID(FileID id, Lock&& lock, Transaction& trans
     assert(lock.mutex() == &mDatabase);
     assert(lock.owns_lock());
 
-    // Latch free and next fields.
-    auto query = transaction.query(mQueries.mGetFileID);
-
-    query.execute();
-
-    auto free = query.field("free").get<std::optional<std::uint64_t>>();
-    auto next = query.field("next").get<std::uint64_t>();
-
-    // Add id to the free chain.
-    query = transaction.query(mQueries.mAddFileID);
+    // Add this id to our free list.
+    auto query = transaction.query(mQueries.mAddFileID);
 
     query.param(":id").set(id);
-    query.param(":next").set(free);
-
-    query.execute();
-
-    // Update free field.
-    query = transaction.query(mQueries.mSetFileID);
-
-    query.param(":free").set(id);
-    query.param(":next").set(next);
-
     query.execute();
 }
 

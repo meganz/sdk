@@ -13,16 +13,17 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileID(database.query()),
     mAddFileRange(database.query()),
     mGetFile(database.query()),
-    mGetFileID(database.query()),
     mGetFileRanges(database.query()),
     mGetFileReferences(database.query()),
+    mGetFreeFileID(database.query()),
+    mGetNextFileID(database.query()),
     mRemoveFile(database.query()),
     mRemoveFileID(database.query()),
     mRemoveFileRanges(database.query()),
     mSetFileHandle(database.query()),
-    mSetFileID(database.query()),
     mSetFileModificationTime(database.query()),
-    mSetFileReferences(database.query())
+    mSetFileReferences(database.query()),
+    mSetNextFileID(database.query())
 {
     mAddFile = "insert into files values ( "
                "  :dirty, "
@@ -32,7 +33,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  0 "
                ")";
 
-    mAddFileID = "insert into file_ids values (:id, :next)";
+    mAddFileID = "insert into file_ids values (:id)";
 
     mAddFileRange = "insert into file_ranges values ( "
                     "  :begin, "
@@ -45,13 +46,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                " where (:handle is not null and handle = :handle) "
                "    or (:id is not null and id = :id)";
 
-    mGetFileID = "   select file_id.free "
-                 "        , file_ids.next as link "
-                 "        , file_id.next "
-                 "     from file_id "
-                 "left join file_ids "
-                 "       on file_ids.id = file_id.free";
-
     mGetFileRanges = "select begin "
                      "     , end "
                      "  from file_ranges "
@@ -60,6 +54,12 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mGetFileReferences = "select num_references "
                          "  from files "
                          " where id = :id";
+
+    mGetFreeFileID = "select id "
+                     "  from file_ids "
+                     " limit 1";
+
+    mGetNextFileID = "select next from file_id";
 
     mRemoveFile = "delete from files "
                   " where id = :id";
@@ -76,9 +76,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
                      "   set handle = :handle "
                      " where id = :id";
 
-    mSetFileID = "update file_id "
-                 "   set free = :free "
-                 "     , next = :next";
+    mSetNextFileID = "update file_id "
+                     "   set next = :next";
 
     mSetFileModificationTime = "update files "
                                "   set dirty = 1 "

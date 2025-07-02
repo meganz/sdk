@@ -87,9 +87,6 @@ void upgrade01(Query& query)
             "  id integer "
             "  constraint nn_file_ids_id "
             "             not null, "
-            "  next integer "
-            "  constraint uq_file_ids_next "
-            "             unique, "
             "  constraint pk_file_ids "
             "             primary key (id) "
             ")";
@@ -97,23 +94,19 @@ void upgrade01(Query& query)
     query.execute();
 
     query = "create table file_id ( "
-            "  free integer, "
             "  id integer "
             "  constraint nn_file_id_id "
             "             not null, "
             "  next integer "
             "  constraint nn_file_id_next "
             "             not null, "
-            "  constraint fk_file_id_file_ids "
-            "             foreign key (free) "
-            "             references file_ids (id) "
             "  constraint pk_file_id "
             "             primary key (id) "
             ")";
 
     query.execute();
 
-    query = "insert into file_id values (null, 0, 0)";
+    query = "insert into file_id values (0, 0)";
 
     query.execute();
 }
