@@ -5344,6 +5344,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "TYPE_RUN_NETWORK_CONNECTIVITY_TEST";
         case TYPE_ADD_SYNC_PREVALIDATION:
             return "TYPE_ADD_SYNC_PREVALIDATION";
+        case TYPE_GET_MAX_CONNECTIONS:
+            return "GET_MAX_CONNECTIONS";
     }
     return "UNKNOWN";
 }
@@ -10606,37 +10608,52 @@ void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBac
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES, listener);
     request->setNodeHandle(backupDestination);
 
-    request->performRequest = [deconfiguredBackupRoot, backupDestination, this, request]() {
+    request->performRequest = [deconfiguredBackupRoot, backupDestination, this, request]()
+    {
+        std::shared_ptr<Node> deconfiguredBackupRootNode =
+            client->nodebyhandle(deconfiguredBackupRoot);
+        std::shared_ptr<Node> backupDestinationNode = client->nodebyhandle(backupDestination);
 
-        std::shared_ptr<Node> n1 = client->nodebyhandle(deconfiguredBackupRoot);
-        std::shared_ptr<Node> n2 = client->nodebyhandle(backupDestination);
-
-        if (!n1)
+        if (!deconfiguredBackupRootNode)
         {
             LOG_debug << "Backup root node not found";
             return API_ENOENT;
         }
-        LOG_debug << "About to move/remove backup nodes from " << n1->displaypath();
+        LOG_debug << "About to move/remove backup nodes from "
+                  << deconfiguredBackupRootNode->displaypath();
 
-        if (!n1->parent ||   // device
-            !n1->parent->parent ||  // my backups node
-            !n1->parent->parent->parent ||  // Vault root
-            n1->parent->parent->parent->nodehandle != client->mNodeManager.getRootNodeVault().as8byte())
+        if (!deconfiguredBackupRootNode->parent || // device
+            !deconfiguredBackupRootNode->parent->parent || // my backups node
+            !deconfiguredBackupRootNode->parent->parent->parent || // Vault root
+            deconfiguredBackupRootNode->parent->parent->parent->nodehandle !=
+                client->mNodeManager.getRootNodeVault().as8byte())
         {
             LOG_debug << "Node not in the right place to be a backup root";
             return API_EARGS;
         }
 
-        if (n2 &&
-            n2->firstancestor()->nodeHandle() != client->mNodeManager.getRootNodeFiles().as8byte() &&
-            n2->firstancestor()->nodeHandle() != client->mNodeManager.getRootNodeRubbish().as8byte())
+        if (backupDestinationNode &&
+            backupDestinationNode->firstancestor()->nodeHandle() !=
+                client->mNodeManager.getRootNodeFiles().as8byte() &&
+            backupDestinationNode->firstancestor()->nodeHandle() !=
+                client->mNodeManager.getRootNodeRubbish().as8byte())
         {
-            LOG_debug << "Destination node not in the main files root, or in rubbish: " << n2->displaypath();
+            LOG_debug << "Destination node not in the main files root, or in rubbish: "
+                      << backupDestinationNode->displaypath();
             return API_EARGS;
         }
 
         NodeHandle root = NodeHandle().set6byte(deconfiguredBackupRoot);
         NodeHandle destination = NodeHandle().set6byte(backupDestination);
+
+        if (backupDestinationNode &&
+            backupDestinationNode->hasChildWithName(deconfiguredBackupRootNode->displayname()))
+        {
+            LOG_err << "A node with the same name already exists in the destination. Can't move "
+                       "the backup node "
+                    << toNodeHandle(root) << " into " << toNodeHandle(destination);
+            return API_EEXIST;
+        }
 
         client->unlinkOrMoveBackupNodes(root, destination, [request, this](Error e) {
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
@@ -13373,8 +13390,20 @@ void MegaApiImpl::file_complete(File *f)
     if (!transfer)
         return;
 
-    if (!f->isFuseTransfer() && f->transfer->type == GET)
-        transfer->setLocalPath(f->getLocalname());
+    if (!f->isFuseTransfer())
+    {
+        if (f->transfer->type == GET)
+        {
+            transfer->setLocalPath(f->getLocalname());
+        }
+        else if (f->transfer->type == PUT && (f->getLocalname() != transfer->getLocalPath()))
+        {
+            LOG_debug << "[MegaApiImpl::file_complete] Changing transfer path from '"
+                      << transfer->getLocalPath().toPath(false) << "' to '"
+                      << f->getLocalname().toPath(false) << "'";
+            transfer->setLocalPath(f->getLocalname());
+        }
+    }
 
     processTransferComplete(f->transfer, transfer);
 }
@@ -13417,6 +13446,14 @@ void MegaApiImpl::transfer_update(Transfer *t)
         if (!transfer)
         {
             continue;
+        }
+
+        if ((*it)->getLocalname() != transfer->getLocalPath())
+        {
+            LOG_debug << "[MegaApiImpl::transfer_update] Changing transfer path from '"
+                      << transfer->getLocalPath().toPath(false) << "' to '"
+                      << (*it)->getLocalname().toPath(false) << "'";
+            transfer->setLocalPath((*it)->getLocalname());
         }
 
         if (it == t->files.begin()
@@ -15824,7 +15861,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     }
 }
 
-// reload needed
+// it may need a full reload, depending on the reason of the error
 void MegaApiImpl::notifyError(const char* reason, ErrorReason errorReason)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_FATAL_ERROR);
@@ -22909,6 +22946,39 @@ void MegaApiImpl::setMaxConnections(int direction, int connections, MegaRequestL
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::getMaxTransferConnections(const direction_t direction,
+                                            MegaRequestListener* const listener)
+{
+    auto* const request = new MegaRequestPrivate(MegaRequest::TYPE_GET_MAX_CONNECTIONS, listener);
+    assert(direction == GET || direction == PUT);
+    request->setParamType(direction);
+
+    request->performRequest = [this, request]()
+    {
+        const auto direction = request->getParamType();
+        if (direction != GET && direction != PUT)
+            return API_EINTERNAL;
+
+        request->setNumber(client->connections[direction]);
+
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getMaxUploadConnections(MegaRequestListener* const listener)
+{
+    getMaxTransferConnections(PUT, listener);
+}
+
+void MegaApiImpl::getMaxDownloadConnections(MegaRequestListener* const listener)
+{
+    getMaxTransferConnections(GET, listener);
 }
 
 error MegaApiImpl::performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer)

@@ -368,6 +368,16 @@ struct RequestTracker : public ::mega::MegaRequestListener
         return request ? request->getFlag() : false;
     }
 
+    int getParamType()
+    {
+        return request ? request->getParamType() : -999;
+    }
+
+    int getNumber()
+    {
+        return request ? static_cast<int>(request->getNumber()) : -999;
+    }
+
     template<typename... Args, typename... Params>
     static unique_ptr<RequestTracker> async(MegaApi& api,
                                             void (MegaApi::*mf)(Params...),
@@ -630,6 +640,7 @@ public:
         shared_ptr<const MegaStringTable> stringTable;
     };
 
+    constexpr static unsigned MAX_VAULT_CHILDREN = 2;
     std::vector<PerApi> mApi;
     std::vector<MegaApiTestPointer> megaApi;
 
@@ -1234,6 +1245,34 @@ public:
         RequestTracker rt(megaApi[apiIndex].get());
         megaApi[apiIndex]->setMaxConnections(args..., &rt);
         return rt.waitForResult();
+    }
+
+    template<typename... requestArgs>
+    ErrorCodes doGetMaxUploadConnections(const unsigned apiIndex,
+                                         int& direction,
+                                         int& maxConnections,
+                                         requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getMaxUploadConnections(args..., &rt);
+        const auto err = rt.waitForResult();
+        direction = err == API_OK ? rt.getParamType() : -999;
+        maxConnections = err == API_OK ? rt.getNumber() : -999;
+        return err;
+    }
+
+    template<typename... requestArgs>
+    ErrorCodes doGetMaxDownloadConnections(const unsigned apiIndex,
+                                           int& direction,
+                                           int& maxConnections,
+                                           requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getMaxUploadConnections(args..., &rt);
+        const auto err = rt.waitForResult();
+        direction = err == API_OK ? rt.getParamType() : -999;
+        maxConnections = err == API_OK ? rt.getNumber() : -999;
+        return err;
     }
 
     /* MegaVpnCredentials */

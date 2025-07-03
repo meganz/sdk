@@ -1854,7 +1854,7 @@ void PathURI::changeLeaf(const LocalPath& newLeaf)
     {
         mAuxPath.pop_back();
     }
-    else if (const auto uri = URIHandler::getParentURI(mUri); !uri.has_value())
+    else if (const auto uri = URIHandler::getParentURI(mUri); uri.has_value())
     {
         mUri = uri.value();
     }

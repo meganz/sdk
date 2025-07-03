@@ -1195,7 +1195,10 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
     };
 
     // step 1: fetch Backup/sync data from Backup Centre
-    getBackupInfo([this, bkpId, bkpRoot, updateSds, isBackup, finalCompletion](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+    getBackupInfo(
+        [this, bkpId, bkpRoot, updateSds, isBackup, targetDest, finalCompletion](
+            const Error& e,
+            const vector<CommandBackupSyncFetch::Data>& data)
         {
             if (e != API_OK)
             {
@@ -1204,17 +1207,37 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
                 return;
             }
 
-            for (auto& d : data)
+            for (auto& d: data)
             {
-                if (d.backupId == bkpId)
+                if (d.backupId != bkpId)
                 {
-                    *bkpRoot = d.rootNode;
-                    *isBackup = d.backupType == BackupType::BACKUP_UPLOAD;
-
-                    // step 2: remove backup/sync
-                    reqs.add(new CommandBackupRemove(this, bkpId, updateSds));
-                    return;
+                    continue;
                 }
+
+                *bkpRoot = d.rootNode;
+                *isBackup = d.backupType == BackupType::BACKUP_UPLOAD;
+
+                // Check for destination clash before proceeding.
+                if (*isBackup && targetDest != UNDEF)
+                {
+                    const std::shared_ptr<Node> backupRootNode{nodebyhandle(*bkpRoot)};
+                    const std::shared_ptr<Node> backupDestinationNode{nodebyhandle(targetDest)};
+                    if (backupRootNode && backupDestinationNode)
+                    {
+                        if (backupDestinationNode->hasChildWithName(backupRootNode->displayname()))
+                        {
+                            LOG_err << "A node with the same name already exists in the "
+                                       "destination. Failed to remove backup "
+                                    << toHandle(bkpId);
+                            finalCompletion(API_EEXIST);
+                            return;
+                        }
+                    }
+                }
+
+                // step 2: remove backup/sync
+                reqs.add(new CommandBackupRemove(this, bkpId, updateSds));
+                return;
             }
 
             LOG_err << "Remove backup/sync: " << toHandle(bkpId) << " not returned by 'sr' command";
@@ -2014,8 +2037,15 @@ MegaClient::MegaClient(MegaApp* a,
 
     userid = 0;
 
+#if defined(__ANDROID__) || defined(USE_IOS)
     connections[PUT] = 3;
     connections[GET] = 4;
+#else
+    connections[PUT] = 8;
+    connections[GET] = 8;
+#endif
+    LOG_debug << clientname << "MegaClient initial max connections: uploads = " << +connections[PUT]
+              << ", downloads = " << +connections[GET];
 
     reqtag = 0;
 
@@ -2221,6 +2251,12 @@ void MegaClient::exec()
                 case REQ_FAILURE:
                     if (!req->httpstatus && (!req->maxretries || (req->numretry + 1) < req->maxretries))
                     {
+                        if (req->mDnsFailure)
+                        {
+                            app->notify_network_activity(NetworkActivityChannel::CS,
+                                                         NetworkActivityType ::REQUEST_SENT,
+                                                         LOCAL_ENETWORK);
+                        }
                         req->numretry++;
                         req->status = REQ_PREPARED;
                         req->bt.backoff();
@@ -2776,6 +2812,12 @@ void MegaClient::exec()
                             }
                             else if (pendingcs->httpstatus == 0)
                             {
+                                if (pendingcs->mDnsFailure)
+                                {
+                                    app->notify_network_activity(NetworkActivityChannel::CS,
+                                                                 NetworkActivityType ::REQUEST_SENT,
+                                                                 LOCAL_ENETWORK);
+                                }
                                 reason = RETRY_CONNECTIVITY;
                             }
                         }
@@ -2959,7 +3001,15 @@ void MegaClient::exec()
                     }
                     LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
                 }
+
                 LOG_warn << "Useralerts request failed, continuing without them";
+
+                if (pendingscUserAlerts->mDnsFailure)
+                {
+                    app->notify_network_activity(NetworkActivityChannel::SC,
+                                                 NetworkActivityType ::REQUEST_SENT,
+                                                 LOCAL_ENETWORK);
+                }
 
                 if (useralerts.begincatchup)
                 {
@@ -3109,9 +3159,18 @@ void MegaClient::exec()
 
                     if (!scsn.stopped())
                     {
-                        app->notify_network_activity(NetworkActivityChannel::SC,
-                                                     NetworkActivityType ::REQUEST_RECEIVED,
-                                                     pendingsc->httpstatus);
+                        if (pendingsc->mDnsFailure)
+                        {
+                            app->notify_network_activity(NetworkActivityChannel::SC,
+                                                         NetworkActivityType ::REQUEST_SENT,
+                                                         LOCAL_ENETWORK);
+                        }
+                        else
+                        {
+                            app->notify_network_activity(NetworkActivityChannel::SC,
+                                                         NetworkActivityType ::REQUEST_RECEIVED,
+                                                         pendingsc->httpstatus);
+                        }
                     }
 
                     pendingsc.reset();
@@ -10013,7 +10072,14 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
 
     if (destination.isUndef())
     {
-        error e = unlink(n.get(), false, 0, true, [completion](NodeHandle, Error e){ completion(e); });
+        error e = unlink(n.get(),
+                         false,
+                         0,
+                         true,
+                         [completion](NodeHandle, Error e)
+                         {
+                             completion(e);
+                         });
         if (e)
         {
             // error before we sent a request so call completion directly
@@ -10028,6 +10094,13 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
         if (!p || p->firstancestor()->nodeHandle() != mNodeManager.getRootNodeFiles())
         {
             completion(API_EARGS);
+            return;
+        }
+
+        if (p->hasChildWithName(n->displayname()))
+        {
+            LOG_err << "Name clash. A node with the same name already exists in the destination";
+            completion(API_EEXIST);
             return;
         }
 
@@ -15506,6 +15579,9 @@ void MegaClient::handleDbError(DBError error)
         case DBError::DB_ERROR_INDEX_OVERFLOW:
             fatalError(ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW);
             break;
+        case DBError::DB_ERROR_CORRUPT:
+            fatalError(ErrorReason::REASON_ERROR_DB_CORRUPT);
+            break;
         default:
             fatalError(ErrorReason::REASON_ERROR_UNKNOWN);
             break;
@@ -15553,6 +15629,10 @@ void MegaClient::fatalError(ErrorReason errorReason)
         case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
             reason = "DB index overflow";
             sendevent(99471, reason.c_str(), 0);
+            break;
+        case mega::ErrorReason::REASON_ERROR_DB_CORRUPT:
+            reason = "DB file is corrupt";
+            sendevent(99497, reason.c_str(), 0);
             break;
         case ErrorReason::REASON_ERROR_NO_JSCD:
             reason = "Failed to get JSON SYNC configuration data";
@@ -18586,6 +18666,9 @@ void MegaClient::setmaxconnections(direction_t d, int num)
 
         if (connections[d] != num)
         {
+            LOG_debug << "[MegaClient::setmaxconnections] Set max parallel "
+                      << connDirectionToStr(d) << " connections per transfer to " << num
+                      << " [prev: " << connections[d] << "]";
             connections[d] = (unsigned char)num;
             for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
             {
@@ -24308,7 +24391,10 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
         {
             LOG_err << "Couldn't retrieve JSC data: " << result;
 
-            fatalError(ErrorReason::REASON_ERROR_NO_JSCD);
+            if (result != API_EBLOCKED)
+            {
+                fatalError(ErrorReason::REASON_ERROR_NO_JSCD);
+            }
 
             // This shouldn't prevent the user from logging on, however.
             return callback(API_OK);

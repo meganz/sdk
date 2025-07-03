@@ -19,6 +19,7 @@ target_sources(test_integration
     SdkTestFilter_test.cpp
     SdkTestCreateAccount_test.cpp
     SdkTestTransferStats_test.cpp
+    sdk_test_user_alerts.cpp
     sdk_test_user_attributes.cpp
     SdkTestSyncRootOperations_test.cpp
     SdkTestSyncUploadThrottling_test.cpp
@@ -39,6 +40,7 @@ target_sources(test_integration
     SdkTestDeviceCenter_test.cpp
     SdkTestSyncLocalOperations_test.cpp
     SdkTestSyncNodeAttribute_test.cpp
+    backup_sync_operations_test.cpp
 
     passwordManager/SdkTestPasswordManager.cpp
     passwordManager/SdkTestPasswordManager.h

@@ -3122,6 +3122,14 @@ bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row,
                                  "different: restoring the moved transfer to the sourceSyncNode "
                                  "(it could belong to a new file with same name)";
                     sourceSyncNode->resetTransfer(std::move(row.syncNode->transferSP));
+
+                    // Restore the path of the transfer too (it should be sourceSyncNode's path).
+                    LocalTreeProcUpdateTransfers tput;
+                    tput.proc(*syncs.fsaccess, sourceSyncNode);
+
+                    assert(sourceSyncNode->transferSP &&
+                           sourceSyncNode->transferSP->getLocalname() ==
+                               sourceSyncNode->getLocalPath());
                 }
                 else if (row.syncNode->transferSP)
                 {
@@ -8647,14 +8655,34 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
     return !earlyExit;
 }
 
-string Sync::logTriplet(const SyncRow& row, const SyncPath& fullPath) const
+std::string Sync::logTriplet(const SyncRow& row, const SyncPath& fullPath) const
 {
-    ostringstream s;
-    s << " triplet:" <<
-        " " << (row.cloudNode ? fullPath.cloudPath : "(null)") <<
-        " " << (row.syncNode ? fullPath.syncPath : "(null)") <<
-        " " << (row.fsNode ? fullPath.localPath.toPath(false):"(null)");
-    return s.str();
+    static constexpr std::string_view PREFIX{" triplet: "};
+    static constexpr std::string_view NULLPATH{"(null)"};
+    static constexpr std::string_view NOHANDLE{"(no handle)"};
+
+    const auto cloudHandleStr = row.cloudNode ? toNodeHandle(row.cloudNode->handle) : "";
+    const auto fsPathStr = row.fsNode ? fullPath.localPath.toPath(false) : "";
+
+    const auto cloudHandle = row.cloudNode ? std::string_view{cloudHandleStr} : NOHANDLE;
+    const auto cloudPath = row.cloudNode ? std::string_view{fullPath.cloudPath} : NULLPATH;
+    const auto syncPath = row.syncNode ? std::string_view{fullPath.syncPath} : NULLPATH;
+    const auto fsPath = row.fsNode ? std::string_view{fsPathStr} : NULLPATH;
+
+    std::string s;
+    s.reserve(PREFIX.size() + 3 /* spaces */ + cloudHandle.size() + cloudPath.size() +
+              syncPath.size() + fsPath.size());
+
+    s += PREFIX;
+    s += cloudHandle;
+    s += ' ';
+    s += cloudPath;
+    s += ' ';
+    s += syncPath;
+    s += ' ';
+    s += fsPath;
+
+    return s;
 }
 
 bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath,
@@ -10824,7 +10852,8 @@ bool Sync::resolve_downsync(SyncRow& row,
 
                 // FIXME: to cover renames that occur during the
                 // download, reconstruct localname in complete()
-                LOG_debug << syncname << "Start sync download: " << row.syncNode << logTriplet(row, fullPath);
+                LOG_debug << syncname << "Start sync download: " << row.cloudNode->handle
+                          << logTriplet(row, fullPath);
                 LOG_debug << syncname << "Sync - requesting file " << fullPath.localPath;
 
                 createDebrisTmpLockOnce();
@@ -11001,15 +11030,12 @@ bool Sync::resolve_userIntervention(SyncRow& row, SyncPath& fullPath)
             }
         }
 
-        SYNC_verbose_timed << "Both sides mismatch: "
-                           << "Cloud -> mtime: " << row.cloudNode->fingerprint.mtime << ", "
-                           << "size: " << row.cloudNode->fingerprint.size << ". "
-                           << "SyncNode -> mtime: " << row.syncNode->syncedFingerprint.mtime << ", "
-                           << "size: " << row.syncNode->syncedFingerprint.size << ". "
-                           << "Local -> mtime: " << row.fsNode->fingerprint.mtime << ", "
-                           << "size: " << row.fsNode->fingerprint.size << ". "
-                           << "Immediate: " << immediateStall << " at "
-                           << logTriplet(row, fullPath);
+        SYNC_verbose_timed
+            << "Both sides mismatch since last sync! Fingerprint debug [size:mtime:CRC] : "
+            << "Cloud -> " << row.cloudNode->fingerprint.fingerprintDebugString() << ". "
+            << "SyncNode -> " << row.syncNode->syncedFingerprint.fingerprintDebugString() << ". "
+            << "Local -> " << row.fsNode->fingerprint.fingerprintDebugString() << ". "
+            << "Immediate: " << immediateStall << " at " << logTriplet(row, fullPath);
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
             SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose, immediateStall, true,
@@ -11020,12 +11046,11 @@ bool Sync::resolve_userIntervention(SyncRow& row, SyncPath& fullPath)
     }
     else
     {
-        SYNC_verbose_timed << "Both sides unsynced: "
-                           << "Cloud -> mtime: " << row.cloudNode->fingerprint.mtime << ", "
-                           << "size: " << row.cloudNode->fingerprint.size << ". "
-                           << "Local -> mtime: " << row.fsNode->fingerprint.mtime << ", "
-                           << "size: " << row.fsNode->fingerprint.size << ". "
-                           << "At " << logTriplet(row, fullPath);
+        SYNC_verbose_timed
+            << "Both sides previously unsynced mismatch! Fingerprint debug [size:mtime:CRC] : "
+            << "Cloud -> " << row.cloudNode->fingerprint.fingerprintDebugString() << ". "
+            << "Local -> " << row.fsNode->fingerprint.fingerprintDebugString() << ". "
+            << "At " << logTriplet(row, fullPath);
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
             SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose, true, true,

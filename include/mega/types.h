@@ -226,6 +226,7 @@ typedef enum ErrorCodes : int
     LOCAL_ENOSPC = -1000,           ///< Insufficient space
     LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
     LOCAL_ABANDONED = -1002,        ///< Request abandoned due to local logout.
+    LOCAL_ENETWORK = -1003, ///< Local network error (DNS resolution failure)
 
     API_FUSE_EBADF = -2000,
     API_FUSE_EISDIR = -2001,
@@ -898,6 +899,7 @@ typedef enum {
     REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
     REASON_ERROR_NO_JSCD = 5,
     REASON_ERROR_REGENERATE_JSCD = 6,
+    REASON_ERROR_DB_CORRUPT = 7,
 } ErrorReason;
 
 // enum matching 1:1 MegaEvent::NetworkActivityChannel

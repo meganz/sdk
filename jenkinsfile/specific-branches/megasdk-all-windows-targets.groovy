@@ -1,6 +1,29 @@
+//Build SDK for a given architecture
+def build_for_arch(String architecture) {
+    def BUILD_DIR = "${WORKSPACE}\\build_dir_${architecture}"
+    def QTPATH = "C:\\Qt\\Qt5.15.13\\5.15.13"
+    def VCPKGPATH  = "${WORKSPACE}\\..\\..\\vcpkg"
+    def CMAKE_FLAGS = "-DVCPKG_ROOT='${VCPKGPATH}' -DSWIG_EXECUTABLE='C:\\swigwin-4.0.2\\swig.exe' -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DENABLE_JAVA_BINDINGS=ON -DUSE_LIBUV=ON -S '${WORKSPACE}' -B '${BUILD_DIR}'"
+    def CMAKE_PLATFORM = "-DCMAKE_GENERATOR_PLATFORM=${architecture}"
+
+    // x64 and Win32 have QT bindings. arm64 does not.
+    // Win32 is called x86 here
+    def CMAKE_QT_FLAGS = ""
+    switch (architecture) {
+        case 'Win32':
+            CMAKE_QT_FLAGS = "-DCMAKE_PREFIX_PATH='${QTPATH}\\x86' -DENABLE_QT_BINDINGS=ON"
+            break
+        case 'x64':
+            CMAKE_QT_FLAGS = "-DCMAKE_PREFIX_PATH='${QTPATH}\\x64' -DENABLE_QT_BINDINGS=ON"
+    }
+
+    sh "rm -vrf '${BUILD_DIR}'; mkdir -v '${BUILD_DIR}'"
+    sh "cmake ${CMAKE_PLATFORM} ${CMAKE_QT_FLAGS} ${CMAKE_FLAGS}"
+    sh "cmake --build '${BUILD_DIR}' --config RelWithDebInfo -j 1"
+}
+
 pipeline {
     agent { label 'windows && amd64' }
-
     options { 
         buildDiscarder(logRotator(numToKeepStr: '60', daysToKeepStr: '21'))
         gitLabConnection('GitLabConnectionJenkins')
@@ -32,47 +55,23 @@ pipeline {
         }
         stage('Build Windows'){
             options{
-                timeout(time: 150, unit: 'MINUTES')
+                // timeout: 30 min per architecture
+                timeout(time: 90, unit: 'MINUTES')
             }
-            matrix {
-                axes {
-                    axis {
-                        name 'ARCHITECTURE'
-                        values 'x64', 'Win32', 'ARM64'
+            stages {
+                stage("Build x64") {
+                    steps{
+                        build_for_arch('x64')
                     }
                 }
-                stages {
-                    stage("Build") {
-                        environment {
-                            VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
-                            AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
-                            AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
-                            AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
-                        }
-                        steps{
-                            script {
-                                def BUILD_DIR = "${WORKSPACE}\\build_dir_${ARCHITECTURE}"
-                                def QTPATH = "C:\\Qt\\Qt5.15.13\\5.15.13"
-                                def VCPKGPATH  = "${WORKSPACE}\\..\\..\\vcpkg"
-                                def CMAKE_FLAGS = "-DVCPKG_ROOT='${VCPKGPATH}' -DSWIG_EXECUTABLE='C:\\swigwin-4.0.2\\swig.exe' -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DENABLE_JAVA_BINDINGS=ON -DUSE_LIBUV=ON -S '${WORKSPACE}' -B '${BUILD_DIR}'"
-                                def CMAKE_PLATFORM = "-DCMAKE_GENERATOR_PLATFORM=${ARCHITECTURE}"
-
-                                // x64 and Win32 have QT bindings. arm64 does not.
-                                // Win32 is called x86 here
-                                def CMAKE_QT_FLAGS = ""
-                                switch (ARCHITECTURE) {
-                                    case 'Win32':
-                                        CMAKE_QT_FLAGS = "-DCMAKE_PREFIX_PATH='${QTPATH}\\x86' -DENABLE_QT_BINDINGS=ON"
-                                        break
-                                    case 'x64':
-                                        CMAKE_QT_FLAGS = "-DCMAKE_PREFIX_PATH='${QTPATH}\\x64' -DENABLE_QT_BINDINGS=ON"
-                                }
-
-                                sh "rm -vrf '${BUILD_DIR}'; mkdir -v '${BUILD_DIR}'"
-                                sh "cmake ${CMAKE_PLATFORM} ${CMAKE_QT_FLAGS} ${CMAKE_FLAGS}"
-                                sh "cmake --build '${BUILD_DIR}' --config RelWithDebInfo -j 1"
-                            }
-                        }
+                stage("Build Win32") {
+                    steps{
+                        build_for_arch('Win32')
+                    }
+                }
+                stage("Build ARM64") {
+                    steps{
+                        build_for_arch('ARM64')
                     }
                 }
             }

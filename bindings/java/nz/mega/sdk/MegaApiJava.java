@@ -6682,67 +6682,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Upload a file or a folder
-     * <p>
-     * This method should be used ONLY to share by chat a local file. In case the file
-     * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
-     * this method will force a new upload from the scratch (ensuring the file attributes are set),
-     * instead of doing a remote copy.
-     * <p>
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath         Local path of the file or folder
-     * @param parent            Parent node for the file or folder in the MEGA account
-     * @param appData           Custom app data to save in the MegaTransfer object
-     *                          The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     *                          related to the transfer. If a transfer is started with exactly the same data
-     *                          (local path and target parent) as another one in the transfer queue, the new transfer
-     *                          fails with the error API_EEXISTS and the appData of the new transfer is appended to
-     *                          the appData of the old transfer, using a '!' separator if the old transfer had already
-     *                          appData.
-     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-     *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-     *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-     * @param fileName          Custom file name for the file or folder in MEGA
-     */
-    public void startUploadForChat(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName) {
-        megaApi.startUploadForChat(localPath, parent, appData, isSourceTemporary, fileName);
-    }
-
-    /**
-     * Upload a file or a folder
-     * <p>
-     * This method should be used ONLY to share by chat a local file. In case the file
-     * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
-     * this method will force a new upload from the scratch (ensuring the file attributes are set),
-     * instead of doing a remote copy.
-     * <p>
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath         Local path of the file or folder
-     * @param parent            Parent node for the file or folder in the MEGA account
-     * @param appData           Custom app data to save in the MegaTransfer object
-     *                          The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     *                          related to the transfer. If a transfer is started with exactly the same data
-     *                          (local path and target parent) as another one in the transfer queue, the new transfer
-     *                          fails with the error API_EEXISTS and the appData of the new transfer is appended to
-     *                          the appData of the old transfer, using a '!' separator if the old transfer had already
-     *                          appData.
-     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-     *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-     *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-     * @param fileName          Custom file name for the file or folder in MEGA
-     * @param listener          MegaTransferListener to track this transfer
-     */
-    public void startUploadForChat(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName, MegaTransferListenerInterface listener) {
-        megaApi.startUploadForChat(localPath, parent, appData, isSourceTemporary, fileName, createDelegateTransferListener(listener));
-    }
-
-    /**
      * Download a file or a folder from MEGA, saving custom app data during the transfer
      * <p>
      * If the status of the business account is expired, onTransferFinish will be called with the error
@@ -7475,6 +7414,25 @@ public class MegaApiJava {
      */
     public boolean areTransfersPaused(int direction) {
         return megaApi.areTransfersPaused(direction);
+    }
+
+    /**
+     * Resume incomplete transfers started while not logged in
+     * <p>
+     * This method resumes transfers that were cached while using a non-logged-in MegaApi
+     * instance
+     * <p>
+     * This method can be called when the app detects that there is no session to resume.
+     * If a valid session exists, the app should proceed with resuming it, and calling
+     * this method will have no effect.
+     *
+     * @note If there are transfers in progress and the app logs in,
+     * any incomplete transfers will be aborted immediately.
+     * <p>
+     * Please avoid calling this method when logged in.
+     */
+    public void resumeTransfersForNotLoggedInInstance() {
+        megaApi.resumeTransfersForNotLoggedInInstance();
     }
 
     /**

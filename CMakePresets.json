@@ -1,5 +1,5 @@
 {
-    "version": 1,
+    "version": 2,
     "configurePresets": [
         {
             "name": "default",
@@ -15,6 +15,11 @@
             "generator": "Unix Makefiles"
         },
         {
+            "name": "windows",
+            "hidden": true,
+            "generator": "Visual Studio 17 2022"
+        },
+        {
             "name": "android",
             "hidden": true,
             "inherits": "unix",
@@ -28,118 +33,6 @@
             "inherits": "unix",
             "cacheVariables": {
                 "CMAKE_SYSTEM_NAME": "iOS"
-            }
-        },
-        {
-            "name": "windows",
-            "hidden": true,
-            "generator": "Visual Studio 17 2022"
-        },
-        {
-            "name": "mega",
-            "hidden": true,
-            "inherits": "default"
-        },
-        {
-            "name": "mega-android",
-            "inherits": [
-                "android",
-                "mega"
-            ]
-        },
-        {
-            "name": "mega-ios",
-            "inherits": [
-                "ios",
-                "mega"
-            ],
-            "cacheVariables": {
-                "ENABLE_LOG_PERFORMANCE": "ON"
-            }
-        },
-        {
-            "name": "megacmd",
-            "hidden": true,
-            "inherits": "default",
-            "cacheVariables": {
-                "ENABLE_ISOLATED_GFX": "OFF",
-                "USE_LIBUV": "ON",
-                "WITH_FUSE": "ON"
-            }
-        },
-        {
-            "name": "megacmd-unix",
-            "inherits": [
-                "unix",
-                "megacmd"
-            ]
-        },
-        {
-            "name": "megacmd-windows",
-            "inherits": [
-                "windows",
-                "megacmd"
-            ]
-        },
-        {
-            "name": "megaproxy",
-            "hidden": true,
-            "inherits": "default",
-            "cacheVariables": {
-                "ENABLE_ISOLATED_GFX": "OFF",
-                "ENABLE_LOG_PERFORMANCE": "ON",
-                "ENABLE_SYNC": "OFF",
-                "USE_LIBUV": "OFF",
-                "USE_READLINE": "OFF"
-            }
-        },
-        {
-            "name": "megaproxy-unix",
-            "inherits": [
-                "unix",
-                "megaproxy"
-            ]
-        },
-        {
-            "name": "megasync",
-            "hidden": true,
-            "inherits": "default",
-            "cacheVariables": {
-                "ENABLE_ISOLATED_GFX": "ON",
-                "ENABLE_LOG_PERFORMANCE": "ON",
-                "ENABLE_QT_BINDINGS": "ON",
-                "USE_LIBUV": "ON"
-            }
-        },
-        {
-            "name": "megasync-unix",
-            "inherits": [
-                "unix",
-                "megasync"
-            ]
-        },
-        {
-            "name": "megasync-windows",
-            "inherits": [
-                "windows",
-                "megasync"
-            ]
-        },
-        {
-            "name": "mega-vpn",
-            "hidden": true,
-            "inherits": "default"
-        },
-        {
-            "name": "mega-vpn-android",
-            "inherits": [
-                "android",
-                "mega-vpn"
-            ],
-            "cacheVariables": {
-                "ENABLE_CHAT": "OFF",
-                "ENABLE_SYNC": "OFF",
-                "USE_LIBUV": "OFF"
             }
         },
         {
@@ -164,18 +57,125 @@
             }
         },
         {
+            "name": "mega",
+            "hidden": true,
+            "inherits": "default"
+        },
+        {
+            "name": "megasync",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_ISOLATED_GFX": "ON",
+                "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_QT_BINDINGS": "ON",
+                "USE_LIBUV": "ON"
+            }
+        },
+        {
+            "name": "megacmd",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_ISOLATED_GFX": "OFF",
+                "USE_LIBUV": "ON",
+                "WITH_FUSE": "ON"
+            }
+        },
+        {
+            "name": "megaproxy",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_ISOLATED_GFX": "OFF",
+                "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_SYNC": "OFF",
+                "USE_LIBUV": "OFF",
+                "USE_READLINE": "OFF"
+            }
+        },
+        {
+            "name": "megavpn",
+            "hidden": true,
+            "inherits": "default"
+        },
+        {
             "name": "dev-unix",
             "inherits": [
-                "unix",
-                "dev"
+                "dev",
+                "unix"
             ]
         },
         {
             "name": "dev-windows",
             "inherits": [
-                "windows",
-                "dev"
+                "dev",
+                "windows"
             ]
+        },
+        {
+            "name": "mega-android",
+            "inherits": [
+                "mega",
+                "android"
+            ]
+        },
+        {
+            "name": "mega-ios",
+            "inherits": [
+                "mega",
+                "ios"
+            ],
+            "cacheVariables": {
+                "ENABLE_LOG_PERFORMANCE": "ON"
+            }
+        },
+        {
+            "name": "megasync-unix",
+            "inherits": [
+                "megasync",
+                "unix"
+            ]
+        },
+        {
+            "name": "megasync-windows",
+            "inherits": [
+                "megasync",
+                "windows"
+            ]
+        },
+        {
+            "name": "megacmd-unix",
+            "inherits": [
+                "megacmd",
+                "unix"
+            ]
+        },
+        {
+            "name": "megacmd-windows",
+            "inherits": [
+                "megacmd",
+                "windows"
+            ]
+        },
+        {
+            "name": "megaproxy-unix",
+            "inherits": [
+                "megaproxy",
+                "unix"
+            ]
+        },
+        {
+            "name": "megavpn-android",
+            "inherits": [
+                "megavpn",
+                "android"
+            ],
+            "cacheVariables": {
+                "ENABLE_CHAT": "OFF",
+                "ENABLE_SYNC": "OFF",
+                "USE_LIBUV": "OFF"
+            }
         }
     ]
 }

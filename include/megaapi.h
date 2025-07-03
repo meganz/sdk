@@ -5116,7 +5116,8 @@ class MegaRequest
             TYPE_CHECK_SYNC_UPLOAD_THROTTLED_ELEMENTS = 205,
             TYPE_RUN_NETWORK_CONNECTIVITY_TEST = 206,
             TYPE_ADD_SYNC_PREVALIDATION = 207,
-            TOTAL_OF_REQUEST_TYPES = 208,
+            TYPE_GET_MAX_CONNECTIONS = 208,
+            TOTAL_OF_REQUEST_TYPES = 209,
         };
 
         virtual ~MegaRequest();
@@ -6148,6 +6149,7 @@ public:
         REASON_ERROR_DB_INDEX_OVERFLOW          = 4,    // Index used to primary key at db overflow
         REASON_ERROR_NO_JSCD = 5, // No JSON Sync Config Data
         REASON_ERROR_REGENERATE_JSCD = 6, // JSON Sync Config Data has been regenerated
+        REASON_ERROR_DB_CORRUPT = 7, // DB file is corrupted
     };
 
     /**
@@ -6335,6 +6337,7 @@ public:
      *     - REASON_ERROR_DB_INDEX_OVERFLOW = 4
      *     - REASON_ERROR_NO_JSCD = 5
      *     - REASON_ERROR_REGENERATE_JSCD = 6
+     *     - REASON_ERROR_DB_CORRUPT = 7
      *
      * - EVENT_ACCOUNT_BLOCKED:
      *   Indicates the reason for account blockage:
@@ -16774,8 +16777,8 @@ class MegaApi
         /**
          * @brief Set the maximum number of connections per transfer
          *
-         * The maximum number of allowed connections is 6. If a higher number of connections is passed
-         * to this function, it will fail with the error code API_ETOOMANY.
+         * The maximum number of allowed connections is 100. If a higher number of connections is
+         * passed to this function, it will fail with the error code API_ETOOMANY.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_MAX_CONNECTIONS
          * Valid data in the MegaRequest object received on callbacks:
@@ -16786,23 +16789,50 @@ class MegaApi
          * Valid values for this parameter are:
          * - MegaTransfer::TYPE_DOWNLOAD = 0
          * - MegaTransfer::TYPE_UPLOAD = 1
-         * @param connections Maximum number of connection (it should between 1 and 6)
+         * @param connections Maximum number of connection (it should between 1 and 100)
          */
         void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Set the maximum number of connections per transfer for downloads and uploads
          *
-         * The maximum number of allowed connections is 6. If a higher number of connections is passed
-         * to this function, it will fail with the error code API_ETOOMANY.
+         * The maximum number of allowed connections is 100. If a higher number of connections is
+         * passed to this function, it will fail with the error code API_ETOOMANY.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_MAX_CONNECTIONS
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the number of connections
          *
-         * @param connections Maximum number of connection (it should between 1 and 6)
+         * @param connections Maximum number of connection (it should between 1 and 100)
          */
         void setMaxConnections(int connections, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Get the maximum number of connections per upload transfer.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_MAX_CONNECTIONS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value for transfer direction (PUT)
+         * - MegaRequest::getNumber - Returns the max number of connections for uploads.
+         *
+         * Possible return values for this function are:
+         * - MegaError::API_OK if successfully aborted an ongoing backup
+         * - MegaError::API_EINTERNAL if there was an internal issue when setting the transfer
+         * direction.
+         */
+        void getMaxUploadConnections(MegaRequestListener* const listener);
+
+        /**
+         * @brief Get the maximum number of connections per download transfer.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_MAX_CONNECTIONS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value for transfer direction (GET)
+         * - MegaRequest::getNumber - Returns the max number of connections for downloads.
+         *
+         * Possible return values for this function are the same ones as getMaxUploadConnections()
+         */
+        void getMaxDownloadConnections(MegaRequestListener* const listener);
 
         /**
          * @brief Set the transfer method for downloads
@@ -18001,17 +18031,20 @@ class MegaApi
          *
          * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
          *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
-         * Valid data in the MegaRequest object received on callbacks:
+         * The associated request type with this request is
+         * MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES. Valid data in the MegaRequest object received
+         * on callbacks:
          * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
          * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
          *                          or backupDestination was not in Files or Rubbish
+         * - MegaError::API_EEXIST - The destination already contains a node with the same name.
          *
          * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
-         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
+         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise
+         * files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
         void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener* listener = NULL);
@@ -22240,20 +22273,24 @@ class MegaApi
          *
          * This method allows to remove a backup from the list of backups displayed in the
          * Backup Centre, and completely remove its contents, either by moving them to
-         * moveDestination or (when the latter has a valid value) by deleting them (when
+         * moveDestination (when the latter has a valid value) or by deleting them (when
          * destination is INVALID_HANDLE).
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE_MD
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns the backup id
-         * - MegaRequest::getNodeHandle - Returns the node handle corresponding to the move destination
+         * - MegaRequest::getNodeHandle - Returns the node handle corresponding to the move
+         * destination
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EEXIST - The destination already contains a node with the same name.
+         *
          * @param backupId backup id of the backup to be removed
-         * @param moveDestination node handle where backup contents will be moved; if INVALID_HANDLE,
-         * backup contents will be deleted; for non-backup syncs it will be ignored
+         * @param moveDestination node handle where backup contents will be moved; if
+         * INVALID_HANDLE, backup contents will be deleted; for non-backup syncs it will be ignored
          * @param listener MegaRequestListener to track this request
-        */
+         */
         void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
 
         /**

@@ -75,6 +75,22 @@ void setTestDataDir(const fs::path& dataDir);
 void copyFileFromTestData(fs::path filename, fs::path destination = ".");
 
 /**
+ * @brief Returns a SHA-256 hash of the file.
+ */
+std::string hashFile(const fs::path& filePath);
+
+/**
+ * @brief Returns a SHA-256 hash of the file with a human-readable format.
+ */
+std::string hashFileHex(const fs::path& filePath);
+
+/**
+ * @brief Creates a file of a given size with random, printable data. It throws if the file cannot
+ * be opened.
+ */
+void createRandomFile(const fs::path& filePath, const size_t fileSizeBytes);
+
+/**
  * @brief Creates a file of a given size. It throws if the file cannot be opened
  */
 void createFile(const fs::path& filePath, const size_t fileSizeBytes);

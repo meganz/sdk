@@ -828,9 +828,13 @@ public:
             }
         }
 
-        // Have we matched all of the cache's content?
         if (processed.size() != mNodeMap.size())
+        {
+            LOG_verbose << "StateCacheValidator::compare: processed node list size("
+                        << processed.size() << ") does not match with mNodeMap size("
+                        << mNodeMap.size() << ")";
             return false;
+        }
 
         return true;
     }
@@ -921,9 +925,11 @@ private:
         assert(node.dbid || !node.parent);
         assert(node.parent || !node.dbid);
 
-        // Are the node's attributes consistent with cache?
         if (node.parent && !matchGeneral(node))
+        {
+            LOG_verbose << "matchDirectory: node's attributes are not consistent with cache";
             return false;
+        }
 
         // What children does this node have in the cache?
         auto* children = &empty;
@@ -944,14 +950,24 @@ private:
 
             // Is the child present in the cache?
             if (!children->count(child.dbid))
+            {
+                LOG_verbose << "matchDirectory: " << node.getLocalPath().toPath(false)
+                            << ", child not present in the cache("
+                            << child.getLocalPath().toPath(false) << ")";
                 return false;
+            }
 
             ++nChildren;
         }
 
         // Is the node's child count consistent with the cache?
         if (children->size() != nChildren)
+        {
+            LOG_verbose << "matchDirectory: " << node.getLocalPath().toPath(false)
+                        << ", children size (" << children->size()
+                        << ") does not match with nChildren value (" << nChildren << ")";
             return false;
+        }
 
         return true;
     }
@@ -966,6 +982,8 @@ private:
         if (!matchGeneral(node))
             return false;
 
+        const std::string nodeReportStr{"matchFile: " + node.getLocalPath().toPath(false) + ". "};
+
         // Convenience.
         auto& entry = *mNodeMap.at(node.dbid);
 
@@ -974,10 +992,18 @@ private:
         auto& rfp = entry.syncedFingerprint;
 
         if (lfp.isvalid != rfp.isvalid)
+        {
+            LOG_verbose << nodeReportStr << "LocalNode lfp.isvalid (" << lfp.isvalid
+                        << ") does not match with rfp.isvalid value (" << rfp.isvalid << ")";
             return false;
+        }
 
         if (lfp.isvalid && lfp != rfp)
+        {
+            LOG_verbose << nodeReportStr << "LocalNode lfp (" << lfp.isvalid
+                        << ") does not match with rfp value (" << rfp.isvalid << ")";
             return false;
+        }
 
         return true;
     }
@@ -987,35 +1013,73 @@ private:
     {
         assert(node.dbid);
         assert(node.parent);
+        std::string nodeReportStr{"matchGeneral: " < node.getLocalPath().toPath(false) + ". "};
 
         // Is the node in the cache?
         if (!mNodeMap.count(node.dbid))
+        {
+            LOG_verbose << nodeReportStr + "Node is not in cache";
             return false;
+        }
 
         // Convenience.
         auto& entry = *mNodeMap.at(node.dbid);
 
         // Compare serialized attributes.
         if (node.type != entry.type)
+        {
+            LOG_verbose << nodeReportStr << "LocalNode type (" << node.type
+                        << ") does not match with StateCacheNode value (" << entry.type << ")";
             return false;
+        }
 
         if (node.parent->dbid != entry.parentID)
+        {
+            LOG_verbose << nodeReportStr << "LocalNode parentID (" << node.parent->dbid
+                        << ") does not match with StateCacheNode value (" << entry.parentID << ")";
             return false;
+        }
 
         if (node.fsid_lastSynced != entry.fsid_lastSynced)
+        {
+            LOG_verbose << nodeReportStr << "LocalNode fsid_lastSynced (" << node.fsid_lastSynced
+                        << ") does not match with StateCacheNode value (" << entry.fsid_lastSynced
+                        << ")";
             return false;
+        }
 
         if (node.localname != entry.localname)
+        {
+            LOG_verbose << nodeReportStr << "LocalNode localname (" << node.localname
+                        << ") does not match with StateCacheNode value (" << entry.localname << ")";
             return false;
+        }
 
         if (!node.slocalname != !entry.slocalname)
+        {
+            LOG_verbose << nodeReportStr << "LocalNode !slocalname (" << !node.slocalname
+                        << ") does not match with StateCacheNode value (" << !entry.slocalname
+                        << ")";
             return false;
+        }
 
         if (node.slocalname && *node.slocalname != *entry.slocalname)
+        {
+            LOG_verbose << nodeReportStr << "LocalNode slocalname (" << *node.slocalname
+                        << ") does not match with StateCacheNode value (" << *entry.slocalname
+                        << ")";
             return false;
+        }
 
         if (node.syncedCloudNodeHandle != entry.syncedCloudNodeHandle)
+        {
+            LOG_verbose << nodeReportStr << "LocalNode syncedCloudNodeHandle ("
+                        << Base64Str<MegaClient::NODEHANDLE>(node.syncedCloudNodeHandle.as8byte())
+                        << ") does not match with StateCacheNode value ("
+                        << Base64Str<MegaClient::NODEHANDLE>(entry.syncedCloudNodeHandle.as8byte())
+                        << ")";
             return false;
+        }
 
         return true;
     }

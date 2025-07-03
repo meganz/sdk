@@ -791,6 +791,10 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
 
     sourceFsid = fsid;
     sourceLocalname = localname;
+
+    LOG_debug << "[SyncUpload_inClient()] Name: '" << getLocalname() << "'. Source local name: '"
+              << sourceLocalname.toPath(false) << "'. Source fsid: " << fsid
+              << ". Fingerprint: " << fingerprintDebugString();
 }
 
 SyncUpload_inClient::~SyncUpload_inClient()
@@ -820,6 +824,10 @@ SyncUpload_inClient::~SyncUpload_inClient()
     {
         syncThreadSafeState->removeExpectedUpload(h, name);
     }
+
+    LOG_debug << "[~SyncUpload_inClient()] Name: '" << getLocalname() << "'. Source local name: '"
+              << sourceLocalname.toPath(false) << "'. Source fsid: " << sourceFsid
+              << ". Fingerprint: " << fingerprintDebugString();
 }
 
 void SyncUpload_inClient::prepare(FileSystemAccess&)
@@ -850,6 +858,11 @@ void SyncUpload_inClient::updateFingerprint(const FileFingerprint& newFingerprin
         syncThreadSafeState->transferBegin(PUT, newFingerprint.size);
     }
 
+    LOG_debug << "[SyncUpload_inClient::updateFingerprint] Name: '" << getLocalname()
+              << "'. Source fsid: " << sourceFsid
+              << ". Prev Fingerprint: " << fingerprintDebugString()
+              << ". New Fingerprint: " << newFingerprint.fingerprintDebugString();
+
     FileFingerprint::operator=(newFingerprint);
 }
 
@@ -867,6 +880,10 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& cloc
 
     syncThreadSafeState = std::move(stss);
     syncThreadSafeState->transferBegin(GET, size);
+
+    LOG_debug << "[SyncDownload_inClient()] Name: '" << getLocalname() << "'. Handle: " << h
+              << ". Cloud Fingerprint: " << fingerprintDebugString()
+              << ". Local Fingerprint (overwrite): " << overwriteFF.fingerprintDebugString();
 }
 
 SyncDownload_inClient::~SyncDownload_inClient()
@@ -888,6 +905,10 @@ SyncDownload_inClient::~SyncDownload_inClient()
     {
         syncThreadSafeState->transferFailed(GET, size);
     }
+
+    LOG_debug << "[~SyncDownload_inClient()] Name: '" << getLocalname() << "'. Handle: " << h
+              << ". Cloud Fingerprint: " << fingerprintDebugString()
+              << ". Local Fingerprint (overwrite): " << okToOverwriteFF.fingerprintDebugString();
 }
 
 void SyncDownload_inClient::prepare(FileSystemAccess&)

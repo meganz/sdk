@@ -763,6 +763,7 @@ FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResoluti
 void Transfer::complete(TransferDbCommitter& committer)
 {
     CodeCounter::ScopeTimer ccst(client->performanceStats.transferComplete);
+    static constexpr std::string_view fingerprintIssue = "[Fingerprint Issue] ";
 
     state = TRANSFERSTATE_COMPLETING;
     client->app->transfer_update(this);
@@ -787,7 +788,7 @@ void Transfer::complete(TransferDbCommitter& committer)
         if (!success)
         {
             transient_error = client->fsaccess->transient_error;
-            LOG_debug << "setmtimelocal failed " << transient_error;
+            LOG_debug << fingerprintIssue << "setmtimelocal failed " << transient_error;
         }
 
         // try to catch failing cases in the debugger (seen on synology SMB drive after the file was moved to final destination)
@@ -811,7 +812,9 @@ void Transfer::complete(TransferDbCommitter& committer)
             if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
                  && !(this->EqualExceptValidFlag(*n)))
             {
-                LOG_debug << "Wrong fingerprint already fixed";
+                LOG_debug << fingerprintIssue << "Wrong fingerprint already fixed"
+                          << ". Transfer fingerprint: " << fingerprintDebugString()
+                          << ". Node fingerprint: " << n->fingerprintDebugString();
                 fixedfingerprint = true;
             }
 
@@ -833,7 +836,10 @@ void Transfer::complete(TransferDbCommitter& committer)
 #endif
             if (isvalid && !sameFingerprint)
             {
-                LOG_err << "Fingerprint mismatch";
+                LOG_err << fingerprintIssue << "Fingerprint mismatch! Transfer fingerprint: "
+                        << fingerprintDebugString()
+                        << ". FA fingerprint: " << fingerprint.fingerprintDebugString()
+                        << ". badfp: " << badfp.fingerprintDebugString();
 
                 // enforce the verification of the fingerprint for sync transfers only
                 if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
@@ -853,11 +859,12 @@ void Transfer::complete(TransferDbCommitter& committer)
                     // modification time) that seem to happen in some Android devices.
                     if (abs(mtime - fingerprint.mtime) <= 2)
                     {
+                        LOG_debug << fingerprintIssue << "Fixfingerprint set to true";
                         fixfingerprint = true;
                     }
                     else
                     {
-                        LOG_warn << "Silent failure in setmtimelocal";
+                        LOG_warn << fingerprintIssue << "Silent failure in setmtimelocal";
                     }
                 }
             }
@@ -867,7 +874,8 @@ void Transfer::complete(TransferDbCommitter& committer)
             if (syncxfer && !fixedfingerprint && success)
             {
                 transient_error = fa->retry;
-                LOG_debug << "Unable to validate fingerprint " << transient_error;
+                LOG_debug << fingerprintIssue << "Unable to validate fingerprint "
+                          << transient_error;
             }
         }
         fa.reset();
@@ -910,14 +918,22 @@ void Transfer::complete(TransferDbCommitter& committer)
                                 });
                             }
 
+                            LOG_debug
+                                << fingerprintIssue
+                                << "Fixing fingerprint values -> fixfingerprint = "
+                                << fixfingerprint
+                                << ". Transfer fingerprint: " << fingerprintDebugString()
+                                << ". FA fingerprint: " << fingerprint.fingerprintDebugString()
+                                << ". Node fingerprint: " << n->fingerprintDebugString();
+
                             if (pendingAttrs.hasDifferentValue('c', attrUpdate))
                             {
-                                LOG_debug << "Fixing fingerprint";
+                                LOG_debug << fingerprintIssue << "Fixing fingerprint";
                                 client->setattr(n, std::move(attrUpdate), nullptr, false);
                             }
                             else
                             {
-                                LOG_debug << "Fingerprint already being fixed";
+                                LOG_debug << fingerprintIssue << "Fingerprint already being fixed";
                             }
                         }
                     }
@@ -1117,7 +1133,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             File *f = (*it);
             LocalPath localpath = f->getLocalname();
 
-            LOG_debug << "Verifying upload";
+            LOG_debug << "Verifying upload: " << localpath.toPath(false);
 
             auto fa = client->fsaccess->newfileaccess();
             bool isOpen = fa->fopen(localpath, FSLogging::logOnError);
@@ -1132,16 +1148,22 @@ void Transfer::complete(TransferDbCommitter& committer)
                 }
             }
 
-            if (!f->syncxfer &&  // for syncs, it's ok if the file moved/renamed elsewhere since
-               (!isOpen || f->genfingerprint(fa.get())))
+            if (const bool isNotOpenAndIsNotSyncxfer =
+                    (!f->syncxfer &&
+                     !isOpen), // for syncs, it's ok if the file moved/renamed elsewhere since
+                fingerprintChanged = isOpen && f->genfingerprint(fa.get());
+                isNotOpenAndIsNotSyncxfer || fingerprintChanged)
             {
-                if (!isOpen)
+                if (isNotOpenAndIsNotSyncxfer)
                 {
                     LOG_warn << "Deletion detected after upload";
                 }
                 else
                 {
-                    LOG_warn << "Modification detected after upload";
+                    LOG_warn << fingerprintIssue << "Modification detected after upload! Path: "
+                             << localpath.toPath(false)
+                             << ". Transfer fingerprint: " << fingerprintDebugString()
+                             << ". FA fingerprint: " << f->fingerprintDebugString();
                 }
 
                 it++; // the next line will remove the current item and invalidate that iterator
