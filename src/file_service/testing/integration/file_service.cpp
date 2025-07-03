@@ -812,6 +812,28 @@ TEST_F(FileServiceTests, read_succeeds)
     ASSERT_FALSE(file->info().dirty());
 }
 
+TEST_F(FileServiceTests, read_write_sequence)
+{
+    // Try and open our test file.
+    auto file = ClientW()->fileOpen(mFileHandle);
+
+    // Make sure the file was opened.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Generate some data for us to write to the file.
+    auto data = randomBytes(512_KiB);
+
+    // Initiate a read of the file's data.
+    file->read([](auto) {}, 0, file->info().size());
+
+    // Write our data to the file.
+    ASSERT_EQ(execute(write, data.data(), *file, 256_KiB, 512_KiB), FILE_SUCCESS);
+
+    // Curiosity.
+    for (const auto& range: file->ranges())
+        LOG_debug << "Range: " << range;
+}
+
 TEST_F(FileServiceTests, ref_succeeds)
 {
     // Convenience.

@@ -56,6 +56,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Adjust this file's reference count.
     void adjustRef(std::int64_t adjustment);
 
+    // Cancel any reads intersect the specified range.
+    void cancel(const FileRange& range);
+
     // Cancel a pending request.
     void cancel(FileRequest& request);
 

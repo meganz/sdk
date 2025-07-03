@@ -171,6 +171,56 @@ void FileContext::adjustRef(std::int64_t adjustment)
     transaction.commit();
 }
 
+void FileContext::cancel(const FileRange& range)
+{
+    // Make sure we have exclusive access to mRanges.
+    std::unique_lock lock(mRangesLock);
+
+    // What ranges intersect range?
+    auto [begin, end] = mRanges.find(range);
+
+    // No ranges intersect range.
+    if (begin == end)
+        return;
+
+    // True if a download is in progress.
+    auto downloading = [](const auto& entry)
+    {
+        return entry.second != nullptr;
+    }; // downloading
+
+    // How many of these ranges have a download in progress?
+    std::atomic count = std::count_if(begin, end, downloading);
+
+    // No reads are in progress.
+    if (!count)
+        return;
+
+    // So we can signal when the ranges have finished downloading.
+    std::promise<void> notifier;
+
+    // Called when a range has finished downloading.
+    auto completed = [&](auto)
+    {
+        // Wake up our waiter when all downloads have finished.
+        if (count.fetch_sub(1) == 1)
+            notifier.set_value();
+    };
+
+    // Cancel the downloads in progress.
+    for (auto lock_ = std::move(lock); begin != end; ++begin)
+    {
+        // So we know when the download has completed.
+        begin->second->queue(completed);
+
+        // Cancel the download.
+        begin->second->cancel();
+    }
+
+    // Wait for the downloads to complete.
+    notifier.get_future().get();
+}
+
 void FileContext::cancel(FileRequest& request)
 {
     // Cancel the request.
@@ -729,6 +779,9 @@ bool FileContext::execute(FileWriteRequest& request)
     // Caller hasn't passed us a valid buffer.
     if (!request.mBuffer)
         return completed(std::move(request), FILE_INVALID_ARGUMENTS), true;
+
+    // Cancel any downloads in progress that intersect our write.
+    cancel(range);
 
     // Get exclusive access to mRanges.
     std::unique_lock lock(mRangesLock);
