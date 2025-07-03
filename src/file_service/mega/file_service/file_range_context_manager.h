@@ -8,6 +8,7 @@
 #include <mega/file_service/file_result_forward.h>
 #include <mega/file_service/file_service_options_forward.h>
 
+#include <functional>
 #include <mutex>
 
 namespace mega
@@ -30,6 +31,9 @@ public:
 
     // Called when a file read request has been completed.
     virtual void completed(BufferPtr buffer, FileReadRequest&& request) = 0;
+
+    // Called to execute an arbitrary function on the manager's thread pool.
+    virtual void execute(std::function<void()> function) = 0;
 
     // Called when a file read request has failed.
     virtual void failed(FileReadRequest&& request, FileResult result) = 0;

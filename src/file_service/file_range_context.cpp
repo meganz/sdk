@@ -36,25 +36,29 @@ void FileRangeContext::completed(Lock&& lock, Error result)
     // Complete as many requests as we can.
     dispatch(range.mBegin);
 
-    // Download completed successfully.
-    if (result == API_OK)
-        return;
-
     // Translate SDK result.
     auto result_ = fileResultFromError(result);
 
-    // Fail any remaining requests.
-    for (auto i = mRequests.begin(); i != mRequests.end();)
+    // Download didn't complete successfully.
+    if (result_ != FILE_SUCCESS)
     {
-        // Convenience.
-        auto& request = const_cast<FileReadRequest&>(*i);
+        // Fail any remaining requests.
+        for (auto i = mRequests.begin(); i != mRequests.end();)
+        {
+            // Convenience.
+            auto& request = const_cast<FileReadRequest&>(*i);
 
-        // Fail the request.
-        mManager.failed(std::move(request), result_);
+            // Fail the request.
+            mManager.failed(std::move(request), result_);
 
-        // Remove the request from our set.
-        i = mRequests.erase(i);
+            // Remove the request from our set.
+            i = mRequests.erase(i);
+        }
     }
+
+    // Let any waiters know this range's download has completed.
+    for (auto& callback: mCallbacks)
+        mManager.execute(std::bind(std::move(callback), result_));
 }
 
 void FileRangeContext::completed(Error result)
@@ -170,6 +174,7 @@ FileRangeContext::FileRangeContext(Activity activity,
     PartialDownloadCallback(),
     mActivity(std::move(activity)),
     mBuffer(),
+    mCallbacks(),
     mDownload(),
     mEnd(iterator->first.mBegin),
     mIterator(iterator),
@@ -217,6 +222,12 @@ auto FileRangeContext::download(Client& client, FileAccess& file, NodeHandle han
 
     // Return the download to our caller.
     return mDownload;
+}
+
+void FileRangeContext::queue(FileFetchCallback callback)
+{
+    // Queue the callback for later execution.
+    mCallbacks.emplace_back(std::move(callback));
 }
 
 void FileRangeContext::queue(FileReadRequest request)

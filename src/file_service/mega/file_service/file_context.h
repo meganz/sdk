@@ -26,6 +26,7 @@
 #include <mega/file_service/file_write_request_forward.h>
 #include <mega/types.h>
 
+#include <functional>
 #include <list>
 #include <memory>
 #include <mutex>
@@ -76,6 +77,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Called when a file write request has been completed.
     void completed(FileWriteRequest&& request);
+
+    // Called to execute an arbitrary function on the service's thread pool.
+    void execute(std::function<void()> function) override;
 
     // Try and execute an append request.
     bool execute(FileAppendRequest& request);

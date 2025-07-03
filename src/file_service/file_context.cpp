@@ -425,6 +425,22 @@ void FileContext::completed(FileWriteRequest&& request)
     completed(std::move(request), FileWriteResult{begin, end - begin});
 }
 
+void FileContext::execute(std::function<void()> function)
+{
+    // Sanity.
+    assert(function);
+
+    // Wrap the caller's function.
+    auto wrapper = [function = std::move(function)](auto&)
+    {
+        // Execute the caller's function.
+        function();
+    }; // wrapper
+
+    // Queue function for execution on the service's thread pool.
+    mService.execute(std::move(wrapper));
+}
+
 bool FileContext::execute(FileAppendRequest& request)
 {
     // Can't execute an append if there's another request in progress.

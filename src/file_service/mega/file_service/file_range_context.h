@@ -5,6 +5,7 @@
 #include <mega/common/partial_download_callback.h>
 #include <mega/common/partial_download_forward.h>
 #include <mega/file_service/buffer_pointer.h>
+#include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_range_context_forward.h>
 #include <mega/file_service/file_range_context_manager_forward.h>
 #include <mega/file_service/file_range_context_pointer_map.h>
@@ -51,6 +52,9 @@ class FileRangeContext: private common::PartialDownloadCallback
     // The buffer containing our downloaded data.
     BufferPtr mBuffer;
 
+    // Callbacks to execute when this range's fetch completes.
+    std::vector<FileFetchCallback> mCallbacks;
+
     // The download that's retrieving this file range's data.
     common::PartialDownloadPtr mDownload;
 
@@ -79,6 +83,9 @@ public:
     // Create a download this range.
     auto download(common::Client& client, FileAccess& file, NodeHandle handle)
         -> common::PartialDownloadPtr;
+
+    // Queue a callback for execution when this range has downloaded.
+    void queue(FileFetchCallback callback);
 
     // Queue a file read request for later completion.
     void queue(FileReadRequest request);
