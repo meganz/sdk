@@ -631,61 +631,214 @@ bool FileContext::execute(FileReadRequest& request)
     if (!mReadWriteState.read())
         return false;
 
-    // Convenience.
-    auto& [begin, end] = request.mRange;
+    // The service's current options.
+    auto options = mService.options();
+
+    // The range the user wants to read.
+    auto range = request.mRange;
+
+    // The file's current size.
     auto size = mInfo->size();
 
-    // Clamp the request's range.
-    end = std::max(begin, std::min(end, size));
+    // Convenience.
+    auto& [begin, end] = range;
 
-    // Caller doesn't actually want to read anything.
+    // Make sure the user's read doesn't extend beyond the end of the file.
+    end = std::min(end, size);
+
+    // Make sure the user's read doesn't end before it begins.
+    end = std::max(begin, end);
+
+    // Make sure the request's range has been clamped.
+    request.mRange = range;
+
+    // The user doesn't actually need to read anything.
     if (begin == end)
         return completed(mBuffer, std::move(request)), true;
 
-    // Get exclusive access to mRanges.
+    // Make sure we have exclusive access to mRanges.
     std::unique_lock lock(mRangesLock);
 
-    // Do we already know of a range that could satisfy this request?
-    auto [iterator, added] = mRanges.tryAdd(request.mRange, nullptr);
-
-    // Clamp the request's range if necessary.
-    end = std::min(iterator->first.mEnd, end);
-
-    // Convenience.
-    auto& context = iterator->second;
-
-    // We have a range that could satisfy this request.
-    if (!added)
+    // Try and locate the range that either:
+    // - contains our read, completely or partially.
+    // - preceeds our read.
+    auto i = [&range, this]()
     {
-        // Range is still being downloaded.
-        if (context)
-            return context->queue(request), true;
+        // Search for the first range that ends at or after our read begins.
+        auto i = mRanges.endsAfter(range.mBegin);
 
-        // Range has already been downloaded.
-        completed(displace(mBuffer, begin), std::move(request));
+        // No ranges end at or after our read begins.
+        //
+        // Assume a range exists before our read.
+        if (i == mRanges.end())
+            return mRanges.last();
 
-        // Let our caller know the request was executed.
+        // The range preceeds our read.
+        if (i->first.mEnd <= range.mBegin)
+        {
+            // Does this range have a successor?
+            auto j = std::next(i);
+
+            // Range's successor contains all or part of our read.
+            if (j != mRanges.end() && j->first.mBegin <= range.mBegin)
+                return j;
+
+            // Range preceeds our read.
+            return i;
+        }
+
+        // The range contains all or part of our read.
+        if (i->first.mBegin <= range.mBegin)
+            return i;
+
+        // No ranges contain or preceed our read.
+        if (i == mRanges.begin())
+            return mRanges.end();
+
+        // Assume a range exists before our read.
+        return std::prev(i);
+    }();
+
+    // We found a range that either contains or preceeds our read.
+    while (i != mRanges.end())
+    {
+        // The range preceeds our read.
+        if (i->first.mEnd <= begin)
+        {
+            // Compute the distance between the range and our read.
+            auto distance = begin - i->first.mEnd;
+
+            // Begin the read earlier if the distance is small enough.
+            if (distance <= options.mMinimumRangeDistance)
+                begin = i->first.mEnd;
+
+            break;
+        }
+
+        // The range contains all or part of our read.
+        //
+        // Clamp the request as necessary.
+        request.mRange.mEnd = std::min(i->first.mEnd, request.mRange.mEnd);
+
+        // Is the range still being downloaded?
+        if (i->second)
+        {
+            // Queue the read as the range is still being downloaded.
+            i->second->queue(std::move(request));
+        }
+        else
+        {
+            // Range has been downloaded so complete the read now.
+            completed(displace(mBuffer, range.mBegin), std::move(request));
+        }
+
+        // The range only partially contained our read.
+        if (i->first.mEnd < end)
+        {
+            // Bump our range's beginning.
+            range.mBegin = i->first.mEnd;
+            break;
+        }
+
+        // Nothing more to do as the range completely contained our read.
         return true;
     }
 
-    // Instantiate a context to track this range.
-    context.reset(new FileRangeContext(mActivities.begin(), iterator, *this));
+    // Add a range to our map and return a reference to its context.
+    auto add = [this](const FileRange& range)
+    {
+        // Add the range to the map.
+        auto [iterator, added] = mRanges.tryAdd(range, nullptr);
 
-    // Queue the request for later completion.
-    context->queue(std::move(request));
+        // Adding should always succeed as we're filling holes.
+        assert(added);
 
-    // Try and create a download for this range.
-    auto download = context->download(mService.client(), *mFile, mInfo->handle());
+        // Convenience.
+        auto& context = iterator->second;
 
-    // Release our lock on mRanges.
-    lock.unlock();
+        // Instantiate a context to track the range's download.
+        context.reset(new FileRangeContext(mActivities.begin(), iterator, *this));
 
-    // Couldn't create the download.
-    if (!download)
+        // Return a reference to the context to our caller.
+        return context.get();
+    }; // add
+
+    // Extend the read if necessary so that the download is worthwhile.
+    end = begin + std::max(end - begin, options.mMinimumRangeSize);
+
+    // Try and find the first range that begins after our read begins.
+    i = mRanges.beginsAfter(begin);
+
+    // Try and find the first range that begins after our read ends.
+    auto j = mRanges.beginsAfter(end);
+
+    // Extend the read if it's worthwhile to do so.
+    if (j != mRanges.end() && j->first.mBegin - end <= options.mMinimumRangeDistance)
+        end = j++->first.mBegin;
+
+    // Tracks the ranges that we need to download.
+    std::vector<FileRangeContext*> ranges;
+
+    // Keeps track of a hole's range.
+    auto scratch = range;
+
+    // Iterate over the holes, creating ranges as needed.
+    for (; i != j; ++i)
+    {
+        // The range begins after scratch.
+        if (i->first.mBegin > scratch.mBegin)
+        {
+            // Tweak scratch so that it represents the hole.
+            scratch.mEnd = i->first.mBegin;
+
+            // Add a new range and keep track of its context.
+            ranges.emplace_back(add(scratch));
+        }
+
+        // Bump scratch's beginning.
+        scratch.mBegin = i->first.mEnd;
+    }
+
+    // A final hole still remains.
+    if (scratch.mBegin < range.mEnd)
+        ranges.emplace_back(add(FileRange(scratch.mBegin, end)));
+
+    // Sanity.
+    assert(!ranges.empty() || !request.mCallback);
+
+    // No holes need to be filled.
+    if (ranges.empty())
         return true;
 
-    // Begin the download.
-    download->begin();
+    // Queue the request if it hasn't already been done.
+    if (request.mCallback)
+        ranges.front()->queue(std::move(request));
+
+    // Keep track of the downloads we need to begin.
+    std::vector<PartialDownloadPtr> downloads;
+
+    // We know how many downloads we need to begin.
+    downloads.reserve(ranges.size());
+
+    // Convenience.
+    auto& client = mService.client();
+
+    // The handle of the node we're downloading.
+    auto handle = mInfo->handle();
+
+    // Try and create downloads for our ranges.
+    for (auto* range_: ranges)
+    {
+        if (auto download = range_->download(client, *mFile, handle))
+            downloads.emplace_back(std::move(download));
+    }
+
+    // Release our mRanges lock so we can safely begin the downloads.
+    lock.unlock();
+
+    // Begin the downloads.
+    for (auto& download: downloads)
+        download->begin();
 
     // Let our caller know the request was executed.
     return true;

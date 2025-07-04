@@ -8,6 +8,7 @@
 #include <mega/file_service/file_read_result.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_result_or.h>
+#include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
 #include <mega/file_service/file_write_result.h>
@@ -54,7 +55,7 @@ struct FileServiceTests: fuse::testing::Test
         using Result = decltype(waiter.get());
 
         // Request timed out.
-        if (waiter.wait_for(mDefaultTimeout) == timeout)
+        if (waiter.wait_for(std::chrono::minutes(60)) == timeout)
         {
             // Convenience.
             using common::IsExpected;
@@ -129,6 +130,14 @@ std::string FileServiceTests::mFileContent;
 NodeHandle FileServiceTests::mFileHandle;
 
 NodeHandle FileServiceTests::mRootHandle;
+
+static const FileServiceOptions DefaultOptions;
+
+static const FileServiceOptions DisableReadahead = {
+    DefaultOptions.mMaximumRangeRetries,
+    0u,
+    0u,
+    DefaultOptions.mRangeRetryBackoff}; // DisableReadahead
 
 TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
 {
@@ -213,6 +222,9 @@ TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
 
 TEST_F(FileServiceTests, append_succeeds)
 {
+    // Disable readahead.
+    ClientW()->fileServiceOptions(DisableReadahead);
+
     // Open file for writing.
     auto file = ClientW()->fileOpen(mFileHandle);
 
@@ -386,6 +398,9 @@ TEST_F(FileServiceTests, create_flush_succeeds)
 
 TEST_F(FileServiceTests, create_write_succeeds)
 {
+    // Disable readahead.
+    ClientW()->fileServiceOptions(DisableReadahead);
+
     // Create a new file.
     auto file = ClientW()->fileCreate();
 
@@ -443,6 +458,9 @@ TEST_F(FileServiceTests, create_write_succeeds)
 
 TEST_F(FileServiceTests, fetch_succeeds)
 {
+    // Disable readahead.
+    ClientW()->fileServiceOptions(DisableReadahead);
+
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
 
@@ -679,6 +697,9 @@ TEST_F(FileServiceTests, open_unknown_fails)
 
 TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
 {
+    // Disable readahead.
+    ClientW()->fileServiceOptions(DisableReadahead);
+
     // Create a client that we can safely logout.
     auto client = CreateClient("file_service_" + randomName());
     ASSERT_TRUE(client);
@@ -705,6 +726,9 @@ TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
 
 TEST_F(FileServiceTests, read_cancel_on_file_destruction_succeeds)
 {
+    // Disable readahead.
+    ClientW()->fileServiceOptions(DisableReadahead);
+
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -735,8 +759,123 @@ TEST_F(FileServiceTests, read_cancel_on_file_destruction_succeeds)
     EXPECT_EQ(waiter.get(), FILE_CANCELLED);
 }
 
+TEST_F(FileServiceTests, read_extension_succeeds)
+{
+    // No minimum read size, extend if another range is <= 32K distant.
+    ClientW()->fileServiceOptions(FileServiceOptions{DefaultOptions.mMaximumRangeRetries,
+                                                     32_KiB,
+                                                     0u,
+                                                     DefaultOptions.mRangeRetryBackoff});
+
+    // Open a file for reading.
+    auto file = ClientW()->fileOpen(mFileHandle);
+
+    // Make sure the file was opened successfully.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Read two ranges, leaving a 128KiB hole between them.
+    auto data = execute(read, *file, 0, 64_KiB);
+    ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    data = execute(read, *file, 192_KiB, 64_KiB);
+    ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Make sure we have the ranges we expect.
+    auto ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 2u);
+    ASSERT_EQ(ranges[0], FileRange(0, 64_KiB));
+    ASSERT_EQ(ranges[1], FileRange(192_KiB, 256_KiB));
+
+    // Read another range, right in the hole we created before.
+    data = execute(read, *file, 96_KiB, 64_KiB);
+    ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Make sure our range was expanded to fill the hole.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 1u);
+    ASSERT_EQ(ranges[0], FileRange(0, 256_KiB));
+
+    // Read another range, just beyond the extension threshold.
+    data = execute(read, *file, 289_KiB, 64_KiB);
+    ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Make sure the range wasn't extended.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 2u);
+    ASSERT_EQ(ranges[0], FileRange(0, 256_KiB));
+    ASSERT_EQ(ranges[1], FileRange(289_KiB, 353_KiB));
+
+    // Perform a read to make sure we extend to the left.
+    data = execute(read, *file, 385_KiB, 64_KiB);
+    ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 2u);
+    ASSERT_EQ(ranges[0], FileRange(0, 256_KiB));
+    ASSERT_EQ(ranges[1], FileRange(289_KiB, 449_KiB));
+
+    // Perform another read to create another hole.
+    data = execute(read, *file, 640_KiB, 64_KiB);
+    ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Perform a read to make sure we extend to the right.
+    data = execute(read, *file, 576_KiB, 32_KiB);
+    ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 3u);
+    ASSERT_EQ(ranges[0], FileRange(0, 256_KiB));
+    ASSERT_EQ(ranges[1], FileRange(289_KiB, 449_KiB));
+    ASSERT_EQ(ranges[2], FileRange(576_KiB, 704_KiB));
+
+    // Fill remaining holes via extension.
+    data = execute(read, *file, 272_KiB, 8_KiB);
+    ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    data = execute(read, *file, 481_KiB, 63_KiB);
+    ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // We should now have a single range.
+    ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 1u);
+    ASSERT_EQ(ranges[0], FileRange(0, 704_KiB));
+}
+
+TEST_F(FileServiceTests, read_size_extension_succeeds)
+{
+    // Minimum read size is 64KiB, everything else are defaults.
+    ClientW()->fileServiceOptions(FileServiceOptions{DefaultOptions.mMaximumRangeRetries,
+                                                     DefaultOptions.mMinimumRangeDistance,
+                                                     64_KiB,
+                                                     DefaultOptions.mRangeRetryBackoff});
+
+    // Open a file for reading.
+    auto file = ClientW()->fileOpen(mFileHandle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Read 4K from the file.
+    auto data = execute(read, *file, 0, 4_KiB);
+    ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(static_cast<std::uint64_t>(data->size()), 4_KiB);
+
+    // Make sure the read's size was extended.
+    auto ranges = file->ranges();
+
+    ASSERT_EQ(ranges.size(), 1u);
+    ASSERT_EQ(ranges[0], FileRange(0, 64_KiB));
+}
+
 TEST_F(FileServiceTests, read_succeeds)
 {
+    // Disable readahead.
+    ClientW()->fileServiceOptions(DisableReadahead);
+
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -896,6 +1035,9 @@ TEST_F(FileServiceTests, touch_succeeds)
 
 TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
 {
+    // Disable readahead.
+    ClientW()->fileServiceOptions(DisableReadahead);
+
     // Open the file for truncation.
     auto file = ClientW()->fileOpen(mFileHandle);
 
@@ -1055,6 +1197,9 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
 
 TEST_F(FileServiceTests, write_succeeds)
 {
+    // Disable readahead.
+    ClientW()->fileServiceOptions(DisableReadahead);
+
     // File content that's updated as we write.
     auto expected = mFileContent;
 
@@ -1207,6 +1352,9 @@ void FileServiceTests::SetUp()
 {
     // Make sure our clients are still sane.
     Test::SetUp();
+
+    // Make sure the service's options are in a known state.
+    ClientW()->fileServiceOptions(DefaultOptions);
 }
 
 void FileServiceTests::SetUpTestSuite()

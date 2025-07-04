@@ -38,10 +38,10 @@ class FileRangeContext: private common::PartialDownloadCallback
         -> std::variant<Abort, Continue> override;
 
     // Dispatch zero or more read requests.
-    void dispatch(std::uint64_t begin);
+    void dispatch(std::uint64_t begin, std::uint64_t minimumLength);
 
     // Check if a request can be dispatched.
-    bool dispatchable(const FileReadRequest& request) const;
+    bool dispatchable(const FileReadRequest& request, std::uint64_t minimumLength) const;
 
     // Called when our download's encountered a failure.
     virtual auto failed(Error result, int retries) -> std::variant<Abort, Retry> override;

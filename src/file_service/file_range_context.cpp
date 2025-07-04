@@ -20,6 +20,8 @@ namespace file_service
 
 using namespace common;
 
+constexpr std::uint64_t MinimumLength = 1u << 18;
+
 template<typename Lock>
 void FileRangeContext::completed(Lock&& lock, Error result)
 {
@@ -34,7 +36,7 @@ void FileRangeContext::completed(Lock&& lock, Error result)
     mManager.completed(*mBuffer, mIterator, range);
 
     // Complete as many requests as we can.
-    dispatch(range.mBegin);
+    dispatch(range.mBegin, 1);
 
     // Translate SDK result.
     auto result_ = fileResultFromError(result);
@@ -95,13 +97,13 @@ auto FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t len
     mEnd += length;
 
     // Dispatch what requests we can.
-    dispatch(mIterator->first.mBegin);
+    dispatch(mIterator->first.mBegin, MinimumLength);
 
     // Let the caller know the download should continue.
     return Continue();
 }
 
-void FileRangeContext::dispatch(const std::uint64_t begin)
+void FileRangeContext::dispatch(const std::uint64_t begin, std::uint64_t minimumLength)
 {
     // Necessary as some requests may have displaced reads.
     auto buffer = displace(mBuffer, 0);
@@ -120,14 +122,17 @@ void FileRangeContext::dispatch(const std::uint64_t begin)
         auto& request = const_cast<FileReadRequest&>(*k);
 
         // Can't dispatch this request.
-        if (!dispatchable(request))
+        if (!dispatchable(request, minimumLength))
             continue;
 
+        // Convenience.
+        auto& range = request.mRange;
+
         // Tweak the request.
-        request.mRange.mEnd = mEnd;
+        range.mEnd = std::min(mEnd, range.mEnd);
 
         // Set the buffer's displacement for this request.
-        buffer->displacement(request.mRange.mBegin - begin);
+        buffer->displacement(range.mBegin - begin);
 
         // Dispatch the request.
         mManager.completed(buffer, std::move(request));
@@ -137,18 +142,16 @@ void FileRangeContext::dispatch(const std::uint64_t begin)
     }
 }
 
-bool FileRangeContext::dispatchable(const FileReadRequest& request) const
+bool FileRangeContext::dispatchable(const FileReadRequest& request,
+                                    std::uint64_t minimumLength) const
 {
     // Convenience.
     auto& [m, n] = request.mRange;
 
-    // Minimum number of bytes needed to dispatch a request.
-    constexpr std::uint64_t minimumLength = 1u << 18;
-
     // Request is dispatchable if:
     // - We have enough data to fully satisfy the read.
     // - We have enough data to provide minimumLength bytes of data.
-    return n <= mEnd || mEnd - m >= minimumLength;
+    return n <= mEnd || mEnd - std::min(m, mEnd) >= minimumLength;
 }
 
 auto FileRangeContext::failed(Error result, int retries) -> std::variant<Abort, Retry>
@@ -233,7 +236,7 @@ void FileRangeContext::queue(FileFetchCallback callback)
 void FileRangeContext::queue(FileReadRequest request)
 {
     // Request isn't dispatchable so queue it for later execution.
-    if (!dispatchable(request))
+    if (!dispatchable(request, MinimumLength))
         return mRequests.emplace(std::move(request)), void();
 
     // Assume the request requires no displacement.
