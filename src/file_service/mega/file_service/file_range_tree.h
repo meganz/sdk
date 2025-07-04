@@ -286,6 +286,17 @@ public:
         return const_cast<FileRangeTree&>(*this).endsAfter(position);
     }
 
+    // Return an iterator to the last range in the tree.
+    Iterator last()
+    {
+        return rbegin();
+    }
+
+    ConstIterator last() const
+    {
+        return crbegin();
+    }
+
     // Find all ranges that overlap range.
     auto find(const FileRange& range) -> std::pair<Iterator, Iterator>
     {
