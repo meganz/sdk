@@ -417,6 +417,8 @@ public:
     static std::string getenv(const std::string& key, const std::string& def);
     static void setenv(const std::string& key, const std::string& value);
     static void unsetenv(const std::string& key);
+
+    static std::string getIcuVersion();
 };
 
 extern m_time_t m_time(m_time_t* tt = NULL);
