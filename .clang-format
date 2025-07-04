@@ -177,7 +177,7 @@ SpacesInSquareBrackets: false
 Standard: Auto
 
 #StatementAttributeLikeMacros:
-#StatementMacros:
+StatementMacros: ['expander']
 #TypenameMacros:
 
 #WhitespaceSensitiveMacros:
