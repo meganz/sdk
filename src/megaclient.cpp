@@ -15729,13 +15729,18 @@ void MegaClient::initializekeys()
 
         if (loggedin() != EPHEMERALACCOUNTPLUSPLUS)   // E++ accounts don't have RSA keys
         {
+            AsymmCipher localPublicRsaKey;
+            localPublicRsaKey.setkey(AsymmCipher::PUBKEY,
+                                     (const byte*)pubRSA.data(),
+                                     (int)pubRSA.size());
+
             // Verify signature for RSA public key
-            if (mPublicRsaKey.isvalid() && sigPubk.empty())
+            if (localPublicRsaKey.isvalid() && sigPubk.empty())
             {
                 string pubkStr;
                 std::string buf;
                 userattr_map attrs;
-                mPublicRsaKey.serializekeyforjs(pubkStr);
+                localPublicRsaKey.serializekeyforjs(pubkStr);
                 mEd255Key->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
                 buf.assign(sigPubk.data(), sigPubk.size());
                 attrs[ATTR_SIG_RSA_PUBK] = buf;
@@ -15743,9 +15748,9 @@ void MegaClient::initializekeys()
             }
 
             string pubkstr;
-            if (mPublicRsaKey.isvalid())
+            if (localPublicRsaKey.isvalid())
             {
-                mPublicRsaKey.serializekeyforjs(pubkstr);
+                localPublicRsaKey.serializekeyforjs(pubkstr);
             }
             if (!pubkstr.size() || !sigPubk.size())
             {
