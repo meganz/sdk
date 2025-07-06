@@ -8,6 +8,7 @@
 #include <mega/file_service/file_range_context_manager.h>
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_result.h>
+#include <mega/file_service/file_service_options.h>
 #include <mega/types.h>
 
 #include <cassert>
@@ -146,9 +147,21 @@ bool FileRangeContext::dispatchable(const FileReadRequest& request) const
     return n <= mEnd || mEnd - m >= minimumLength;
 }
 
-auto FileRangeContext::failed(Error, int) -> std::variant<Abort, Retry>
+auto FileRangeContext::failed(Error result, int retries) -> std::variant<Abort, Retry>
 {
-    return Abort();
+    // Abort if the failure wasn't due to a timeout.
+    if (result != API_EAGAIN)
+        return Abort();
+
+    // Convenience.
+    auto options = mManager.options();
+
+    // Or if we've already retried the download too many times.
+    if (static_cast<std::uint64_t>(retries) >= options.mMinimumRangeDistance)
+        return Abort();
+
+    // Retry the download.
+    return options.mRangeRetryBackoff;
 }
 
 FileRangeContext::FileRangeContext(Activity activity,
