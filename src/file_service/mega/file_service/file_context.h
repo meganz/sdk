@@ -20,6 +20,7 @@
 #include <mega/file_service/file_request_list.h>
 #include <mega/file_service/file_request_traits.h>
 #include <mega/file_service/file_service_context_forward.h>
+#include <mega/file_service/file_service_options_forward.h>
 #include <mega/file_service/file_touch_request_forward.h>
 #include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request_forward.h>
@@ -118,7 +119,10 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     std::unique_lock<std::recursive_mutex> lock() const override;
 
     // Return a reference to the mutex protecting this manager.
-    virtual std::recursive_mutex& mutex() const override;
+    std::recursive_mutex& mutex() const override;
+
+    // Retrieve a copy of the service's current options.
+    FileServiceOptions options() const override;
 
     // Queue a request for later execution.
     template<typename Request>

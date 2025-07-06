@@ -6,6 +6,7 @@
 #include <mega/file_service/file_range_forward.h>
 #include <mega/file_service/file_read_request_forward.h>
 #include <mega/file_service/file_result_forward.h>
+#include <mega/file_service/file_service_options_forward.h>
 
 #include <mutex>
 
@@ -38,6 +39,9 @@ public:
 
     // Return a reference to the mutex protecting this manager.
     virtual std::recursive_mutex& mutex() const = 0;
+
+    // Retrieve a copy of the service's current options.
+    virtual FileServiceOptions options() const = 0;
 }; // FileRangeContextManager
 
 } // file_service

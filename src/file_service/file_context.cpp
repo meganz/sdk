@@ -930,6 +930,11 @@ std::recursive_mutex& FileContext::mutex() const
     return mRangesLock;
 }
 
+FileServiceOptions FileContext::options() const
+{
+    return mService.options();
+}
+
 template<typename Request>
 auto FileContext::queue(Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>
 {
