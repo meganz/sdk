@@ -6,6 +6,7 @@
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
+#include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
 #include <mega/fuse/common/client.h>
@@ -361,6 +362,16 @@ auto Client::fileInfo(FileID id) const -> file_service::FileServiceResultOr<file
 auto Client::fileOpen(CloudPath path) const -> FileServiceResultOr<file_service::File>
 {
     return fileService().open(FileID::from(path.resolve(*this)));
+}
+
+auto Client::fileServiceOptions(const FileServiceOptions& options) -> FileServiceResult
+{
+    return fileService().options(options);
+}
+
+auto Client::fileServiceOptions() -> FileServiceResultOr<FileServiceOptions>
+{
+    return fileService().options();
 }
 
 ErrorOr<NodeInfo> Client::get(CloudPath parentPath,

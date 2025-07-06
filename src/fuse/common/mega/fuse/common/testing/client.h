@@ -14,6 +14,7 @@
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_forward.h>
 #include <mega/file_service/file_service_forward.h>
+#include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_service_result_or_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount_event_forward.h>
@@ -196,6 +197,14 @@ public:
 
     // Open a file managed by the File Service.
     auto fileOpen(CloudPath path) const -> file_service::FileServiceResultOr<file_service::File>;
+
+    // Set the file service's options.
+    auto fileServiceOptions(const file_service::FileServiceOptions& options)
+        -> file_service::FileServiceResult;
+
+    // Get the file service's current options.
+    auto fileServiceOptions()
+        -> file_service::FileServiceResultOr<file_service::FileServiceOptions>;
 
     // Retrieve information about a specific child.
     common::ErrorOr<common::NodeInfo> get(CloudPath parentPath, const std::string& name) const;
