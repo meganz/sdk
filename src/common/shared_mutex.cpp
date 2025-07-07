@@ -21,7 +21,7 @@ bool SharedMutex::try_lock_shared_until(steady_clock::time_point time,
     std::unique_lock<std::mutex> lock(mLock);
 
     // What thread is trying to acquire this mutex?
-    auto id = std::this_thread::get_id();
+    [[maybe_unused]] auto id = std::this_thread::get_id();
 
     // Make sure the thread doesn't already hold a write lock.
     assert(!validate || mWriterID != id);

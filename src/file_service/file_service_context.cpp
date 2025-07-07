@@ -31,7 +31,7 @@ using namespace common;
 static Database createDatabase(const LocalPath& databasePath);
 
 template<typename Lock>
-FileID FileServiceContext::allocateID(Lock&& lock, Transaction& transaction)
+FileID FileServiceContext::allocateID([[maybe_unused]] Lock&& lock, Transaction& transaction)
 {
     assert(lock.mutex() == &mDatabase);
     assert(lock.owns_lock());
@@ -82,7 +82,9 @@ FileID FileServiceContext::allocateID(Lock&& lock, Transaction& transaction)
 }
 
 template<typename Lock>
-void FileServiceContext::deallocateID(FileID id, Lock&& lock, Transaction& transaction)
+void FileServiceContext::deallocateID(FileID id,
+                                      [[maybe_unused]] Lock&& lock,
+                                      Transaction& transaction)
 {
     assert(synthetic(id));
     assert(lock.mutex() == &mDatabase);
@@ -96,8 +98,9 @@ void FileServiceContext::deallocateID(FileID id, Lock&& lock, Transaction& trans
 }
 
 template<typename Lock, typename T>
-auto FileServiceContext::getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
-    -> std::shared_ptr<T>
+auto FileServiceContext::getFromIndex(FileID id,
+                                      [[maybe_unused]] Lock&& lock,
+                                      FromFileIDMap<std::weak_ptr<T>>& map) -> std::shared_ptr<T>
 {
     assert(lock.mutex() == &mLock);
     assert(lock.owns_lock());
@@ -349,7 +352,9 @@ auto FileServiceContext::rangesFromIndex(FileID id, Lock&& lock) -> std::optiona
 }
 
 template<typename Lock, typename T>
-bool FileServiceContext::removeFromIndex(FileID id, Lock&& lock, FromFileIDMap<T>& map)
+bool FileServiceContext::removeFromIndex(FileID id,
+                                         [[maybe_unused]] Lock&& lock,
+                                         FromFileIDMap<T>& map)
 {
     assert(lock.mutex() == &mLock);
     assert(lock.owns_lock());

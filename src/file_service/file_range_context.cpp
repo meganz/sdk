@@ -23,7 +23,7 @@ using namespace common;
 constexpr std::uint64_t MinimumLength = 1u << 18;
 
 template<typename Lock>
-void FileRangeContext::completed(Lock&& lock, Error result)
+void FileRangeContext::completed([[maybe_unused]] Lock&& lock, Error result)
 {
     // Sanity.
     assert(lock.owns_lock());
