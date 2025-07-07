@@ -12,6 +12,7 @@
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
 #include <mega/file_service/file_write_result.h>
+#include <mega/file_service/logging.h>
 #include <mega/file_service/source.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
@@ -19,7 +20,8 @@
 #include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/common/testing/utility.h>
-#include <mega/logging.h>
+
+#include <cinttypes>
 
 namespace mega
 {
@@ -195,8 +197,9 @@ TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
             auto elapsedMs = duration_cast<milliseconds>(elapsed).count();
 
             // For curiosity.
-            LOG_debug << "Range read time: " << FileRange(offset, offset + readSize) << ": "
-                      << elapsedMs << " millisecond(s)";
+            FSDebugF("Range read time: %s: %" PRIi64 " millisecond(s).",
+                     toString(FileRange(offset, offset + readSize)).c_str(),
+                     elapsedMs);
 
             // Make sure our measurements don't overflow.
             ASSERT_GE(UINT64_MAX - elapsedMs, averageFileReadTime);
@@ -215,9 +218,8 @@ TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
     averageRangeReadTime /= (fileSize / readSize) * numSamples;
 
     // Log our findings.
-    LOG_debug << "Average linear file read time: " << averageFileReadTime << " millisecond(s)";
-
-    LOG_debug << "Average linear range read time: " << averageRangeReadTime << " millisecond(s)";
+    FSDebugF("Average linear file read time: %" PRIu64 " millisecond(s)", averageFileReadTime);
+    FSDebugF("Average linear range read time: %" PRIu64 " millisecond(s)", averageRangeReadTime);
 }
 
 TEST_F(FileServiceTests, append_succeeds)
@@ -970,7 +972,7 @@ TEST_F(FileServiceTests, read_write_sequence)
 
     // Curiosity.
     for (const auto& range: file->ranges())
-        LOG_debug << "Range: " << range;
+        FSDebugF("Range: %s", toString(range).c_str());
 }
 
 TEST_F(FileServiceTests, ref_succeeds)
