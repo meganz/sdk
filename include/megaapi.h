@@ -19064,6 +19064,19 @@ class MegaApi
         int getAccess(MegaNode* node);
 
         /**
+         * @brief Get the access level of a node
+         * @param nodeHandle MegaHandle of the node to check
+         * @return Access level of the node
+         * Valid values are:
+         * - MegaShare::ACCESS_OWNER
+         * - MegaShare::ACCESS_FULL
+         * - MegaShare::ACCESS_READWRITE
+         * - MegaShare::ACCESS_READ
+         * - MegaShare::ACCESS_UNKNOWN
+         */
+        int getAccess(MegaHandle nodeHandle);
+
+        /**
          * @brief Get the size of a node tree
          *
          * If the MegaNode is a file, this function returns the size of the file.

@@ -4198,6 +4198,13 @@ void SdkTestShares::createOutgoingShare(MegaHandle hfolder)
     node.reset(mSharerApi->getNodeByHandle(hfolder));
     ASSERT_TRUE(node->isShared()) << "Wrong sharing information at outgoing share";
     ASSERT_TRUE(node->isOutShare()) << "Wrong sharing information at outgoing share";
+
+    int accessLevel = mSharerApi->getAccess(hfolder);
+    ASSERT_EQ(accessLevel, MegaShare::ACCESS_OWNER)
+        << "Wrong access level for the shared folder handle";
+    accessLevel = mSharerApi->getAccess(node.get());
+    ASSERT_EQ(accessLevel, MegaShare::ACCESS_OWNER)
+        << "Wrong access level for the shared folder node";
 }
 
 // Get and Check only one incoming share
@@ -4227,6 +4234,13 @@ void SdkTestShares::getInshare(MegaHandle hfolder)
         << "Wrong access level of incoming share";
     ASSERT_TRUE(thisInshareNode->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(thisInshareNode->isShared()) << "Wrong sharing information at incoming share";
+
+    int accessLevel = mShareeApi->getAccess(hfolder);
+    ASSERT_EQ(accessLevel, MegaShare::ACCESS_FULL)
+        << "Wrong access level for the shared folder handle";
+    accessLevel = mShareeApi->getAccess(thisInshareNode);
+    ASSERT_EQ(accessLevel, MegaShare::ACCESS_FULL)
+        << "Wrong access level for the shared folder node";
 }
 
 void SdkTestShares::createOnePublicLink(MegaHandle hfolder, std::string& nodeLink)
