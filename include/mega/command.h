@@ -1003,7 +1003,7 @@ class MEGA_API CommandEnumerateQuotaItems : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandEnumerateQuotaItems(MegaClient*);
+    CommandEnumerateQuotaItems(const std::optional<std::string>& countryCode, MegaClient*);
 };
 
 class MEGA_API CommandSubmitPurchaseReceipt : public Command

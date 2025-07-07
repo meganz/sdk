@@ -12999,9 +12999,9 @@ void MegaClient::updatepcr(handle p, ipcactions_t action, CommandUpdatePendingCo
 }
 
 // enumerate Pro account purchase options (not fully implemented)
-void MegaClient::purchase_enumeratequotaitems()
+void MegaClient::purchase_enumeratequotaitems(const std::optional<std::string>& countryCode)
 {
-    reqs.add(new CommandEnumerateQuotaItems(this));
+    reqs.add(new CommandEnumerateQuotaItems(countryCode, this));
 }
 
 // begin a new purchase (FIXME: not fully implemented)

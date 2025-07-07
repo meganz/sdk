@@ -8954,9 +8954,14 @@ void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getPricing(MegaRequestListener *listener)
+void MegaApiImpl::getPricing(const std::optional<std::string>& countryCode,
+                             MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PRICING, listener);
+    if (countryCode && countryCode->size())
+    {
+        request->setText(countryCode->c_str());
+    }
 
     request->performRequest = [this, request]()
     {
@@ -23654,7 +23659,12 @@ error MegaApiImpl::performRequest_enumeratequotaitems(MegaRequestPrivate* reques
                 return API_EARGS;
             }
 
-            client->purchase_enumeratequotaitems();
+            std::optional<std::string> countryCode;
+            if (request->getText())
+            {
+                countryCode = request->getText();
+            }
+            client->purchase_enumeratequotaitems(countryCode);
             return API_OK;
 }
 

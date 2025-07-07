@@ -2548,13 +2548,19 @@ void CommandUpdatePendingContact::doComplete(error e, ipcactions_t actions)
     mCompletion(e, actions);
 }
 
-CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
+CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(
+    const std::optional<std::string>& countryCode,
+    MegaClient* client)
 {
     cmd("utqa");
     arg("nf", 3);
     arg("b", 1);    // support for Business accounts
     arg("p", 1);    // support for Pro Flexi
     arg("ft", 1);   // support for Feature plans
+    if (countryCode && !countryCode->empty())
+    {
+        arg("c", countryCode->c_str()); // Support for forcing the currency of a specific country
+    }
     tag = client->reqtag;
 }
 

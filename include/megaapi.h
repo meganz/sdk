@@ -15125,6 +15125,31 @@ class MegaApi
         void getPricing(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the available pricing plans to upgrade a MEGA account in a specifc currency.
+         *
+         * If you need the pricing plans in the default currency for the account, please use
+         * the overload avobe.
+         *
+         * You can get a payment ID for any of the pricing plans provided by this function
+         * using MegaApi::getPaymentId
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PRICING
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getPricing - MegaPricing object with all pricing plans
+         * - MegaRequest::getCurrency - MegaCurrency object with currency data related to prices
+         *
+         * @param countryCode Optional country code for which the currency and prices will be
+         * localized
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getPaymentId
+         * @see MegaApi::getPricing
+         */
+        void getPricing(const char* countryCode, MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii)
          * and has enough space.
          *
