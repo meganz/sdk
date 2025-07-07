@@ -16822,7 +16822,7 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the max number of connections for uploads.
          *
          * Possible return values for this function are:
-         * - MegaError::API_OK if successfully aborted an ongoing backup
+         * - MegaError::API_OK if successfully retrieved the max number of connections for uploads
          * - MegaError::API_EINTERNAL if there was an internal issue when setting the transfer
          * direction.
          */
