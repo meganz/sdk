@@ -4,6 +4,8 @@ target_sources(SDKlib PRIVATE
                       file_context_badge_forward.h
                       file_context_forward.h
                       file_context_pointer.h
+                      file_event.h
+                      file_event_forward.h
                       file_forward.h
                       file_id.h
                       file_id_forward.h
