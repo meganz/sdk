@@ -7,6 +7,7 @@ target_sources(SDKlib PRIVATE
                       file_event.h
                       file_event_forward.h
                       file_event_observer.h
+                      file_event_observer_id.h
                       file_forward.h
                       file_id.h
                       file_id_forward.h
