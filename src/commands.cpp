@@ -2220,18 +2220,6 @@ bool CommandSetShare::procresult(Result r, JSON& json)
                 }
                 break;
 
-            case makeNameid("snk"):
-                client->procsnk(&json);
-                break;
-
-            case makeNameid("suk"):
-                client->procsuk(&json);
-                break;
-
-            case makeNameid("cr"):
-                client->proccr(&json);
-                break;
-
             case EOO:
                 completion(API_OK, mWritable);
                 return true;
@@ -7001,23 +6989,6 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         return json->leaveobject();
     });
 
-    // Legacy node key requests (array)
-    f = mFilters.emplace("{[cr", [client](JSON *json)
-    {
-        client->proccr(json);
-        return true;
-    });
-
-    // Legacy node key requests (object)
-    mFilters.emplace("{{cr", f.first->second);
-
-    // Legacy share key requests
-    mFilters.emplace("{[sr", [client](JSON *json)
-    {
-        client->procsr(json);
-        return true;
-    });
-
     // sn tag
     mFilters.emplace("{\"sn",
                      [this](JSON* json)
@@ -7241,16 +7212,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
-                break;
-
-            case makeNameid("cr"):
-                // crypto key request
-                client->proccr(&json);
-                break;
-
-            case makeNameid("sr"):
-                // sharekey distribution request
-                client->procsr(&json);
                 break;
 
             case makeNameid("sn"):

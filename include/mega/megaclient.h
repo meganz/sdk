@@ -1844,7 +1844,6 @@ public:
     std::shared_ptr<Node> sc_deltree();
     handle sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete);
     void sc_contacts();
-    void sc_keys();
     void sc_fileattr();
     void sc_userattr();
     bool sc_shares();
@@ -1883,9 +1882,6 @@ public:
 
     // add node to vector and return index
     unsigned addnode(sharedNode_vector* v, std::shared_ptr<Node> n) const;
-
-    // crypto request response
-    void cr_response(sharedNode_vector*, sharedNode_vector*, JSON*);
 
     // read node tree from JSON object
     void readtree(JSON*, Node* priorActionpacketDeletedNode, bool& firstHandleMatchedDelete);
@@ -2434,9 +2430,6 @@ public:
     // any other number -> parsing error
     int procphelement(JSON*);
 
-    void procsnk(JSON*);
-    void procsuk(JSON*);
-
     void procmcf(JSON*);
     void procmcna(JSON*);
 
@@ -2482,9 +2475,6 @@ public:
 
     // session ID length (binary)
     static const unsigned SIDLEN = 2 * SymmCipher::KEYLENGTH + USERHANDLE * 4 / 3 + 1;
-
-    void proccr(JSON*);
-    void procsr(JSON*);
 
     KeyManager mKeyManager;
 
