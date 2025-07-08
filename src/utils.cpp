@@ -1882,6 +1882,11 @@ string Utils::trim(const string& str, const string& trimchrs)
     return str.substr(s, e - s + 1);
 }
 
+std::string Utils::getIcuVersion()
+{
+    return U_ICU_VERSION;
+}
+
 struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t

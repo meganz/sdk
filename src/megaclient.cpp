@@ -2069,6 +2069,7 @@ MegaClient::MegaClient(MegaApp* a,
 
     LOG_debug << "User-Agent: " << useragent;
     LOG_debug << "Cryptopp version: " << CRYPTOPP_VERSION;
+    LOG_debug << "icu version: " << Utils::getIcuVersion();
 
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
