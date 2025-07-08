@@ -154,6 +154,8 @@ struct MEGA_API Transfer : public FileFingerprint
     MegaClient* client;
     int tag;
 
+    void setProgresscompleted(const m_off_t p, const bool append = false);
+
     // signal failure.  Either the transfer's slot or the transfer itself (including slot) will be deleted.
     void failed(const Error&, TransferDbCommitter&, dstime = 0);
 

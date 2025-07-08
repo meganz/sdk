@@ -989,6 +989,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 void SdkTest::onTransferStart(MegaApi*, MegaTransfer* transfer)
 {
     onTransferStart_progress = transfer->getTransferredBytes();
+    if (onTransferStartCustomCb)
+    {
+        onTransferStartCustomCb(transfer);
+    }
 }
 
 void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
@@ -7318,6 +7322,8 @@ namespace mega
         static int countdownToTimeout;
         static bool isRaid;
         static bool isRaidKnown;
+        static m_off_t testProgressCompleted;
+        static m_off_t testProgressContiguous;
 
         static void onSetIsRaid_morechunks(::mega::RaidBufferManager* tbm)
         {
@@ -7434,6 +7440,26 @@ namespace mega
             lastAccessTime = 0;
         }
 
+        static void onProgressCompletedUpdate(const m_off_t p)
+        {
+            if (p)
+            {
+                // ignore ProgressCompleted reset(0)
+                testProgressCompleted = p;
+            }
+            LOG_info << "onProgressCompletedUpdate:(" << p << ")";
+        }
+
+        static void onProgressContiguousUpdate(const m_off_t p)
+        {
+            if (p)
+            {
+                // ignore ProgressContiguous reset(0)
+                testProgressContiguous = p;
+            }
+            LOG_info << "onProgressContiguousUpdate:(" << p << ")";
+        }
+
         static bool resetForTests()
         {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -7446,6 +7472,8 @@ namespace mega
             countdownToTimeout = -1;
             isRaid = false;
             isRaidKnown = false;
+            testProgressCompleted = 0;
+            testProgressContiguous = 0;
             return true;
 #else
             return false;
@@ -7467,6 +7495,8 @@ namespace mega
     int DebugTestHook::countdownTo429 = -1;
     int DebugTestHook::countdownTo503 = -1;
     int DebugTestHook::countdownToTimeout = -1;
+    m_off_t DebugTestHook::testProgressCompleted = 0;
+    m_off_t DebugTestHook::testProgressContiguous = 0;
 }
 
 /**
@@ -7905,12 +7935,16 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
         importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
 
     unique_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
-
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    [[maybe_unused]] m_off_t tProgressCompletedPreResume{0};
+    [[maybe_unused]] m_off_t tProgressContiguousPreResume{0};
+    globalMegaTestHooks.onProgressCompletedUpdate =
+        ::mega::DebugTestHook::onProgressCompletedUpdate;
+    globalMegaTestHooks.onProgressContiguousUpdate =
+        ::mega::DebugTestHook::onProgressContiguousUpdate;
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
     globalMegaTestHooks.onLimitMaxReqSize = DebugTestHook::onLimitMaxReqSize;
     globalMegaTestHooks.onHookNumberOfConnections = DebugTestHook::onHookNumberOfConnections;
-
     if (fromNonRaid)
     {
         globalMegaTestHooks.onHookDownloadRequestSingleUrl =
@@ -7961,6 +7995,26 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
         << "Download interrupted with unexpected code: " << result;
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    tProgressCompletedPreResume = DebugTestHook::testProgressCompleted;
+    tProgressContiguousPreResume = DebugTestHook::testProgressContiguous;
+
+    [[maybe_unused]] m_off_t tProgressCompletedAfterResume{0};
+    [[maybe_unused]] m_off_t tProgressContiguousAfterResume{0};
+    [[maybe_unused]] std::atomic<bool> exitFlagAfterResume{false};
+    DebugTestHook::testProgressCompleted = 0;
+    DebugTestHook::testProgressContiguous = 0;
+    onTransferStartCustomCb = [&tProgressCompletedAfterResume,
+                               &tProgressContiguousAfterResume,
+                               &exitFlagAfterResume](MegaTransfer* t) -> void
+    {
+        if (t)
+        {
+            tProgressCompletedAfterResume = t->getTransferredBytes();
+        }
+        tProgressContiguousAfterResume = DebugTestHook::testProgressContiguous;
+        exitFlagAfterResume = true;
+    };
+
     if (fromNonRaid)
     {
         globalMegaTestHooks.onHookDownloadRequestSingleUrl = nullptr;
@@ -7973,6 +8027,21 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     onTransferStart_progress = 0;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    ASSERT_TRUE(WaitFor(
+        [&exitFlagAfterResume]()
+        {
+            // wait for onTransferStart after login + fetchnodes
+            return exitFlagAfterResume.load();
+        },
+        60000));
+
+    ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
+        << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
+           "have changed)";
+
+    ASSERT_EQ(tProgressContiguousPreResume, tProgressContiguousAfterResume)
+        << "Progress contiguous mismatch between logout and onTransferStart values (it shouldn't "
+           "have changed)";
 
     ASSERT_EQ(API_OK, doSetMaxConnections(0, 4))
         << "doSetMaxConnections failed or took more than 1 minute";
@@ -16423,63 +16492,67 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_EQ(nodeList->get(0)->getHandle(), file2Handle);
 }
 
-/**
- * @brief TEST_F SdkResumableTrasfers
- *
- * Tests resumption for file upload and download.
- */
-TEST_F(SdkTest, SdkResumableTrasfers)
+void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeoutInSecs)
 {
-    LOG_info << "___TEST Resumable Trasfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
     auto accountRestorer = elevateToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
-    //  1. Create ~16 MB file
-    //  2. Upload file, with speed limit
-    //  3. Logout / Login
-    //  4. Check upload resumption
-    //  5. Finish upload
-    //  6. Download file, with speed limit
-    //  7. Logout / Login
-    //  8. Check download resumption
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    [[maybe_unused]] m_off_t tProgressCompletedPreResume{0};
+    [[maybe_unused]] m_off_t tProgressContiguousPreResume{0};
+    globalMegaTestHooks.onProgressCompletedUpdate =
+        ::mega::DebugTestHook::onProgressCompletedUpdate;
+    globalMegaTestHooks.onProgressContiguousUpdate =
+        ::mega::DebugTestHook::onProgressContiguousUpdate;
+#endif
 
-    //  1. Create ~16 MB file
+    // 1. Create ~16 MB file
+    // 2. Upload file, with speed limit
+    // 3. Logout / Login
+    // 4. Check upload resumption
+    // 5. Finish upload
+    // 6. Download file, with speed limit
+    // 7. Logout / Login
+    // 8. Check download resumption
+
+    // 1. Create ~data size MB file
     std::ofstream file(fs::u8path(UPFILE), ios::out);
     ASSERT_TRUE(file) << "Couldn't create " << UPFILE;
     for (int i = 0; i < 1000000; i++)
     {
-        file << "16 MB test file "; // 16 characters
+        file << data;
     }
-    ASSERT_EQ(file.tellp(), 16000000) << "Wrong size for test file";
+    ASSERT_EQ(file.tellp(), data.size() * 1000000) << "Wrong size for test file";
     file.close();
 
-    //  2. Upload file, with speed limit
+    // 2. Upload file, with speed limit
     RequestTracker ct(megaApi[0].get());
     megaApi[0]->setMaxConnections(1, &ct);
-    ASSERT_EQ(API_OK, ct.waitForResult(60)) << "setMaxConnections() failed or took more than 1 minute";
+    ASSERT_EQ(API_OK, ct.waitForResult(60))
+        << "setMaxConnections() failed or took more than 1 minute";
 
-    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
     megaApi[0]->setMaxUploadSpeed(2000000);
     onTransferUpdate_progress = 0;
     TransferTracker ut(megaApi[0].get());
     megaApi[0]->startUpload(UPFILE.c_str(),
-        rootnode.get(),
-        nullptr /*fileName*/,
-        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-        nullptr /*appData*/,
-        false   /*isSourceTemporary*/,
-        false   /*startFirst*/,
-        nullptr /*cancelToken*/,
-        &ut     /*listener*/);
-
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/,
+                            &ut /*listener*/);
 
     second_timer timer;
     m_off_t pauseThreshold = 9000000;
-    while (!ut.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    while (!ut.finished && timer.elapsed() < timeoutInSecs &&
+           onTransferUpdate_progress < pauseThreshold)
     {
         WaitMillisec(200);
     }
@@ -16487,15 +16560,55 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     ASSERT_FALSE(ut.finished) << "Upload ended too early, with " << ut.waitForResult();
     ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was uploaded";
 
-    //  3. Logout / Login
+    // 3. Logout / Login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     int result = ut.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Upload interrupted with unexpected code: " << result;
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE)
+        << "Upload interrupted with unexpected code: " << result;
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    tProgressCompletedPreResume = DebugTestHook::testProgressCompleted;
+    tProgressContiguousPreResume = DebugTestHook::testProgressContiguous;
+
+    [[maybe_unused]] m_off_t tProgressCompletedAfterResume{0};
+    [[maybe_unused]] m_off_t tProgressContiguousAfterResume{0};
+    [[maybe_unused]] std::atomic<bool> exitFlagAfterResume{false};
+    DebugTestHook::testProgressCompleted = 0;
+    DebugTestHook::testProgressContiguous = 0;
+    onTransferStartCustomCb = [&tProgressCompletedAfterResume,
+                               &tProgressContiguousAfterResume,
+                               &exitFlagAfterResume](MegaTransfer* t) -> void
+    {
+        if (t)
+        {
+            tProgressCompletedAfterResume = t->getTransferredBytes();
+        }
+        tProgressContiguousAfterResume = DebugTestHook::testProgressContiguous;
+        exitFlagAfterResume = true;
+    };
+#endif
+
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
-    //  4. Check upload resumption
+    ASSERT_TRUE(WaitFor(
+        [&exitFlagAfterResume]()
+        {
+            // wait for onTransferStart after login + fetchnodes
+            return exitFlagAfterResume.load();
+        },
+        60000));
+
+    ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
+        << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
+           "have changed)";
+
+    ASSERT_EQ(tProgressContiguousPreResume, tProgressContiguousAfterResume)
+        << "Progress contiguous mismatch between logout and onTransferStart values (it shouldn't "
+           "have changed)";
+
+    // 4. Check upload resumption
     timer.reset();
     unique_ptr<MegaTransferList> transfers(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
     while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
@@ -16503,41 +16616,53 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(100);
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
     }
-    ASSERT_EQ(transfers->size(), 1) << "Upload ended before resumption was checked, or was not resumed after 20 seconds";
+    ASSERT_EQ(transfers->size(), 1)
+        << "Upload ended before resumption was checked, or was not resumed after 20 seconds";
     MegaTransfer* upl = transfers->get(0);
     long long uplBytes = upl->getTransferredBytes();
-    ASSERT_GT(uplBytes, pauseThreshold / 2) << "Upload appears to have been restarted instead of resumed";
+    ASSERT_GT(uplBytes, pauseThreshold / 2)
+        << "Upload appears to have been restarted instead of resumed";
 
-    //  5. Finish upload
+    // 5. Finish upload
     megaApi[0]->setMaxUploadSpeed(-1);
     timer.reset();
-    unique_ptr<MegaNode> cloudNode(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
-    size_t maxAllowedToFinishUpload = 120;
+    unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    size_t maxAllowedToFinishUpload = timeoutInSecs;
     while (!cloudNode && timer.elapsed() < maxAllowedToFinishUpload)
     {
         WaitMillisec(500);
-        cloudNode.reset(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+        cloudNode.reset(
+            megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     }
-    ASSERT_TRUE(cloudNode) << "Upload did not finish after " << maxAllowedToFinishUpload << " seconds";
+    ASSERT_TRUE(cloudNode) << "Upload did not finish after " << maxAllowedToFinishUpload
+                           << " seconds";
 
-    //  6. Download file, with speed limit
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    tProgressCompletedPreResume = 0;
+    tProgressContiguousPreResume = 0;
+#endif
+
+    // 6. Download file, with speed limit
     string downloadedFile = DOTSLASH + DOWNFILE;
     megaApi[0]->setMaxDownloadSpeed(2000000);
     onTransferUpdate_progress = 0;
     timer.reset();
     TransferTracker dt(megaApi[0].get());
-    megaApi[0]->startDownload(cloudNode.get(),
+    megaApi[0]->startDownload(
+        cloudNode.get(),
         downloadedFile.c_str(),
         nullptr /*fileName*/,
         nullptr /*appData*/,
-        false   /*startFirst*/,
+        false /*startFirst*/,
         nullptr /*cancelToken*/,
         MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
         MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
-        false   /* undelete */,
-        &dt     /*listener*/);
+        false /* undelete */,
+        &dt /*listener*/);
 
-    while (!dt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    while (!dt.finished && timer.elapsed() < timeoutInSecs &&
+           onTransferUpdate_progress < pauseThreshold)
     {
         WaitMillisec(200);
     }
@@ -16545,15 +16670,55 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     ASSERT_FALSE(dt.finished) << "Download ended too early, with " << dt.waitForResult();
     ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was downloaded";
 
-    //  7. Logout / Login
+    // 7. Logout / Login
     session.reset(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     result = dt.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Download interrupted with unexpected code: " << result;
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE)
+        << "Download interrupted with unexpected code: " << result;
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    tProgressCompletedPreResume = DebugTestHook::testProgressCompleted;
+    tProgressContiguousPreResume = DebugTestHook::testProgressContiguous;
+
+    tProgressCompletedAfterResume = 0;
+    tProgressContiguousAfterResume = 0;
+    exitFlagAfterResume = false;
+    DebugTestHook::testProgressCompleted = 0;
+    DebugTestHook::testProgressContiguous = 0;
+    onTransferStartCustomCb = [&tProgressCompletedAfterResume,
+                               &tProgressContiguousAfterResume,
+                               &exitFlagAfterResume](MegaTransfer* t) -> void
+    {
+        if (t)
+        {
+            tProgressCompletedAfterResume = t->getTransferredBytes();
+        }
+        tProgressContiguousAfterResume = DebugTestHook::testProgressContiguous;
+        exitFlagAfterResume = true;
+    };
+#endif
+
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
-    //  8. Check download resumption
+    ASSERT_TRUE(WaitFor(
+        [&exitFlagAfterResume]()
+        {
+            // wait for onTransferStart after login + fetchnodes
+            return exitFlagAfterResume.load();
+        },
+        60000));
+
+    ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
+        << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
+           "have changed)";
+
+    ASSERT_EQ(tProgressContiguousPreResume, tProgressContiguousAfterResume)
+        << "Progress contiguous mismatch between logout and onTransferStart values (it shouldn't "
+           "have changed)";
+
+    // 8. Check download resumption
     timer.reset();
     transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
     while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
@@ -16561,10 +16726,12 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(100);
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
     }
-    ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
+    ASSERT_EQ(transfers->size(), 1)
+        << "Download ended before resumption was checked, or was not resumed after 20 seconds";
     MegaTransfer* dnl = transfers->get(0);
     long long dnlBytes = dnl->getTransferredBytes();
-    ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
+    ASSERT_GT(dnlBytes, pauseThreshold / 2)
+        << "Download appears to have been restarted instead of resumed";
 
     megaApi[0]->setMaxDownloadSpeed(-1);
 }
@@ -16652,6 +16819,40 @@ TEST_F(SdkTest, SdkTestUploads)
 
     ASSERT_NO_FATAL_FAILURE(
         std::for_each(maxConnectionsVector.begin(), maxConnectionsVector.end(), uploadFile));
+}
+
+/**
+ * @brief TEST_F SdkResumableTrasfers
+ *
+ * Tests resumption for file upload and download.
+ */
+TEST_F(SdkTest, SdkResumableTrasfers)
+{
+    auto genStr = [](const size_t len) -> std::string
+    {
+        const std::string base = std::to_string(len) + " MB test file. ";
+        std::string result;
+        result.reserve(len);
+
+        while (result.size() < len)
+        {
+            result += base;
+        }
+
+        result.resize(len);
+        return result;
+    };
+
+    // Note: testResumableTrasfers limits maxConnections and max Upload/Download speed
+    auto i = 0;
+    const std::map<size_t, size_t> files = {{16, 120}, {19, 240}, {24, 300}};
+    for (const auto& [fileSize, timeout]: files)
+    {
+        auto data = genStr(fileSize);
+        LOG_info << "___TEST Resumable Trasfers. Iteration (" << ++i << ") FileSize ("
+                 << data.size() << " MB)___";
+        ASSERT_NO_FATAL_FAILURE(testResumableTrasfers(data, timeout));
+    }
 }
 
 auto makeScopedDefaultPermissions(MegaApi& api, int directory, int file)
