@@ -1316,6 +1316,11 @@ FileContext::~FileContext()
     mService.removeFromIndex(FileContextBadge(), mInfo->id());
 }
 
+FileEventObserverID FileContext::addObserver(FileEventObserver observer)
+{
+    return mInfo->addObserver(std::move(observer));
+}
+
 void FileContext::append(FileAppendRequest request)
 {
     executeOrQueue(std::move(request));
@@ -1363,6 +1368,11 @@ void FileContext::read(FileReadRequest request)
 void FileContext::ref()
 {
     adjustRef(1);
+}
+
+void FileContext::removeObserver(FileEventObserverID id)
+{
+    mInfo->removeObserver(id);
 }
 
 void FileContext::touch(FileTouchRequest request)

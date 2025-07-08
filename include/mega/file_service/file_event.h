@@ -17,7 +17,7 @@ struct FileEvent
     std::optional<FileRange> mRange;
 
     // What is the file's current modification time?
-    std::uint64_t mModified;
+    std::int64_t mModified;
 
     // What is the file's current size?
     std::uint64_t mSize;

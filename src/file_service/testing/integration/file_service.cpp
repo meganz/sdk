@@ -2,6 +2,8 @@
 #include <mega/common/node_info.h>
 #include <mega/common/utility.h>
 #include <mega/file_service/file.h>
+#include <mega/file_service/file_event.h>
+#include <mega/file_service/file_event_vector.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_range.h>
@@ -13,6 +15,7 @@
 #include <mega/file_service/file_service_result_or.h>
 #include <mega/file_service/file_write_result.h>
 #include <mega/file_service/logging.h>
+#include <mega/file_service/scoped_file_event_observer.h>
 #include <mega/file_service/source.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
@@ -27,6 +30,33 @@ namespace mega
 {
 namespace file_service
 {
+
+// Teach gtest how to print FileEvent instances.
+void PrintTo(const FileEvent& event, std::ostream* ostream)
+{
+    // Assume the event holds no range.
+    std::string range = "[]";
+
+    // Event actually holds a range.
+    if (event.mRange)
+        range = toString(*event.mRange);
+
+    // Print the range in a form we can understand.
+    *ostream << "{" << range << ", " << event.mModified << ", " << event.mSize << "}";
+}
+
+// Check whether lhs and rhs represent the same event.
+bool operator==(const FileEvent& lhs, const FileEvent& rhs)
+{
+    return lhs.mRange == rhs.mRange && lhs.mModified == rhs.mModified && lhs.mSize == rhs.mSize;
+}
+
+// Check whether lhs and rhs represent different events.
+bool operator!=(const FileEvent& lhs, const FileEvent& rhs)
+{
+    return !(lhs == rhs);
+}
+
 namespace testing
 {
 
@@ -256,6 +286,20 @@ TEST_F(FileServiceTests, append_succeeds)
         ASSERT_FALSE(info.dirty());
     }
 
+    // Events that we expect to receive.
+    FileEventVector expected;
+
+    // Events that we actually received.
+    FileEventVector received;
+
+    // Store events emitted for our file.
+    auto observer = observe(
+        [&received](auto& event)
+        {
+            received.emplace_back(event);
+        },
+        *file);
+
     // Convenience.
     using fuse::testing::randomBytes;
 
@@ -268,6 +312,10 @@ TEST_F(FileServiceTests, append_succeeds)
 
     // Try and append the data to the end of the file.
     ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
+
+    expected.emplace_back(FileEvent{FileRange(size, size + computed.size()),
+                                    info.modified(),
+                                    size + computed.size()});
 
     // The file should now have two ranges.
     auto ranges = file->ranges();
@@ -287,10 +335,14 @@ TEST_F(FileServiceTests, append_succeeds)
 
     // Append again to make sure contigous ranges are extended.
     ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
+
+    expected.emplace_back(FileEvent{FileRange(size, size + computed.size()),
+                                    info.modified(),
+                                    size + computed.size()});
+
     ASSERT_GE(info.modified(), modified);
     ASSERT_EQ(info.size(), size + computed.size());
 
-    // The file should still have two ranges.
     ranges = file->ranges();
 
     ASSERT_EQ(ranges.size(), 2u);
@@ -301,6 +353,9 @@ TEST_F(FileServiceTests, append_succeeds)
     range.mEnd = size + computed.size();
 
     EXPECT_EQ(ranges[1], FileRange(range));
+
+    // Make sure we received the events we expected.
+    ASSERT_EQ(expected, received);
 }
 
 TEST_F(FileServiceTests, create_succeeds)
@@ -409,11 +464,27 @@ TEST_F(FileServiceTests, create_write_succeeds)
     // Make sure the file was created.
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
+    // Events we expect to receive.
+    FileEventVector expected;
+
+    // Events we actually received.
+    FileEventVector received;
+
+    // So we can track what events were emitted for our file.
+    auto observer = observe(
+        [&received](auto& event)
+        {
+            received.emplace_back(event);
+        },
+        *file);
+
     // Generate some data for us to write to the file.
     auto data = randomBytes(64_KiB);
 
     // Try and write data to the file.
     ASSERT_EQ(execute(write, data.data(), *file, 128_KiB, 64_KiB), FILE_SUCCESS);
+
+    expected.emplace_back(FileEvent{FileRange(128_KiB, 192_KiB), file->info().modified(), 192_KiB});
 
     // Make sure the file's size is correct.
     ASSERT_EQ(file->info().size(), 192_KiB);
@@ -442,6 +513,8 @@ TEST_F(FileServiceTests, create_write_succeeds)
     // Write more data to the file.
     ASSERT_EQ(execute(write, data.data(), *file, 320_KiB, 64_KiB), FILE_SUCCESS);
 
+    expected.emplace_back(FileEvent{FileRange(320_KiB, 384_KiB), file->info().modified(), 384_KiB});
+
     // Make sure the file's size is correct.
     ASSERT_EQ(file->info().size(), 384_KiB);
 
@@ -456,6 +529,9 @@ TEST_F(FileServiceTests, create_write_succeeds)
 
     ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
     ASSERT_EQ(data, *computed);
+
+    // Make sure we received the events we were expecting.
+    ASSERT_EQ(expected, received);
 }
 
 TEST_F(FileServiceTests, fetch_succeeds)
@@ -964,15 +1040,35 @@ TEST_F(FileServiceTests, read_write_sequence)
     // Generate some data for us to write to the file.
     auto data = randomBytes(512_KiB);
 
+    // The events we expect to be emitted for our file.
+    FileEventVector expected;
+
+    // What events were emitted for our file?
+    FileEventVector received;
+
+    // So we can store the events emitted for our file.
+    auto observer = observe(
+        [&received](auto& event)
+        {
+            received.emplace_back(event);
+        },
+        *file);
+
     // Initiate a read of the file's data.
     file->read([](auto) {}, 0, file->info().size());
 
     // Write our data to the file.
     ASSERT_EQ(execute(write, data.data(), *file, 256_KiB, 512_KiB), FILE_SUCCESS);
 
+    expected.emplace_back(
+        FileEvent{FileRange(256_KiB, 768_KiB), file->info().modified(), file->info().size()});
+
     // Curiosity.
     for (const auto& range: file->ranges())
         FSDebugF("Range: %s", toString(range).c_str());
+
+    // Make sure we received the events we expected.
+    ASSERT_EQ(expected, received);
 }
 
 TEST_F(FileServiceTests, ref_succeeds)
@@ -1016,6 +1112,20 @@ TEST_F(FileServiceTests, touch_succeeds)
     // Make sure the file was opened okay.
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
+    // Events we expect to receive.
+    FileEventVector expected;
+
+    // Events we've received.
+    FileEventVector received;
+
+    // So we can keep track of our file's events.
+    auto observer = observe(
+        [&received](auto& event)
+        {
+            received.emplace_back(event);
+        },
+        *file);
+
     // Get our hands on the file's attributes.
     auto info = file->info();
 
@@ -1028,11 +1138,16 @@ TEST_F(FileServiceTests, touch_succeeds)
     // Try and update the file's modification time.
     ASSERT_EQ(execute(touch, *file, modified + 1), FILE_SUCCESS);
 
+    expected.emplace_back(FileEvent{std::nullopt, modified + 1, file->info().size()});
+
     // Make sure the file's now considered dirty.
     EXPECT_TRUE(info.dirty());
 
     // Make sure the file's modification time was updated.
     EXPECT_EQ(info.modified(), modified + 1);
+
+    // Make sure we received an event.
+    ASSERT_EQ(expected, received);
 }
 
 TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
@@ -1059,28 +1174,61 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
     }; // fetch
 
     // Truncate the file to a particular size.
-    auto truncate = [&](std::uint64_t size)
+    auto truncate = [&](std::uint64_t newSize)
     {
+        // The events we expect to receive.
+        FileEventVector expected;
+
+        // The events we've received.
+        FileEventVector received;
+
+        // So we can receive events.
+        auto observer = observe(
+            [&received](auto& event)
+            {
+                received.emplace_back(event);
+            },
+            *file);
+
         // Get our hands on the file's attributes.
         auto info = file->info();
 
+        // Latch the file's current size.
+        auto size = info.size();
+
         // Determine whether the file should become dirty.
-        auto dirty = info.size() != size;
+        auto dirty = newSize != size;
 
         // Latch the file's current modification time.
         auto modified = info.modified();
 
         // Initiate the truncate request.
-        auto result = execute(testing::truncate, *file, size);
+        auto result = execute(testing::truncate, *file, newSize);
 
         // Truncate failed.
         if (result != FILE_SUCCESS)
             return result;
 
+        // We should only receive events if the file's size changed.
+        if (dirty)
+        {
+            // Assume the file's size is increasing.
+            std::optional<FileRange> range;
+
+            // File's size is actually decreasing.
+            if (newSize < size)
+                range.emplace(newSize, size);
+
+            expected.emplace_back(FileEvent{range, info.modified(), newSize});
+        }
+
         // Make sure the file's attributes have been updated.
         EXPECT_EQ(info.dirty(), dirty);
         EXPECT_GE(info.modified(), modified);
-        EXPECT_EQ(info.size(), size);
+        EXPECT_EQ(info.size(), newSize);
+
+        // Make sure we received our expected events.
+        EXPECT_EQ(expected, received);
 
         // One of the above expectations wasn't met.
         if (HasFailure())
@@ -1139,6 +1287,20 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     // Make sure the file was opened.
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
+    // The events we expect to receive.
+    FileEventVector expected;
+
+    // The events we've actually received.
+    FileEventVector received;
+
+    // So we can receive file events.
+    auto observer = observe(
+        [&received](auto& event)
+        {
+            received.emplace_back(event);
+        },
+        *file);
+
     // Get our hands on the file's attributes.
     auto info = file->info();
 
@@ -1155,6 +1317,8 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     // We should be able to reduce the file's size.
     ASSERT_EQ(execute(truncate, *file, size / 2), FILE_SUCCESS);
 
+    expected.emplace_back(FileEvent{FileRange(size / 2, size), info.modified(), size / 2});
+
     // Mak sure the file's become dirty.
     EXPECT_TRUE(info.dirty());
 
@@ -1170,6 +1334,8 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
 
     // We should be able to grow the file's size.
     ASSERT_EQ(execute(truncate, *file, size), FILE_SUCCESS);
+
+    expected.emplace_back(FileEvent{std::nullopt, info.modified(), size});
 
     // Make sure the file's attributes were updated.
     EXPECT_GE(info.modified(), modified);
@@ -1195,6 +1361,9 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     // Make sure we read what we expected.
     EXPECT_EQ(mFileContent.compare(0, length, *result, 0, length), 0);
     EXPECT_EQ(result->find_first_not_of('\0', length), npos);
+
+    // Make sure we received the events we expected.
+    ASSERT_EQ(expected, received);
 }
 
 TEST_F(FileServiceTests, write_succeeds)
@@ -1232,6 +1401,20 @@ TEST_F(FileServiceTests, write_succeeds)
     // Write content to our file.
     auto write = [&](const void* content, std::uint64_t offset, std::uint64_t length)
     {
+        // Events we actually received.
+        FileEventVector received;
+
+        // Events we want to receive.
+        FileEventVector wanted;
+
+        // So we can receive events.
+        auto observer = observe(
+            [&received](auto& event)
+            {
+                received.emplace_back(event);
+            },
+            *file);
+
         // Get our hands on the file's information.
         auto info = file->info();
 
@@ -1244,6 +1427,9 @@ TEST_F(FileServiceTests, write_succeeds)
         // Write failed.
         if (result != FILE_SUCCESS)
             return result;
+
+        wanted.emplace_back(
+            FileEvent{FileRange(offset, offset + length), info.modified(), info.size()});
 
         // Compute size of local file content.
         auto size = std::max<std::uint64_t>(expected.size(), offset + length);
@@ -1262,6 +1448,9 @@ TEST_F(FileServiceTests, write_succeeds)
 
         // Make sure the file's size has been updated correctly.
         EXPECT_EQ(info.size(), size);
+
+        // Make sure we received the events we wanted.
+        EXPECT_EQ(received, wanted);
 
         // One or more of our expectations weren't satisfied.
         if (HasFailure())

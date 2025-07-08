@@ -42,6 +42,11 @@ File& File::operator=(File&& rhs)
     return *this;
 }
 
+FileEventObserverID File::addObserver(FileEventObserver observer)
+{
+    return mContext->addObserver(std::move(observer));
+}
+
 void File::append(const void* buffer, FileAppendCallback callback, std::uint64_t length)
 {
     return mContext->append(FileAppendRequest{buffer, std::move(callback), length});
@@ -103,6 +108,11 @@ void File::read(FileReadCallback callback, const FileRange& range)
 void File::ref()
 {
     mContext->ref();
+}
+
+void File::removeObserver(FileEventObserverID id)
+{
+    mContext->removeObserver(id);
 }
 
 void File::touch(FileTouchCallback callback, std::int64_t modified)

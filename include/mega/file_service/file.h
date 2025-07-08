@@ -2,6 +2,8 @@
 
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_context_pointer.h>
+#include <mega/file_service/file_event_observer.h>
+#include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_info_forward.h>
 #include <mega/file_service/file_range_forward.h>
@@ -34,6 +36,9 @@ public:
 
     File& operator=(File&& rhs);
 
+    // Notify an observer when this file's information changes.
+    FileEventObserverID addObserver(FileEventObserver observer);
+
     // Append data to the end of this file.
     void append(const void* buffer, FileAppendCallback callback, std::uint64_t length);
 
@@ -64,6 +69,9 @@ public:
 
     // Let the service know you want it to keep this file in storage.
     void ref();
+
+    // Remove a previously added observer.
+    void removeObserver(FileEventObserverID id);
 
     // Update the file's modification time.
     void touch(FileTouchCallback callback, std::int64_t modified);

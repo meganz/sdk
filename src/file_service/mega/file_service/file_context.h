@@ -6,6 +6,8 @@
 #include <mega/file_service/file_append_request_forward.h>
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
+#include <mega/file_service/file_event_observer.h>
+#include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_fetch_request_forward.h>
 #include <mega/file_service/file_flush_request_forward.h>
 #include <mega/file_service/file_forward.h>
@@ -198,6 +200,9 @@ public:
 
     ~FileContext();
 
+    // Notify an observer when this file's information changes.
+    FileEventObserverID addObserver(FileEventObserver observer);
+
     // Append data to the end of this file.
     void append(FileAppendRequest request);
 
@@ -219,6 +224,9 @@ public:
 
     // Let the service know you want it to keep this file in storage.
     void ref();
+
+    // Remove a previously added observer.
+    void removeObserver(FileEventObserverID id);
 
     // Update the file's modification time.
     void touch(FileTouchRequest request);

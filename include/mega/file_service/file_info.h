@@ -1,6 +1,8 @@
 #pragma once
 
 #include <mega/file_service/file_context_badge_forward.h>
+#include <mega/file_service/file_event_observer.h>
+#include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_info_forward.h>
@@ -39,6 +41,9 @@ public:
         return !operator==(rhs);
     }
 
+    // Notify an observer when this file's information changes.
+    FileEventObserverID addObserver(FileEventObserver observer);
+
     // Has this file been locally modified?
     bool dirty() const;
 
@@ -50,6 +55,9 @@ public:
 
     // When was this file last modified?
     std::int64_t modified() const;
+
+    // Remove a previously added observer.
+    void removeObserver(FileEventObserverID id);
 
     // How large is this file?
     std::uint64_t size() const;

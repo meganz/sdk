@@ -18,6 +18,11 @@ FileInfo::FileInfo(FileServiceContextBadge, FileInfoContextPtr context):
 
 FileInfo::~FileInfo() = default;
 
+FileEventObserverID FileInfo::addObserver(FileEventObserver observer)
+{
+    return mContext->addObserver(std::move(observer));
+}
+
 bool FileInfo::dirty() const
 {
     return mContext->dirty();
@@ -36,6 +41,11 @@ FileID FileInfo::id() const
 std::int64_t FileInfo::modified() const
 {
     return mContext->modified();
+}
+
+void FileInfo::removeObserver(FileEventObserverID id)
+{
+    mContext->removeObserver(id);
 }
 
 std::uint64_t FileInfo::size() const

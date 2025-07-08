@@ -1,5 +1,6 @@
 #include <mega/common/lock.h>
 #include <mega/common/utility.h>
+#include <mega/file_service/file_event.h>
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_info_context_badge.h>
 #include <mega/file_service/file_range.h>
@@ -23,6 +24,23 @@ auto FileInfoContext::get(T FileInfoContext::* const property) const
     return this->*property;
 }
 
+template<typename Lock>
+void FileInfoContext::notify(const FileEvent& event, Lock&& lock)
+{
+    assert(lock.owns_lock());
+    assert(lock.mutex() == &mObserversLock);
+
+    // Transmit event to each observer.
+    for (auto i = mObservers.begin(); i != mObservers.end();)
+    {
+        // Just in case the observer removes itself.
+        auto j = i++;
+
+        // Transmit event to our observer.
+        j->second(event);
+    }
+}
+
 FileInfoContext::FileInfoContext(Activity activity,
                                  bool dirty,
                                  NodeHandle handle,
@@ -36,6 +54,8 @@ FileInfoContext::FileInfoContext(Activity activity,
     mID(id),
     mLock(),
     mModified(modified),
+    mObservers(),
+    mObserversLock(),
     mService(service),
     mSize(size)
 {}
@@ -43,6 +63,24 @@ FileInfoContext::FileInfoContext(Activity activity,
 FileInfoContext::~FileInfoContext()
 {
     mService.removeFromIndex(FileInfoContextBadge(), mID);
+}
+
+FileEventObserverID FileInfoContext::addObserver(FileEventObserver observer)
+{
+    // Should be sufficient.
+    static std::atomic<FileEventObserverID> next{0ul};
+
+    // Sanity.
+    assert(observer);
+
+    // Make sure no one else is messing with our observers.
+    std::lock_guard guard(mObserversLock);
+
+    // Add the observer to our map.
+    auto [iterator, added] = mObservers.emplace(next.fetch_add(1), std::move(observer));
+
+    // Return the observer's ID to our caller.
+    return iterator->first;
 }
 
 bool FileInfoContext::dirty() const
@@ -70,18 +108,43 @@ FileID FileInfoContext::id() const
 
 void FileInfoContext::modified(std::int64_t modified)
 {
-    UniqueLock guard(mLock);
+    // Make sure no one changes our observers.
+    std::unique_lock lock(mObserversLock);
 
-    // Mark file as having been locally modified.
-    mDirty = true;
+    // Update the file's modification time and return a new event.
+    notify(
+        [modified, this]()
+        {
+            // Make sure no one else is changing this file's information.
+            UniqueLock guard(mLock);
 
-    // Update the file's modification time.
-    mModified = modified;
+            // Mark file as having been locally modified.
+            mDirty = true;
+
+            // Update the file's modification time.
+            mModified = modified;
+
+            // Return an event to our caller.
+            return FileEvent{std::nullopt, mModified, mSize};
+        }(),
+        std::move(lock));
 }
 
 std::int64_t FileInfoContext::modified() const
 {
     return get(&FileInfoContext::mModified);
+}
+
+void FileInfoContext::removeObserver(FileEventObserverID id)
+{
+    // Make sure no one else is messing with our observers.
+    std::lock_guard guard(mObserversLock);
+
+    // Remove the observer from our map.
+    [[maybe_unused]] auto count = mObservers.erase(id);
+
+    // Sanity.
+    assert(count);
 }
 
 std::uint64_t FileInfoContext::size() const
@@ -91,33 +154,66 @@ std::uint64_t FileInfoContext::size() const
 
 void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
 {
-    // Convenience.
-    using std::swap;
+    // Make sure no one is messing with our observers.
+    std::unique_lock lock(mObserversLock);
 
-    UniqueLock guard(mLock);
+    // Update the file's information and return an event for notification.
+    notify(
+        [modified, size, this]() mutable
+        {
+            // Convenience.
+            using std::swap;
 
-    // Mark file as having been locally modified.
-    mDirty = true;
+            // Make sure no one else changes this file's information.
+            UniqueLock guard(mLock);
 
-    // Update the file's modification time.
-    mModified = modified;
+            // Mark file as having been locally modified.
+            mDirty = true;
 
-    // Update the file's size.
-    swap(mSize, size);
+            // Update the file's modification time.
+            mModified = modified;
+
+            // Update the file's size.
+            swap(mSize, size);
+
+            // Assume the file's size hasn't decreased.
+            FileEvent event{std::nullopt, mModified, mSize};
+
+            // File's size has decreased.
+            if (mSize < size)
+                event.mRange.emplace(mSize, size);
+
+            // Return event to our caller.
+            return event;
+        }(),
+        std::move(lock));
 }
 
 void FileInfoContext::written(const FileRange& range, std::int64_t modified)
 {
-    UniqueLock guard(mLock);
+    // Make sure no one is messing with our observers.
+    std::unique_lock lock(mObserversLock);
 
-    // Mark file as having been locally modified.
-    mDirty = true;
+    // Update the file's information and return an event for notification.
+    notify(
+        [&range, modified, this]()
+        {
+            // Make sure we have exclusive access to our information.
+            UniqueLock guard(mLock);
 
-    // Update the file's modification time.
-    mModified = modified;
+            // Mark file as having been locally modified.
+            mDirty = true;
 
-    // Extend the file's size if necessary.
-    mSize = std::max(mSize, range.mEnd);
+            // Update the file's modification time.
+            mModified = modified;
+
+            // Extend the file's size if necessary.
+            mSize = std::max(mSize, range.mEnd);
+
+            // Return a suitable event.
+            return FileEvent{range, modified, mSize};
+        }(),
+        std::move(lock));
 }
 
 } // file_service
