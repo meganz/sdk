@@ -625,6 +625,57 @@ auto FileContext::execute(Request& request) -> std::enable_if_t<IsFileFlushReque
     return true;
 }
 
+// This function is pretty complex as it handles a lot of cases.
+//
+// The basic idea is that we want to get the most value out of any download
+// from the cloud we perform.
+//
+// For instance, if the user wants to read only 2KiB and we can't satisfy
+// that request, we might as well download 2MiB because it will take the
+// same time for the servers. That is, if it takes the same amount of time
+// to download 2KiB and 2MiB, we might as well download 2MiB because it's
+// better value.
+//
+// We also want to remove holes that surround a new range when it's
+// economical to do so. For instance, imagine the user is performing a read
+// and that the read is surrounded by ranges on either side. If those ranges
+// are not too far away, we might as well extend the read so that the range
+// that we wind up creating fills the space between the surrounding ranges
+// completely.
+//
+// Note that there are really two ranges we're dealing with when we are
+// executing a user's read: there's the range the user gave us directly and
+// then there's the effective range, the one that we actually use for
+// downloading. The effective range will always be the same or larger than
+// the range the user provided.
+//
+// The cases are roughly as follows:
+//
+// - A user's request can be completely satisfied by an existing range.
+//   - The existing range has already been downloaded.
+//     - Execute the user's request and do no further processing.
+//   - The existing range is still being downloaded.
+//     - Queue the user's request for later completion.
+//
+// - A user's request can be partly satisfied by an existing range.
+//   - The range contains the beginning of the user's read.
+//     - The range has already been downloaded.
+//       - Execute the user's request immediately.
+//     - The range is still being downloaded.
+//       - Queue the user's request for later completion.
+//   - Extend the user's read so that we download a sane amount.
+//     - The sane amount being at least mMinimumRangeSize.
+//   - Check if there are any ranges before or after our extended range.
+//     - If they are close enough, extend the range again.
+//       - Close enough being mMinimumRangeDistance.
+//       - That is, fill the holes if it's cheap enough to do so.
+//   - Fill all of the holes in our extended range.
+//     - That is, download all of the subranges we don't have.
+//
+// - A user's request cannot be satisfied by any existing range.
+//   - This case is handled pretty much the same as the case above.
+//   - It differs in that the user's request will be executed when the
+//     first hole is downloaded.
 bool FileContext::execute(FileReadRequest& request)
 {
     // Can't execute a read if there's a write in progress.
@@ -660,8 +711,9 @@ bool FileContext::execute(FileReadRequest& request)
     std::unique_lock lock(mRangesLock);
 
     // Try and locate the range that either:
-    // - contains our read, completely or partially.
-    // - preceeds our read.
+    // - Contains the beginning of our read.
+    // - Contains the read completely.
+    // - Preceeds the read.
     auto i = [&range, this]()
     {
         // Search for the first range that ends at or after our read begins.
@@ -679,7 +731,9 @@ bool FileContext::execute(FileReadRequest& request)
             // Does this range have a successor?
             auto j = std::next(i);
 
-            // Range's successor contains all or part of our read.
+            // Range's successor contains either:
+            // - The beginning of our read.
+            // - All of our read.
             if (j != mRanges.end() && j->first.mBegin <= range.mBegin)
                 return j;
 
@@ -687,7 +741,9 @@ bool FileContext::execute(FileReadRequest& request)
             return i;
         }
 
-        // The range contains all or part of our read.
+        // The range contains:
+        // - The beginning of our read.
+        // - All of our read.
         if (i->first.mBegin <= range.mBegin)
             return i;
 
