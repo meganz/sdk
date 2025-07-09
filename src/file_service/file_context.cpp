@@ -707,6 +707,9 @@ bool FileContext::execute(FileReadRequest& request)
     if (begin == end)
         return completed(mBuffer, std::move(request)), true;
 
+    // Update the file's access time.
+    mInfo->accessed(now());
+
     // Make sure we have exclusive access to mRanges.
     std::unique_lock lock(mRangesLock);
 
