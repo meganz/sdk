@@ -23,6 +23,11 @@ FileEventObserverID FileInfo::addObserver(FileEventObserver observer)
     return mContext->addObserver(std::move(observer));
 }
 
+std::int64_t FileInfo::accessed() const
+{
+    return mContext->accessed();
+}
+
 bool FileInfo::dirty() const
 {
     return mContext->dirty();

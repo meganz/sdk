@@ -40,13 +40,15 @@ void FileInfoContext::notify(const FileEvent& event)
     }
 }
 
-FileInfoContext::FileInfoContext(Activity activity,
+FileInfoContext::FileInfoContext(std::int64_t accessed,
+                                 Activity activity,
                                  bool dirty,
                                  NodeHandle handle,
                                  FileID id,
                                  std::int64_t modified,
                                  FileServiceContext& service,
                                  std::uint64_t size):
+    mAccessed(accessed),
     mActivity(std::move(activity)),
     mDirty(dirty),
     mHandle(handle),
@@ -80,6 +82,11 @@ FileEventObserverID FileInfoContext::addObserver(FileEventObserver observer)
 
     // Return the observer's ID to our caller.
     return iterator->first;
+}
+
+std::int64_t FileInfoContext::accessed() const
+{
+    return get(&FileInfoContext::mAccessed);
 }
 
 bool FileInfoContext::dirty() const

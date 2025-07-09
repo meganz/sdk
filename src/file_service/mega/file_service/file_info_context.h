@@ -27,6 +27,9 @@ class FileInfoContext
     // Transmit an event to all registered observers.
     void notify(const FileEvent& event);
 
+    // When was the file last accessed?
+    std::int64_t mAccessed;
+
     // Makes sure mService isn't destroyed until we are.
     common::Activity mActivity;
 
@@ -58,7 +61,8 @@ class FileInfoContext
     std::uint64_t mSize;
 
 public:
-    FileInfoContext(common::Activity activity,
+    FileInfoContext(std::int64_t accessed,
+                    common::Activity activity,
                     bool dirty,
                     NodeHandle handle,
                     FileID id,
@@ -67,6 +71,9 @@ public:
                     std::uint64_t size);
 
     ~FileInfoContext();
+
+    // When was this file last accessed?
+    std::int64_t accessed() const;
 
     // Add an observer.
     FileEventObserverID addObserver(FileEventObserver observer);

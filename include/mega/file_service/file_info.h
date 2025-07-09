@@ -41,6 +41,9 @@ public:
         return !operator==(rhs);
     }
 
+    // When was this file last accessed?
+    std::int64_t accessed() const;
+
     // Notify an observer when this file's information changes.
     FileEventObserverID addObserver(FileEventObserver observer);
 

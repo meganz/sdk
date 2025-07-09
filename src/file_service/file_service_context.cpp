@@ -172,13 +172,16 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     // Load the file from storage.
     auto file = mStorage.getFile(id);
 
+    // Compute the file's new access time.
+    auto accessed = now();
+
     // Latch the file's modification time.
     auto modified = query.field("modified").get<std::int64_t>();
 
     // Update the file's access time.
     query = transaction.query(mQueries.mSetFileAccessTime);
 
-    query.param(":accessed").set(now());
+    query.param(":accessed").set(accessed);
     query.param(":id").set(id);
 
     query.execute();
@@ -187,7 +190,8 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     transaction.commit();
 
     // Instantiate a context to represent this file's information.
-    auto info = std::make_shared<FileInfoContext>(mActivities.begin(),
+    auto info = std::make_shared<FileInfoContext>(accessed,
+                                                  mActivities.begin(),
                                                   dirty,
                                                   handle,
                                                   id,
@@ -258,11 +262,14 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     if (auto context = openFromIndex(id, lockContexts))
         return context;
 
+    // Compute the file's access time.
+    auto accessed = now();
+
     // Add the file to the database.
     auto transaction = mDatabase.transaction();
     auto query = transaction.query(mQueries.mAddFile);
 
-    query.param(":accessed").set(now());
+    query.param(":accessed").set(accessed);
     query.param(":dirty").set(false);
     query.param(":handle").set(node->mHandle);
     query.param(":id").set(id);
@@ -277,7 +284,8 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     transaction.commit();
 
     // Create a context to represent this file's information.
-    auto info = std::make_shared<FileInfoContext>(mActivities.begin(),
+    auto info = std::make_shared<FileInfoContext>(accessed,
+                                                  mActivities.begin(),
                                                   false,
                                                   node->mHandle,
                                                   id,
@@ -487,7 +495,8 @@ try
     }
 
     // Instantiate an info context to describe our new file.
-    auto info = std::make_shared<FileInfoContext>(mActivities.begin(),
+    auto info = std::make_shared<FileInfoContext>(modified,
+                                                  mActivities.begin(),
                                                   true,
                                                   NodeHandle(),
                                                   id,
