@@ -8027,13 +8027,16 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     onTransferStart_progress = 0;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    ASSERT_TRUE(WaitFor(
-        [&exitFlagAfterResume]()
-        {
-            // wait for onTransferStart after login + fetchnodes
-            return exitFlagAfterResume.load();
-        },
-        60000));
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    ASSERT_TRUE(WaitFor(std::bind(
+                            [](const std::atomic<bool>& flag)
+                            {
+                                // wait for onTransferStart after login + fetchnodes
+                                return flag.load();
+                            },
+                            std::cref(exitFlagAfterResume)),
+                        60000));
 
     ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
         << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
@@ -8042,6 +8045,7 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     ASSERT_EQ(tProgressContiguousPreResume, tProgressContiguousAfterResume)
         << "Progress contiguous mismatch between logout and onTransferStart values (it shouldn't "
            "have changed)";
+#endif
 
     ASSERT_EQ(API_OK, doSetMaxConnections(0, 4))
         << "doSetMaxConnections failed or took more than 1 minute";
@@ -16592,13 +16596,15 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
-    ASSERT_TRUE(WaitFor(
-        [&exitFlagAfterResume]()
-        {
-            // wait for onTransferStart after login + fetchnodes
-            return exitFlagAfterResume.load();
-        },
-        60000));
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    ASSERT_TRUE(WaitFor(std::bind(
+                            [](const std::atomic<bool>& flag)
+                            {
+                                // wait for onTransferStart after login + fetchnodes
+                                return flag.load();
+                            },
+                            std::cref(exitFlagAfterResume)),
+                        60000));
 
     ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
         << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
@@ -16607,6 +16613,7 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     ASSERT_EQ(tProgressContiguousPreResume, tProgressContiguousAfterResume)
         << "Progress contiguous mismatch between logout and onTransferStart values (it shouldn't "
            "have changed)";
+#endif
 
     // 4. Check upload resumption
     timer.reset();
@@ -16702,13 +16709,15 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
-    ASSERT_TRUE(WaitFor(
-        [&exitFlagAfterResume]()
-        {
-            // wait for onTransferStart after login + fetchnodes
-            return exitFlagAfterResume.load();
-        },
-        60000));
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    ASSERT_TRUE(WaitFor(std::bind(
+                            [](const std::atomic<bool>& flag)
+                            {
+                                // wait for onTransferStart after login + fetchnodes
+                                return flag.load();
+                            },
+                            std::cref(exitFlagAfterResume)),
+                        60000));
 
     ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
         << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
@@ -16717,6 +16726,7 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     ASSERT_EQ(tProgressContiguousPreResume, tProgressContiguousAfterResume)
         << "Progress contiguous mismatch between logout and onTransferStart values (it shouldn't "
            "have changed)";
+#endif
 
     // 8. Check download resumption
     timer.reset();
