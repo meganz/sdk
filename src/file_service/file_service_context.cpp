@@ -248,6 +248,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     auto transaction = mDatabase.transaction();
     auto query = transaction.query(mQueries.mAddFile);
 
+    query.param(":accessed").set(now());
     query.param(":dirty").set(false);
     query.param(":handle").set(node->mHandle);
     query.param(":id").set(id);
@@ -462,6 +463,7 @@ try
     {
         auto query = transaction.query(mQueries.mAddFile);
 
+        query.param(":accessed").set(modified);
         query.param(":dirty").set(true);
         query.param(":handle").set(nullptr);
         query.param(":id").set(id);

@@ -40,6 +40,9 @@ void downgrade10(Query& query)
 void upgrade01(Query& query)
 {
     query = "create table files ( "
+            "  accessed integer "
+            "  constraint nn_files_accessed "
+            "             not null, "
             "  dirty integer "
             "  constraint nn_files_dirty "
             "             not null, "

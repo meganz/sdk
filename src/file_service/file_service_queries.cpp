@@ -26,6 +26,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mSetNextFileID(database.query())
 {
     mAddFile = "insert into files values ( "
+               "  :accessed, "
                "  :dirty, "
                "  :handle, "
                "  :id, "
