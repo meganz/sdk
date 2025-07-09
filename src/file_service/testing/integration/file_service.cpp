@@ -64,6 +64,7 @@ namespace testing
 using common::makeSharedPromise;
 using fuse::testing::randomBytes;
 using fuse::testing::randomName;
+using ::testing::ElementsAre;
 
 constexpr auto timeout = std::future_status::timeout;
 
@@ -318,11 +319,7 @@ TEST_F(FileServiceTests, append_succeeds)
                                     size + computed.size()});
 
     // The file should now have two ranges.
-    auto ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 2u);
-    EXPECT_EQ(ranges[0], range);
-    EXPECT_EQ(ranges[1], FileRange(size, size + computed.size()));
+    ASSERT_THAT(file->ranges(), ElementsAre(range, FileRange(size, size + computed.size())));
 
     // Make sure the file's attributes have been updated.
     ASSERT_TRUE(info.dirty());
@@ -343,16 +340,8 @@ TEST_F(FileServiceTests, append_succeeds)
     ASSERT_GE(info.modified(), modified);
     ASSERT_EQ(info.size(), size + computed.size());
 
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 2u);
-    EXPECT_EQ(ranges[0], range);
-
-    // Convenience.
-    range.mBegin = size - computed.size();
-    range.mEnd = size + computed.size();
-
-    EXPECT_EQ(ranges[1], FileRange(range));
+    ASSERT_THAT(file->ranges(),
+                ElementsAre(range, FileRange(size - computed.size(), size + computed.size())));
 
     // Make sure we received the events we expected.
     ASSERT_EQ(expected, received);
@@ -490,10 +479,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
     ASSERT_EQ(file->info().size(), 192_KiB);
 
     // The file should have one range starting from the beginning of the file.
-    auto ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    ASSERT_EQ(ranges[0], FileRange(0, 192_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 192_KiB)));
 
     // All data before what we wrote should be zeroed.
     auto computed = execute(read, *file, 0, 128_KiB);
@@ -519,10 +505,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
     ASSERT_EQ(file->info().size(), 384_KiB);
 
     // We should still have a single range.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    ASSERT_EQ(ranges[0], FileRange(0, 384_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 384_KiB)));
 
     // We should be able to read back what we wrote.
     computed = execute(read, *file, 320_KiB, 64_KiB);
@@ -553,11 +536,8 @@ TEST_F(FileServiceTests, fetch_succeeds)
     ASSERT_FALSE(file->info().dirty());
 
     // Make sure two ranges are active.
-    auto ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 2u);
-    EXPECT_EQ(ranges[0], FileRange(256_KiB, 512_KiB));
-    EXPECT_EQ(ranges[1], FileRange(768_KiB, 896_KiB));
+    ASSERT_THAT(file->ranges(),
+                ElementsAre(FileRange(256_KiB, 512_KiB), FileRange(768_KiB, 896_KiB)));
 
     // Try and fetch the rest of the file's content.
     ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
@@ -566,10 +546,7 @@ TEST_F(FileServiceTests, fetch_succeeds)
     ASSERT_FALSE(file->info().dirty());
 
     // We should now have a single range.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    EXPECT_EQ(ranges[0], FileRange(0, 1_MiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 1_MiB)));
 }
 
 TEST_F(FileServiceTests, flush_cancel_on_client_logout_succeeds)
@@ -859,42 +836,27 @@ TEST_F(FileServiceTests, read_extension_succeeds)
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Make sure we have the ranges we expect.
-    auto ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 2u);
-    ASSERT_EQ(ranges[0], FileRange(0, 64_KiB));
-    ASSERT_EQ(ranges[1], FileRange(192_KiB, 256_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 64_KiB), FileRange(192_KiB, 256_KiB)));
 
     // Read another range, right in the hole we created before.
     data = execute(read, *file, 96_KiB, 64_KiB);
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Make sure our range was expanded to fill the hole.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    ASSERT_EQ(ranges[0], FileRange(0, 256_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 256_KiB)));
 
     // Read another range, just beyond the extension threshold.
     data = execute(read, *file, 289_KiB, 64_KiB);
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Make sure the range wasn't extended.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 2u);
-    ASSERT_EQ(ranges[0], FileRange(0, 256_KiB));
-    ASSERT_EQ(ranges[1], FileRange(289_KiB, 353_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 256_KiB), FileRange(289_KiB, 353_KiB)));
 
     // Perform a read to make sure we extend to the left.
     data = execute(read, *file, 385_KiB, 64_KiB);
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 2u);
-    ASSERT_EQ(ranges[0], FileRange(0, 256_KiB));
-    ASSERT_EQ(ranges[1], FileRange(289_KiB, 449_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 256_KiB), FileRange(289_KiB, 449_KiB)));
 
     // Perform another read to create another hole.
     data = execute(read, *file, 640_KiB, 64_KiB);
@@ -904,12 +866,10 @@ TEST_F(FileServiceTests, read_extension_succeeds)
     data = execute(read, *file, 576_KiB, 32_KiB);
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 3u);
-    ASSERT_EQ(ranges[0], FileRange(0, 256_KiB));
-    ASSERT_EQ(ranges[1], FileRange(289_KiB, 449_KiB));
-    ASSERT_EQ(ranges[2], FileRange(576_KiB, 704_KiB));
+    ASSERT_THAT(file->ranges(),
+                ElementsAre(FileRange(0, 256_KiB),
+                            FileRange(289_KiB, 449_KiB),
+                            FileRange(576_KiB, 704_KiB)));
 
     // Fill remaining holes via extension.
     data = execute(read, *file, 272_KiB, 8_KiB);
@@ -919,10 +879,7 @@ TEST_F(FileServiceTests, read_extension_succeeds)
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // We should now have a single range.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    ASSERT_EQ(ranges[0], FileRange(0, 704_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 704_KiB)));
 }
 
 TEST_F(FileServiceTests, read_size_extension_succeeds)
@@ -943,10 +900,7 @@ TEST_F(FileServiceTests, read_size_extension_succeeds)
     ASSERT_EQ(static_cast<std::uint64_t>(data->size()), 4_KiB);
 
     // Make sure the read's size was extended.
-    auto ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    ASSERT_EQ(ranges[0], FileRange(0, 64_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 64_KiB)));
 }
 
 TEST_F(FileServiceTests, read_succeeds)
@@ -968,10 +922,7 @@ TEST_F(FileServiceTests, read_succeeds)
     EXPECT_TRUE(compare(*result, mFileContent, 0, 64_KiB));
 
     // Make sure the range is considered to be in storage.
-    auto ranges = file->ranges();
-
-    ASSERT_FALSE(ranges.empty());
-    EXPECT_EQ(ranges.front(), FileRange(0, 64_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 64_KiB)));
 
     // Read another 64KiB.
     result = execute(read, *file, 64_KiB, 64_KiB);
@@ -983,10 +934,7 @@ TEST_F(FileServiceTests, read_succeeds)
     EXPECT_TRUE(compare(*result, mFileContent, 64_KiB, 64_KiB));
 
     // We should have one 128KiB range in storage.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    EXPECT_EQ(ranges.front(), FileRange(0, 128_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 128_KiB)));
 
     // Kick off two reads in parallel.
     auto waiter0 = read(*file, 128_KiB, 64_KiB);
@@ -1010,10 +958,7 @@ TEST_F(FileServiceTests, read_succeeds)
     EXPECT_TRUE(compare(*result1, mFileContent, 192_KiB, 64_KiB));
 
     // We should have one 256KiB range in storage.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    EXPECT_EQ(ranges.front(), FileRange(0, 256_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 256_KiB)));
 
     // Make sure zero length reads are handled correctly.
     result = execute(read, *file, 0, 0);
@@ -1244,39 +1189,37 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
     EXPECT_EQ(fetch(160_KiB, 32_KiB), FILE_SUCCESS);
 
     // Make sure we have the ranges we requested.
-    auto ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 3u);
-    EXPECT_EQ(ranges[0], FileRange(32_KiB, 64_KiB));
-    EXPECT_EQ(ranges[1], FileRange(96_KiB, 128_KiB));
-    EXPECT_EQ(ranges[2], FileRange(160_KiB, 192_KiB));
+    ASSERT_THAT(file->ranges(),
+                ElementsAre(FileRange(32_KiB, 64_KiB),
+                            FileRange(96_KiB, 128_KiB),
+                            FileRange(160_KiB, 192_KiB)));
 
     // Truncate the file to 256KiB.
     ASSERT_EQ(truncate(256_KiB), FILE_SUCCESS);
 
     // Existing ranges should be unchanged.
-    ASSERT_EQ(file->ranges(), ranges);
+    ASSERT_THAT(file->ranges(),
+                ElementsAre(FileRange(32_KiB, 64_KiB),
+                            FileRange(96_KiB, 128_KiB),
+                            FileRange(160_KiB, 192_KiB)));
 
     // Truncate the file to 160KiB.
     ASSERT_EQ(truncate(160_KiB), FILE_SUCCESS);
 
     // The range [160, 192] should have been removed.
-    ranges.pop_back();
-    ASSERT_EQ(file->ranges(), ranges);
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(32_KiB, 64_KiB), FileRange(96_KiB, 128_KiB)));
 
     // Truncate the file to 112KiB.
     ASSERT_EQ(truncate(112_KiB), FILE_SUCCESS);
 
     // The range [96, 128] should become [96, 112].
-    ranges.back().mEnd = 112_KiB;
-    ASSERT_EQ(file->ranges(), ranges);
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(32_KiB, 64_KiB), FileRange(96_KiB, 112_KiB)));
 
     // Extend the file to 256KiB.
     ASSERT_EQ(truncate(256_KiB), FILE_SUCCESS);
 
     // The range [96, 112] should become [96, 256].
-    ranges.back().mEnd = 256_KiB;
-    ASSERT_EQ(file->ranges(), ranges);
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(32_KiB, 64_KiB), FileRange(96_KiB, 256_KiB)));
 }
 
 TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
@@ -1342,10 +1285,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     EXPECT_EQ(info.size(), size);
 
     // There should be a single active range.
-    auto ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    EXPECT_EQ(ranges[0], FileRange(size / 2, size));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(size / 2, size)));
 
     // Make sure we can still read the file's content.
     auto result = execute(read, *file, 0, size);
@@ -1473,11 +1413,7 @@ TEST_F(FileServiceTests, write_succeeds)
     ASSERT_EQ(read(64_KiB, 64_KiB), FILE_SUCCESS);
 
     // And that the file has a single range.
-    auto ranges = file->ranges();
-
-    // Which is from 64KiB..128KiB.
-    ASSERT_EQ(ranges.size(), 1u);
-    EXPECT_EQ(ranges.front(), FileRange(64_KiB, 128_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(64_KiB, 128_KiB)));
 
     // Read 128KiB from the file.
     //
@@ -1485,10 +1421,7 @@ TEST_F(FileServiceTests, write_succeeds)
     ASSERT_EQ(read(0, 128_KiB), FILE_SUCCESS);
 
     // We should have a single 128KiB range.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    EXPECT_EQ(ranges.front(), FileRange(0, 128_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 128_KiB)));
 
     // Read 128KiB from the file.
     //
@@ -1497,22 +1430,16 @@ TEST_F(FileServiceTests, write_succeeds)
     ASSERT_EQ(read(320_KiB, 64_KiB), FILE_SUCCESS);
 
     // We should now have three ranges.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 3u);
-    EXPECT_EQ(ranges[0], FileRange(0, 128_KiB));
-    EXPECT_EQ(ranges[1], FileRange(192_KiB, 256_KiB));
-    EXPECT_EQ(ranges[2], FileRange(320_KiB, 384_KiB));
+    ASSERT_THAT(file->ranges(),
+                ElementsAre(FileRange(0, 128_KiB),
+                            FileRange(192_KiB, 256_KiB),
+                            FileRange(320_KiB, 384_KiB)));
 
     // Write 192KiB to the file.
     ASSERT_EQ(write(computed.data(), 160_KiB, 192_KiB), FILE_SUCCESS);
 
     // We should now have two ranges.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 2u);
-    EXPECT_EQ(ranges[0], FileRange(0, 128_KiB));
-    EXPECT_EQ(ranges[1], FileRange(160_KiB, 384_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 128_KiB), FileRange(160_KiB, 384_KiB)));
 
     // Read 384KiB from the file.
     //
@@ -1520,20 +1447,13 @@ TEST_F(FileServiceTests, write_succeeds)
     ASSERT_EQ(read(0, 384_KiB), FILE_SUCCESS);
 
     // Which should coalesce with all the other ranges.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 1u);
-    EXPECT_EQ(ranges.front(), FileRange(0, 384_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 384_KiB)));
 
     // Make sure writes can extend the file's size.
     ASSERT_EQ(write(computed.data(), 2_MiB, 64_KiB), FILE_SUCCESS);
 
     // We should now have two ranges.
-    ranges = file->ranges();
-
-    ASSERT_EQ(ranges.size(), 2u);
-    EXPECT_EQ(ranges[0], FileRange(0, 384_KiB));
-    EXPECT_EQ(ranges[1], FileRange(1024_KiB, 2112_KiB));
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 384_KiB), FileRange(1024_KiB, 2112_KiB)));
 
     // Make sure we can read back what we wrote.
     ASSERT_EQ(read(2_MiB, 64_KiB), FILE_SUCCESS);
