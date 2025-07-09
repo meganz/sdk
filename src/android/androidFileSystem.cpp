@@ -784,7 +784,7 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
     return true;
 }
 
-void AndroidFileAccess::fclose()
+void AndroidFileAccess::fCloseInternal()
 {
     if (fd >= 0)
     {
@@ -792,6 +792,11 @@ void AndroidFileAccess::fclose()
     }
 
     fd = -1;
+}
+
+void AndroidFileAccess::fclose()
+{
+    fCloseInternal();
 }
 
 bool AndroidFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
@@ -850,7 +855,10 @@ AndroidFileAccess::AndroidFileAccess(Waiter* w, int defaultfilepermissions, bool
     mDefaultFilePermissions(defaultfilepermissions)
 {}
 
-AndroidFileAccess::~AndroidFileAccess() {}
+AndroidFileAccess::~AndroidFileAccess()
+{
+    fCloseInternal();
+}
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileAccess::stealFileWrapper()
 {
