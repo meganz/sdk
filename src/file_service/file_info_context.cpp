@@ -63,7 +63,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
 
 FileInfoContext::~FileInfoContext()
 {
-    mService.removeFromIndex(FileInfoContextBadge(), mID);
+    mService.removeFromIndex(FileInfoContextBadge(), *this);
 }
 
 FileEventObserverID FileInfoContext::addObserver(FileEventObserver observer)
@@ -82,6 +82,13 @@ FileEventObserverID FileInfoContext::addObserver(FileEventObserver observer)
 
     // Return the observer's ID to our caller.
     return iterator->first;
+}
+
+void FileInfoContext::accessed(std::int64_t accessed)
+{
+    std::lock_guard guard(mLock);
+
+    mAccessed = std::max(accessed, mAccessed);
 }
 
 std::int64_t FileInfoContext::accessed() const

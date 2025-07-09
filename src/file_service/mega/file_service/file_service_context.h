@@ -151,10 +151,10 @@ public:
     auto ranges(FileID id) -> FileServiceResultOr<FileRangeVector>;
 
     // Remove a file context from our index.
-    auto removeFromIndex(FileContextBadge badge, FileID id) -> void;
+    void removeFromIndex(FileContextBadge badge, FileID id);
 
     // Remove a file info context from our index.
-    auto removeFromIndex(FileInfoContextBadge badge, FileID id) -> void;
+    void removeFromIndex(FileInfoContextBadge badge, FileInfoContext& context);
 }; // FileServiceContext
 
 } // file_service

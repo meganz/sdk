@@ -214,9 +214,20 @@ template<typename Lock>
 auto FileServiceContext::infoFromIndex(FileID id, Lock&& lock, bool open)
     -> std::pair<FileInfoContextPtr, FileAccessPtr>
 {
+    // Check if this file's information is in the index.
     auto info = getFromIndex(id, std::forward<Lock>(lock), mInfoContexts);
-    auto file = info && open ? mStorage.getFile(id) : nullptr;
 
+    // File's information isn't in the index.
+    if (!info)
+        return {};
+
+    // Open the file if requested.
+    auto file = open ? mStorage.getFile(id) : nullptr;
+
+    // Update the file's last access time.
+    info->accessed(now());
+
+    // Return the file and its information to our caller.
     return std::make_pair(std::move(info), std::move(file));
 }
 
@@ -624,9 +635,12 @@ void FileServiceContext::removeFromIndex(FileContextBadge, FileID id)
     removeFromIndex(id, mFileContexts);
 }
 
-void FileServiceContext::removeFromIndex(FileInfoContextBadge, FileID id)
+void FileServiceContext::removeFromIndex(FileInfoContextBadge, FileInfoContext& context)
 try
 {
+    // Latch the file's ID.
+    auto id = context.id();
+
     // Make sure we have exclusive access to mInfoContexts.
     UniqueLock lockContexts(mLock);
 
@@ -646,7 +660,18 @@ try
 
     // Don't purge the file as it still has references.
     if (query.field("num_references").get<std::uint64_t>())
-        return;
+    {
+        // Update the file's last access time.
+        query = transaction.query(mQueries.mSetFileAccessTime);
+
+        query.param(":accessed").set(context.accessed());
+        query.param(":id").set(id);
+
+        query.execute();
+
+        // Persist our changes.
+        return transaction.commit();
+    }
 
     // Remove the file from the database.
     query = transaction.query(mQueries.mRemoveFile);
@@ -667,7 +692,9 @@ try
 
 catch (std::runtime_error& exception)
 {
-    FSWarningF("Unable to purge %s from storage: %s", toString(id).c_str(), exception.what());
+    FSWarningF("Unable to purge %s from storage: %s",
+               toString(context.id()).c_str(),
+               exception.what());
 }
 
 Database createDatabase(const LocalPath& databasePath)
