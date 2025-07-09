@@ -224,6 +224,7 @@ pipeline {
                                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                                 # Sequential run
                                                 coreFiles=\"pid_\$pid/core\"
+                                                cp "${linux_sources_workspace}/pid_\$pid/test_integration.log" .
                                             else
                                                 # Parallel run
                                                 procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/'`

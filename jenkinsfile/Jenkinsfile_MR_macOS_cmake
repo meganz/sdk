@@ -171,7 +171,7 @@ pipeline {
                 }
                 stage('Run macOS tests'){
                     options{
-                        timeout(time: 250, unit: 'MINUTES')
+                        timeout(time: 450, unit: 'MINUTES')
                     }
                     environment {
                         MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
@@ -231,6 +231,7 @@ pipeline {
                                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                                 # Sequential run
                                                 procFailed=\$pid
+                                                cp ${mac_sources_workspace}/pid_\$pid/test_integration.log .
                                             else
                                                 # Parallel run
                                                 procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/' | tr '\\n' ' '`

@@ -224,6 +224,9 @@ pipeline {
                         failure {
                             script {
                                 setCommitStatus('tests_failure', ':warning: Build succeed. Tests failed')
+                                if ("${TESTS_PARALLEL}" == '') {
+                                    archiveArtifacts artifacts: '*/test_integration.log', fingerprint: true, allowEmptyArchive: true
+                                }
                             }
                             error("Test stage failed")
                         }
