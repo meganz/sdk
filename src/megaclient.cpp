@@ -15468,8 +15468,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                     return;
                 }
 
-                if (loggedin() == FULLACCOUNT
-                        || loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                if (loggedin() == FULLACCOUNT || loggedin() == EPHEMERALACCOUNTPLUSPLUS ||
+                    loggedin() == CONFIRMEDACCOUNT)
                 {
                     initializekeys();
                     loadAuthrings();
