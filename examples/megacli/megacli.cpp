@@ -10262,30 +10262,27 @@ void DemoApp::nodes_current()
 
 void DemoApp::account_updated()
 {
+    LOG_debug << "Account has been upgraded/downgraded.";
+}
+
+void DemoApp::notify_confirmation(const char* email)
+{
+    // Upon "uac" action packet. Cryptographic system initialized, ready for login.
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed by another client. Proceed to login with credentials.";
-    }
-    else
-    {
-        LOG_debug << "Account has been upgraded/downgraded.";
+        LOG_debug << "Account setup completed with email " << email << ".";
+        cout << "Account setup completed with email " << email
+             << ". Proceed to login with credentials." << endl;
     }
 }
 
-void DemoApp::notify_confirmation(const char *email)
+void DemoApp::notify_confirm_user_email(handle user, const char* email)
 {
+    // Upon "uec" action packet. Account confirmed with the signup link.
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with email " << email << ".";
-    }
-}
-
-void DemoApp::notify_confirm_user_email(handle user, const char *email)
-{
-    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
-    {
-        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
-        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials." << endl;
+        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email "
+                  << email;
     }
 }
 

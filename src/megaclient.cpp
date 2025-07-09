@@ -15613,6 +15613,10 @@ void MegaClient::initializekeys()
         privRSA = Base64::btoa(RSAkeys.first);
         pubRSA = RSAkeys.second;
     }
+    else
+    {
+        LOG_info << "Skip creation of RSA keypair for E++ account.";
+    }
 
     string prEd255, puEd255;    // keypair for Ed25519  --> MegaClient::signkey
     string prCu255, puCu255;    // keypair for Cu25519  --> MegaClient::chatkey
