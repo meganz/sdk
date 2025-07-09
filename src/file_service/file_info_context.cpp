@@ -24,11 +24,10 @@ auto FileInfoContext::get(T FileInfoContext::* const property) const
     return this->*property;
 }
 
-template<typename Lock>
-void FileInfoContext::notify(const FileEvent& event, Lock&& lock)
+void FileInfoContext::notify(const FileEvent& event)
 {
-    assert(lock.owns_lock());
-    assert(lock.mutex() == &mObserversLock);
+    // Make sure no one's modifying our map of observers.
+    std::lock_guard guard(mObserversLock);
 
     // Transmit event to each observer.
     for (auto i = mObservers.begin(); i != mObservers.end();)
@@ -108,9 +107,6 @@ FileID FileInfoContext::id() const
 
 void FileInfoContext::modified(std::int64_t modified)
 {
-    // Make sure no one changes our observers.
-    std::unique_lock lock(mObserversLock);
-
     // Update the file's modification time and return a new event.
     notify(
         [modified, this]()
@@ -126,8 +122,7 @@ void FileInfoContext::modified(std::int64_t modified)
 
             // Return an event to our caller.
             return FileEvent{std::nullopt, mModified, mSize};
-        }(),
-        std::move(lock));
+        }());
 }
 
 std::int64_t FileInfoContext::modified() const
@@ -154,9 +149,6 @@ std::uint64_t FileInfoContext::size() const
 
 void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
 {
-    // Make sure no one is messing with our observers.
-    std::unique_lock lock(mObserversLock);
-
     // Update the file's information and return an event for notification.
     notify(
         [modified, size, this]() mutable
@@ -185,15 +177,11 @@ void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
 
             // Return event to our caller.
             return event;
-        }(),
-        std::move(lock));
+        }());
 }
 
 void FileInfoContext::written(const FileRange& range, std::int64_t modified)
 {
-    // Make sure no one is messing with our observers.
-    std::unique_lock lock(mObserversLock);
-
     // Update the file's information and return an event for notification.
     notify(
         [&range, modified, this]()
@@ -212,8 +200,7 @@ void FileInfoContext::written(const FileRange& range, std::int64_t modified)
 
             // Return a suitable event.
             return FileEvent{range, modified, mSize};
-        }(),
-        std::move(lock));
+        }());
 }
 
 } // file_service

@@ -25,8 +25,7 @@ class FileInfoContext
     auto get(T FileInfoContext::* const property) const;
 
     // Transmit an event to all registered observers.
-    template<typename Lock>
-    void notify(const FileEvent& event, Lock&& lock);
+    void notify(const FileEvent& event);
 
     // Makes sure mService isn't destroyed until we are.
     common::Activity mActivity;
