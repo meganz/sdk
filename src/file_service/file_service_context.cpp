@@ -192,28 +192,39 @@ auto FileServiceContext::info(FileID id, bool open) -> std::pair<FileInfoContext
 
 auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileContextPtr>
 {
+    // Synthetic IDs are never a valid node handle.
     if (synthetic(id))
         return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 
+    // Check if a node exists in the cloud with this ID.
     auto node = mClient.get(id.toHandle());
 
+    // Couldn't get a reference to the node.
     if (!node)
     {
+        // Because it doesn't exist in the cloud.
         if (node.error() == API_ENOENT)
             return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 
+        // Because we hit some unexpected error.
         return unexpected(FILE_SERVICE_UNEXPECTED);
     }
 
+    // You can't open a directory as a file.
     if (node->mIsDirectory)
         return unexpected(FILE_SERVICE_FILE_IS_A_DIRECTORY);
 
+    // Make sure no one's changing our indexes.
     UniqueLock lockContexts(mLock);
+
+    // Make sure no one's changing the database.
     UniqueLock lockDatabase(mDatabase);
 
+    // Another thread opened this file while we were acquiring locks.
     if (auto context = openFromIndex(id, lockContexts))
         return context;
 
+    // Add the file to the database.
     auto transaction = mDatabase.transaction();
     auto query = transaction.query(mQueries.mAddFile);
 
@@ -224,10 +235,13 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
 
     query.execute();
 
+    // Add the file to storage.
     auto file = mStorage.addFile(*node);
 
+    // Persist our database changes.
     transaction.commit();
 
+    // Create a context to represent this file's information.
     auto info = std::make_shared<FileInfoContext>(mActivities.begin(),
                                                   false,
                                                   node->mHandle,
@@ -236,16 +250,20 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
                                                   *this,
                                                   static_cast<std::uint64_t>(node->mSize));
 
+    // Make sure this file's info is in our index.
     mInfoContexts.emplace(id, info);
 
+    // Create a context to represent the file itself.
     auto context = std::make_shared<FileContext>(mActivities.begin(),
                                                  std::move(file),
                                                  std::move(info),
                                                  FileRangeVector(),
                                                  *this);
 
+    // Make sure the file is in our index.
     mFileContexts.emplace(id, context);
 
+    // Return the file to our caller.
     return context;
 }
 
