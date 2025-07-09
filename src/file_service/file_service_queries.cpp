@@ -20,6 +20,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mRemoveFile(database.query()),
     mRemoveFileID(database.query()),
     mRemoveFileRanges(database.query()),
+    mSetFileAccessTime(database.query()),
     mSetFileHandle(database.query()),
     mSetFileModificationTime(database.query()),
     mSetFileReferences(database.query()),
@@ -73,12 +74,13 @@ FileServiceQueries::FileServiceQueries(Database& database):
                         "   and end <= :end "
                         "   and id = :id";
 
+    mSetFileAccessTime = "update files "
+                         "   set accessed = :accessed "
+                         " where id = :id";
+
     mSetFileHandle = "update files "
                      "   set handle = :handle "
                      " where id = :id";
-
-    mSetNextFileID = "update file_id "
-                     "   set next = :next";
 
     mSetFileModificationTime = "update files "
                                "   set dirty = 1 "
@@ -88,6 +90,9 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mSetFileReferences = "update files "
                          "   set num_references = :num_references "
                          " where id = :id";
+
+    mSetNextFileID = "update file_id "
+                     "   set next = :next";
 }
 
 } // file_service
