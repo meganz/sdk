@@ -126,36 +126,53 @@ auto FileServiceContext::getFromIndex(FileID id,
 auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     -> std::pair<FileInfoContextPtr, FileAccessPtr>
 {
+    // Make sure no one is changing our indexes.
     UniqueLock lockContexts(mLock);
+
+    // Make sure no one is changing our database.
     UniqueLock lockDatabase(mDatabase);
 
+    // Another thread loaded this file's info while we were acquiring locks.
     if (auto result = infoFromIndex(id, lockContexts, open); result.first)
         return result;
 
+    // Check if this file exists in the database.
     auto transaction = mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetFile);
 
     query.param(":handle").set(nullptr);
     query.param(":id").set(id);
 
+    // The caller's looking up the file by a node handle.
     if (!synthetic(id))
         query.param(":handle").set(id.toHandle());
 
     query.execute();
 
+    // We know nothing about this file.
     if (!query)
         return {};
 
+    // Latch the file's attributes.
     auto dirty = query.field("dirty").get<bool>();
     auto handle = NodeHandle();
 
     if (!query.field("handle").null())
         handle = query.field("handle").get<NodeHandle>();
 
+    // Latch the file's actual ID.
+    //
+    // This is needed as the ID the caller has provided may not be the
+    // file's actual ID.
+    //
+    // An example would be when the caller is looking up a file based on
+    // that file's node handle.
     id = query.field("id").get<FileID>();
 
+    // Load the file from storage.
     auto file = mStorage.getFile(id);
 
+    // Instantiate a context to represent this file's information.
     auto info = std::make_shared<FileInfoContext>(mActivities.begin(),
                                                   dirty,
                                                   handle,
@@ -164,11 +181,14 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
                                                   *this,
                                                   static_cast<std::uint64_t>(file->size));
 
+    // Add the context to our index.
     mInfoContexts.emplace(id, info);
 
+    // Caller isn't interested in the file itself, only its information.
     if (!open)
         file.reset();
 
+    // Return the file and its information to our caller.
     return std::make_pair(std::move(info), std::move(file));
 }
 
