@@ -143,8 +143,10 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Decrease this file's size.
     void shrink(std::uint64_t newSize, std::uint64_t oldSize, common::Transaction& transaction);
 
-    // Update this file's modification time in the database.
-    void updateModificationTime(std::int64_t modified, common::Transaction& transaction);
+    // Update this file's access and modification time in the database.
+    void updateAccessAndModificationTimes(std::int64_t accessed,
+                                          std::int64_t modified,
+                                          common::Transaction& transaction);
 
     // Keep our service alive until we're dead.
     common::Activity mActivity;

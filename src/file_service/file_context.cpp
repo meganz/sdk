@@ -536,8 +536,8 @@ bool FileContext::execute(FileAppendRequest& request)
     // Compute the file's new modification time.
     auto modified = now();
 
-    // Update the file's modification time.
-    updateModificationTime(modified, transaction);
+    // Update the file's access and modification time.
+    updateAccessAndModificationTimes(modified, modified, transaction);
 
     // Remove obsolete ranges from memory.
     mRanges.remove(candidate, mRanges.end());
@@ -906,17 +906,20 @@ bool FileContext::execute(FileTouchRequest& request)
     if (!mReadWriteState.write())
         return false;
 
+    // Compute the file's new access time.
+    auto accessed = now();
+
     // Convenience.
     auto transaction = mService.database().transaction();
 
-    // Update the file's modification time.
-    updateModificationTime(request.mModified, transaction);
+    // Update the file's access and modification time.
+    updateAccessAndModificationTimes(accessed, request.mModified, transaction);
 
     // Persist our changes.
     transaction.commit();
 
     // Update file attributes.
-    mInfo->modified(request.mModified);
+    mInfo->modified(accessed, request.mModified);
 
     // Queue the user's request for completion.
     completed(std::move(request), FILE_SUCCESS);
@@ -954,8 +957,8 @@ bool FileContext::execute(FileTruncateRequest& request)
     // Compute the file's new modification time.
     auto modified = now();
 
-    // Update the file's modification time in the database.
-    updateModificationTime(modified, transaction);
+    // Update the file's access and modification times in the database.
+    updateAccessAndModificationTimes(modified, modified, transaction);
 
     // Persist our changes.
     transaction.commit();
@@ -1073,8 +1076,8 @@ bool FileContext::execute(FileWriteRequest& request)
     // Compute the file's new modification time.
     auto modified = now();
 
-    // Update the file's modification time in the database.
-    updateModificationTime(modified, transaction);
+    // Update the file's access and modification times in the database.
+    updateAccessAndModificationTimes(modified, modified, transaction);
 
     // Remove obsolete ranges from memory.
     mRanges.remove(begin, end);
@@ -1269,10 +1272,13 @@ void FileContext::shrink(std::uint64_t newSize, std::uint64_t oldSize, Transacti
     }
 }
 
-void FileContext::updateModificationTime(std::int64_t modified, Transaction& transaction)
+void FileContext::updateAccessAndModificationTimes(std::int64_t accessed,
+                                                   std::int64_t modified,
+                                                   Transaction& transaction)
 {
     auto query = transaction.query(mService.queries().mSetFileModificationTime);
 
+    query.param(":accessed").set(accessed);
     query.param(":modified").set(modified);
     query.param(":id").set(mInfo->id());
 

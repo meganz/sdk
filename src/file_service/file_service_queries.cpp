@@ -83,7 +83,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
                      " where id = :id";
 
     mSetFileModificationTime = "update files "
-                               "   set dirty = 1 "
+                               "   set accessed = :accessed "
+                               "     , dirty = 1 "
                                "     , modified = :modified "
                                " where id = :id";
 

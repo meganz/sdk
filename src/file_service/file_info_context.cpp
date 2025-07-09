@@ -119,17 +119,20 @@ FileID FileInfoContext::id() const
     return mID;
 }
 
-void FileInfoContext::modified(std::int64_t modified)
+void FileInfoContext::modified(std::int64_t accessed, std::int64_t modified)
 {
     // Update the file's modification time and return a new event.
     notify(
-        [modified, this]()
+        [accessed, modified, this]()
         {
             // Make sure no one else is changing this file's information.
             UniqueLock guard(mLock);
 
             // Mark file as having been locally modified.
             mDirty = true;
+
+            // Update the file's access time.
+            mAccessed = std::max(accessed, mAccessed);
 
             // Update the file's modification time.
             mModified = modified;
@@ -176,6 +179,9 @@ void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
             // Mark file as having been locally modified.
             mDirty = true;
 
+            // Update the file's access time.
+            mAccessed = std::max(mAccessed, modified);
+
             // Update the file's modification time.
             mModified = modified;
 
@@ -198,13 +204,16 @@ void FileInfoContext::written(const FileRange& range, std::int64_t modified)
 {
     // Update the file's information and return an event for notification.
     notify(
-        [&range, modified, this]()
+        [modified, &range, this]()
         {
             // Make sure we have exclusive access to our information.
             UniqueLock guard(mLock);
 
             // Mark file as having been locally modified.
             mDirty = true;
+
+            // Update the file's access time.
+            mAccessed = std::max(mAccessed, modified);
 
             // Update the file's modification time.
             mModified = modified;
