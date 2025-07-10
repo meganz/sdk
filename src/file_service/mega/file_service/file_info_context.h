@@ -93,7 +93,7 @@ public:
     // What is this file's identifier?
     auto id() const -> FileID;
 
-    // Update the file's acces and modification time.
+    // Update the file's access and modification time.
     void modified(std::int64_t accessed, std::int64_t modified);
 
     // When was this file last modified?
