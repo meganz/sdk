@@ -211,6 +211,9 @@ pipeline {
                                             ${env.BUILD_DIR}/tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
                                             pid=\$!
                                             wait \$pid || FAILED=3
+                                            if [ \"\$FAILED\" = \"3\" ]; then
+                                                cp ${linux_sources_workspace}/pid_\$pid/test_integration.log .
+                                            fi
                                         else
                                             # Parallel run
                                             ${env.BUILD_DIR}/tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
@@ -224,7 +227,6 @@ pipeline {
                                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                                 # Sequential run
                                                 coreFiles=\"pid_\$pid/core\"
-                                                cp "${linux_sources_workspace}/pid_\$pid/test_integration.log" .
                                             else
                                                 # Parallel run
                                                 procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/'`
