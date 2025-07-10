@@ -4,6 +4,7 @@
 #include <mega/file_service/file_service_options_forward.h>
 
 #include <cstdint>
+#include <optional>
 
 namespace mega
 {
@@ -23,6 +24,9 @@ struct FileServiceOptions
 
     // How long should we wait between retries?
     common::deciseconds mRangeRetryBackoff{20};
+
+    // How many bytes can the service store before it needs to reclaim space?
+    std::optional<std::uint64_t> mReclaimSizeThreshold{};
 }; // FileServiceOptions
 
 } // file_service
