@@ -6765,10 +6765,6 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
     arg("pubk", pubk, static_cast<int>(pubklen));
 
     tag = client->reqtag;
-
-    len = privklen;
-    privkBuffer.reset(new byte[privklen]);
-    memcpy(privkBuffer.get(), privk, len);
 }
 
 bool CommandSetKeyPair::procresult(Result r, JSON& json)
@@ -6776,21 +6772,15 @@ bool CommandSetKeyPair::procresult(Result r, JSON& json)
     if (r.hasJsonItem())
     {
         json.storeobject();
-
-        client->key.ecb_decrypt(privkBuffer.get(), len);
-        client->mSerializedPrivateRsaKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
-        client->mSerializedPrivateRsaKey.resize(
-            static_cast<size_t>(Base64::btoa(privkBuffer.get(),
-                                             static_cast<int>(len),
-                                             (char*)client->mSerializedPrivateRsaKey.data())));
-
         client->app->setkeypair_result(API_OK);
         return true;
-
     }
     else if (r.wasErrorOrOK())
     {
-        client->mPrivateRsaKey.resetkey(); // clear local value, since it failed to set
+        // clear local value, since it failed to set
+        client->mPrivateRsaKey.resetkey();
+        client->mPublicRsaKey.resetkey();
+        client->mSerializedPrivateRsaKey.clear();
         client->app->setkeypair_result(r.errorOrOK());
         return true;
     }
