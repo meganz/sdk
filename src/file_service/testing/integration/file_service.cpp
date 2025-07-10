@@ -307,7 +307,7 @@ TEST_F(FileServiceTests, append_succeeds)
     // Generate some data for us to append to the file.
     auto computed = randomBytes(32_KiB);
 
-    // Latch the file's modification time and size.
+    // Latch the file's access time, modification time and size.
     auto modified = info.modified();
     auto size = info.size();
 
@@ -323,6 +323,7 @@ TEST_F(FileServiceTests, append_succeeds)
 
     // Make sure the file's attributes have been updated.
     ASSERT_TRUE(info.dirty());
+    ASSERT_GE(info.accessed(), modified);
     ASSERT_GE(info.modified(), modified);
     ASSERT_EQ(info.size(), size + computed.size());
 
@@ -372,6 +373,9 @@ TEST_F(FileServiceTests, create_succeeds)
         // And that the file's empty.
         EXPECT_EQ(info0.size(), 0u);
 
+        // And that its access and modification time have been set.
+        EXPECT_EQ(info0.accessed(), info0.modified());
+
         // Latch the file's ID.
         id0 = info0.id();
     }
@@ -412,12 +416,25 @@ TEST_F(FileServiceTests, create_flush_succeeds)
     // Try and flush the file to the cloud.
     auto handle = [file = std::move(file), this]() -> FileResultOr<NodeHandle>
     {
+        // Convenience.
+        auto info = file->info();
+
+        // Latch the file's access and modification time.
+        auto accessed = info.accessed();
+        auto modified = info.modified();
+
         // Try and flush the file to the cloud.
         auto result = execute(explicitFlush, *file, randomName(), mRootHandle);
 
         // Couldn't flush the file to the cloud.
         if (result != FILE_SUCCESS)
             return unexpected(result);
+
+        // Make sure the file's access time has been bumped.
+        EXPECT_GE(info.accessed(), accessed);
+
+        // And that the file's modification time is unchanged.
+        EXPECT_EQ(info.modified(), modified);
 
         // Return the file's handle.
         return file->info().handle();
@@ -713,6 +730,33 @@ TEST_F(FileServiceTests, info_unknown_fails)
               FILE_SERVICE_UNKNOWN_FILE);
 }
 
+TEST_F(FileServiceTests, info_succeeds)
+{
+    // Convenience.
+    using std::chrono::seconds;
+
+    // Open our test file.
+    auto file = ClientW()->fileOpen(mFileHandle);
+
+    // Make sure we could open the file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Latch the file's access time.
+    auto accessed = file->info().accessed();
+
+    // Move time forward.
+    std::this_thread::sleep_for(seconds(1));
+
+    // Get our hands on the file's information.
+    auto info = ClientW()->fileInfo(mFileHandle);
+
+    // Make sure we could get our hands on the file's information.
+    ASSERT_EQ(info.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure the file's access time has been bumped.
+    ASSERT_GT(info->accessed(), accessed);
+}
+
 TEST_F(FileServiceTests, open_directory_fails)
 {
     // Can't open a directory.
@@ -912,8 +956,14 @@ TEST_F(FileServiceTests, read_succeeds)
     auto file = ClientW()->fileOpen(mFileHandle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
+    // Latch the file's access time.
+    auto accessed = file->info().accessed();
+
     // We should be able to read 64KiB from the beginning of the file.
     auto result = execute(read, *file, 0, 64_KiB);
+
+    // Make sure the file's access time have been bumped.
+    EXPECT_GE(file->info().accessed(), accessed);
 
     // Make sure the read completed successfully.
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
@@ -924,8 +974,14 @@ TEST_F(FileServiceTests, read_succeeds)
     // Make sure the range is considered to be in storage.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 64_KiB)));
 
+    // Latch the file's access time.
+    accessed = file->info().accessed();
+
     // Read another 64KiB.
     result = execute(read, *file, 64_KiB, 64_KiB);
+
+    // Make sure the file's access time have been bumped.
+    EXPECT_GE(file->info().accessed(), accessed);
 
     // Make sure the read completed successfully.
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
@@ -936,6 +992,9 @@ TEST_F(FileServiceTests, read_succeeds)
     // We should have one 128KiB range in storage.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 128_KiB)));
 
+    // Latch the file's access time.
+    accessed = file->info().accessed();
+
     // Kick off two reads in parallel.
     auto waiter0 = read(*file, 128_KiB, 64_KiB);
     auto waiter1 = read(*file, 192_KiB, 64_KiB);
@@ -943,6 +1002,9 @@ TEST_F(FileServiceTests, read_succeeds)
     // Wait for our reads to complete.
     ASSERT_NE(waiter0.wait_for(mDefaultTimeout), timeout);
     ASSERT_NE(waiter1.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the file's access time have been bumped.
+    EXPECT_GE(file->info().accessed(), accessed);
 
     // Make sure both reads succeeded.
     auto result0 = waiter0.get();
@@ -960,15 +1022,24 @@ TEST_F(FileServiceTests, read_succeeds)
     // We should have one 256KiB range in storage.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 256_KiB)));
 
+    // Latch the file's access time.
+    accessed = file->info().accessed();
+
     // Make sure zero length reads are handled correctly.
     result = execute(read, *file, 0, 0);
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
     EXPECT_TRUE(result->empty());
 
+    // Zero length reads shouldn't change a file's access time.
+    EXPECT_EQ(file->info().accessed(), accessed);
+
     // Make sure reads are clamped.
     result = execute(read, *file, 768_KiB, 512_KiB);
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
     EXPECT_TRUE(compare(*result, mFileContent, 768_KiB, 256_KiB));
+
+    // Make sure the file's access time have been bumped.
+    EXPECT_GE(file->info().accessed(), accessed);
 
     // Reads should never dirty a file.
     ASSERT_FALSE(file->info().dirty());
@@ -1077,19 +1148,24 @@ TEST_F(FileServiceTests, touch_succeeds)
     // Files should be clean initially.
     ASSERT_FALSE(info.dirty());
 
-    // Latch the file's current modification time.
+    // Latch the file's current access and modification time.
+    auto accessed = info.accessed();
     auto modified = info.modified();
 
     // Try and update the file's modification time.
-    ASSERT_EQ(execute(touch, *file, modified + 1), FILE_SUCCESS);
+    ASSERT_EQ(execute(touch, *file, modified - 1), FILE_SUCCESS);
 
-    expected.emplace_back(FileEvent{std::nullopt, modified + 1, file->info().size()});
+    expected.emplace_back(FileEvent{std::nullopt, modified - 1, file->info().size()});
 
     // Make sure the file's now considered dirty.
     EXPECT_TRUE(info.dirty());
 
+    // Make sure the file's access time has been updated.
+    EXPECT_GE(info.accessed(), accessed);
+    EXPECT_GE(info.accessed(), info.modified());
+
     // Make sure the file's modification time was updated.
-    EXPECT_EQ(info.modified(), modified + 1);
+    EXPECT_EQ(info.modified(), modified - 1);
 
     // Make sure we received an event.
     ASSERT_EQ(expected, received);
@@ -1144,6 +1220,9 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         // Determine whether the file should become dirty.
         auto dirty = newSize != size;
 
+        // Latch the file's current access time.
+        auto accessed = info.accessed();
+
         // Latch the file's current modification time.
         auto modified = info.modified();
 
@@ -1169,6 +1248,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
 
         // Make sure the file's attributes have been updated.
         EXPECT_EQ(info.dirty(), dirty);
+        EXPECT_GE(info.accessed(), accessed);
         EXPECT_GE(info.modified(), modified);
         EXPECT_EQ(info.size(), newSize);
 
@@ -1358,6 +1438,9 @@ TEST_F(FileServiceTests, write_succeeds)
         // Get our hands on the file's information.
         auto info = file->info();
 
+        // Latch the file's current access time.
+        auto accessed = info.accessed();
+
         // Latch the file's current modification time and size.
         auto modified = info.modified();
 
@@ -1382,6 +1465,9 @@ TEST_F(FileServiceTests, write_succeeds)
 
         // Make sure the file's become dirty.
         EXPECT_TRUE(info.dirty());
+
+        // Make sure the file's access time has been updated.
+        EXPECT_GE(info.accessed(), accessed);
 
         // Make sure the file's modification time hasn't gone backwards.
         EXPECT_GE(info.modified(), modified);
