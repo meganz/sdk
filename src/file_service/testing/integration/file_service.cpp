@@ -753,8 +753,8 @@ TEST_F(FileServiceTests, info_succeeds)
     // Make sure we could get our hands on the file's information.
     ASSERT_EQ(info.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
-    // Make sure the file's access time has been bumped.
-    ASSERT_GT(info->accessed(), accessed);
+    // Make sure the file's access time hasn't changed.
+    ASSERT_EQ(info->accessed(), accessed);
 }
 
 TEST_F(FileServiceTests, open_directory_fails)

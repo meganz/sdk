@@ -172,22 +172,11 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     // Load the file from storage.
     auto file = mStorage.getFile(id);
 
-    // Compute the file's new access time.
-    auto accessed = now();
+    // Latch the file's access time.
+    auto accessed = query.field("accessed").get<std::int64_t>();
 
     // Latch the file's modification time.
     auto modified = query.field("modified").get<std::int64_t>();
-
-    // Update the file's access time.
-    query = transaction.query(mQueries.mSetFileAccessTime);
-
-    query.param(":accessed").set(accessed);
-    query.param(":id").set(id);
-
-    query.execute();
-
-    // Persist our changes.
-    transaction.commit();
 
     // Instantiate a context to represent this file's information.
     auto info = std::make_shared<FileInfoContext>(accessed,
@@ -223,9 +212,6 @@ auto FileServiceContext::infoFromIndex(FileID id, Lock&& lock, bool open)
 
     // Open the file if requested.
     auto file = open ? mStorage.getFile(id) : nullptr;
-
-    // Update the file's last access time.
-    info->accessed(now());
 
     // Return the file and its information to our caller.
     return std::make_pair(std::move(info), std::move(file));
