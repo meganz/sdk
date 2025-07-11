@@ -231,9 +231,6 @@ pipeline {
                         failure {
                             script {
                                 setCommitStatus('tests_failure', ':warning: Build succeed. Tests failed')
-                                if ("${TESTS_PARALLEL}" == '') {
-                                    archiveArtifacts artifacts: '*/test_integration.log', fingerprint: true, allowEmptyArchive: true
-                                }
                             }
                             error("Test stage failed")
                         }
@@ -242,7 +239,7 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'build_dir/*test_integration*log*', fingerprint: true
+                    archiveArtifacts artifacts: 'build_dir/*test_integration*log.gz', fingerprint: true
                     deleteDir()
                 }
             }
