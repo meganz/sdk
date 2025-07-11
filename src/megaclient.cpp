@@ -15620,6 +15620,7 @@ void MegaClient::initializekeys()
     else if (mPublicRsaKey.isvalid() != mPrivateRsaKey.isvalid(AsymmCipher::PRIVKEY))
     {
         LOG_err << "One of the RSA keys is missing.";
+        sendevent(99498, "Incomplete RSA keypair");
         mPrivateRsaKey.resetkey();
         mPublicRsaKey.resetkey();
         mSerializedPrivateRsaKey.clear();
