@@ -298,6 +298,7 @@ struct DemoAppFolder : public DemoApp
 #include <mega/autocomplete.h>
 
 void exec_apiurl(autocomplete::ACState& s);
+void exec_useragent(autocomplete::ACState& s);
 void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);

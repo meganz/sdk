@@ -33,6 +33,7 @@
 #include "mega/user_attribute.h"
 #include "mega/utils_optional.h"
 
+#include <algorithm>
 #include <bitset>
 #include <charconv>
 #include <chrono>
@@ -97,6 +98,8 @@ using std::dec;
 
 MegaClient* client;
 MegaClient* clientFolder;
+std::string megacliUserAgent{"megacli/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
+    MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION)};
 
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
@@ -1507,44 +1510,116 @@ void exec_devcommand(autocomplete::ACState& s)
     const bool isCampaingProvided = s.extractflagparam("-c", campaign);
     std::string groupId;
     const bool isGroupIdProvided = s.extractflagparam("-g", groupId);
+    std::string quotaLengthInMonths;
+    const bool isQuotaLengthInMonths = s.extractflagparam("-q", quotaLengthInMonths);
+    std::string accountLevel;
+    const bool isAccountLevel = s.extractflagparam("-l", accountLevel);
 
     const auto printElement = [](const auto& p){ std::cout << " " << p; };
+
+    struct Param
+    {
+        bool exists;
+        std::string_view name;
+    };
+
+    auto notifyIgnoredParams = [&printElement, &subcommand](std::vector<Param> params)
+    {
+        std::vector<std::string_view> toIgnore;
+        std::for_each(begin(params),
+                      end(params),
+                      [&toIgnore](Param& param)
+                      {
+                          if (param.exists)
+                              toIgnore.emplace_back(param.name);
+                      });
+        if (!toIgnore.empty())
+        {
+            std::cout << "devcommand " << subcommand << " will ignore unrequired";
+            std::for_each(std::begin(toIgnore), std::end(toIgnore), printElement);
+            std::cout << " provided options\n";
+        }
+    };
+
+    auto requiredParamsPresent = [&printElement, &subcommand](std::vector<Param> params) -> bool
+    {
+        std::vector<std::string_view> missing;
+        std::for_each(begin(params),
+                      end(params),
+                      [&missing](Param& param)
+                      {
+                          if (!param.exists)
+                              missing.emplace_back(param.name);
+                      });
+        if (!missing.empty())
+        {
+            std::cout << "devcommand " << subcommand << " missing required ";
+            std::for_each(std::begin(missing), std::end(missing), printElement);
+            std::cout << " options\n";
+            return false;
+        }
+        return true;
+    };
+
+    const auto checkNatural = [&subcommand](const size_t& length,
+                                            const std::string& numberAsString,
+                                            const std::string_view p) -> bool
+    {
+        if (length != numberAsString.size())
+        {
+            std::cout << subcommand << " param " << p
+                      << " must be a natural number: " << numberAsString << " provided\n";
+            return false;
+        }
+        return true;
+    };
+
     if (subcommand == "abs")
     {
-        if (isEmailProvided) std::cout << "devcommand abs will ignore unrequired -e provided\n";
+        notifyIgnoredParams({Param{isEmailProvided, "-e"},
+                             Param{isQuotaLengthInMonths, "-q"},
+                             Param{isAccountLevel, "-l"}});
 
-        std::vector<std::string> req;
-        if (!isCampaingProvided) req.emplace_back("-c");
-        if (!isGroupIdProvided) req.emplace_back("-g");
-        if (!req.empty())
-        {
-            std::cout << "devcommand abs is missing required";
-            std::for_each(std::begin(req), std::end(req), printElement);
-            std::cout << " options\n";
+        if (!requiredParamsPresent(
+                {Param{isCampaingProvided, "-c"}, Param{isGroupIdProvided, "-g"}}))
             return;
-        }
 
         size_t l;
         const int g = std::stoi(groupId, &l); // it's okay throwing in megacli for non-numeric
-        if(l != groupId.size())
-        {
-            std::cout << "abs param -g must be a natural number: " << groupId << " provided\n";
+        if (!checkNatural(l, groupId, "-g"))
             return;
-        }
 
         client->senddevcommand(subcommand.data(), nullptr, 0, 0, g, campaign.c_str());
     }
+    else if (subcommand == "sal")
+    {
+        notifyIgnoredParams({Param{isEmailProvided, "-e"},
+                             Param{isCampaingProvided, "-c"},
+                             Param{isGroupIdProvided, "-g"}});
+
+        if (!requiredParamsPresent(
+                {Param{isQuotaLengthInMonths, "-q"}, Param{isAccountLevel, "-l"}}))
+            return;
+
+        size_t l = 0;
+        const long long q = std::stoll(quotaLengthInMonths, &l);
+        if (!checkNatural(l, quotaLengthInMonths, "-q"))
+            return;
+
+        l = 0;
+        const int al = std::stoi(accountLevel, &l);
+        if (!checkNatural(l, accountLevel, "-a"))
+            return;
+
+        constexpr int businessStatus = 0;
+        client->senddevcommand(subcommand.data(), nullptr, q, businessStatus, al);
+    }
     else
     {
-        std::vector<std::string> param;
-        if (isCampaingProvided) param.emplace_back("-c");
-        if (isGroupIdProvided) param.emplace_back("-g");
-        if (!param.empty())
-        {
-            std::cout << "devcommand " << subcommand << " will ignore unrequired";
-            std::for_each(std::begin(param), std::end(param), printElement);
-            std::cout << " provided options\n";
-        }
+        notifyIgnoredParams({Param{isCampaingProvided, "-c"},
+                             Param{isGroupIdProvided, "-g"},
+                             Param{isQuotaLengthInMonths, "-q"},
+                             Param{isAccountLevel, "-l"}});
 
         client->senddevcommand(subcommand.data(), isEmailProvided ? email.c_str() : nullptr);
     }
@@ -4913,6 +4988,7 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
+    p->Add(exec_useragent, sequence(text("useragent"), opt(param("new_user_agent"))));
     p->Add(exec_login, sequence(text("login"), opt(flag("-fresh")), either(sequence(param("email"), opt(param("password"))),
                                                       sequence(exportedLink(false, true), opt(param("auth_key"))),
                                                       param("session"),
@@ -5113,10 +5189,15 @@ autocomplete::ACN autocompleteSyntax()
                                                                           sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
-    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"),
-                                     opt(sequence(flag("-e"), param("email"))),
-                                     opt(sequence(flag("-c"), param("campaign"),
-                                                  flag("-g"), param("group_id")))));
+    p->Add(exec_devcommand,
+           sequence(text("devcommand"),
+                    param("subcommand"),
+                    opt(sequence(flag("-e"), param("email"))),
+                    opt(sequence(flag("-c"), param("campaign"), flag("-g"), param("group_id"))),
+                    opt(sequence(flag("-q"),
+                                 param("quota_in_months"),
+                                 flag("-l"),
+                                 param("account_level")))));
 #endif
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
@@ -8032,6 +8113,25 @@ void exec_apiurl(autocomplete::ACState& s)
         {
             client->httpio->disablepkp = s.words[2].s == "true";
         }
+    }
+}
+
+void exec_useragent(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        cout << "Current UserAgent = " << client->useragent << endl;
+    }
+    else if (client->loggedin() != NOTLOGGEDIN)
+    {
+        cout << "You must not be logged in, to change UserAgent" << endl;
+    }
+    else if (s.words.size() == 2)
+    {
+        auto newUserAgent = s.words[1].s;
+        client->useragent.replace(0, megacliUserAgent.size(), newUserAgent);
+        client->httpio->setuseragent(&newUserAgent);
+        megacliUserAgent = newUserAgent;
     }
 }
 
@@ -11235,9 +11335,7 @@ int main(int argc, char* argv[])
                             dbAccess,
                             gfx,
                             "Gk8DyQBS",
-                            "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
-                            "." TOSTRING(MEGA_MINOR_VERSION)
-                            "." TOSTRING(MEGA_MICRO_VERSION),
+                            megacliUserAgent.c_str(),
                             2,
                             clientType);
 
