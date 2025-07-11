@@ -211,7 +211,14 @@ pipeline {
                                     )
                                     if %ERRORLEVEL% NEQ 0 exit 1
                                     tests\\\\integration\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL}
-                                    if %ERRORLEVEL% NEQ 0 set ERROR_VAL=1
+                                    if %ERRORLEVEL% NEQ 0 (
+                                        set ERROR_VAL=1
+                                        if "${TESTS_PARALLEL}"=="" (
+                                            for /D %%d in (${windows_sources_workspace}\\\\pid_*) do (
+                                                copy "%%d\\\\test_integration.log" .
+                                            )
+                                        )
+                                    )
                                     gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz
                                     rm test_integration.log
                                     exit %ERROR_VAL%
@@ -232,7 +239,7 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'build_dir/*test_integration*log*', fingerprint: true
+                    archiveArtifacts artifacts: 'build_dir/*test_integration*log.gz', fingerprint: true
                     deleteDir()
                 }
             }
