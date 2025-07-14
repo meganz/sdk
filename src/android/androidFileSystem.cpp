@@ -1205,9 +1205,10 @@ bool AndroidFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool)
     return AndroidFileWrapper::getAndroidFileWrapper(name, true, true) != nullptr;
 }
 
-bool AndroidFileSystemAccess::setmtimelocal(const LocalPath&, m_time_t)
+bool AndroidFileSystemAccess::setmtimelocal(const LocalPath& path, m_time_t mtime)
 {
-    return true;
+    auto standardPath = getStandartPath(path);
+    return LinuxFileSystemAccess::setmtimelocal(standardPath, mtime);
 }
 
 bool AndroidFileSystemAccess::chdirlocal(LocalPath& path) const

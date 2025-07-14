@@ -794,11 +794,27 @@ void Transfer::complete(TransferDbCommitter& committer)
 
         // set timestamp (subsequent moves & copies are assumed not to alter mtime)
         success = client->fsaccess->setmtimelocal(localfilename, mtime);
-
+#ifdef __ANDROID__
+        bool andSuccessNonTransient{false};
+#endif
         if (!success)
         {
             transient_error = client->fsaccess->transient_error;
-            LOG_debug << fingerprintIssue << "setmtimelocal failed " << transient_error;
+            std::string msg = std::string{fingerprintIssue} +
+                              "setmtimelocal failed for: " + localfilename.toPath(false) +
+                              ", with " +
+                              (transient_error ? "transient error" : "non-transient error");
+#ifdef __ANDROID__
+            msg.insert(0, "[AND] ");
+            if (!transient_error)
+            {
+                // forcing to compare fingerprint without mtime (as it could not be set) some lines
+                // below
+                success = true;
+                andSuccessNonTransient = true;
+            }
+#endif
+            LOG_warn << msg;
         }
 
         // try to catch failing cases in the debugger (seen on synology SMB drive after the file was moved to final destination)
@@ -839,10 +855,13 @@ void Transfer::complete(TransferDbCommitter& committer)
             fingerprint.genfingerprint(fa.get());
             bool sameFingerprint = (fingerprint == *(FileFingerprint*)this);
 #ifdef __ANDROID__
-            // In Android maybe we can't set mtime at download
-            sameFingerprint =
-                sameFingerprint || (fingerprint.size == size &&
-                                    memcmp(fingerprint.crc.data(), crc.data(), sizeof crc) == 0);
+            if (andSuccessNonTransient)
+            {
+                // In Android maybe we can't set mtime at download
+                sameFingerprint = sameFingerprint ||
+                                  (fingerprint.size == size &&
+                                   memcmp(fingerprint.crc.data(), crc.data(), sizeof crc) == 0);
+            }
 #endif
             if (isvalid && !sameFingerprint)
             {
