@@ -305,6 +305,12 @@ public:
     // Retrieve this user's session token.
     virtual std::string sessionToken() const = 0;
 
+    // Set the client's maximum download speed.
+    virtual m_off_t setDownloadSpeed(m_off_t speed) = 0;
+
+    // Set the client's maximum upload speed.
+    virtual m_off_t setUploadSpeed(m_off_t speed) = 0;
+
     // Share a directory with another user.
     virtual Error share(const std::string& email,
                         CloudPath path,

@@ -388,6 +388,27 @@ Service& RealClient::service() const
     return mClient->mFuseService;
 }
 
+m_off_t RealClient::setTransferSpeed(m_off_t (MegaClient::*get)(),
+                                     bool (MegaClient::*set)(m_off_t),
+                                     m_off_t speed)
+{
+    // Sanity.
+    assert(get);
+    assert(set);
+
+    // Make sure we have exclusive access to the client.
+    std::lock_guard guard(mClientLock);
+
+    // Save the client's current transfer speed.
+    auto current = (*mClient.*get)();
+
+    // Set the client's transfer speed.
+    (*mClient.*set)(speed);
+
+    // Return the client's previous transfer speed.
+    return current;
+}
+
 bool RealClient::shared(const std::string& email,
                         NodeHandle handle,
                         accesslevel_t permissions) const
@@ -710,6 +731,18 @@ std::string RealClient::sessionToken() const
     mClient->dumpsession(sessionToken);
 
     return sessionToken;
+}
+
+m_off_t RealClient::setDownloadSpeed(m_off_t speed)
+{
+    return setTransferSpeed(&MegaClient::getmaxdownloadspeed,
+                            &MegaClient::setmaxdownloadspeed,
+                            speed);
+}
+
+m_off_t RealClient::setUploadSpeed(m_off_t speed)
+{
+    return setTransferSpeed(&MegaClient::getmaxuploadspeed, &MegaClient::setmaxuploadspeed, speed);
 }
 
 Error RealClient::share(const std::string& email,

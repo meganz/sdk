@@ -88,6 +88,11 @@ class RealClient
     // Retrieve this client's FUSE interface.
     Service& service() const override;
 
+    // Set the client's transfer speed.
+    m_off_t setTransferSpeed(m_off_t (MegaClient::*get)(),
+                             bool (MegaClient::*set)(m_off_t),
+                             m_off_t speed);
+
     // Check if a directory has already been shared with the specified user.
     bool shared(const std::string& email,
                 NodeHandle handle,
@@ -154,6 +159,12 @@ public:
 
     // Retrieve this user's session token.
     std::string sessionToken() const override;
+
+    // Set the client's maximum download speed.
+    m_off_t setDownloadSpeed(m_off_t speed) override;
+
+    // Set the client's maximum upload speed.
+    m_off_t setUploadSpeed(m_off_t speed) override;
 
     // Share a directory with another user.
     Error share(const std::string& email,
