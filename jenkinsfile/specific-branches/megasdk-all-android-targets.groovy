@@ -159,7 +159,6 @@ pipeline {
     }
     post {
         always {
-            sh "docker image rm meganz/android-build-env:${env.BUILD_NUMBER}"
             script {
                 if (params.RESULT_TO_SLACK) {
                     sdk_commit = sh(script: "git -C ${sdk_sources_workspace} rev-parse HEAD", returnStdout: true).trim()
@@ -197,6 +196,7 @@ pipeline {
                     }
                 }
             }
+            sh "docker image rm meganz/android-build-env:${env.BUILD_NUMBER}"
             deleteDir() /* clean up our workspace */
         }
     }
