@@ -589,6 +589,9 @@ TEST_F(FileServiceTests, flush_cancel_on_client_logout_succeeds)
     // Retrieve the file's remaining content.
     ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
 
+    // Make sure the upload doesn't complete before we logout the client.
+    client->setUploadSpeed(4096);
+
     // Try and flush our local changes.
     auto waiter = flush(std::move(*file));
 
@@ -617,6 +620,9 @@ TEST_F(FileServiceTests, flush_cancel_on_file_destruction_succeeds)
 
     // Retrieve the file's remaining content.
     ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+    // Make sure the upload doesn't complete before we can the file.
+    ClientW()->setUploadSpeed(4096);
 
     // Flush the file.
     auto waiter = [](File file)
@@ -796,9 +802,6 @@ TEST_F(FileServiceTests, open_unknown_fails)
 
 TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
 {
-    // Disable readahead.
-    ClientW()->fileServiceOptions(DisableReadahead);
-
     // Create a client that we can safely logout.
     auto client = CreateClient("file_service_" + randomName());
     ASSERT_TRUE(client);
@@ -806,9 +809,15 @@ TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
     // Log the client in.
     ASSERT_EQ(client->login(1), API_OK);
 
+    // Disable readahead.
+    client->fileServiceOptions(DisableReadahead);
+
     // Open a file for reading.
     auto file = client->fileOpen(mFileHandle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure the read doesn't complete before we logout the client.
+    client->setDownloadSpeed(4096);
 
     // Kick off a read.
     auto waiter = read(std::move(*file), 512_KiB, 256_KiB);
@@ -837,6 +846,9 @@ TEST_F(FileServiceTests, read_cancel_on_file_destruction_succeeds)
 
     // So we can wait until the read's been cancelled.
     auto waiter = notifier->get_future();
+
+    // Make sure the read doesn't complete before the file's destroyed.
+    ClientW()->setDownloadSpeed(4096);
 
     // Called when our read's been cancelled.
     auto callback = [=](FileResultOr<FileReadResult> result)
@@ -1552,6 +1564,10 @@ void FileServiceTests::SetUp()
 
     // Make sure the service's options are in a known state.
     ClientW()->fileServiceOptions(DefaultOptions);
+
+    // Make sure transfers proceed at full speed.
+    ClientW()->setDownloadSpeed(0);
+    ClientW()->setUploadSpeed(0);
 }
 
 void FileServiceTests::SetUpTestSuite()
