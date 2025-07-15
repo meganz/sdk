@@ -1,7 +1,6 @@
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_append_request.h>
 #include <mega/file_service/file_context.h>
-#include <mega/file_service/file_explicit_flush_request.h>
 #include <mega/file_service/file_fetch_request.h>
 #include <mega/file_service/file_flush_request.h>
 #include <mega/file_service/file_info.h>
@@ -58,29 +57,10 @@ void File::fetch(FileFetchCallback callback)
     mContext->fetch(FileFetchRequest{std::move(callback)});
 }
 
-void File::flush(FileFlushCallback callback,
-                 const LocalPath& logicalPath,
-                 const std::string& name,
-                 NodeHandle parentHandle)
-{
-    mContext->flush(
-        FileExplicitFlushRequest{{std::move(callback), logicalPath}, name, parentHandle});
-}
-
-void File::flush(FileFlushCallback callback, const std::string& name, NodeHandle parentHandle)
-{
-    flush(std::move(callback), LocalPath(), name, parentHandle);
-}
-
-void File::flush(FileFlushCallback callback, const LocalPath& logicalPath)
-{
-    // Queue a flush request.
-    mContext->flush(FileFlushRequest{std::move(callback), logicalPath});
-}
-
 void File::flush(FileFlushCallback callback)
 {
-    return flush(std::move(callback), LocalPath());
+    // Ask the context to flush the file's data to the cloud.
+    return mContext->flush(FileFlushRequest{std::move(callback)});
 }
 
 FileInfo File::info() const

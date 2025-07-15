@@ -93,8 +93,7 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     bool execute(FileFetchRequest& request);
 
     // Try and execute a flush request.
-    template<typename Request>
-    auto execute(Request& request) -> std::enable_if_t<IsFileFlushRequestV<Request>, bool>;
+    bool execute(FileFlushRequest request);
 
     // Try and execute a read request.
     bool execute(FileReadRequest& request);
@@ -212,8 +211,7 @@ public:
     void fetch(FileFetchRequest request);
 
     // Flush this file's local modifications to the cloud.
-    template<typename Request>
-    auto flush(Request&& request) -> std::enable_if_t<IsFileFlushRequestV<Request>>;
+    void flush(FileFlushRequest request);
 
     // Retrieve information about this file.
     FileInfo info() const;

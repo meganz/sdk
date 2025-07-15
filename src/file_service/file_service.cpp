@@ -26,14 +26,14 @@ FileService::FileService():
 
 FileService::~FileService() = default;
 
-auto FileService::create() -> FileServiceResultOr<File>
+auto FileService::create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>
 {
     SharedLock guard(mContextLock);
 
     if (!mContext)
         return unexpected(FILE_SERVICE_UNINITIALIZED);
 
-    return mContext->create();
+    return mContext->create(parent, name);
 }
 
 void FileService::deinitialize()

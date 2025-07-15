@@ -344,9 +344,10 @@ Task Client::execute(std::function<void(const Task&)> function)
     return client().execute(std::move(function));
 }
 
-auto Client::fileCreate() -> FileServiceResultOr<file_service::File>
+auto Client::fileCreate(NodeHandle parent, const std::string& name)
+    -> FileServiceResultOr<file_service::File>
 {
-    return fileService().create();
+    return fileService().create(parent, name);
 }
 
 auto Client::fileInfo(CloudPath path) const -> FileServiceResultOr<FileInfo>

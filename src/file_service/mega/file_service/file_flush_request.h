@@ -23,9 +23,6 @@ struct FileFlushRequest
 
     // Who should we call when the flush completes?
     FileFlushCallback mCallback;
-
-    // What path should we present to the application?
-    LocalPath mLogicalPath;
 }; // FileFlushRequest
 
 } // file_service

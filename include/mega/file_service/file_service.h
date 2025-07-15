@@ -11,6 +11,9 @@
 #include <mega/file_service/file_service_options_forward.h>
 #include <mega/file_service/file_service_result_forward.h>
 #include <mega/file_service/file_service_result_or_forward.h>
+#include <mega/types.h>
+
+#include <string>
 
 namespace mega
 {
@@ -28,7 +31,7 @@ public:
     ~FileService();
 
     // Create a new file.
-    auto create() -> FileServiceResultOr<File>;
+    auto create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
 
     // Deinitialize the file service.
     void deinitialize();

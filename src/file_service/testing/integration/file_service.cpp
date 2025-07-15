@@ -110,6 +110,9 @@ struct FileServiceTests: fuse::testing::Test
     // The handle of the file we want to read.
     static NodeHandle mFileHandle;
 
+    // The name of the file we want to read.
+    static std::string mFileName;
+
     // The handle of our test root directory.
     static NodeHandle mRootHandle;
 }; // FUSEPartialDownloadTests
@@ -134,10 +137,6 @@ static bool compare(const std::string& computed,
                     std::uint64_t offset,
                     std::uint64_t length);
 
-// Flush a file's modified content to the cloud.
-static auto explicitFlush(File file, const std::string& name, NodeHandle parentHandle)
-    -> std::future<FileResult>;
-
 // Fetch all of a file's content from the cloud.
 static auto fetch(File file) -> std::future<FileResult>;
 
@@ -161,6 +160,8 @@ static auto write(const void* buffer, File file, std::uint64_t offset, std::uint
 std::string FileServiceTests::mFileContent;
 
 NodeHandle FileServiceTests::mFileHandle;
+
+std::string FileServiceTests::mFileName;
 
 NodeHandle FileServiceTests::mRootHandle;
 
@@ -348,6 +349,110 @@ TEST_F(FileServiceTests, append_succeeds)
     ASSERT_EQ(expected, received);
 }
 
+TEST_F(FileServiceTests, create_fails_when_file_already_exists)
+{
+    // Generate a name for a local file.
+    auto name = randomName();
+
+    // Create a local file for us to collide with.
+    auto file0 = ClientW()->fileCreate(mRootHandle, name);
+    ASSERT_EQ(file0.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // You can't create a file if it already exists in the cloud.
+    auto file1 = ClientW()->fileCreate(mRootHandle, mFileName);
+    ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_FILE_ALREADY_EXISTS);
+
+    // You can't create a file if it already exists locally.
+    file1 = ClientW()->fileCreate(mRootHandle, name);
+    ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_FILE_ALREADY_EXISTS);
+}
+
+TEST_F(FileServiceTests, create_fails_when_name_is_empty)
+{
+    // Files must have a valid name.
+    auto file = ClientW()->fileCreate(mRootHandle, std::string());
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_INVALID_NAME);
+}
+
+TEST_F(FileServiceTests, create_fails_when_parent_doesnt_exist)
+{
+    // Files must have a valid parent.
+    auto file = ClientW()->fileCreate(NodeHandle(), randomName());
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_PARENT_DOESNT_EXIST);
+}
+
+TEST_F(FileServiceTests, create_fails_when_parent_is_a_file)
+{
+    // A file's parent must be a directory.
+    auto file = ClientW()->fileCreate(mFileHandle, randomName());
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_PARENT_IS_A_FILE);
+}
+
+TEST_F(FileServiceTests, create_flush_succeeds)
+{
+    // Generate a name for our file.
+    auto name = randomName();
+
+    // Create a new file.
+    auto file = ClientW()->fileCreate(mRootHandle, name);
+
+    // Make sure the file was created.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Generate some data for us to write to the file.
+    auto expected = randomBytes(128_KiB);
+
+    // Write data to the file.
+    ASSERT_EQ(execute(write, expected.data(), *file, 0, 128_KiB), FILE_SUCCESS);
+
+    // Try and flush the file to the cloud.
+    auto handle = [file = std::move(file), this]() -> FileResultOr<NodeHandle>
+    {
+        // Convenience.
+        auto info = file->info();
+
+        // Latch the file's access and modification time.
+        auto accessed = info.accessed();
+        auto modified = info.modified();
+
+        // Try and flush the file to the cloud.
+        auto result = execute(flush, *file);
+
+        // Couldn't flush the file to the cloud.
+        if (result != FILE_SUCCESS)
+            return unexpected(result);
+
+        // Make sure the file's access time has been bumped.
+        EXPECT_GE(info.accessed(), accessed);
+
+        // And that the file's modification time is unchanged.
+        EXPECT_EQ(info.modified(), modified);
+
+        // Return the file's handle.
+        return file->info().handle();
+    }();
+
+    // Make sure we were able to flush the file to the cloud.
+    ASSERT_EQ(handle.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Check that the file exists in the cloud.
+    auto node = ClientW()->get(mRootHandle, name);
+    ASSERT_EQ(node.errorOr(API_OK), API_OK);
+    ASSERT_EQ(node->mHandle, *handle);
+
+    // Reopen the file.
+    file = ClientW()->fileOpen(*handle);
+
+    // Make sure the file was opened successfully.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure the data we uploaded was the data we wrote.
+    auto computed = execute(read, *file, 0, 128_KiB);
+
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(*computed, expected);
+}
+
 TEST_F(FileServiceTests, create_succeeds)
 {
     FileID id0;
@@ -355,7 +460,7 @@ TEST_F(FileServiceTests, create_succeeds)
     // Create a file and latch its ID.
     {
         // Try and create a file.
-        auto file = ClientW()->fileCreate();
+        auto file = ClientW()->fileCreate(mRootHandle, randomName());
 
         // Make sure the file was created.
         ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -385,78 +490,18 @@ TEST_F(FileServiceTests, create_succeeds)
     ASSERT_EQ(info.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_UNKNOWN_FILE);
 
     // Try and create a new file.
-    auto file1 = ClientW()->fileCreate();
+    auto file1 = ClientW()->fileCreate(mRootHandle, randomName());
     ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Make sure our original file's ID was recycled.
     EXPECT_EQ(file1->info().id(), id0);
 
     // Create a new file.
-    auto file2 = ClientW()->fileCreate();
+    auto file2 = ClientW()->fileCreate(mRootHandle, randomName());
     ASSERT_EQ(file2.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Make sure it has a newly generated ID.
     EXPECT_NE(file2->info().id(), id0);
-}
-
-TEST_F(FileServiceTests, create_flush_succeeds)
-{
-    // Create a new file.
-    auto file = ClientW()->fileCreate();
-
-    // Make sure the file was created.
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // Generate some data for us to write to the file.
-    auto expected = randomBytes(128_KiB);
-
-    // Write data to the file.
-    ASSERT_EQ(execute(write, expected.data(), *file, 0, 128_KiB), FILE_SUCCESS);
-
-    // Try and flush the file to the cloud.
-    auto handle = [file = std::move(file), this]() -> FileResultOr<NodeHandle>
-    {
-        // Convenience.
-        auto info = file->info();
-
-        // Latch the file's access and modification time.
-        auto accessed = info.accessed();
-        auto modified = info.modified();
-
-        // Try and flush the file to the cloud.
-        auto result = execute(explicitFlush, *file, randomName(), mRootHandle);
-
-        // Couldn't flush the file to the cloud.
-        if (result != FILE_SUCCESS)
-            return unexpected(result);
-
-        // Make sure the file's access time has been bumped.
-        EXPECT_GE(info.accessed(), accessed);
-
-        // And that the file's modification time is unchanged.
-        EXPECT_EQ(info.modified(), modified);
-
-        // Return the file's handle.
-        return file->info().handle();
-    }();
-
-    // Make sure we were able to flush the file to the cloud.
-    ASSERT_EQ(handle.errorOr(FILE_SUCCESS), FILE_SUCCESS);
-
-    // Check that the file exists in the cloud.
-    ASSERT_EQ(ClientW()->get(*handle).errorOr(API_OK), API_OK);
-
-    // Reopen the file.
-    file = ClientW()->fileOpen(*handle);
-
-    // Make sure the file was opened successfully.
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // Make sure the data we uploaded was the data we wrote.
-    auto computed = execute(read, *file, 0, 128_KiB);
-
-    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
-    ASSERT_EQ(*computed, expected);
 }
 
 TEST_F(FileServiceTests, create_write_succeeds)
@@ -465,7 +510,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
     ClientW()->fileServiceOptions(DisableReadahead);
 
     // Create a new file.
-    auto file = ClientW()->fileCreate();
+    auto file = ClientW()->fileCreate(mRootHandle, randomName());
 
     // Make sure the file was created.
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -1588,8 +1633,11 @@ void FileServiceTests::SetUpTestSuite()
     // Generate content for our test file.
     mFileContent = randomBytes(1_MiB);
 
+    // Generate a name for our test file.
+    mFileName = randomName();
+
     // Upload our content to the cloud.
-    auto fileHandle = ClientW()->upload(mFileContent, randomName(), *rootHandle);
+    auto fileHandle = ClientW()->upload(mFileContent, mFileName, *rootHandle);
     ASSERT_EQ(fileHandle.errorOr(API_OK), API_OK);
 
     // Latch the file's handle for later use.
@@ -1638,28 +1686,6 @@ bool compare(const std::string& computed,
 
     // Make sure the content matches our file.
     return !expected.compare(offset, length, computed);
-}
-
-auto explicitFlush(File file, const std::string& name, NodeHandle parentHandle)
-    -> std::future<FileResult>
-{
-    // So we can signal when the request has completed.
-    auto notifier = makeSharedPromise<FileResult>();
-
-    // So we can wait until the request has completed.
-    auto waiter = notifier->get_future();
-
-    // Try and flush the file to the cloud.
-    file.flush(
-        [file, notifier](FileResult result)
-        {
-            notifier->set_value(result);
-        },
-        name,
-        parentHandle);
-
-    // Return the waiter to our caller.
-    return waiter;
 }
 
 auto fetch(File file) -> std::future<FileResult>

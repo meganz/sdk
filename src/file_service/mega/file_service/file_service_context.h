@@ -121,7 +121,7 @@ public:
     common::Client& client();
 
     // Create a new file.
-    auto create() -> FileServiceResultOr<File>;
+    auto create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
 
     // Retrieve a reference to this service's database.
     common::Database& database();

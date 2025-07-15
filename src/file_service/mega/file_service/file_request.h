@@ -1,7 +1,6 @@
 #pragma once
 
 #include <mega/file_service/file_append_request_forward.h>
-#include <mega/file_service/file_explicit_flush_request_forward.h>
 #include <mega/file_service/file_fetch_request_forward.h>
 #include <mega/file_service/file_flush_request_forward.h>
 #include <mega/file_service/file_read_request_forward.h>
@@ -17,7 +16,6 @@ namespace file_service
 {
 
 using FileRequest = std::variant<FileAppendRequest,
-                                 FileExplicitFlushRequest,
                                  FileFetchRequest,
                                  FileFlushRequest,
                                  FileReadRequest,

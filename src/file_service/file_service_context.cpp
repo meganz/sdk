@@ -462,9 +462,36 @@ Client& FileServiceContext::client()
     return mClient;
 }
 
-auto FileServiceContext::create() -> FileServiceResultOr<File>
+auto FileServiceContext::create(NodeHandle parent, const std::string& name)
+    -> FileServiceResultOr<File>
 try
 {
+    // The caller's passed us an invalid name.
+    if (name.empty())
+        return unexpected(FILE_SERVICE_INVALID_NAME);
+
+    // Parent already contains a child with this name.
+    if (auto node = mClient.get(parent, name))
+        return unexpected(FILE_SERVICE_FILE_ALREADY_EXISTS);
+
+    // Try and get information about parent.
+    auto node = mClient.get(parent);
+
+    // Couldn't get information about parent.
+    if (!node)
+    {
+        // Because we encountered some unexpected error.
+        if (node.error() != API_ENOENT)
+            return unexpected(FILE_SERVICE_UNEXPECTED);
+
+        // Because it doesn't exist.
+        return unexpected(FILE_SERVICE_PARENT_DOESNT_EXIST);
+    }
+
+    // Parent isn't a directory.
+    if (!node->mIsDirectory)
+        return unexpected(FILE_SERVICE_PARENT_IS_A_FILE);
+
     // Acquire context and database locks.
     UniqueLock lockContexts(mLock);
     UniqueLock lockDatabase(mDatabase);
@@ -472,24 +499,43 @@ try
     // Initiate a transaction so we can safely modify the database.
     auto transaction = mDatabase.transaction();
 
+    // Check if parent already contains a local child with this name.
+    auto query = transaction.query(mQueries.mGetFileLocationByParentAndName);
+
+    query.param(":parent_handle").set(parent);
+    query.param(":name").set(name);
+
+    query.execute();
+
+    // Parent already contains a local child with this name.
+    if (query)
+        return unexpected(FILE_SERVICE_FILE_ALREADY_EXISTS);
+
     // Try and allocate a new file ID.
     auto id = allocateID(lockDatabase, transaction);
 
     // Compute the new file's modification time.
     auto modified = now();
 
-    // Try and add a new file to the database.
-    {
-        auto query = transaction.query(mQueries.mAddFile);
+    // Add a new file to the database.
+    query = transaction.query(mQueries.mAddFile);
 
-        query.param(":accessed").set(modified);
-        query.param(":dirty").set(true);
-        query.param(":handle").set(nullptr);
-        query.param(":id").set(id);
-        query.param(":modified").set(modified);
+    query.param(":accessed").set(modified);
+    query.param(":dirty").set(true);
+    query.param(":handle").set(nullptr);
+    query.param(":id").set(id);
+    query.param(":modified").set(modified);
 
-        query.execute();
-    }
+    query.execute();
+
+    // Specify where this file should be uploaded.
+    query = transaction.query(mQueries.mAddFileLocation);
+
+    query.param(":id").set(id);
+    query.param(":name").set(name);
+    query.param(":parent_handle").set(parent);
+
+    query.execute();
 
     // Instantiate an info context to describe our new file.
     auto info = std::make_shared<FileInfoContext>(modified,

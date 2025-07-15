@@ -18,8 +18,6 @@ target_sources(SDKlib PRIVATE
                       file_context.h
                       file_context_badge.h
                       file_event_vector.h
-                      file_explicit_flush_request.h
-                      file_explicit_flush_request_forward.h
                       file_fetch_request.h
                       file_fetch_request_forward.h
                       file_flush_request.h
