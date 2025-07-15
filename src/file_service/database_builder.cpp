@@ -64,6 +64,26 @@ void upgrade01(Query& query)
 
     query.execute();
 
+    query = "create table file_locations ( "
+            "  id integer "
+            "  constraint nn_file_locations_id "
+            "             not null, "
+            "  name text "
+            "  constraint nn_file_locations_name "
+            "             not null, "
+            "  parent_handle integer "
+            "  constraint nn_file_locations_parent_handle "
+            "             not null, "
+            "  constraint fk_file_locations_files "
+            "             foreign key (id) "
+            "             references files (id) "
+            "             on delete cascade, "
+            "  constraint pk_file_locations "
+            "             primary key (id) "
+            ")";
+
+    query.execute();
+
     query = "create table file_ranges ( "
             "  begin integer "
             "  constraint nn_file_ranges_begin "
