@@ -15,6 +15,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileRange(database.query()),
     mGetFile(database.query()),
     mGetFileLocation(database.query()),
+    mGetFileLocationByParentAndName(database.query()),
     mGetFileRanges(database.query()),
     mGetFileReferences(database.query()),
     mGetFreeFileID(database.query()),
@@ -61,6 +62,11 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mGetFileLocation = "select * "
                        "  from file_locations "
                        " where id = :id";
+
+    mGetFileLocationByParentAndName = "select * "
+                                      "  from file_locations "
+                                      " where name = :name "
+                                      "   and parent_handle = :parent_handle";
 
     mGetFileRanges = "select begin "
                      "     , end "
