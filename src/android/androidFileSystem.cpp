@@ -1208,6 +1208,11 @@ bool AndroidFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool)
 bool AndroidFileSystemAccess::setmtimelocal(const LocalPath& path, m_time_t mtime)
 {
     auto standardPath = getStandartPath(path);
+    if (standardPath.empty())
+    {
+        return false;
+    }
+
     return LinuxFileSystemAccess::setmtimelocal(standardPath, mtime);
 }
 
