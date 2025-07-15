@@ -26,6 +26,7 @@
 #include "gtest_common.h"
 #include "mega/scoped_helpers.h"
 #include "mega/syncinternals/syncuploadthrottlingmanager.h"
+#include "mega/testhooks.h"
 #include "mega/tlv.h"
 #include "mega/user_attribute.h"
 #include "test.h"
@@ -6826,6 +6827,7 @@ TEST_F(SyncTest, BasicSync_RenameLocalFile)
     ASSERT_TRUE(client1->confirmModel_mainthread(model2.findnode("x"), backupId1, true));
 }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 TEST_F(SyncTest, TransferCountProgress)
 {
     const std::string logPre = "SyncTest.TransferCountProgress: ";
@@ -6835,6 +6837,32 @@ TEST_F(SyncTest, TransferCountProgress)
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient());
     ASSERT_TRUE(clientA1->makeCloudSubdirs("sync1", 0, 0));
     ASSERT_TRUE(CatchupClients(clientA1));
+
+    std::atomic<bool> transferReportFlag{false};
+    std::atomic<bool> transferReportProgressFlag{false};
+    m_off_t transferReportInflightProgress{0};
+    double transferReportProgress{0};
+    double targetProgressAux{0};
+    unsigned transferFinished{0};
+    unsigned targetTransferFinishedCount{3};
+
+    globalMegaTestHooks.onTransferReportProgress = [&](double p, m_off_t fp)
+    {
+        transferReportProgress = p;
+        transferReportInflightProgress = fp;
+        transferReportProgressFlag = true;
+    };
+
+    clientA1->onTransferCompleted = [&](Transfer*)
+    {
+        if (++transferFinished == targetTransferFinishedCount)
+        {
+            clientA1->onTransferCompleted = nullptr;
+            targetProgressAux = transferReportProgress;
+            transferReportProgressFlag = false;
+            transferReportFlag = true;
+        }
+    };
 
     LOG_debug << logPre + "#### Add and start sync ####";
     const auto backupId1 = clientA1->setupSync_mainthread("sync1", "sync1", false, false);
@@ -6849,26 +6877,59 @@ TEST_F(SyncTest, TransferCountProgress)
     constexpr auto TIMEOUT = chrono::seconds(30);
     waitonsyncs(TIMEOUT, clientA1);
 
+    LOG_debug << logPre + "#### Set max upload speed to 100Kb/s ####";
+    clientA1->client.setmaxuploadspeed(100000);
+
+    LOG_debug << logPre + "#### Add some files in local FS. ####";
     constexpr size_t KB_IN_BYTES{104857u};
     constexpr size_t MB_IN_BYTES{1048576u};
-    auto addFile = [SYNCROOT](Model& model, const string& path, const size_t s)
+    unsigned totalFilesAdded{0};
+    auto addFile = [SYNCROOT, &totalFilesAdded](Model& model, const string& path, const size_t s)
     {
         auto data = randomData(s);
         model.addfile(path, data);
         ASSERT_TRUE(createFile(SYNCROOT / path, data));
+        totalFilesAdded++;
     };
+    addFile(model1, "A/fxya1", KB_IN_BYTES);
+    addFile(model1, "A/fxya2", KB_IN_BYTES);
+    addFile(model1, "A/fxya3", KB_IN_BYTES);
+    addFile(model1, "A/fxya4", MB_IN_BYTES);
+    addFile(model1, "A/fxya5", MB_IN_BYTES);
+    addFile(model1, "A/fxya6", MB_IN_BYTES);
 
-    LOG_debug << logPre + "#### Add some files in local FS. ####";
-    addFile(model1, "A/f1", KB_IN_BYTES);
-    addFile(model1, "A/f2", KB_IN_BYTES);
-    addFile(model1, "A/f3", KB_IN_BYTES);
-    addFile(model1, "A/f4", KB_IN_BYTES);
-    addFile(model1, "A/f5", KB_IN_BYTES);
-    addFile(model1, "A/f6", MB_IN_BYTES * 16);
-    addFile(model1, "A/f7", MB_IN_BYTES * 16);
-    addFile(model1, "A/f8", MB_IN_BYTES * 16);
-    addFile(model1, "A/f9", MB_IN_BYTES * 16);
-    addFile(model1, "A/f10", MB_IN_BYTES * 16);
+    auto checkTransferProgress = [&]()
+    {
+        LOG_debug << logPre + "#### Wait until first " << targetTransferFinishedCount
+                  << " transfers finish ####";
+        clientA1->waitFor(
+            [&transferReportFlag](StandardClient&)
+            {
+                return transferReportFlag.load();
+            },
+            std::chrono::seconds(30));
+        ASSERT_EQ(transferFinished, targetTransferFinishedCount);
+        auto numPendingTransfers = totalFilesAdded - transferFinished;
+
+        LOG_debug << logPre + "#### Wait until next reportCounts progress is received ####";
+        clientA1->waitFor(
+            [&transferReportProgressFlag](StandardClient&)
+            {
+                return transferReportProgressFlag.load();
+            },
+            std::chrono::seconds(6));
+        auto pending = MB_IN_BYTES * numPendingTransfers;
+        auto completed =
+            (KB_IN_BYTES * transferFinished) + static_cast<size_t>(transferReportInflightProgress);
+        auto auxProgress =
+            static_cast<double>(completed) / static_cast<double>(completed + pending);
+        ASSERT_EQ(transferReportProgress, auxProgress)
+            << ". Unexpected value for reportCounts progress";
+
+        LOG_debug << logPre + "#### Set max upload speed unlimited ####";
+        clientA1->client.setmaxuploadspeed(-1);
+    };
+    checkTransferProgress();
 
     LOG_debug << logPre + "#### Wait on sync. ####";
     waitonsyncs(TIMEOUT, clientA1);
@@ -6876,6 +6937,7 @@ TEST_F(SyncTest, TransferCountProgress)
     LOG_debug << logPre + "#### Confirm model. ####";
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model1.findnode("" /*root*/), backupId1));
 }
+#endif
 
 TEST_F(SyncTest, BasicSync_AddLocalFolder)
 {

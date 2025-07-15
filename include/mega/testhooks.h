@@ -53,6 +53,7 @@ namespace mega {
         std::function<void(const m_off_t)> onProgressCompletedUpdate;
         std::function<void(const m_off_t)> onProgressContiguousUpdate;
         std::function<bool(Transfer*, TransferDbCommitter&)> onUploadChunkSucceeded;
+        std::function<void(double, m_off_t)> onTransferReportProgress;
         std::function<void(error e)> onDownloadFailed;
         std::function<void(std::unique_ptr<HttpReq>&)> interceptSCRequest;
         std::function<void(m_off_t&)> onLimitMaxReqSize;
@@ -97,6 +98,15 @@ namespace mega {
         } \
     }
 
+    // get reports counts updates
+#define DEBUG_TEST_HOOK_ON_TRANSFER_REPORT_PROGRESS(p, fp) \
+    { \
+        if (globalMegaTestHooks.onTransferReportProgress) \
+        { \
+            globalMegaTestHooks.onTransferReportProgress(p, fp); \
+        } \
+    }
+
     // watch out for download issues
     #define DEBUG_TEST_HOOK_DOWNLOAD_FAILED(X)  { if (globalMegaTestHooks.onDownloadFailed) globalMegaTestHooks.onDownloadFailed(X); }
 
@@ -129,6 +139,7 @@ namespace mega {
     #define DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connectionsInOutVar, clientNumberOfConnections)
 #define DEBUG_TEST_HOOK_ON_PROGRESS_COMPLETED_UPDATE(p)
 #define DEBUG_TEST_HOOK_ON_PROGRESS_CONTIGUOUS_UPDATE(p)
+#define DEBUG_TEST_HOOK_ON_TRANSFER_REPORT_PROGRESS(p, fp)
 #define DEBUG_TEST_HOOK_DOWNLOAD_REQUEST_SINGLEURL(singleUrlFlag)
 #define DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastAccessTime)
 #endif

@@ -20,9 +20,11 @@
  */
 
 #include "mega/heartbeats.h"
-#include "mega/command.h"
+
 #include "assert.h"
 #include "mega.h"
+#include "mega/command.h"
+#include "mega/testhooks.h"
 
 namespace mega {
 
@@ -353,6 +355,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         reportCounts -= hbs->mResolvedTransferCounts;
 
         auto progress = reportCounts.progress(inflightProgress);
+        DEBUG_TEST_HOOK_ON_TRANSFER_REPORT_PROGRESS(progress, inflightProgress);
         if (progress > 1.0)
         {
             const std::string errMsg =
