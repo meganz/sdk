@@ -11,17 +11,21 @@ using namespace common;
 FileServiceQueries::FileServiceQueries(Database& database):
     mAddFile(database.query()),
     mAddFileID(database.query()),
+    mAddFileLocation(database.query()),
     mAddFileRange(database.query()),
     mGetFile(database.query()),
+    mGetFileLocation(database.query()),
     mGetFileRanges(database.query()),
     mGetFileReferences(database.query()),
     mGetFreeFileID(database.query()),
     mGetNextFileID(database.query()),
     mRemoveFile(database.query()),
     mRemoveFileID(database.query()),
+    mRemoveFileLocation(database.query()),
     mRemoveFileRanges(database.query()),
     mSetFileAccessTime(database.query()),
     mSetFileHandle(database.query()),
+    mSetFileLocation(database.query()),
     mSetFileModificationTime(database.query()),
     mSetFileReferences(database.query()),
     mSetNextFileID(database.query())
@@ -37,6 +41,12 @@ FileServiceQueries::FileServiceQueries(Database& database):
 
     mAddFileID = "insert into file_ids values (:id)";
 
+    mAddFileLocation = "insert into file_locations values ( "
+                       "  :id, "
+                       "  :name, "
+                       "  :parent_handle "
+                       ")";
+
     mAddFileRange = "insert into file_ranges values ( "
                     "  :begin, "
                     "  :end, "
@@ -47,6 +57,10 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  from files "
                " where (:handle is not null and handle = :handle) "
                "    or (:id is not null and id = :id)";
+
+    mGetFileLocation = "select * "
+                       "  from file_locations "
+                       " where id = :id";
 
     mGetFileRanges = "select begin "
                      "     , end "
@@ -69,6 +83,9 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mRemoveFileID = "delete from file_ids "
                     " where id = :id";
 
+    mRemoveFileLocation = "delete from file_locations "
+                          " where id = :id";
+
     mRemoveFileRanges = "delete from file_ranges "
                         " where begin >= :begin "
                         "   and end <= :end "
@@ -81,6 +98,11 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mSetFileHandle = "update files "
                      "   set handle = :handle "
                      " where id = :id";
+
+    mSetFileLocation = "update file_locations "
+                       "   set name = :name "
+                       "     , parent_handle = :parent_handle "
+                       " where id = :id";
 
     mSetFileModificationTime = "update files "
                                "   set accessed = :accessed "
