@@ -980,6 +980,9 @@ bool FileContext::execute(FileTruncateRequest& request)
     // Update the file's access and modification times in the database.
     updateAccessAndModificationTimes(modified, modified, transaction);
 
+    // Update the file's size in the database.
+    updateSize(newSize, transaction);
+
     // Persist our changes.
     transaction.commit();
 
@@ -1098,6 +1101,10 @@ bool FileContext::execute(FileWriteRequest& request)
 
     // Update the file's access and modification times in the database.
     updateAccessAndModificationTimes(modified, modified, transaction);
+
+    // Update the file's size in the database if necessary.
+    if (range.mEnd > mInfo->size())
+        updateSize(range.mEnd, transaction);
 
     // Remove obsolete ranges from memory.
     mRanges.remove(begin, end);
@@ -1301,6 +1308,16 @@ void FileContext::updateAccessAndModificationTimes(std::int64_t accessed,
     query.param(":accessed").set(accessed);
     query.param(":modified").set(modified);
     query.param(":id").set(mInfo->id());
+
+    query.execute();
+}
+
+void FileContext::updateSize(std::uint64_t size, Transaction& transaction)
+{
+    auto query = transaction.query(mService.queries().mSetFileSize);
+
+    query.param(":id").set(mInfo->id());
+    query.param(":size").set(size);
 
     query.execute();
 }

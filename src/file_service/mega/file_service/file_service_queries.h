@@ -32,6 +32,7 @@ struct FileServiceQueries
     common::Query mSetFileLocation;
     common::Query mSetFileModificationTime;
     common::Query mSetFileReferences;
+    common::Query mSetFileSize;
     common::Query mSetNextFileID;
 }; // FileServiceQueries
 

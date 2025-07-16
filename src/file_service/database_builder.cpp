@@ -58,6 +58,9 @@ void upgrade01(Query& query)
             "  num_references integer "
             "  constraint nn_files_num_references "
             "             not null, "
+            "  size integer "
+            "  constraint nn_files_size "
+            "             not null, "
             "  constraint pk_files "
             "             primary key (id) "
             ")";

@@ -178,6 +178,9 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     // Latch the file's modification time.
     auto modified = query.field("modified").get<std::int64_t>();
 
+    // Latch the file's size.
+    auto size = query.field("size").get<std::uint64_t>();
+
     // Instantiate a context to represent this file's information.
     auto info = std::make_shared<FileInfoContext>(accessed,
                                                   mActivities.begin(),
@@ -186,7 +189,7 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
                                                   id,
                                                   modified,
                                                   *this,
-                                                  static_cast<std::uint64_t>(file->size));
+                                                  size);
 
     // Add the context to our index.
     mInfoContexts.emplace(id, info);
@@ -262,6 +265,9 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     // Compute the file's access time.
     auto accessed = now();
 
+    // Latch the file's size.
+    auto size = static_cast<std::uint64_t>(node->mSize);
+
     // Add the file to the database.
     auto transaction = mDatabase.transaction();
     auto query = transaction.query(mQueries.mAddFile);
@@ -271,6 +277,8 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     query.param(":handle").set(node->mHandle);
     query.param(":id").set(id);
     query.param(":modified").set(node->mModified);
+    query.param(":num_references").set(0u);
+    query.param(":size").set(size);
 
     query.execute();
 
@@ -288,7 +296,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
                                                   id,
                                                   node->mModified,
                                                   *this,
-                                                  static_cast<std::uint64_t>(node->mSize));
+                                                  size);
 
     // Make sure this file's info is in our index.
     mInfoContexts.emplace(id, info);
@@ -525,6 +533,8 @@ try
     query.param(":handle").set(nullptr);
     query.param(":id").set(id);
     query.param(":modified").set(modified);
+    query.param(":num_references").set(0u);
+    query.param(":size").set(0u);
 
     query.execute();
 

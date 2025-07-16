@@ -29,6 +29,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mSetFileLocation(database.query()),
     mSetFileModificationTime(database.query()),
     mSetFileReferences(database.query()),
+    mSetFileSize(database.query()),
     mSetNextFileID(database.query())
 {
     mAddFile = "insert into files values ( "
@@ -37,7 +38,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  :handle, "
                "  :id, "
                "  :modified, "
-               "  0 "
+               "  :num_references, "
+               "  :size "
                ")";
 
     mAddFileID = "insert into file_ids values (:id)";
@@ -119,6 +121,10 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mSetFileReferences = "update files "
                          "   set num_references = :num_references "
                          " where id = :id";
+
+    mSetFileSize = "update files "
+                   "   set size = :size "
+                   " where id = :id";
 
     mSetNextFileID = "update file_id "
                      "   set next = :next";
