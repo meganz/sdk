@@ -1,5 +1,6 @@
 #include <mega/file_service/memory_buffer.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 
@@ -14,74 +15,75 @@ MemoryBuffer::MemoryBuffer(std::uint64_t length):
     mLength(length)
 {}
 
-bool MemoryBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
+std::uint64_t MemoryBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
 {
+    assert(buffer);
+
+    // Caller gave us a bad buffer.
+    if (!buffer)
+        return 0;
+
+    // Clamp length.
+    length = std::min(length, std::max(mLength, offset) - offset);
+
     // Caller doesn't actually want to read anything.
     if (!length)
-        return true;
+        return 0;
 
-    assert(buffer);
-
-    // Caller gave us a bad buffer.
-    if (!buffer)
-        return false;
-
-    assert(offset + length <= mLength);
-
-    // Caller's read is out of bounds.
-    if (offset + length > mLength)
-        return false;
+    // Convenenience.
+    auto* destination = static_cast<std::uint8_t*>(buffer);
+    auto* source = mBuffer.get() + offset;
 
     // Copy data into the caller's buffer.
-    std::memcpy(buffer, mBuffer.get() + offset, static_cast<std::size_t>(length));
+    std::copy(source, source + length, destination);
 
-    // Reading from our buffer always succeeds.
-    return true;
+    // Let the user know how much data was read.
+    return length;
 }
 
-bool MemoryBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
+std::uint64_t MemoryBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
 {
-    // Caller doesn't actually want to write anything.
-    if (!length)
-        return true;
-
     assert(buffer);
 
     // Caller gave us a bad buffer.
     if (!buffer)
-        return false;
+        return 0u;
 
-    assert(offset + length <= mLength);
+    // Clamp length as necessary.
+    length = std::min(length, std::max(mLength, offset) - offset);
 
-    // Caller's write is out of bounds.
-    if (offset + length > mLength)
-        return false;
+    // Caller doesn't actually want to write anything.
+    if (!length)
+        return 0;
+
+    // Convenience.
+    auto* destination = mBuffer.get() + offset;
+    auto* source = static_cast<const std::uint8_t*>(buffer);
 
     // Copy data into our buffer.
-    std::memcpy(mBuffer.get() + offset, buffer, static_cast<std::size_t>(length));
+    std::copy(source, source + length, destination);
 
-    // Writes into our buffer always succeed.
-    return true;
+    // Let the user know how many bytes were written.
+    return length;
 }
 
-bool MemoryBuffer::copy(Buffer& target,
-                        std::uint64_t offset0,
-                        std::uint64_t offset1,
-                        std::uint64_t length) const
+std::uint64_t MemoryBuffer::copy(Buffer& target,
+                                 std::uint64_t offset0,
+                                 std::uint64_t offset1,
+                                 std::uint64_t length) const
 {
-    // Transfers to the same buffer are a no-op.
+    assert(this != &target);
+
+    // Can't copy to the same buffer.
     if (this == &target)
-        return true;
+        return 0u;
+
+    // Clamp length as necessary.
+    length = std::min(length, std::max(mLength, offset0) - offset0);
 
     // Caller doesn't actually want to transfer any data.
     if (!length)
-        return true;
-
-    assert(offset0 + length <= mLength);
-
-    // Caller's transfer is out of bounds.
-    if (offset0 + length > mLength)
-        return false;
+        return 0;
 
     // Try and transfer our data to the target.
     return target.write(mBuffer.get() + offset0, offset1, length);

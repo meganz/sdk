@@ -18,7 +18,7 @@ public:
     virtual ~Source() = default;
 
     // Read data from the source.
-    virtual bool read(void* buffer, std::uint64_t offset, std::uint64_t length) const = 0;
+    virtual std::uint64_t read(void* buffer, std::uint64_t offset, std::uint64_t length) const = 0;
 }; // Source
 
 } // file_service

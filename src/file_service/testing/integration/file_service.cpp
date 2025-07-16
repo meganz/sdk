@@ -1762,18 +1762,21 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
             // Extend buffer as needed.
             mBuffer.resize(mOffset + result->mLength);
 
+            // Try and copy the content to our buffer.
+            auto count = source.read(&mBuffer[mOffset], 0, result->mLength);
+
             // Couldn't copy the content to our buffer.
-            if (!source.read(&mBuffer[mOffset], 0, result->mLength))
+            if (count != result->mLength)
                 return mNotifier.set_value(unexpected(FILE_FAILED));
 
             // Bump our offset and length.
-            mOffset += result->mLength;
-            mLength -= result->mLength;
+            mOffset += count;
+            mLength -= count;
 
             // Read remaining content, if any.
             mFile.read(
                 std::bind(&ReadContext::onRead, this, std::move(context), std::placeholders::_1),
-                result->mOffset + result->mLength,
+                result->mOffset + count,
                 mLength);
         }
 

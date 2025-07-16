@@ -19,16 +19,16 @@ public:
     explicit MemoryBuffer(std::uint64_t length);
 
     // Read data from the buffer.
-    bool read(void* buffer, std::uint64_t offset, std::uint64_t length) const override;
+    std::uint64_t read(void* buffer, std::uint64_t offset, std::uint64_t length) const override;
 
     // Write data into the buffer.
-    bool write(const void* buffer, std::uint64_t offset, std::uint64_t length) override;
+    std::uint64_t write(const void* buffer, std::uint64_t offset, std::uint64_t length) override;
 
     // Copy data from this buffer to another.
-    bool copy(Buffer& target,
-              std::uint64_t offset0,
-              std::uint64_t offset1,
-              std::uint64_t length) const override;
+    std::uint64_t copy(Buffer& target,
+                       std::uint64_t offset0,
+                       std::uint64_t offset1,
+                       std::uint64_t length) const override;
 }; // MemoryBuffer
 
 } // file_service

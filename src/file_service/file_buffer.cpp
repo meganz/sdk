@@ -14,56 +14,62 @@ FileBuffer::FileBuffer(FileAccess& file):
     mFile(file)
 {}
 
-bool FileBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
+std::uint64_t FileBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
 {
     // Caller doesn't want to read anything.
     if (!length)
-        return true;
+        return 0;
 
     assert(buffer);
 
     // Caller gave us a bad buffer.
     if (!buffer)
-        return false;
+        return 0;
 
     // Disambiguate.
     using file_service::read;
 
-    // Try and populate the user's buffer.
-    return read(mFile, buffer, offset, length) == length;
+    // Couldn't read from the file.
+    if (!read(mFile, buffer, offset, length))
+        return 0;
+
+    // Let the caller know the read succeeded.
+    return length;
 }
 
-bool FileBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
+std::uint64_t FileBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
 {
     // Caller doesn't actually want to write anything.
     if (!length)
-        return true;
+        return 0u;
 
     assert(buffer);
 
     // Caller didn't give us a valid buffer.
     if (!buffer)
-        return false;
+        return 0u;
 
     // Disambiguate.
     using file_service::write;
 
     // Try and write the caller's buffer to file.
-    return write(mFile, buffer, offset, length) == length;
+    return write(mFile, buffer, offset, length);
 }
 
-bool FileBuffer::copy(Buffer& target,
-                      std::uint64_t offset0,
-                      std::uint64_t offset1,
-                      std::uint64_t length) const
+std::uint64_t FileBuffer::copy(Buffer& target,
+                               std::uint64_t offset0,
+                               std::uint64_t offset1,
+                               std::uint64_t length) const
 {
-    // Transfers to the same buffer are a no-op.
+    assert(this != &target);
+
+    // Can't copy to the same buffer.
     if (this == &target)
-        return true;
+        return 0u;
 
     // Caller doesn't actually want to transfer any data.
     if (!length)
-        return true;
+        return 0u;
 
     // Maximum length allowed for on-stack buffer.
     constexpr std::uint64_t threshold = 1u << 12;
@@ -91,29 +97,43 @@ bool FileBuffer::copy(Buffer& target,
         buffer = memoryBuffer.get();
     }
 
+    // How much data have we copied?
+    std::uint64_t copied = 0u;
+
     // Transfer data to the target buffer.
     while (length > size)
     {
+        // Try and read data from storage.
+        auto count = read(buffer, offset0 + copied, size);
+
         // Couldn't read data from storage.
-        if (!read(buffer, offset0, size))
-            return false;
+        if (count != size)
+            return copied;
+
+        // Try and write data to the target buffer.
+        count = target.write(buffer, offset1 + copied, size);
+
+        // Bump counters.
+        copied += count;
+        length -= count;
 
         // Couldn't write data to the target buffer.
-        if (!target.write(buffer, offset1, size))
-            return false;
-
-        // Adjust offsets and remaining length.
-        length -= size;
-        offset0 += size;
-        offset1 += size;
+        if (count != size)
+            return copied;
     }
 
+    // Try and read data from storage.
+    auto count = read(buffer, offset0 + copied, length);
+
     // Couldn't read data from storage.
-    if (!read(buffer, offset0, length))
-        return false;
+    if (count != length)
+        return copied;
 
     // Try and write data to the target buffer.
-    return target.write(buffer, offset1, length);
+    count = target.write(buffer, offset1 + copied, length);
+
+    // Let the caller know how much data was copied.
+    return count + copied;
 }
 
 } // file_service

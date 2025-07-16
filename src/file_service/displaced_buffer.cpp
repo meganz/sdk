@@ -31,34 +31,40 @@ std::uint64_t DisplacedBuffer::displacement() const
     return mDisplacement;
 }
 
-bool DisplacedBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
+std::uint64_t DisplacedBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
 {
+    assert(mBuffer);
+
     // No buffer to delegate to.
     if (!mBuffer)
-        return false;
+        return 0u;
 
     // Delegate read.
     return mBuffer->read(buffer, mDisplacement + offset, length);
 }
 
-bool DisplacedBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
+std::uint64_t DisplacedBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
 {
+    assert(mBuffer);
+
     // No buffer to delegate to.
     if (!mBuffer)
-        return false;
+        return 0u;
 
     // Delegate write.
     return mBuffer->write(buffer, mDisplacement + offset, length);
 }
 
-bool DisplacedBuffer::copy(Buffer& target,
-                           std::uint64_t offset0,
-                           std::uint64_t offset1,
-                           std::uint64_t length) const
+std::uint64_t DisplacedBuffer::copy(Buffer& target,
+                                    std::uint64_t offset0,
+                                    std::uint64_t offset1,
+                                    std::uint64_t length) const
 {
+    assert(mBuffer);
+
     // No buffer to delegate to.
     if (!mBuffer)
-        return false;
+        return 0u;
 
     // Delegate transfer.
     return mBuffer->copy(target, mDisplacement + offset0, offset1, length);

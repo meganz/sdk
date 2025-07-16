@@ -18,7 +18,7 @@ public:
     virtual ~Sink() = default;
 
     // Write data into the sink.
-    virtual bool write(const void* buffer, std::uint64_t offset, std::uint64_t length) = 0;
+    virtual std::uint64_t write(const void* buffer, std::uint64_t offset, std::uint64_t length) = 0;
 }; // Sink
 
 } // file_service

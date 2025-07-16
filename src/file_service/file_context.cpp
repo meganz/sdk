@@ -311,13 +311,22 @@ void FileContext::completed(Buffer& buffer,
                             FileRange range)
 try
 {
+    // How much data did we download?
+    auto size = range.mEnd - range.mBegin;
+
     // No data for this range was downloaded.
-    if (range.mBegin == range.mEnd)
+    if (!size)
         return mRanges.remove(iterator), void();
 
-    // Can't flush this range's data to the storage.
-    if (!buffer.copy(*mBuffer, 0, range.mBegin, range.mEnd - range.mBegin))
+    // Try and flush this range's data to storage.
+    size = buffer.copy(*mBuffer, 0, range.mBegin, size);
+
+    // Couldn't flush any of this range's data to storage.
+    if (!size)
         return mRanges.remove(iterator), void();
+
+    // Compute the range's actual end point.
+    range.mEnd = range.mBegin + size;
 
     // Figure out what ranges we can coalesce with.
     auto begin = [&]()
