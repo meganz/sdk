@@ -1,7 +1,7 @@
 #pragma once
 
 #include <mega/file_service/file_buffer.h>
-#include <mega/file_service/file_info_context_forward.h>
+#include <mega/file_service/file_size_info_forward.h>
 
 namespace mega
 {
@@ -11,10 +11,10 @@ namespace file_service
 class SparseFileBuffer: public FileBuffer
 {
     // Describes the file we're accessing.
-    FileInfoContext& mInfo;
+    FileSizeInfo& mInfo;
 
 public:
-    SparseFileBuffer(FileAccess& file, FileInfoContext& info);
+    SparseFileBuffer(FileAccess& file, FileSizeInfo& info);
 
     // Read data from the buffer.
     auto read(void* buffer, std::uint64_t offset, std::uint64_t length) const

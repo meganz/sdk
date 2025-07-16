@@ -1,4 +1,4 @@
-#include <mega/file_service/file_info_context.h>
+#include <mega/file_service/file_size_info.h>
 #include <mega/file_service/sparse_file_buffer.h>
 
 #include <algorithm>
@@ -9,7 +9,7 @@ namespace mega
 namespace file_service
 {
 
-SparseFileBuffer::SparseFileBuffer(FileAccess& file, FileInfoContext& info):
+SparseFileBuffer::SparseFileBuffer(FileAccess& file, FileSizeInfo& info):
     FileBuffer(file),
     mInfo(info)
 {}

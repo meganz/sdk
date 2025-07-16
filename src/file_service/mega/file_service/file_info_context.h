@@ -6,6 +6,7 @@
 #include <mega/file_service/file_info_context_forward.h>
 #include <mega/file_service/file_range_forward.h>
 #include <mega/file_service/file_service_context_forward.h>
+#include <mega/file_service/file_size_info.h>
 #include <mega/types.h>
 
 #include <mutex>
@@ -15,7 +16,7 @@ namespace mega
 namespace file_service
 {
 
-class FileInfoContext
+class FileInfoContext: public FileSizeInfo
 {
     // Maps observer IDs to observer callbacks.
     using FileEventObserverMap = std::map<FileEventObserverID, FileEventObserver>;
@@ -98,7 +99,7 @@ public:
     auto id() const -> FileID;
 
     // How large is this file?
-    auto logicalSize() const -> std::uint64_t;
+    std::uint64_t logicalSize() const override;
 
     // Update the file's access and modification time.
     void modified(std::int64_t accessed, std::int64_t modified);
@@ -107,10 +108,10 @@ public:
     auto modified() const -> std::int64_t;
 
     // Update the file's physical size.
-    void physicalSize(std::uint64_t physicalSize);
+    void physicalSize(std::uint64_t physicalSize) override;
 
     // What is the file's size on disk?
-    std::uint64_t physicalSize() const;
+    std::uint64_t physicalSize() const override;
 
     // Remove an observer.
     void removeObserver(FileEventObserverID id);

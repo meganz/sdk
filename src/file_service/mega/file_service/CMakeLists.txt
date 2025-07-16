@@ -46,6 +46,8 @@ target_sources(SDKlib PRIVATE
                       file_request_tags.h
                       file_service_context.h
                       file_service_queries.h
+                      file_size_info.h
+                      file_size_info_forward.h
                       file_storage.h
                       file_touch_request.h
                       file_touch_request_forward.h
