@@ -165,6 +165,8 @@ public:
 
     // Remove the mount from memory.
     MountResult remove();
+
+    void notifyFileExplorerSetter(const std::wstring& prefix);
 }; // Mount
 
 } // platform

@@ -892,6 +892,11 @@ MountResult Mount::remove()
     return MOUNT_SUCCESS;
 }
 
+void Mount::notifyFileExplorerSetter(const std::wstring& prefix)
+{
+    mMountDB.notifyFileExplorerSetter(prefix);
+}
+
 } // platform
 } // fuse
 } // mega

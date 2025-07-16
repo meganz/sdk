@@ -14,9 +14,9 @@ namespace platform
 {
 using namespace common;
 
-class FEViewSetter::Executor: public common::TaskExecutor
+class FileExplorerSetter::Executor: public common::TaskExecutor
 {
-    friend class FEViewSetter;
+    friend class FileExplorerSetter;
 
     bool mInited{false};
 
@@ -29,7 +29,7 @@ public:
 };
 
 // Note: The correctness based on the fact: We have one worker, running forever
-FEViewSetter::Executor::Executor():
+FileExplorerSetter::Executor::Executor():
     common::TaskExecutor(
         []()
         {
@@ -42,27 +42,27 @@ FEViewSetter::Executor::Executor():
         logger())
 {}
 
-void FEViewSetter::Executor::workerStarted(std::thread::id)
+void FileExplorerSetter::Executor::workerStarted(std::thread::id)
 {
     mInited = shell::init();
 }
 
-void FEViewSetter::Executor::workerStopped(std::thread::id)
+void FileExplorerSetter::Executor::workerStopped(std::thread::id)
 {
     if (mInited)
         shell::uninit();
 }
 
-FEViewSetter::FEViewSetter():
-    mExecutor(std::make_unique<FEViewSetter::Executor>())
+FileExplorerSetter::FileExplorerSetter():
+    mExecutor(std::make_unique<FileExplorerSetter::Executor>())
 {
     // start the worker
     mExecutor->execute([](const Task&) {}, false);
 }
 
-FEViewSetter::~FEViewSetter() = default;
+FileExplorerSetter::~FileExplorerSetter() = default;
 
-void FEViewSetter::notify(const std::wstring& prefix)
+void FileExplorerSetter::notify(const std::wstring& prefix)
 {
     if (!mExecutor->mInited)
         return;

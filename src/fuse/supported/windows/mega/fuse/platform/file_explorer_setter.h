@@ -10,16 +10,16 @@ namespace platform
 {
 
 // Sets running file explorer's view
-class FEViewSetter
+class FileExplorerSetter
 {
     class Executor;
 
     std::unique_ptr<Executor> mExecutor;
 
 public:
-    FEViewSetter();
+    FileExplorerSetter();
 
-    ~FEViewSetter();
+    ~FileExplorerSetter();
 
     void notify(const std::wstring& prefix);
 };

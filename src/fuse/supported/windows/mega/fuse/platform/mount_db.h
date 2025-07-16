@@ -1,10 +1,9 @@
 #pragma once
 
-#include <cstdint>
-
 #include <mega/fuse/common/inode_forward.h>
 #include <mega/fuse/common/mount_db.h>
 #include <mega/fuse/common/service_context_forward.h>
+#include <mega/fuse/platform/file_explorer_setter.h>
 #include <mega/fuse/platform/handle.h>
 #include <mega/fuse/platform/security_descriptor.h>
 
@@ -18,12 +17,16 @@ namespace platform
 class MountDB
   : public fuse::MountDB
 {
+    FileExplorerSetter mFileExplorerSetter{};
+
     // Checks whether a mount's local path is valid.
     MountResult check(const common::Client& client,
                       const MountInfo& info) const override;
 
 public:
     MountDB(ServiceContext& context);
+
+    void notifyFileExplorerSetter(const std::wstring& prefix);
 
     // Security descriptor for read-only inodes.
     const SecurityDescriptor mReadOnlySecurityDescriptor;

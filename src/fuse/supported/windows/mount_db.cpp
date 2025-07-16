@@ -104,6 +104,12 @@ MountDB::MountDB(ServiceContext& context)
     FUSEDebug1("Mount DB constructed");
 }
 
+void MountDB::notifyFileExplorerSetter(const std::wstring& prefix)
+{
+    if (fileExplorerView() != FILE_EXPLORER_VIEW_NONE)
+        mFileExplorerSetter.notify(prefix);
+}
+
 } // platform
 } // fuse
 } // mega
