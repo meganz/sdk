@@ -33,6 +33,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_WINDOWS_INC}/security_descriptor_forward.h
                              ${FUSE_WINDOWS_INC}/security_identifier.h
                              ${FUSE_WINDOWS_INC}/security_identifier_forward.h
+                             ${FUSE_WINDOWS_INC}/shell.h
                              ${FUSE_WINDOWS_INC}/utility.h
                              ${FUSE_WINDOWS_INC}/windows.h
                              ${FUSE_WINDOWS_SRC}/constants.cpp
@@ -44,6 +45,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_WINDOWS_SRC}/security_descriptor.cpp
                              ${FUSE_WINDOWS_SRC}/security_identifier.cpp
                              ${FUSE_WINDOWS_SRC}/service.cpp
+                             ${FUSE_WINDOWS_SRC}/shell.cpp
                              ${FUSE_WINDOWS_SRC}/unmounter.cpp
                              ${FUSE_WINDOWS_SRC}/utility.cpp
 )
