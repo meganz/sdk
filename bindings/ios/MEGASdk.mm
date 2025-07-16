@@ -4004,6 +4004,12 @@ using namespace mega;
     }
 }
 
+- (void)getSubscriptionCancellationDetailsWithGateway:(MEGAPaymentMethod)gateway originalTransactionId:(nullable NSString *)originalTransactionId delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getSubscriptionCancellationDetails((int)gateway, originalTransactionId.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 #pragma mark - Password Manager
 
 - (void)getPasswordManagerBaseWithDelegate:(id<MEGARequestDelegate>)delegate {

@@ -73,7 +73,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     tag = 0;
     slot = NULL;
     asyncopencontext = NULL;
-    progresscompleted = 0;
+    setProgresscompleted(0);
     finished = false;
     lastaccesstime = 0;
     ultoken = NULL;
@@ -366,7 +366,9 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
         t->state = TRANSFERSTATE_PAUSED;
     }
 
-    t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
+    m_off_t pCompleted{0};
+    t->chunkmacs.calcprogress(t->size, t->pos, pCompleted);
+    t->setProgresscompleted(pCompleted);
 
     multi_transfers[type].insert(pair<FileFingerprint*, Transfer*>(t.get(), t.get()));
     return t.release();
@@ -410,6 +412,12 @@ void Transfer::removeAndDeleteSelf(transferstate_t finalState)
     // this will also remove the transfer from internal lists etc.
     // those use a lazy delete (ie mark for later deletion) so that we don't invalidate iterators.
     delete this;
+}
+
+void Transfer::setProgresscompleted(const m_off_t p, const bool append)
+{
+    progresscompleted = !append ? p : progresscompleted + p;
+    DEBUG_TEST_HOOK_ON_PROGRESS_COMPLETED_UPDATE(progresscompleted);
 }
 
 // transfer attempt failed, notify all related files, collect request on
@@ -520,7 +528,7 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
     if (type == PUT)
     {
         chunkmacs.clear();
-        progresscompleted = 0;
+        setProgresscompleted(0);
         ultoken.reset();
         pos = 0;
 
@@ -687,7 +695,7 @@ void Transfer::discardTempUrlsIfNoDataDownloadedOrTimeoutReached(
         case PUT:
         {
             chunkmacs.clear();
-            progresscompleted = 0;
+            setProgresscompleted(0);
             ultoken.reset();
             pos = 0;
             break;
@@ -726,13 +734,15 @@ void Transfer::adjustNonRaidedProgressIfNowIsRaided()
     chunkmacs.swap(newChunkmacs);
 
     m_off_t sumOfPartialChunks{0};
-    chunkmacs.calcprogress(size, pos, progresscompleted, &sumOfPartialChunks);
+    m_off_t pCompleted{0};
+    chunkmacs.calcprogress(size, pos, pCompleted, &sumOfPartialChunks);
+    setProgresscompleted(pCompleted);
 
     if (progresscompleted > size)
     {
         LOG_err << logPre << "Invalid transfer progress!";
         pos = size;
-        progresscompleted = size;
+        setProgresscompleted(size);
     }
 
     const auto progressContiguous = slot->updatecontiguousprogress();

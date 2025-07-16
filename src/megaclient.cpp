@@ -2069,6 +2069,7 @@ MegaClient::MegaClient(MegaApp* a,
 
     LOG_debug << "User-Agent: " << useragent;
     LOG_debug << "Cryptopp version: " << CRYPTOPP_VERSION;
+    LOG_debug << "icu version: " << Utils::getIcuVersion();
 
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
@@ -4385,20 +4386,25 @@ void MegaClient::dispatchTransfers()
                     const char *chatauth = NULL;
 
                     nexttransfer->pos = 0;
-                    nexttransfer->progresscompleted = 0;
+                    nexttransfer->setProgresscompleted(0);
 
                     if (nexttransfer->type == GET || nexttransfer->tempurls.size())
                     {
                         m_off_t p = 0;
 
                         // resume at the end of the last contiguous completed block
-                        nexttransfer->chunkmacs.calcprogress(nexttransfer->size, nexttransfer->pos, nexttransfer->progresscompleted, &p);
+                        m_off_t pCompleted{0};
+                        nexttransfer->chunkmacs.calcprogress(nexttransfer->size,
+                                                             nexttransfer->pos,
+                                                             pCompleted,
+                                                             &p);
+                        nexttransfer->setProgresscompleted(pCompleted);
 
                         if (nexttransfer->progresscompleted > nexttransfer->size)
                         {
                             LOG_err << "Invalid transfer progress!";
                             nexttransfer->pos = nexttransfer->size;
-                            nexttransfer->progresscompleted = nexttransfer->size;
+                            nexttransfer->setProgresscompleted(nexttransfer->size);
                         }
 
                         m_off_t progresscontiguous = ts->updatecontiguousprogress();
@@ -5554,11 +5560,6 @@ bool MegaClient::procsc()
                             case name_id::c:
                                 // contact addition/update
                                 sc_contacts();
-                                break;
-
-                            case makeNameid("k"):
-                                // crypto key request
-                                sc_keys();
                                 break;
 
                             case makeNameid("fa"):
@@ -7154,58 +7155,6 @@ void MegaClient::sc_contacts()
 
             case EOO:
                 useralerts.evalprovisional(ou);
-                return;
-
-            default:
-                if (!jsonsc.storeobject())
-                {
-                    return;
-                }
-        }
-    }
-}
-
-// server-client key requests/responses
-void MegaClient::sc_keys()
-{
-    handle h;
-    std::shared_ptr<Node> n;
-    sharedNode_vector kshares;
-    sharedNode_vector knodes;
-
-    for (;;)
-    {
-        switch (jsonsc.getnameid())
-        {
-            case makeNameid("sr"):
-                procsr(&jsonsc);
-                break;
-
-            case makeNameid("h"):
-                if (!ISUNDEF(h = jsonsc.gethandle()) && (n = nodebyhandle(h)) && n->sharekey)
-                {
-                    kshares.push_back(n);   // n->inshare is checked in cr_response
-                }
-                break;
-
-            case makeNameid("n"):
-                if (jsonsc.enterarray())
-                {
-                    while (!ISUNDEF(h = jsonsc.gethandle()) && (n = nodebyhandle(h)))
-                    {
-                        knodes.push_back(n);
-                    }
-
-                    jsonsc.leavearray();
-                }
-                break;
-
-            case makeNameid("cr"):
-                proccr(&jsonsc);
-                break;
-
-            case EOO:
-                cr_response(&kshares, &knodes, NULL);
                 return;
 
             default:
@@ -12391,6 +12340,21 @@ PendingContactRequest* MegaClient::findpcr(handle p)
     return pcr.get();
 }
 
+// only for incoming PCRs
+std::optional<PendingContactRequest*> MegaClient::findpcr(const string& email)
+{
+    for (auto& pcr: pcrindex)
+    {
+        if (pcr.second->isoutgoing)
+            continue;
+
+        if (pcr.second->originatoremail == email)
+            return pcr.second.get();
+    }
+
+    return std::nullopt;
+}
+
 void MegaClient::mappcr(handle id, unique_ptr<PendingContactRequest>&& pcr)
 {
     pcrindex[id] = std::move(pcr);
@@ -12407,14 +12371,6 @@ bool MegaClient::discardnotifieduser(User *u)
         }
     }
     return false;
-}
-
-// sharekey distribution request - walk array consisting of {node,user+}+ handle tuples
-// and submit public key requests
-void MegaClient::procsr(JSON* j)
-{
-    // insecure functionality - disable
-    j->storeobject();
 }
 
 void MegaClient::clearKeys()
@@ -12984,9 +12940,9 @@ void MegaClient::updatepcr(handle p, ipcactions_t action, CommandUpdatePendingCo
 }
 
 // enumerate Pro account purchase options (not fully implemented)
-void MegaClient::purchase_enumeratequotaitems()
+void MegaClient::purchase_enumeratequotaitems(const std::optional<std::string>& countryCode)
 {
-    reqs.add(new CommandEnumerateQuotaItems(this));
+    reqs.add(new CommandEnumerateQuotaItems(countryCode, this));
 }
 
 // begin a new purchase (FIXME: not fully implemented)
@@ -13655,163 +13611,6 @@ void MegaClient::notifychat(TextChat *chat)
 }
 #endif
 
-// process request for share node keys
-// builds & emits k/cr command
-// returns 1 in case of a valid response, 0 otherwise
-void MegaClient::proccr(JSON* j)
-{
-    sharedNode_vector shares, nodes;
-    handle h;
-
-    if (j->enterobject())
-    {
-        for (;;)
-        {
-            switch (j->getnameid())
-            {
-                case makeNameid("snk"):
-                    procsnk(j);
-                    break;
-
-                case makeNameid("suk"):
-                    procsuk(j);
-                    break;
-
-                case EOO:
-                    j->leaveobject();
-                    return;
-
-                default:
-                    if (!j->storeobject())
-                    {
-                        return;
-                    }
-            }
-        }
-
-        return;
-    }
-
-    if (!j->enterarray())
-    {
-        LOG_err << "Malformed CR - outer array";
-        return;
-    }
-
-    if (j->enterarray())
-    {
-        while (!ISUNDEF(h = j->gethandle()))
-        {
-            shares.push_back(nodebyhandle(h));
-        }
-
-        j->leavearray();
-
-        if (j->enterarray())
-        {
-            while (!ISUNDEF(h = j->gethandle()))
-            {
-                nodes.push_back(nodebyhandle(h));
-            }
-
-            j->leavearray();
-        }
-        else
-        {
-            LOG_err << "Malformed SNK CR - nodes part";
-            j->leavearray();
-            return;
-        }
-
-        if (j->enterarray())
-        {
-            cr_response(&shares, &nodes, j);
-            j->leavearray();
-        }
-        else
-        {
-            LOG_err << "Malformed CR - linkage part";
-            j->leavearray();
-            return;
-        }
-    }
-
-    j->leavearray();
-}
-
-// share nodekey delivery
-void MegaClient::procsnk(JSON* j)
-{
-    if (j->enterarray())
-    {
-        handle sh, nh;
-
-        while (j->enterarray())
-        {
-            if (ISUNDEF((sh = j->gethandle())))
-            {
-                j->leavearray();
-                j->leavearray();
-                return;
-            }
-
-            if (ISUNDEF((nh = j->gethandle())))
-            {
-                j->leavearray();
-                j->leavearray();
-                return;
-            }
-
-            std::shared_ptr<Node> sn = nodebyhandle(sh);
-
-            if (sn && sn->sharekey && checkaccess(sn.get(), OWNER))
-            {
-                std::shared_ptr<Node> n = nodebyhandle(nh);
-
-                if (n && n->isbelow(sn.get()))
-                {
-                    byte keybuf[FILENODEKEYLENGTH];
-                    size_t keysize = n->nodekey().size();
-                    sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, keysize);
-                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, keysize));
-                }
-            }
-
-            j->leavearray();
-        }
-
-        j->leavearray();
-    }
-}
-
-// share userkey delivery
-void MegaClient::procsuk(JSON* j)
-{
-    if (j->enterarray())
-    {
-        while (j->enterarray())
-        {
-            handle sh, uh;
-
-            sh = j->gethandle();
-
-            if (!ISUNDEF(sh))
-            {
-                uh = j->gethandle();
-
-                if (!ISUNDEF(uh))
-                {
-                    // FIXME: add support for share user key delivery
-                }
-            }
-
-            j->leavearray();
-        }
-
-        j->leavearray();
-    }
-}
-
 #ifdef ENABLE_CHAT
 void MegaClient::procmcf(JSON *j)
 {
@@ -14200,148 +13999,6 @@ unsigned MegaClient::addnode(sharedNode_vector* v, std::shared_ptr<Node> n) cons
 
     v->push_back(n);
     return unsigned(v->size() - 1);
-}
-
-// generate crypto key response
-// if !selector, generate all shares*nodes tuples
-void MegaClient::cr_response(sharedNode_vector* shares, sharedNode_vector* nodes, JSON* selector)
-{
-    sharedNode_vector rshares, rnodes;
-    unsigned si, ni = unsigned(-1);
-    std::shared_ptr<Node> sn;
-    std::shared_ptr<Node> n;
-    string crkeys;
-    byte keybuf[FILENODEKEYLENGTH];
-    char buf[128];
-    int setkey = -1;
-
-    // for security reasons, we only respond to key requests affecting our own
-    // shares
-    for (si = unsigned(shares->size()); si--; )
-    {
-        if ((*shares)[si] && ((*shares)[si]->inshare || !(*shares)[si]->sharekey))
-        {
-            // security feature: we only distribute node keys for our own outgoing shares.
-            LOG_warn << "Attempt to obtain node key for invalid/third-party share foiled: " << toNodeHandle((*shares)[si]->nodehandle);
-            (*shares)[si] = NULL;
-            sendevent(99445, "Inshare key request rejected", 0);
-        }
-    }
-
-    if (!selector)
-    {
-        si = 0;
-        ni = unsigned(-1);
-        if (shares->empty() || nodes->empty())
-        {
-            return;
-        }
-    }
-
-    // estimate required size for requested keys
-    // for each node: ",<index>,<index>,"<nodekey>
-    crkeys.reserve(nodes->size() * ((5 + 4 * 2) + (FILENODEKEYLENGTH * 4 / 3 + 4)) + 1);
-    // we reserve for indexes up to 4 digits per index
-
-    for (;;)
-    {
-        if (selector)
-        {
-            if (!selector->isnumeric())
-            {
-                break;
-            }
-
-            si = (unsigned)selector->getint();
-            ni = (unsigned)selector->getint();
-
-            if (si >= shares->size())
-            {
-                LOG_err << "Share index out of range";
-                return;
-            }
-
-            if (ni >= nodes->size())
-            {
-                LOG_err << "Node index out of range";
-                return;
-            }
-
-            if (selector->pos[1] == '"')
-            {
-                setkey = selector->storebinary(keybuf, sizeof keybuf);
-            }
-            else
-            {
-                setkey = -1;
-            }
-        }
-        else
-        {
-            // no selector supplied
-            ni++;
-
-            if (ni >= nodes->size())
-            {
-                ni = 0;
-                if (++si >= shares->size())
-                {
-                    break;
-                }
-            }
-        }
-
-        if ((sn = (*shares)[si]) && (n = (*nodes)[ni]))
-        {
-            if (n->isbelow(sn.get()))
-            {
-                if (setkey >= 0)
-                {
-                    if (setkey == (int)n->nodekey().size())
-                    {
-                        sn->sharekey->ecb_decrypt(keybuf, n->nodekey().size());
-                        n->setkey(keybuf);
-                        setkey = -1;
-                    }
-                }
-                else
-                {
-                    n->applykey();
-                    int keysize = int(n->nodekey().size());
-                    if (sn->sharekey && keysize == (n->type == FILENODE ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
-                    {
-                        unsigned nsi, nni;
-
-                        nsi = addnode(&rshares, sn);
-                        nni = addnode(&rnodes, n);
-
-                        snprintf(buf, sizeof(buf), "\",%u,%u,\"", nsi, nni);
-
-                        // generate & queue share nodekey
-                        sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, size_t(keysize));
-                        Base64::btoa(keybuf, keysize, strchr(buf + 7, 0));
-                        crkeys.append(buf);
-                    }
-                    else
-                    {
-                        LOG_warn << "Skipping node due to an unavailable key";
-                    }
-                }
-
-                mNodeManager.updateNode(n.get());
-            }
-            else
-            {
-                LOG_warn << "Attempt to obtain key of node outside share foiled";
-            }
-        }
-    }
-
-    if (crkeys.size())
-    {
-        crkeys.append("\"");
-        reqs.add(new CommandKeyCR(this, &rshares, &rnodes, crkeys.c_str() + 2));
-    }
 }
 
 void MegaClient::getaccountdetails(std::shared_ptr<AccountDetails> ad, bool storage,
@@ -18511,7 +18168,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         }
                         t->localfilename.clear();
                         t->chunkmacs.clear();
-                        t->progresscompleted = 0;
+                        t->setProgresscompleted(0);
                         t->pos = 0;
                     }
                 }
@@ -18524,7 +18181,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                             LOG_warn << "The local file has been modified: " << t->localfilename;
                             t->tempurls.clear();
                             t->chunkmacs.clear();
-                            t->progresscompleted = 0;
+                            t->setProgresscompleted(0);
                             t->ultoken.reset();
                             t->pos = 0;
                         }
@@ -18535,7 +18192,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         {
                             LOG_warn << "Truncated temporary file: " << t->localfilename;
                             t->chunkmacs.clear();
-                            t->progresscompleted = 0;
+                            t->setProgresscompleted(0);
                             t->pos = 0;
                         }
                     }
@@ -24513,6 +24170,18 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
 void MegaClient::getMyIp(CommandGetMyIP::Cb&& completion)
 {
     reqs.add(new CommandGetMyIP(this, std::move(completion)));
+}
+
+// Call "gsc" command.
+void MegaClient::getSubscriptionCancellationDetails(
+    const char* originalTransactionId,
+    unsigned int gatewayId,
+    CommandGetSubscriptionCancellationDetails::CompletionCallback&& completion)
+{
+    reqs.add(new CommandGetSubscriptionCancellationDetails(this,
+                                                           originalTransactionId,
+                                                           gatewayId,
+                                                           std::move(completion)));
 }
 
 } // namespace

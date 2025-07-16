@@ -1639,6 +1639,10 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
                    "the admin user and tries to perform a disallowed command (currently u and p)";
         case LOCAL_ENOSPC:
             return "Insufficient disk space";
+        case LOCAL_ETIMEOUT:
+            return "Local timeout error";
+        case LOCAL_ENETWORK:
+            return "Local network error";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -3087,7 +3091,12 @@ MegaIntegerList* MegaApi::getOverquotaWarningsTs()
 
 void MegaApi::getPricing(MegaRequestListener *listener)
 {
-    pImpl->getPricing(listener);
+    pImpl->getPricing(std::nullopt, listener);
+}
+
+void MegaApi::getPricing(const char* countryCode, MegaRequestListener* listener)
+{
+    pImpl->getPricing(countryCode, listener);
 }
 
 void MegaApi::getPaymentId(MegaHandle productHandle, MegaRequestListener *listener)
@@ -4215,6 +4224,11 @@ MegaContactRequestList* MegaApi::getOutgoingContactRequests() const
 int MegaApi::getAccess(MegaNode* megaNode)
 {
     return pImpl->getAccess(megaNode);
+}
+
+int MegaApi::getAccess(MegaHandle handle)
+{
+    return pImpl->getAccess(handle);
 }
 
 void MegaApi::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
@@ -6175,6 +6189,13 @@ void MegaApi::getMyIp(MegaRequestListener* listener)
 void MegaApi::runNetworkConnectivityTest(MegaRequestListener* listener)
 {
     pImpl->runNetworkConnectivityTest(listener);
+}
+
+void MegaApi::getSubscriptionCancellationDetails(unsigned int gatewayId,
+                                                 const char* originalTransactionId,
+                                                 MegaRequestListener* listener)
+{
+    pImpl->getSubscriptionCancellationDetails(originalTransactionId, gatewayId, listener);
 }
 
 /* END MEGAAPI */

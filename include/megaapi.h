@@ -5117,7 +5117,8 @@ class MegaRequest
             TYPE_RUN_NETWORK_CONNECTIVITY_TEST = 206,
             TYPE_ADD_SYNC_PREVALIDATION = 207,
             TYPE_GET_MAX_CONNECTIONS = 208,
-            TOTAL_OF_REQUEST_TYPES = 209,
+            TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS = 209,
+            TOTAL_OF_REQUEST_TYPES = 210,
         };
 
         virtual ~MegaRequest();
@@ -6402,9 +6403,12 @@ public:
      *
      * - EVENT_NETWORK_ACTIVITY:
      *   This event uses multiple getNumber keys:
-     *     - getNumber("channel") returns the channel where the activity happened.
-     *     - getNumber("activity_type") returns the type of network activity.
-     *     - getNumber("error_code") returns the status/error code of the activity.
+     *     - getNumber("channel") returns the channel where the activity happened (See
+     * MegaEvent::NetworkActivityChannel).
+     *     - getNumber("activity_type") returns the type of network activity (See
+     * MegaEvent::NetworkActivityType).
+     *     - getNumber("error_code") returns the error code (See MegaError enum) or status (HTTP
+     * status code) of the activity.
      *
      * @param key The key identifying the numeric data.
      *
@@ -8525,6 +8529,8 @@ public:
         PAYMENT_EGENERIC = -106,
 
         LOCAL_ENOSPC = -1000, ///< Insufficient space.
+        LOCAL_ETIMEOUT = -1001, ///< A request timed out.
+        LOCAL_ENETWORK = -1003, ///< Local network error
     };
 
     /**
@@ -15119,6 +15125,31 @@ class MegaApi
         void getPricing(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the available pricing plans to upgrade a MEGA account in a specifc currency.
+         *
+         * If you need the pricing plans in the default currency for the account, please use
+         * the overload avobe.
+         *
+         * You can get a payment ID for any of the pricing plans provided by this function
+         * using MegaApi::getPaymentId
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PRICING
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getPricing - MegaPricing object with all pricing plans
+         * - MegaRequest::getCurrency - MegaCurrency object with currency data related to prices
+         *
+         * @param countryCode Optional country code for which the currency and prices will be
+         * localized
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getPaymentId
+         * @see MegaApi::getPricing
+         */
+        void getPricing(const char* countryCode, MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii)
          * and has enough space.
          *
@@ -16816,7 +16847,7 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the max number of connections for uploads.
          *
          * Possible return values for this function are:
-         * - MegaError::API_OK if successfully aborted an ongoing backup
+         * - MegaError::API_OK if successfully retrieved the max number of connections for uploads
          * - MegaError::API_EINTERNAL if there was an internal issue when setting the transfer
          * direction.
          */
@@ -19056,6 +19087,19 @@ class MegaApi
          * - MegaShare::ACCESS_UNKNOWN
          */
         int getAccess(MegaNode* node);
+
+        /**
+         * @brief Get the access level of a node
+         * @param nodeHandle MegaHandle of the node to check
+         * @return Access level of the node
+         * Valid values are:
+         * - MegaShare::ACCESS_OWNER
+         * - MegaShare::ACCESS_FULL
+         * - MegaShare::ACCESS_READWRITE
+         * - MegaShare::ACCESS_READ
+         * - MegaShare::ACCESS_UNKNOWN
+         */
+        int getAccess(MegaHandle nodeHandle);
 
         /**
          * @brief Get the size of a node tree
@@ -23813,6 +23857,37 @@ class MegaApi
          * @param listener MegaRequestListener to track this request.
          */
         void runNetworkConnectivityTest(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Retrieve the cancellation details of a subscription
+         *
+         * This function requests information about the cancellation status of a subscription.
+         * If the optional original transaction ID is not provided, the details of the most recent
+         * subscription will be returned.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the original transaction ID
+         * - MegaRequest::getNumber - Returns the subscription's expiration timestamp
+         * - MegaRequest::getNumDetails - Returns the cancellation timestamp, or 0 if not cancelled
+         *
+         * Possible errors:
+         * - MegaError::API_EARGS - If the gateway is not provided or not equal to 2, or if the
+         * transaction ID is not a string
+         * - MegaError::API_ENOENT - If the provided transaction ID is not valid, or the user does
+         * not have a subscription via the specified gateway
+         *
+         * @param originalTransactionId Original transaction ID. Optional. If not provided, the last
+         * subscription's details will be returned.
+         * @param gatewayId Integer indicating the gateway.
+         * @param listener MegaRequestListener to track this request,
+         */
+        void getSubscriptionCancellationDetails(unsigned int gatewayId,
+                                                const char* originalTransactionId = nullptr,
+                                                MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;

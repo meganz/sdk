@@ -5317,6 +5317,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "DEL_ATTR_USER";
         case TYPE_IMPORT_PASSWORDS_FROM_FILE:
             return "IMPORT_PASSWORDS_FROM_FILE";
+        case TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS:
+            return "TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS";
 
         // FUSE requests.
         case TYPE_ADD_MOUNT:       return "TYPE_ADD_MOUNT";
@@ -8952,9 +8954,14 @@ void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getPricing(MegaRequestListener *listener)
+void MegaApiImpl::getPricing(const std::optional<std::string>& countryCode,
+                             MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PRICING, listener);
+    if (countryCode && countryCode->size())
+    {
+        request->setText(countryCode->c_str());
+    }
 
     request->performRequest = [this, request]()
     {
@@ -12366,12 +12373,29 @@ MegaContactRequestList* MegaApiImpl::getOutgoingContactRequests() const
     return new MegaContactRequestListPrivate(vContactRequests.data(), int(vContactRequests.size()));
 }
 
-int MegaApiImpl::getAccess(MegaNode* megaNode)
+int MegaApiImpl::getAccess(const std::variant<MegaNode*, MegaHandle>& nodeOrNodeHandle)
 {
-    if(!megaNode) return MegaShare::ACCESS_UNKNOWN;
+    MegaHandle nodeHandle{INVALID_HANDLE};
+
+    if (auto node = std::get_if<MegaNode*>(&nodeOrNodeHandle))
+    {
+        if (*node)
+        {
+            nodeHandle = (*node)->getHandle();
+        }
+    }
+    else if (auto handle = std::get_if<MegaHandle>(&nodeOrNodeHandle))
+    {
+        nodeHandle = *handle;
+    }
+
+    if (nodeHandle == INVALID_HANDLE)
+    {
+        return MegaShare::ACCESS_UNKNOWN;
+    }
 
     SdkMutexGuard g(sdkMutex);
-    std::shared_ptr<Node> node = client->nodebyhandle(megaNode->getHandle());
+    std::shared_ptr<Node> node = client->nodebyhandle(nodeHandle);
     if(!node)
     {
         return MegaShare::ACCESS_UNKNOWN;
@@ -22203,6 +22227,11 @@ void MegaApiImpl::inviteContact(const char* email, const char* message, int acti
                 return API_EARGS;
             }
 
+            if (action == OPCA_ADD && client->findpcr(string{email}))
+            {
+                return API_EEXIST;
+            }
+
             client->setpcr(email, (opcactions_t)action, message, NULL, contactLink);
             return API_OK;
         };
@@ -23630,7 +23659,12 @@ error MegaApiImpl::performRequest_enumeratequotaitems(MegaRequestPrivate* reques
                 return API_EARGS;
             }
 
-            client->purchase_enumeratequotaitems();
+            std::optional<std::string> countryCode;
+            if (request->getText())
+            {
+                countryCode = request->getText();
+            }
+            client->purchase_enumeratequotaitems(countryCode);
             return API_OK;
 }
 
@@ -28528,6 +28562,45 @@ void MegaApiImpl::getMyIp(MegaRequestListener* listener)
                 }
                 fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getSubscriptionCancellationDetails(const char* originalTransactionId,
+                                                     unsigned int gatewayId,
+                                                     MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS, listener);
+    request->setText(originalTransactionId);
+    request->setNumber(gatewayId);
+
+    request->performRequest = [this, request]()
+    {
+        const char* transactionId = request->getText();
+        unsigned int gateway = static_cast<unsigned int>(request->getNumber());
+
+        client->getSubscriptionCancellationDetails(
+            transactionId,
+            gateway,
+            [this, request](const Error& e,
+                            std::string&& originalTransactionId,
+                            int expiresDate,
+                            int cancelledDate)
+            {
+                if (!e)
+                {
+                    request->setText(originalTransactionId.c_str());
+                    request->setNumber(static_cast<long long>(expiresDate));
+                    request->setNumDetails(cancelledDate);
+                }
+
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            });
+
         return API_OK;
     };
 

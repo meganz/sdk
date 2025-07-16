@@ -417,6 +417,8 @@ public:
     static std::string getenv(const std::string& key, const std::string& def);
     static void setenv(const std::string& key, const std::string& value);
     static void unsetenv(const std::string& key);
+
+    static std::string getIcuVersion();
 };
 
 extern m_time_t m_time(m_time_t* tt = NULL);
@@ -479,8 +481,7 @@ class chunkmac_map
     // this is the map key for how far that collapsing has progressed
     m_off_t macsmacSoFarPos = -1;
 
-    m_off_t progresscontiguous = 0;
-
+    m_off_t progresscontiguous{0};
 
 public:
     int64_t macsmac(SymmCipher *cipher);
@@ -502,6 +503,8 @@ public:
 
     void ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
     void ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
+    void setProgressContiguous(const m_off_t p);
+    void swap(chunkmac_map& other);
 
     size_t size() const
     {
@@ -511,12 +514,7 @@ public:
     {
         mMacMap.clear();
         macsmacSoFarPos = -1;
-        progresscontiguous = 0;
-    }
-    void swap(chunkmac_map& other) {
-        mMacMap.swap(other.mMacMap);
-        std::swap(macsmacSoFarPos, other.macsmacSoFarPos);
-        std::swap(progresscontiguous, other.progresscontiguous);
+        setProgressContiguous(0);
     }
 };
 
