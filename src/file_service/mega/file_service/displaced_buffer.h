@@ -23,6 +23,12 @@ public:
     // What buffer are we dispacing?
     BufferPtr buffer() const;
 
+    // Copy data from this buffer to another.
+    std::uint64_t copy(Buffer& target,
+                       std::uint64_t offset0,
+                       std::uint64_t offset1,
+                       std::uint64_t length) const override;
+
     // Update our displacement.
     void displacement(std::uint64_t displacement);
 
@@ -34,12 +40,6 @@ public:
 
     // Write data into the buffer.
     std::uint64_t write(const void* buffer, std::uint64_t offset, std::uint64_t length) override;
-
-    // Copy data from this buffer to another.
-    std::uint64_t copy(Buffer& target,
-                       std::uint64_t offset0,
-                       std::uint64_t offset1,
-                       std::uint64_t length) const override;
 }; // DisplacedBuffer
 
 // Displace a buffer.

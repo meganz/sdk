@@ -21,6 +21,21 @@ BufferPtr DisplacedBuffer::buffer() const
     return mBuffer;
 }
 
+std::uint64_t DisplacedBuffer::copy(Buffer& target,
+                                    std::uint64_t offset0,
+                                    std::uint64_t offset1,
+                                    std::uint64_t length) const
+{
+    assert(mBuffer);
+
+    // No buffer to delegate to.
+    if (!mBuffer)
+        return 0u;
+
+    // Delegate transfer.
+    return mBuffer->copy(target, mDisplacement + offset0, offset1, length);
+}
+
 void DisplacedBuffer::displacement(std::uint64_t displacement)
 {
     mDisplacement = displacement;
@@ -53,21 +68,6 @@ std::uint64_t DisplacedBuffer::write(const void* buffer, std::uint64_t offset, s
 
     // Delegate write.
     return mBuffer->write(buffer, mDisplacement + offset, length);
-}
-
-std::uint64_t DisplacedBuffer::copy(Buffer& target,
-                                    std::uint64_t offset0,
-                                    std::uint64_t offset1,
-                                    std::uint64_t length) const
-{
-    assert(mBuffer);
-
-    // No buffer to delegate to.
-    if (!mBuffer)
-        return 0u;
-
-    // Delegate transfer.
-    return mBuffer->copy(target, mDisplacement + offset0, offset1, length);
 }
 
 DisplacedBufferPtr displace(BufferPtr buffer, std::uint64_t displacement)

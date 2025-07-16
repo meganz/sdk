@@ -14,48 +14,6 @@ FileBuffer::FileBuffer(FileAccess& file):
     mFile(file)
 {}
 
-std::uint64_t FileBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
-{
-    // Caller doesn't want to read anything.
-    if (!length)
-        return 0;
-
-    assert(buffer);
-
-    // Caller gave us a bad buffer.
-    if (!buffer)
-        return 0;
-
-    // Disambiguate.
-    using file_service::read;
-
-    // Couldn't read from the file.
-    if (!read(mFile, buffer, offset, length))
-        return 0;
-
-    // Let the caller know the read succeeded.
-    return length;
-}
-
-std::uint64_t FileBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
-{
-    // Caller doesn't actually want to write anything.
-    if (!length)
-        return 0u;
-
-    assert(buffer);
-
-    // Caller didn't give us a valid buffer.
-    if (!buffer)
-        return 0u;
-
-    // Disambiguate.
-    using file_service::write;
-
-    // Try and write the caller's buffer to file.
-    return write(mFile, buffer, offset, length);
-}
-
 std::uint64_t FileBuffer::copy(Buffer& target,
                                std::uint64_t offset0,
                                std::uint64_t offset1,
@@ -134,6 +92,48 @@ std::uint64_t FileBuffer::copy(Buffer& target,
 
     // Let the caller know how much data was copied.
     return count + copied;
+}
+
+std::uint64_t FileBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
+{
+    // Caller doesn't want to read anything.
+    if (!length)
+        return 0;
+
+    assert(buffer);
+
+    // Caller gave us a bad buffer.
+    if (!buffer)
+        return 0;
+
+    // Disambiguate.
+    using file_service::read;
+
+    // Couldn't read from the file.
+    if (!read(mFile, buffer, offset, length))
+        return 0;
+
+    // Let the caller know the read succeeded.
+    return length;
+}
+
+std::uint64_t FileBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
+{
+    // Caller doesn't actually want to write anything.
+    if (!length)
+        return 0u;
+
+    assert(buffer);
+
+    // Caller didn't give us a valid buffer.
+    if (!buffer)
+        return 0u;
+
+    // Disambiguate.
+    using file_service::write;
+
+    // Try and write the caller's buffer to file.
+    return write(mFile, buffer, offset, length);
 }
 
 } // file_service

@@ -15,6 +15,28 @@ MemoryBuffer::MemoryBuffer(std::uint64_t length):
     mLength(length)
 {}
 
+std::uint64_t MemoryBuffer::copy(Buffer& target,
+                                 std::uint64_t offset0,
+                                 std::uint64_t offset1,
+                                 std::uint64_t length) const
+{
+    assert(this != &target);
+
+    // Can't copy to the same buffer.
+    if (this == &target)
+        return 0u;
+
+    // Clamp length as necessary.
+    length = std::min(length, std::max(mLength, offset0) - offset0);
+
+    // Caller doesn't actually want to transfer any data.
+    if (!length)
+        return 0;
+
+    // Try and transfer our data to the target.
+    return target.write(mBuffer.get() + offset0, offset1, length);
+}
+
 std::uint64_t MemoryBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
 {
     assert(buffer);
@@ -65,28 +87,6 @@ std::uint64_t MemoryBuffer::write(const void* buffer, std::uint64_t offset, std:
 
     // Let the user know how many bytes were written.
     return length;
-}
-
-std::uint64_t MemoryBuffer::copy(Buffer& target,
-                                 std::uint64_t offset0,
-                                 std::uint64_t offset1,
-                                 std::uint64_t length) const
-{
-    assert(this != &target);
-
-    // Can't copy to the same buffer.
-    if (this == &target)
-        return 0u;
-
-    // Clamp length as necessary.
-    length = std::min(length, std::max(mLength, offset0) - offset0);
-
-    // Caller doesn't actually want to transfer any data.
-    if (!length)
-        return 0;
-
-    // Try and transfer our data to the target.
-    return target.write(mBuffer.get() + offset0, offset1, length);
 }
 
 } // file_service
