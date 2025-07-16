@@ -51,6 +51,9 @@ class FileInfoContext
     // The time the file was last modified.
     std::int64_t mModified;
 
+    // The file's size on disk.
+    std::uint64_t mPhysicalSize;
+
     // Who should we notify when this file's information changes?
     FileEventObserverMap mObservers;
 
@@ -68,6 +71,7 @@ public:
                     FileID id,
                     std::uint64_t logicalSize,
                     std::int64_t modified,
+                    std::uint64_t physicalSize,
                     FileServiceContext& service);
 
     ~FileInfoContext();
@@ -101,6 +105,12 @@ public:
 
     // When was this file last modified?
     auto modified() const -> std::int64_t;
+
+    // Update the file's physical size.
+    void physicalSize(std::uint64_t physicalSize);
+
+    // What is the file's size on disk?
+    std::uint64_t physicalSize() const;
 
     // Remove an observer.
     void removeObserver(FileEventObserverID id);

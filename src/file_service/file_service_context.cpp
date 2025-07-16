@@ -178,6 +178,9 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     // Latch the file's modification time.
     auto modified = query.field("modified").get<std::int64_t>();
 
+    // Latch the file's physical size.
+    auto physicalSize = static_cast<std::uint64_t>(file->size);
+
     // Latch the file's size.
     auto size = query.field("size").get<std::uint64_t>();
 
@@ -189,6 +192,7 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
                                                   id,
                                                   size,
                                                   modified,
+                                                  physicalSize,
                                                   *this);
 
     // Add the context to our index.
@@ -296,6 +300,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
                                                   id,
                                                   size,
                                                   node->mModified,
+                                                  0u,
                                                   *this);
 
     // Make sure this file's info is in our index.
@@ -555,6 +560,7 @@ try
                                                   id,
                                                   0ul,
                                                   modified,
+                                                  0ul,
                                                   *this);
 
     // Instantiate a file context to manipulate our new file.

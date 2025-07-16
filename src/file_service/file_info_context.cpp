@@ -47,6 +47,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
                                  FileID id,
                                  std::uint64_t logicalSize,
                                  std::int64_t modified,
+                                 std::uint64_t physicalSize,
                                  FileServiceContext& service):
     mAccessed(accessed),
     mActivity(std::move(activity)),
@@ -56,6 +57,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
     mLock(),
     mLogicalSize(logicalSize),
     mModified(modified),
+    mPhysicalSize(physicalSize),
     mObservers(),
     mObserversLock(),
     mService(service)
@@ -150,6 +152,18 @@ void FileInfoContext::modified(std::int64_t accessed, std::int64_t modified)
 std::int64_t FileInfoContext::modified() const
 {
     return get(&FileInfoContext::mModified);
+}
+
+void FileInfoContext::physicalSize(std::uint64_t physicalSize)
+{
+    std::lock_guard guard(mLock);
+
+    mPhysicalSize = physicalSize;
+}
+
+std::uint64_t FileInfoContext::physicalSize() const
+{
+    return get(&FileInfoContext::mPhysicalSize);
 }
 
 void FileInfoContext::removeObserver(FileEventObserverID id)
