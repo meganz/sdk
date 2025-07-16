@@ -193,6 +193,9 @@ void TaskExecutor::Worker::loop()
         return terminating || taskQueue.ready();
     }; // shouldWake
 
+    auto threadId = std::this_thread::get_id();
+    mExecutor.workerStarted(threadId);
+
     LogDebug1(mLogger, "Worker thread started");
 
     // Execute queued tasks.
@@ -259,6 +262,8 @@ void TaskExecutor::Worker::loop()
 
     // Let the executor know it has one less worker.
     --availableWorkers;
+
+    mExecutor.workerStopped(threadId);
 
     LogDebug1(mLogger, "Worker thread stopped");
 }

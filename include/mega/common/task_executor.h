@@ -49,6 +49,12 @@ class TaskExecutor
     // Tracks who our workers are.
     WorkerList mWorkers;
 
+    // Called on worker thread start
+    virtual void workerStarted(std::thread::id){};
+
+    // Called on worker thread stop
+    virtual void workerStopped(std::thread::id){};
+
 public:
     explicit TaskExecutor(const TaskExecutorFlags& flags,
                           Logger& logger);
