@@ -15,42 +15,43 @@ MemoryBuffer::MemoryBuffer(std::uint64_t length):
     mLength(length)
 {}
 
-std::uint64_t MemoryBuffer::copy(Buffer& target,
-                                 std::uint64_t offset0,
-                                 std::uint64_t offset1,
-                                 std::uint64_t length) const
+auto MemoryBuffer::copy(Buffer& target,
+                        std::uint64_t offset0,
+                        std::uint64_t offset1,
+                        std::uint64_t length) const -> std::pair<std::uint64_t, bool>
 {
     assert(this != &target);
 
     // Can't copy to the same buffer.
     if (this == &target)
-        return 0u;
+        return std::make_pair(0u, false);
 
     // Clamp length as necessary.
     length = std::min(length, std::max(mLength, offset0) - offset0);
 
     // Caller doesn't actually want to transfer any data.
     if (!length)
-        return 0;
+        return std::make_pair(0u, true);
 
     // Try and transfer our data to the target.
     return target.write(mBuffer.get() + offset0, offset1, length);
 }
 
-std::uint64_t MemoryBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
+auto MemoryBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
+    -> std::pair<std::uint64_t, bool>
 {
     assert(buffer);
 
     // Caller gave us a bad buffer.
     if (!buffer)
-        return 0;
+        return std::make_pair(0u, false);
 
     // Clamp length.
     length = std::min(length, std::max(mLength, offset) - offset);
 
     // Caller doesn't actually want to read anything.
     if (!length)
-        return 0;
+        return std::make_pair(0u, true);
 
     // Convenenience.
     auto* destination = static_cast<std::uint8_t*>(buffer);
@@ -60,23 +61,24 @@ std::uint64_t MemoryBuffer::read(void* buffer, std::uint64_t offset, std::uint64
     std::copy(source, source + length, destination);
 
     // Let the user know how much data was read.
-    return length;
+    return std::make_pair(length, true);
 }
 
-std::uint64_t MemoryBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
+auto MemoryBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
+    -> std::pair<std::uint64_t, bool>
 {
     assert(buffer);
 
     // Caller gave us a bad buffer.
     if (!buffer)
-        return 0u;
+        return std::make_pair(0u, false);
 
     // Clamp length as necessary.
     length = std::min(length, std::max(mLength, offset) - offset);
 
     // Caller doesn't actually want to write anything.
     if (!length)
-        return 0;
+        return std::make_pair(0u, true);
 
     // Convenience.
     auto* destination = mBuffer.get() + offset;
@@ -86,7 +88,7 @@ std::uint64_t MemoryBuffer::write(const void* buffer, std::uint64_t offset, std:
     std::copy(source, source + length, destination);
 
     // Let the user know how many bytes were written.
-    return length;
+    return std::make_pair(length, true);
 }
 
 } // file_service

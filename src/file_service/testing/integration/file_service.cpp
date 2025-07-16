@@ -1763,7 +1763,7 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
             mBuffer.resize(mOffset + result->mLength);
 
             // Try and copy the content to our buffer.
-            auto count = source.read(&mBuffer[mOffset], 0, result->mLength);
+            auto [count, _] = source.read(&mBuffer[mOffset], 0, result->mLength);
 
             // Couldn't copy the content to our buffer.
             if (count != result->mLength)

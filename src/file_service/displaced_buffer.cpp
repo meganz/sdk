@@ -21,16 +21,16 @@ BufferPtr DisplacedBuffer::buffer() const
     return mBuffer;
 }
 
-std::uint64_t DisplacedBuffer::copy(Buffer& target,
-                                    std::uint64_t offset0,
-                                    std::uint64_t offset1,
-                                    std::uint64_t length) const
+auto DisplacedBuffer::copy(Buffer& target,
+                           std::uint64_t offset0,
+                           std::uint64_t offset1,
+                           std::uint64_t length) const -> std::pair<std::uint64_t, bool>
 {
     assert(mBuffer);
 
     // No buffer to delegate to.
     if (!mBuffer)
-        return 0u;
+        return std::make_pair(0u, false);
 
     // Delegate transfer.
     return mBuffer->copy(target, mDisplacement + offset0, offset1, length);
@@ -46,25 +46,27 @@ std::uint64_t DisplacedBuffer::displacement() const
     return mDisplacement;
 }
 
-std::uint64_t DisplacedBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
+auto DisplacedBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
+    -> std::pair<std::uint64_t, bool>
 {
     assert(mBuffer);
 
     // No buffer to delegate to.
     if (!mBuffer)
-        return 0u;
+        return std::make_pair(0u, false);
 
     // Delegate read.
     return mBuffer->read(buffer, mDisplacement + offset, length);
 }
 
-std::uint64_t DisplacedBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
+auto DisplacedBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t length)
+    -> std::pair<std::uint64_t, bool>
 {
     assert(mBuffer);
 
     // No buffer to delegate to.
     if (!mBuffer)
-        return 0u;
+        return std::make_pair(0u, false);
 
     // Delegate write.
     return mBuffer->write(buffer, mDisplacement + offset, length);

@@ -3,6 +3,7 @@
 #include <mega/file_service/source_forward.h>
 
 #include <cstdint>
+#include <utility>
 
 namespace mega
 {
@@ -18,7 +19,8 @@ public:
     virtual ~Source() = default;
 
     // Read data from the source.
-    virtual std::uint64_t read(void* buffer, std::uint64_t offset, std::uint64_t length) const = 0;
+    virtual auto read(void* buffer, std::uint64_t offset, std::uint64_t length) const
+        -> std::pair<std::uint64_t, bool> = 0;
 }; // Source
 
 } // file_service

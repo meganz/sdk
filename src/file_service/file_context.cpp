@@ -319,7 +319,7 @@ try
         return mRanges.remove(iterator), void();
 
     // Try and flush this range's data to storage.
-    size = buffer.copy(*mBuffer, 0, range.mBegin, size);
+    std::tie(size, std::ignore) = buffer.copy(*mBuffer, 0, range.mBegin, size);
 
     // Couldn't flush any of this range's data to storage.
     if (!size)
@@ -529,7 +529,7 @@ bool FileContext::execute(FileAppendRequest& request)
     using file_service::write;
 
     // Try and write the user's data to disk.
-    auto length = mBuffer->write(request.mBuffer, size, request.mLength);
+    auto [length, _] = mBuffer->write(request.mBuffer, size, request.mLength);
 
     // Couldn't write all of the user's data to disk.
     if (length < request.mLength)
@@ -1034,7 +1034,7 @@ bool FileContext::execute(FileWriteRequest& request)
     using file_service::write;
 
     // Try and write the caller's content to storage.
-    length = mBuffer->write(request.mBuffer, range.mBegin, length);
+    std::tie(length, std::ignore) = mBuffer->write(request.mBuffer, range.mBegin, length);
 
     // Couldn't write any content to storage.
     if (!length)

@@ -11,14 +11,15 @@ namespace file_service
 // Maximum read or write length.
 constexpr std::uint64_t maximum = std::numeric_limits<unsigned long>::max();
 
-std::uint64_t read(FileAccess& file, void* buffer, std::uint64_t offset, std::uint64_t length)
+auto read(FileAccess& file, void* buffer, std::uint64_t offset, std::uint64_t length)
+    -> std::pair<std::uint64_t, bool>
 {
     // Sanity.
     assert(buffer);
 
     // Caller didn't pass us a valid buffer.
     if (!buffer)
-        return 0;
+        return std::make_pair(0u, false);
 
     // Convenience.
     auto* buffer_ = static_cast<std::uint8_t*>(buffer);
@@ -51,18 +52,18 @@ std::uint64_t read(FileAccess& file, void* buffer, std::uint64_t offset, std::ui
     }
 
     // Let the caller know how much we could read.
-    return length - remaining;
+    return std::make_pair(length - remaining, !remaining);
 }
 
-std::uint64_t
-    write(FileAccess& file, const void* buffer, std::uint64_t offset, std::uint64_t length)
+auto write(FileAccess& file, const void* buffer, std::uint64_t offset, std::uint64_t length)
+    -> std::pair<std::uint64_t, bool>
 {
     // Sanity.
     assert(buffer);
 
     // Caller didn't pass us a valid buffer.
     if (!buffer)
-        return 0;
+        return std::make_pair(0u, false);
 
     // Convenience.
     auto* buffer_ = static_cast<const std::uint8_t*>(buffer);
@@ -102,7 +103,7 @@ std::uint64_t
     }
 
     // Let the caller know how much data we wrote.
-    return length - remaining;
+    return std::make_pair(length - remaining, !remaining);
 }
 
 bool truncate(FileAccess& file, std::uint64_t size)

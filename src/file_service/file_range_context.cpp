@@ -87,7 +87,7 @@ auto FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t len
     auto offset = mEnd - mIterator->first.mBegin;
 
     // Try and write data to our buffer.
-    auto count = mBuffer->write(buffer, offset, length);
+    auto [count, success] = mBuffer->write(buffer, offset, length);
 
     // Lock our manager.
     auto lock = mManager.lock();
@@ -96,7 +96,7 @@ auto FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t len
     mEnd += count;
 
     // Couldn't write all of the data to our buffer.
-    if (count != length)
+    if (!success)
         return Abort();
 
     // Dispatch what requests we can.
