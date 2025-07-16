@@ -45,6 +45,9 @@ class FileInfoContext
     // Serializes access to our members.
     mutable common::SharedMutex mLock;
 
+    // The file's logical size.
+    std::uint64_t mLogicalSize;
+
     // The time the file was last modified.
     std::int64_t mModified;
 
@@ -57,18 +60,15 @@ class FileInfoContext
     // The service managing this instance.
     FileServiceContext& mService;
 
-    // The file's size.
-    std::uint64_t mSize;
-
 public:
     FileInfoContext(std::int64_t accessed,
                     common::Activity activity,
                     bool dirty,
                     NodeHandle handle,
                     FileID id,
+                    std::uint64_t logicalSize,
                     std::int64_t modified,
-                    FileServiceContext& service,
-                    std::uint64_t size);
+                    FileServiceContext& service);
 
     ~FileInfoContext();
 
@@ -93,6 +93,9 @@ public:
     // What is this file's identifier?
     auto id() const -> FileID;
 
+    // How large is this file?
+    auto logicalSize() const -> std::uint64_t;
+
     // Update the file's access and modification time.
     void modified(std::int64_t accessed, std::int64_t modified);
 
@@ -101,9 +104,6 @@ public:
 
     // Remove an observer.
     void removeObserver(FileEventObserverID id);
-
-    // How large is this file?
-    auto size() const -> std::uint64_t;
 
     // Signal that the file has been truncated.
     void truncated(std::int64_t modified, std::uint64_t size);

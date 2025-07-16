@@ -56,14 +56,14 @@ public:
     // What node is this file associated with?
     FileID id() const;
 
+    // How large is this file?
+    std::uint64_t logicalSize() const;
+
     // When was this file last modified?
     std::int64_t modified() const;
 
     // Remove a previously added observer.
     void removeObserver(FileEventObserverID id);
-
-    // How large is this file?
-    std::uint64_t size() const;
 }; // FileInfo
 
 } // file_service

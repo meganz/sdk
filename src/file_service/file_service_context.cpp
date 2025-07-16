@@ -187,9 +187,9 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
                                                   dirty,
                                                   handle,
                                                   id,
+                                                  size,
                                                   modified,
-                                                  *this,
-                                                  size);
+                                                  *this);
 
     // Add the context to our index.
     mInfoContexts.emplace(id, info);
@@ -294,9 +294,9 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
                                                   false,
                                                   node->mHandle,
                                                   id,
+                                                  size,
                                                   node->mModified,
-                                                  *this,
-                                                  size);
+                                                  *this);
 
     // Make sure this file's info is in our index.
     mInfoContexts.emplace(id, info);
@@ -553,9 +553,9 @@ try
                                                   true,
                                                   NodeHandle(),
                                                   id,
+                                                  0ul,
                                                   modified,
-                                                  *this,
-                                                  0ul);
+                                                  *this);
 
     // Instantiate a file context to manipulate our new file.
     auto file = std::make_shared<FileContext>(mActivities.begin(),

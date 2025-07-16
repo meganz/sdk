@@ -508,7 +508,7 @@ bool FileContext::execute(FileAppendRequest& request)
         return false;
 
     // Convenience.
-    auto size = mInfo->size();
+    auto size = mInfo->logicalSize();
 
     // Assume there's no range for us to grow.
     FileRange range(size, size + request.mLength);
@@ -715,7 +715,7 @@ bool FileContext::execute(FileReadRequest& request)
     auto range = request.mRange;
 
     // The file's current size.
-    auto size = mInfo->size();
+    auto size = mInfo->logicalSize();
 
     // Convenience.
     auto& [begin, end] = range;
@@ -965,7 +965,7 @@ bool FileContext::execute(FileTruncateRequest& request)
 
     // Convenience.
     auto newSize = request.mSize;
-    auto oldSize = mInfo->size();
+    auto oldSize = mInfo->logicalSize();
 
     // User isn't changing this file's size.
     if (newSize == oldSize)
@@ -1050,7 +1050,7 @@ bool FileContext::execute(FileWriteRequest& request)
     Iterator end;
 
     // Compute initial effective range.
-    FileRange effectiveRange = {std::min(mInfo->size(), range.mBegin), range.mEnd};
+    FileRange effectiveRange = {std::min(mInfo->logicalSize(), range.mBegin), range.mEnd};
 
     // Find out which ranges we've touched.
     std::tie(begin, end) = mRanges.find(extend(effectiveRange, 1));
@@ -1112,7 +1112,7 @@ bool FileContext::execute(FileWriteRequest& request)
     updateAccessAndModificationTimes(modified, modified, transaction);
 
     // Update the file's size in the database if necessary.
-    if (range.mEnd > mInfo->size())
+    if (range.mEnd > mInfo->logicalSize())
         updateSize(range.mEnd, transaction);
 
     // Remove obsolete ranges from memory.

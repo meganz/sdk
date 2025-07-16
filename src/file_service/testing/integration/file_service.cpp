@@ -269,7 +269,7 @@ TEST_F(FileServiceTests, append_succeeds)
     auto info = file->info();
 
     // Convenience.
-    FileRange range(info.size() - 64_KiB, info.size() - 32_KiB);
+    FileRange range(info.logicalSize() - 64_KiB, info.logicalSize() - 32_KiB);
 
     // Read some data just before the end of the file.
     {
@@ -310,7 +310,7 @@ TEST_F(FileServiceTests, append_succeeds)
 
     // Latch the file's access time, modification time and size.
     auto modified = info.modified();
-    auto size = info.size();
+    auto size = info.logicalSize();
 
     // Try and append the data to the end of the file.
     ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
@@ -326,11 +326,11 @@ TEST_F(FileServiceTests, append_succeeds)
     ASSERT_TRUE(info.dirty());
     ASSERT_GE(info.accessed(), modified);
     ASSERT_GE(info.modified(), modified);
-    ASSERT_EQ(info.size(), size + computed.size());
+    ASSERT_EQ(info.logicalSize(), size + computed.size());
 
     // Latch current modification time and size.
     modified = info.modified();
-    size = info.size();
+    size = info.logicalSize();
 
     // Append again to make sure contigous ranges are extended.
     ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
@@ -340,7 +340,7 @@ TEST_F(FileServiceTests, append_succeeds)
                                     size + computed.size()});
 
     ASSERT_GE(info.modified(), modified);
-    ASSERT_EQ(info.size(), size + computed.size());
+    ASSERT_EQ(info.logicalSize(), size + computed.size());
 
     ASSERT_THAT(file->ranges(),
                 ElementsAre(range, FileRange(size - computed.size(), size + computed.size())));
@@ -476,7 +476,7 @@ TEST_F(FileServiceTests, create_succeeds)
         EXPECT_TRUE(info0.handle().isUndef());
 
         // And that the file's empty.
-        EXPECT_EQ(info0.size(), 0u);
+        EXPECT_EQ(info0.logicalSize(), 0u);
 
         // And that its access and modification time have been set.
         EXPECT_EQ(info0.accessed(), info0.modified());
@@ -538,7 +538,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
     expected.emplace_back(FileEvent{FileRange(128_KiB, 192_KiB), file->info().modified(), 192_KiB});
 
     // Make sure the file's size is correct.
-    ASSERT_EQ(file->info().size(), 192_KiB);
+    ASSERT_EQ(file->info().logicalSize(), 192_KiB);
 
     // The file should have one range starting from the beginning of the file.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 192_KiB)));
@@ -564,7 +564,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
     expected.emplace_back(FileEvent{FileRange(320_KiB, 384_KiB), file->info().modified(), 384_KiB});
 
     // Make sure the file's size is correct.
-    ASSERT_EQ(file->info().size(), 384_KiB);
+    ASSERT_EQ(file->info().logicalSize(), 384_KiB);
 
     // We should still have a single range.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 384_KiB)));
@@ -835,7 +835,7 @@ TEST_F(FileServiceTests, open_file_succeeds)
     // Make sure the file's information matches the node's.
     EXPECT_EQ(fileInfo->id(), FileID::from(mFileHandle));
     EXPECT_EQ(fileInfo->modified(), nodeInfo->mModified);
-    EXPECT_EQ(fileInfo->size(), static_cast<std::uint64_t>(nodeInfo->mSize));
+    EXPECT_EQ(fileInfo->logicalSize(), static_cast<std::uint64_t>(nodeInfo->mSize));
 }
 
 TEST_F(FileServiceTests, open_unknown_fails)
@@ -1128,13 +1128,14 @@ TEST_F(FileServiceTests, read_write_sequence)
         *file);
 
     // Initiate a read of the file's data.
-    file->read([](auto) {}, 0, file->info().size());
+    file->read([](auto) {}, 0, file->info().logicalSize());
 
     // Write our data to the file.
     ASSERT_EQ(execute(write, data.data(), *file, 256_KiB, 512_KiB), FILE_SUCCESS);
 
-    expected.emplace_back(
-        FileEvent{FileRange(256_KiB, 768_KiB), file->info().modified(), file->info().size()});
+    expected.emplace_back(FileEvent{FileRange(256_KiB, 768_KiB),
+                                    file->info().modified(),
+                                    file->info().logicalSize()});
 
     // Curiosity.
     for (const auto& range: file->ranges())
@@ -1212,7 +1213,7 @@ TEST_F(FileServiceTests, touch_succeeds)
     // Try and update the file's modification time.
     ASSERT_EQ(execute(touch, *file, modified - 1), FILE_SUCCESS);
 
-    expected.emplace_back(FileEvent{std::nullopt, modified - 1, file->info().size()});
+    expected.emplace_back(FileEvent{std::nullopt, modified - 1, file->info().logicalSize()});
 
     // Make sure the file's now considered dirty.
     EXPECT_TRUE(info.dirty());
@@ -1272,7 +1273,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         auto info = file->info();
 
         // Latch the file's current size.
-        auto size = info.size();
+        auto size = info.logicalSize();
 
         // Determine whether the file should become dirty.
         auto dirty = newSize != size;
@@ -1307,7 +1308,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         EXPECT_EQ(info.dirty(), dirty);
         EXPECT_GE(info.accessed(), accessed);
         EXPECT_GE(info.modified(), modified);
-        EXPECT_EQ(info.size(), newSize);
+        EXPECT_EQ(info.logicalSize(), newSize);
 
         // Make sure we received our expected events.
         EXPECT_EQ(expected, received);
@@ -1392,7 +1393,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
 
     // Latch the file's current modification time and size.
     auto modified = info.modified();
-    auto size = info.size();
+    auto size = info.logicalSize();
 
     // We should be able to reduce the file's size.
     ASSERT_EQ(execute(truncate, *file, size / 2), FILE_SUCCESS);
@@ -1404,7 +1405,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
 
     // Make sure the file's modification time and size were updated.
     EXPECT_GE(info.modified(), modified);
-    EXPECT_EQ(info.size(), size / 2);
+    EXPECT_EQ(info.logicalSize(), size / 2);
 
     // The file should still have no active ranges.
     EXPECT_EQ(file->ranges().size(), 0u);
@@ -1419,7 +1420,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
 
     // Make sure the file's attributes were updated.
     EXPECT_GE(info.modified(), modified);
-    EXPECT_EQ(info.size(), size);
+    EXPECT_EQ(info.logicalSize(), size);
 
     // There should be a single active range.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(size / 2, size)));
@@ -1509,7 +1510,7 @@ TEST_F(FileServiceTests, write_succeeds)
             return result;
 
         wanted.emplace_back(
-            FileEvent{FileRange(offset, offset + length), info.modified(), info.size()});
+            FileEvent{FileRange(offset, offset + length), info.modified(), info.logicalSize()});
 
         // Compute size of local file content.
         auto size = std::max<std::uint64_t>(expected.size(), offset + length);
@@ -1530,7 +1531,7 @@ TEST_F(FileServiceTests, write_succeeds)
         EXPECT_GE(info.modified(), modified);
 
         // Make sure the file's size has been updated correctly.
-        EXPECT_EQ(info.size(), size);
+        EXPECT_EQ(info.logicalSize(), size);
 
         // Make sure we received the events we wanted.
         EXPECT_EQ(received, wanted);

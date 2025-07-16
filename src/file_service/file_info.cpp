@@ -43,6 +43,11 @@ FileID FileInfo::id() const
     return mContext->id();
 }
 
+std::uint64_t FileInfo::logicalSize() const
+{
+    return mContext->logicalSize();
+}
+
 std::int64_t FileInfo::modified() const
 {
     return mContext->modified();
@@ -51,11 +56,6 @@ std::int64_t FileInfo::modified() const
 void FileInfo::removeObserver(FileEventObserverID id)
 {
     mContext->removeObserver(id);
-}
-
-std::uint64_t FileInfo::size() const
-{
-    return mContext->size();
 }
 
 } // file_service
