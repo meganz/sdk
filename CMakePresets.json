@@ -125,10 +125,7 @@
             "inherits": [
                 "mega",
                 "ios"
-            ],
-            "cacheVariables": {
-                "ENABLE_LOG_PERFORMANCE": "ON"
-            }
+            ]
         },
         {
             "name": "megasync-unix",
