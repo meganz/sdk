@@ -36,6 +36,7 @@ target_sources(SDKlib PRIVATE
                       file_storage.cpp
                       logger.cpp
                       memory_buffer.cpp
+                      sparse_file_buffer.cpp
 )
 
 add_subdirectory(testing)

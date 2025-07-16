@@ -57,6 +57,7 @@ target_sources(SDKlib PRIVATE
                       logger.h
                       logging.h
                       memory_buffer.h
+                      sparse_file_buffer.h
                       type_traits.h
 )
 
