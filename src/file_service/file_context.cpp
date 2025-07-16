@@ -529,7 +529,7 @@ bool FileContext::execute(FileAppendRequest& request)
     using file_service::write;
 
     // Try and write the user's data to disk.
-    auto length = write(*mFile, request.mBuffer, size, request.mLength);
+    auto length = mBuffer->write(request.mBuffer, size, request.mLength);
 
     // Couldn't write all of the user's data to disk.
     if (length < request.mLength)
@@ -1034,7 +1034,7 @@ bool FileContext::execute(FileWriteRequest& request)
     using file_service::write;
 
     // Try and write the caller's content to storage.
-    length = write(*mFile, request.mBuffer, range.mBegin, length);
+    length = mBuffer->write(request.mBuffer, range.mBegin, length);
 
     // Couldn't write any content to storage.
     if (!length)
