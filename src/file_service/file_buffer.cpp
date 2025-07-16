@@ -136,5 +136,14 @@ std::uint64_t FileBuffer::write(const void* buffer, std::uint64_t offset, std::u
     return write(mFile, buffer, offset, length);
 }
 
+bool FileBuffer::truncate(std::uint64_t size)
+{
+    // Disambiguate.
+    using file_service::truncate;
+
+    // Truncate the file.
+    return truncate(mFile, size);
+}
+
 } // file_service
 } // mega

@@ -105,5 +105,10 @@ std::uint64_t
     return length - remaining;
 }
 
+bool truncate(FileAccess& file, std::uint64_t size)
+{
+    return file.ftruncate(static_cast<m_off_t>(size));
+}
+
 } // file_service
 } // mega

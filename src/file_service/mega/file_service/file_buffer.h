@@ -30,6 +30,9 @@ public:
 
     // Write data into the buffer.
     std::uint64_t write(const void* buffer, std::uint64_t offset, std::uint64_t length) override;
+
+    // Truncate the file's size.
+    bool truncate(std::uint64_t size);
 }; // FileBuffer
 
 } // file_service

@@ -15,5 +15,7 @@ std::uint64_t read(FileAccess& file, void* buffer, std::uint64_t offset, std::ui
 std::uint64_t
     write(FileAccess& file, const void* buffer, std::uint64_t offset, std::uint64_t length);
 
+bool truncate(FileAccess& file, std::uint64_t size);
+
 } // file_service
 } // mega
