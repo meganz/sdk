@@ -21,6 +21,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_WINDOWS_INC}/directory_context.h
                              ${FUSE_WINDOWS_INC}/dispatcher.h
                              ${FUSE_WINDOWS_INC}/dispatcher_forward.h
+                             ${FUSE_WINDOWS_INC}/file_explorer_setter.h
                              ${FUSE_WINDOWS_INC}/handle.h
                              ${FUSE_WINDOWS_INC}/handle_forward.h
                              ${FUSE_WINDOWS_INC}/library.h
@@ -39,6 +40,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_WINDOWS_SRC}/constants.cpp
                              ${FUSE_WINDOWS_SRC}/directory_context.cpp
                              ${FUSE_WINDOWS_SRC}/dispatcher.cpp
+                             ${FUSE_WINDOWS_SRC}/file_explorer_setter.cpp
                              ${FUSE_WINDOWS_SRC}/local_pointer.cpp
                              ${FUSE_WINDOWS_SRC}/mount.cpp
                              ${FUSE_WINDOWS_SRC}/mount_db.cpp
