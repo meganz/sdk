@@ -1278,6 +1278,10 @@ void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
 
 void FileContext::shrink(std::uint64_t newSize, std::uint64_t oldSize, Transaction& transaction)
 {
+    // Couldn't reduce the file's size.
+    if (!mBuffer->truncate(newSize))
+        throw FSError1("Couldn't reduce file size");
+
     // What ranges end at or after our file's new size?
     auto begin = mRanges.endsAfter(newSize);
 
