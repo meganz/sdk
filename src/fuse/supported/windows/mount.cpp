@@ -892,9 +892,9 @@ MountResult Mount::remove()
     return MOUNT_SUCCESS;
 }
 
-void Mount::notifyFileExplorerSetter(const std::wstring& prefix)
+void Mount::notifyFileExplorerSetter()
 {
-    mMountDB.notifyFileExplorerSetter(prefix);
+    mMountDB.notifyFileExplorerSetter();
 }
 
 } // platform

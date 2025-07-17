@@ -26,7 +26,7 @@ class MountDB
 public:
     MountDB(ServiceContext& context);
 
-    void notifyFileExplorerSetter(const std::wstring& prefix);
+    void notifyFileExplorerSetter();
 
     // Security descriptor for read-only inodes.
     const SecurityDescriptor mReadOnlySecurityDescriptor;

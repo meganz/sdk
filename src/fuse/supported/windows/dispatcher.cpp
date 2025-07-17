@@ -347,7 +347,7 @@ NTSTATUS Dispatcher::open(FSP_FILE_SYSTEM* filesystem,
 
     if (result == STATUS_SUCCESS)
     {
-        mount.notifyFileExplorerSetter(dispatcher.mPath.asPlatformEncoded(true));
+        mount.notifyFileExplorerSetter();
     }
 
     return result;

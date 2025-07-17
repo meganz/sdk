@@ -1,6 +1,9 @@
 #pragma once
+#include <mega/fuse/platform/shell.h>
+
+#include <atomic>
+#include <functional>
 #include <memory>
-#include <string>
 
 namespace mega
 {
@@ -16,12 +19,15 @@ class FileExplorerSetter
 
     std::unique_ptr<Executor> mExecutor;
 
+    // Any notify is in queue for execution?
+    std::atomic_bool mInQueue{false};
+
 public:
     FileExplorerSetter();
 
     ~FileExplorerSetter();
 
-    void notify(const std::wstring& prefix);
+    void notify(std::function<shell::Prefixes()> getPrefixes);
 };
 
 } // platform

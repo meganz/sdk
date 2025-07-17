@@ -2,7 +2,6 @@
 #include <mega/common/task_executor_flags.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/platform/file_explorer_setter.h>
-#include <mega/fuse/platform/shell.h>
 
 #include <thread>
 
@@ -62,18 +61,28 @@ FileExplorerSetter::FileExplorerSetter():
 
 FileExplorerSetter::~FileExplorerSetter() = default;
 
-void FileExplorerSetter::notify(const std::wstring& prefix)
+void FileExplorerSetter::notify(std::function<shell::Prefixes()> getPrefixes)
 {
     if (!mExecutor->mInited)
         return;
 
+    // Already has one in queue
+    if (mInQueue.exchange(true))
+        return;
+
     mExecutor->execute(
-        [prefix](const Task& task)
+        [getPrefixes = std::move(getPrefixes), this](const Task& task)
         {
+            // Execute, not in queue anymore
+            mInQueue = false;
+
             if (task.cancelled())
                 return;
 
-            shell::setView(prefix);
+            if (auto prefixes = getPrefixes(); !prefixes.empty())
+            {
+                shell::setView(prefixes);
+            }
         },
         false);
 }

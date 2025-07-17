@@ -64,7 +64,7 @@ private:
     T* p{nullptr};
 };
 
-bool isMatchedShell(IShellView* shellView, const std::wstring& prefix)
+bool isMatchedShell(IShellView* shellView, const Prefixes& prefixes)
 {
     ComPtr<IFolderView> folderView;
     if (FAILED(shellView->QueryInterface(IID_PPV_ARGS(&folderView))))
@@ -78,7 +78,7 @@ bool isMatchedShell(IShellView* shellView, const std::wstring& prefix)
     if (FAILED(persistFolder->GetCurFolder(&idl)))
         return false;
 
-    const auto pidlReleaser = makeScopedDestructor(
+    const auto idlReleaser = makeScopedDestructor(
         [&idl]()
         {
             CoTaskMemFree(idl);
@@ -89,7 +89,12 @@ bool isMatchedShell(IShellView* shellView, const std::wstring& prefix)
     if (!SHGetPathFromIDListW(idl, szPath))
         return false;
 
-    return Utils::startswith(std::wstring(szPath), prefix);
+    const auto p = std::wstring(szPath);
+    auto isStartedWith = [&p](const std::wstring& prefix)
+    {
+        return Utils::startswith(p, prefix);
+    };
+    return std::any_of(prefixes.begin(), prefixes.end(), isStartedWith);
 }
 
 void setToListView(IShellView* shellView)
@@ -109,7 +114,7 @@ bool init()
     return !FAILED(CoInitialize(NULL));
 }
 
-void setView(const std::wstring& prefix)
+void setView(const Prefixes& prefixes)
 {
     // Get the desktop Shell windows interface
     ComPtr<IShellWindows> windows;
@@ -146,7 +151,7 @@ void setView(const std::wstring& prefix)
         if (FAILED(shellBrowser->QueryActiveShellView(&shellView)))
             continue;
 
-        if (!isMatchedShell(shellView.get(), prefix))
+        if (!isMatchedShell(shellView.get(), prefixes))
             continue;
 
         setToListView(shellView.get());
