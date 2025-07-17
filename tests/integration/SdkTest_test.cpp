@@ -1888,7 +1888,9 @@ void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& ch
         inviteTestAccount(0, 1, "Hi contact. This is a test message");
     }
 
-    MegaHandle secondaryAccountHandle = megaApi[apiIndex + 1]->getMyUser()->getHandle();
+    std::unique_ptr<MegaUser> myUser(megaApi[apiIndex + 1]->getMyUser());
+    ASSERT_TRUE(myUser) << "Cannot retrieve my own user";
+    MegaHandle secondaryAccountHandle = myUser->getHandle();
     MegaHandle auxChatid = UNDEF;
     for (const auto &it: mApi[apiIndex].chats)
     {
@@ -2002,14 +2004,23 @@ void SdkTest::updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid
     ASSERT_NE(chat->getScheduledMeetingList(), nullptr) << "Chat doesn't have scheduled meetings";
     ASSERT_NE(chat->getScheduledMeetingList()->at(0), nullptr) << "Invalid scheduled meeting";
     const MegaScheduledMeeting* aux =  chat->getScheduledMeetingList()->at(0);
-    std::unique_ptr<MegaScheduledMeeting> sm(MegaScheduledMeeting::createInstance(aux->chatid(), aux->schedId(), aux->parentSchedId(),
-                                                                                  aux->organizerUserid(), aux->cancelled(),
-                                                                                  aux->timezone(), aux->startDateTime(), aux->endDateTime(),
-                                                                                  (std::string(aux->title())+ "_updated").c_str(),
-                                                                                  (std::string(aux->description())+ "_updated").c_str(),
-                                                                                  aux->attributes(), MEGA_INVALID_TIMESTAMP /*overrides*/,
-                                                                                  aux->flags(), aux->rules()));
-
+    std::unique_ptr<MegaScheduledRules> rules(aux->rules());
+    std::unique_ptr<MegaScheduledFlags> flags(aux->flags());
+    std::unique_ptr<MegaScheduledMeeting> sm(
+        MegaScheduledMeeting::createInstance(aux->chatid(),
+                                             aux->schedId(),
+                                             aux->parentSchedId(),
+                                             aux->organizerUserid(),
+                                             aux->cancelled(),
+                                             aux->timezone(),
+                                             aux->startDateTime(),
+                                             aux->endDateTime(),
+                                             (std::string(aux->title()) + "_updated").c_str(),
+                                             (std::string(aux->description()) + "_updated").c_str(),
+                                             aux->attributes(),
+                                             MEGA_INVALID_TIMESTAMP /*overrides*/,
+                                             flags.get(),
+                                             rules.get()));
 
     std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
     megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), nullptr/*chatTitle*/, tracker.get());
@@ -3989,6 +4000,8 @@ void SdkTest::cancelSchedMeetings()
             {
                 if (const MegaScheduledMeeting* aux = schedList->at(j); aux && !aux->cancelled())
                 {
+                    std::unique_ptr<MegaScheduledRules> rules(aux->rules());
+                    std::unique_ptr<MegaScheduledFlags> flags(aux->flags());
                     std::unique_ptr<MegaScheduledMeeting> sm(
                         MegaScheduledMeeting::createInstance(aux->chatid(),
                                                              aux->schedId(),
@@ -4002,8 +4015,8 @@ void SdkTest::cancelSchedMeetings()
                                                              aux->description(),
                                                              aux->attributes(),
                                                              MEGA_INVALID_TIMESTAMP /*overrides*/,
-                                                             aux->flags(),
-                                                             aux->rules()));
+                                                             flags.get(),
+                                                             rules.get()));
 
                     smTrackers.push_back(
                         std::unique_ptr<RequestTracker>(new RequestTracker(megaApi[i].get())));
