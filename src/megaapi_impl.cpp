@@ -40511,6 +40511,11 @@ int MegaFuseFlagsPrivate::getLogLevel() const
     return static_cast<int>(mFlags.mLogLevel);
 }
 
+int MegaFuseFlagsPrivate::getFileExplorerView() const
+{
+    return static_cast<int>(mFlags.mFileExplorerView);
+}
+
 MegaFuseInodeCacheFlags* MegaFuseFlagsPrivate::getInodeCacheFlags()
 {
     return &mInodeCacheFlags;
@@ -40534,6 +40539,11 @@ void MegaFuseFlagsPrivate::setFlushDelay(size_t seconds)
 void MegaFuseFlagsPrivate::setLogLevel(int level)
 {
     mFlags.mLogLevel = static_cast<mega::LogLevel>(level);
+}
+
+void MegaFuseFlagsPrivate::setFileExplorerView(int view)
+{
+    mFlags.mFileExplorerView = static_cast<fuse::FileExplorerView>(view);
 }
 
 MegaMountPrivate::MegaMountPrivate()

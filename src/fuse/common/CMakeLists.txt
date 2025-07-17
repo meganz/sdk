@@ -77,6 +77,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_INC}/directory_inode_results.h
                              ${FUSE_COMMON_INC}/file_cache.h
                              ${FUSE_COMMON_INC}/file_cache_forward.h
+                             ${FUSE_COMMON_INC}/file_explorer_view.h
                              ${FUSE_COMMON_INC}/file_extension_db.h
                              ${FUSE_COMMON_INC}/file_extension_db_forward.h
                              ${FUSE_COMMON_INC}/file_info.h
@@ -105,6 +106,7 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_SRC}/database_builder.cpp
                              ${FUSE_COMMON_SRC}/directory_inode.cpp
                              ${FUSE_COMMON_SRC}/file_cache.cpp
+                             ${FUSE_COMMON_SRC}/file_explorer_view.cpp
                              ${FUSE_COMMON_SRC}/file_extension_db.cpp
                              ${FUSE_COMMON_SRC}/file_info.cpp
                              ${FUSE_COMMON_SRC}/file_inode.cpp

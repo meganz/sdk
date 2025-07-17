@@ -819,6 +819,16 @@ TaskExecutorFlags MountDB::executorFlags() const
     return mContext.serviceFlags().mMountExecutorFlags;
 }
 
+void MountDB::fileExplorerView(FileExplorerView view)
+{
+    mFileExplorerView = view;
+}
+
+FileExplorerView MountDB::fileExplorerView() const
+{
+    return mFileExplorerView;
+}
+
 FileCache& MountDB::fileCache()
 {
     return mContext.mFileCache;
