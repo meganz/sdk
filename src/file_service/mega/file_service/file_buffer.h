@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mega/file_service/buffer.h>
+#include <mega/file_service/file_buffer_forward.h>
 
 #include <cstdint>
 

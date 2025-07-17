@@ -15,6 +15,8 @@ target_sources(SDKlib PRIVATE
                       file_append_request.h
                       file_append_request_forward.h
                       file_buffer.h
+                      file_buffer_forward.h
+                      file_buffer_pointer.h
                       file_context.h
                       file_context_badge.h
                       file_event_vector.h
