@@ -85,6 +85,12 @@ void File::read(FileReadCallback callback, const FileRange& range)
     mContext->read(FileReadRequest{std::move(callback), range});
 }
 
+void File::reclaim(FileReclaimCallback callback)
+{
+    // Ask the context to reclaim this file's space.
+    mContext->reclaim(std::move(callback));
+}
+
 void File::ref()
 {
     mContext->ref();

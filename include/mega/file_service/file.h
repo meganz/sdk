@@ -59,6 +59,9 @@ public:
 
     void read(FileReadCallback callback, const FileRange& range);
 
+    // Reclaim this file's storage.
+    void reclaim(FileReclaimCallback callback);
+
     // Let the service know you want it to keep this file in storage.
     void ref();
 

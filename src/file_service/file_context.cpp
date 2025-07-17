@@ -19,6 +19,7 @@
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_range_context.h>
 #include <mega/file_service/file_read_request.h>
+#include <mega/file_service/file_reclaim_request.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_service_context.h>
 #include <mega/file_service/file_touch_request.h>
@@ -121,6 +122,30 @@ public:
     // Queue a flush request for execution.
     void queue(FileFlushRequest request);
 }; // FlushContext
+
+class FileContext::ReclaimContext
+{
+    // Called when the reclaim request has completed.
+    void completed(ReclaimContextPtr& context, FileResult result);
+
+    // Keep mContext alive as long as we are alive.
+    Activity mActivity;
+
+    // Who should we call when the reclaim completes?
+    std::vector<FileReclaimCallback> mCallbacks;
+
+    // What file are we reclaiming?
+    FileContext& mContext;
+
+public:
+    ReclaimContext(FileContext& context);
+
+    // Called when the file's data has been flushed to the cloud.
+    void flushed(ReclaimContextPtr& context, FileResult result);
+
+    // Queue a callback for execution when the reclaim completes.
+    void queue(FileReclaimCallback callback);
+}; // ReclaimContext
 
 // Wrap a callback to ensure that exceptions are always handled.
 template<typename Callback>
@@ -272,7 +297,7 @@ void FileContext::cancel()
     {
         std::unique_lock lock(mFlushContextLock);
 
-        if (auto context = std::move(mFlushContext))
+        if (auto context = std::exchange(mFlushContext, nullptr))
             context->cancel(std::move(lock));
     }
 
@@ -283,7 +308,7 @@ void FileContext::cancel()
         std::lock_guard guard(mRequestsLock);
 
         // Latch the request queue.
-        auto requests = std::move(mRequests);
+        auto requests = std::exchange(mRequests, FileRequestList());
 
         // Make sure the queue's in a sane state.
         mRequests.clear();
@@ -929,6 +954,41 @@ bool FileContext::execute(FileReadRequest& request)
     return true;
 }
 
+bool FileContext::execute(FileReclaimRequest& request)
+{
+    // Can't reclaim if there's another request in progress.
+    if (!mReadWriteState.write())
+        return false;
+
+    // Make sure no one else is modifying mRanges.
+    std::lock_guard lock(mRangesLock);
+
+    // So we can safely modify the database.
+    auto transaction = mService.database().transaction();
+
+    // Represents the entire file.
+    FileRange range(0, mInfo->logicalSize());
+
+    // Remove all of this file's ranges from the database.
+    removeRanges(range, transaction);
+
+    // Couldn't reduce the file's size.
+    if (!mBuffer->truncate(0))
+        return completed(std::move(request), FILE_FAILED), true;
+
+    // Remove all of the ranges from memory.
+    mRanges.clear();
+
+    // Persist our changes.
+    transaction.commit();
+
+    // Queue the request for completion.
+    completed(std::move(request), FILE_SUCCESS);
+
+    // Let our caller know the request has been executed.
+    return true;
+}
+
 bool FileContext::execute(FileTouchRequest& request)
 {
     // Can't touch if there's another request in progress.
@@ -1259,10 +1319,14 @@ auto FileContext::queue(Request&& request) -> std::enable_if_t<IsFileRequestV<Re
     std::lock_guard guard(mRequestsLock);
 
     // Convenience.
-    using Tag = std::in_place_type_t<std::remove_reference_t<Request>>;
+    using Type = std::remove_reference_t<Request>;
+    using Tag = std::in_place_type_t<Type>;
 
-    // Push the request onto the end of our queue.
-    mRequests.emplace_back(Tag(), std::forward<Request>(request));
+    // Push all but reclaim requests onto the end of our queue.
+    if constexpr (IsFileReclaimRequestV<Type>)
+        mRequests.emplace_front(Tag(), std::forward<Request>(request));
+    else
+        mRequests.emplace_back(Tag(), std::forward<Request>(request));
 }
 
 void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
@@ -1365,6 +1429,8 @@ FileContext::FileContext(Activity activity,
     mRanges(),
     mRangesLock(),
     mReadWriteState(),
+    mReclaimContext(),
+    mReclaimContextLock(),
     mRequests(),
     mRequestsLock(),
     mService(service),
@@ -1427,6 +1493,31 @@ FileRangeVector FileContext::ranges() const
 void FileContext::read(FileReadRequest request)
 {
     executeOrQueue(std::move(request));
+}
+
+void FileContext::reclaim(FileReclaimCallback callback)
+{
+    // Make sure we have exclusive access to mReclaimContext.
+    std::lock_guard lock(mReclaimContextLock);
+
+    // A reclaim request is already in progress.
+    if (mReclaimContext)
+        return mReclaimContext->queue(std::move(callback));
+
+    // Create a new reclaim context.
+    mReclaimContext = std::make_shared<ReclaimContext>(*this);
+
+    // Queue our callback for later execution.
+    mReclaimContext->queue(std::move(callback));
+
+    // So we can use the context's flushed method as a callback.
+    FileFlushCallback flushed = std::bind(&ReclaimContext::flushed,
+                                          mReclaimContext.get(),
+                                          mReclaimContext,
+                                          std::placeholders::_1);
+
+    // Make sure this file's data has been flushed to the cloud.
+    flush(FileFlushRequest{std::move(flushed)});
 }
 
 void FileContext::ref()
@@ -1683,7 +1774,7 @@ void FileContext::FlushContext::cancel(Lock&& lock)
     assert(lock.mutex() == &mContext.mFlushContextLock);
     assert(lock.owns_lock());
 
-    auto upload = std::move(mUpload);
+    auto upload = std::exchange(mUpload, nullptr);
 
     // No upload's in progress.
     if (!upload)
@@ -1712,6 +1803,45 @@ void FileContext::FlushContext::queue(FileFlushRequest request)
 
     // Queue the request.
     mRequests.emplace_back(std::move(request));
+}
+
+void FileContext::ReclaimContext::completed(ReclaimContextPtr&, FileResult result)
+{
+    // Unlink this context from our file.
+    {
+        std::lock_guard guard(mContext.mReclaimContextLock);
+        mContext.mReclaimContext = nullptr;
+    }
+
+    // Execute our callbacks.
+    for (auto& callback: mCallbacks)
+        callback(result);
+}
+
+FileContext::ReclaimContext::ReclaimContext(FileContext& context):
+    mActivity(context.mActivities.begin()),
+    mCallbacks(),
+    mContext(context)
+{}
+
+void FileContext::ReclaimContext::flushed(ReclaimContextPtr& context, FileResult result)
+{
+    // Couldn't flush this file's data to the cloud.
+    if (result != FILE_SUCCESS)
+        return completed(context, result);
+
+    // So we can use this context's completed method as a callback.
+    auto callback =
+        std::bind(&ReclaimContext::completed, this, std::move(context), std::placeholders::_1);
+
+    // Queue the reclaim request for execution.
+    mContext.queue(FileReclaimRequest{std::move(callback)});
+}
+
+void FileContext::ReclaimContext::queue(FileReclaimCallback callback)
+{
+    // Queue the callback for later execution.
+    mCallbacks.emplace_back(swallow(std::move(callback), "reclaim"));
 }
 
 template<typename Callback>

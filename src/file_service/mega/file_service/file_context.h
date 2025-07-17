@@ -20,6 +20,7 @@
 #include <mega/file_service/file_range_vector.h>
 #include <mega/file_service/file_read_request_forward.h>
 #include <mega/file_service/file_read_write_state.h>
+#include <mega/file_service/file_reclaim_request_forward.h>
 #include <mega/file_service/file_request_list.h>
 #include <mega/file_service/file_request_traits.h>
 #include <mega/file_service/file_service_context_forward.h>
@@ -43,15 +44,19 @@ namespace file_service
 
 class FileContext final: FileRangeContextManager, public std::enable_shared_from_this<FileContext>
 {
-    // Tracks state necessary for a fetch.
+    // Tracks state necessary for fetch.
     class FetchContext;
 
-    // Tracks state necessary for a flush.
+    // Tracks state necessary for flush.
     class FlushContext;
+
+    // Tracks state necessary for reclaim.
+    class ReclaimContext;
 
     // Convenience.
     using FetchContextPtr = std::shared_ptr<FetchContext>;
     using FlushContextPtr = std::shared_ptr<FlushContext>;
+    using ReclaimContextPtr = std::shared_ptr<ReclaimContext>;
 
     // Add a range to the database.
     void addRange(const FileRange& range, common::Transaction& transaction);
@@ -98,6 +103,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Try and execute a read request.
     bool execute(FileReadRequest& request);
+
+    // Try and execute a reclaim request.
+    bool execute(FileReclaimRequest& request);
 
     // Try and execute a touch request.
     bool execute(FileTouchRequest& request);
@@ -184,6 +192,12 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Tracks whether any reads or writes are in progress.
     FileReadWriteState mReadWriteState;
 
+    // Tracks any reclaim in progress.
+    ReclaimContextPtr mReclaimContext;
+
+    // Serializes access to mReclaimContext.
+    std::mutex mReclaimContextLock;
+
     // Tracks pending requests.
     FileRequestList mRequests;
 
@@ -225,6 +239,9 @@ public:
 
     // Read data from this file.
     void read(FileReadRequest request);
+
+    // Reclaim this file's storage.
+    void reclaim(FileReclaimCallback callback);
 
     // Let the service know you want it to keep this file in storage.
     void ref();

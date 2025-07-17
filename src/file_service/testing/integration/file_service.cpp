@@ -147,6 +147,9 @@ static auto flush(File file) -> std::future<FileResult>;
 static auto read(File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResultOr<std::string>>;
 
+// Reclaim a file's storage.
+static auto reclaim(File file) -> std::future<FileResult>;
+
 // Update the specified file's modification time.
 static auto touch(File file, std::int64_t modified) -> std::future<FileResult>;
 
@@ -1145,6 +1148,63 @@ TEST_F(FileServiceTests, read_write_sequence)
     ASSERT_EQ(expected, received);
 }
 
+TEST_F(FileServiceTests, reclaim_succeeds)
+{
+    // Generate data for us to write to the cloud.
+    auto expected = randomBytes(512_KiB);
+
+    // Create a file that we can modify.
+    auto handle = ClientW()->upload(expected, randomName(), mRootHandle);
+
+    // Make sure we could create our test file.
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Open the file for IO.
+    auto file = ClientW()->fileOpen(*handle);
+
+    // Make sure we could open our file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Read some data from the file.
+    auto computed = execute(read, *file, 0, 64_KiB);
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    computed = execute(read, *file, 128_KiB, 64_KiB);
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Write some data to the file.
+    ASSERT_EQ(execute(write, expected.data(), *file, 256_KiB, 64_KiB), FILE_SUCCESS);
+
+    // Update our expected buffer.
+    expected.replace(256_KiB, 64_KiB, expected, 0, 64_KiB);
+
+    // Find out how much space the service is currently using.
+    auto usedBefore = ClientW()->fileStorageUsed();
+    ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Try and reclaim the file's storage.
+    ASSERT_EQ(execute(reclaim, *file), FILE_SUCCESS);
+
+    // Make sure a new copy of our file has been uploaded to the cloud.
+    auto info = ClientW()->get(file->info().handle());
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    ASSERT_NE(*handle, info->mHandle);
+
+    // Make sure we actually reclaimed space.
+    auto usedAfter = ClientW()->fileStorageUsed();
+    ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_LT(*usedAfter, *usedBefore);
+
+    // Make sure we can read all of the file's data.
+    computed = execute(read, *file, 0, 512_KiB);
+
+    // Make sure the read completed.
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // And that the data we read was correct.
+    ASSERT_TRUE(*computed == expected);
+}
+
 TEST_F(FileServiceTests, ref_succeeds)
 {
     // Convenience.
@@ -1810,6 +1870,25 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
         length);
 
     // Return waiter to our caller.
+    return waiter;
+}
+
+auto reclaim(File file) -> std::future<FileResult>
+{
+    // So we can notify our waiter when the request completes.
+    auto notifier = makeSharedPromise<FileResult>();
+
+    // So our caller can wait until the request completes.
+    auto waiter = notifier->get_future();
+
+    // Try and reclaim this file's storage.
+    file.reclaim(
+        [notifier](FileResult result)
+        {
+            notifier->set_value(result);
+        });
+
+    // Return the waiter to our caller.
     return waiter;
 }
 
