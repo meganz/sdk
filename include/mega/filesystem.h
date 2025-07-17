@@ -31,6 +31,7 @@
 #include <mega/localpath.h>
 
 #include <atomic>
+#include <optional>
 
 namespace mega {
 
@@ -854,6 +855,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // True if the file's hidden attribute was set.
     static bool setFileHidden(const LocalPath& path,
                               FSLogging logWhen = FSLogging::logOnError);
+
+    // Retrieve a file's physical size on disk.
+    virtual auto getPhysicalSize(const LocalPath& path) -> std::optional<std::uint64_t> = 0;
 
 protected:
     // Specifies the minimum permissions allowed for directories.

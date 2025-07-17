@@ -2330,4 +2330,20 @@ bool FSLogging::isFileNotFound(int error)
     return error == ERROR_FILE_NOT_FOUND;
 }
 
+auto WinFileSystemAccess::getPhysicalSize(const LocalPath& path) -> std::optional<std::uint64_t>
+{
+    // Tracks the file's physical size on disk.
+    ULARGE_INTEGER size;
+
+    // Try and determine the file's physical size on disk.
+    size.LowPart = GetCompressedFileSizeW(path.asPlatformEncoded(false).c_str(), &size.HighPart);
+
+    // Couldn't determine the file's size.
+    if (size.LowPart == INVALID_FILE_SIZE && GetLastError() != NO_ERROR)
+        return std::nullopt;
+
+    // Return the file's physical size to our caller.
+    return size.QuadPart;
+}
+
 } // namespace

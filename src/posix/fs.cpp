@@ -2800,5 +2800,21 @@ m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
     return (m_off_t)availableBytes;
 }
 
+auto PosixFileSystemAccess::getPhysicalSize(const LocalPath& path) -> std::optional<std::uint64_t>
+{
+    // The file's attributes.
+    struct stat attributes;
+
+    // Couldn't get the file's attributes.
+    if (stat(adjustBasePath(path).c_str(), &attributes) < 0)
+        return std::nullopt;
+
+    // Convenience.
+    auto blocks = static_cast<std::uint64_t>(attributes.st_blocks);
+
+    // Return the file's actual size on disk.
+    return blocks * 512;
+}
+
 } // namespace
 

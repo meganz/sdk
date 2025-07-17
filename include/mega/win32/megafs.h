@@ -111,6 +111,9 @@ public:
     m_off_t availableDiskSpace(const LocalPath& drivePath) override;
 
     static bool checkForSymlink(const LocalPath& lp);
+
+    // Retrieve a file's physical size on disk.
+    auto getPhysicalSize(const LocalPath& path) -> std::optional<std::uint64_t> override;
 };
 
 #ifdef ENABLE_SYNC

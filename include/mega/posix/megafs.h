@@ -129,6 +129,9 @@ public:
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
 
     m_off_t availableDiskSpace(const LocalPath& drivePath) override;
+
+    // Retrieve a file's physical size on disk.
+    auto getPhysicalSize(const LocalPath& path) -> std::optional<std::uint64_t> override;
 };
 
 #ifdef HAVE_AIO_RT
