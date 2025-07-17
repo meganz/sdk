@@ -233,11 +233,8 @@ public:
     // Remove all ranges from the tree.
     void clear()
     {
-        Iterator iterator;
-
-        // Destroy all the nodes in the tree.
-        while ((iterator = mByRangeBegin.root()))
-            delete mByRangeBegin.remove(iterator);
+        // Remove all ranges from the tree.
+        remove(begin(), end());
     }
 
     // Return an iterator to the end of the tree.
