@@ -287,7 +287,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     query.execute();
 
     // Add the file to storage.
-    auto file = mStorage.addFile(*node);
+    auto file = mStorage.addFile(id);
 
     // Persist our database changes.
     transaction.commit();

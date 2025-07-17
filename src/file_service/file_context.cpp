@@ -10,7 +10,6 @@
 #include <mega/file_service/displaced_buffer.h>
 #include <mega/file_service/file_access.h>
 #include <mega/file_service/file_append_request.h>
-#include <mega/file_service/file_buffer.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
 #include <mega/file_service/file_fetch_request.h>
@@ -26,6 +25,7 @@
 #include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request.h>
 #include <mega/file_service/logging.h>
+#include <mega/file_service/sparse_file_buffer.h>
 #include <mega/file_service/type_traits.h>
 #include <mega/filesystem.h>
 #include <mega/overloaded.h>
@@ -1339,7 +1339,7 @@ FileContext::FileContext(Activity activity,
     FileRangeContextManager(),
     enable_shared_from_this(),
     mActivity(std::move(activity)),
-    mBuffer(std::make_shared<FileBuffer>(*file)),
+    mBuffer(std::make_shared<SparseFileBuffer>(*file, *info)),
     mInfo(std::move(info)),
     mFetchContext(),
     mFetchContextLock(),

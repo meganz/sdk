@@ -4,6 +4,7 @@
 #include <mega/common/transaction_forward.h>
 #include <mega/file_service/buffer_pointer.h>
 #include <mega/file_service/file_append_request_forward.h>
+#include <mega/file_service/file_buffer_pointer.h>
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_event_observer.h>
@@ -154,7 +155,7 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     common::Activity mActivity;
 
     // Wraps mFile and unifies logic.
-    BufferPtr mBuffer;
+    FileBufferPtr mBuffer;
 
     // How we get and set our file's attributes.
     FileInfoContextPtr mInfo;

@@ -13,20 +13,6 @@ namespace file_service
 
 using namespace common;
 
-// Convenience.
-class ScopedFileRemover
-{
-    FileSystemAccess& mFilesystem;
-    const LocalPath* mPath;
-
-public:
-    ScopedFileRemover(FileSystemAccess& filesystem, const LocalPath& path);
-
-    ~ScopedFileRemover();
-
-    void release();
-}; // ScopedFileRemover
-
 FileAccessPtr FileStorage::openFile(const LocalPath& path, bool mustCreate)
 {
     auto file = mFilesystem->newfileaccess(false);
@@ -51,41 +37,6 @@ FileStorage::FileStorage(const Client& client):
 {}
 
 FileStorage::~FileStorage() = default;
-
-FileAccessPtr FileStorage::addFile(const NodeInfo& info)
-{
-    // Translate node handle to a FileID.
-    auto id = FileID::from(info.mHandle);
-
-    // Compute the file's path.
-    auto path = userFilePath(id);
-
-    // Create the file.
-    auto file = openFile(path, true);
-
-    // Remove file if we escape due to an exception.
-    ScopedFileRemover remover(*mFilesystem, path);
-
-    // Convenience.
-    auto failure = [&path](const char* message)
-    {
-        return FSErrorF("%s: %s", message, path.toPath(false).c_str());
-    }; // failure
-
-    // Couldn't set the file's size.
-    if (!file->ftruncate(info.mSize))
-        throw failure("Couldn't set file size");
-
-    // Couldn't retrieve the file's attributes.
-    if (!file->fstat())
-        throw failure("Couldn't retrieve file attributes");
-
-    // Everything's okay: don't remove the file.
-    remover.release();
-
-    // Return the file to our caller.
-    return file;
-}
 
 FileAccessPtr FileStorage::addFile(FileID id)
 {
@@ -139,30 +90,6 @@ LocalPath FileStorage::userFilePath(FileID id) const
 const LocalPath& FileStorage::userStorageDirectory() const
 {
     return mUserStorageDirectory;
-}
-
-ScopedFileRemover::ScopedFileRemover(FileSystemAccess& filesystem, const LocalPath& path):
-    mFilesystem(filesystem),
-    mPath(&path)
-{}
-
-ScopedFileRemover::~ScopedFileRemover()
-{
-    // No path to remove.
-    if (!mPath)
-        return;
-
-    // File's been removed.
-    if (mFilesystem.unlinklocal(*mPath))
-        return;
-
-    // Couldn't remove the file.
-    FSWarningF("Couldn't remove file: %s", mPath->toPath(false).c_str());
-}
-
-void ScopedFileRemover::release()
-{
-    mPath = nullptr;
 }
 
 } // file_service
