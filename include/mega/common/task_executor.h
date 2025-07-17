@@ -1,15 +1,16 @@
 #pragma once
 
+#include <mega/common/logger_forward.h>
+#include <mega/common/task_executor.h>
+#include <mega/common/task_executor_flags.h>
+#include <mega/common/task_queue.h>
+
 #include <chrono>
 #include <condition_variable>
 #include <list>
 #include <memory>
 #include <mutex>
-
-#include <mega/common/logger_forward.h>
-#include <mega/common/task_executor.h>
-#include <mega/common/task_executor_flags.h>
-#include <mega/common/task_queue.h>
+#include <thread>
 
 namespace mega
 {
