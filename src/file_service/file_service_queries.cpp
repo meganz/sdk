@@ -14,6 +14,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileLocation(database.query()),
     mAddFileRange(database.query()),
     mGetFile(database.query()),
+    mGetFileIDs(database.query()),
     mGetFileLocation(database.query()),
     mGetFileLocationByParentAndName(database.query()),
     mGetFileRanges(database.query()),
@@ -60,6 +61,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  from files "
                " where (:handle is not null and handle = :handle) "
                "    or (:id is not null and id = :id)";
+
+    mGetFileIDs = "select id from files";
 
     mGetFileLocation = "select * "
                        "  from file_locations "
