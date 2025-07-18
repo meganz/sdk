@@ -3,6 +3,7 @@
 #include <mega/common/deciseconds.h>
 #include <mega/file_service/file_service_options_forward.h>
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 
@@ -24,6 +25,9 @@ struct FileServiceOptions
 
     // How long should we wait between retries?
     common::deciseconds mRangeRetryBackoff{20};
+
+    // How long shouldn't we access a file before we can reclaim it?
+    std::chrono::hours mReclaimAgeThreshold{72};
 
     // How many bytes can the service store before it needs to reclaim space?
     std::optional<std::uint64_t> mReclaimSizeThreshold{};
