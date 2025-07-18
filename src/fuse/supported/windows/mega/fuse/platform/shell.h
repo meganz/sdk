@@ -13,7 +13,7 @@ namespace shell
 using Prefixes = std::vector<std::wstring>;
 
 // Init for the calling thread once and before use setView. Caller can call this once per thread.
-bool init();
+bool initialize();
 
 // Sets the view mode of running File Explorer windows to "List View" for whose open folder
 // paths started with one of given prefix in the set. This affects only currently open File Explorer
@@ -22,7 +22,7 @@ bool init();
 void setView(const Prefixes& prefixes);
 
 // Uninit once. Pair with init.
-void uninit();
+void deinitialize();
 
 } // shell
 } // platform

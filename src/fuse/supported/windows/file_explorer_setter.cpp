@@ -43,13 +43,13 @@ FileExplorerSetter::Executor::Executor():
 
 void FileExplorerSetter::Executor::workerStarted(std::thread::id)
 {
-    mInitialized = shell::init();
+    mInitialized = shell::initialize();
 }
 
 void FileExplorerSetter::Executor::workerStopped(std::thread::id)
 {
     if (mInitialized)
-        shell::uninit();
+        shell::deinitialize();
 }
 
 FileExplorerSetter::FileExplorerSetter():

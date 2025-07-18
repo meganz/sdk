@@ -109,7 +109,7 @@ void setToListView(IShellView* shellView)
     folderView2->SetViewModeAndIconSize(FVM_LIST, -1);
 }
 
-bool init()
+bool initialize()
 {
     return !FAILED(CoInitialize(NULL));
 }
@@ -158,7 +158,7 @@ void setView(const Prefixes& prefixes)
     }
 }
 
-void uninit()
+void deinitialize()
 {
     CoUninitialize();
 }
