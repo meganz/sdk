@@ -55,7 +55,7 @@ void FileExplorerSetter::Executor::workerStopped(std::thread::id)
 FileExplorerSetter::FileExplorerSetter():
     mExecutor(std::make_unique<FileExplorerSetter::Executor>())
 {
-    // start the worker
+    // start the worker for workerStarted initialization
     mExecutor->execute([](const Task&) {}, false);
 }
 
