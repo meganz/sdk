@@ -20615,7 +20615,11 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
             return API_OK;
 }
 
-error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newName, shared_ptr<Node> target, vector<NewNode>& treeCopy)
+error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node,
+                                         const char* newName,
+                                         shared_ptr<Node> target,
+                                         vector<NewNode>& treeCopy,
+                                         const std::optional<std::string>& s4AttributeValue)
 {
     assert(node);
     assert(!newName || *newName);
@@ -20683,8 +20687,8 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newN
     tc.nn[0].parenthandle = UNDEF;
     tc.nn[0].ovhandle = ovhandle;
 
-    // Update name attr
-    if (newName)
+    // Update name or S4 attr
+    if (newName || s4AttributeValue)
     {
         SymmCipher key;
         AttrMap attrs;
@@ -20693,7 +20697,15 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newN
         key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
         attrs = node->attrs;
 
-        attrs.map['n'] = sname;
+        if (newName)
+        {
+            attrs.map['n'] = sname;
+        }
+
+        if (s4AttributeValue)
+        {
+            attrs.map[AttrMap::string2nameid("s4")] = s4AttributeValue.value().c_str();
+        }
 
         // We need to ensure we are not undoing the sensitive reset
         if (tc.resetSensitive && attrs.map.erase(AttrMap::string2nameid("sen")))
@@ -27898,7 +27910,11 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                 }
 
                 vector<NewNode> treeToCopy;
-                error err = copyTreeFromOwnedNode(source, tmpNodeTree->getName().c_str(), ovLocation, treeToCopy);
+                error err = copyTreeFromOwnedNode(source,
+                                                  tmpNodeTree->getName().c_str(),
+                                                  ovLocation,
+                                                  treeToCopy,
+                                                  tmpNodeTree->getS4AttributeValue());
                 if (err != API_OK)
                 {
                     if (err == API_EEXIST) // dedicated error code when that exact same file already existed
