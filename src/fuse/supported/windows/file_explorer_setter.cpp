@@ -17,7 +17,7 @@ class FileExplorerSetter::Executor: public common::TaskExecutor
 {
     friend class FileExplorerSetter;
 
-    bool mInited{false};
+    bool mInitialized{false};
 
     void workerStarted(std::thread::id id) override;
 
@@ -43,12 +43,12 @@ FileExplorerSetter::Executor::Executor():
 
 void FileExplorerSetter::Executor::workerStarted(std::thread::id)
 {
-    mInited = shell::init();
+    mInitialized = shell::init();
 }
 
 void FileExplorerSetter::Executor::workerStopped(std::thread::id)
 {
-    if (mInited)
+    if (mInitialized)
         shell::uninit();
 }
 
@@ -63,7 +63,7 @@ FileExplorerSetter::~FileExplorerSetter() = default;
 
 void FileExplorerSetter::notify(std::function<shell::Prefixes()> getPrefixes)
 {
-    if (!mExecutor->mInited)
+    if (!mExecutor->mInitialized)
         return;
 
     mExecutor->execute(
