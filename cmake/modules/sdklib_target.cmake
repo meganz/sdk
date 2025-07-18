@@ -171,6 +171,7 @@ set(SDKLIB_HEADERS
     include/mega/syncinternals/syncuploadthrottlingmanager.h
     include/mega/heartbeats.h
     include/mega/utils.h
+    include/mega/hashcash.h
     include/mega/utils_optional.h
     include/mega/account.h
     include/mega/transfer.h
@@ -230,6 +231,7 @@ set(SDKLIB_SOURCES
     src/gfx/external.cpp
     src/gfx/freeimage.cpp
     src/gfx/gfx_pdfium.cpp
+    src/hashcash.cpp
     src/http.cpp
     src/json.cpp
     src/logging.cpp
