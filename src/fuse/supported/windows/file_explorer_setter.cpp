@@ -66,18 +66,27 @@ void FileExplorerSetter::notify(std::function<shell::Prefixes()> getPrefixes)
     if (!mExecutor->mInitialized)
         return;
 
-    mExecutor->execute(
-        [getPrefixes = std::move(getPrefixes)](const Task& task)
-        {
-            if (task.cancelled())
-                return;
+    auto setView = [getPrefixes = std::move(getPrefixes)](const Task& task)
+    {
+        if (task.cancelled())
+            return;
 
-            if (auto prefixes = getPrefixes(); !prefixes.empty())
-            {
-                shell::setView(prefixes);
-            }
-        },
-        false);
+        if (auto prefixes = getPrefixes(); !prefixes.empty())
+        {
+            shell::setView(prefixes);
+        }
+    };
+
+    // There is a small chance that the notification is sent too early and File Explorer misses it.
+    // In most cases, the first attempt will succeed.
+    // The second attempt is scheduled after 30ms—a short enough delay to avoid visible UI flicker.
+    // The third attempt is after 100ms as a final fallback, hoping it is long enough for the system
+    // to be ready
+    mExecutor->execute(setView, false);
+
+    mExecutor->execute(setView, std::chrono::milliseconds{30}, false);
+
+    mExecutor->execute(setView, std::chrono::milliseconds{100}, false);
 }
 
 } // platform
