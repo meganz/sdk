@@ -33,11 +33,12 @@ public:
 
     bool operator!() const
     {
-        return (p == nullptr);
+        return p == nullptr;
     }
 
     T* operator->() const
     {
+        assert(p);
         return p;
     }
 
@@ -57,7 +58,6 @@ public:
     {
         if (p)
             p->Release();
-        p = nullptr;
     }
 
 private:
