@@ -60,7 +60,10 @@
         {
             "name": "mega",
             "hidden": true,
-            "inherits": "default"
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_MEDIA_FILE_METADATA" : "ON"
+            }
         },
         {
             "name": "megasync",
@@ -122,20 +125,14 @@
             "inherits": [
                 "mega",
                 "android"
-            ],
-            "cacheVariables": {
-                "ENABLE_MEDIA_FILE_METADATA" : "ON"
-            }
+            ]
         },
         {
             "name": "mega-ios",
             "inherits": [
                 "mega",
                 "ios"
-            ],
-            "cacheVariables": {
-                "ENABLE_MEDIA_FILE_METADATA" : "ON"
-            }
+            ]
         },
         {
             "name": "megasync-unix",
