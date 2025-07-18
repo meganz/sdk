@@ -155,6 +155,9 @@ public:
 
     // Remove a file info context from our index.
     void removeFromIndex(FileInfoContextBadge badge, FileInfoContext& context);
+
+    // How much storage space is the service using?
+    auto storageUsed() -> FileServiceResultOr<std::uint64_t>;
 }; // FileServiceContext
 
 } // file_service

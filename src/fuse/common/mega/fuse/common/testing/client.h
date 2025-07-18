@@ -207,6 +207,9 @@ public:
     auto fileServiceOptions()
         -> file_service::FileServiceResultOr<file_service::FileServiceOptions>;
 
+    // How much storage space is the service using?
+    auto fileStorageUsed() -> file_service::FileServiceResultOr<std::uint64_t>;
+
     // Retrieve information about a specific child.
     common::ErrorOr<common::NodeInfo> get(CloudPath parentPath, const std::string& name) const;
 

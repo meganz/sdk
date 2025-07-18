@@ -134,5 +134,15 @@ auto FileService::ranges(FileID id) -> FileServiceResultOr<FileRangeVector>
     return mContext->ranges(id);
 }
 
+auto FileService::storageUsed() -> FileServiceResultOr<std::uint64_t>
+{
+    SharedLock guard(mContextLock);
+
+    if (!mContext)
+        return unexpected(FILE_SERVICE_UNINITIALIZED);
+
+    return mContext->storageUsed();
+}
+
 } // file_service
 } // mega

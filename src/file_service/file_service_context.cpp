@@ -745,6 +745,42 @@ catch (std::runtime_error& exception)
                exception.what());
 }
 
+auto FileServiceContext::storageUsed() -> FileServiceResultOr<std::uint64_t>
+try
+{
+    // So no one else is modifying the database.
+    UniqueLock guard(mDatabase);
+
+    // So we can safely access the database.
+    auto transaction = mDatabase.transaction();
+
+    // Get the IDs of all of the files in storage.
+    auto query = transaction.query(mQueries.mGetFileIDs);
+
+    // The total size of all files in storage.
+    std::uint64_t used = 0u;
+
+    // Sum the physical size of each file.
+    for (query.execute(); query; ++query)
+    {
+        // Latch the file's ID.
+        auto id = query.field("id").get<FileID>();
+
+        // Add the file's size to our running total.
+        used += mStorage.userFileSize(id);
+    }
+
+    // Return the total size to our caller.
+    return used;
+}
+
+catch (std::runtime_error& exception)
+{
+    FSErrorF("Unable to determine storage footprint: %s", exception.what());
+
+    return unexpected(FILE_SERVICE_UNEXPECTED);
+}
+
 Database createDatabase(const LocalPath& databasePath)
 {
     Database database(logger(), databasePath);

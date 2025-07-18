@@ -375,6 +375,11 @@ auto Client::fileServiceOptions() -> FileServiceResultOr<FileServiceOptions>
     return fileService().options();
 }
 
+auto Client::fileStorageUsed() -> FileServiceResultOr<std::uint64_t>
+{
+    return fileService().storageUsed();
+}
+
 ErrorOr<NodeInfo> Client::get(CloudPath parentPath,
                               const std::string& name) const
 {

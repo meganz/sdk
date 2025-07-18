@@ -55,6 +55,9 @@ public:
 
     // Determine what ranges of a file are currently in storage.
     auto ranges(FileID id) -> FileServiceResultOr<FileRangeVector>;
+
+    // How much storage is the service using?
+    auto storageUsed() -> FileServiceResultOr<std::uint64_t>;
 }; // FileService
 
 } // file_service
