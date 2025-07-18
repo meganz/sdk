@@ -19,9 +19,6 @@ class FileExplorerSetter
 
     std::unique_ptr<Executor> mExecutor;
 
-    // Any notify is in queue for execution?
-    std::atomic_bool mInQueue{false};
-
 public:
     FileExplorerSetter();
 

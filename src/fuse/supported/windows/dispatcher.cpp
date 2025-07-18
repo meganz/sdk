@@ -345,11 +345,6 @@ NTSTATUS Dispatcher::open(FSP_FILE_SYSTEM* filesystem,
                fromWideString(path_).c_str(),
                result);
 
-    if (result == STATUS_SUCCESS)
-    {
-        mount.notifyFileExplorerSetter();
-    }
-
     return result;
 }
 

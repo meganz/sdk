@@ -66,16 +66,9 @@ void FileExplorerSetter::notify(std::function<shell::Prefixes()> getPrefixes)
     if (!mExecutor->mInited)
         return;
 
-    // Already has one in queue
-    if (mInQueue.exchange(true))
-        return;
-
     mExecutor->execute(
-        [getPrefixes = std::move(getPrefixes), this](const Task& task)
+        [getPrefixes = std::move(getPrefixes)](const Task& task)
         {
-            // Execute, not in queue anymore
-            mInQueue = false;
-
             if (task.cancelled())
                 return;
 
