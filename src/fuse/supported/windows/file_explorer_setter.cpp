@@ -13,6 +13,16 @@ namespace platform
 {
 using namespace common;
 
+// One worker running forever
+// This is required by FileExplorerSetter::Executor
+static TaskExecutorFlags executorFlags()
+{
+    TaskExecutorFlags flags;
+    flags.mMinWorkers = 1;
+    flags.mMaxWorkers = 1;
+    return flags;
+}
+
 class FileExplorerSetter::Executor: public common::TaskExecutor
 {
     friend class FileExplorerSetter;
@@ -27,18 +37,8 @@ public:
     Executor();
 };
 
-// Note: The correctness based on the fact: We have one worker, running forever
 FileExplorerSetter::Executor::Executor():
-    common::TaskExecutor(
-        []()
-        {
-            TaskExecutorFlags flags;
-            flags.mMinWorkers = 1;
-            flags.mMaxWorkers = 1;
-            flags.mIdleTime = std::chrono::hours(876'000); // Run forever. About 100 years
-            return flags;
-        }(),
-        logger())
+    common::TaskExecutor(executorFlags(), logger())
 {}
 
 void FileExplorerSetter::Executor::workerStarted(std::thread::id)
