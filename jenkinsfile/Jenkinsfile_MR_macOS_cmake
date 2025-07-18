@@ -143,7 +143,7 @@ pipeline {
                         AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
                         AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
                         MEGAQTPATH = "${env.HOME}/Qt-build/5.15.16/5.15.16"
-                        COMMON_CMAKE_OPTIONS = "-DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_CHAT=ON -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS}"
+                        COMMON_CMAKE_OPTIONS = "-DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_MEDIA_FILE_METADATA=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_CHAT=ON -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS}"
                     }
                     steps{
                         dir(mac_sources_workspace){

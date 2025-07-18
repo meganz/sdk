@@ -148,8 +148,8 @@ pipeline {
                             sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
                             //Build SDK
                             sh "echo Building SDK"
-                            sh "cmake -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_CHAT=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
-                            -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${BUILD_DIR}"
+                            sh "cmake -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_CHAT=ON -DENABLE_MEDIA_FILE_METADATA=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} \
+                            ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${BUILD_DIR}"
                             sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j3"
                         }
                     }
