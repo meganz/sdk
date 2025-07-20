@@ -60,7 +60,7 @@ public:
     explicit TaskExecutor(const TaskExecutorFlags& flags,
                           Logger& logger);
 
-    ~TaskExecutor();
+    virtual ~TaskExecutor();
 
     // Execute a task at some point in time.
     Task execute(std::function<void(const Task&)> function,
