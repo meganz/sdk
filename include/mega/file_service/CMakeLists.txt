@@ -23,6 +23,7 @@ target_sources(SDKlib PRIVATE
                       file_result_forward.h
                       file_result_or.h
                       file_result_or_forward.h
+                      file_service_callbacks.h
                       file_service_context_badge.h
                       file_service_context_badge_forward.h
                       file_service_context_forward.h
