@@ -39,6 +39,9 @@ public:
     // Commit the transaction.
     void commit();
 
+    // Is the transaction in progress?
+    bool inProgress() const;
+
     // What logger is associated with this transaction?
     Logger& logger() const;
 

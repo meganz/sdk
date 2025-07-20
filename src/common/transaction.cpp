@@ -86,6 +86,11 @@ void Transaction::commit()
     mInProgress = false;
 }
 
+bool Transaction::inProgress() const
+{
+    return mInProgress;
+}
+
 Logger& Transaction::logger() const
 {
     assert(mDB);
