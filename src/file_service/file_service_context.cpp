@@ -19,6 +19,7 @@
 #include <mega/file_service/logging.h>
 #include <mega/filesystem.h>
 
+#include <chrono>
 #include <stdexcept>
 
 namespace mega
@@ -420,6 +421,69 @@ auto FileServiceContext::rangesFromIndex(FileID id, Lock&& lock) -> std::optiona
 
     // Let the caller know they need to get the ranges from the database.
     return std::nullopt;
+}
+
+auto FileServiceContext::reclaimable(const FileServiceOptions& options) -> std::vector<FileID>
+{
+    // Convenience.
+    auto sizeThreshold = options.mReclaimSizeThreshold.value_or(UINT64_MAX);
+
+    // So we have exclusive access to the database.
+    UniqueLock lock(mDatabase);
+
+    // So we can safely access the database.
+    auto transaction = mDatabase.transaction();
+
+    // Figure out how much storage we're currently using.
+    auto used = storageUsed(lock, transaction);
+
+    // No need to reclaim any storage.
+    if (sizeThreshold >= used)
+        return {};
+
+    // Get the IDs of all files in storage ordered by ascending access time.
+    auto query = transaction.query(mQueries.mGetFileIDsByAscendingAccessTime);
+
+    // Specify the maximum reclaimable access time.
+    query.param(":accessed")
+        .set(
+            [&]()
+            {
+                // Convenience.
+                using namespace std::chrono;
+
+                // Retrieve access time offset.
+                auto offset = options.mReclaimAgeThreshold;
+
+                // Return maximum access time to our caller.
+                return system_clock::to_time_t(system_clock::now() - offset);
+            }());
+
+    // Tracks the IDs of the files we can reclaim.
+    std::vector<FileID> ids;
+
+    // Collect as many IDs for reclamation as necessary.
+    for (query.execute(); query && used > sizeThreshold; ++query)
+    {
+        // Latch this file's ID.
+        auto id = query.field("id").get<FileID>();
+
+        // Figure out how much this file is.
+        auto size = mStorage.userFileSize(id);
+
+        // Couldn't figure out how large this file is.
+        if (!size)
+            continue;
+
+        // Add the ID to our vector.
+        ids.emplace_back(id);
+
+        // Decrease amount of used storage.
+        used -= std::min(*size, used);
+    }
+
+    // Return vector of reclaimable IDs to our caller.
+    return ids;
 }
 
 template<typename Lock, typename T>

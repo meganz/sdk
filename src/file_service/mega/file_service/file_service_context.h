@@ -22,6 +22,7 @@
 #include <mega/file_service/from_file_id_map.h>
 
 #include <optional>
+#include <vector>
 
 namespace mega
 {
@@ -63,6 +64,8 @@ class FileServiceContext
 
     template<typename Lock>
     auto rangesFromIndex(FileID id, Lock&& lock) -> std::optional<FileRangeVector>;
+
+    auto reclaimable(const FileServiceOptions& options) -> std::vector<FileID>;
 
     template<typename Lock, typename T>
     bool removeFromIndex(FileID id, Lock&& lock, FromFileIDMap<T>& map);
