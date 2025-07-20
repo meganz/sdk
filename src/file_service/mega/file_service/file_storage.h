@@ -5,6 +5,8 @@
 #include <mega/common/node_info_forward.h>
 #include <mega/types.h>
 
+#include <optional>
+
 namespace mega
 {
 namespace file_service
@@ -55,7 +57,7 @@ public:
     LocalPath userFilePath(FileID id) const;
 
     // How much space does this file occupy on disk?
-    std::uint64_t userFileSize(FileID id) const;
+    std::optional<std::uint64_t> userFileSize(FileID id) const;
 
     // Where is the service storing this user's metadata?
     const LocalPath& userStorageDirectory() const;

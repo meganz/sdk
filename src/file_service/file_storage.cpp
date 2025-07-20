@@ -87,16 +87,13 @@ LocalPath FileStorage::userFilePath(FileID id) const
     return path;
 }
 
-std::uint64_t FileStorage::userFileSize(FileID id) const
+std::optional<std::uint64_t> FileStorage::userFileSize(FileID id) const
 {
     // Compute the file's path.
     auto path = userFilePath(id);
 
-    // We could determine the file's size.
-    if (auto size = mFilesystem->getPhysicalSize(path))
-        return *size;
-
-    throw FSErrorF("Couldn't determine file size: %s", path.toPath(false).c_str());
+    // Try and determine the file's physical size.
+    return mFilesystem->getPhysicalSize(path);
 }
 
 const LocalPath& FileStorage::userStorageDirectory() const

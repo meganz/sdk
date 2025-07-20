@@ -767,7 +767,7 @@ try
         auto id = query.field("id").get<FileID>();
 
         // Add the file's size to our running total.
-        used += mStorage.userFileSize(id);
+        used += mStorage.userFileSize(id).value_or(0ul);
     }
 
     // Return the total size to our caller.
