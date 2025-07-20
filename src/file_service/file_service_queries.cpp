@@ -15,6 +15,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileRange(database.query()),
     mGetFile(database.query()),
     mGetFileIDs(database.query()),
+    mGetFileIDsByAscendingAccessTime(database.query()),
     mGetFileLocation(database.query()),
     mGetFileLocationByParentAndName(database.query()),
     mGetFileRanges(database.query()),
@@ -63,6 +64,11 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "    or (:id is not null and id = :id)";
 
     mGetFileIDs = "select id from files";
+
+    mGetFileIDsByAscendingAccessTime = "select id "
+                                       "  from files "
+                                       " where (:accessed is null or accessed <= :accessed) "
+                                       " order by accessed desc";
 
     mGetFileLocation = "select * "
                        "  from file_locations "
