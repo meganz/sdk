@@ -454,6 +454,34 @@ bool FileServiceContext::removeFromIndex(FileID id, FromFileIDMap<T>& map)
     return removeFromIndex(id, UniqueLock(mLock), map);
 }
 
+template<typename Lock, typename Transaction>
+auto FileServiceContext::storageUsed(Lock&& lock, Transaction&& transaction) -> std::uint64_t
+{
+    // Sanity.
+    assert(lock.mutex() == &mDatabase);
+    assert(lock.owns_lock());
+    assert(transaction.inProgress());
+
+    // Get the IDs of all of the files in storage.
+    auto query = transaction.query(mQueries.mGetFileIDs);
+
+    // The total size of all files in storage.
+    std::uint64_t used = 0u;
+
+    // Sum the physical size of each file.
+    for (query.execute(); query; ++query)
+    {
+        // Latch the file's ID.
+        auto id = query.field("id").template get<FileID>();
+
+        // Add the file's size to our running total.
+        used += mStorage.userFileSize(id).value_or(0ul);
+    }
+
+    // Return the total size to our caller.
+    return used;
+}
+
 FileServiceContext::FileServiceContext(Client& client, const FileServiceOptions& options):
     mClient(client),
     mStorage(mClient),
@@ -748,32 +776,8 @@ catch (std::runtime_error& exception)
 auto FileServiceContext::storageUsed() -> FileServiceResultOr<std::uint64_t>
 try
 {
-    // So no one else is modifying the database.
-    UniqueLock guard(mDatabase);
-
-    // So we can safely access the database.
-    auto transaction = mDatabase.transaction();
-
-    // Get the IDs of all of the files in storage.
-    auto query = transaction.query(mQueries.mGetFileIDs);
-
-    // The total size of all files in storage.
-    std::uint64_t used = 0u;
-
-    // Sum the physical size of each file.
-    for (query.execute(); query; ++query)
-    {
-        // Latch the file's ID.
-        auto id = query.field("id").get<FileID>();
-
-        // Add the file's size to our running total.
-        used += mStorage.userFileSize(id).value_or(0ul);
-    }
-
-    // Return the total size to our caller.
-    return used;
+    return storageUsed(UniqueLock(mDatabase), mDatabase.transaction());
 }
-
 catch (std::runtime_error& exception)
 {
     FSErrorF("Unable to determine storage footprint: %s", exception.what());

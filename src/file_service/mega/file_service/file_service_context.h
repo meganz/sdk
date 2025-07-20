@@ -70,6 +70,9 @@ class FileServiceContext
     template<typename T>
     bool removeFromIndex(FileID id, FromFileIDMap<T>& map);
 
+    template<typename Lock, typename Transaction>
+    auto storageUsed(Lock&& lock, Transaction&& transaction) -> std::uint64_t;
+
     common::Client& mClient;
 
     // No locks are needed in order to make use of this member.
