@@ -6,6 +6,7 @@
 #ifndef MEGA_HASHCASH_H
 #define MEGA_HASHCASH_H 1
 
+#include <cstdint>
 #include <string>
 
 namespace mega
