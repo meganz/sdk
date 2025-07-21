@@ -15,12 +15,14 @@ class TaskContext
 {
     enum StatusFlag : unsigned int
     {
+        // The task has been aborted.
+        SF_ABORTED = 1,
         // The task can be cancelled.
-        SF_CANCELLABLE = 1,
+        SF_CANCELLABLE = 2,
         // The task has been cancelled.
-        SF_CANCELLED = 2,
+        SF_CANCELLED = 4,
         // The task has been executed.
-        SF_COMPLETED = 4
+        SF_COMPLETED = 8
     }; // StatusFlag
 
     using StatusFlags = unsigned int;
@@ -48,8 +50,14 @@ public:
     // Orders by ascending deadline.
     bool operator<(const TaskContext& rhs) const;
 
+    // Try and abort the task.
+    bool abort(const Task& task);
+
     // Try and cancel the task.
     bool cancel(const Task& task);
+
+    // Has the task been aborted?
+    bool aborted() const;
 
     // Has the task been cancelled?
     bool cancelled() const;
@@ -83,10 +91,26 @@ bool Task::operator!() const
     return !mContext;
 }
 
+bool Task::abort()
+{
+    if (mContext)
+        return mContext->abort(*this);
+
+    return false;
+}
+
 bool Task::cancel()
 {
     if (mContext)
         return mContext->cancel(*this);
+
+    return false;
+}
+
+bool Task::aborted() const
+{
+    if (mContext)
+        return mContext->aborted();
 
     return false;
 }
@@ -135,7 +159,7 @@ TaskQueue::~TaskQueue()
     // Cancel any outstanding tasks.
     while (!mTasks.empty())
     {
-        mTasks.back().cancel();
+        mTasks.back().abort();
         mTasks.pop_back();
     }
 }
@@ -259,9 +283,19 @@ bool TaskContext::operator<(const TaskContext& rhs) const
     return mWhen > rhs.mWhen;
 }
 
+bool TaskContext::abort(const Task& task)
+{
+    return execute(SF_ABORTED | SF_CANCELLED | SF_COMPLETED, task);
+}
+
 bool TaskContext::cancel(const Task& task)
 {
     return execute(SF_CANCELLED | SF_COMPLETED, task);
+}
+
+bool TaskContext::aborted() const
+{
+    return (mStatus & SF_ABORTED);
 }
 
 bool TaskContext::cancelled() const
