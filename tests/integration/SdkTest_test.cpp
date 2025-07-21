@@ -18425,8 +18425,12 @@ TEST_F(SdkTest, CreateNodeTreeToCopyExistingSource)
 
     // Create a copy of the already existing file
     string fileCopy = UPFILE + "_copy";
-    std::unique_ptr<MegaNodeTree> nodeTree{
-        MegaNodeTree::createInstance(nullptr, fileCopy.c_str(), nullptr, nullptr, newNode->getHandle()) };
+    const std::string s4AttributeValue{"value"};
+    std::unique_ptr<MegaNodeTree> nodeTree{MegaNodeTree::createInstance(nullptr,
+                                                                        fileCopy.c_str(),
+                                                                        s4AttributeValue.c_str(),
+                                                                        nullptr,
+                                                                        newNode->getHandle())};
 
     RequestTracker requestTracker(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(rootnode.get(), nodeTree.get(), &requestTracker);
@@ -18439,6 +18443,7 @@ TEST_F(SdkTest, CreateNodeTreeToCopyExistingSource)
     std::unique_ptr<MegaNode> newNodeCopy{ megaApi[apiIndex]->getNodeByHandle(resultNodeTree->getNodeHandle()) };
     ASSERT_THAT(newNodeCopy, ::testing::NotNull());
     ASSERT_STREQ(newNodeCopy->getName(), fileCopy.c_str());
+    ASSERT_STREQ(newNodeCopy->getS4(), s4AttributeValue.c_str());
     ASSERT_EQ(newNodeCopy->getSize(), newNode->getSize());
 }
 
