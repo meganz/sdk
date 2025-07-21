@@ -3048,15 +3048,41 @@ void MegaClient::exec()
                     break;
                 }
 
-                if (*pendingsc->in.c_str() == '{')
+                if ((pendingsc->mChunked && isFirstScChunk && *pendingsc->in.c_str() == '{')
+                    || (pendingsc->mChunked && !isFirstScChunk)
+                    || (!pendingsc->mChunked && *pendingsc->in.c_str() == '{'))
                 {
-                    insca = false;
-                    insca_notlast = false;
-                    jsonsc.begin(pendingsc->in.c_str());
-                    jsonsc.enterobject();
-                    app->notify_network_activity(NetworkActivityChannel::SC,
-                                                 NetworkActivityType::REQUEST_RECEIVED,
-                                                 API_OK);
+                    if (isFirstScChunk) {
+                        insca = false;
+                        insca_notlast = false;
+                        isFirstScChunk = false;
+                    }
+
+                    if (pendingsc->mChunked)
+                    {
+                        jsonsc.begin(pendingsc->data());
+                        jsonsc.enterobject();
+
+                        size_t consumedBytes = reqs.serverChunk(pendingsc->data(), this);
+                        pendingsc->purge(consumedBytes);
+
+                        if (!reqs.chunkedProgress())
+                        {
+                            app->notify_network_activity(NetworkActivityChannel::SC,
+                                                         NetworkActivityType::REQUEST_RECEIVED,
+                                                         API_OK);
+                            isFirstScChunk = true;
+                        }
+                    } else {
+                        jsonsc.begin(pendingsc->in.c_str());
+                        jsonsc.enterobject();
+
+                        app->notify_network_activity(NetworkActivityChannel::SC,
+                                                     NetworkActivityType::REQUEST_RECEIVED,
+                                                     API_OK);
+                        isFirstScChunk = true;
+                    }
+
                     break;
                 }
                 else

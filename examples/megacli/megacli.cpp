@@ -6496,6 +6496,64 @@ void exec_more(autocomplete::ACState& s)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions);
 
+bool verifyMacMatch(std::shared_ptr<Node> sourceNode, FileAccess& fa)
+{
+    SymmCipher cipher;
+    cipher.setkey((const byte*)sourceNode->nodekey().data(), FILENODE);
+
+    const std::string& nodekey = sourceNode->nodekey();
+    int64_t remoteIv = MemAccess::get<int64_t>(&nodekey[SymmCipher::KEYLENGTH]);
+    int64_t remoteMac = MemAccess::get<int64_t>(&nodekey[SymmCipher::KEYLENGTH + sizeof(int64_t)]);
+
+    auto result = generateMetaMac(cipher, fa, remoteIv);
+    return result.first && result.second == remoteMac;
+}
+
+bool copyServerFile(std::shared_ptr<Node> sourceNode, const std::string& newName, Node* parent)
+{
+    if (newName == sourceNode->displayname())
+    {
+        return true;
+    }
+
+    vector<NewNode> nn(1);
+
+    nn[0].source = NEW_NODE;
+    nn[0].type = sourceNode->type;
+    nn[0].nodehandle = sourceNode->nodehandle;
+    nn[0].nodekey = sourceNode->nodekey();
+    nn[0].parenthandle = UNDEF;
+    nn[0].ovhandle = NodeHandle();
+
+    AttrMap attrs = sourceNode->attrs;
+    attrs.map['n'] = newName;
+
+    SymmCipher key;
+    key.setkey((const byte*)nn[0].nodekey.data(), nn[0].type);
+    string attrstring;
+    attrs.getjson(&attrstring);
+    nn[0].attrstring.reset(new string);
+    client->makeattr(&key, nn[0].attrstring, attrstring.c_str());
+
+    client->putnodes(parent->nodeHandle(), UseLocalVersioningFlag, std::move(nn), nullptr, gNextClientTag++, false);
+    return true;
+}
+
+bool uploadWithNode(std::shared_ptr<Node> node, const FileFingerprint& localFp,
+                           const std::string& targetName, Node* parent, FileAccess& fa,
+                           bool allowDuplicateVersions)
+{
+    if (allowDuplicateVersions || !localFp.isvalid || !node->isvalid || !(localFp == *((FileFingerprint*)node.get()))) {
+        return false;
+    }
+
+    if (verifyMacMatch(node, fa)) {
+        return copyServerFile(node, targetName, parent);
+    }
+
+    return false;
+}
+
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions)
@@ -6515,7 +6573,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             {
                 if (previousNode->type == FILENODE)
                 {
-                    if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode.get()))
+                    if (uploadWithNode(previousNode, fp, name, parent, *fa, allowDuplicateVersions))
                     {
                         cout << "Identical file already exist. Skipping transfer of " << name << endl;
                         return;
@@ -6527,6 +6585,22 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
                     return;
                 }
             }
+
+            if (fp.isvalid && !allowDuplicateVersions)
+            {
+                auto children = client->getChildren(parent);
+                for (auto& child : children)
+                {
+                    if (child->type == FILENODE && child != previousNode)
+                    {
+                        if (uploadWithNode(child, fp, name, parent, *fa, allowDuplicateVersions))
+                        {
+                            return;
+                        }
+                    }
+                }
+            }
+
             fa.reset();
 
             AppFilePut* f = new AppFilePut(localname, parent ? parent->nodeHandle() : NodeHandle(), targetuser.c_str());
