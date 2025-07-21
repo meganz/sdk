@@ -6,6 +6,7 @@
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_forward.h>
 #include <mega/file_service/file_range_vector.h>
+#include <mega/file_service/file_service_callbacks.h>
 #include <mega/file_service/file_service_context_pointer.h>
 #include <mega/file_service/file_service_forward.h>
 #include <mega/file_service/file_service_options_forward.h>
@@ -55,6 +56,9 @@ public:
 
     // Determine what ranges of a file are currently in storage.
     auto ranges(FileID id) -> FileServiceResultOr<FileRangeVector>;
+
+    // Reclaim storage space.
+    void reclaim(ReclaimCallback callback);
 
     // How much storage is the service using?
     auto storageUsed() -> FileServiceResultOr<std::uint64_t>;

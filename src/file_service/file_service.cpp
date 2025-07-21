@@ -134,6 +134,16 @@ auto FileService::ranges(FileID id) -> FileServiceResultOr<FileRangeVector>
     return mContext->ranges(id);
 }
 
+void FileService::reclaim(ReclaimCallback callback)
+{
+    SharedLock guard(mContextLock);
+
+    if (!mContext)
+        return callback(FILE_SERVICE_UNINITIALIZED);
+
+    return mContext->reclaim(std::move(callback));
+}
+
 auto FileService::storageUsed() -> FileServiceResultOr<std::uint64_t>
 {
     SharedLock guard(mContextLock);

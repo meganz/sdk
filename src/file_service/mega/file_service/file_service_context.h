@@ -14,6 +14,7 @@
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_info_forward.h>
 #include <mega/file_service/file_range_vector.h>
+#include <mega/file_service/file_service_callbacks.h>
 #include <mega/file_service/file_service_context_forward.h>
 #include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_service_queries.h>
@@ -21,6 +22,7 @@
 #include <mega/file_service/file_storage.h>
 #include <mega/file_service/from_file_id_map.h>
 
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -34,6 +36,12 @@ namespace file_service
 
 class FileServiceContext
 {
+    // Tracks state necessary for reclaim.
+    class ReclaimContext;
+
+    // Convenience.
+    using ReclaimContextPtr = std::shared_ptr<ReclaimContext>;
+
     template<typename Lock>
     FileID allocateID(Lock&& lock, common::Transaction& transaction);
 
@@ -64,6 +72,8 @@ class FileServiceContext
 
     template<typename Lock>
     auto rangesFromIndex(FileID id, Lock&& lock) -> std::optional<FileRangeVector>;
+
+    void reclaim(ReclaimContextPtr context);
 
     auto reclaimable(const FileServiceOptions& options) -> std::vector<FileID>;
 
@@ -105,6 +115,12 @@ class FileServiceContext
 
     // Serializes access to mOptions.
     common::SharedMutex mOptionsLock;
+
+    // Tracks any reclaim in progress.
+    ReclaimContextPtr mReclaimContext;
+
+    // Serializes access to mReclaimContext.
+    std::mutex mReclaimContextLock;
 
     // This member will ensure the context isn't destroyed until any related
     // activities have been completed.
@@ -155,6 +171,9 @@ public:
 
     // Determine what ranges of a file are currently in storage.
     auto ranges(FileID id) -> FileServiceResultOr<FileRangeVector>;
+
+    // Reclaim storage space.
+    void reclaim(ReclaimCallback callback);
 
     // Remove a file context from our index.
     void removeFromIndex(FileContextBadge badge, FileID id);

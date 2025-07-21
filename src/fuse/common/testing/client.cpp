@@ -375,6 +375,11 @@ auto Client::fileServiceOptions() -> FileServiceResultOr<FileServiceOptions>
     return fileService().options();
 }
 
+void Client::fileStorageReclaim(ReclaimCallback callback)
+{
+    fileService().reclaim(std::move(callback));
+}
+
 auto Client::fileStorageUsed() -> FileServiceResultOr<std::uint64_t>
 {
     return fileService().storageUsed();

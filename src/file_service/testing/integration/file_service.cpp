@@ -62,6 +62,8 @@ namespace testing
 
 // Convenience.
 using common::makeSharedPromise;
+using common::now;
+using fuse::testing::ClientPtr;
 using fuse::testing::randomBytes;
 using fuse::testing::randomName;
 using ::testing::ElementsAre;
@@ -150,6 +152,9 @@ static auto read(File file, std::uint64_t offset, std::uint64_t length)
 // Reclaim a file's storage.
 static auto reclaim(File file) -> std::future<FileResult>;
 
+// Reclaim zero or more files managed by client.
+static auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResult>;
+
 // Update the specified file's modification time.
 static auto touch(File file, std::int64_t modified) -> std::future<FileResult>;
 
@@ -174,7 +179,10 @@ static const FileServiceOptions DisableReadahead = {
     DefaultOptions.mMaximumRangeRetries,
     0u,
     0u,
-    DefaultOptions.mRangeRetryBackoff}; // DisableReadahead
+    DefaultOptions.mRangeRetryBackoff,
+    DefaultOptions.mReclaimAgeThreshold,
+    DefaultOptions.mReclaimPeriod,
+    DefaultOptions.mReclaimSizeThreshold}; // DisableReadahead
 
 TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
 {
@@ -1148,7 +1156,127 @@ TEST_F(FileServiceTests, read_write_sequence)
     ASSERT_EQ(expected, received);
 }
 
-TEST_F(FileServiceTests, reclaim_succeeds)
+TEST_F(FileServiceTests, reclaim_all_succeeds)
+{
+    // Handles of our test files.
+    std::vector<NodeHandle> handles;
+
+    // Create some test files for us to play with.
+    for (auto i = 0; i < 4; ++i)
+    {
+        // Generate some data for our file.
+        auto data = randomBytes(1_MiB);
+
+        // Generate a name for our file.
+        auto name = randomName();
+
+        // Try and upload our test file.
+        auto handle = ClientW()->upload(data, name, mRootHandle);
+
+        // Make sure the upload succeeded.
+        ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+        // Remember the file's node handle.
+        handles.emplace_back(*handle);
+    }
+
+    // Tracks each file that we've opened.
+    std::vector<File> files;
+
+    // We'll be modifying these options later.
+    auto options = DisableReadahead;
+
+    // Disable readahead.
+    //
+    // This is necessary to ensure we read only as much as specified.
+    ClientW()->fileServiceOptions(options);
+
+    // Open, read and modify each file.
+    for (auto handle: handles)
+    {
+        // Try and open the file.
+        auto file = ClientW()->fileOpen(handle);
+
+        // Make sure we could open the file.
+        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Read some data from the file.
+        auto data = execute(read, *file, 0, 512_KiB);
+
+        // Make sure the read succeeded.
+        ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+        // Modify the file.
+        ASSERT_EQ(execute(write, data->data(), *file, 0, 32_KiB), FILE_SUCCESS);
+
+        // Make sure the service doesn't purge the file.
+        files.emplace_back(std::move(*file));
+    }
+
+    // Determine how much storage the service is using.
+    auto usedBefore = ClientW()->fileStorageUsed();
+    ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure we're using only as much as we read.
+    ASSERT_EQ(*usedBefore, 512_KiB * files.size());
+
+    // Try and reclaim some storage.
+    //
+    // This should have no effect as we've specified no quota.
+    ASSERT_EQ(execute(reclaimAll, ClientW()), FILE_SERVICE_SUCCESS);
+
+    // Make sure no storage was reclaimed.
+    auto usedAfter = ClientW()->fileStorageUsed();
+    ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(*usedAfter, *usedBefore);
+
+    // Let the service know it should store no more than 544K.
+    options.mReclaimSizeThreshold = 544_KiB;
+
+    // Reclaim files that haven't been accessed for three hours.
+    options.mReclaimAgeThreshold = std::chrono::hours(3);
+
+    ClientW()->fileServiceOptions(options);
+
+    // Try and reclaim storage.
+    //
+    // This should also have no effect as we accessed the files recently.
+    ASSERT_EQ(execute(reclaimAll, ClientW()), FILE_SERVICE_SUCCESS);
+
+    // Make sure no storage was reclaimed.
+    usedAfter = ClientW()->fileStorageUsed();
+
+    ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(*usedBefore, *usedAfter);
+
+    // Let the service know it can reclaim files regardless of access time.
+    options.mReclaimAgeThreshold = std::chrono::hours(0);
+
+    ClientW()->fileServiceOptions(options);
+
+    // Try and reclaim storage.
+    ASSERT_EQ(execute(reclaimAll, ClientW()), FILE_SERVICE_SUCCESS);
+
+    // Make sure storage was reclaimed.
+    usedAfter = ClientW()->fileStorageUsed();
+
+    ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_LT(*usedAfter, *usedBefore);
+    ASSERT_EQ(*usedAfter, 512_KiB);
+
+    // Try and reclaim storage again.
+    //
+    // This should have no effect as we're already below the quota.
+    ASSERT_EQ(execute(reclaimAll, ClientW()), FILE_SERVICE_SUCCESS);
+
+    // Make sure no more storage was reclaimed.
+    usedAfter = ClientW()->fileStorageUsed();
+
+    ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(*usedAfter, 512_KiB);
+}
+
+TEST_F(FileServiceTests, reclaim_single_succeeds)
 {
     // Generate data for us to write to the cloud.
     auto expected = randomBytes(512_KiB);
@@ -1884,6 +2012,28 @@ auto reclaim(File file) -> std::future<FileResult>
     // Try and reclaim this file's storage.
     file.reclaim(
         [notifier](FileResult result)
+        {
+            notifier->set_value(result);
+        });
+
+    // Return the waiter to our caller.
+    return waiter;
+}
+
+auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResult>
+{
+    // Sanity.
+    assert(client);
+
+    // So we can notify our client when files have been reclaimed.
+    auto notifier = makeSharedPromise<FileServiceResult>();
+
+    // So our caller can wait until files have been reclaimed.
+    auto waiter = notifier->get_future();
+
+    // Try and reclaim zero or more files.
+    client->fileStorageReclaim(
+        [notifier](auto result)
         {
             notifier->set_value(result);
         });

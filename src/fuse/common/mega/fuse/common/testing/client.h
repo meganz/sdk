@@ -13,6 +13,7 @@
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_forward.h>
+#include <mega/file_service/file_service_callbacks.h>
 #include <mega/file_service/file_service_forward.h>
 #include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_service_result_or_forward.h>
@@ -206,6 +207,9 @@ public:
     // Get the file service's current options.
     auto fileServiceOptions()
         -> file_service::FileServiceResultOr<file_service::FileServiceOptions>;
+
+    // Try and reclaim storage space.
+    void fileStorageReclaim(file_service::ReclaimCallback callback);
 
     // How much storage space is the service using?
     auto fileStorageUsed() -> file_service::FileServiceResultOr<std::uint64_t>;
