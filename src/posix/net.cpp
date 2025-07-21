@@ -20,8 +20,9 @@
  */
 
 #include "mega.h"
-#include "mega/posix/meganet.h"
+#include "mega/hashcash.h"
 #include "mega/logging.h"
+#include "mega/posix/meganet.h"
 
 #if defined(USE_OPENSSL)
 #include <openssl/err.h>
@@ -833,50 +834,6 @@ struct curl_slist* CurlHttpIO::clone_curl_slist(struct curl_slist* inlist)
     return outlist;
 }
 
-// Generate cash function
-// FIXME: make async/make multithreaded
-std::string gencash(const string& token, uint8_t easiness)
-{
-    // Calculate threshold from easiness
-    // easiness: encoded threshold (maximum acceptable value in the first 32 byte of the
-    // hash (little endian) - the lower, the harder to solve)
-    uint32_t threshold =
-        static_cast<uint32_t>((((easiness & 63) << 1) + 1) << ((easiness >> 6) * 7 + 3));
-
-    // Token is 64 chars in B64, we need the 48 bytes in binary
-    string tokenBinary = Base64::atob(token);
-
-    // Buffer to hold 4-byte prefix + 262144 * 48 bytes of the token
-    std::vector<uint8_t> buffer(4 + 262144 * 48); // total size = 12582916
-    for (auto i = 0; i < 262144; ++i)
-    {
-        std::copy(tokenBinary.begin(), tokenBinary.end(), buffer.begin() + 4 + i * 48);
-    }
-
-    uint32_t* prefixptr = reinterpret_cast<uint32_t*>(buffer.data());
-
-    for (;;)
-    {
-        // increment prefix (the final result, but not its correctness, will depend on the CPU's endianness)
-	// we do not have an explicit abort condition (the actual easiness will be lenient enough)
-	(*prefixptr)++;
-
-        // SHA-256 hash
-        HashSHA256 hasher;
-        hasher.add((const byte*)buffer.data(), static_cast<unsigned>(buffer.size()));
-
-        string hash;
-        hasher.get(&hash);
-
-        if (htonl(*(reinterpret_cast<uint32_t*>(hash.data()))) <= threshold)
-        {
-            // success - return the prefix
-            string prefixToReturn(buffer.begin(), buffer.begin() + 4);
-            return Base64::btoa(prefixToReturn);
-        }
-    }
-}
-
 const char* CurlHttpIO::pubkeyForUrl(const char* url) const
 {
     if (Utils::startswith(url, APIURL.c_str()) ||
@@ -938,7 +895,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         string nextValue = gencash(req->mHashcashToken, req->mHashcashEasiness);
         string xHashcashHeader{"X-Hashcash: 1:" + req->mHashcashToken + ":" + std::move(nextValue)};
         httpctx->headers = curl_slist_append(httpctx->headers, xHashcashHeader.c_str());
-        LOG_warn << "X-Hashcash computed: " << xHashcashHeader;
+        LOG_warn << httpctx->req->getLogName() << "X-Hashcash computed: " << xHashcashHeader;
         req->mHashcashToken.clear();
     }
 
@@ -2088,7 +2045,8 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
             // For authentication with some proxies, cURL sends two requests in the context of a single one
             // Content-Length is reset here to not take into account the header from the first response
 
-            LOG_warn << "Receiving a second response. Resetting Content-Length";
+            LOG_warn << req->getLogName()
+                     << "Receiving a second response. Resetting Content-Length";
             req->contentlength = -1;
         }
 
@@ -2118,7 +2076,7 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
         const char* end = ptr + len - 3; // point to the char before CRLF terminator
         if (end - val < 4) // minimum hashcash len is 5
         {
-            LOG_warn << "Ignoring too short X-Hashcash header";
+            LOG_warn << req->getLogName() << "Ignoring too short X-Hashcash header";
             return len;
         }
         // trim trailing CRLF, from right to left, up to end of "X-Hashcash:"
@@ -2126,7 +2084,7 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
             end--;
         assert(end - val >= 0);
         string buffer{val, static_cast<size_t>((end - val) + 1)};
-        LOG_warn << "X-Hashcash received:" << buffer;
+        LOG_warn << req->getLogName() << "X-Hashcash received:" << buffer;
 
         // Example of hashcash header
         // 1:100:1731410499:RUvIePV2PNO8ofg8xp1aT5ugBcKSEzwKoLBw9o4E6F_fmn44eC3oMpv388UtFl2K
