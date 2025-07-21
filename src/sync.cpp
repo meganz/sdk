@@ -1347,6 +1347,8 @@ bool Sync::determineCaseInsenstivity(bool secondTry)
 {
     assert(mLocalPath == getConfig().mLocalPath);
 
+    static constexpr auto logPre = "[Sync::determineCaseInsenstivity] ";
+
     auto da = unique_ptr<DirAccess>(syncs.fsaccess->newdiraccess());
     auto lp = mLocalPath;
     if (da->dopen(&lp, NULL, false))
@@ -1366,31 +1368,76 @@ bool Sync::determineCaseInsenstivity(bool secondTry)
             lpuc.appendWithSeparator(LocalPath::fromRelativePath(uc), true);
             lplc.appendWithSeparator(LocalPath::fromRelativePath(lc), true);
 
-            LOG_debug << "Testing sync case sensitivity with " << lpuc << " vs " << lplc;
+            LOG_debug << logPre << "Testing sync case sensitivity with " << lpuc << " vs " << lplc;
 
             auto fa1 = syncs.fsaccess->newfileaccess();
             auto fa2 = syncs.fsaccess->newfileaccess();
 
-            bool opened1 = fa1->fopen(lpuc, true, false, FSLogging::logExceptFileNotFound, nullptr, false, true);
+            LOG_verbose << logPre << "Opening " << lpuc;
+            bool opened1 = fa1->fopen(lpuc,
+                                      true,
+                                      false,
+                                      FSLogging::logExceptFileNotFound,
+                                      nullptr,
+                                      false,
+                                      true);
+            LOG_verbose << logPre << "Opened " << lpuc << " with result: " << opened1
+                        << ". Closing...";
             fa1->closef();
-            bool opened2 = fa2->fopen(lplc, true, false, FSLogging::logExceptFileNotFound, nullptr, false, true);
+            LOG_verbose << logPre << "Closed " << lpuc;
+
+            LOG_verbose << logPre << "Opening " << lplc;
+            bool opened2 = fa2->fopen(lplc,
+                                      true,
+                                      false,
+                                      FSLogging::logExceptFileNotFound,
+                                      nullptr,
+                                      false,
+                                      true);
+            LOG_verbose << logPre << "Opened " << lplc << " with result: " << opened2
+                        << ". Closing...";
             fa2->closef();
+            LOG_verbose << logPre << "Closed " << lplc;
 
             opened1 = opened1 && fa1->fsidvalid;
             opened2 = opened2 && fa2->fsidvalid;
 
-            if (!opened1 && !opened2) continue;
+            if (!opened1 && !opened2)
+            {
+                LOG_verbose
+                    << logPre << "Neither " << lpuc << " nor " << lplc
+                    << " were opened or both fsid were invalid. Continue... [fa1->fsidvalid = "
+                    << fa1->fsidvalid << ", fa2->fsidvalid = " << fa2->fsidvalid << "]";
+                continue;
+            }
 
-            if (opened1 != opened2) return false;
+            if (opened1 != opened2)
+            {
+                LOG_verbose << logPre << "Either " << lpuc << " or " << lplc
+                            << " were not opened or the fsid were invalid. Return false. "
+                               "[fa1->fsidvalid = "
+                            << fa1->fsidvalid << ", fa2->fsidvalid = " << fa2->fsidvalid << "]";
+                return false;
+            }
 
-            return fa1->fsidvalid && fa2->fsidvalid && fa1->fsid == fa1->fsid;
+            LOG_verbose << logPre << "Return fa1->fsidvalid(" << fa1->fsidvalid
+                        << ") && fa2->fsidvalid(" << fa2->fsidvalid << ") && fa1->fsid("
+                        << fa1->fsid << ") == fa2->fsid(" << fa2->fsid << ")";
+            return fa1->fsidvalid && fa2->fsidvalid && fa1->fsid == fa2->fsid;
         }
+    }
+    else
+    {
+        LOG_debug << logPre << mLocalPath << " could not be opened";
     }
 
     if (secondTry)
     {
         // If we didn't figure it out, it may be a read-only empty folder, in which case it's irrelevant whether the fs is case insensitive
-        LOG_debug << "We could not determine case sensitivity even after attempting to create a local sync .debris folder.  Using platform default";
+        LOG_debug << logPre
+                  << " [secondTry] We could not determine case sensitivity even after attempting "
+                     "to create a "
+                     "local sync .debris folder. Using platform default";
 #if defined(WIN32) || defined(__APPLE__)
         return true;
 #else
@@ -1400,7 +1447,12 @@ bool Sync::determineCaseInsenstivity(bool secondTry)
 
     // we didn't find any files/folders that could be tested for case sensitivity.
     // so create the debris folder (if we can) and retry
+    LOG_verbose << logPre
+                << "We didn't find files that could be used to test case insensitivity. Create "
+                   "debris folder and retry";
     createDebrisTmpLockOnce();
+
+    LOG_verbose << logPre << "Debris folder created, run second try for determineCaseInsensitivity";
     return determineCaseInsenstivity(true);
 }
 
