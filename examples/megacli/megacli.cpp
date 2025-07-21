@@ -4415,9 +4415,11 @@ static void exec_fuseflags(autocomplete::ACState& state)
 
     std::string flushDelay;
     std::string logLevel;
+    std::string fileExplorerView;
 
     state.extractflagparam("-flush-delay", flushDelay);
     state.extractflagparam("-log-level", logLevel);
+    state.extractflagparam("-file-explorer-view", fileExplorerView);
 
     auto flags = client->mFuseService.serviceFlags();
 
@@ -4427,47 +4429,32 @@ static void exec_fuseflags(autocomplete::ACState& state)
     if (!logLevel.empty())
         flags.mLogLevel = toLogLevel(logLevel);
 
+    if (!fileExplorerView.empty())
+        flags.mFileExplorerView = fuse::toFileExplorerView(fileExplorerView);
+
     parseCacheFlags(flags.mInodeCacheFlags);
     parseExecutorFlags(flags.mMountExecutorFlags, "mount");
     parseExecutorFlags(flags.mServiceExecutorFlags, "service");
 
     client->mFuseService.serviceFlags(flags);
 
-    std::cout << "Cache Clean Age Threshold: "
-              << flags.mInodeCacheFlags.mCleanAgeThreshold.count()
+    std::cout << "Cache Clean Age Threshold: " << flags.mInodeCacheFlags.mCleanAgeThreshold.count()
               << "\n"
-              << "Cache Clean Interval: "
-              << flags.mInodeCacheFlags.mCleanInterval.count()
+              << "Cache Clean Interval: " << flags.mInodeCacheFlags.mCleanInterval.count() << "\n"
+              << "Cache Clean Size Threshold: " << flags.mInodeCacheFlags.mCleanSizeThreshold
               << "\n"
-              << "Cache Clean Size Threshold: "
-              << flags.mInodeCacheFlags.mCleanSizeThreshold
-              << "\n"
-              << "Cache Max Size: "
-              << flags.mInodeCacheFlags.mMaxSize
-              << "\n"
-              << "Flush Delay: "
-              << flags.mFlushDelay.count()
+              << "Cache Max Size: " << flags.mInodeCacheFlags.mMaxSize << "\n"
+              << "Flush Delay: " << flags.mFlushDelay.count() << "s\n"
+              << "Log Level: " << toString(flags.mLogLevel) << "\n"
+              << "File Explorer View: " << toString(flags.mFileExplorerView) << "\n"
+              << "Mount Max Thread Count: " << flags.mMountExecutorFlags.mMaxWorkers << "\n"
+              << "Mount Max Thread Idle Time: " << flags.mMountExecutorFlags.mIdleTime.count()
               << "s\n"
-              << "Log Level: "
-              << toString(flags.mLogLevel)
-              << "\n"
-              << "Mount Max Thread Count: "
-              << flags.mMountExecutorFlags.mMaxWorkers
-              << "\n"
-              << "Mount Max Thread Idle Time: "
-              << flags.mMountExecutorFlags.mIdleTime.count()
+              << "Mount Min Thread Count: " << flags.mMountExecutorFlags.mMinWorkers << "\n"
+              << "Service Max Thread Count: " << flags.mServiceExecutorFlags.mMaxWorkers << "\n"
+              << "Service Max Thread Idle Time: " << flags.mServiceExecutorFlags.mIdleTime.count()
               << "s\n"
-              << "Mount Min Thread Count: "
-              << flags.mMountExecutorFlags.mMinWorkers
-              << "\n"
-              << "Service Max Thread Count: "
-              << flags.mServiceExecutorFlags.mMaxWorkers
-              << "\n"
-              << "Service Max Thread Idle Time: "
-              << flags.mServiceExecutorFlags.mIdleTime.count()
-              << "s\n"
-              << "Service Min Thread Count: "
-              << flags.mServiceExecutorFlags.mMinWorkers
+              << "Service Min Thread Count: " << flags.mServiceExecutorFlags.mMinWorkers
               << std::endl;
 }
 
@@ -5462,36 +5449,25 @@ autocomplete::ACN autocompleteSyntax()
                     localFSFile("database"),
                     wholenumber(0)));
 
-    p->Add(exec_fuseflags,
-           sequence(text("fuse"),
-                    text("flags"),
-                    repeat(either(sequence(flag("-cache-clean-age-threshold"),
-                                           wholenumber("seconds", 5 * 60)),
-                                  sequence(flag("-cache-clean-interval"),
-                                           wholenumber("seconds", 5 * 60)),
-                                  sequence(flag("-cache-clean-size-threshold"),
-                                           wholenumber("count", 64)),
-                                  sequence(flag("-cache-max-size"),
-                                           wholenumber("count", 256)),
-                                  sequence(flag("-flush-delay"),
-                                           wholenumber("seconds", 4)),
-                                  sequence(flag("-log-level"),
-                                           either(text("DEBUG"),
-                                                  text("ERROR"),
-                                                  text("INFO"),
-                                                  text("WARNING"))),
-                                  sequence(flag("-mount-max-thread-count"),
-                                           wholenumber("count", 16)),
-                                  sequence(flag("-mount-max-thread-idle-time"),
-                                           wholenumber("seconds", 16)),
-                                  sequence(flag("-mount-min-thread-count"),
-                                           wholenumber("count", 0)),
-                                  sequence(flag("-service-max-thread-count"),
-                                           wholenumber("count", 16)),
-                                  sequence(flag("-service-max-thread-idle-time"),
-                                           wholenumber("seconds", 16)),
-                                  sequence(flag("-service-min-thread-count"),
-                                           wholenumber("count", 0))))));
+    p->Add(
+        exec_fuseflags,
+        sequence(text("fuse"),
+                 text("flags"),
+                 repeat(either(
+                     sequence(flag("-cache-clean-age-threshold"), wholenumber("seconds", 5 * 60)),
+                     sequence(flag("-cache-clean-interval"), wholenumber("seconds", 5 * 60)),
+                     sequence(flag("-cache-clean-size-threshold"), wholenumber("count", 64)),
+                     sequence(flag("-cache-max-size"), wholenumber("count", 256)),
+                     sequence(flag("-flush-delay"), wholenumber("seconds", 4)),
+                     sequence(flag("-log-level"),
+                              either(text("DEBUG"), text("ERROR"), text("INFO"), text("WARNING"))),
+                     sequence(flag("-file-explorer-view"), either(text("NONE"), text("LIST"))),
+                     sequence(flag("-mount-max-thread-count"), wholenumber("count", 16)),
+                     sequence(flag("-mount-max-thread-idle-time"), wholenumber("seconds", 16)),
+                     sequence(flag("-mount-min-thread-count"), wholenumber("count", 0)),
+                     sequence(flag("-service-max-thread-count"), wholenumber("count", 16)),
+                     sequence(flag("-service-max-thread-idle-time"), wholenumber("seconds", 16)),
+                     sequence(flag("-service-min-thread-count"), wholenumber("count", 0))))));
 
     p->Add(exec_fusemountadd,
            sequence(text("fuse"),

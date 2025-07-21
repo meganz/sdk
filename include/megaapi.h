@@ -26276,6 +26276,14 @@ public:
         LOG_LEVEL_DEBUG
     }; // LogLevel
 
+    enum FileExplorerView
+    {
+        // Do nothing
+        FILE_EXPLORER_VIEW_NONE = 0,
+        // Set file explorer view to list
+        FILE_EXPLORER_VIEW_LIST = 1
+    }; // FileExplorerView
+
     virtual ~MegaFuseFlags();
 
     /**
@@ -26313,6 +26321,15 @@ public:
      * The service's current log level.
      */
     virtual int getLogLevel() const = 0;
+
+    /**
+     * @brief
+     * Query the service's file explorer view.
+     *
+     * @return
+     * The service's current file explorer view.
+     */
+    virtual int getFileExplorerView() const = 0;
 
     /**
      * @brief
@@ -26366,6 +26383,15 @@ public:
      * The service's new log level.
      */
     virtual void setLogLevel(int level) = 0;
+
+    /**
+     * @brief
+     * Specify the service's file explorer view.
+     *
+     * @param level
+     * The service's new file explorer view.
+     */
+    virtual void setFileExplorerView(int view) = 0;
 }; // MegaFuseFlags
 
 class MegaFuseInodeCacheFlags
