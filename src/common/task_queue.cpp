@@ -25,6 +25,9 @@ class TaskContext
 
     using StatusFlags = unsigned int;
 
+    // Execute mFunction if the task has not already completed.
+    bool execute(StatusFlags desired, const Task& task);
+
     // What will the task do when executed?
     std::function<void(const Task&)> mFunction;
 
@@ -215,36 +218,20 @@ std::chrono::steady_clock::time_point TaskQueue::when() const
     return mTasks.front().mContext->when();
 }
 
-TaskContext::TaskContext(std::function<void(const Task&)> function,
-                         Logger& logger,
-                         std::chrono::steady_clock::time_point when)
-  : mFunction(std::move(function))
-  , mLogger(logger)
-  , mStatus{SF_CANCELLABLE}
-  , mWhen(when)
+bool TaskContext::execute(StatusFlags desired, const Task& task)
 {
-}
-
-bool TaskContext::operator<(const TaskContext& rhs) const
-{
-    return mWhen > rhs.mWhen;
-}
-
-bool TaskContext::cancel(const Task& task)
-{
-    StatusFlags desired  = SF_CANCELLED | SF_COMPLETED;
     StatusFlags expected = SF_CANCELLABLE;
 
     // Task's already been completed.
     if (!mStatus.compare_exchange_strong(expected, desired))
         return false;
 
-    // Let the task know it's been cancelled.
+    // Safely execute the task.
     try
     {
         mFunction(task);
     }
-    catch (std::runtime_error& exception)
+    catch (std::exception& exception)
     {
         LogErrorF(mLogger,
                   "Exception encountered executing task: %s",
@@ -254,8 +241,27 @@ bool TaskContext::cancel(const Task& task)
     // Release the closure.
     mFunction = nullptr;
 
-    // Task's been cancelled.
+    // Task's been executed.
     return true;
+}
+
+TaskContext::TaskContext(std::function<void(const Task&)> function,
+                         Logger& logger,
+                         std::chrono::steady_clock::time_point when):
+    mFunction(std::move(function)),
+    mLogger(logger),
+    mStatus{SF_CANCELLABLE},
+    mWhen(when)
+{}
+
+bool TaskContext::operator<(const TaskContext& rhs) const
+{
+    return mWhen > rhs.mWhen;
+}
+
+bool TaskContext::cancel(const Task& task)
+{
+    return execute(SF_CANCELLED | SF_COMPLETED, task);
 }
 
 bool TaskContext::cancelled() const
@@ -265,29 +271,7 @@ bool TaskContext::cancelled() const
 
 bool TaskContext::complete(const Task& task)
 {
-    StatusFlags expected = SF_CANCELLABLE;
-
-    // Task's already been completed.
-    if (!mStatus.compare_exchange_strong(expected, SF_COMPLETED))
-        return false;
-
-    // Safely execute the task's function.
-    try
-    {
-        mFunction(task);
-    }
-    catch (std::runtime_error& exception) 
-    {
-        LogErrorF(mLogger,
-                  "Exception encountered executing task: %s",
-                  exception.what());
-    }
-
-    // Release the function.
-    mFunction = nullptr;
-
-    // Task's been completed.
-    return true;
+    return execute(SF_COMPLETED, task);
 }
 
 bool TaskContext::completed() const
