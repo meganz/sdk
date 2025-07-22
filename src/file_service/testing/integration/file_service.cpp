@@ -66,6 +66,7 @@ using common::now;
 using fuse::testing::ClientPtr;
 using fuse::testing::randomBytes;
 using fuse::testing::randomName;
+using fuse::testing::waitFor;
 using ::testing::ElementsAre;
 
 constexpr auto timeout = std::future_status::timeout;
@@ -1275,6 +1276,78 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
 
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_EQ(*usedAfter, 512_KiB);
+}
+
+TEST_F(FileServiceTests, reclaim_periodic_succeeds)
+{
+    // Convenience.
+    using std::chrono::hours;
+    using std::chrono::minutes;
+    using std::chrono::seconds;
+
+    // Keeps track of our test files.
+    std::vector<File> files;
+
+    // Disable readahead and reclamation.
+    auto options = DisableReadahead;
+
+    options.mReclaimSizeThreshold = 0;
+
+    ClientW()->fileServiceOptions(options);
+
+    // Create a few files for us to test with.
+    for (auto i = 0; i < 4; ++i)
+    {
+        // Generate some data for our test file.
+        auto data = randomBytes(1_MiB);
+
+        // Generate a name for our test file.
+        auto name = randomName();
+
+        // Try and upload our test file to the cloud.
+        auto handle = ClientW()->upload(data, name, mRootHandle);
+
+        // Make sure the upload succeeded.
+        ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+        // Try and open our test file.
+        auto file = ClientW()->fileOpen(*handle);
+
+        // Make sure we could open our file.
+        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Read some data from the file.
+        ASSERT_EQ(execute(read, *file, 0, 512_KiB).errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+        // Make sure the service doesn't prematurely purge our file.
+        files.emplace_back(std::move(*file));
+    }
+
+    // Make sure our storage footprint is as we expect.
+    auto usedBefore = ClientW()->fileStorageUsed();
+    ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(*usedBefore, 512_KiB * files.size());
+
+    // Enable storage reclamation.
+    options.mReclaimAgeThreshold = hours(0);
+    options.mReclaimPeriod = seconds(15);
+    options.mReclaimSizeThreshold = 512_KiB;
+
+    ClientW()->fileServiceOptions(options);
+
+    // Wait for storage to be reclaimed.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return ClientW()->fileStorageUsed().valueOr(0) == 512_KiB;
+        },
+        minutes(5)));
+
+    // So we get useful logs.
+    auto usedAfter = ClientW()->fileStorageUsed();
+    ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    EXPECT_LT(*usedAfter, *usedBefore);
+    EXPECT_EQ(*usedAfter, 512_KiB);
 }
 
 TEST_F(FileServiceTests, reclaim_single_succeeds)

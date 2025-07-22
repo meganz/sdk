@@ -5,7 +5,7 @@
 #include <mega/common/database.h>
 #include <mega/common/shared_mutex.h>
 #include <mega/common/task_executor.h>
-#include <mega/common/task_queue_forward.h>
+#include <mega/common/task_queue.h>
 #include <mega/file_service/file_context_badge_forward.h>
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_forward.h>
@@ -75,6 +75,10 @@ class FileServiceContext
 
     void reclaim(ReclaimContextPtr context);
 
+    void reclaimTaskCallback(common::Activity& activity,
+                             std::chrono::steady_clock::time_point when,
+                             const common::Task& task);
+
     auto reclaimable(const FileServiceOptions& options) -> std::vector<FileID>;
 
     template<typename Lock, typename T>
@@ -121,6 +125,12 @@ class FileServiceContext
 
     // Serializes access to mReclaimContext.
     std::mutex mReclaimContextLock;
+
+    // Tracks any scheduled reclamation.
+    common::Task mReclaimTask;
+
+    // Serializes access to mReclaimTask.
+    std::recursive_mutex mReclaimTaskLock;
 
     // This member will ensure the context isn't destroyed until any related
     // activities have been completed.

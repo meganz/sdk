@@ -28,7 +28,9 @@ namespace mega
 namespace file_service
 {
 
+// Convenience.
 using namespace common;
+using namespace std::chrono;
 
 class FileServiceContext::ReclaimContext: public std::enable_shared_from_this<ReclaimContext>
 {
@@ -483,6 +485,48 @@ catch (std::runtime_error& exception)
     return context->completed(FILE_SERVICE_UNEXPECTED);
 }
 
+void FileServiceContext::reclaimTaskCallback(Activity& activity,
+                                             steady_clock::time_point when,
+                                             const Task& task)
+{
+    // Acquire options lock.
+    SharedLock optionsLock(mOptionsLock);
+
+    // Acquire task lock.
+    UniqueLock taskLock(mReclaimTaskLock);
+
+    // Client's shutting down or reclamation has been disabled.
+    if (task.aborted())
+        return mReclaimTask.reset(), void();
+
+    // Convenience.
+    auto now = steady_clock::now();
+
+    // Perform reclamation if necessary.
+    if (now >= when)
+        reclaim([](auto) {});
+
+    // Convenience.
+    auto period = mOptions.mReclaimPeriod;
+    auto sizeThreshold = mOptions.mReclaimSizeThreshold;
+
+    // Reclamation has been disabled.
+    if (!period.count() || !sizeThreshold)
+        return mReclaimTask.reset(), void();
+
+    // When should we perform the next reclamation?
+    when = now + period;
+
+    // Schedule another reclamation for the future.
+    mReclaimTask = mExecutor.execute(std::bind(&FileServiceContext::reclaimTaskCallback,
+                                               this,
+                                               std::move(activity),
+                                               when,
+                                               std::placeholders::_1),
+                                     when,
+                                     false);
+}
+
 auto FileServiceContext::reclaimable(const FileServiceOptions& options) -> std::vector<FileID>
 {
     // Convenience.
@@ -513,9 +557,6 @@ auto FileServiceContext::reclaimable(const FileServiceOptions& options) -> std::
         .set(
             [&]()
             {
-                // Convenience.
-                using namespace std::chrono;
-
                 // Retrieve access time offset.
                 auto offset = options.mReclaimAgeThreshold;
 
@@ -622,9 +663,38 @@ FileServiceContext::FileServiceContext(Client& client, const FileServiceOptions&
     mOptionsLock(),
     mReclaimContext(),
     mReclaimContextLock(),
+    mReclaimTask(),
+    mReclaimTaskLock(),
     mActivities(),
     mExecutor(TaskExecutorFlags(), logger())
-{}
+{
+    // User hasn't specified any storage quota.
+    if (!mOptions.mReclaimSizeThreshold)
+        return;
+
+    // Assume user's specified an initial reclamation delay.
+    auto delay = mOptions.mReclaimDelay;
+
+    // User hasn't specified an initial reclamation delay.
+    if (!delay.count())
+        delay = mOptions.mReclaimPeriod;
+
+    // User hasn't specified a reclamation period.
+    if (!delay.count())
+        return;
+
+    // When should we perform the reclamation?
+    auto when = steady_clock::now() + delay;
+
+    // Schedule initial reclamation for later execution.
+    mReclaimTask = mExecutor.execute(std::bind(&FileServiceContext::reclaimTaskCallback,
+                                               this,
+                                               mActivities.begin(),
+                                               when,
+                                               std::placeholders::_1),
+                                     when,
+                                     true);
+}
 
 FileServiceContext::~FileServiceContext() = default;
 
@@ -793,15 +863,67 @@ catch (std::runtime_error& exception)
 
 void FileServiceContext::options(const FileServiceOptions& options)
 {
-    UniqueLock guard(mOptionsLock);
+    // Set later to prevent modification to our options.
+    SharedLock readLock(mOptionsLock, std::defer_lock);
 
-    mOptions = options;
+    // Keeps track of our original reclamation period.
+    seconds oldPeriod;
+
+    // Update our options.
+    {
+        // Make sure no one else is modifying our options.
+        UniqueLock writeLock(mOptionsLock);
+
+        // Latch current reclamation period.
+        oldPeriod = mOptions.mReclaimPeriod;
+
+        // Update our options.
+        mOptions = options;
+
+        // Let other threads read our options.
+        readLock = writeLock.to_shared_lock();
+    }
+
+    // Convenience.
+    auto newPeriod = options.mReclaimPeriod;
+    auto sizeThreshold = options.mReclaimSizeThreshold;
+
+    // Acquire task lock.
+    UniqueLock taskLock(mReclaimTaskLock);
+
+    // Caller wants to disable periodic reclamation.
+    if (!newPeriod.count() || !sizeThreshold)
+        return mReclaimTask.abort(), void();
+
+    // Caller isn't changing reclamation period.
+    if (newPeriod == oldPeriod)
+        return;
+
+    // Periodic reclamation is already scheduled.
+    //
+    // Send it a cancellation so it reschedules itself.
+    if (mReclaimTask)
+        return mReclaimTask.cancel(), void();
+
+    // When should we perform the reclamation?
+    auto when = steady_clock::now() + newPeriod;
+
+    // Schedule a reclamation for some time in the future.
+    mReclaimTask = mExecutor.execute(std::bind(&FileServiceContext::reclaimTaskCallback,
+                                               this,
+                                               mActivities.begin(),
+                                               when,
+                                               std::placeholders::_1),
+                                     when,
+                                     true);
 }
 
 FileServiceOptions FileServiceContext::options()
 {
+    // Make sure no one else is modifying our options.
     SharedLock guard(mOptionsLock);
 
+    // Return current options to our caller.
     return mOptions;
 }
 
