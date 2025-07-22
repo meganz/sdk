@@ -16,10 +16,13 @@
  * program.
  */
 
-#include "mega.h"
 #include "../src/crypto/sodium.cpp"
-#include <math.h>
 #include "gtest/gtest.h"
+#include "mega.h"
+
+#include <cryptopp/hex.h>
+
+#include <math.h>
 
 using namespace mega;
 
@@ -400,4 +403,164 @@ TEST(Crypto, SymmCipher_isZeroKey)
     key_test6.replace(0, SymmCipher::BLOCKSIZE, "0123456789ABCDEF");
     key_test6.replace(SymmCipher::BLOCKSIZE, SymmCipher::BLOCKSIZE, "0123456789ABCDEF");
     ASSERT_EQ(SymmCipher::isZeroKey(reinterpret_cast<byte*>(key_test6.data()), FILENODEKEYLENGTH), true);
+}
+
+using CryptoPP::AutoSeededRandomPool;
+
+namespace
+{
+
+AutoSeededRandomPool rng;
+
+std::vector<byte> randomBytes(const size_t n)
+{
+    std::vector<byte> buf(n);
+    rng.GenerateBlock(buf.data(), buf.size());
+    return buf;
+}
+
+::testing::AssertionResult
+    equalBuf(const void* const a, const void* const b, const size_t len, const char* msg)
+{
+    if (std::memcmp(a, b, len) == 0)
+        return ::testing::AssertionSuccess();
+    return ::testing::AssertionFailure() << msg;
+}
+
+} // namespace
+
+TEST(Crypto, SymmCipher_CbcEncryptDecryptWithKey)
+{
+    SymmCipher cipher;
+    const std::string plain =
+        "Somewhere in la Mancha, in a place whose name I do not care to remember";
+    std::string cipherText, recovered;
+
+    const auto key = randomBytes(SymmCipher::KEYLENGTH);
+    const auto iv = randomBytes(SymmCipher::BLOCKSIZE);
+
+    ASSERT_TRUE(cipher.cbc_encrypt_with_key(plain, cipherText, key.data(), key.size(), iv.data()));
+    ASSERT_TRUE(
+        cipher.cbc_decrypt_with_key(cipherText, recovered, key.data(), key.size(), iv.data()));
+
+    EXPECT_EQ(plain, recovered);
+}
+
+TEST(Crypto, SymmCipher_CbcEncryptWithZeroKeyLenFails)
+{
+    SymmCipher cipher;
+    const std::string plain = "irrelevant";
+    std::string cipherText;
+
+    const auto key = randomBytes(SymmCipher::KEYLENGTH);
+    const auto iv = randomBytes(SymmCipher::BLOCKSIZE);
+
+    const auto ok =
+        cipher.cbc_encrypt_with_key(plain, cipherText, key.data(), /*keylen*/ 0, iv.data());
+    EXPECT_FALSE(ok);
+}
+
+TEST(Crypto, SymmCipher_GcmEncryptDecryptReuseKey)
+{
+    SymmCipher cipher;
+
+    // set the internal key once
+    const auto internalKey = randomBytes(SymmCipher::KEYLENGTH);
+    cipher.setkey(internalKey.data());
+
+    const std::string plain = "Chat message with Paco";
+    std::string cipherText, recovered;
+
+    const auto iv = randomBytes(12); // 96-bit nonce
+    const auto tagLen = 16u;
+
+    ASSERT_TRUE(cipher.gcm_encrypt(&plain,
+                                   iv.data(),
+                                   static_cast<unsigned>(iv.size()),
+                                   tagLen,
+                                   &cipherText));
+
+    ASSERT_TRUE(cipher.gcm_decrypt(&cipherText,
+                                   iv.data(),
+                                   static_cast<unsigned>(iv.size()),
+                                   tagLen,
+                                   &recovered));
+
+    EXPECT_EQ(plain, recovered);
+}
+
+TEST(Crypto, SymmCipher_GcmEncryptDecryptReuseKeyWithAAD)
+{
+    SymmCipher cipher;
+
+    const auto key = randomBytes(SymmCipher::KEYLENGTH);
+    cipher.setkey(key.data());
+
+    const std::string plain = "Chat message with Paco";
+    constexpr byte aad[] = {1, 2, 3, 4};
+
+    const auto iv = randomBytes(12); // 96-bit nonce
+    constexpr auto tagLen = 16u;
+
+    std::string cipherText;
+    ASSERT_TRUE(cipher.gcm_encrypt_add(reinterpret_cast<const byte*>(plain.data()),
+                                       plain.size(),
+                                       aad,
+                                       sizeof(aad),
+                                       iv.data(),
+                                       iv.size(),
+                                       tagLen,
+                                       cipherText,
+                                       /*expectedSize =*/0));
+
+    const auto ctLen = cipherText.size() - tagLen;
+    const byte* ctPtr = reinterpret_cast<const byte*>(cipherText.data());
+    const byte* tagPtr = ctPtr + ctLen;
+
+    std::vector<byte> recoveredBuf(plain.size());
+    ASSERT_TRUE(cipher.gcm_decrypt_add(ctPtr,
+                                       ctLen,
+                                       aad,
+                                       sizeof(aad),
+                                       tagPtr,
+                                       tagLen,
+                                       iv.data(),
+                                       iv.size(),
+                                       recoveredBuf.data(),
+                                       recoveredBuf.size()));
+
+    std::string recovered(recoveredBuf.begin(), recoveredBuf.end());
+    EXPECT_EQ(plain, recovered);
+}
+
+TEST(Crypto, SymmCipher_KeyRotationBreaksOldCipher)
+{
+    SymmCipher cipher;
+    const auto iv = randomBytes(SymmCipher::BLOCKSIZE);
+
+    // first key
+    const auto k1 = randomBytes(SymmCipher::KEYLENGTH);
+    cipher.setkey(k1.data());
+
+    constexpr byte kPlain[SymmCipher::BLOCKSIZE] =
+        {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+    byte data1[SymmCipher::BLOCKSIZE];
+    std::memcpy(data1, kPlain, SymmCipher::BLOCKSIZE);
+    cipher.cbc_encrypt(data1, sizeof(data1), iv.data());
+
+    // second key
+    const auto k2 = randomBytes(SymmCipher::KEYLENGTH);
+    cipher.setkey(k2.data());
+
+    byte tmp[SymmCipher::BLOCKSIZE];
+    std::memcpy(tmp, data1, sizeof(tmp));
+    ASSERT_TRUE(cipher.cbc_decrypt(tmp, sizeof(tmp), iv.data()));
+    EXPECT_FALSE(equalBuf(tmp,
+                          kPlain,
+                          SymmCipher::BLOCKSIZE,
+                          "Decrypt unexpectedly produced the right data"));
+
+    cipher.setkey(k1.data());
+    ASSERT_TRUE(cipher.cbc_decrypt(data1, sizeof(data1), iv.data()));
+    EXPECT_TRUE(equalBuf(data1, kPlain, SymmCipher::BLOCKSIZE, "Round-trip failed"));
 }
