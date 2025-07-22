@@ -181,6 +181,7 @@ static const FileServiceOptions DisableReadahead = {
     0u,
     DefaultOptions.mRangeRetryBackoff,
     DefaultOptions.mReclaimAgeThreshold,
+    DefaultOptions.mReclaimDelay,
     DefaultOptions.mReclaimPeriod,
     DefaultOptions.mReclaimSizeThreshold}; // DisableReadahead
 

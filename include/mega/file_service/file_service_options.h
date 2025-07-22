@@ -29,6 +29,9 @@ struct FileServiceOptions
     // How long shouldn't we access a file before we can reclaim it?
     std::chrono::hours mReclaimAgeThreshold{72};
 
+    // How long after startup should we wait until we reclaim space?
+    std::chrono::seconds mReclaimDelay{1800};
+
     // How often should we try to reclaim space?
     std::chrono::seconds mReclaimPeriod{7200};
 
