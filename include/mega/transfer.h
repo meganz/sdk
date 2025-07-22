@@ -312,12 +312,15 @@ public:
      * connection if it's needed
      * - UN_DEFINITIVE_ERR: Unused connection has failed with a definitive error, so it cannot be
      * reused anymore.
+     * - UN_TEMPORARY_ERR: Unused connection has failed by a temporary error (i.e HttpStatus 200 and
+     * CURLcode: 56), so it can be switched by another connection if it's needed
      */
     enum UnusedReason
     {
         UN_INVALID = 0,
         UN_NOT_ERR = 1,
         UN_DEFINITIVE_ERR = 2,
+        UN_TEMPORARY_ERR = 3,
     };
 
     /**
@@ -344,12 +347,13 @@ public:
      *
      * @return An unusedReason given a HTTP status code.
      */
-    static UnusedReason getReasonFromHttpStatus(const int httpstatus)
+    static UnusedReason getReasonFromHttpStatus(const int httpstatus, const unsigned errCode)
     {
+        constexpr unsigned CURLE_OK_CODE = 0;
         switch (httpstatus)
         {
             case 200:
-                return UN_NOT_ERR;
+                return errCode == CURLE_OK_CODE ? UN_NOT_ERR : UN_TEMPORARY_ERR;
             case 509:
                 assert(false);
                 return UN_INVALID;
@@ -395,7 +399,7 @@ public:
      */
     static bool isValidUnusedReason(const UnusedReason reason)
     {
-        return reason == UN_NOT_ERR || reason == UN_DEFINITIVE_ERR;
+        return reason == UN_NOT_ERR || reason == UN_DEFINITIVE_ERR || reason == UN_TEMPORARY_ERR;
     }
 
 private:
@@ -505,7 +509,7 @@ public:
      * when a recoverable error is received (i.e HttpStatus 200 and CURLcode: 56)
      *
      */
-    static constexpr unsigned MAX_CONN_SWITCHES_RECOVERABLE_ERR = 3;
+    static constexpr unsigned MAX_CONN_SWITCHES_RECOVERABLE_ERR = 1;
 
     /**
     *   @brief Requests are sent in batch, and no connection is allowed to request the next chunk until the other connections have finished fetching their current one.
@@ -601,7 +605,9 @@ public:
      * @brief Manages a HTTP req failure filtering by httpstatus and performing required action (i.e
      * retry HTTP req)
      */
-    void onFailure(std::unique_ptr<HttpReq>& req, const size_t connectionNum);
+    void onFailure(std::unique_ptr<HttpReq>& req,
+                   const size_t connectionNum,
+                   const unsigned errCode);
 
     /**
     *   @brief Flag value getter to check if a given request is allowed to request a further chunk.
@@ -667,7 +673,7 @@ public:
      *
      * @param connectionNum The connection number to retry.
      */
-    void retryOnError(const size_t connectionNum, const int httpstatus);
+    void retryOnError(const size_t connectionNum, const int httpstatus, const unsigned errCode);
 
     /**
      * @brief Check if there are in-flight requests
