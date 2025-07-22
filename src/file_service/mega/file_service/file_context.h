@@ -1,6 +1,8 @@
 #pragma once
 
 #include <mega/common/activity_monitor.h>
+#include <mega/common/database_forward.h>
+#include <mega/common/lock_forward.h>
 #include <mega/common/transaction_forward.h>
 #include <mega/file_service/buffer_pointer.h>
 #include <mega/file_service/file_append_request_forward.h>
@@ -130,7 +132,8 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     void failed(FileReadRequest&& request, FileResult result) override;
 
     // Increase this file's size.
-    auto grow(std::uint64_t newSize, std::uint64_t oldSize) -> common::Transaction;
+    auto grow(std::uint64_t newSize, std::uint64_t oldSize)
+        -> std::pair<common::UniqueLock<common::Database>, common::Transaction>;
 
     // Acquire a lock on this manager.
     std::unique_lock<std::recursive_mutex> lock() const override;
@@ -149,7 +152,8 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     void removeRanges(const FileRange& range, common::Transaction& transaction);
 
     // Decrease this file's size.
-    auto shrink(std::uint64_t newSize, std::uint64_t oldSize) -> common::Transaction;
+    auto shrink(std::uint64_t newSize, std::uint64_t oldSize)
+        -> std::pair<common::UniqueLock<common::Database>, common::Transaction>;
 
     // Update this file's access and modification time in the database.
     void updateAccessAndModificationTimes(std::int64_t accessed,

@@ -1,5 +1,6 @@
 #include <mega/common/client.h>
 #include <mega/common/database.h>
+#include <mega/common/lock.h>
 #include <mega/common/node_info.h>
 #include <mega/common/partial_download.h>
 #include <mega/common/scoped_query.h>
@@ -165,7 +166,11 @@ void FileContext::addRange(const FileRange& range, Transaction& transaction)
 void FileContext::adjustRef(std::int64_t adjustment)
 {
     // Convenience.
+    auto& database = mService.database();
     auto& queries = mService.queries();
+
+    // Acquire database lock.
+    UniqueLock databaseLock(database);
 
     // Retrieve this file's reference count.
     auto transaction = mService.database().transaction();
@@ -405,7 +410,14 @@ try
     // Mark range as present.
     iterator->second.reset();
 
-    auto transaction = mService.database().transaction();
+    // Convenience.
+    auto& database = mService.database();
+
+    // Acquire database lock.
+    UniqueLock databaseLock(database);
+
+    // Start transaction so we can safely access the database.
+    auto transaction = database.transaction();
 
     // Remove obsolete ranges from the database.
     removeRanges(range, transaction);
@@ -539,7 +551,7 @@ bool FileContext::execute(FileAppendRequest& request)
     FileRange range(size, size + request.mLength);
 
     // Acquire ranges lock.
-    std::unique_lock lock(mRangesLock);
+    std::unique_lock rangesLock(mRangesLock);
 
     // Assume we can grow the last range.
     auto candidate = mRanges.rbegin();
@@ -560,7 +572,14 @@ bool FileContext::execute(FileAppendRequest& request)
     if (length < request.mLength)
         return completed(std::move(request), FILE_FAILED), true;
 
-    auto transaction = mService.database().transaction();
+    // Convenience.
+    auto& database = mService.database();
+
+    // Acquire database lock.
+    UniqueLock databaseLock(database);
+
+    // Start a transaction so we can safely modify the database.
+    auto transaction = database.transaction();
 
     // Remove obsolete ranges from the database.
     removeRanges(range, transaction);
@@ -652,8 +671,14 @@ bool FileContext::execute(FileFlushRequest request)
     // Specify the file's location if necessary.
     if (mInfo->handle().isUndef())
     {
+        // Convenience.
+        auto& database = mService.database();
+
+        // Acquire database lock.
+        UniqueLock databaseLock(database);
+
         // Initiate a transaction so we can safely access the database.
-        auto transaction = mService.database().transaction();
+        auto transaction = database.transaction();
 
         // Look up where this file's meant to live in the cloud.
         auto query = transaction.query(mService.queries().mGetFileLocation);
@@ -961,10 +986,16 @@ bool FileContext::execute(FileReclaimRequest& request)
         return false;
 
     // Make sure no one else is modifying mRanges.
-    std::lock_guard lock(mRangesLock);
+    std::lock_guard rangesLock(mRangesLock);
+
+    // Convenience.
+    auto& database = mService.database();
+
+    // Acquire database lock.
+    UniqueLock databaseLock(database);
 
     // So we can safely modify the database.
-    auto transaction = mService.database().transaction();
+    auto transaction = database.transaction();
 
     // Represents the entire file.
     FileRange range(0, mInfo->logicalSize());
@@ -999,7 +1030,13 @@ bool FileContext::execute(FileTouchRequest& request)
     auto accessed = now();
 
     // Convenience.
-    auto transaction = mService.database().transaction();
+    auto& database = mService.database();
+
+    // Acquire database lock.
+    UniqueLock databaseLock(database);
+
+    // Start a transaction so we can safely modify the database.
+    auto transaction = database.transaction();
 
     // Update the file's access and modification time.
     updateAccessAndModificationTimes(accessed, request.mModified, transaction);
@@ -1032,7 +1069,8 @@ bool FileContext::execute(FileTruncateRequest& request)
         return completed(std::move(request), FILE_SUCCESS), true;
 
     // Grow or shrink the file as necessary.
-    auto transaction = newSize > oldSize ? grow(newSize, oldSize) : shrink(newSize, oldSize);
+    auto [databaseLock, transaction] =
+        newSize > oldSize ? grow(newSize, oldSize) : shrink(newSize, oldSize);
 
     // Compute the file's new modification time.
     auto modified = now();
@@ -1079,7 +1117,7 @@ bool FileContext::execute(FileWriteRequest& request)
     cancel(range);
 
     // Get exclusive access to mRanges.
-    std::unique_lock lock(mRangesLock);
+    std::unique_lock rangesLock(mRangesLock);
 
     // Disambiguate.
     using file_service::write;
@@ -1148,7 +1186,14 @@ bool FileContext::execute(FileWriteRequest& request)
         return FileRange(from, to);
     }();
 
-    auto transaction = mService.database().transaction();
+    // Convenience.
+    auto& database = mService.database();
+
+    // Acquire database lock.
+    UniqueLock databaseLock(database);
+
+    // Start a transaction so we can safely modify the database.
+    auto transaction = database.transaction();
 
     // Remove obsolete ranges from the database.
     removeRanges(effectiveRange, transaction);
@@ -1260,13 +1305,20 @@ void FileContext::failed(FileReadRequest&& request, FileResult result)
     completed<>(std::move(request), result);
 }
 
-auto FileContext::grow(std::uint64_t newSize, std::uint64_t oldSize) -> Transaction
+auto FileContext::grow(std::uint64_t newSize, std::uint64_t oldSize)
+    -> std::pair<UniqueLock<Database>, Transaction>
 {
     // Make sure we have exclusive access to mRanges.
-    std::lock_guard guard(mRangesLock);
+    std::lock_guard rangesLock(mRangesLock);
+
+    // Convenience.
+    auto& database = mService.database();
+
+    // Acquire database lock.
+    UniqueLock databaseLock(database);
 
     // So we can safely modify the database.
-    auto transaction = mService.database().transaction();
+    auto transaction = database.transaction();
 
     // Get our hands on this file's last range.
     auto last = mRanges.rbegin();
@@ -1294,7 +1346,7 @@ auto FileContext::grow(std::uint64_t newSize, std::uint64_t oldSize) -> Transact
     mRanges.add(range, nullptr);
 
     // Return the transaction to our caller.
-    return transaction;
+    return std::make_pair(std::move(databaseLock), std::move(transaction));
 }
 
 std::unique_lock<std::recursive_mutex> FileContext::lock() const
@@ -1340,16 +1392,23 @@ void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
     query.execute();
 }
 
-auto FileContext::shrink(std::uint64_t newSize, std::uint64_t oldSize) -> Transaction
+auto FileContext::shrink(std::uint64_t newSize, std::uint64_t oldSize)
+    -> std::pair<UniqueLock<Database>, Transaction>
 {
     // Cancel in progress reads that would be "cut off."
     cancel(FileRange(oldSize, newSize));
 
     // So we have exclusive access to mRanges.
-    std::lock_guard guard(mRangesLock);
+    std::lock_guard rangesLock(mRangesLock);
+
+    // Convenience.
+    auto& database = mService.database();
+
+    // Acquire database lock.
+    UniqueLock databaseLock(database);
 
     // So we can safely modify the database.
-    auto transaction = mService.database().transaction();
+    auto transaction = database.transaction();
 
     // Couldn't reduce the file's size.
     if (!mBuffer->truncate(newSize))
@@ -1360,7 +1419,7 @@ auto FileContext::shrink(std::uint64_t newSize, std::uint64_t oldSize) -> Transa
 
     // No ranges end at or after our new size.
     if (begin == mRanges.end())
-        return transaction;
+        return std::make_pair(std::move(databaseLock), std::move(transaction));
 
     // Convenience.
     FileRange range(begin->first.mBegin, oldSize);
@@ -1385,7 +1444,7 @@ auto FileContext::shrink(std::uint64_t newSize, std::uint64_t oldSize) -> Transa
     }
 
     // Return the transaction to our caller.
-    return transaction;
+    return std::make_pair(std::move(databaseLock), std::move(transaction));
 }
 
 void FileContext::updateAccessAndModificationTimes(std::int64_t accessed,
@@ -1620,9 +1679,13 @@ void FileContext::FlushContext::bound(ErrorOr<NodeHandle> result)
         // Convenience.
         auto& info = *mContext.mInfo;
         auto& service = mContext.mService;
+        auto& database = service.database();
+
+        // Acquire database lock.
+        UniqueLock databaseLock(database);
 
         // Try and update the file's handle.
-        auto transaction = service.database().transaction();
+        auto transaction = database.transaction();
         auto query = transaction.query(service.queries().mSetFileHandle);
 
         query.param(":handle").set(*result);
