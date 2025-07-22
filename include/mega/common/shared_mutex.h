@@ -91,6 +91,9 @@ public:
         return try_lock_until(time, false);
     }
 
+    // Translate exclusive ownership of this mutex to shared ownership.
+    SharedMutex& unique_to_shared();
+
     // Release exclusive ownership of this mutex.
     void unlock();
 

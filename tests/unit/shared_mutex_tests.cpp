@@ -203,6 +203,39 @@ TEST_F(FUSESharedMutexTests, shared_lock_succeeds)
     ASSERT_LE(acquired, Clock::now());
 }
 
+TEST_F(FUSESharedMutexTests, to_shared_lock_succeeds)
+{
+    SharedMutex mutex;
+
+    UniqueLock<SharedMutex> lock0(mutex, std::try_to_lock);
+    ASSERT_TRUE(lock0);
+
+    auto result = execute(std::function<TimePoint()>(
+        [&]()
+        {
+            SharedLock<SharedMutex> lock(mutex, std::defer_lock);
+
+            if (lock.try_lock_for(Milliseconds(256)))
+                return Clock::now();
+
+            return TimePoint::min();
+        }));
+
+    std::this_thread::sleep_for(Milliseconds(32));
+
+    auto released = Clock::now();
+
+    auto lock1 = lock0.to_shared_lock();
+    ASSERT_TRUE(lock1);
+
+    auto acquired = result.get();
+    ASSERT_GE(acquired, released);
+
+    lock1.unlock();
+
+    ASSERT_TRUE(lock0.try_lock());
+}
+
 } // testing
 } // mega
 

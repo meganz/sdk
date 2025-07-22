@@ -206,6 +206,23 @@ struct UniqueLock
 
     using Base::Base;
     using Base::operator=;
+
+    // Translate this unique lock to a shared lock.
+    SharedLock<T> to_shared_lock()
+    {
+        // Sanity.
+        assert(this->mMutex);
+        assert(this->mOwned);
+
+        // Translate our exclusive lock to a shared lock.
+        SharedLock<T> lock(this->mMutex->unique_to_shared(), std::adopt_lock);
+
+        // We no longer own the mutex.
+        this->mOwned = false;
+
+        // Return shared lock to our caller.
+        return lock;
+    }
 }; // UniqueLock<T>
 
 template<typename T>
