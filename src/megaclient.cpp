@@ -15234,19 +15234,124 @@ string MegaClient::getTransferDBName()
 
 void MegaClient::handleDbError(DBError error)
 {
+    std::string reason;
     switch (error)
     {
-        case DBError::DB_ERROR_FULL:
-            fatalError(ErrorReason::REASON_ERROR_DB_FULL);
+        case DBError::DB_ERROR_UNKNOWN:
+            reason = "DB error. unknown error";
+            sendevent(800000, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR:
+            reason = "DB error. Generic error";
+            sendevent(800001, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_INTERNAL:
+            reason = "DB error. Internal logic error";
+            sendevent(800002, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_PERM:
+            reason = "DB error. Access permission denied";
+            sendevent(800003, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_ABORT:
+            reason = "DB error. Callback routine requested an abort";
+            sendevent(800004, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_BUSY:
+            reason = "DB error. File is locked";
+            sendevent(800005, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_LOCKED:
+            reason = "DB error. Table is locked";
+            sendevent(800006, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_NOMEM:
+            reason = "DB error. Memory error";
+            sendevent(800007, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_READONLY:
+            reason = "DB error. Error attempting to write a readonly database";
+            sendevent(800008, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_INTERRUPT:
+            reason = "DB error. Operation interrupted";
+            sendevent(800009, reason.c_str(), 0);
             break;
         case DBError::DB_ERROR_IO:
+            reason = "Writing in DB error";
+            sendevent(99467, reason.c_str(), 0);
             fatalError(ErrorReason::REASON_ERROR_DB_IO);
             break;
-        case DBError::DB_ERROR_INDEX_OVERFLOW:
-            fatalError(ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW);
-            break;
         case DBError::DB_ERROR_CORRUPT:
+            reason = "DB file is corrupt";
+            sendevent(99497, reason.c_str(), 0);
             fatalError(ErrorReason::REASON_ERROR_DB_CORRUPT);
+            break;
+        case DBError::DB_ERROR_NOTFOUND:
+            reason = "DB error. Unknown opcode";
+            sendevent(800010, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_FULL:
+            reason = "DB error. Full database";
+            sendevent(800011, reason.c_str(), 0);
+            fatalError(ErrorReason::REASON_ERROR_DB_FULL);
+            break;
+        case DBError::DB_ERROR_CANTOPEN:
+            reason = "DB error. Unable to open the database file";
+            sendevent(800012, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_PROTOCOL:
+            reason = "DB error. Database lock protocol error";
+            sendevent(800013, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_EMPTY:
+            reason = "DB error. Empty database";
+            sendevent(800014, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_SCHEMA:
+            reason = "DB error. Database schema changed";
+            sendevent(800015, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_TOOBIG:
+            reason = "DB error. Field too big";
+            sendevent(800016, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_CONSTRAINT:
+            reason = "DB error. Abort due to constraint violation";
+            sendevent(800017, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_MISMATCH:
+            reason = "DB error. Data type mismatch";
+            sendevent(800018, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_MISUSE:
+            reason = "DB error. Library used incorrectly";
+            sendevent(800019, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_NOLFS:
+            reason = "DB error. Unsupported features";
+            sendevent(800020, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_AUTH:
+            reason = "DB error. Authorization denied";
+            sendevent(800021, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_FORMAT:
+            reason = "DB error.  Not used";
+            sendevent(800022, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_RANGE:
+            reason = "DB error. Out of range";
+            sendevent(800023, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_NOTADB:
+            reason = "DB error. Database file wrong type";
+            sendevent(800024, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_INDEX_OVERFLOW:
+            reason = "DB index overflow";
+            sendevent(99471, reason.c_str(), 0);
+            fatalError(ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW);
             break;
         default:
             fatalError(ErrorReason::REASON_ERROR_UNKNOWN);
@@ -15282,7 +15387,6 @@ void MegaClient::fatalError(ErrorReason errorReason)
     {
         case ErrorReason::REASON_ERROR_DB_IO:
             reason = "Writing in DB error";
-            sendevent(99467, reason.c_str(), 0);
             break;
         case ErrorReason::REASON_ERROR_UNSERIALIZE_NODE:
             reason = "Failed to unserialize node";
@@ -15290,15 +15394,12 @@ void MegaClient::fatalError(ErrorReason errorReason)
             break;
         case ErrorReason::REASON_ERROR_DB_FULL:
             reason = "Database is full";
-            // No event as we cannot do anything
             break;
         case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
             reason = "DB index overflow";
-            sendevent(99471, reason.c_str(), 0);
             break;
         case mega::ErrorReason::REASON_ERROR_DB_CORRUPT:
             reason = "DB file is corrupt";
-            sendevent(99497, reason.c_str(), 0);
             break;
         case ErrorReason::REASON_ERROR_NO_JSCD:
             reason = "Failed to get JSON SYNC configuration data";
@@ -15310,7 +15411,6 @@ void MegaClient::fatalError(ErrorReason errorReason)
             break;
         case ErrorReason::REASON_ERROR_UNKNOWN:
             reason = "Unknown fatal error";
-            sendevent(99496, reason.c_str(), 0);
             break;
         default:
             reason = "Unknown reason";

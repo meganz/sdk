@@ -44,10 +44,33 @@ public:
 enum class DBError
 {
     DB_ERROR_UNKNOWN = 0,
-    DB_ERROR_FULL = 1,
-    DB_ERROR_IO = 2,
-    DB_ERROR_INDEX_OVERFLOW = 3,
-    DB_ERROR_CORRUPT = 4,
+    DB_ERROR = 1,
+    DB_ERROR_INTERNAL = 2,
+    DB_ERROR_PERM = 3,
+    DB_ERROR_ABORT = 4,
+    DB_ERROR_BUSY = 5,
+    DB_ERROR_LOCKED = 6,
+    DB_ERROR_NOMEM = 7,
+    DB_ERROR_READONLY = 8,
+    DB_ERROR_INTERRUPT = 9,
+    DB_ERROR_IO = 10,
+    DB_ERROR_CORRUPT = 11,
+    DB_ERROR_NOTFOUND = 12,
+    DB_ERROR_FULL = 13,
+    DB_ERROR_CANTOPEN = 14,
+    DB_ERROR_PROTOCOL = 15,
+    DB_ERROR_EMPTY = 16,
+    DB_ERROR_SCHEMA = 17,
+    DB_ERROR_TOOBIG = 18,
+    DB_ERROR_CONSTRAINT = 19,
+    DB_ERROR_MISMATCH = 20,
+    DB_ERROR_MISUSE = 21,
+    DB_ERROR_NOLFS = 22,
+    DB_ERROR_AUTH = 23,
+    DB_ERROR_FORMAT = 24,
+    DB_ERROR_RANGE = 25,
+    DB_ERROR_NOTADB = 26,
+    DB_ERROR_INDEX_OVERFLOW = 100, // SDK internal error
 };
 
 using DBErrorCallback = std::function<void(DBError)>;

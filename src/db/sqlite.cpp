@@ -918,38 +918,101 @@ void SqliteDbTable::errorHandler(int sqliteError, const string& operation, bool 
     DBError dbError = DBError::DB_ERROR_UNKNOWN;
     switch (sqliteError)
     {
-    case SQLITE_OK:
-    case SQLITE_ROW:
-    case SQLITE_DONE:
-        return;
-
-    case SQLITE_INTERRUPT:
-        if (interrupt)
-        {
-            // SQLITE_INTERRUPT isn't handle as an error if caller can be interrupted
-            LOG_debug <<  operation << ": interrupted";
+        case SQLITE_OK:
+        case SQLITE_ROW:
+        case SQLITE_DONE:
             return;
-        }
-        break;
-
-    case SQLITE_FULL:
-        dbError = DBError::DB_ERROR_FULL;
-        break;
-
-    case SQLITE_IOERR:
-        dbError = DBError::DB_ERROR_IO;
-        break;
-
-    case SQLITE_CORRUPT:
-        dbError = DBError::DB_ERROR_CORRUPT;
-        break;
-
-    default:
-        dbError = DBError::DB_ERROR_UNKNOWN;
-        break;
+        case SQLITE_ERROR:
+            dbError = DBError::DB_ERROR;
+            break;
+        case SQLITE_INTERNAL:
+            dbError = DBError::DB_ERROR_INTERNAL;
+            break;
+        case SQLITE_PERM:
+            dbError = DBError::DB_ERROR_PERM;
+            break;
+        case SQLITE_ABORT:
+            dbError = DBError::DB_ERROR_ABORT;
+            break;
+        case SQLITE_BUSY:
+            dbError = DBError::DB_ERROR_BUSY;
+            break;
+        case SQLITE_LOCKED:
+            dbError = DBError::DB_ERROR_LOCKED;
+            break;
+        case SQLITE_NOMEM:
+            dbError = DBError::DB_ERROR_NOMEM;
+            break;
+        case SQLITE_READONLY:
+            dbError = DBError::DB_ERROR_READONLY;
+            break;
+        case SQLITE_INTERRUPT:
+            if (interrupt)
+            {
+                // SQLITE_INTERRUPT isn't handle as an error if caller can be interrupted
+                LOG_debug << operation << ": interrupted";
+                return;
+            }
+            dbError = DBError::DB_ERROR_INTERRUPT;
+            break;
+        case SQLITE_IOERR:
+            dbError = DBError::DB_ERROR_IO;
+            break;
+        case SQLITE_CORRUPT:
+            dbError = DBError::DB_ERROR_CORRUPT;
+            break;
+        case SQLITE_NOTFOUND:
+            dbError = DBError::DB_ERROR_NOTFOUND;
+            break;
+        case SQLITE_FULL:
+            dbError = DBError::DB_ERROR_FULL;
+            break;
+        case SQLITE_CANTOPEN:
+            dbError = DBError::DB_ERROR_CANTOPEN;
+            break;
+        case SQLITE_PROTOCOL:
+            dbError = DBError::DB_ERROR_PROTOCOL;
+            break;
+        case SQLITE_EMPTY:
+            dbError = DBError::DB_ERROR_EMPTY;
+            break;
+        case SQLITE_SCHEMA:
+            dbError = DBError::DB_ERROR_SCHEMA;
+            break;
+        case SQLITE_TOOBIG:
+            dbError = DBError::DB_ERROR_TOOBIG;
+            break;
+        case SQLITE_CONSTRAINT:
+            dbError = DBError::DB_ERROR_CONSTRAINT;
+            break;
+        case SQLITE_MISMATCH:
+            dbError = DBError::DB_ERROR_MISMATCH;
+            break;
+        case SQLITE_MISUSE:
+            dbError = DBError::DB_ERROR_MISUSE;
+            break;
+        case SQLITE_NOLFS:
+            dbError = DBError::DB_ERROR_NOLFS;
+            break;
+        case SQLITE_AUTH:
+            dbError = DBError::DB_ERROR_AUTH;
+            break;
+        case SQLITE_FORMAT:
+            dbError = DBError::DB_ERROR_FORMAT;
+            break;
+        case SQLITE_RANGE:
+            dbError = DBError::DB_ERROR_RANGE;
+            break;
+        case SQLITE_NOTADB:
+            dbError = DBError::DB_ERROR_NOTADB;
+            break;
+        default:
+            dbError = DBError::DB_ERROR_UNKNOWN;
+            break;
     }
 
-    string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqliteError));
+    string err = string(" Error: ") +
+                 (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqliteError));
     LOG_err << operation << ": " << dbfile << err;
     assert(!operation.c_str());
 
