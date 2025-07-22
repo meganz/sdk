@@ -169,8 +169,11 @@ struct SharedLock
     using Base::operator=;
 }; // SharedLock<T>
 
-template<typename T>
-SharedLock(T&) -> SharedLock<T>;
+template<typename Mutex>
+SharedLock(Mutex&) -> SharedLock<Mutex>;
+
+template<typename Mutex, typename LockFlag>
+SharedLock(Mutex&, LockFlag) -> SharedLock<Mutex>;
 
 template<typename T>
 struct SharedLockTraits
@@ -225,8 +228,11 @@ struct UniqueLock
     }
 }; // UniqueLock<T>
 
-template<typename T>
-UniqueLock(T&) -> UniqueLock<T>;
+template<typename Mutex>
+UniqueLock(Mutex&) -> UniqueLock<Mutex>;
+
+template<typename Mutex, typename LockFlag>
+UniqueLock(Mutex&, LockFlag) -> UniqueLock<Mutex>;
 
 template<typename T>
 struct UniqueLockTraits
