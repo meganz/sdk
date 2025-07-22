@@ -12178,27 +12178,27 @@ void exec_syncstatus(autocomplete::ACState& s)
         return std::to_string(value) + *suffix + "B";
     };
 
-    // Display status information to the user.
-    for (auto& info : results)
+    auto getProgress = [](SyncStatusInfo& i) -> double
     {
-        cout << "Sync "
-             << toHandle(info.mBackupID)
-             << ":\n"
-             << "  Name: "
-             << info.mName
-             << "\n"
-             << "  Total number of synced nodes: "
-             << info.mTotalSyncedNodes
-             << "\n"
-             << "  Total size of synced files: "
-             << toSuffixedString(info.mTotalSyncedBytes)
-             << "\n"
-             << "  Transfer progress: "
-             << info.mTransferCounts.progress(0) * 100.0
-             << "%\n"
-             << "  Transfer speed: "
-             << toSuffixedString(speeds[info.mBackupID])
-             << "/s\n";
+        auto p = i.mTransferCounts.progress(0);
+        if (p > 1.0)
+        {
+            const std::string errMsg = "exec_syncstatus: Invalid reportCounts progress value";
+            LOG_err << errMsg;
+            assert(false && errMsg.c_str());
+        }
+        return p * 100.0;
+    };
+
+    // Display status information to the user.
+    for (auto& info: results)
+    {
+        cout << "Sync " << toHandle(info.mBackupID) << ":\n"
+             << "  Name: " << info.mName << "\n"
+             << "  Total number of synced nodes: " << info.mTotalSyncedNodes << "\n"
+             << "  Total size of synced files: " << toSuffixedString(info.mTotalSyncedBytes) << "\n"
+             << "  Transfer progress: " << getProgress(info) << "%\n"
+             << "  Transfer speed: " << toSuffixedString(speeds[info.mBackupID]) << "/s\n";
     }
 }
 

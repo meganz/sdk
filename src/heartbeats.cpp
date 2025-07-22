@@ -20,9 +20,11 @@
  */
 
 #include "mega/heartbeats.h"
-#include "mega/command.h"
+
 #include "assert.h"
 #include "mega.h"
+#include "mega/command.h"
+#include "mega/testhooks.h"
 
 namespace mega {
 
@@ -352,7 +354,16 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         auto reportCounts = hbs->mSnapshotTransferCounts;
         reportCounts -= hbs->mResolvedTransferCounts;
 
-        auto progress = uint8_t(100.0 * reportCounts.progress(inflightProgress));
+        auto progress = reportCounts.progress(inflightProgress);
+        DEBUG_TEST_HOOK_ON_TRANSFER_REPORT_PROGRESS(progress, inflightProgress);
+        if (progress > 1.0)
+        {
+            const std::string errMsg =
+                "BackupMonitor::beatBackupInfo: Invalid reportCounts progress value";
+            LOG_err << errMsg;
+            assert(false && errMsg.c_str());
+            progress = static_cast<uint8_t>(100.0 * progress);
+        }
 
         hbs->mSending = true;
 
@@ -384,6 +395,12 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         {
             // once we reach 100%, start counting again from 0 for any later sync activity.
             hbs->mResolvedTransferCounts = hbs->mSnapshotTransferCounts;
+            // Clean pending values from mResolvedTransferCounts, as values corresponding to pending
+            // transfers (uploads and downloads) are constantly being updated, with larger or
+            // smaller values depending on the current state, and new transfers being added and
+            // other ones finishing, so subtracting any previously saved value is wrong and leading
+            // to an overflow when the saved values are greater.
+            hbs->mResolvedTransferCounts.clearPendingValues();
         }
     }
 }
