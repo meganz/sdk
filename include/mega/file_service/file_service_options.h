@@ -36,7 +36,7 @@ struct FileServiceOptions
     std::chrono::seconds mReclaimPeriod{7200};
 
     // How many bytes can the service store before it needs to reclaim space?
-    std::optional<std::uint64_t> mReclaimSizeThreshold{};
+    std::uint64_t mReclaimSizeThreshold{0};
 }; // FileServiceOptions
 
 } // file_service

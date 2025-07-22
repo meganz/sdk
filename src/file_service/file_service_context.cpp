@@ -486,7 +486,11 @@ catch (std::runtime_error& exception)
 auto FileServiceContext::reclaimable(const FileServiceOptions& options) -> std::vector<FileID>
 {
     // Convenience.
-    auto sizeThreshold = options.mReclaimSizeThreshold.value_or(UINT64_MAX);
+    auto sizeThreshold = options.mReclaimSizeThreshold;
+
+    // No need to reclaim any storage.
+    if (!sizeThreshold)
+        return {};
 
     // So we have exclusive access to the database.
     UniqueLock lock(mDatabase);
