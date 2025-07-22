@@ -7388,6 +7388,7 @@ namespace mega
         static int countdownTo403;
         static int countdownTo429;
         static int countdownTo503;
+        static int countdownTo200WithErrCode;
         static int countdownToTimeout;
         static bool isRaid;
         static bool isRaidKnown;
@@ -7453,6 +7454,16 @@ namespace mega
                     req->status = REQ_FAILURE;
 
                     LOG_info << "SIMULATING HTTP GET 503";
+                    return true;
+                }
+
+                if (countdownTo200WithErrCode-- == 0)
+                {
+                    req->httpstatus = 200;
+                    req->mErrCode = 56;
+                    req->status = REQ_FAILURE;
+
+                    LOG_info << "SIMULATING HTTP GET 200 with Error code";
                     return true;
                 }
             }
@@ -7537,6 +7548,7 @@ namespace mega
             countdownTo404 = -1;
             countdownTo403 = -1;
             countdownTo429 = -1;
+            countdownTo200WithErrCode = -1;
             countdownTo503 = -1;
             countdownToTimeout = -1;
             isRaid = false;
@@ -7561,6 +7573,7 @@ namespace mega
     bool DebugTestHook::isRaidKnown = false;
     int DebugTestHook::countdownTo404 = -1;
     int DebugTestHook::countdownTo403 = -1;
+    int DebugTestHook::countdownTo200WithErrCode = -1;
     int DebugTestHook::countdownTo429 = -1;
     int DebugTestHook::countdownTo503 = -1;
     int DebugTestHook::countdownToTimeout = -1;
@@ -8767,6 +8780,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                                                 int cd403,
                                                 int cd429,
                                                 int cd503,
+                                                int cd200Err,
                                                 m_off_t nFailedReqs,
                                                 const int streamingMinimumRateBps = 0,
                                                 const long long downloadLimitBps = -1,
@@ -8789,6 +8803,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
         DebugTestHook::countdownTo403 = cd403;
         DebugTestHook::countdownTo429 = cd429;
         DebugTestHook::countdownTo503 = cd503;
+        DebugTestHook::countdownTo200WithErrCode = cd200Err;
         std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
             StreamRaidFilePart(megaApi[0].get(),
                                0,
@@ -8817,6 +8832,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    -1 /*cd403*/,
                    -1 /*cd429*/,
                    -1 /*cd503*/,
+                   -1 /*cd200Err*/,
                    0 /*nFailedReqs*/,
                    0 /*streamingMinimumRateBps*/,
                    -1 /*downloadLimitBps*/,
@@ -8828,6 +8844,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    -1 /*cd403*/,
                    -1 /*cd429*/,
                    -1 /*cd503*/,
+                   -1 /*cd200Err*/,
                    0 /*nFailedReqs*/,
                    0 /*streamingMinimumRateBps*/,
                    -1 /*downloadLimitBps*/,
@@ -8839,6 +8856,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    2 /*cd403*/,
                    -1 /*cd429*/,
                    2 /*cd503*/,
+                   -1 /*cd200Err*/,
                    1 /*nFailedReqs*/,
                    0 /*streamingMinimumRateBps*/,
                    -1 /*downloadLimitBps*/,
@@ -8850,6 +8868,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    -1 /*cd403*/,
                    -1 /*cd429*/,
                    -1 /*cd503*/,
+                   -1 /*cd200Err*/,
                    0 /*nFailedReqs*/,
                    0 /*streamingMinimumRateBps*/,
                    -1 /*downloadLimitBps*/,
@@ -8861,6 +8880,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    -1 /*cd403*/,
                    2 /*cd429*/,
                    -1 /*cd503*/,
+                   -1 /*cd200Err*/,
                    0 /*nFailedReqs*/,
                    0 /*streamingMinimumRateBps*/,
                    -1 /*downloadLimitBps*/,
@@ -8873,9 +8893,23 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
                    2 /*cd403*/,
                    -1 /*cd429*/,
                    2 /*cd503*/,
+                   -1 /*cd200Err*/,
                    1 /*nFailedReqs*/,
                    30000 /*streamingMinimumRateBps*/,
                    300000 /*downloadLimitBps*/,
+                   180 /*timeout*/);
+
+    LOG_debug << "#### Test7: Streaming Download, forcing 1 Raided Part Failure (200 with "
+                 "ErrCode). No transfer "
+                 "retry ####";
+    startStreaming(-1 /*cd404*/,
+                   -1 /*cd403*/,
+                   -1 /*cd429*/,
+                   -1 /*cd503*/,
+                   2 /*cd200Err*/,
+                   0 /*nFailedReqs*/,
+                   0 /*streamingMinimumRateBps*/,
+                   -1 /*downloadLimitBps*/,
                    180 /*timeout*/);
 
     LOG_info
