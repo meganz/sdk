@@ -362,6 +362,7 @@ HttpReq::~HttpReq()
 void HttpReq::init()
 {
     httpstatus = 0;
+    mErrCode = 0;
     inpurge = 0;
     sslcheckfailed = false;
     bufpos = 0;

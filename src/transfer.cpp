@@ -2160,6 +2160,7 @@ void DirectReadSlot::resetConnSwitchesCounters(const std::chrono::steady_clock::
 {
     mNumConnSwitchesSlowestPart = 0;
     mNumConnSwitchesBelowSpeedThreshold = 0;
+    mNumConnSwitchesRecoverableError = 0;
     mNumConnDetectedBelowSpeedThreshold.clear();
     mConnectionSwitchesLimitLastReset = now;
 }
@@ -2473,8 +2474,22 @@ bool DirectReadSlot::doio()
             LOG_warn << "DirectReadSlot [conn " << connectionNum
                      << "] Request status is FAILURE [Request status = " << req->status.load()
                      << ", HTTP status = " << req->httpstatus << "]"
+                     << ", ErrCode = " << req->mErrCode << "]"
                      << " [this = " << this << "]";
-            onFailure(req, static_cast<size_t>(connectionNum));
+
+            if (const auto unusedConnReusable =
+                    unusedConnectionCanBeReused() &&
+                    !maxUnusedConnSwitchesReached(UnusedConn::ON_RECOVERABLE_RAIDED_ERROR);
+                unusedConnReusable && req->httpstatus == 200)
+            {
+                replaceConnectionByUnusedInflight(connectionNum,
+                                                  UnusedConn::ON_RECOVERABLE_RAIDED_ERROR,
+                                                  UnusedConn::UN_NOT_ERR);
+            }
+            else
+            {
+                onFailure(req, static_cast<size_t>(connectionNum));
+            }
             return true;
         }
 
@@ -2692,6 +2707,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 
     mNumConnDetectedBelowSpeedThreshold.clear();
     mNumConnSwitchesSlowestPart = 0;
+    mNumConnSwitchesRecoverableError = 0;
     mNumConnSwitchesBelowSpeedThreshold = 0;
     mNumReqsInflight = 0;
     mWaitForParts = false;

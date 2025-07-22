@@ -336,6 +336,7 @@ public:
         CONN_SPEED_SLOWEST_PART = 0,
         TRANSFER_OR_CONN_SPEED_UNDER_THRESHOLD = 1,
         ON_RAIDED_ERROR = 2,
+        ON_RECOVERABLE_RAIDED_ERROR = 3,
     };
 
     /**
@@ -498,6 +499,13 @@ public:
      * DirectReadSlot::onLowSpeedRaidedTransfer()
      */
     static constexpr unsigned MAX_CONN_SWITCHES_BELOW_SPEED_THRESHOLD = 1;
+
+    /**
+     *   @brief Max times a DirectReadSlot is allowed switch unused connection by another connection
+     * when a recoverable error is received (i.e HttpStatus 200 and CURLcode: 56)
+     *
+     */
+    static constexpr unsigned MAX_CONN_SWITCHES_RECOVERABLE_ERR = 3;
 
     /**
     *   @brief Requests are sent in batch, and no connection is allowed to request the next chunk until the other connections have finished fetching their current one.
@@ -940,6 +948,14 @@ private:
     unsigned mNumConnSwitchesBelowSpeedThreshold;
 
     /**
+     * @brief Current total of switches due to recoverable errors (i.e HttpStatus 200 and CURLcode:
+     * 56)
+     *
+     * @see DirectReadSlot::MAX_CONN_SWITCHES_RECOVERABLE_ERR
+     */
+    unsigned mNumConnSwitchesRecoverableError;
+
+    /**
      * @brief maps connection id (raided part id) to number of slow speed detections
      */
     std::map<size_t, unsigned> mNumConnDetectedBelowSpeedThreshold;
@@ -1035,6 +1051,8 @@ incremented after processing the unused connection.
      *  - if ON_RAIDED_ERROR we don't need to check any switch counter as any HTTP err
      * is considered as permanent, which means that unused connection cannot be reused anymore. See
      * unusedConnectionCanBeReused
+     *  - if ON_RECOVERABLE_RAIDED_ERROR comparison will be done against
+     * mNumConnSwitchesRecoverableError
      *
      * @return `true` if the maximum number of connection switches has been reached or
      * exceeded, `false` otherwise.
@@ -1051,6 +1069,9 @@ incremented after processing the unused connection.
                        DirectReadSlot::MAX_CONN_SWITCHES_BELOW_SPEED_THRESHOLD;
             case UnusedConn::ON_RAIDED_ERROR:
                 return false;
+            case UnusedConn::ON_RECOVERABLE_RAIDED_ERROR:
+                return mNumConnSwitchesRecoverableError >=
+                       DirectReadSlot::MAX_CONN_SWITCHES_RECOVERABLE_ERR;
         }
         return false;
     }
@@ -1058,9 +1079,10 @@ incremented after processing the unused connection.
     /**
      * @brief increases counter for unused connection switches given a replacement reason
      *
-     * @note: in case we need to replace unused conn by failed raided part, we don't need to
-     * increase any switch counter, as any HTTP err is considered as permanent, which
-     * means that unused connection cannot be reused anymore. See unusedConnectionCanBeReused
+     * @note: in case we need to replace unused conn by permanent failed raided part
+     * (UnusedConn::ON_RAIDED_ERROR), we don't need to increase any switch counter, as any HTTP err
+     * is considered as permanent, which means that unused connection cannot be reused anymore. See
+     * unusedConnectionCanBeReused
      */
     void increaseUnusedConnSwitches(const UnusedConn::ConnReplacementReason reason)
     {
@@ -1073,6 +1095,9 @@ incremented after processing the unused connection.
                 ++mNumConnSwitchesBelowSpeedThreshold;
                 return;
             case UnusedConn::ON_RAIDED_ERROR:
+                return;
+            case UnusedConn::ON_RECOVERABLE_RAIDED_ERROR:
+                ++mNumConnSwitchesRecoverableError;
                 return;
         }
     }
