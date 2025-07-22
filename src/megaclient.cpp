@@ -15281,21 +15281,21 @@ void MegaClient::handleDbError(DBError error)
             reason = "Writing in DB error";
             sendevent(99467, reason.c_str(), 0);
             fatalError(ErrorReason::REASON_ERROR_DB_IO);
-            break;
+            return;
         case DBError::DB_ERROR_CORRUPT:
             reason = "DB file is corrupt";
             sendevent(99497, reason.c_str(), 0);
             fatalError(ErrorReason::REASON_ERROR_DB_CORRUPT);
-            break;
+            return;
         case DBError::DB_ERROR_NOTFOUND:
             reason = "DB error. Unknown opcode";
             sendevent(800010, reason.c_str(), 0);
             break;
         case DBError::DB_ERROR_FULL:
-            reason = "DB error. Full database";
+            reason = "DB error. Database is full";
             sendevent(800011, reason.c_str(), 0);
             fatalError(ErrorReason::REASON_ERROR_DB_FULL);
-            break;
+            return;
         case DBError::DB_ERROR_CANTOPEN:
             reason = "DB error. Unable to open the database file";
             sendevent(800012, reason.c_str(), 0);
@@ -15352,11 +15352,14 @@ void MegaClient::handleDbError(DBError error)
             reason = "DB index overflow";
             sendevent(99471, reason.c_str(), 0);
             fatalError(ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW);
-            break;
+            return;
         default:
-            fatalError(ErrorReason::REASON_ERROR_UNKNOWN);
+            reason = "DB error: Unknown";
+            sendevent(800025, reason.c_str(), 0);
             break;
     }
+
+    fatalError(ErrorReason::REASON_ERROR_DB_UNKNOWN);
 }
 
 void MegaClient::fatalError(ErrorReason errorReason)
@@ -15401,6 +15404,12 @@ void MegaClient::fatalError(ErrorReason errorReason)
         case mega::ErrorReason::REASON_ERROR_DB_CORRUPT:
             reason = "DB file is corrupt";
             break;
+        case ErrorReason::REASON_ERROR_DB_UNKNOWN:
+            reason = "DB error: Unknown";
+            // map to generic unknown error, since apps don't need
+            // specific handling of the DB unknown errors
+            errorReason = REASON_ERROR_UNKNOWN;
+            break;
         case ErrorReason::REASON_ERROR_NO_JSCD:
             reason = "Failed to get JSON SYNC configuration data";
             sendevent(99488, reason.c_str(), 0);
@@ -15411,6 +15420,7 @@ void MegaClient::fatalError(ErrorReason errorReason)
             break;
         case ErrorReason::REASON_ERROR_UNKNOWN:
             reason = "Unknown fatal error";
+            sendevent(99496, reason.c_str(), 0);
             break;
         default:
             reason = "Unknown reason";
