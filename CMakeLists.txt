@@ -134,6 +134,10 @@ if(ENABLE_ISOLATED_GFX AND NOT USE_FREEIMAGE)
     message(FATAL_ERROR "USE_FREEIMAGE is required when ENABLE_ISOLATED_GFX is enabled.")
 endif()
 
+if(NOT ENABLE_MEDIA_FILE_METADATA AND USE_MEDIAINFO)
+    message(FATAL_ERROR "Use ENABLE_MEDIA_FILE_METADATA option instead of USE_MEDIAINFO")
+endif()
+
 message(STATUS "Building SDKlib v${PROJECT_VERSION}")
 
 include(GNUInstallDirs) # Values for installation directories. All platforms
