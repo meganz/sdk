@@ -20704,7 +20704,19 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node,
 
         if (s4AttributeValue)
         {
-            attrs.map[AttrMap::string2nameid("s4")] = s4AttributeValue.value().c_str();
+            const auto s4AttributeKey{AttrMap::string2nameid("s4")};
+            if (const auto it{node->attrs.map.find(s4AttributeKey)};
+                (it == node->attrs.map.end() && !s4AttributeValue->empty()) ||
+                (it != node->attrs.map.end() && it->second != s4AttributeValue.value()))
+            {
+                if (fileAlreadyExisted)
+                {
+                    LOG_debug << "The s4 attribute has changed, so the file is no longer the same";
+
+                    fileAlreadyExisted = false;
+                }
+                attrs.map[s4AttributeKey] = s4AttributeValue.value().c_str();
+            }
         }
 
         // We need to ensure we are not undoing the sensitive reset
