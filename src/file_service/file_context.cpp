@@ -239,13 +239,19 @@ void FileContext::cancel(const FileRange& range)
     };
 
     // Cancel the downloads in progress.
-    for (auto lock_ = std::move(lock); begin != end; ++begin)
+    for (auto lock_ = std::move(lock); begin != end;)
     {
+        // Necessary due to cancel() below.
+        auto current = begin++;
+
+        // Sanity.
+        assert(current->second);
+
         // So we know when the download has completed.
-        begin->second->queue(completed);
+        current->second->queue(completed);
 
         // Cancel the download.
-        begin->second->cancel();
+        current->second->cancel();
     }
 
     // Wait for the downloads to complete.
