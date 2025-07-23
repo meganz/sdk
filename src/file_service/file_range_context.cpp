@@ -22,6 +22,9 @@ using namespace common;
 
 constexpr std::uint64_t MinimumLength = 1u << 18;
 
+// Check if result is a retryable error.
+static bool retryable(const Error& result);
+
 template<typename Lock>
 void FileRangeContext::completed([[maybe_unused]] Lock&& lock, Error result)
 {
@@ -159,8 +162,8 @@ bool FileRangeContext::dispatchable(const FileReadRequest& request,
 
 auto FileRangeContext::failed(Error result, int retries) -> std::variant<Abort, Retry>
 {
-    // Abort if the failure wasn't due to a timeout.
-    if (result != API_EAGAIN)
+    // Failure isn't due to a retryable error.
+    if (!retryable(result))
         return Abort();
 
     // Convenience.
@@ -254,6 +257,11 @@ void FileRangeContext::queue(FileReadRequest request)
 
     // Dispatch the request.
     mManager.completed(std::move(buffer), std::move(request));
+}
+
+bool retryable(const Error& result)
+{
+    return result == API_EAGAIN || result != API_ETOOMANY || !result.hasExtraInfo();
 }
 
 } // file_service
