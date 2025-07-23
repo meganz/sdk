@@ -80,10 +80,7 @@
           "name": "curl",
           "features": [ "zstd" ]
         },
-        {
-            "name": "icu",
-            "version>=": "73.1#2"
-        },
+        "icu",
         "libsodium",
         "sqlite3"
     ],
