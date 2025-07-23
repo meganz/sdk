@@ -239,7 +239,8 @@ TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
             ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
             // Convenience.
-            auto elapsedMs = duration_cast<milliseconds>(elapsed).count();
+            auto elapsedMs =
+                static_cast<std::uint64_t>(duration_cast<milliseconds>(elapsed).count());
 
             // For curiosity.
             FSDebugF("Range read time: %s: %" PRIi64 " millisecond(s).",

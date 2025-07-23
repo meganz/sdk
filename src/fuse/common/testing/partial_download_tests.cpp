@@ -224,7 +224,7 @@ TEST_F(FUSEPartialDownloadTests, DISABLED_measure_average_fetch_times)
                       << " millisecond(s).";
 
             // Add our fetch time to this size's measurement.
-            measurement += elapsed.count();
+            measurement += static_cast<std::uint64_t>(elapsed.count());
         }
 
         // Compute this read size's average fetch time.
