@@ -5145,7 +5145,12 @@ public:
         error performRequest_passwordLink(MegaRequestPrivate* request);
         error performRequest_importLink_getPublicNode(MegaRequestPrivate* request);
         error performRequest_copy(MegaRequestPrivate* request);
-        error copyTreeFromOwnedNode(shared_ptr<Node> node, const char *newName, shared_ptr<Node> target, vector<NewNode>& treeCopy);
+        error copyTreeFromOwnedNode(
+            shared_ptr<Node> node,
+            const char* newName,
+            shared_ptr<Node> target,
+            vector<NewNode>& treeCopy,
+            const std::optional<std::string>& s4AttributeValue = std::nullopt);
         error performRequest_login(MegaRequestPrivate* request);
         error performRequest_tagNode(MegaRequestPrivate* request);
         void CRUDNodeTagOperation(MegaNode* node,
