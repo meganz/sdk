@@ -707,6 +707,33 @@ TEST_F(FileServiceTests, flush_cancel_on_file_destruction_succeeds)
     ASSERT_EQ(waiter.get(), FILE_CANCELLED);
 }
 
+TEST_F(FileServiceTests, flush_removed_file_fails)
+{
+    // Create a file we can safely remove.
+    auto handle = ClientW()->upload(randomBytes(512_KiB), randomName(), mRootHandle);
+
+    // Make sure we could create our file.
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Open the file.
+    auto file = ClientW()->fileOpen(*handle);
+
+    // Make sure we could open the file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Retrieve the file's data.
+    ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+    // Remove the file from the cloud.
+    ASSERT_EQ(ClientW()->remove(*handle), API_OK);
+
+    // Touch the file so that it has been modified.
+    ASSERT_EQ(execute(touch, *file, now() + 1), FILE_SUCCESS);
+
+    // You shouldn't be able to flush a file that has been removed.
+    ASSERT_EQ(execute(flush, *file), FILE_REMOVED);
+}
+
 TEST_F(FileServiceTests, flush_succeeds)
 {
     // Generate content for us to mutate.
