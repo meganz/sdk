@@ -997,6 +997,43 @@ TEST_F(FileServiceTests, read_extension_succeeds)
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 704_KiB)));
 }
 
+TEST_F(FileServiceTests, read_removed_file_succeeds)
+{
+    // Create a file for us to play with.
+    auto handle = ClientW()->upload(randomBytes(512_KiB), randomName(), mRootHandle);
+
+    // Make sure we could create our file.
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Open the file for reading.
+    auto file = ClientW()->fileOpen(*handle);
+
+    // Make sure we could open the file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Disable readahead.
+    ClientW()->fileServiceOptions(DisableReadahead);
+
+    // Read some data from the file.
+    auto data0 = execute(read, *file, 0, 256_KiB);
+
+    // Make sure the read succeeded.
+    ASSERT_EQ(data0.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Remove the file from the cloud.
+    ASSERT_EQ(ClientW()->remove(*handle), API_OK);
+
+    // Make sure we can read data we've already retrieved.
+    auto data1 = execute(read, *file, 0, 256_KiB);
+
+    ASSERT_EQ(data1.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_FALSE(data0->compare(*data1));
+
+    // Reading new data should fail.
+    data1 = execute(read, *file, 256_KiB, 256_KiB);
+    ASSERT_EQ(data1.errorOr(FILE_SUCCESS), FILE_REMOVED);
+}
+
 TEST_F(FileServiceTests, read_size_extension_succeeds)
 {
     // Minimum read size is 64KiB, everything else are defaults.

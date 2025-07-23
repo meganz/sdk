@@ -216,7 +216,7 @@ auto FileRangeContext::download(Client& client, FileAccess& file, NodeHandle han
     auto length = mIterator->first.mEnd - offset;
 
     // Create a buffer for this range's data.
-    auto buffer = Buffer::create(file, offset, length);
+    mBuffer = Buffer::create(file, offset, length);
 
     // Try and create a partial download.
     auto download = client.partialDownload(*this, handle, offset, length);
@@ -225,8 +225,7 @@ auto FileRangeContext::download(Client& client, FileAccess& file, NodeHandle han
     if (!download)
         return completed(download.error()), nullptr;
 
-    // Grab buffer and download.
-    mBuffer = std::move(buffer);
+    // Grab download.
     mDownload = std::move(*download);
 
     // Return the download to our caller.

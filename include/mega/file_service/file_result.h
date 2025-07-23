@@ -14,6 +14,7 @@ namespace file_service
     expander(INVALID_ARGUMENTS, "The file operation was passed invalid arguments") \
     expander(CANCELLED, "The file operation has been cancelled") \
     expander(FAILED, "The file operation has failed") \
+    expander(REMOVED, "The operation failed because the file has been removed") \
     expander(SUCCESS, "The file operation has succeeded")
 
 enum FileResult : unsigned int

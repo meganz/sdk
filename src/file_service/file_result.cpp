@@ -14,6 +14,8 @@ FileResult fileResultFromError(Error result)
     {
         case API_EINCOMPLETE:
             return FILE_CANCELLED;
+        case API_ENOENT:
+            return FILE_REMOVED;
         case API_OK:
             return FILE_SUCCESS;
         default:
