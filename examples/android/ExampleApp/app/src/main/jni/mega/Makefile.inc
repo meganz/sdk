@@ -287,6 +287,10 @@ HEADERS += \
     sdk/include/mega/file_service/file_context_badge_forward.h \
     sdk/include/mega/file_service/file_context_forward.h \
     sdk/include/mega/file_service/file_context_pointer.h \
+    sdk/include/mega/file_service/file_event.h \
+    sdk/include/mega/file_service/file_event_forward.h \
+    sdk/include/mega/file_service/file_event_observer.h \
+    sdk/include/mega/file_service/file_event_observer_id.h \
     sdk/include/mega/file_service/file_forward.h \
     sdk/include/mega/file_service/file_id.h \
     sdk/include/mega/file_service/file_id_forward.h \
@@ -303,16 +307,20 @@ HEADERS += \
     sdk/include/mega/file_service/file_result_or.h \
     sdk/include/mega/file_service/file_result_or_forward.h \
     sdk/include/mega/file_service/file_service.h \
+    sdk/include/mega/file_service/file_service_callbacks.h \
     sdk/include/mega/file_service/file_service_context_badge.h \
     sdk/include/mega/file_service/file_service_context_badge_forward.h \
     sdk/include/mega/file_service/file_service_context_forward.h \
     sdk/include/mega/file_service/file_service_context_pointer.h \
     sdk/include/mega/file_service/file_service_forward.h \
+    sdk/include/mega/file_service/file_service_options.h \
+    sdk/include/mega/file_service/file_service_options_forward.h \
     sdk/include/mega/file_service/file_service_result.h \
     sdk/include/mega/file_service/file_service_result_forward.h \
     sdk/include/mega/file_service/file_service_result_or.h \
     sdk/include/mega/file_service/file_service_result_or_forward.h \
     sdk/include/mega/file_service/file_write_result.h \
+    sdk/include/mega/file_service/scoped_file_event_observer.h \
     sdk/include/mega/file_service/sink.h \
     sdk/include/mega/file_service/sink_forward.h \
     sdk/include/mega/file_service/source.h \
@@ -341,7 +349,8 @@ CPP_SOURCES += \
     sdk/src/file_service/file_service_result.cpp \
     sdk/src/file_service/file_storage.cpp \
     sdk/src/file_service/logger.cpp \
-    sdk/src/file_service/memory_buffer.cpp
+    sdk/src/file_service/memory_buffer.cpp \
+    sdk/src/file_service/sparse_file_buffer.cpp
 
 # FUSE (Common headers.)
 HEADERS += \
