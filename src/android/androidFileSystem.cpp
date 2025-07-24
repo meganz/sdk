@@ -8,6 +8,7 @@ jclass applicationClass = nullptr;
 jmethodID deviceListMID = nullptr;
 jclass fileWrapper = nullptr;
 jclass integerClass = nullptr;
+jclass arrayListClass = nullptr;
 jobject surfaceTextureHelper = nullptr;
 
 namespace mega
@@ -15,7 +16,7 @@ namespace mega
 
 AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
 
-LRUCache<std::string, AndroidFileWrapper::URIData> AndroidFileWrapper::URIDataCache(300);
+LRUCache<std::string, AndroidFileWrapper::URIData> AndroidFileWrapper::URIDataCache(30000);
 std::mutex AndroidFileWrapper::URIDataCacheLock;
 
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
@@ -269,31 +270,67 @@ std::shared_ptr<AndroidFileWrapper>
     return child;
 }
 
-std::shared_ptr<AndroidFileWrapper>
-    AndroidFileWrapper::returnOrCreateByPath(const std::vector<std::string>& subPaths,
-                                             bool lastIsFolder)
+jobject AndroidFileWrapper::vectorToJavaList(JNIEnv* env, const std::vector<std::string>& vec)
 {
-    const auto moveParentForward =
-        [this, lastIsFolder, nElements = subPaths.size(), nVisited = 0u](
-            std::shared_ptr<AndroidFileWrapper> parent,
-            const std::string& childName) mutable -> std::shared_ptr<AndroidFileWrapper>
-    {
-        ++nVisited;
-        std::shared_ptr<AndroidFileWrapper> child =
-            parent ? parent->getChildByName(childName) : getChildByName(childName);
-        if (!child)
-        {
-            const bool isFolder = nVisited != nElements || lastIsFolder;
-            child = parent ? parent->createChild(childName, isFolder) :
-                             createChild(childName, isFolder);
-        }
-        return child;
-    };
+    jmethodID init = env->GetMethodID(arrayListClass, "<init>", "()V");
+    jmethodID add = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
 
-    return std::accumulate(begin(subPaths),
-                           end(subPaths),
-                           std::shared_ptr<AndroidFileWrapper>{},
-                           moveParentForward);
+    jobject list = env->NewObject(arrayListClass, init);
+
+    for (const std::string& str: vec)
+    {
+        jstring jstr = env->NewStringUTF(str.c_str());
+        env->CallBooleanMethod(list, add, jstr);
+        env->DeleteLocalRef(jstr);
+    }
+
+    return list;
+}
+
+std::shared_ptr<AndroidFileWrapper>
+    AndroidFileWrapper::createOrReturnNestedPath(const std::vector<std::string>& subPaths,
+                                                 bool create,
+                                                 bool isFolder)
+{
+    if (!exists())
+    {
+        return nullptr;
+    }
+
+    JNIEnv* env{nullptr};
+    MEGAjvm->AttachCurrentThread(&env, NULL);
+    jmethodID methodID =
+        env->GetMethodID(fileWrapper,
+                         CREATE_NESTED_PATH,
+                         "(Ljava/util/List;ZZ)Lmega/privacy/android/data/filewrapper/FileWrapper;");
+
+    if (methodID == nullptr)
+    {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        LOG_err << "Error: AndroidFileWrapper::createChild";
+        return nullptr;
+    }
+
+    jobject list = vectorToJavaList(env, subPaths);
+
+    jobject temporalObject{
+        env->CallObjectMethod(mJavaObject->mObj, methodID, list, create, isFolder)};
+    env->DeleteLocalRef(list);
+    jobject globalObject{nullptr};
+    if (temporalObject != nullptr)
+    {
+        globalObject = env->NewGlobalRef(temporalObject);
+        env->DeleteLocalRef(temporalObject);
+    }
+
+    if (!globalObject)
+    {
+        return nullptr;
+    }
+
+    return std::shared_ptr<AndroidFileWrapper>(
+        new AndroidFileWrapper(std::make_shared<JavaObject>(globalObject)));
 }
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::string& childName,
@@ -547,6 +584,7 @@ std::shared_ptr<AndroidFileWrapper>
 {
     if (localPath.isURI())
     {
+        auto start = std::chrono::high_resolution_clock::now();
         std::vector<std::string> children;
         LocalPath auxPath{localPath};
         while (!auxPath.isRootPath()) // for URIs, this method returns true just if PathURI doesn't
@@ -555,30 +593,34 @@ std::shared_ptr<AndroidFileWrapper>
             children.insert(children.begin(), auxPath.leafOrParentName());
             auxPath = auxPath.parentPath();
         }
+        auto end = std::chrono::high_resolution_clock::now();
+        LOG_debug << "DEBUG getAndroidFileWrapper - Elapsed time split LocalPath: "
+                  << std::chrono::duration<double, std::milli>(end - start).count()
+                  << " ms  - Path: " << localPath.toPath(false);
 
+        start = std::chrono::high_resolution_clock::now();
         std::shared_ptr<AndroidFileWrapper> uriFileWrapper =
             AndroidFileWrapper::getAndroidFileWrapper(auxPath.toPath(false));
+        end = std::chrono::high_resolution_clock::now();
+        LOG_debug << "DEBUG getAndroidFileWrapper - Elapsed time getAndroidFileWrapper ancestor : "
+                  << std::chrono::duration<double, std::milli>(end - start).count();
 
         if (!uriFileWrapper->exists())
         {
             return nullptr;
         }
 
-        if (children.size())
+        if (children.empty())
         {
-            if (auto auxFileWrapper = uriFileWrapper->pathExists(children);
-                auxFileWrapper || !create)
-            {
-                return auxFileWrapper;
-            }
+            return uriFileWrapper;
+        }
 
-            uriFileWrapper = uriFileWrapper->returnOrCreateByPath(children, lastIsFolder);
-            return uriFileWrapper;
-        }
-        else
-        {
-            return uriFileWrapper;
-        }
+        start = std::chrono::high_resolution_clock::now();
+        auto aux = uriFileWrapper->createOrReturnNestedPath(children, create, lastIsFolder);
+        end = std::chrono::high_resolution_clock::now();
+        LOG_debug << "DEBUG getAndroidFileWrapper - Elapsed createOrReturnNestedPath : "
+                  << std::chrono::duration<double, std::milli>(end - start).count();
+        return aux;
     }
     else
     {
@@ -1169,7 +1211,7 @@ bool AndroidFileSystemAccess::copylocal(const LocalPath& oldname,
             return false;
         }
 
-        // Note: at Android is not possible set mtime
+        setmtimelocal(newname, time);
         return true;
     }
 

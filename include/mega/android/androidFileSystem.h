@@ -15,6 +15,7 @@
 
 extern jclass fileWrapper;
 extern jclass integerClass;
+extern jclass arrayListClass;
 extern JavaVM* MEGAjvm;
 
 namespace mega
@@ -46,10 +47,12 @@ public:
     std::vector<std::shared_ptr<AndroidFileWrapper>> getChildren();
     // Check if tree exists
     std::shared_ptr<AndroidFileWrapper> pathExists(const std::vector<std::string>& subPaths);
-    // Returns last level file wrapper
-    // if some level doesn't exist, it is created
+
     std::shared_ptr<AndroidFileWrapper>
-        returnOrCreateByPath(const std::vector<std::string>& subPaths, bool lastIsFolder);
+        createOrReturnNestedPath(const std::vector<std::string>& subPaths,
+                                 bool create,
+                                 bool isFolder);
+
     // Create child (only first level)
     std::shared_ptr<AndroidFileWrapper> createChild(const std::string& childName, bool isFolder);
     // Returns child by name (only first level)
@@ -112,6 +115,8 @@ private:
     AndroidFileWrapper(std::shared_ptr<JavaObject>);
     std::shared_ptr<JavaObject> mJavaObject;
 
+    jobject vectorToJavaList(JNIEnv* env, const std::vector<std::string>& vec);
+
     std::string mURI;
     static constexpr char GET_ANDROID_FILE[] = "getFromUri";
     static constexpr char GET_FILE_DESCRIPTOR[] = "getFileDescriptor";
@@ -127,6 +132,7 @@ private:
     static constexpr char DELETE_FILE[] = "deleteFile";
     static constexpr char DELETE_EMPTY_FOLDER[] = "deleteFolderIfEmpty";
     static constexpr char RENAME[] = "rename";
+    static constexpr char CREATE_NESTED_PATH[] = "createNestedPath";
 
     void setUriData(const URIData& uriData);
     std::optional<URIData> getURIData(const std::string& uri) const;
