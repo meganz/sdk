@@ -985,6 +985,7 @@ bool FileContext::execute(FileReadRequest& request)
     return true;
 }
 
+// When this request is executed, any pending downloads will have completed.
 bool FileContext::execute(FileReclaimRequest& request)
 {
     // Can't reclaim if there's another request in progress.
