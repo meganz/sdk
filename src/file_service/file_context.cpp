@@ -1401,7 +1401,7 @@ void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
 auto FileContext::shrink(std::uint64_t newSize, std::uint64_t oldSize)
     -> std::pair<UniqueLock<Database>, Transaction>
 {
-    // Cancel in progress reads that would be "cut off."
+    // Cancel any downloads in progress that would be "cut off."
     cancel(FileRange(oldSize, newSize));
 
     // So we have exclusive access to mRanges.
