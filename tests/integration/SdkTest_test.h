@@ -651,6 +651,15 @@ public:
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
+    bool mCleanupSuccess{true};
+
+    void updateCleanupStatus(const bool stageSucceeded)
+    {
+        if (!mCleanupSuccess || stageSucceeded)
+            return;
+
+        mCleanupSuccess = stageSucceeded;
+    }
 
     struct SdkTestTransferStats
     {
@@ -687,8 +696,13 @@ protected:
     void testCloudRaidTransferResume(const bool fromNonRaid, const std::string& logPre);
     void testResumableTrasfers(const std::string& data, const size_t timeoutInSecs);
 
+    void printCleanupErrMsg(const string& prefix,
+                            const string& errDetails,
+                            const unsigned accountIdx,
+                            const int errCode,
+                            const bool localCleanupSuccess) const;
 #ifdef ENABLE_CHAT
-    void cancelSchedMeetings();
+    void cleanupSchedMeetingsAllAccounts();
 #endif
 
     void syncTestEnsureMyBackupsRemoteFolderExists(unsigned apiIdx);
@@ -724,10 +738,13 @@ protected:
     void onSyncRemoteRootChanged(MegaApi*, MegaSync*) override {}
 
     void onGlobalSyncStateChanged(MegaApi*) override {}
+
+    void cleanupSyncsAllAccounts();
     void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 #endif
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
+    void cleanupChatLinksAllAccounts();
 #endif
     void onEvent(MegaApi* api, MegaEvent *event) override;
 
@@ -744,6 +761,12 @@ public:
     void resumeSession(const char *session, unsigned apiIndex = 0);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
+    void cleanupContactsAllAccounts(set<string>& alreadyRemoved);
+    void cleanupSharesAllAccounts(set<string>& alreadyRemoved);
+    void cleanupNodeLinksAllAccounts();
+    void cleanupNodesAllAccounts();
+    void cleanupContactRequestsAllAccounts();
+    void cleanupLocalFiles();
 
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
@@ -1176,9 +1199,10 @@ public:
     void deleteFile(string filename);
     void deleteFolder(string foldername);
 
-    void fetchNodesForAccounts(const unsigned howMany);
-    void getAccountsForTest(unsigned howMany = 1,
-                            bool fetchNodes = true,
+    // peform fetchnodes for all test involved accounts sequentially to avoid API locks
+    void fetchNodesForAccountsSequentially(const unsigned howMany);
+    void getAccountsForTest(const unsigned howMany = 1,
+                            const bool fetchNodes = true,
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void configureTestInstance(unsigned index,
                                const std::string& email,
