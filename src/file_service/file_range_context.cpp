@@ -260,7 +260,16 @@ void FileRangeContext::queue(FileReadRequest request)
 
 bool retryable(const Error& result)
 {
-    return result == API_EAGAIN || result != API_ETOOMANY || !result.hasExtraInfo();
+    // Client's being torn down or the download has been cancelled.
+    if (result == API_EINCOMPLETE)
+        return false;
+
+    // File's been taken down because it breached our terms and conditions.
+    if (result == API_ETOOMANY && result.hasExtraInfo())
+        return false;
+
+    // Retry all other failures.
+    return true;
 }
 
 } // file_service
