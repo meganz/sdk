@@ -27,13 +27,13 @@ struct FileServiceOptions
     common::deciseconds mRangeRetryBackoff{20};
 
     // How long shouldn't we access a file before we can reclaim it?
-    std::chrono::hours mReclaimAgeThreshold{72};
+    std::chrono::hours mReclaimAgeThreshold{3 * 24};
 
     // How long after startup should we wait until we reclaim space?
-    std::chrono::seconds mReclaimDelay{1800};
+    std::chrono::seconds mReclaimDelay{30 * 60};
 
     // How often should we try to reclaim space?
-    std::chrono::seconds mReclaimPeriod{7200};
+    std::chrono::seconds mReclaimPeriod{2 * 60 * 60};
 
     // How many bytes can the service store before it needs to reclaim space?
     std::uint64_t mReclaimSizeThreshold{0};
