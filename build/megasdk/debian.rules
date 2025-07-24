@@ -19,8 +19,17 @@ build-stamp:
 		tar xzf /opt/vcpkg.tar.gz;              \
 		mkdir -p $(VCPKG_DEFAULT_BINARY_CACHE); \
 	fi
+	
+    if [ -f /opt/cmake.tar.gz ]; then                           \
+        HASH=$$(md5sum /opt/cmake.tar.gz | awk '{print $$1}');     \
+        if [ "$$HASH" = "ebc26503469f12bf1e956c564fcfa82a" ] || [ "$$HASH" = "2051e3ce803f2ccb09260018a846625e" ]; then   \
+            echo "Valid cmake.tar.gz (hash: $$HASH)";           \
+        else                                                    \
+            echo "Invalid cmake.tar.gz hash: $$HASH" >&2;       \
+            exit 1;                                             \
+        fi;                                                     \
+    fi
 
-	if [ -f /opt/cmake.tar.gz ]; then echo "ebc26503469f12bf1e956c564fcfa82a  /opt/cmake.tar.gz" | md5sum -c -; fi
 	if [ -f /opt/cmake.tar.gz ]; then     \
 		tar xzf /opt/cmake.tar.gz;        \
 		ln -s cmake-*-linux* cmake_inst;  \
