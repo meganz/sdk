@@ -48,10 +48,9 @@ public:
     // Check if tree exists
     std::shared_ptr<AndroidFileWrapper> pathExists(const std::vector<std::string>& subPaths);
 
-    std::shared_ptr<AndroidFileWrapper>
-        createOrReturnNestedPath(const std::vector<std::string>& subPaths,
-                                 bool create,
-                                 bool isFolder);
+    std::string createOrReturnNestedPath(const std::vector<std::string>& subPaths,
+                                         bool create,
+                                         bool isFolder);
 
     // Create child (only first level)
     std::shared_ptr<AndroidFileWrapper> createChild(const std::string& childName, bool isFolder);
@@ -137,6 +136,7 @@ private:
     void setUriData(const URIData& uriData);
     std::optional<URIData> getURIData(const std::string& uri) const;
     static LRUCache<std::string, URIData> URIDataCache;
+    static LRUCache<std::string, std::string> localPathURICAche;
     static std::mutex URIDataCacheLock;
 };
 
