@@ -3,7 +3,7 @@ def build_for_arch(String architecture) {
     def BUILD_DIR = "${WORKSPACE}\\build_dir_${architecture}"
     def QTPATH = "C:\\Qt\\Qt5.15.13\\5.15.13"
     def VCPKGPATH  = "${WORKSPACE}\\..\\..\\vcpkg"
-    def CMAKE_FLAGS = "-DVCPKG_ROOT='${VCPKGPATH}' -DSWIG_EXECUTABLE='C:\\swigwin-4.0.2\\swig.exe' -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DENABLE_JAVA_BINDINGS=ON -DUSE_LIBUV=ON -S '${WORKSPACE}' -B '${BUILD_DIR}'"
+    def CMAKE_FLAGS = "-DVCPKG_ROOT='${VCPKGPATH}' -DSWIG_EXECUTABLE='C:\\swigwin-4.0.2\\swig.exe' -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DENABLE_JAVA_BINDINGS=ON -DUSE_LIBUV=ON -DENABLE_MEDIA_FILE_METADATA=ON -S '${WORKSPACE}' -B '${BUILD_DIR}'"
     def CMAKE_PLATFORM = "-DCMAKE_GENERATOR_PLATFORM=${architecture}"
 
     // x64 and Win32 have QT bindings. arm64 does not.

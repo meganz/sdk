@@ -72,7 +72,7 @@ macro(process_vcpkg_libraries overlays_path)
         list(APPEND VCPKG_MANIFEST_FEATURES "use-openssl")
     endif()
 
-    if (USE_MEDIAINFO)
+    if (ENABLE_MEDIA_FILE_METADATA)
         list(APPEND VCPKG_MANIFEST_FEATURES "use-mediainfo")
     endif()
 

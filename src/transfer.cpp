@@ -602,7 +602,8 @@ static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
 }
 #endif
 
-void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath& localpath)
+void Transfer::addAnyMissingMediaFileAttributes(Node* node,
+                                                [[maybe_unused]] /*const*/ LocalPath& localpath)
 {
     assert(type == PUT || (node && node->type == FILENODE));
 

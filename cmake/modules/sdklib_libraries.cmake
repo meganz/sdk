@@ -42,13 +42,14 @@ macro(load_sdklib_libraries)
             endif()
         endif()
 
-        if(USE_MEDIAINFO)
+        if(ENABLE_MEDIA_FILE_METADATA)
             # MediaInfo is not setting libzen dependency correctly. Preload it.
             find_package(ZenLib CONFIG REQUIRED)
             target_link_libraries(SDKlib PRIVATE zen)
 
             find_package(MediaInfoLib REQUIRED)
             target_link_libraries(SDKlib PRIVATE mediainfo)
+            set(USE_MEDIAINFO 1)
         endif()
 
         if(USE_FREEIMAGE)
@@ -117,9 +118,10 @@ macro(load_sdklib_libraries)
             target_link_libraries(SDKlib PRIVATE OpenSSL::SSL OpenSSL::Crypto)
         endif()
 
-        if(USE_MEDIAINFO)
+        if(ENABLE_MEDIA_FILE_METADATA)
             pkg_check_modules(mediainfo REQUIRED IMPORTED_TARGET libmediainfo)
             target_link_libraries(SDKlib PRIVATE PkgConfig::mediainfo)
+            set(USE_MEDIAINFO 1)
         endif()
 
         if(USE_FREEIMAGE)

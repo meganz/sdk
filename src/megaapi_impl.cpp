@@ -1242,7 +1242,7 @@ MegaBackgroundMediaUploadPrivate::~MegaBackgroundMediaUploadPrivate()
 {
 }
 
-bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepath)
+bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo([[maybe_unused]] const char* inputFilepath)
 {
 #ifdef USE_MEDIAINFO
     if (!api->client->mediaFileInfo.mediaCodecsReceived)
