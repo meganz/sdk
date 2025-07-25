@@ -6477,10 +6477,18 @@ class MegaTransfer
         };
 
         enum
-        {                                               // Indicates how to save same files
-            COLLISION_RESOLUTION_OVERWRITE          = 1, // Overwrite the existing one
-            COLLISION_RESOLUTION_NEW_WITH_N         = 2, // Rename the new one with suffix (1), (2), and etc.
-            COLLISION_RESOLUTION_EXISTING_TO_OLDN   = 3, // Rename the existing one with suffix .old1, old2, and etc.
+        {
+            // Defines how to handle name collisions when saving files.
+            // For folders, the default behavior is to merge (i.e., do nothing)
+            // unless the filesystem is case-insensitive and the collision is caused
+            // by the same name with different capitalization.
+            // In that case, we apply the selected collision resolution strategy.
+            // Note: Overwrite always applies merge behavior for folders.
+            COLLISION_RESOLUTION_OVERWRITE = 1, // Overwrite the existing one for files
+            COLLISION_RESOLUTION_NEW_WITH_N =
+                2, // Rename the new one with suffix (1), (2), and etc.
+            COLLISION_RESOLUTION_EXISTING_TO_OLDN =
+                3, // Rename the existing one with suffix .old1, old2, and etc.
         };
 
         virtual ~MegaTransfer();
