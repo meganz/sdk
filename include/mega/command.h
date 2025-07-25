@@ -2351,6 +2351,21 @@ private:
     CompletionCallback mCompletion;
 };
 
+class MEGA_API CommandStreamActionPackets : public Command
+{
+public:
+    CommandStreamActionPackets(MegaClient* client);
+    bool procresult(Result, JSON&) override;
+
+private:
+    bool processBufferedActionPackets(MegaClient* client);
+    bool processActionPacketIncremental(JSON* json, MegaClient* client);
+
+private:
+    std::vector<std::string> mBufferedActionPackets;
+    bool mFirstChunkProcessed = false;
+};
+
 } // namespace
 
 #endif

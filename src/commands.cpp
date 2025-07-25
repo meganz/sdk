@@ -13059,4 +13059,232 @@ bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JS
     return true;
 }
 
+CommandStreamActionPackets::CommandStreamActionPackets(MegaClient* client)
+{
+    assert(client);
+
+    cmd("sc");
+    arg("sn", client->scsn.text());
+
+    // Parsing of chunk started
+    mFilters.emplace("<", [this, client](JSON*)
+    {
+        if (!mFirstChunkProcessed)
+        {
+            client->syncs.syncRun([]{}, "sc streaming ready");
+            mFirstChunkProcessed = true;
+        }
+        return true;
+    });
+
+    // Parsing of actionpacket started
+    mFilters.emplace("{[a{", [this](JSON* json)
+    {
+        string actionPacketStr;
+        if (!json->storeobject(&actionPacketStr))
+        {
+            return false;
+        }
+
+        mBufferedActionPackets.push_back(actionPacketStr);
+        return json->leaveobject();
+    });
+
+    // Parsing of actionpacket finished
+    mFilters.emplace("{[a", [this, client](JSON* json)
+    {
+        if (!processBufferedActionPackets(client))
+        {
+            return false;
+        }
+
+        json->enterarray();
+        return json->leavearray();
+    });
+
+    mFilters.emplace("{[a{[t{", [this, client](JSON* json)
+    {
+        return processActionPacketIncremental(json, client);
+    });
+
+    // Parsing finished
+    mFilters.emplace("{", [client](JSON*)
+    {
+        client->actionpacketsCurrent = true;
+        client->statecurrent = true;
+        return true;
+    });
+
+    // Numeric error, either a number or an error object {"err":XXX}
+    mFilters.emplace("#", [this](JSON* json)
+    {
+        Error e;
+        checkError(e, *json);
+        return true;
+    });
+
+    // Parsing error
+    mFilters.emplace("E", [](JSON*)
+    {
+        LOG_err << "Error in sc streaming parsing";
+        return true;
+    });
+}
+
+bool CommandStreamActionPackets::procresult(Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        error e = r.errorOrOK();
+        LOG_debug << "CommandStreamActionPackets error: " << e;
+
+        mFirstChunkProcessed = false;
+        mBufferedActionPackets.clear();
+
+        client->actionpacketsCurrent = false;
+        client->statecurrent = false;
+
+        return true;
+    }
+
+    for (;;)
+    {
+        switch (json.getnameid())
+        {
+            case makeNameid("a"):
+                if (!json.enterarray())
+                {
+                    LOG_err << "Failed to enter action packets array";
+                    return false;
+                }
+
+                if (!processBufferedActionPackets(client))
+                {
+                    LOG_err << "Failed to process final buffered action packets";
+                    return false;
+                }
+
+                if (!json.leavearray())
+                {
+                    LOG_err << "Failed to leave action packets array";
+                    return false;
+                }
+                break;
+            case makeNameid("sn"):
+                if (!client->scsn.setScsn(&json))
+                {
+                    LOG_err << "Failed to process SN of action packets";
+                    return false;
+                }
+                break;
+            case EOO:
+                LOG_debug << "Action packets streaming completed successfully";
+                if (!mBufferedActionPackets.empty())
+                {
+                    if (!processBufferedActionPackets(client))
+                    {
+                        LOG_err << "Failed to process final buffered action packets";
+                        return false;
+                    }
+                }
+
+                client->actionpacketsCurrent = true;
+                client->statecurrent = true;
+                client->syncs.syncRun([]{}, "action packets streaming completed");
+                return true;
+            default:
+                if (!json.storeobject())
+                {
+                    LOG_err << "Failed to parse unknown field in action packets";
+                    return false;
+                }
+                break;
+        }
+    }
+}
+
+bool CommandStreamActionPackets::processBufferedActionPackets(MegaClient* client)
+{
+    for (const auto& actionPacketStr : mBufferedActionPackets)
+    {
+        auto savedJsonscPos = client->jsonsc.pos;
+        client->jsonsc.begin(actionPacketStr.c_str());
+
+        if (client->jsonsc.enterobject())
+        {
+            if (!client->sc_checkActionPacket(nullptr))
+            {
+                LOG_err << "Failed sequence tag check for actionpacket";
+                client->jsonsc.pos = savedJsonscPos;
+                return false;
+            }
+
+            client->jsonsc.begin(actionPacketStr.c_str());
+            if (client->jsonsc.enterobject())
+            {
+                if (client->jsonsc.getnameid() == makeNameid("a"))
+                {
+                    nameid actionType = client->jsonsc.getnameidvalue();
+                    switch (actionType)
+                    {
+                        case name_id::u:
+                            client->sc_updatenode();
+                            break;
+                        case makeNameid("t"):
+                        {
+                            bool isMoveOperation = false;
+                            client->sc_newnodes(nullptr, isMoveOperation);
+                            break;
+                        }
+                        case name_id::d:
+                            client->sc_deltree();
+                            break;
+                        default:
+                            LOG_debug << "Unhandled action type in streaming: " << actionType;
+                            break;
+                    }
+                }
+
+                client->jsonsc.leaveobject();
+            }
+        }
+
+        client->jsonsc.pos = savedJsonscPos;
+    }
+
+    mBufferedActionPackets.clear();
+    return true;
+}
+
+bool CommandStreamActionPackets::processActionPacketIncremental(JSON* json, MegaClient* client)
+{
+    if (!json->enterarray())
+    {
+        return false;
+    }
+
+    while (json->enterobject())
+    {
+        NodeManager::MissingParentNodes missingParentNodes;
+        handle previousHandleForAlert = UNDEF;
+
+        int result = client->readnode(json, 1, PUTNODES_APP, nullptr, false, true,
+                                    missingParentNodes, previousHandleForAlert,
+                                    nullptr, nullptr, nullptr);
+
+        if (result != 1)
+        {
+            LOG_err << "Failed to read node in actionpacket streaming";
+            return false;
+        }
+
+        if (!json->leaveobject())
+        {
+            return false;
+        }
+    }
+
+    return json->leavearray();
+}
+
 } // namespace
