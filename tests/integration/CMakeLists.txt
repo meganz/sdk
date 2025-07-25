@@ -40,6 +40,7 @@ target_sources(test_integration
     SdkTestDeviceCenter_test.cpp
     SdkTestSyncLocalOperations_test.cpp
     SdkTestSyncNodeAttribute_test.cpp
+    SdkTestCaseInsensitiveCollision_test.cpp
     backup_sync_operations_test.cpp
 
     passwordManager/SdkTestPasswordManager.cpp

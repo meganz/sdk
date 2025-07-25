@@ -278,9 +278,14 @@ std::optional<int> downloadNode(MegaApi* megaApi,
                 err = error ? error->getErrorCode() : API_EINTERNAL;
                 mtl.markAsFinished();
             });
+    std::string downLoadPath{fsPath.u8string()};
+    if (std::filesystem::is_directory(fsPath))
+    {
+        downLoadPath.push_back(std::filesystem::path::preferred_separator);
+    }
 
     megaApi->startDownload(node,
-                           fsPath.u8string().c_str(),
+                           downLoadPath.c_str(),
                            customName,
                            appData,
                            startFirst,

@@ -1709,6 +1709,14 @@ inline bool isAllDigits(const std::string_view s)
 
 storagestatus_t getStorageStatusFromString(const std::string& storageStateStr);
 
+/**
+ * @brief Returns if path is in file system case insensitive
+ *
+ * It needs some contain in path to check if it can be opened in upper case and lower case.
+ * If it can't be checked, it returns std::nullopt
+ */
+std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* fsaccess);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H
