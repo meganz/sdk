@@ -5519,6 +5519,10 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_cleanVault, text("cleanvault"));
 
+    p->Add(exec_streamactionpackets,
+           sequence(text("streamactionpackets"),
+                    opt(either(text("start"), text("stop"), text("status")))));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -14247,4 +14251,46 @@ void exec_cleanVault(autocomplete::ACState&)
 
     getUserAttributeAndCleanVault(ATTR_PWM_BASE);
     getUserAttributeAndCleanVault(ATTR_MY_BACKUPS_FOLDER);
+}
+
+void exec_streamactionpackets(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        cout << "Usage: streamactionpackets [start|stop|status]" << endl;
+        return;
+    }
+
+    string action = s.words[1].s;
+
+    if (action == "start")
+    {
+        if (!client->loggedin())
+        {
+            cout << "Error: Must be logged in to start streaming action packets" << endl;
+            return;
+        }
+
+        cout << "Starting streaming action packets..." << endl;
+        client->reqs.add(new CommandStreamActionPackets(client));
+        cout << "Streaming action packets started. Use 'streamactionpackets status' to check progress." << endl;
+    }
+    else if (action == "stop")
+    {
+        cout << "Note: Streaming will stop automatically when current batch completes." << endl;
+        cout << "To force stop, use 'recon' command to reconnect." << endl;
+    }
+    else if (action == "status")
+    {
+        cout << "Streaming action packets status information:" << endl;
+        cout << "  Logged in: " << (client->loggedin() ? "Yes" : "No") << endl;
+        cout << "  Commands in flight: " << client->reqs.cmdsInflight() << endl;
+        cout << "  Current SCSN: " << client->scsn.text() << endl;
+        cout << "  Total users: " << client->users.size() << endl;
+    }
+    else
+    {
+        cout << "Unknown action: " << action << endl;
+        cout << "Usage: streamactionpackets [start|stop|status]" << endl;
+    }
 }

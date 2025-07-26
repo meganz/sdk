@@ -455,3 +455,6 @@ void exec_getmyip(autocomplete::ACState& s);
 void exec_dnsservers(autocomplete::ACState& s);
 // This functionality remove all nodes from vault except My backups folder and Password Manager node
 void exec_cleanVault(autocomplete::ACState& s);
+
+/* stream action packets */
+void exec_streamactionpackets(autocomplete::ACState& s);
