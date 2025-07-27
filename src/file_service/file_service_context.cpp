@@ -317,11 +317,13 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     auto query = transaction.query(mQueries.mAddFile);
 
     query.param(":accessed").set(accessed);
+    query.param(":allocated_size").set(0u);
     query.param(":dirty").set(false);
     query.param(":handle").set(node->mHandle);
     query.param(":id").set(id);
     query.param(":modified").set(node->mModified);
     query.param(":num_references").set(0u);
+    query.param(":reported_size").set(0u);
     query.param(":size").set(size);
 
     query.execute();
@@ -762,11 +764,13 @@ try
     query = transaction.query(mQueries.mAddFile);
 
     query.param(":accessed").set(modified);
+    query.param(":allocated_size").set(0u);
     query.param(":dirty").set(true);
     query.param(":handle").set(nullptr);
     query.param(":id").set(id);
     query.param(":modified").set(modified);
     query.param(":num_references").set(0u);
+    query.param(":reported_size").set(0u);
     query.param(":size").set(0u);
 
     query.execute();

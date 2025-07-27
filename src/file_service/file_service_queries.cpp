@@ -36,11 +36,13 @@ FileServiceQueries::FileServiceQueries(Database& database):
 {
     mAddFile = "insert into files values ( "
                "  :accessed, "
+               "  :allocated_size, "
                "  :dirty, "
                "  :handle, "
                "  :id, "
                "  :modified, "
                "  :num_references, "
+               "  :reported_size, "
                "  :size "
                ")";
 
