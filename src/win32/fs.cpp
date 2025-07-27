@@ -206,6 +206,50 @@ bool WinFileAccess::setSparse()
     return DeviceIoControl(hFile, FSCTL_SET_SPARSE, nullptr, 0, nullptr, 0, nullptr, nullptr);
 }
 
+auto WinFileAccess::getFileSize() const -> std::optional<std::pair<std::uint64_t, std::uint64_t>>
+{
+    // File isn't open.
+    if (hFile == INVALID_HANDLE_VALUE)
+        return std::nullopt;
+
+    // Retrieve information about this file.
+    //
+    // buffer specifies where this information should be stored.
+    // kind specifies what kind of information we're interested in.
+    //
+    // returns false if we couldn't retrieve the information.
+    auto getInfo = [this](auto& buffer, auto kind)
+    {
+        if (GetFileInformationByHandleEx(hFile, kind, &buffer, sizeof(buffer)))
+            return true;
+
+        auto error = GetLastError();
+
+        LOG_err << "GetFileInformationByHandleEx failed. Error: " << error;
+
+        return false;
+    }; // getInfo
+
+    FILE_COMPRESSION_INFO compression;
+
+    // Couldn't retrieve the file's compression info.
+    if (!getInfo(compression, FileCompressionInfo))
+        return std::nullopt;
+
+    FILE_STANDARD_INFO standard;
+
+    // Couldn't retrieve the file's standard info.
+    if (!getInfo(standard, FileStandardInfo))
+        return std::nullopt;
+
+    // These casts prevent us having to assemble a u64 value by hand.
+    ULARGE_INTEGER& allocatedSize =
+        reinterpret_cast<ULARGE_INTEGER&>(compression.CompressedFileSize);
+    ULARGE_INTEGER& reportedSize = reinterpret_cast<ULARGE_INTEGER&>(standard.EndOfFile);
+
+    return std::make_pair(allocatedSize.QuadPart, reportedSize.QuadPart);
+}
+
 bool WinFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* cretry)
 {
     // Sanity.

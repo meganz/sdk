@@ -193,6 +193,9 @@ public:
     // Mark this file as a sparse file.
     bool setSparse() override;
 
+    // Retrieve this file's allocated and reported size.
+    auto getFileSize() const -> std::optional<std::pair<std::uint64_t, std::uint64_t>> override;
+
 #ifdef HAVE_AIO_RT
 protected:
     AsyncIOContext* newasynccontext() override;

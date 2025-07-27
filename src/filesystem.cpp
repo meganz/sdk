@@ -1964,4 +1964,22 @@ bool FSNode::debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, c
     return false;
 }
 
+auto FileSystemAccess::getFileSize(const LocalPath& path)
+    -> std::optional<std::pair<std::uint64_t, std::uint64_t>>
+{
+    // Create an FA so we can access the file at path.
+    auto fileAccess = newfileaccess(false);
+
+    // Couldn't create an FA.
+    if (!fileAccess)
+        return std::nullopt;
+
+    // Couldn't open the file.
+    if (!fileAccess->fopen(path, true, false, FSLogging::logOnError))
+        return std::nullopt;
+
+    // Return the file's allocated and reported size to our caller.
+    return fileAccess->getFileSize();
+}
+
 } // namespace

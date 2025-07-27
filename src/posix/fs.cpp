@@ -256,6 +256,35 @@ bool PosixFileAccess::setSparse()
     return true;
 }
 
+auto PosixFileAccess::getFileSize() const -> std::optional<std::pair<std::uint64_t, std::uint64_t>>
+{
+    // File isn't open.
+    if (fd < 0)
+        return std::nullopt;
+
+    struct stat attributes;
+
+    // Couldn't retrieve the file's attributes.
+    if (::fstat(fd, &attributes) < 0)
+    {
+        // Latch error code.
+        auto error = errno;
+
+        // Let debuggers know why we couldn't get the file's sizes.
+        LOG_err << "Unable to stat descriptor: " << fd << ". Error was: " << error;
+
+        return std::nullopt;
+    }
+
+    // Note that st_blocks is reported in units of 512B sectors.
+    auto allocatedSize = static_cast<std::uint64_t>(attributes.st_blocks) * 512ul;
+
+    // st_size is reported in units of bytes.
+    auto reportedSize = static_cast<std::uint64_t>(attributes.st_size);
+
+    return std::make_pair(allocatedSize, reportedSize);
+}
+
 bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
     AdjustBasePathResult nameStr = adjustBasePath(nonblocking_localname);
