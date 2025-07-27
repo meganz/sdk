@@ -859,9 +859,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     static bool setFileHidden(const LocalPath& path,
                               FSLogging logWhen = FSLogging::logOnError);
 
-    // Retrieve a file's physical size on disk.
-    virtual auto getPhysicalSize(const LocalPath& path) -> std::optional<std::uint64_t> = 0;
-
     // Retrieve a file's allocated and reported size.
     auto getFileSize(const LocalPath& path)
         -> std::optional<std::pair<std::uint64_t, std::uint64_t>>;
