@@ -120,7 +120,7 @@ void SharedMutex::unlock()
         return;
 
     // Notify waiting readers.
-    mReaderCV.notify_one();
+    mReaderCV.notify_all();
 
     // Notify waiting writers.
     mWriterCV.notify_one();
