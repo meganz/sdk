@@ -22,6 +22,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mGetFileReferences(database.query()),
     mGetFreeFileID(database.query()),
     mGetNextFileID(database.query()),
+    mGetStorageUsed(database.query()),
     mRemoveFile(database.query()),
     mRemoveFileID(database.query()),
     mRemoveFileLocation(database.query()),
@@ -95,6 +96,11 @@ FileServiceQueries::FileServiceQueries(Database& database):
                      " limit 1";
 
     mGetNextFileID = "select next from file_id";
+
+    mGetStorageUsed = "select sum(allocated_size) as total_allocated_size "
+                      "     , sum(reported_size) as total_reported_size "
+                      "     , sum(size) as total_size "
+                      "  from files";
 
     mRemoveFile = "delete from files "
                   " where id = :id";
