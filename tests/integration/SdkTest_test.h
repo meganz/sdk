@@ -479,8 +479,11 @@ template<typename T, typename = std::enable_if_t<IsExpectedV<RemoveCVRefT<T>>>>
 decltype(auto) value(T&& expected)
 {
 #ifndef NDEBUG
-    auto res = result(expected);
-    assert(res == API_OK && "value: unexpected result");
+    if (auto res = result(expected); res != API_OK)
+    {
+        LOG_err << "value: unexpected result: " << res;
+        assert(res == API_OK && "value: unexpected result");
+    }
 #endif
     return std::get<1>(std::forward<T>(expected));
 }
