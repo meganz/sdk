@@ -1669,7 +1669,7 @@ void SdkTest::cleanupNodesAllAccounts()
                 if (auto res = synchronousFolderInfo(nApi, rubbishbinNode.get());
                     res != MegaError::API_OK)
                 {
-                    const string errDetails = "Cannot get Folder Info for rubbis bin";
+                    const string errDetails = "Cannot get Folder Info for rubbish bin";
                     localCleanupSuccess = false;
                     printCleanupErrMsg(prefix,
                                        errDetails,
@@ -1896,9 +1896,19 @@ void SdkTest::purgeVaultTree(unsigned int apiIndex, MegaNode* vault)
                 megaApi[apiIndex]->moveOrRemoveDeconfiguredBackupNodes(backup->getHandle(),
                                                                        INVALID_HANDLE,
                                                                        &rt);
-                EXPECT_EQ(rt.waitForResult(), API_OK)
-                    << "purgeVaultTree: Could not remove Backup, " << backup->getName() << "("
-                    << Base64Str<MegaClient::NODEHANDLE>(backup->getHandle()) << ")";
+
+                const string backupName = backup->getName() ? backup->getName() : "";
+                const auto res = rt.waitForResult();
+                LOG_err << "purgeVaultTree: Could not remove Backup, " << backupName << "("
+                        << Base64Str<MegaClient::NODEHANDLE>(backup->getHandle()) << "). ErrCode("
+                        << MegaError::getErrorString(res) << ")";
+
+                if (res != API_OK && res != API_ENOENT && res != API_EARGS)
+                {
+                    EXPECT_EQ(rt.waitForResult(), API_OK)
+                        << "purgeVaultTree: Could not remove Backup, " << backupName << "("
+                        << Base64Str<MegaClient::NODEHANDLE>(backup->getHandle()) << ")";
+                }
             }
         }
     }
@@ -11613,7 +11623,20 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
         {
             RequestTracker rt2(megaApi);
             megaApi->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(i)->getMegaHandle(), INVALID_HANDLE, &rt2);
-            ASSERT_EQ(API_OK, rt2.waitForResult());
+
+            const string backupName =
+                allSyncs->get(i)->getName() ? allSyncs->get(i)->getName() : "";
+            const auto res = rt2.waitForResult();
+            LOG_err << "cleanUp: Could not remove Backup, " << backupName << "("
+                    << Base64Str<MegaClient::NODEHANDLE>(allSyncs->get(i)->getBackupId())
+                    << "). ErrCode(" << MegaError::getErrorString(res) << ")";
+
+            if (res != API_OK && res != API_ENOENT && res != API_EARGS)
+            {
+                ASSERT_EQ(API_OK, res)
+                    << "cleanUp: Could not remove Backup, " << backupName << "("
+                    << Base64Str<MegaClient::NODEHANDLE>(allSyncs->get(i)->getBackupId()) << ")";
+            }
         }
     }
 #endif
