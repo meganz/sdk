@@ -34,6 +34,9 @@ class Expected
     static constexpr auto IsConstructibleV =
         std::is_constructible_v<U, V> || std::is_convertible_v<V, U>;
 
+    template<typename U>
+    static constexpr auto IsCompatibleValueV = !IsExpectedV<U> && IsConstructibleV<T, U>;
+
     std::variant<E, T> mValue;
 
 public:
@@ -71,7 +74,7 @@ public:
         mValue(std::in_place_type_t<E>(), other.value())
     {}
 
-    template<typename U, std::enable_if_t<IsConstructibleV<T, U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsCompatibleValueV<U>>* = nullptr>
     Expected(U&& other):
         mValue(std::in_place_type_t<T>(), std::forward<U>(other))
     {}
@@ -101,7 +104,7 @@ public:
         return *this;
     }
 
-    template<typename U, std::enable_if_t<IsConstructibleV<T, U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsCompatibleValueV<U>>* = nullptr>
     Expected& operator=(U&& rhs)
     {
         Expected temp(std::forward<U>(rhs));
@@ -156,7 +159,7 @@ public:
         return hasError() && error() == rhs.value();
     }
 
-    template<typename U, std::enable_if_t<IsConstructibleV<T, U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsCompatibleValueV<U>>* = nullptr>
     bool operator==(const U& rhs) const
     {
         return hasValue() && value() == rhs;
@@ -179,7 +182,7 @@ public:
         return !(*this == rhs);
     }
 
-    template<typename U, std::enable_if_t<IsConstructibleV<T, U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsCompatibleValueV<U>>* = nullptr>
     bool operator!=(const U& rhs) const
     {
         return !(*this == rhs);
