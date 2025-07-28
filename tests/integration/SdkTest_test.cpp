@@ -1248,6 +1248,8 @@ void SdkTest::cleanupContactsAllAccounts(set<string>& alreadyRemoved)
                                    result,
                                    localCleanupSuccess);
             }
+            LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
+            ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << "Failed to catchup for account " << nApi;
         }
     }
     updateCleanupStatus(localCleanupSuccess);
@@ -2055,6 +2057,8 @@ void SdkTest::fetchNodesForAccountsSequentially(const unsigned howMany)
         ASSERT_EQ(API_OK, tracker->waitForResult())
             << " Failed to fetchnodes for account " << index;
         ASSERT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
+        LOG_debug << "fetchNodesForAccountsSequentially: Catching up with API with account index("
+                  << index << ")";
         ASSERT_EQ(API_OK, synchronousCatchup(index)) << "Failed to catchup for account " << index;
     }
 }
