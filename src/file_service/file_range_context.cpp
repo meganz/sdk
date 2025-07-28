@@ -102,6 +102,15 @@ auto FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t len
     if (!success)
         return Abort();
 
+    // Don't dispatch any requests here if this is the last piece of the
+    // file. Instead, dispatch them when the download is completed.
+    //
+    // This is necessary to stabilize the integration tests as they expect
+    // all necessary processing to have completed by the time any final read
+    // callbacks have been executed.
+    if (mEnd == mIterator->first.mEnd)
+        return Continue();
+
     // Dispatch what requests we can.
     dispatch(mIterator->first.mBegin, MinimumLength);
 
