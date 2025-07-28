@@ -38,7 +38,7 @@ class FileServiceContext::ReclaimContext: public std::enable_shared_from_this<Re
     void reclaim(FileID id);
 
     // Called when a file has been reclaimed.
-    void reclaimed(FileResult result);
+    void reclaimed(FileResultOr<std::uint64_t> result);
 
     // Make sure our service stays alive as long as we do.
     Activity mActivity;
@@ -1052,13 +1052,13 @@ void FileServiceContext::ReclaimContext::reclaim(FileID id)
     file->reclaim(std::move(reclaimed));
 }
 
-void FileServiceContext::ReclaimContext::reclaimed(FileResult result)
+void FileServiceContext::ReclaimContext::reclaimed(FileResultOr<std::uint64_t> result)
 {
     // Assume the request was successful.
     auto desired = FILE_SERVICE_SUCCESS;
 
     // Request actually failed.
-    if (result != FILE_SUCCESS)
+    if (!result)
         desired = FILE_SERVICE_UNEXPECTED;
 
     // Update our overall result.

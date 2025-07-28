@@ -127,10 +127,13 @@ public:
 class FileContext::ReclaimContext
 {
     // Called when the reclaim request has completed.
-    void completed(ReclaimContextPtr& context, FileResult result);
+    void completed(ReclaimContextPtr& context, FileResultOr<std::uint64_t> result);
 
     // Keep mContext alive as long as we are alive.
     Activity mActivity;
+
+    // How much space was the file taking when we started reclaiming?
+    std::uint64_t mAllocatedSize;
 
     // Who should we call when the reclaim completes?
     std::vector<FileReclaimCallback> mCallbacks;
@@ -1029,8 +1032,11 @@ bool FileContext::execute(FileReclaimRequest& request)
     // Persist our changes.
     transaction.commit();
 
-    // Queue the request for completion.
-    completed(std::move(request), FILE_SUCCESS);
+    // How much space did we reclaim?
+    auto reclaimed = request.mAllocatedSize - mInfo->allocatedSize();
+
+    // Let waiters know how much space we reclaimed.
+    completed(std::move(request), reclaimed);
 
     // Let our caller know the request has been executed.
     return true;
@@ -1885,7 +1891,7 @@ void FileContext::FlushContext::queue(FileFlushRequest request)
     mRequests.emplace_back(std::move(request));
 }
 
-void FileContext::ReclaimContext::completed(ReclaimContextPtr&, FileResult result)
+void FileContext::ReclaimContext::completed(ReclaimContextPtr&, FileResultOr<std::uint64_t> result)
 {
     // Unlink this context from our file.
     {
@@ -1900,6 +1906,7 @@ void FileContext::ReclaimContext::completed(ReclaimContextPtr&, FileResult resul
 
 FileContext::ReclaimContext::ReclaimContext(FileContext& context):
     mActivity(context.mActivities.begin()),
+    mAllocatedSize(context.mInfo->allocatedSize()),
     mCallbacks(),
     mContext(context)
 {}
@@ -1915,7 +1922,7 @@ void FileContext::ReclaimContext::flushed(ReclaimContextPtr& context, FileResult
         std::bind(&ReclaimContext::completed, this, std::move(context), std::placeholders::_1);
 
     // Queue the reclaim request for execution.
-    mContext.queue(FileReclaimRequest{std::move(callback)});
+    mContext.queue(FileReclaimRequest{mAllocatedSize, std::move(callback)});
 }
 
 void FileContext::ReclaimContext::queue(FileReclaimCallback callback)

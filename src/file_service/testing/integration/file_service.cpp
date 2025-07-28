@@ -151,7 +151,7 @@ static auto read(File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResultOr<std::string>>;
 
 // Reclaim a file's storage.
-static auto reclaim(File file) -> std::future<FileResult>;
+static auto reclaim(File file) -> std::future<FileResultOr<std::uint64_t>>;
 
 // Reclaim zero or more files managed by client.
 static auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResult>;
@@ -1449,7 +1449,27 @@ TEST_F(FileServiceTests, reclaim_single_succeeds)
     ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Try and reclaim the file's storage.
-    ASSERT_EQ(execute(reclaim, *file), FILE_SUCCESS);
+    {
+        // For later comparison.
+        auto allocatedBefore = file->info().allocatedSize();
+
+        // Try and reclaim storage.
+        auto reclaimed = execute(reclaim, *file);
+
+        // Make sure reclamation succeeded.
+        ASSERT_EQ(reclaimed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+        // Convenience.
+        auto allocatedAfter = file->info().allocatedSize();
+
+        // Make sure we actually reclaimed space.
+        ASSERT_LT(allocatedAfter, allocatedBefore);
+        ASSERT_EQ(*reclaimed, allocatedBefore - allocatedAfter);
+
+        // Make sure our file's attributes were updated correctly.
+        ASSERT_EQ(file->info().reportedSize(), 0u);
+        ASSERT_EQ(file->info().size(), expected.size());
+    }
 
     // Make sure a new copy of our file has been uploaded to the cloud.
     auto info = ClientW()->get(file->info().handle());
@@ -2139,17 +2159,17 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
     return waiter;
 }
 
-auto reclaim(File file) -> std::future<FileResult>
+auto reclaim(File file) -> std::future<FileResultOr<std::uint64_t>>
 {
     // So we can notify our waiter when the request completes.
-    auto notifier = makeSharedPromise<FileResult>();
+    auto notifier = makeSharedPromise<FileResultOr<std::uint64_t>>();
 
     // So our caller can wait until the request completes.
     auto waiter = notifier->get_future();
 
     // Try and reclaim this file's storage.
     file.reclaim(
-        [notifier](FileResult result)
+        [notifier](FileResultOr<std::uint64_t> result)
         {
             notifier->set_value(result);
         });
