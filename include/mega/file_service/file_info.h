@@ -47,6 +47,9 @@ public:
     // Notify an observer when this file's information changes.
     FileEventObserverID addObserver(FileEventObserver observer);
 
+    // How much disk space has been allocated to this file?
+    std::uint64_t allocatedSize() const;
+
     // Has this file been locally modified?
     bool dirty() const;
 
@@ -56,14 +59,17 @@ public:
     // What node is this file associated with?
     FileID id() const;
 
-    // How large is this file?
-    std::uint64_t logicalSize() const;
-
     // When was this file last modified?
     std::int64_t modified() const;
 
     // Remove a previously added observer.
     void removeObserver(FileEventObserverID id);
+
+    // How large does the filesystem say this file is?
+    std::uint64_t reportedSize() const;
+
+    // How large is this file conceptually?
+    std::uint64_t size() const;
 }; // FileInfo
 
 } // file_service

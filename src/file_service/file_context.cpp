@@ -431,6 +431,9 @@ try
     // Add our new range to the database.
     addRange(range, transaction);
 
+    // Update the file's size.
+    updateSize(transaction);
+
     // Remove obsolete ranges from memory.
     mRanges.remove(begin, end);
 
@@ -551,7 +554,7 @@ bool FileContext::execute(FileAppendRequest& request)
         return false;
 
     // Convenience.
-    auto size = mInfo->logicalSize();
+    auto size = mInfo->size();
 
     // Assume there's no range for us to grow.
     FileRange range(size, size + request.mLength);
@@ -599,6 +602,9 @@ bool FileContext::execute(FileAppendRequest& request)
     // Update the file's access and modification time.
     updateAccessAndModificationTimes(modified, modified, transaction);
 
+    // Update the file's size.
+    updateSize(transaction);
+
     // Remove obsolete ranges from memory.
     mRanges.remove(candidate, mRanges.end());
 
@@ -612,7 +618,7 @@ bool FileContext::execute(FileAppendRequest& request)
     range.mBegin = size;
 
     // Update the file's attributes.
-    mInfo->written(range, modified);
+    mInfo->written(modified, range);
 
     // Queue the user's request for execution.
     completed(std::move(request), FILE_SUCCESS);
@@ -771,7 +777,7 @@ bool FileContext::execute(FileReadRequest& request)
     auto range = request.mRange;
 
     // The file's current size.
-    auto size = mInfo->logicalSize();
+    auto size = mInfo->size();
 
     // Convenience.
     auto& [begin, end] = range;
@@ -1005,7 +1011,7 @@ bool FileContext::execute(FileReclaimRequest& request)
     auto transaction = database.transaction();
 
     // Represents the entire file.
-    FileRange range(0, mInfo->logicalSize());
+    FileRange range(0, mInfo->size());
 
     // Remove all of this file's ranges from the database.
     removeRanges(range, transaction);
@@ -1016,6 +1022,9 @@ bool FileContext::execute(FileReclaimRequest& request)
 
     // Remove all of the ranges from memory.
     mRanges.clear();
+
+    // Update the file's size.
+    updateSize(transaction);
 
     // Persist our changes.
     transaction.commit();
@@ -1069,7 +1078,7 @@ bool FileContext::execute(FileTruncateRequest& request)
 
     // Convenience.
     auto newSize = request.mSize;
-    auto oldSize = mInfo->logicalSize();
+    auto oldSize = mInfo->size();
 
     // User isn't changing this file's size.
     if (newSize == oldSize)
@@ -1086,7 +1095,7 @@ bool FileContext::execute(FileTruncateRequest& request)
     updateAccessAndModificationTimes(modified, modified, transaction);
 
     // Update the file's size in the database.
-    updateSize(newSize, transaction);
+    updateSize(transaction);
 
     // Persist our changes.
     transaction.commit();
@@ -1146,7 +1155,7 @@ bool FileContext::execute(FileWriteRequest& request)
     Iterator end;
 
     // Compute initial effective range.
-    FileRange effectiveRange = {std::min(mInfo->logicalSize(), range.mBegin), range.mEnd};
+    FileRange effectiveRange = {std::min(mInfo->size(), range.mBegin), range.mEnd};
 
     // Find out which ranges we've touched.
     std::tie(begin, end) = mRanges.find(extend(effectiveRange, 1));
@@ -1214,9 +1223,8 @@ bool FileContext::execute(FileWriteRequest& request)
     // Update the file's access and modification times in the database.
     updateAccessAndModificationTimes(modified, modified, transaction);
 
-    // Update the file's size in the database if necessary.
-    if (range.mEnd > mInfo->logicalSize())
-        updateSize(range.mEnd, transaction);
+    // Update the file's size in the database.
+    updateSize(transaction);
 
     // Remove obsolete ranges from memory.
     mRanges.remove(begin, end);
@@ -1228,7 +1236,7 @@ bool FileContext::execute(FileWriteRequest& request)
     transaction.commit();
 
     // Update the file's attributes.
-    mInfo->written(range, modified);
+    mInfo->written(modified, range);
 
     // Queue the user's request for completion.
     completed(std::move(request));
@@ -1467,12 +1475,14 @@ void FileContext::updateAccessAndModificationTimes(std::int64_t accessed,
     query.execute();
 }
 
-void FileContext::updateSize(std::uint64_t size, Transaction& transaction)
+void FileContext::updateSize(Transaction& transaction)
 {
     auto query = transaction.query(mService.queries().mSetFileSize);
 
+    query.param(":allocated_size").set(mInfo->allocatedSize());
     query.param(":id").set(mInfo->id());
-    query.param(":size").set(size);
+    query.param(":reported_size").set(mInfo->reportedSize());
+    query.param(":size").set(mInfo->size());
 
     query.execute();
 }

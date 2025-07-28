@@ -42,25 +42,27 @@ void FileInfoContext::notify(const FileEvent& event)
 
 FileInfoContext::FileInfoContext(std::int64_t accessed,
                                  Activity activity,
+                                 std::uint64_t allocatedSize,
                                  bool dirty,
                                  NodeHandle handle,
                                  FileID id,
-                                 std::uint64_t logicalSize,
                                  std::int64_t modified,
-                                 std::uint64_t physicalSize,
-                                 FileServiceContext& service):
+                                 std::uint64_t reportedSize,
+                                 FileServiceContext& service,
+                                 std::uint64_t size):
     mAccessed(accessed),
     mActivity(std::move(activity)),
+    mAllocatedSize(allocatedSize),
     mDirty(dirty),
     mHandle(handle),
     mID(id),
     mLock(),
-    mLogicalSize(logicalSize),
     mModified(modified),
-    mPhysicalSize(physicalSize),
     mObservers(),
     mObserversLock(),
-    mService(service)
+    mReportedSize(reportedSize),
+    mService(service),
+    mSize(size)
 {}
 
 FileInfoContext::~FileInfoContext()
@@ -98,6 +100,18 @@ std::int64_t FileInfoContext::accessed() const
     return get(&FileInfoContext::mAccessed);
 }
 
+void FileInfoContext::allocatedSize(std::uint64_t allocatedSize)
+{
+    std::lock_guard guard(mLock);
+
+    mAllocatedSize = allocatedSize;
+}
+
+std::uint64_t FileInfoContext::allocatedSize() const
+{
+    return get(&FileInfoContext::mAllocatedSize);
+}
+
 bool FileInfoContext::dirty() const
 {
     return get(&FileInfoContext::mDirty);
@@ -121,11 +135,6 @@ FileID FileInfoContext::id() const
     return mID;
 }
 
-std::uint64_t FileInfoContext::logicalSize() const
-{
-    return get(&FileInfoContext::mLogicalSize);
-}
-
 void FileInfoContext::modified(std::int64_t accessed, std::int64_t modified)
 {
     // Update the file's modification time and return a new event.
@@ -145,25 +154,13 @@ void FileInfoContext::modified(std::int64_t accessed, std::int64_t modified)
             mModified = modified;
 
             // Return an event to our caller.
-            return FileEvent{std::nullopt, mModified, mLogicalSize};
+            return FileEvent{std::nullopt, mModified, mSize};
         }());
 }
 
 std::int64_t FileInfoContext::modified() const
 {
     return get(&FileInfoContext::mModified);
-}
-
-void FileInfoContext::physicalSize(std::uint64_t physicalSize)
-{
-    std::lock_guard guard(mLock);
-
-    mPhysicalSize = physicalSize;
-}
-
-std::uint64_t FileInfoContext::physicalSize() const
-{
-    return get(&FileInfoContext::mPhysicalSize);
 }
 
 void FileInfoContext::removeObserver(FileEventObserverID id)
@@ -176,6 +173,30 @@ void FileInfoContext::removeObserver(FileEventObserverID id)
 
     // Sanity.
     assert(count);
+}
+
+void FileInfoContext::reportedSize(std::uint64_t reportedSize)
+{
+    std::lock_guard guard(mLock);
+
+    mReportedSize = reportedSize;
+}
+
+std::uint64_t FileInfoContext::reportedSize() const
+{
+    return get(&FileInfoContext::mReportedSize);
+}
+
+void FileInfoContext::size(std::uint64_t size)
+{
+    std::lock_guard guard(mLock);
+
+    mSize = size;
+}
+
+std::uint64_t FileInfoContext::size() const
+{
+    return get(&FileInfoContext::mSize);
 }
 
 void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
@@ -200,21 +221,21 @@ void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
             mModified = modified;
 
             // Update the file's size.
-            swap(mLogicalSize, size);
+            swap(mSize, size);
 
             // Assume the file's size hasn't decreased.
-            FileEvent event{std::nullopt, mModified, mLogicalSize};
+            FileEvent event{std::nullopt, mModified, mSize};
 
             // File's size has decreased.
-            if (mLogicalSize < size)
-                event.mRange.emplace(mLogicalSize, size);
+            if (mSize < size)
+                event.mRange.emplace(mSize, size);
 
             // Return event to our caller.
             return event;
         }());
 }
 
-void FileInfoContext::written(const FileRange& range, std::int64_t modified)
+void FileInfoContext::written(std::int64_t modified, const FileRange& range)
 {
     // Update the file's information and return an event for notification.
     notify(
@@ -232,11 +253,11 @@ void FileInfoContext::written(const FileRange& range, std::int64_t modified)
             // Update the file's modification time.
             mModified = modified;
 
-            // Extend the file's size if necessary.
-            mLogicalSize = std::max(mLogicalSize, range.mEnd);
+            // Update the file's size.
+            mSize = std::max(mSize, range.mEnd);
 
             // Return a suitable event.
-            return FileEvent{range, modified, mLogicalSize};
+            return FileEvent{range, modified, mSize};
         }());
 }
 

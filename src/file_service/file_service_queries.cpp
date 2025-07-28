@@ -134,7 +134,9 @@ FileServiceQueries::FileServiceQueries(Database& database):
                          " where id = :id";
 
     mSetFileSize = "update files "
-                   "   set size = :size "
+                   "   set allocated_size = :allocated_size "
+                   "     , reported_size = :reported_size "
+                   "     , size = :size "
                    " where id = :id";
 
     mSetNextFileID = "update file_id "

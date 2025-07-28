@@ -15,6 +15,7 @@ namespace file_service
 
 class FileBuffer: public Buffer
 {
+protected:
     FileAccess& mFile;
 
 public:

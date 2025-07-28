@@ -193,57 +193,41 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     if (!query)
         return {};
 
-    // Latch the file's attributes.
+    // Latch the file's attributes from the database.
+    auto accessed = query.field("accessed").get<std::int64_t>();
+    auto allocatedSize = query.field("allocated_size").get<std::uint64_t>();
     auto dirty = query.field("dirty").get<bool>();
     auto handle = NodeHandle();
+    auto modified = query.field("modified").get<std::int64_t>();
+    auto reportedSize = query.field("reported_size").get<std::uint64_t>();
+    auto size = query.field("size").get<std::uint64_t>();
 
     if (!query.field("handle").null())
         handle = query.field("handle").get<NodeHandle>();
 
-    // Latch the file's actual ID.
-    //
-    // This is needed as the ID the caller has provided may not be the
-    // file's actual ID.
-    //
-    // An example would be when the caller is looking up a file based on
-    // that file's node handle.
     id = query.field("id").get<FileID>();
-
-    // Load the file from storage.
-    auto file = mStorage.getFile(id);
-
-    // Latch the file's access time.
-    auto accessed = query.field("accessed").get<std::int64_t>();
-
-    // Latch the file's modification time.
-    auto modified = query.field("modified").get<std::int64_t>();
-
-    // Latch the file's physical size.
-    auto physicalSize = static_cast<std::uint64_t>(file->size);
-
-    // Latch the file's size.
-    auto size = query.field("size").get<std::uint64_t>();
 
     // Instantiate a context to represent this file's information.
     auto info = std::make_shared<FileInfoContext>(accessed,
                                                   mActivities.begin(),
+                                                  allocatedSize,
                                                   dirty,
                                                   handle,
                                                   id,
-                                                  size,
                                                   modified,
-                                                  physicalSize,
-                                                  *this);
+                                                  reportedSize,
+                                                  *this,
+                                                  size);
 
     // Add the context to our index.
     mInfoContexts.emplace(id, info);
 
     // Caller isn't interested in the file itself, only its information.
     if (!open)
-        file.reset();
+        return std::make_pair(std::move(info), nullptr);
 
     // Return the file and its information to our caller.
-    return std::make_pair(std::move(info), std::move(file));
+    return std::make_pair(std::move(info), mStorage.getFile(id));
 }
 
 template<typename Lock>
@@ -337,13 +321,14 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     // Create a context to represent this file's information.
     auto info = std::make_shared<FileInfoContext>(accessed,
                                                   mActivities.begin(),
+                                                  0u,
                                                   false,
                                                   node->mHandle,
                                                   id,
-                                                  size,
                                                   node->mModified,
                                                   0u,
-                                                  *this);
+                                                  *this,
+                                                  size);
 
     // Make sure this file's info is in our index.
     mInfoContexts.emplace(id, info);
@@ -787,13 +772,14 @@ try
     // Instantiate an info context to describe our new file.
     auto info = std::make_shared<FileInfoContext>(modified,
                                                   mActivities.begin(),
+                                                  0ul,
                                                   true,
                                                   NodeHandle(),
                                                   id,
-                                                  0ul,
                                                   modified,
                                                   0ul,
-                                                  *this);
+                                                  *this,
+                                                  0ul);
 
     // Instantiate a file context to manipulate our new file.
     auto file = std::make_shared<FileContext>(mActivities.begin(),

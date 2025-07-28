@@ -5019,9 +5019,11 @@ static void exec_fileserviceinfo(autocomplete::ACState& state)
 
     // Print the description.
     conlock(std::cout) << "File " << toString(id) << ":\n"
+                       << "Allocated Size" << info->allocatedSize() << "\n"
                        << "Handle: " << toNodeHandle(info->handle()) << "\n"
                        << "Modified: " << displayTime(info->modified()) << "\n"
-                       << "Size: " << info->logicalSize() << std::endl;
+                       << "Reported Size: " << info->reportedSize() << "\n"
+                       << "Size: " << info->size() << std::endl;
 }
 
 static void exec_fileserviceread(autocomplete::ACState& state)
@@ -5071,7 +5073,7 @@ static void exec_fileserviceread(autocomplete::ACState& state)
 
     // Assume the user wants to read the entire file.
     std::uint64_t offset = 0;
-    std::uint64_t length = file->info().logicalSize();
+    std::uint64_t length = file->info().size();
 
     // User wants to start reading from a particular offset.
     if (state.words.size() > 2)

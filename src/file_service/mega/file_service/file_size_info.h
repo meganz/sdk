@@ -17,14 +17,20 @@ protected:
 public:
     virtual ~FileSizeInfo() = default;
 
-    // How large is this file?
-    virtual std::uint64_t logicalSize() const = 0;
+    // Update this file's allocated size.
+    virtual void allocatedSize(std::uint64_t allocatedSize) = 0;
 
-    // Update the file's physical size.
-    virtual void physicalSize(std::uint64_t physicalSize) = 0;
+    // How much disk space has been allocated to this file?
+    virtual std::uint64_t allocatedSize() const = 0;
 
-    // What is the file's size on disk?
-    virtual std::uint64_t physicalSize() const = 0;
+    // Update this file's reported size.
+    virtual void reportedSize(std::uint64_t reportedSize) = 0;
+
+    // How large does the filesystem say this file is?
+    virtual std::uint64_t reportedSize() const = 0;
+
+    // How large is this file conceptually?
+    virtual std::uint64_t size() const = 0;
 }; // FileSizeInfo
 
 } // file_service

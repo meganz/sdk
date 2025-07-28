@@ -160,8 +160,8 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
                                           std::int64_t modified,
                                           common::Transaction& transaction);
 
-    // Update the file's size in the database.
-    void updateSize(std::uint64_t size, common::Transaction& transaction);
+    // Update the file's sizes in the database.
+    void updateSize(common::Transaction& transaction);
 
     // Keep our service alive until we're dead.
     common::Activity mActivity;
