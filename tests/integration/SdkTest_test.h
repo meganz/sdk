@@ -478,8 +478,10 @@ Error result(const Expected<T>& expected)
 template<typename T, typename = std::enable_if_t<IsExpectedV<RemoveCVRefT<T>>>>
 decltype(auto) value(T&& expected)
 {
-    assert(result(expected) == API_OK);
-
+#ifndef NDEBUG
+    auto res = result(expected);
+    assert(res == API_OK && "value: unexpected result");
+#endif
     return std::get<1>(std::forward<T>(expected));
 }
 

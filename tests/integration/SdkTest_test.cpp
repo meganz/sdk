@@ -2705,12 +2705,18 @@ void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
 
 auto getAccountLevel(MegaApi& client) -> Expected<AccountLevel>
 {
+    const string prefix{"getAccountLevel"};
     // Try and retrieve the user's account details.
     auto details = getAccountDetails(client);
 
     // Couldn't get account details.
     if (auto result = ::result(details); result != API_OK)
+    {
+        LOG_err << prefix << "Unexpected error for account("
+                << string{client.getMyEmail() ? client.getMyEmail() : ""}
+                << ") trying to getAccountDetails. Err(" << result << ")";
         return result;
+    }
 
     // Latch the user's plan.
     auto plan = value(details)->getProLevel();
@@ -2724,7 +2730,12 @@ auto getAccountLevel(MegaApi& client) -> Expected<AccountLevel>
 
     // Couldn't get pricing information.
     if (auto result = ::result(pricing); result != API_OK)
+    {
+        LOG_err << prefix << "Unexpected error for account("
+                << string{client.getMyEmail() ? client.getMyEmail() : ""}
+                << ") trying to getPricing. Err(" << result << ")";
         return result;
+    }
 
     // Convenience.
     auto& priceDetails = *value(pricing);
@@ -11185,7 +11196,7 @@ TEST_F(SdkTest, EscapesReservedCharactersOnDownload)
     static const string fileName = "a%2fb%2fc!.txt";
 
     // Set up necessary accounts.
-    getAccountsForTest(1);
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // For convenience.
     MegaApi* api = megaApi[0].get();
