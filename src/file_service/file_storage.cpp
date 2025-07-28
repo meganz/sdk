@@ -87,25 +87,6 @@ LocalPath FileStorage::userFilePath(FileID id) const
     return path;
 }
 
-std::optional<std::uint64_t> FileStorage::userFileSize(FileID id) const
-{
-    // Compute the file's path.
-    auto path = userFilePath(id);
-
-    // Try and determine the file's allocated and reported size.
-    auto sizes = mFilesystem->getFileSize(path);
-
-    // Couldn't determine the file's sizes.
-    if (!sizes)
-        return std::nullopt;
-
-    // Clarity.
-    auto [allocatedSize, _] = *sizes;
-
-    // Return the file's allocated size to our caller.
-    return allocatedSize;
-}
-
 const LocalPath& FileStorage::userStorageDirectory() const
 {
     return mUserStorageDirectory;

@@ -56,9 +56,6 @@ public:
     // Find out where the service is storing a particular file.
     LocalPath userFilePath(FileID id) const;
 
-    // How much space does this file occupy on disk?
-    std::optional<std::uint64_t> userFileSize(FileID id) const;
-
     // Where is the service storing this user's metadata?
     const LocalPath& userStorageDirectory() const;
 }; // FileStorage
