@@ -2055,6 +2055,7 @@ void SdkTest::fetchNodesForAccountsSequentially(const unsigned howMany)
         ASSERT_EQ(API_OK, tracker->waitForResult())
             << " Failed to fetchnodes for account " << index;
         ASSERT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
+        ASSERT_EQ(API_OK, synchronousCatchup(index)) << "Failed to catchup for account " << index;
     }
 }
 
