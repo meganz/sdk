@@ -1238,7 +1238,7 @@ void SdkTest::cleanupContactsAllAccounts(set<string>& alreadyRemoved)
             }
 
             if (const auto result = synchronousRemoveContact(nApi, contacts->get(i));
-                result != API_OK)
+                result != API_OK && result != API_EEXIST)
             {
                 const string errDetails = "Could not remove contact (" + contactEmailStr + ")";
                 localCleanupSuccess = false;
