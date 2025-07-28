@@ -618,24 +618,16 @@ auto FileServiceContext::storageUsed(Lock&& lock, Transaction&& transaction) -> 
     assert(lock.owns_lock());
     assert(transaction.inProgress());
 
-    // Get the IDs of all of the files in storage.
-    auto query = transaction.query(mQueries.mGetFileIDs);
+    // Compute the storage used by all files in storage.
+    auto query = transaction.query(mQueries.mGetStorageUsed);
 
-    // The total size of all files in storage.
-    std::uint64_t used = 0u;
+    query.execute();
 
-    // Sum the physical size of each file.
-    for (query.execute(); query; ++query)
-    {
-        // Latch the file's ID.
-        auto id = query.field("id").template get<FileID>();
+    // Sanity.
+    assert(query);
 
-        // Add the file's size to our running total.
-        used += mStorage.userFileSize(id).value_or(0ul);
-    }
-
-    // Return the total size to our caller.
-    return used;
+    // Return the total allocated size of all files in storage.
+    return query.field("total_allocated_size").template get<std::uint64_t>();
 }
 
 FileServiceContext::FileServiceContext(Client& client, const FileServiceOptions& options):
