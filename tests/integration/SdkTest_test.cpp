@@ -1238,15 +1238,19 @@ void SdkTest::cleanupContactsAllAccounts(set<string>& alreadyRemoved)
             }
 
             if (const auto result = synchronousRemoveContact(nApi, contacts->get(i));
-                result != API_OK && result != API_EEXIST)
+                result != API_OK)
             {
+                bool iterationCleanupSuccess{true};
                 const string errDetails = "Could not remove contact (" + contactEmailStr + ")";
-                localCleanupSuccess = false;
+                if (result != API_EEXIST)
+                {
+                    localCleanupSuccess = iterationCleanupSuccess = false;
+                }
                 printCleanupErrMsg(prefix,
                                    errDetails,
                                    static_cast<unsigned>(nApi),
                                    result,
-                                   localCleanupSuccess);
+                                   iterationCleanupSuccess);
             }
             LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
             ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << "Failed to catchup for account " << nApi;
