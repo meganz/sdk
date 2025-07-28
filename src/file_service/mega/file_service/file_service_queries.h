@@ -18,13 +18,13 @@ struct FileServiceQueries
     common::Query mAddFileRange;
     common::Query mGetFile;
     common::Query mGetFileIDs;
-    common::Query mGetFileIDsByAscendingAccessTime;
     common::Query mGetFileLocation;
     common::Query mGetFileLocationByParentAndName;
     common::Query mGetFileRanges;
     common::Query mGetFileReferences;
     common::Query mGetFreeFileID;
     common::Query mGetNextFileID;
+    common::Query mGetReclaimableFiles;
     common::Query mGetStorageUsed;
     common::Query mRemoveFile;
     common::Query mRemoveFileID;

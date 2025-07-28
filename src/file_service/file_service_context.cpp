@@ -536,20 +536,17 @@ auto FileServiceContext::reclaimable(const FileServiceOptions& options) -> std::
     if (sizeThreshold >= used)
         return {};
 
-    // Get the IDs of all files in storage ordered by ascending access time.
-    auto query = transaction.query(mQueries.mGetFileIDsByAscendingAccessTime);
+    // Get the allocated size and ID of all files in storage.
+    auto query = transaction.query(mQueries.mGetReclaimableFiles);
 
-    // Specify the maximum reclaimable access time.
-    query.param(":accessed")
-        .set(
-            [&]()
-            {
-                // Retrieve access time offset.
-                auto offset = options.mReclaimAgeThreshold;
+    // Retrieve access time threshold.
+    auto threshold = options.mReclaimAgeThreshold;
 
-                // Return maximum access time to our caller.
-                return system_clock::to_time_t(system_clock::now() - offset);
-            }());
+    // Compute maximum reclaimable access time.
+    auto accessed = system_clock::now() - threshold;
+
+    // Specify maximum reclaimable access time.
+    query.param(":accessed").set(system_clock::to_time_t(accessed));
 
     // Tracks the IDs of the files we can reclaim.
     std::vector<FileID> ids;
@@ -557,21 +554,15 @@ auto FileServiceContext::reclaimable(const FileServiceOptions& options) -> std::
     // Collect as many IDs for reclamation as necessary.
     for (query.execute(); query && used > sizeThreshold; ++query)
     {
-        // Latch this file's ID.
+        // Latch the file's ID and allocated size.
         auto id = query.field("id").get<FileID>();
-
-        // Figure out how much this file is.
-        auto size = mStorage.userFileSize(id);
-
-        // Couldn't figure out how large this file is.
-        if (!size)
-            continue;
+        auto size = query.field("allocated_size").get<std::uint64_t>();
 
         // Add the ID to our vector.
         ids.emplace_back(id);
 
         // Decrease amount of used storage.
-        used -= std::min(*size, used);
+        used -= std::min(size, used);
     }
 
     // Return vector of reclaimable IDs to our caller.

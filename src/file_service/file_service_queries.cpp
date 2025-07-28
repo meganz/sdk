@@ -15,13 +15,13 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileRange(database.query()),
     mGetFile(database.query()),
     mGetFileIDs(database.query()),
-    mGetFileIDsByAscendingAccessTime(database.query()),
     mGetFileLocation(database.query()),
     mGetFileLocationByParentAndName(database.query()),
     mGetFileRanges(database.query()),
     mGetFileReferences(database.query()),
     mGetFreeFileID(database.query()),
     mGetNextFileID(database.query()),
+    mGetReclaimableFiles(database.query()),
     mGetStorageUsed(database.query()),
     mRemoveFile(database.query()),
     mRemoveFileID(database.query()),
@@ -68,10 +68,12 @@ FileServiceQueries::FileServiceQueries(Database& database):
 
     mGetFileIDs = "select id from files";
 
-    mGetFileIDsByAscendingAccessTime = "select id "
-                                       "  from files "
-                                       " where (:accessed is null or accessed <= :accessed) "
-                                       " order by accessed desc";
+    mGetReclaimableFiles = "select allocated_size "
+                           "     , id "
+                           "  from files "
+                           " where allocated_size <> 0 "
+                           "   and (:accessed is null or accessed <= :accessed) "
+                           " order by accessed desc";
 
     mGetFileLocation = "select * "
                        "  from file_locations "
