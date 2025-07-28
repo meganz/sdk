@@ -47,10 +47,16 @@ class FileServiceContext::ReclaimContext: public std::enable_shared_from_this<Re
     std::vector<ReclaimCallback> mCallbacks;
 
     // Tracks how many reclaim requests have yet to complete.
-    std::atomic<std::size_t> mCount;
+    std::size_t mCount;
 
-    // Tracks overall reclamation result.
-    std::atomic<FileServiceResult> mResult;
+    // Serializes access to mCount, mReclaimed and mResult.
+    std::mutex mLock;
+
+    // Tracks how much space we've recovered.
+    std::uint64_t mReclaimed;
+
+    // Tracks any failure we might have encountered.
+    FileResult mResult;
 
     // What service are we reclaiming storage for?
     FileServiceContext& mService;
@@ -59,7 +65,7 @@ public:
     ReclaimContext(FileServiceContext& service);
 
     // Called when the reclamation has completed.
-    void completed(FileServiceResult result);
+    void completed(FileServiceResultOr<std::uint64_t> result);
 
     // Queue a callback for later execution.
     void queue(ReclaimCallback callback);
@@ -457,7 +463,7 @@ try
 
     // No files need to be reclaimed.
     if (ids.empty())
-        return context->completed(FILE_SERVICE_SUCCESS);
+        return context->completed(0u);
 
     // Try and reclaim the files.
     context->reclaim(ids);
@@ -1054,33 +1060,28 @@ void FileServiceContext::ReclaimContext::reclaim(FileID id)
 
 void FileServiceContext::ReclaimContext::reclaimed(FileResultOr<std::uint64_t> result)
 {
-    // Assume the request was successful.
-    auto desired = FILE_SERVICE_SUCCESS;
+    // Make sure no one else changes our members.
+    std::lock_guard guard(mLock);
 
-    // Request actually failed.
-    if (!result)
-        desired = FILE_SERVICE_UNEXPECTED;
+    // Update total amount of reclaimed space.
+    mReclaimed += result.valueOr(0ul);
 
-    // Update our overall result.
-    while (true)
-    {
-        // Latch our overall result.
-        auto expected = mResult.load();
+    // Don't forget the first failure we encountered.
+    if (mResult)
+        mResult = result.errorOr(FILE_SUCCESS);
 
-        // We've already encountered a failure.
-        if (expected != FILE_SERVICE_SUCCESS)
-            break;
+    // Sanity.
+    assert(mCount);
 
-        // We were able to update the result.
-        if (mResult.compare_exchange_weak(expected, desired))
-            break;
-    }
-
-    // One or more reclaim requests are still in progress.
-    if (mCount.fetch_sub(1) > 1)
+    // Some files are still being reclaimed.
+    if (--mCount)
         return;
 
-    // All requests have been completed.
+    // We could recover some space or didn't encounter any failures.
+    if (mReclaimed || mResult == FILE_SUCCESS)
+        return completed(mReclaimed);
+
+    // We encountered a failure and couldn't recover any space.
     completed(mResult);
 }
 
@@ -1092,7 +1093,7 @@ FileServiceContext::ReclaimContext::ReclaimContext(FileServiceContext& service):
     mService(service)
 {}
 
-void FileServiceContext::ReclaimContext::completed(FileServiceResult result)
+void FileServiceContext::ReclaimContext::completed(FileServiceResultOr<std::uint64_t> result)
 {
     // Let the service know the reclamation has completed.
     {
@@ -1114,6 +1115,9 @@ void FileServiceContext::ReclaimContext::queue(ReclaimCallback callback)
 void FileServiceContext::ReclaimContext::reclaim(const std::vector<FileID>& ids)
 {
     // Remember how many files we're reclaiming.
+    //
+    // No lock should be necessary here as only a single thread should ever
+    // call this method at a time.
     mCount = ids.size();
 
     // Try and reclaim each file.

@@ -61,14 +61,47 @@ namespace testing
 {
 
 // Convenience.
+using common::Expected;
 using common::makeSharedPromise;
 using common::now;
+using common::unexpected;
 using fuse::testing::ClientPtr;
 using fuse::testing::randomBytes;
 using fuse::testing::randomName;
 using fuse::testing::waitFor;
 using ::testing::ElementsAre;
 
+template<typename T>
+struct GenerateFailure;
+
+template<typename E, typename T>
+struct GenerateFailure<Expected<E, T>>
+{
+    static auto value()
+    {
+        return unexpected(GenerateFailure<E>::value());
+    }
+}; // GenerateFailure<Expected<E, T>>
+
+template<>
+struct GenerateFailure<FileResult>
+{
+    static auto value()
+    {
+        return FILE_FAILED;
+    }
+}; // GenerateFailure<FileResult>
+
+template<>
+struct GenerateFailure<FileServiceResult>
+{
+    static auto value()
+    {
+        return FILE_SERVICE_UNEXPECTED;
+    }
+}; // GenerateFailure<FileServiceResult>
+
+// Convenience.
 constexpr auto timeout = std::future_status::timeout;
 
 struct FileServiceTests: fuse::testing::Test
@@ -92,16 +125,7 @@ struct FileServiceTests: fuse::testing::Test
 
         // Request timed out.
         if (waiter.wait_for(std::chrono::minutes(60)) == timeout)
-        {
-            // Convenience.
-            using common::IsExpected;
-
-            // Return FILE_FAILED as unexpected(...) if needed.
-            if constexpr (IsExpected<Result>::value)
-                return Result(unexpected(FILE_FAILED));
-            else
-                return Result(FILE_FAILED);
-        }
+            return Result(GenerateFailure<Result>::value());
 
         // Return result to our caller.
         return waiter.get();
@@ -154,7 +178,7 @@ static auto read(File file, std::uint64_t offset, std::uint64_t length)
 static auto reclaim(File file) -> std::future<FileResultOr<std::uint64_t>>;
 
 // Reclaim zero or more files managed by client.
-static auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResult>;
+static auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResultOr<std::uint64_t>>;
 
 // Update the specified file's modification time.
 static auto touch(File file, std::int64_t modified) -> std::future<FileResult>;
@@ -1289,7 +1313,9 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     // Try and reclaim some storage.
     //
     // This should have no effect as we've specified no quota.
-    ASSERT_EQ(execute(reclaimAll, ClientW()), FILE_SERVICE_SUCCESS);
+    auto reclaimed = execute(reclaimAll, ClientW());
+    ASSERT_EQ(reclaimed.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(reclaimed.valueOr(0ul), 0ul);
 
     // Make sure no storage was reclaimed.
     auto usedAfter = ClientW()->fileStorageUsed();
@@ -1307,7 +1333,9 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     // Try and reclaim storage.
     //
     // This should also have no effect as we accessed the files recently.
-    ASSERT_EQ(execute(reclaimAll, ClientW()), FILE_SERVICE_SUCCESS);
+    reclaimed = execute(reclaimAll, ClientW());
+    ASSERT_EQ(reclaimed.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(reclaimed.valueOr(0ul), 0ul);
 
     // Make sure no storage was reclaimed.
     usedAfter = ClientW()->fileStorageUsed();
@@ -1321,25 +1349,31 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     ClientW()->fileServiceOptions(options);
 
     // Try and reclaim storage.
-    ASSERT_EQ(execute(reclaimAll, ClientW()), FILE_SERVICE_SUCCESS);
+    reclaimed = execute(reclaimAll, ClientW());
+    ASSERT_EQ(reclaimed.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Make sure storage was reclaimed.
     usedAfter = ClientW()->fileStorageUsed();
 
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_LT(*usedAfter, *usedBefore);
-    ASSERT_EQ(*usedAfter, 512_KiB);
+    ASSERT_EQ(*reclaimed, *usedBefore - *usedAfter);
+
+    // For later comparison.
+    usedBefore = usedAfter;
 
     // Try and reclaim storage again.
     //
     // This should have no effect as we're already below the quota.
-    ASSERT_EQ(execute(reclaimAll, ClientW()), FILE_SERVICE_SUCCESS);
+    reclaimed = execute(reclaimAll, ClientW());
+    ASSERT_EQ(reclaimed.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(reclaimed.valueOr(0ul), 0ul);
 
     // Make sure no more storage was reclaimed.
     usedAfter = ClientW()->fileStorageUsed();
 
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-    ASSERT_EQ(*usedAfter, 512_KiB);
+    ASSERT_EQ(*usedAfter, *usedBefore);
 }
 
 TEST_F(FileServiceTests, reclaim_periodic_succeeds)
@@ -2178,13 +2212,13 @@ auto reclaim(File file) -> std::future<FileResultOr<std::uint64_t>>
     return waiter;
 }
 
-auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResult>
+auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResultOr<std::uint64_t>>
 {
     // Sanity.
     assert(client);
 
     // So we can notify our client when files have been reclaimed.
-    auto notifier = makeSharedPromise<FileServiceResult>();
+    auto notifier = makeSharedPromise<FileServiceResultOr<std::uint64_t>>();
 
     // So our caller can wait until files have been reclaimed.
     auto waiter = notifier->get_future();
