@@ -458,15 +458,22 @@ void FileServiceContext::reclaimTaskCallback(Activity& activity,
                                              steady_clock::time_point when,
                                              const Task& task)
 {
-    // Acquire options lock.
-    SharedLock optionsLock(mOptionsLock);
+    // Exchange mReclaimTask with task.
+    auto exchange = [this](Task task)
+    {
+        // Acquire task lock.
+        std::lock_guard guard(mReclaimTaskLock);
 
-    // Acquire task lock.
-    UniqueLock taskLock(mReclaimTaskLock);
+        // For ADL lookup.
+        using std::swap;
+
+        // Exchange the task.
+        swap(mReclaimTask, task);
+    }; // exchange
 
     // Client's shutting down or reclamation has been disabled.
     if (task.aborted())
-        return mReclaimTask.reset(), void();
+        return exchange(Task());
 
     // Convenience.
     auto now = steady_clock::now();
@@ -475,25 +482,25 @@ void FileServiceContext::reclaimTaskCallback(Activity& activity,
     if (now >= when)
         reclaim([](auto) {});
 
-    // Convenience.
-    auto period = mOptions.mReclaimPeriod;
-    auto sizeThreshold = mOptions.mReclaimSizeThreshold;
+    // Get the service's current options.
+    auto options = this->options();
 
     // Reclamation has been disabled.
-    if (!period.count() || !sizeThreshold)
-        return mReclaimTask.reset(), void();
+    if (!reclamationEnabled(options))
+        return exchange(Task());
 
-    // When should we perform the next reclamation?
-    when = now + period;
+    // Convenience.
+    auto period = mOptions.mReclaimPeriod;
+
+    // Keeps the exchange(...) below understandable.
+    auto callback = std::bind(&FileServiceContext::reclaimTaskCallback,
+                              this,
+                              std::move(activity),
+                              period + when,
+                              std::placeholders::_1);
 
     // Schedule another reclamation for the future.
-    mReclaimTask = mExecutor.execute(std::bind(&FileServiceContext::reclaimTaskCallback,
-                                               this,
-                                               std::move(activity),
-                                               when,
-                                               std::placeholders::_1),
-                                     when,
-                                     false);
+    exchange(mExecutor.execute(std::move(callback), period + when, false));
 }
 
 auto FileServiceContext::reclaimable() -> FileServiceResultOr<FileIDVector>
