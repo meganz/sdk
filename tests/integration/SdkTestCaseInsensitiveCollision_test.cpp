@@ -94,6 +94,7 @@ void SdkTestCapitalisationCollision::testCapitalisationFolderCollision(
     auto errCode = sdk_test::downloadNode(megaApi[0].get(),
                                           n1.get(),
                                           mFolderDestination,
+                                          true,
                                           180s /*timeout*/,
                                           MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
                                           collisionResolution);
@@ -103,6 +104,7 @@ void SdkTestCapitalisationCollision::testCapitalisationFolderCollision(
     errCode = sdk_test::downloadNode(megaApi[0].get(),
                                      n2.get(),
                                      mFolderDestination,
+                                     true,
                                      180s /*timeout*/,
                                      MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
                                      collisionResolution);
@@ -143,6 +145,7 @@ void SdkTestCapitalisationCollision::testCapitalisationDownloadFolderWithCollisi
     auto errCode = sdk_test::downloadNode(megaApi[0].get(),
                                           testNode.get(),
                                           mFolderDestination,
+                                          true,
                                           180s /*timeout*/,
                                           MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
                                           collisionResolution);
@@ -231,6 +234,7 @@ void SdkTestCapitalisationCollision::testCapitalisationFile(
     auto errCode = sdk_test::downloadNode(megaApi[0].get(),
                                           n1.get(),
                                           mFolderDestination,
+                                          true,
                                           180s /*timeout*/,
                                           MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
                                           collisionResolution);
@@ -240,6 +244,7 @@ void SdkTestCapitalisationCollision::testCapitalisationFile(
     errCode = sdk_test::downloadNode(megaApi[0].get(),
                                      n2.get(),
                                      mFolderDestination,
+                                     true,
                                      180s /*timeout*/,
                                      MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
                                      collisionResolution);
