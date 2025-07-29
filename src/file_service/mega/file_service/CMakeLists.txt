@@ -24,6 +24,7 @@ target_sources(SDKlib PRIVATE
                       file_fetch_request_forward.h
                       file_flush_request.h
                       file_flush_request_forward.h
+                      file_id_vector.h
                       file_info_context.h
                       file_info_context_badge.h
                       file_info_context_badge_forward.h
