@@ -243,11 +243,10 @@ auto WinFileAccess::getFileSize() const -> std::optional<std::pair<std::uint64_t
         return std::nullopt;
 
     // These casts prevent us having to assemble a u64 value by hand.
-    ULARGE_INTEGER& allocatedSize =
-        reinterpret_cast<ULARGE_INTEGER&>(compression.CompressedFileSize);
-    ULARGE_INTEGER& reportedSize = reinterpret_cast<ULARGE_INTEGER&>(standard.EndOfFile);
+    auto allocatedSize = static_cast<std::uint64_t>(compression.CompressedFileSize.QuadPart);
+    auto reportedSize = static_cast<std::uint64_t>(standard.EndOfFile.QuadPart);
 
-    return std::make_pair(allocatedSize.QuadPart, reportedSize.QuadPart);
+    return std::make_pair(allocatedSize, reportedSize);
 }
 
 bool WinFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* cretry)
