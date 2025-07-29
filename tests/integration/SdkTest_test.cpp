@@ -4469,14 +4469,17 @@ void SdkTest::cleanupSchedMeetingsAllAccounts()
 
         for (const auto& c: mApi[nApi].chats)
         {
-            if (!c.second->getScheduledMeetingList() ||
-                !c.second->getScheduledMeetingList()->size() ||
-                c.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
+            if (!c.second || c.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
             {
                 continue;
             }
 
             const auto schedList = c.second->getScheduledMeetingList();
+            if (!schedList || !schedList->size())
+            {
+                continue;
+            }
+
             for (unsigned long j = 0; j < schedList->size(); ++j)
             {
                 if (const MegaScheduledMeeting* auxSm = schedList->at(j);
@@ -4510,7 +4513,7 @@ void SdkTest::cleanupSchedMeetingsAllAccounts()
                     {
                         const string errDetails =
                             "Error cancelling scheduled meeting for chat (" +
-                            string{Base64Str<MegaClient::CHATHANDLE>(c.second->getHandle())} + ")";
+                            string{Base64Str<MegaClient::CHATHANDLE>(auxSm->chatid())} + ")";
                         localCleanupSuccess = false;
                         printCleanupErrMsg(prefix,
                                            errDetails,
