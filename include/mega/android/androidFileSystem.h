@@ -10,8 +10,11 @@
 #include <mega/posix/megafs.h>
 #include <mega/types.h>
 
+#include <cstdint>
 #include <jni.h>
 #include <mutex>
+#include <optional>
+#include <utility>
 
 extern jclass fileWrapper;
 extern jclass integerClass;
@@ -213,7 +216,11 @@ public:
 
     std::shared_ptr<AndroidFileWrapper> stealFileWrapper();
 
+    // Mark this file as a sparse file.
     bool setSparse() override;
+
+    // Retrieve this file's allocated and reported size.
+    auto getFileSize() const -> std::optional<std::pair<std::uint64_t, std::uint64_t>> override;
 
 protected:
     void fCloseInternal();

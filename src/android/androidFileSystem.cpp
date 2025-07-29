@@ -1022,6 +1022,28 @@ bool AndroidFileAccess::setSparse()
     return true;
 }
 
+auto AndroidFileAccess::getFileSize() const
+    -> std::optional<std::pair<std::uint64_t, std::uint64_t>>
+{
+    // File isn't open.
+    if (fd < 0)
+        return std::nullopt;
+
+    struct stat attributes;
+
+    // Couldn't retrieve the file's attributes.
+    if (::fstat(fd, &attributes) < 0)
+        return std::nullopt;
+
+    // Note that st_blocks is reported in units of 512B sectors.
+    auto allocatedSize = static_cast<std::uint64_t>(attributes.st_blocks) * 512ul;
+
+    // st_size is reported in units of bytes.
+    auto reportedSize = static_cast<std::uint64_t>(attributes.st_size);
+
+    return std::make_pair(allocatedSize, reportedSize);
+}
+
 bool AndroidFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* cretry)
 {
     // Sanity.
