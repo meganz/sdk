@@ -750,6 +750,7 @@ protected:
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
     void cleanupChatLinksAllAccounts();
+    void cleanupChatroomsAllAccounts();
 #endif
     void onEvent(MegaApi* api, MegaEvent *event) override;
 
@@ -788,6 +789,11 @@ public:
     template<typename... Args>
     int synchronousCatchup(unsigned apiIndex, Args... args)
     {
+        if (megaApi[apiIndex]->isEphemeralPlusPlus())
+        {
+            return API_OK;
+        }
+
         synchronousRequest(apiIndex,
                            MegaRequest::TYPE_CATCHUP,
                            [this, apiIndex, args...]()

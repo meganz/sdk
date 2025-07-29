@@ -430,6 +430,7 @@ void SdkTest::Cleanup()
 #ifdef ENABLE_CHAT
     cleanupSchedMeetingsAllAccounts();
     cleanupChatLinksAllAccounts();
+    cleanupChatroomsAllAccounts();
 #endif
 
 #ifdef ENABLE_SYNC
@@ -925,6 +926,9 @@ void SdkTest::cleanupChatLinksAllAccounts()
             continue;
         }
 
+        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
+        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+
         unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
         for (int i = 0u; i < chats->size(); ++i)
         {
@@ -982,6 +986,56 @@ void SdkTest::cleanupChatLinksAllAccounts()
                                    static_cast<unsigned>(nApi),
                                    e,
                                    true /*localCleanupSuccess*/);
+            }
+        }
+    }
+    updateCleanupStatus(localCleanupSuccess);
+    LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
+}
+
+void SdkTest::cleanupChatroomsAllAccounts()
+{
+    std::set<MegaHandle> skipChats;
+    const std::string prefix{"SdkTest::Cleanup(RemoveChatrooms)"};
+    LOG_debug << "# " << prefix;
+    bool localCleanupSuccess{true};
+    for (auto nApi = unsigned(megaApi.size()); nApi--;)
+    {
+        if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
+        {
+            continue;
+        }
+
+        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
+        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+
+        unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
+        for (int i = 0u; i < chats->size(); ++i)
+        {
+            const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
+            if (!c || c->getOwnPrivilege() < PRIV_RO)
+            {
+                continue;
+            }
+
+            RequestTracker rt(megaApi[nApi].get());
+            megaApi[nApi]->removeFromChat(c->getHandle(), INVALID_HANDLE, &rt);
+            if (const auto e = rt.waitForResult(); e != API_OK)
+            {
+                bool iterationCleanupSuccess{true};
+                const string errDetails =
+                    "Error removing myself from " + string(c->isGroup() ? "group" : "1on1") +
+                    " chat (" + string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} + ")";
+
+                if (e != API_ENOENT && e != API_EACCESS)
+                {
+                    localCleanupSuccess = iterationCleanupSuccess = false;
+                }
+                printCleanupErrMsg(prefix,
+                                   errDetails,
+                                   static_cast<unsigned>(nApi),
+                                   e,
+                                   iterationCleanupSuccess);
             }
         }
     }
@@ -1201,6 +1255,9 @@ void SdkTest::cleanupContactsAllAccounts(set<string>& alreadyRemoved)
             continue;
         }
 
+        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
+        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+
         auto myEmail(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()});
         if (!myEmail || !std::strlen(myEmail.get()))
         {
@@ -1263,8 +1320,6 @@ void SdkTest::cleanupContactsAllAccounts(set<string>& alreadyRemoved)
                                    result,
                                    iterationCleanupSuccess);
             }
-            LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
-            ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << "Failed to catchup for account " << nApi;
         }
     }
     updateCleanupStatus(localCleanupSuccess);
@@ -1282,6 +1337,9 @@ void SdkTest::cleanupSharesAllAccounts(set<string>& alreadyRemoved)
         {
             continue;
         }
+
+        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
+        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
 
         auto myEmail(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()});
         if (!myEmail || !std::strlen(myEmail.get()))
@@ -1606,6 +1664,9 @@ void SdkTest::cleanupNodeLinksAllAccounts()
             continue;
         }
 
+        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
+        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+
         unique_ptr<MegaNodeList> nodeLinks(megaApi[nApi]->getPublicLinks());
         for (int i = 0; i < nodeLinks->size(); ++i)
         {
@@ -1636,6 +1697,9 @@ void SdkTest::cleanupNodesAllAccounts()
         {
             continue;
         }
+
+        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
+        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
 
         // Remove nodes in Cloud & Rubbish
         purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
@@ -1744,6 +1808,9 @@ void SdkTest::cleanupContactRequestsAllAccounts()
             continue;
         }
 
+        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
+        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+
         std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
         for (int i = 0; i < crl->size(); i++)
         {
@@ -1851,6 +1918,9 @@ void SdkTest::cleanupSyncsAllAccounts()
         {
             continue;
         }
+
+        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
+        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
 
         auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
         for (int i = syncs->size(); i--;)
@@ -2084,7 +2154,7 @@ void SdkTest::fetchNodesForAccountsSequentially(const unsigned howMany)
         ASSERT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
         LOG_debug << "fetchNodesForAccountsSequentially: Catching up with API with account index("
                   << index << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(index)) << "Failed to catchup for account " << index;
+        ASSERT_EQ(API_OK, synchronousCatchup(index)) << " Failed to catchup for account " << index;
     }
 }
 
@@ -2209,6 +2279,11 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
     {
         if (mApi[apiIndex].megaApi->isLoggedIn())
         {
+            LOG_debug << "releaseMegaApi: Catching up with API with account index(" << apiIndex
+                      << ")";
+            ASSERT_EQ(API_OK, synchronousCatchup(apiIndex))
+                << " Failed to catchup for account " << apiIndex;
+
             if (!gResumeSessions)
                 ASSERT_NO_FATAL_FAILURE( logout(apiIndex, false, maxTimeout) );
             else
@@ -4477,6 +4552,10 @@ void SdkTest::cleanupSchedMeetingsAllAccounts()
         {
             continue;
         }
+
+        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
+        ASSERT_EQ(API_OK, synchronousCatchup(static_cast<unsigned>(nApi)))
+            << " Failed to catchup for account " << nApi;
 
         for (const auto& c: mApi[nApi].chats)
         {
