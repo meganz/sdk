@@ -496,11 +496,11 @@ void FileServiceContext::reclaimTaskCallback(Activity& activity,
     auto callback = std::bind(&FileServiceContext::reclaimTaskCallback,
                               this,
                               std::move(activity),
-                              period + when,
+                              now + period,
                               std::placeholders::_1);
 
     // Schedule another reclamation for the future.
-    exchange(mExecutor.execute(std::move(callback), period + when, false));
+    exchange(mExecutor.execute(std::move(callback), now + period, false));
 }
 
 auto FileServiceContext::reclaimable() -> FileServiceResultOr<FileIDVector>
