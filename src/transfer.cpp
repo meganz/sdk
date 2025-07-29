@@ -1258,6 +1258,203 @@ void Transfer::completefiles()
 #endif // ENABLE_SYNC
 }
 
+bool Transfer::tryOptimizedUpload(TransferDbCommitter& committer)
+{
+    if (type != PUT)
+    {
+        LOG_warn << "Type is not PUT";
+        return false;
+    }
+
+    if (files.empty())
+    {
+        LOG_warn << "No files to verify";
+        return false;
+    }
+
+    auto fp = fingerprint();
+    if (!fp.isvalid)
+    {
+        LOG_warn << "Invalid fingerprint";
+        return false;
+    }
+
+    // Find existing node by fingerprint
+    Node* existingNode = findNodeByFingerprint(fp);
+    if (!existingNode)
+    {
+        LOG_warn << "No existing file with matching fingerprint found";
+        return false;
+    }
+
+    // Check if existing node size matches
+    if (existingNode->size != size)
+    {
+        LOG_warn << "Fingerprint matches but size differs. "
+                 << "Current: " << size << ", Existing: " << existingNode->size;
+        return false;
+    }
+
+    File* file = files.front();
+    LocalPath localpath = file->getLocalname();
+
+    auto fa = client->fsaccess->newfileaccess();
+    if (!fa->fopen(localpath, FSLogging::logOnError))
+    {
+        LOG_warn << "Cannot open local file for MAC verification: " << localpath.toPath(false);
+        return false;
+    }
+
+    // Verify local file MAC using existing file's encryption credentials
+    if (!CompareLocalFileMetaMacWithNode(fa.get(), existingNode))
+    {
+        LOG_info << "MAC verification failed";
+        return false;
+    }
+
+    LOG_info << "MAC verification succeeded, performing optimized file copy";
+    return tryCopyFile(existingNode, committer);
+}
+
+Node* Transfer::findNodeByFingerprint(const FileFingerprint& fp)
+{
+    auto nodes = client->mNodeManager.getNodesByFingerprint(fp);
+    for (auto& nodePtr : nodes)
+    {
+        if (nodePtr && nodePtr->type == FILENODE)
+        {
+            LOG_info << "Found existing file with matching fingerprint: " << nodePtr->nodeHandle();
+            return nodePtr.get();
+        }
+    }
+
+    LOG_info << "No existing file found with matching fingerprint";
+    return nullptr;
+}
+
+bool Transfer::tryCopyFile(Node* sourceNode, TransferDbCommitter& committer)
+{
+    LOG_info << "Try copying file by using existing node: " << sourceNode->nodeHandle();
+    if (!sourceNode || sourceNode->type != FILENODE)
+    {
+        LOG_err << "Invalid source node";
+        return false;
+    }
+
+    File* file = files.front();
+    if (!file)
+    {
+        LOG_err << "Invalid file object";
+        return false;
+    }
+
+    // Set transfer completion status
+    progresscompleted = size;
+    pos = size;
+
+    // Reuse source node's encryption credentials
+    memcpy(filekey.bytes.data(),
+           sourceNode->nodekey().data(),
+           std::min(sourceNode->nodekey().size(), filekey.bytes.size()));
+    metamac = sourceNode->size > 0 ? chunkmacs.macsmac(sourceNode->nodecipher()) : 0;
+
+    // Create NewNode for putnodes operation
+    std::vector<NewNode> newNodes(1);
+    NewNode* newNode = &newNodes[0];
+
+    // Build new node
+    newNode->source = NEW_NODE;
+    newNode->type = FILENODE;
+    newNode->nodekey = sourceNode->nodekey();
+    newNode->parenthandle = file->h.as8byte();
+    newNode->mVersioningOption = NoVersioning;
+    newNode->canChangeVault = false;
+
+    // Copy and modify attributes
+    AttrMap attrs;
+    attrs.map = sourceNode->attrs.map;
+    attrs.map['n'] = file->name;
+
+    // Remove possible recovery record attribute
+    auto rrIt = attrs.map.find(AttrMap::string2nameid("rr"));
+    if (rrIt != attrs.map.end())
+    {
+        LOG_debug << "Removing rr attribute for copied file";
+        attrs.map.erase(rrIt);
+    }
+
+    // Serialize attributes
+    std::string attrString;
+    attrs.getjson(&attrString);
+
+    newNode->attrstring.reset(new string);
+    MegaClient::makeattr(client->getRecycledTemporaryTransferCipher((byte*)newNode->nodekey.data(), FILENODE),
+                         newNode->attrstring,
+                         attrString.c_str());
+
+    auto completion = [this, &committer](const Error& e, targettype_t, vector<NewNode>&, bool, int, const map<string, string>&)
+    {
+        if (e == API_OK) {
+            LOG_info << "Copying file completed";
+
+            state = TRANSFERSTATE_COMPLETED;
+            finished = true;
+
+            for (auto& f : files) {
+                client->app->file_complete(f);
+                f->transfer = nullptr;
+                f->completed(this, f->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
+            }
+
+            files.clear();
+            client->app->transfer_complete(this);
+            localfilename.clear();
+        }
+        else
+        {
+            LOG_err << "Copying file failed with error: " << e;
+            failed(e, committer);
+        }
+    };
+
+    try
+    {
+        if (file->targetuser.size())
+        {
+            // Send to target user's inbox (deprecated feature, kept for logging to helpdesk)
+            client->putnodes(file->targetuser.c_str(), std::move(newNodes), tag, std::move(completion));
+        }
+        else
+        {
+            client->reqs.add(new CommandPutNodes(client,
+                                                 file->h,
+                                                 nullptr,
+                                                 newNode->mVersioningOption,
+                                                 std::move(newNodes),
+                                                 tag,
+                                                 file->syncxfer ? PUTNODES_SYNC : PUTNODES_APP,
+                                                 nullptr,
+                                                 std::move(completion),
+                                                 newNode->canChangeVault,
+                                                 {}));
+        }
+
+        LOG_info << "Copying file putnodes request sent successfully";
+        return true;
+
+    }
+    catch (const std::exception& ex)
+    {
+        LOG_err << "Exception occurred while copying file: " << ex.what();
+        return false;
+    }
+    catch (...)
+    {
+        LOG_err << "Unknown exception while copying file";
+        return false;
+    }
+}
+
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)
 {
     client = cclient;

@@ -229,8 +229,12 @@ struct MEGA_API Transfer : public FileFingerprint
 
     void adjustNonRaidedProgressIfNowIsRaided();
 
+    bool tryOptimizedUpload(TransferDbCommitter& committer);
+
 private:
     FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);
+    Node* findNodeByFingerprint(const FileFingerprint& fp);
+    bool tryCopyFile(Node* sourceNode, TransferDbCommitter& committer);
 };
 
 

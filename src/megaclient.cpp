@@ -4006,6 +4006,26 @@ void MegaClient::dispatchTransfers()
         return;
     }
 
+    // Check for upload optimization before allocating transfer slots
+    TransferDbCommitter tmpCommitter(tctable);
+    auto& directionList = multi_transfers[PUT];
+    for (auto i = directionList.begin(); i != directionList.end(); )
+    {
+        auto it = i++;
+        Transfer* transfer = it->second;
+
+        // Check if the transfer is still in the queue and not started
+        if (transfer->slot == nullptr && transfer->state == TRANSFERSTATE_QUEUED)
+        {
+            if (transfer->tryOptimizedUpload(tmpCommitter))
+            {
+                LOG_info << "Transfer optimized successfully, removing from queue";
+                transfer->removeAndDeleteSelf(TRANSFERSTATE_COMPLETED);
+                continue;
+            }
+        }
+    }
+
     CodeCounter::ScopeTimer ccst(performanceStats.dispatchTransfers);
 
     struct counter

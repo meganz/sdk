@@ -330,6 +330,21 @@ void clientUpload(MegaClient& mc,
         return;
     }
 
+    // Trying to optimize upload
+    if (auto fa = mc.fsaccess->newfileaccess(); fa->fopen(upload->sourceLocalname, true, false, FSLogging::logOnError))
+    {
+        auto tempTransfer = std::make_unique<Transfer>(&mc, PUT);
+        tempTransfer->localfilename = upload->sourceLocalname;
+        tempTransfer->genfingerprint(fa.get());
+        if (tempTransfer->tryOptimizedUpload(committer))
+        {
+            LOG_debug << "Sync upload optimized by file copy";
+            upload->putnodesStarted = true;
+            upload->wasCompleted = true;
+            return;
+        }
+    }
+
     // Otherwise, proceed with the normal upload.
     upload->tag = mc.nextreqtag();
     upload->selfKeepAlive = upload;
