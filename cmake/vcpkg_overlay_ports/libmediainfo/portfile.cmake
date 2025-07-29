@@ -7,6 +7,7 @@ vcpkg_from_github(
     HEAD_REF master
     PATCHES
         dependencies.diff
+        features.diff
 )
 
 vcpkg_find_acquire_program(PKGCONFIG)
