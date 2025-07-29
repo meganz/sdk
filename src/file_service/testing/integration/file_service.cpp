@@ -206,6 +206,7 @@ static const FileServiceOptions DisableReadahead = {
     0u,
     DefaultOptions.mRangeRetryBackoff,
     DefaultOptions.mReclaimAgeThreshold,
+    DefaultOptions.mReclaimBatchSize,
     DefaultOptions.mReclaimDelay,
     DefaultOptions.mReclaimPeriod,
     DefaultOptions.mReclaimSizeThreshold}; // DisableReadahead
@@ -1345,6 +1346,9 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
 
     // Let the service know it can reclaim files regardless of access time.
     options.mReclaimAgeThreshold = std::chrono::hours(0);
+
+    // Reclaim a single file at a time.
+    options.mReclaimBatchSize = 1;
 
     ClientW()->fileServiceOptions(options);
 

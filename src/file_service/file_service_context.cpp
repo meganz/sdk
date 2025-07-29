@@ -73,6 +73,8 @@ public:
 
 static Database createDatabase(const LocalPath& databasePath);
 
+static bool reclamationEnabled(const FileServiceOptions& options);
+
 template<typename Lock>
 FileID FileServiceContext::allocateID([[maybe_unused]] Lock&& lock, Transaction& transaction)
 {
@@ -500,12 +502,13 @@ try
     // Get our hands on our current options.
     auto options = this->options();
 
-    // Convenience.
-    auto sizeThreshold = options.mReclaimSizeThreshold;
-
     // No need to reclaim any storage.
-    if (!sizeThreshold)
+    if (!reclamationEnabled(options))
         return FileIDVector();
+
+    // Convenience.
+    auto batchSize = options.mReclaimBatchSize;
+    auto sizeThreshold = options.mReclaimSizeThreshold;
 
     // So we have exclusive access to the database.
     UniqueLock lock(mDatabase);
@@ -531,6 +534,7 @@ try
 
     // Specify maximum reclaimable access time.
     query.param(":accessed").set(system_clock::to_time_t(accessed));
+    query.param(":count").set(batchSize);
 
     // Tracks the IDs of the files we can reclaim.
     FileIDVector ids;
@@ -848,16 +852,15 @@ void FileServiceContext::options(const FileServiceOptions& options)
         readLock = writeLock.to_shared_lock();
     }
 
-    // Convenience.
-    auto newPeriod = options.mReclaimPeriod;
-    auto sizeThreshold = options.mReclaimSizeThreshold;
-
     // Acquire task lock.
     UniqueLock taskLock(mReclaimTaskLock);
 
     // Caller wants to disable periodic reclamation.
-    if (!newPeriod.count() || !sizeThreshold)
+    if (!reclamationEnabled(options))
         return mReclaimTask.abort(), void();
+
+    // Convenience.
+    auto newPeriod = options.mReclaimPeriod;
 
     // Caller isn't changing reclamation period.
     if (newPeriod == oldPeriod)
@@ -1135,6 +1138,12 @@ Database createDatabase(const LocalPath& databasePath)
     DatabaseBuilder(database).build();
 
     return database;
+}
+
+bool reclamationEnabled(const FileServiceOptions& options)
+{
+    return options.mReclaimBatchSize && options.mReclaimPeriod.count() &&
+           options.mReclaimSizeThreshold;
 }
 
 } // file_service
