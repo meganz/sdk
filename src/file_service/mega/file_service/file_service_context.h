@@ -10,6 +10,7 @@
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_id_forward.h>
+#include <mega/file_service/file_id_vector.h>
 #include <mega/file_service/file_info_context_badge_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_info_forward.h>
@@ -73,13 +74,11 @@ class FileServiceContext
     template<typename Lock>
     auto rangesFromIndex(FileID id, Lock&& lock) -> std::optional<FileRangeVector>;
 
-    void reclaim(ReclaimContextPtr context);
-
     void reclaimTaskCallback(common::Activity& activity,
                              std::chrono::steady_clock::time_point when,
                              const common::Task& task);
 
-    auto reclaimable(const FileServiceOptions& options) -> std::vector<FileID>;
+    auto reclaimable() -> FileServiceResultOr<FileIDVector>;
 
     template<typename Lock, typename T>
     bool removeFromIndex(FileID id, Lock&& lock, FromFileIDMap<T>& map);

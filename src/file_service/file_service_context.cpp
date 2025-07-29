@@ -32,13 +32,13 @@ namespace file_service
 using namespace common;
 using namespace std::chrono;
 
-class FileServiceContext::ReclaimContext: public std::enable_shared_from_this<ReclaimContext>
+class FileServiceContext::ReclaimContext
 {
     // Reclaim a single file.
-    void reclaim(FileID id);
+    void reclaim(ReclaimContextPtr context, FileID id);
 
     // Called when a file has been reclaimed.
-    void reclaimed(FileResultOr<std::uint64_t> result);
+    void reclaimed(ReclaimContextPtr context, FileResultOr<std::uint64_t> result);
 
     // Make sure our service stays alive as long as we do.
     Activity mActivity;
@@ -55,9 +55,6 @@ class FileServiceContext::ReclaimContext: public std::enable_shared_from_this<Re
     // Tracks how much space we've recovered.
     std::uint64_t mReclaimed;
 
-    // Tracks any failure we might have encountered.
-    FileResult mResult;
-
     // What service are we reclaiming storage for?
     FileServiceContext& mService;
 
@@ -70,8 +67,8 @@ public:
     // Queue a callback for later execution.
     void queue(ReclaimCallback callback);
 
-    // Reclaim one or more files.
-    void reclaim(const std::vector<FileID>& ids);
+    // Reclaim zero or more files.
+    void reclaim(ReclaimContextPtr context);
 }; // ReclaimContext
 
 static Database createDatabase(const LocalPath& databasePath);
@@ -455,29 +452,6 @@ auto FileServiceContext::rangesFromIndex(FileID id, Lock&& lock) -> std::optiona
     return std::nullopt;
 }
 
-void FileServiceContext::reclaim(ReclaimContextPtr context)
-try
-{
-    // Figure out how many files we need to reclaim.
-    auto ids = reclaimable(options());
-
-    // No files need to be reclaimed.
-    if (ids.empty())
-        return context->completed(0u);
-
-    // Try and reclaim the files.
-    context->reclaim(ids);
-}
-
-catch (std::runtime_error& exception)
-{
-    // Let debuggers know why we couldn't reclaim storage space.
-    FSErrorF("Unable to reclaim storage space: %s", exception.what());
-
-    // Let callers know we couldn't reclaim storage space.
-    return context->completed(FILE_SERVICE_UNEXPECTED);
-}
-
 void FileServiceContext::reclaimTaskCallback(Activity& activity,
                                              steady_clock::time_point when,
                                              const Task& task)
@@ -520,14 +494,18 @@ void FileServiceContext::reclaimTaskCallback(Activity& activity,
                                      false);
 }
 
-auto FileServiceContext::reclaimable(const FileServiceOptions& options) -> std::vector<FileID>
+auto FileServiceContext::reclaimable() -> FileServiceResultOr<FileIDVector>
+try
 {
+    // Get our hands on our current options.
+    auto options = this->options();
+
     // Convenience.
     auto sizeThreshold = options.mReclaimSizeThreshold;
 
     // No need to reclaim any storage.
     if (!sizeThreshold)
-        return {};
+        return FileIDVector();
 
     // So we have exclusive access to the database.
     UniqueLock lock(mDatabase);
@@ -540,7 +518,7 @@ auto FileServiceContext::reclaimable(const FileServiceOptions& options) -> std::
 
     // No need to reclaim any storage.
     if (sizeThreshold >= used)
-        return {};
+        return FileIDVector();
 
     // Get the allocated size and ID of all files in storage.
     auto query = transaction.query(mQueries.mGetReclaimableFiles);
@@ -555,7 +533,7 @@ auto FileServiceContext::reclaimable(const FileServiceOptions& options) -> std::
     query.param(":accessed").set(system_clock::to_time_t(accessed));
 
     // Tracks the IDs of the files we can reclaim.
-    std::vector<FileID> ids;
+    FileIDVector ids;
 
     // Collect as many IDs for reclamation as necessary.
     for (query.execute(); query && used > sizeThreshold; ++query)
@@ -573,6 +551,13 @@ auto FileServiceContext::reclaimable(const FileServiceOptions& options) -> std::
 
     // Return vector of reclaimable IDs to our caller.
     return ids;
+}
+
+catch (std::runtime_error& exception)
+{
+    FSErrorF("Unable to determine which files can be reclaimed: %s", exception.what());
+
+    return FILE_SERVICE_UNEXPECTED;
 }
 
 template<typename Lock, typename T>
@@ -959,7 +944,7 @@ void FileServiceContext::reclaim(ReclaimCallback callback)
     lock.unlock();
 
     // Reclaim storage space.
-    reclaim(std::move(context));
+    mReclaimContext->reclaim(mReclaimContext);
 }
 
 void FileServiceContext::removeFromIndex(FileContextBadge, FileID id)
@@ -1041,34 +1026,31 @@ catch (std::runtime_error& exception)
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
-void FileServiceContext::ReclaimContext::reclaim(FileID id)
+void FileServiceContext::ReclaimContext::reclaim(ReclaimContextPtr context, FileID id)
 {
     // Try and open the file.
     auto file = mService.open(id);
 
     // Couldn't open the file.
     if (!file)
-        return reclaimed(FILE_FAILED);
+        return reclaimed(std::move(context), FILE_FAILED);
 
     // So we can use our reclaimed function as a callback.
     auto reclaimed =
-        std::bind(&ReclaimContext::reclaimed, shared_from_this(), std::placeholders::_1);
+        std::bind(&ReclaimContext::reclaimed, this, std::move(context), std::placeholders::_1);
 
     // Try and reclaim the file.
     file->reclaim(std::move(reclaimed));
 }
 
-void FileServiceContext::ReclaimContext::reclaimed(FileResultOr<std::uint64_t> result)
+void FileServiceContext::ReclaimContext::reclaimed(ReclaimContextPtr context,
+                                                   FileResultOr<std::uint64_t> result)
 {
     // Make sure no one else changes our members.
-    std::lock_guard guard(mLock);
+    std::unique_lock lock(mLock);
 
     // Update total amount of reclaimed space.
     mReclaimed += result.valueOr(0ul);
-
-    // Don't forget the first failure we encountered.
-    if (mResult)
-        mResult = result.errorOr(FILE_SUCCESS);
 
     // Sanity.
     assert(mCount);
@@ -1077,19 +1059,22 @@ void FileServiceContext::ReclaimContext::reclaimed(FileResultOr<std::uint64_t> r
     if (--mCount)
         return;
 
+    // Release the lock.
+    lock.unlock();
+
     // We could recover some space or didn't encounter any failures.
-    if (mReclaimed || mResult == FILE_SUCCESS)
-        return completed(mReclaimed);
+    if (mReclaimed)
+        return reclaim(std::move(context));
 
     // We encountered a failure and couldn't recover any space.
-    completed(mResult);
+    completed(FILE_SERVICE_UNEXPECTED);
 }
 
 FileServiceContext::ReclaimContext::ReclaimContext(FileServiceContext& service):
     mActivity(service.mActivities.begin()),
     mCallbacks(),
-    mCount{0u},
-    mResult{FILE_SERVICE_SUCCESS},
+    mCount(0u),
+    mReclaimed(0),
     mService(service)
 {}
 
@@ -1112,17 +1097,35 @@ void FileServiceContext::ReclaimContext::queue(ReclaimCallback callback)
     mCallbacks.emplace_back(std::move(callback));
 }
 
-void FileServiceContext::ReclaimContext::reclaim(const std::vector<FileID>& ids)
+// No locks are necessary here as:
+// - Only a single thread will ever call this method at a time.
+// - No reclamations will be in progress when this method is called.
+void FileServiceContext::ReclaimContext::reclaim(ReclaimContextPtr context)
 {
-    // Remember how many files we're reclaiming.
-    //
-    // No lock should be necessary here as only a single thread should ever
-    // call this method at a time.
-    mCount = ids.size();
+    // Try and figure out what files we can reclaim.
+    auto ids = mService.reclaimable();
+
+    // Couldn't determine how many files to reclaim.
+    if (!ids)
+    {
+        // We were able to reclaim some space.
+        if (mReclaimed)
+            return completed(mReclaimed);
+
+        // We weren't able to reclaim any space.
+        return completed(FILE_SERVICE_UNEXPECTED);
+    }
+
+    // There are no files to reclaim.
+    if (ids->empty())
+        return completed(mReclaimed);
+
+    // Track how many files we're reclaiming.
+    mCount = ids->size();
 
     // Try and reclaim each file.
-    for (auto id: ids)
-        reclaim(id);
+    for (auto id: *ids)
+        reclaim(context, id);
 }
 
 Database createDatabase(const LocalPath& databasePath)
