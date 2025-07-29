@@ -121,6 +121,8 @@ class Mount
                    ULONG& numWritten,
                    FSP_FSCTL_FILE_INFO& info);
 
+    bool isSelf() const;
+
     // Tracks whether any requests are in progress.
     common::ActivityMonitor mActivities;
 
