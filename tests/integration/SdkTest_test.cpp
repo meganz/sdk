@@ -914,6 +914,7 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
 
 void SdkTest::cleanupChatLinksAllAccounts()
 {
+    std::set<MegaHandle> skipChats;
     const std::string prefix{"SdkTest::Cleanup(RemoveChatLinks)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
@@ -932,6 +933,11 @@ void SdkTest::cleanupChatLinksAllAccounts()
             if (auto processChat = c->isPublicChat() && c->getOwnPrivilege() == PRIV_MODERATOR &&
                                    (numPeers || c->isGroup());
                 !processChat)
+            {
+                continue;
+            }
+
+            if (skipChats.find(c->getHandle()) != skipChats.end())
             {
                 continue;
             }
@@ -963,6 +969,11 @@ void SdkTest::cleanupChatLinksAllAccounts()
             }
             else
             {
+                if (e == API_ENOENT)
+                {
+                    skipChats.emplace(c->getHandle());
+                }
+
                 const string errDetails =
                     "Error getting chat link for chat (" +
                     string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} + ")";
