@@ -475,32 +475,43 @@ void FileServiceContext::reclaimTaskCallback(Activity& activity,
     if (task.aborted())
         return exchange(Task());
 
-    // Convenience.
-    auto now = steady_clock::now();
+    // Schedule another reclamation in the future.
+    auto reschedule = [activity = std::move(activity), exchange, this]()
+    {
+        // Get the service's current options.
+        auto options = this->options();
 
-    // Perform reclamation if necessary.
-    if (now >= when)
-        reclaim([](auto) {});
+        // Reclamation has been disabled.
+        if (!reclamationEnabled(options))
+            return exchange(Task());
 
-    // Get the service's current options.
-    auto options = this->options();
+        // When should the next reclamation occur?
+        auto when = steady_clock::now() + options.mReclaimPeriod;
 
-    // Reclamation has been disabled.
-    if (!reclamationEnabled(options))
-        return exchange(Task());
+        // Keep exchange below simple.
+        auto callback = std::bind(&FileServiceContext::reclaimTaskCallback,
+                                  this,
+                                  std::move(activity),
+                                  when,
+                                  std::placeholders::_1);
 
-    // Convenience.
-    auto period = mOptions.mReclaimPeriod;
+        // Schedule another reclamation for the future.
+        exchange(mExecutor.execute(std::move(callback), when, false));
+    }; // reschedule
 
-    // Keeps the exchange(...) below understandable.
-    auto callback = std::bind(&FileServiceContext::reclaimTaskCallback,
-                              this,
-                              std::move(activity),
-                              now + period,
-                              std::placeholders::_1);
+    // No reclamation needed at this time.
+    if (steady_clock::now() < when)
+        return reschedule();
 
-    // Schedule another reclamation for the future.
-    exchange(mExecutor.execute(std::move(callback), now + period, false));
+    // Called when reclamation has completed.
+    auto reclaimed = [reschedule = std::move(reschedule)](auto)
+    {
+        // Schedule another reclamation in the future.
+        reschedule();
+    }; // reclaimed
+
+    // Try and reclaim storage.
+    reclaim(std::move(reclaimed));
 }
 
 auto FileServiceContext::reclaimable() -> FileServiceResultOr<FileIDVector>
