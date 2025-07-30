@@ -708,7 +708,7 @@ protected:
                             const int errCode,
                             const bool localCleanupSuccess) const;
 #ifdef ENABLE_CHAT
-    void cleanupSchedMeetingsAllAccounts();
+    void cleanupSchedMeetingsAllAccounts(const unsigned nApi);
 #endif
 
     void syncTestEnsureMyBackupsRemoteFolderExists(unsigned apiIdx);
@@ -745,13 +745,13 @@ protected:
 
     void onGlobalSyncStateChanged(MegaApi*) override {}
 
-    void cleanupSyncsAllAccounts();
+    void cleanupSyncsAllAccounts(const unsigned int nApi);
     void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 #endif
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
-    void cleanupChatLinksAllAccounts();
-    void cleanupChatroomsAllAccounts();
+    void cleanupChatLinksAllAccounts(const unsigned int nApi);
+    void cleanupChatroomsAllAccounts(const unsigned int nApi);
 #endif
     void onEvent(MegaApi* api, MegaEvent *event) override;
 
@@ -769,11 +769,11 @@ public:
     void resumeSession(const char *session, unsigned apiIndex = 0);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
-    void cleanupContactsAllAccounts(set<string>& alreadyRemoved);
-    void cleanupSharesAllAccounts(set<string>& alreadyRemoved);
-    void cleanupNodeLinksAllAccounts();
-    void cleanupNodesAllAccounts();
-    void cleanupContactRequestsAllAccounts();
+    void cleanupContactsAllAccounts(const unsigned int nApi, set<string>& alreadyRemoved);
+    void cleanupSharesAllAccounts(const unsigned int nApi, set<string>& alreadyRemoved);
+    void cleanupNodeLinksAllAccounts(const unsigned int nApi);
+    void cleanupNodesAllAccounts(const unsigned int nApi);
+    void cleanupContactRequestsAllAccounts(const unsigned int nApi);
     void cleanupLocalFiles();
 
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);

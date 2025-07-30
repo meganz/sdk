@@ -425,24 +425,33 @@ void SdkTest::Cleanup()
 {
     LOG_debug << "[SdkTest::Cleanup]";
     mCleanupSuccess = true;
+    set<string> alreadyRemoved;
     cleanupLocalFiles();
+    for (unsigned nApi = 0; nApi < mApi.size(); ++nApi)
+    {
+        if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
+        {
+            continue;
+        }
+        cleanupCatchupWithApi(static_cast<unsigned int>(nApi), cleanupCatchupTimeoutSecs);
 
 #ifdef ENABLE_CHAT
-    cleanupSchedMeetingsAllAccounts();
-    cleanupChatLinksAllAccounts();
-    cleanupChatroomsAllAccounts();
+        cleanupSchedMeetingsAllAccounts(nApi);
+        cleanupChatLinksAllAccounts(nApi);
+        cleanupChatroomsAllAccounts(nApi);
 #endif
 
 #ifdef ENABLE_SYNC
-    cleanupSyncsAllAccounts();
+        cleanupSyncsAllAccounts(nApi);
 #endif
 
-    set<string> alreadyRemoved;
-    cleanupContactRequestsAllAccounts();
-    cleanupContactsAllAccounts(alreadyRemoved);
-    cleanupSharesAllAccounts(alreadyRemoved);
-    cleanupNodeLinksAllAccounts();
-    cleanupNodesAllAccounts();
+        cleanupContactRequestsAllAccounts(nApi);
+        cleanupContactsAllAccounts(nApi, alreadyRemoved);
+        cleanupSharesAllAccounts(nApi, alreadyRemoved);
+        cleanupNodeLinksAllAccounts(nApi);
+        cleanupNodesAllAccounts(nApi);
+    }
+
     LOG_debug << "[SdkTest::Cleanup]: " << (mCleanupSuccess ? "Finished successfully" : "Failed");
     EXPECT_TRUE(mCleanupSuccess) << "[SdkTest::Cleanup]: Mark test as failed";
 }
@@ -913,130 +922,114 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     mApi[apiIndex].callCustomCallbackCheck(mApi[apiIndex].megaApi->getMyUserHandleBinary());
 }
 
-void SdkTest::cleanupChatLinksAllAccounts()
+void SdkTest::cleanupChatLinksAllAccounts(const unsigned int nApi)
 {
     std::set<MegaHandle> skipChats;
     const std::string prefix{"SdkTest::Cleanup(RemoveChatLinks)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
-    for (auto nApi = unsigned(megaApi.size()); nApi--;)
+
+    unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
+    for (int i = 0u; i < chats->size(); ++i)
     {
-        if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
+        const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
+        const auto numPeers = c->getPeerList() ? c->getPeerList()->size() : 0;
+        if (auto processChat = c->isPublicChat() && c->getOwnPrivilege() == PRIV_MODERATOR &&
+                               (numPeers || c->isGroup());
+            !processChat)
         {
             continue;
         }
 
-        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
-
-        unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
-        for (int i = 0u; i < chats->size(); ++i)
-        {
-            const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
-            const auto numPeers = c->getPeerList() ? c->getPeerList()->size() : 0;
-            if (auto processChat = c->isPublicChat() && c->getOwnPrivilege() == PRIV_MODERATOR &&
-                                   (numPeers || c->isGroup());
-                !processChat)
-            {
-                continue;
-            }
-
-            if (skipChats.find(c->getHandle()) != skipChats.end())
-            {
-                continue;
-            }
-
-            RequestTracker rt(megaApi[nApi].get());
-            megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
-            if (const auto e = rt.waitForResult(); e == API_OK)
-            {
-                RequestTracker rtD(megaApi[nApi].get());
-                megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
-
-                if (auto errCld = rtD.waitForResult(); errCld != API_OK)
-                {
-                    bool iterationCleanupSuccess{true};
-                    const string errDetails =
-                        "Error deleting chatlink for chat (" +
-                        string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} + ")";
-
-                    if (errCld != API_EACCESS)
-                    {
-                        localCleanupSuccess = iterationCleanupSuccess = false;
-                    }
-                    printCleanupErrMsg(prefix,
-                                       errDetails,
-                                       static_cast<unsigned>(nApi),
-                                       errCld,
-                                       iterationCleanupSuccess);
-                }
-            }
-            else
-            {
-                if (e == API_ENOENT)
-                {
-                    skipChats.emplace(c->getHandle());
-                }
-
-                const string errDetails =
-                    "Error getting chat link for chat (" +
-                    string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} + ")";
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(nApi),
-                                   e,
-                                   true /*localCleanupSuccess*/);
-            }
-        }
-    }
-    updateCleanupStatus(localCleanupSuccess);
-    LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
-}
-
-void SdkTest::cleanupChatroomsAllAccounts()
-{
-    std::set<MegaHandle> skipChats;
-    const std::string prefix{"SdkTest::Cleanup(RemoveChatrooms)"};
-    LOG_debug << "# " << prefix;
-    bool localCleanupSuccess{true};
-    for (auto nApi = unsigned(megaApi.size()); nApi--;)
-    {
-        if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
+        if (skipChats.find(c->getHandle()) != skipChats.end())
         {
             continue;
         }
 
-        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
-
-        unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
-        for (int i = 0u; i < chats->size(); ++i)
+        RequestTracker rt(megaApi[nApi].get());
+        megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
+        if (const auto e = rt.waitForResult(); e == API_OK)
         {
-            const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
-            if (!c || c->getOwnPrivilege() < PRIV_RO)
-            {
-                continue;
-            }
+            RequestTracker rtD(megaApi[nApi].get());
+            megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
 
-            RequestTracker rt(megaApi[nApi].get());
-            megaApi[nApi]->removeFromChat(c->getHandle(), INVALID_HANDLE, &rt);
-            if (const auto e = rt.waitForResult(); e != API_OK)
+            if (auto errCld = rtD.waitForResult(); errCld != API_OK)
             {
                 bool iterationCleanupSuccess{true};
                 const string errDetails =
-                    "Error removing myself from " + string(c->isGroup() ? "group" : "1on1") +
-                    " chat (" + string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} + ")";
+                    "Error deleting chatlink for chat (" +
+                    string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} + ")";
 
-                if (e != API_ENOENT && e != API_EACCESS)
+                if (errCld != API_EACCESS)
                 {
                     localCleanupSuccess = iterationCleanupSuccess = false;
                 }
                 printCleanupErrMsg(prefix,
                                    errDetails,
                                    static_cast<unsigned>(nApi),
-                                   e,
+                                   errCld,
                                    iterationCleanupSuccess);
             }
         }
+        else
+        {
+            if (e == API_ENOENT)
+            {
+                skipChats.emplace(c->getHandle());
+            }
+
+            const string errDetails = "Error getting chat link for chat (" +
+                                      string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} +
+                                      ")";
+            printCleanupErrMsg(prefix,
+                               errDetails,
+                               static_cast<unsigned>(nApi),
+                               e,
+                               true /*localCleanupSuccess*/);
+        }
     }
+
+    updateCleanupStatus(localCleanupSuccess);
+    LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
+}
+
+void SdkTest::cleanupChatroomsAllAccounts(const unsigned int nApi)
+{
+    std::set<MegaHandle> skipChats;
+    const std::string prefix{"SdkTest::Cleanup(RemoveChatrooms)"};
+    LOG_debug << "# " << prefix;
+    bool localCleanupSuccess{true};
+
+    unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
+    for (int i = 0u; i < chats->size(); ++i)
+    {
+        const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
+        if (!c || c->getOwnPrivilege() < PRIV_RO)
+        {
+            continue;
+        }
+
+        RequestTracker rt(megaApi[nApi].get());
+        megaApi[nApi]->removeFromChat(c->getHandle(), INVALID_HANDLE, &rt);
+        if (const auto e = rt.waitForResult(); e != API_OK)
+        {
+            bool iterationCleanupSuccess{true};
+            const string errDetails =
+                "Error removing myself from " + string(c->isGroup() ? "group" : "1on1") +
+                " chat (" + string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} + ")";
+
+            if (e != API_ENOENT && e != API_EACCESS)
+            {
+                localCleanupSuccess = iterationCleanupSuccess = false;
+            }
+            printCleanupErrMsg(prefix,
+                               errDetails,
+                               static_cast<unsigned>(nApi),
+                               e,
+                               iterationCleanupSuccess);
+        }
+    }
+
     updateCleanupStatus(localCleanupSuccess);
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
@@ -1241,200 +1234,179 @@ void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
     }
 }
 
-void SdkTest::cleanupContactsAllAccounts(set<string>& alreadyRemoved)
+void SdkTest::cleanupContactsAllAccounts(const unsigned int nApi, set<string>& alreadyRemoved)
 {
     const std::string prefix{"SdkTest::Cleanup(RemoveContacts)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
-    for (auto nApi = unsigned(megaApi.size()); nApi--;)
+
+    auto myEmail(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()});
+    if (!myEmail || !std::strlen(myEmail.get()))
     {
-        if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
+        const string errDetails =
+            "Error retrieving email for own account(" +
+            string{Base64Str<MegaClient::USERHANDLE>(megaApi[nApi]->getMyUserHandleBinary())} + ")";
+        printCleanupErrMsg(prefix,
+                           errDetails,
+                           static_cast<unsigned>(nApi),
+                           API_EINTERNAL,
+                           true /*localCleanupSuccess*/);
+        return;
+    }
+    const string myEmailStr{myEmail.get()};
+
+    std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
+    for (int i = 0; i < contacts->size(); i++)
+    {
+        const auto contactEmail = contacts->get(i)->getEmail();
+        if (!contactEmail || !*contactEmail)
         {
             continue;
         }
 
-        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
-
-        auto myEmail(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()});
-        if (!myEmail || !std::strlen(myEmail.get()))
+        if (areCredentialsVerified(nApi, contactEmail))
         {
-            const string errDetails =
-                "Error retrieving email for own account(" +
-                string{Base64Str<MegaClient::USERHANDLE>(megaApi[nApi]->getMyUserHandleBinary())} +
-                ")";
+            // sometimes the email is an empty string (!)
+            resetCredentials(nApi, contactEmail);
+        }
+
+        // avoid removing the same contact again in a 2nd client of the same account
+        // (actionpackets from the first may not have arrived yet) or removing via the other
+        // account, again the original disconnection may not have arrived by actionpacket
+        // yet
+        const string contactEmailStr{contactEmail};
+        if (alreadyRemoved.find(myEmailStr + contactEmailStr) != alreadyRemoved.end())
+            continue;
+        if (alreadyRemoved.find(contactEmailStr + myEmailStr) != alreadyRemoved.end())
+            continue;
+        alreadyRemoved.insert(myEmailStr + contactEmailStr);
+
+        if (contacts->get(i)->getVisibility() == MegaUser::VISIBILITY_HIDDEN)
+        {
+            continue;
+        }
+
+        if (const auto result = synchronousRemoveContact(nApi, contacts->get(i)); result != API_OK)
+        {
+            bool iterationCleanupSuccess{true};
+            const string errDetails = "Could not remove contact (" + contactEmailStr + ")";
+            if (result != API_EEXIST)
+            {
+                localCleanupSuccess = iterationCleanupSuccess = false;
+            }
             printCleanupErrMsg(prefix,
                                errDetails,
                                static_cast<unsigned>(nApi),
-                               API_EINTERNAL,
-                               true /*localCleanupSuccess*/);
-            continue;
-        }
-        const string myEmailStr{myEmail.get()};
-
-        std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
-        for (int i = 0; i < contacts->size(); i++)
-        {
-            const auto contactEmail = contacts->get(i)->getEmail();
-            if (!contactEmail || !*contactEmail)
-            {
-                continue;
-            }
-
-            if (areCredentialsVerified(nApi, contactEmail))
-            {
-                // sometimes the email is an empty string (!)
-                resetCredentials(nApi, contactEmail);
-            }
-
-            // avoid removing the same contact again in a 2nd client of the same account
-            // (actionpackets from the first may not have arrived yet) or removing via the other
-            // account, again the original disconnection may not have arrived by actionpacket
-            // yet
-            const string contactEmailStr{contactEmail};
-            if (alreadyRemoved.find(myEmailStr + contactEmailStr) != alreadyRemoved.end())
-                continue;
-            if (alreadyRemoved.find(contactEmailStr + myEmailStr) != alreadyRemoved.end())
-                continue;
-            alreadyRemoved.insert(myEmailStr + contactEmailStr);
-
-            if (contacts->get(i)->getVisibility() == MegaUser::VISIBILITY_HIDDEN)
-            {
-                continue;
-            }
-
-            if (const auto result = synchronousRemoveContact(nApi, contacts->get(i));
-                result != API_OK)
-            {
-                bool iterationCleanupSuccess{true};
-                const string errDetails = "Could not remove contact (" + contactEmailStr + ")";
-                if (result != API_EEXIST)
-                {
-                    localCleanupSuccess = iterationCleanupSuccess = false;
-                }
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(nApi),
-                                   result,
-                                   iterationCleanupSuccess);
-            }
+                               result,
+                               iterationCleanupSuccess);
         }
     }
+
     updateCleanupStatus(localCleanupSuccess);
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::cleanupSharesAllAccounts(set<string>& alreadyRemoved)
+void SdkTest::cleanupSharesAllAccounts(const unsigned int nApi, set<string>& alreadyRemoved)
 {
     const std::string prefix{"SdkTest::Cleanup(RemoveShares)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
-    for (auto nApi = unsigned(megaApi.size()); nApi--;)
+
+    auto myEmail(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()});
+    if (!myEmail || !std::strlen(myEmail.get()))
     {
-        if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
+        const string errDetails =
+            "Error retrieving email for own account(" +
+            string{Base64Str<MegaClient::USERHANDLE>(megaApi[nApi]->getMyUserHandleBinary())} + ")";
+        printCleanupErrMsg(prefix,
+                           errDetails,
+                           static_cast<unsigned>(nApi),
+                           API_EINTERNAL,
+                           true /*localCleanupSuccess*/);
+        return;
+    }
+    const string myEmailStr{myEmail.get()};
+
+    // Delete any inshares
+    unique_ptr<MegaShareList> inshares(megaApi[nApi]->getInSharesList());
+    for (int i = 0; i < inshares->size(); ++i)
+    {
+        LOG_debug << prefix << "megaApi[" << nApi << "] [InShare = " << i << "] Inshare detected!";
+        auto inshare = inshares->get(i);
+        if (!inshare)
         {
+            LOG_debug << prefix << "megaApi[" << nApi << "] [InShare = " << i
+                      << "] MegaShare object is null, skipping...";
             continue;
         }
 
-        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
-
-        auto myEmail(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()});
-        if (!myEmail || !std::strlen(myEmail.get()))
+        if (auto email = inshare->getUser(); email)
         {
-            const string errDetails =
-                "Error retrieving email for own account(" +
-                string{Base64Str<MegaClient::USERHANDLE>(megaApi[nApi]->getMyUserHandleBinary())} +
-                ")";
+            if ((alreadyRemoved.find(myEmailStr + email) == alreadyRemoved.end()) &&
+                (alreadyRemoved.find(email + myEmailStr) == alreadyRemoved.end()))
+            {
+                LOG_debug << prefix << "megaApi[" << nApi << "] [InShare = " << i
+                          << "] Removing inshare's contact (also add '"
+                          << string(myEmailStr + email) << "' as alreadyRemoved)...";
+                alreadyRemoved.insert(myEmailStr + email);
+                if (unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email)); shareUser)
+                {
+                    if (auto result = synchronousRemoveContact(nApi, shareUser.get());
+                        result != API_OK)
+                    {
+                        const string errDetails = "[Inshare = " + std::to_string(i) +
+                                                  "] Error removing inshare's contact (" +
+                                                  std::string{email} + ")";
+                        localCleanupSuccess = false;
+                        printCleanupErrMsg(prefix,
+                                           errDetails,
+                                           static_cast<unsigned>(nApi),
+                                           result,
+                                           localCleanupSuccess);
+                    }
+                }
+                else
+                {
+                    const string errDetails = "[Inshare = " + std::to_string(i) +
+                                              "] InShare has user (" + std::string{email} +
+                                              ") but the corresponding user does not exist";
+                    printCleanupErrMsg(prefix,
+                                       errDetails,
+                                       static_cast<unsigned>(nApi),
+                                       API_EINTERNAL,
+                                       true /*localCleanupSuccess*/);
+                }
+            }
+        }
+
+        LOG_debug << prefix << "megaApi[" << nApi << "] [InShare = " << i
+                  << "] Removing inshare...";
+        if (unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(inshare->getNodeHandle())); n)
+        {
+            RequestTracker rt(megaApi[nApi].get());
+            megaApi[nApi]->remove(n.get(), &rt);
+            if (const auto res = rt.waitForResult(300); res != API_OK && res != API_EACCESS)
+            {
+                const string errDetails =
+                    "Removal of inshare folder (" +
+                    string{Base64Str<MegaClient::NODEHANDLE>(n->getHandle())} +
+                    +") failed or took more than 5 minutes";
+                localCleanupSuccess = false;
+                printCleanupErrMsg(prefix,
+                                   errDetails,
+                                   static_cast<unsigned>(nApi),
+                                   res,
+                                   localCleanupSuccess);
+            }
+        }
+        else
+        {
+            const string errDetails = "[Inshare = " + std::to_string(i) + "] No node found!!!";
             printCleanupErrMsg(prefix,
                                errDetails,
                                static_cast<unsigned>(nApi),
                                API_EINTERNAL,
                                true /*localCleanupSuccess*/);
-            continue;
-        }
-        const string myEmailStr{myEmail.get()};
-
-        // Delete any inshares
-        unique_ptr<MegaShareList> inshares(megaApi[nApi]->getInSharesList());
-        for (int i = 0; i < inshares->size(); ++i)
-        {
-            LOG_debug << prefix << "megaApi[" << nApi << "] [InShare = " << i
-                      << "] Inshare detected!";
-            auto inshare = inshares->get(i);
-            if (!inshare)
-            {
-                LOG_debug << prefix << "megaApi[" << nApi << "] [InShare = " << i
-                          << "] MegaShare object is null, skipping...";
-                continue;
-            }
-
-            if (auto email = inshare->getUser(); email)
-            {
-                if ((alreadyRemoved.find(myEmailStr + email) == alreadyRemoved.end()) &&
-                    (alreadyRemoved.find(email + myEmailStr) == alreadyRemoved.end()))
-                {
-                    LOG_debug << prefix << "megaApi[" << nApi << "] [InShare = " << i
-                              << "] Removing inshare's contact (also add '"
-                              << string(myEmailStr + email) << "' as alreadyRemoved)...";
-                    alreadyRemoved.insert(myEmailStr + email);
-                    if (unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email)); shareUser)
-                    {
-                        if (auto result = synchronousRemoveContact(nApi, shareUser.get());
-                            result != API_OK)
-                        {
-                            const string errDetails = "[Inshare = " + std::to_string(i) +
-                                                      "] Error removing inshare's contact (" +
-                                                      std::string{email} + ")";
-                            localCleanupSuccess = false;
-                            printCleanupErrMsg(prefix,
-                                               errDetails,
-                                               static_cast<unsigned>(nApi),
-                                               result,
-                                               localCleanupSuccess);
-                        }
-                    }
-                    else
-                    {
-                        const string errDetails = "[Inshare = " + std::to_string(i) +
-                                                  "] InShare has user (" + std::string{email} +
-                                                  ") but the corresponding user does not exist";
-                        printCleanupErrMsg(prefix,
-                                           errDetails,
-                                           static_cast<unsigned>(nApi),
-                                           API_EINTERNAL,
-                                           true /*localCleanupSuccess*/);
-                    }
-                }
-            }
-
-            LOG_debug << prefix << "megaApi[" << nApi << "] [InShare = " << i
-                      << "] Removing inshare...";
-            if (unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(inshare->getNodeHandle())); n)
-            {
-                RequestTracker rt(megaApi[nApi].get());
-                megaApi[nApi]->remove(n.get(), &rt);
-                if (const auto res = rt.waitForResult(300); res != API_OK && res != API_EACCESS)
-                {
-                    const string errDetails =
-                        "Removal of inshare folder (" +
-                        string{Base64Str<MegaClient::NODEHANDLE>(n->getHandle())} +
-                        +") failed or took more than 5 minutes";
-                    localCleanupSuccess = false;
-                    printCleanupErrMsg(prefix,
-                                       errDetails,
-                                       static_cast<unsigned>(nApi),
-                                       res,
-                                       localCleanupSuccess);
-                }
-            }
-            else
-            {
-                const string errDetails = "[Inshare = " + std::to_string(i) + "] No node found!!!";
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(nApi),
-                                   API_EINTERNAL,
-                                   true /*localCleanupSuccess*/);
-            }
         }
 
         // Delete any outshares
@@ -1558,328 +1530,279 @@ void SdkTest::cleanupSharesAllAccounts(set<string>& alreadyRemoved)
     }
 
     // finally, double check we got rid of all inshares and outshares
-    for (auto nApi = unsigned(megaApi.size()); nApi--;)
+    if (!WaitFor(
+            [this, nApi]()
+            {
+                return unique_ptr<MegaShareList>(megaApi[nApi]->getOutShares())->size() == 0;
+            },
+            20 * 1000))
     {
-        if (megaApi[nApi])
-        {
-            if (!WaitFor(
-                    [this, nApi]()
-                    {
-                        return unique_ptr<MegaShareList>(megaApi[nApi]->getOutShares())->size() ==
-                               0;
-                    },
-                    20 * 1000))
-            {
-                localCleanupSuccess = false;
-                printCleanupErrMsg(prefix,
-                                   "Some outshares were not removed",
-                                   static_cast<unsigned>(nApi),
-                                   API_EINTERNAL,
-                                   localCleanupSuccess);
-            }
+        localCleanupSuccess = false;
+        printCleanupErrMsg(prefix,
+                           "Some outshares were not removed",
+                           static_cast<unsigned>(nApi),
+                           API_EINTERNAL,
+                           localCleanupSuccess);
+    }
 
-            if (!WaitFor(
-                    [this, nApi]()
-                    {
-                        return unique_ptr<MegaShareList>(megaApi[nApi]->getPendingOutShares())
-                                   ->size() == 0;
-                    },
-                    20 * 1000))
+    if (!WaitFor(
+            [this, nApi]()
             {
-                localCleanupSuccess = false;
-                printCleanupErrMsg(prefix,
-                                   "Some pending outshares were not removed",
-                                   static_cast<unsigned>(nApi),
-                                   API_EINTERNAL,
-                                   localCleanupSuccess);
-            }
+                return unique_ptr<MegaShareList>(megaApi[nApi]->getPendingOutShares())->size() == 0;
+            },
+            20 * 1000))
+    {
+        localCleanupSuccess = false;
+        printCleanupErrMsg(prefix,
+                           "Some pending outshares were not removed",
+                           static_cast<unsigned>(nApi),
+                           API_EINTERNAL,
+                           localCleanupSuccess);
+    }
 
-            if (!WaitFor(
-                    [this, nApi]()
-                    {
-                        return unique_ptr<MegaShareList>(megaApi[nApi]->getUnverifiedOutShares())
-                                   ->size() == 0;
-                    },
-                    20 * 1000))
+    if (!WaitFor(
+            [this, nApi]()
             {
-                localCleanupSuccess = false;
-                printCleanupErrMsg(prefix,
-                                   "Some unverified outshares were not removed",
-                                   static_cast<unsigned>(nApi),
-                                   API_EINTERNAL,
-                                   localCleanupSuccess);
-            }
+                return unique_ptr<MegaShareList>(megaApi[nApi]->getUnverifiedOutShares())->size() ==
+                       0;
+            },
+            20 * 1000))
+    {
+        localCleanupSuccess = false;
+        printCleanupErrMsg(prefix,
+                           "Some unverified outshares were not removed",
+                           static_cast<unsigned>(nApi),
+                           API_EINTERNAL,
+                           localCleanupSuccess);
+    }
 
-            if (!WaitFor(
-                    [this, nApi]()
-                    {
-                        return unique_ptr<MegaShareList>(megaApi[nApi]->getUnverifiedInShares())
-                                   ->size() == 0;
-                    },
-                    20 * 1000))
+    if (!WaitFor(
+            [this, nApi]()
             {
-                localCleanupSuccess = false;
-                printCleanupErrMsg(prefix,
-                                   "Some unverified inshares were not removed",
-                                   static_cast<unsigned>(nApi),
-                                   API_EINTERNAL,
-                                   localCleanupSuccess);
-            }
+                return unique_ptr<MegaShareList>(megaApi[nApi]->getUnverifiedInShares())->size() ==
+                       0;
+            },
+            20 * 1000))
+    {
+        localCleanupSuccess = false;
+        printCleanupErrMsg(prefix,
+                           "Some unverified inshares were not removed",
+                           static_cast<unsigned>(nApi),
+                           API_EINTERNAL,
+                           localCleanupSuccess);
+    }
 
-            if (!WaitFor(
-                    [this, nApi]()
-                    {
-                        return unique_ptr<MegaShareList>(megaApi[nApi]->getInSharesList())
-                                   ->size() == 0;
-                    },
-                    20 * 1000))
+    if (!WaitFor(
+            [this, nApi]()
             {
-                localCleanupSuccess = false;
-                printCleanupErrMsg(prefix,
-                                   "Some inshares were not removed",
-                                   static_cast<unsigned>(nApi),
-                                   API_EINTERNAL,
-                                   localCleanupSuccess);
-            }
-        }
+                return unique_ptr<MegaShareList>(megaApi[nApi]->getInSharesList())->size() == 0;
+            },
+            20 * 1000))
+    {
+        localCleanupSuccess = false;
+        printCleanupErrMsg(prefix,
+                           "Some inshares were not removed",
+                           static_cast<unsigned>(nApi),
+                           API_EINTERNAL,
+                           localCleanupSuccess);
     }
 
     updateCleanupStatus(localCleanupSuccess);
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::cleanupNodeLinksAllAccounts()
+void SdkTest::cleanupNodeLinksAllAccounts(const unsigned int nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(Remove node links)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
-    for (auto nApi = unsigned(megaApi.size()); nApi--;)
+    unique_ptr<MegaNodeList> nodeLinks(megaApi[nApi]->getPublicLinks());
+    for (int i = 0; i < nodeLinks->size(); ++i)
     {
-        if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
+        if (auto res = doDisableExport(nApi, nodeLinks->get(i)); res != API_OK)
         {
-            continue;
-        }
-
-        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
-
-        unique_ptr<MegaNodeList> nodeLinks(megaApi[nApi]->getPublicLinks());
-        for (int i = 0; i < nodeLinks->size(); ++i)
-        {
-            if (auto res = doDisableExport(nApi, nodeLinks->get(i)); res != API_OK)
-            {
-                const string errDetails = "Disabling node public link (" + std::to_string(i) + ")";
-                localCleanupSuccess = false;
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(i),
-                                   res,
-                                   localCleanupSuccess);
-            }
+            const string errDetails = "Disabling node public link (" + std::to_string(i) + ")";
+            localCleanupSuccess = false;
+            printCleanupErrMsg(prefix,
+                               errDetails,
+                               static_cast<unsigned>(i),
+                               res,
+                               localCleanupSuccess);
         }
     }
+
     updateCleanupStatus(localCleanupSuccess);
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::cleanupNodesAllAccounts()
+void SdkTest::cleanupNodesAllAccounts(const unsigned int nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(Remove nodes)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
-    for (auto nApi = unsigned(megaApi.size()); nApi--;)
-    {
-        if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
-        {
-            continue;
-        }
-
-        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
-
-        // Remove nodes in Cloud & Rubbish
-        purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
-        purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRubbishNode()}.get(), false);
+    // Remove nodes in Cloud & Rubbish
+    purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
+    purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRubbishNode()}.get(), false);
 #ifdef ENABLE_SYNC
         purgeVaultTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getVaultNode()}.get());
 #endif
-    }
 
-    for (auto nApi = unsigned(megaApi.size()); nApi--;)
-    {
-        if (megaApi[nApi] && megaApi[nApi]->isLoggedIn())
+        // Some tests finish logged in but without call to fetch nodes root nodes are undefined
+        // yet
+        uint64_t nodesInRoot = 0;
+        if (std::unique_ptr<MegaNode> rootNode(megaApi[nApi]->getRootNode()); rootNode)
         {
-            // Some tests finish logged in but without call to fetch nodes root nodes are undefined
-            // yet
-            uint64_t nodesInRoot = 0;
-            if (std::unique_ptr<MegaNode> rootNode(megaApi[nApi]->getRootNode()); rootNode)
+            if (auto res = synchronousFolderInfo(nApi, rootNode.get()); res != MegaError::API_OK)
             {
-                if (auto res = synchronousFolderInfo(nApi, rootNode.get());
-                    res != MegaError::API_OK)
-                {
-                    const string errDetails = "Cannot get Folder Info for rootnode";
-                    localCleanupSuccess = false;
-                    printCleanupErrMsg(prefix,
-                                       errDetails,
-                                       static_cast<unsigned>(nApi),
-                                       res,
-                                       localCleanupSuccess);
-                }
-                else
-                {
-                    nodesInRoot = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
-                                                        mApi[nApi].mFolderInfo->getNumFolders() +
-                                                        mApi[nApi].mFolderInfo->getNumVersions());
-                }
+                const string errDetails = "Cannot get Folder Info for rootnode";
+                localCleanupSuccess = false;
+                printCleanupErrMsg(prefix,
+                                   errDetails,
+                                   static_cast<unsigned>(nApi),
+                                   res,
+                                   localCleanupSuccess);
             }
-
-            uint64_t nodesInRubbishBin = 0;
-            if (std::unique_ptr<MegaNode> rubbishbinNode(megaApi[nApi]->getRubbishNode());
-                rubbishbinNode)
+            else
             {
-                if (auto res = synchronousFolderInfo(nApi, rubbishbinNode.get());
-                    res != MegaError::API_OK)
-                {
-                    const string errDetails = "Cannot get Folder Info for rubbish bin";
-                    localCleanupSuccess = false;
-                    printCleanupErrMsg(prefix,
-                                       errDetails,
-                                       static_cast<unsigned>(nApi),
-                                       res,
-                                       localCleanupSuccess);
-                }
-                else
-                {
-                    nodesInRubbishBin =
-                        static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
-                                              mApi[nApi].mFolderInfo->getNumFolders() +
-                                              mApi[nApi].mFolderInfo->getNumVersions());
-                }
-            }
-
-            uint64_t nodesInVault = 0;
-            if (std::unique_ptr<MegaNode> vaultNode(megaApi[nApi]->getVaultNode()); vaultNode)
-            {
-                if (auto res = synchronousFolderInfo(nApi, vaultNode.get()); res != API_OK)
-                {
-                    const string errDetails = "Cannot get Folder Info for vault";
-                    localCleanupSuccess = false;
-                    printCleanupErrMsg(prefix,
-                                       errDetails,
-                                       static_cast<unsigned>(nApi),
-                                       res,
-                                       localCleanupSuccess);
-                }
-                else
-                {
-                    nodesInVault = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
-                                                         mApi[nApi].mFolderInfo->getNumFolders() +
-                                                         mApi[nApi].mFolderInfo->getNumVersions());
-                }
-            }
-
-            if (nodesInRoot > 0 || nodesInRubbishBin > 0 || nodesInVault > 0)
-            {
-                LOG_warn << "Clean up for instance " << nApi
-                         << " hasn't finished properly. Nodes at root node: " << nodesInRoot
-                         << "  Nodes at rubbish bin: " << nodesInRubbishBin
-                         << "  Nodes at vault: " << nodesInVault;
+                nodesInRoot = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
+                                                    mApi[nApi].mFolderInfo->getNumFolders() +
+                                                    mApi[nApi].mFolderInfo->getNumVersions());
             }
         }
-    }
 
-    updateCleanupStatus(localCleanupSuccess);
-    LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
+        uint64_t nodesInRubbishBin = 0;
+        if (std::unique_ptr<MegaNode> rubbishbinNode(megaApi[nApi]->getRubbishNode());
+            rubbishbinNode)
+        {
+            if (auto res = synchronousFolderInfo(nApi, rubbishbinNode.get());
+                res != MegaError::API_OK)
+            {
+                const string errDetails = "Cannot get Folder Info for rubbish bin";
+                localCleanupSuccess = false;
+                printCleanupErrMsg(prefix,
+                                   errDetails,
+                                   static_cast<unsigned>(nApi),
+                                   res,
+                                   localCleanupSuccess);
+            }
+            else
+            {
+                nodesInRubbishBin = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
+                                                          mApi[nApi].mFolderInfo->getNumFolders() +
+                                                          mApi[nApi].mFolderInfo->getNumVersions());
+            }
+        }
+
+        uint64_t nodesInVault = 0;
+        if (std::unique_ptr<MegaNode> vaultNode(megaApi[nApi]->getVaultNode()); vaultNode)
+        {
+            if (auto res = synchronousFolderInfo(nApi, vaultNode.get()); res != API_OK)
+            {
+                const string errDetails = "Cannot get Folder Info for vault";
+                localCleanupSuccess = false;
+                printCleanupErrMsg(prefix,
+                                   errDetails,
+                                   static_cast<unsigned>(nApi),
+                                   res,
+                                   localCleanupSuccess);
+            }
+            else
+            {
+                nodesInVault = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
+                                                     mApi[nApi].mFolderInfo->getNumFolders() +
+                                                     mApi[nApi].mFolderInfo->getNumVersions());
+            }
+        }
+
+        if (nodesInRoot > 0 || nodesInRubbishBin > 0 || nodesInVault > 0)
+        {
+            LOG_warn << "Clean up for instance " << nApi
+                     << " hasn't finished properly. Nodes at root node: " << nodesInRoot
+                     << "  Nodes at rubbish bin: " << nodesInRubbishBin
+                     << "  Nodes at vault: " << nodesInVault;
+        }
+
+        updateCleanupStatus(localCleanupSuccess);
+        LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::cleanupContactRequestsAllAccounts()
+void SdkTest::cleanupContactRequestsAllAccounts(const unsigned int nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(RemoveContactRequests)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
-    for (auto nApi = unsigned(megaApi.size()); nApi--;)
+
+    std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
+    for (int i = 0; i < crl->size(); i++)
     {
-        if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
+        const MegaContactRequest* cr = crl->get(i);
+        if (const auto targetEmail = cr->getTargetEmail();
+            !targetEmail || !std::strlen(targetEmail))
         {
             continue;
         }
 
-        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
-
-        std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
-        for (int i = 0; i < crl->size(); i++)
+        if (const auto resOut =
+                synchronousInviteContact(nApi,
+                                         cr->getTargetEmail(),
+                                         "Test cleanup removing outgoing contact request",
+                                         MegaContactRequest::INVITE_ACTION_DELETE);
+            resOut != API_OK)
         {
-            const MegaContactRequest* cr = crl->get(i);
-            if (const auto targetEmail = cr->getTargetEmail();
-                !targetEmail || !std::strlen(targetEmail))
+            string errDetails;
+            bool iterationCleanupSuccess{true};
+            if (resOut == API_EARGS)
             {
-                continue;
+                errDetails = "No pending outgoing contact request exists for user (" +
+                             std::string(cr->getTargetEmail() ? cr->getTargetEmail() : "") + ")";
             }
+            else
+            {
+                errDetails = "Error removing outgoing contact request (" +
+                             std::string(cr->getTargetEmail() ? cr->getTargetEmail() : "") + ")";
+                localCleanupSuccess = iterationCleanupSuccess = false;
+            }
+            printCleanupErrMsg(prefix,
+                               errDetails,
+                               static_cast<unsigned>(nApi),
+                               resOut,
+                               iterationCleanupSuccess);
+        }
+    }
 
-            if (const auto resOut =
-                    synchronousInviteContact(nApi,
-                                             cr->getTargetEmail(),
-                                             "Test cleanup removing outgoing contact request",
-                                             MegaContactRequest::INVITE_ACTION_DELETE);
-                resOut != API_OK)
-            {
-                string errDetails;
-                bool iterationCleanupSuccess{true};
-                if (resOut == API_EARGS)
-                {
-                    errDetails = "No pending outgoing contact request exists for user (" +
-                                 std::string(cr->getTargetEmail() ? cr->getTargetEmail() : "") +
-                                 ")";
-                }
-                else
-                {
-                    errDetails = "Error removing outgoing contact request (" +
-                                 std::string(cr->getTargetEmail() ? cr->getTargetEmail() : "") +
-                                 ")";
-                    localCleanupSuccess = iterationCleanupSuccess = false;
-                }
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(nApi),
-                                   resOut,
-                                   iterationCleanupSuccess);
-            }
+    crl.reset(megaApi[nApi]->getIncomingContactRequests());
+    for (int i = 0; i < crl->size(); i++)
+    {
+        const MegaContactRequest* cr = crl->get(i);
+        if (const auto sourceEmail = cr->getTargetEmail();
+            !sourceEmail || !std::strlen(sourceEmail))
+        {
+            continue;
         }
 
-        crl.reset(megaApi[nApi]->getIncomingContactRequests());
-        for (int i = 0; i < crl->size(); i++)
+        if (const auto resIn =
+                synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
+            resIn != API_OK)
         {
-            const MegaContactRequest* cr = crl->get(i);
-            if (const auto sourceEmail = cr->getTargetEmail();
-                !sourceEmail || !std::strlen(sourceEmail))
+            string errDetails;
+            bool iterationCleanupSuccess{true};
+            if (resIn == API_EARGS)
             {
-                continue;
+                errDetails = "No pending incoming contact request exists for user (" +
+                             std::string(cr->getSourceEmail() ? cr->getSourceEmail() : "") + ")";
+            }
+            else
+            {
+                errDetails = "Error removing incoming contact request (" +
+                             std::string(cr->getSourceEmail() ? cr->getSourceEmail() : "") + ")";
+                localCleanupSuccess = iterationCleanupSuccess = false;
             }
 
-            if (const auto resIn =
-                    synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
-                resIn != API_OK)
-            {
-                string errDetails;
-                bool iterationCleanupSuccess{true};
-                if (resIn == API_EARGS)
-                {
-                    errDetails = "No pending incoming contact request exists for user (" +
-                                 std::string(cr->getSourceEmail() ? cr->getSourceEmail() : "") +
-                                 ")";
-                }
-                else
-                {
-                    errDetails = "Error removing incoming contact request (" +
-                                 std::string(cr->getSourceEmail() ? cr->getSourceEmail() : "") +
-                                 ")";
-                    localCleanupSuccess = iterationCleanupSuccess = false;
-                }
-
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(nApi),
-                                   resIn,
-                                   iterationCleanupSuccess);
-            }
+            printCleanupErrMsg(prefix,
+                               errDetails,
+                               static_cast<unsigned>(nApi),
+                               resIn,
+                               iterationCleanupSuccess);
         }
     }
 
@@ -1899,43 +1822,34 @@ void SdkTest::cleanupLocalFiles()
 }
 
 #ifdef ENABLE_SYNC
-void SdkTest::cleanupSyncsAllAccounts()
+void SdkTest::cleanupSyncsAllAccounts(const unsigned int nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(RemoveSyncs)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
-    for (auto nApi = unsigned(megaApi.size()); nApi--;)
+
+    auto& m = megaApi[nApi];
+    auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
+    for (int i = syncs->size(); i--;)
     {
-        auto& m = megaApi[nApi];
-        if (!m || !m->isLoggedIn())
+        std::unique_ptr<RequestTracker> syncTracker(
+            std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
+        m->removeSync(syncs->get(i)->getBackupId(), syncTracker.get());
+
+        if (const auto syncRemoveResult = syncTracker->waitForResult(); syncRemoveResult != API_OK)
         {
-            continue;
-        }
-
-        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
-
-        auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
-        for (int i = syncs->size(); i--;)
-        {
-            std::unique_ptr<RequestTracker> syncTracker(
-                std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
-            m->removeSync(syncs->get(i)->getBackupId(), syncTracker.get());
-
-            if (const auto syncRemoveResult = syncTracker->waitForResult();
-                syncRemoveResult != API_OK)
-            {
-                const string errDetails =
-                    "Failed to remove sync (" +
-                    string{Base64Str<MegaClient::BACKUPHANDLE>(syncs->get(i)->getBackupId())} + ")";
-                localCleanupSuccess = false;
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(nApi),
-                                   syncRemoveResult,
-                                   localCleanupSuccess);
-            }
+            const string errDetails =
+                "Failed to remove sync (" +
+                string{Base64Str<MegaClient::BACKUPHANDLE>(syncs->get(i)->getBackupId())} + ")";
+            localCleanupSuccess = false;
+            printCleanupErrMsg(prefix,
+                               errDetails,
+                               static_cast<unsigned>(nApi),
+                               syncRemoveResult,
+                               localCleanupSuccess);
         }
     }
+
     updateCleanupStatus(localCleanupSuccess);
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
@@ -2215,15 +2129,20 @@ void SdkTest::getAccountsForTest(const unsigned howMany,
                 gSessionIDs[index] = p.get();
             }
         }
-    }
 
-    if (fetchNodes)
-    {
-        ASSERT_NO_FATAL_FAILURE(fetchNodesForAccountsSequentially(howMany));
-    }
+        if (fetchNodes)
+        {
+            out() << "Fetching nodes for account " << index;
+            auto fntracker = asyncRequestFetchnodes(index);
+            ASSERT_EQ(API_OK, fntracker->waitForResult())
+                << " Failed to fetchnodes for account " << index;
+            ASSERT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
+            LOG_debug
+                << "fetchNodesForAccountsSequentially: Catching up with API with account index("
+                << index << ")";
+            cleanupCatchupWithApi(index, cleanupCatchupTimeoutSecs);
+        }
 
-    for (unsigned index = 0; index < howMany; ++index)
-    {
         auto rt = std::make_unique<RequestTracker>(megaApi[index].get());
         megaApi[index]->getUserAttribute(37 /*ATTR_KEYS*/, rt.get());
         rt->waitForResult();
@@ -4551,74 +4470,62 @@ void SdkTest::printCleanupErrMsg(const string& prefix,
 }
 
 #ifdef ENABLE_CHAT
-void SdkTest::cleanupSchedMeetingsAllAccounts()
+void SdkTest::cleanupSchedMeetingsAllAccounts(const unsigned nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(CancelSchedMeetings)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
-    for (size_t nApi = 0; nApi < mApi.size(); ++nApi)
+    for (const auto& c: mApi[nApi].chats)
     {
-        if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
+        if (!c.second || c.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
         {
             continue;
         }
 
-        cleanupCatchupWithApi(static_cast<unsigned int>(nApi), cleanupCatchupTimeoutSecs);
-
-        for (const auto& c: mApi[nApi].chats)
+        const auto schedList = c.second->getScheduledMeetingList();
+        if (!schedList || !schedList->size())
         {
-            if (!c.second || c.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
-            {
-                continue;
-            }
+            continue;
+        }
 
-            const auto schedList = c.second->getScheduledMeetingList();
-            if (!schedList || !schedList->size())
+        for (unsigned long j = 0; j < schedList->size(); ++j)
+        {
+            if (const MegaScheduledMeeting* auxSm = schedList->at(j); auxSm && !auxSm->cancelled())
             {
-                continue;
-            }
+                std::unique_ptr<MegaScheduledRules> rules(auxSm->rules());
+                std::unique_ptr<MegaScheduledFlags> flags(auxSm->flags());
+                std::unique_ptr<MegaScheduledMeeting> sm(
+                    MegaScheduledMeeting::createInstance(auxSm->chatid(),
+                                                         auxSm->schedId(),
+                                                         auxSm->parentSchedId(),
+                                                         auxSm->organizerUserid(),
+                                                         true /*cancelled*/,
+                                                         auxSm->timezone(),
+                                                         auxSm->startDateTime(),
+                                                         auxSm->endDateTime(),
+                                                         auxSm->title(),
+                                                         auxSm->description(),
+                                                         auxSm->attributes(),
+                                                         MEGA_INVALID_TIMESTAMP /*overrides*/,
+                                                         flags.get(),
+                                                         rules.get()));
 
-            for (unsigned long j = 0; j < schedList->size(); ++j)
-            {
-                if (const MegaScheduledMeeting* auxSm = schedList->at(j);
-                    auxSm && !auxSm->cancelled())
+                std::unique_ptr<RequestTracker> tracker(new RequestTracker(megaApi[nApi].get()));
+                megaApi[nApi]->createOrUpdateScheduledMeeting(sm.get(),
+                                                              c.second->getTitle(),
+                                                              tracker.get());
+
+                if (auto reqResult = tracker->waitForResult(); reqResult != API_OK)
                 {
-                    std::unique_ptr<MegaScheduledRules> rules(auxSm->rules());
-                    std::unique_ptr<MegaScheduledFlags> flags(auxSm->flags());
-                    std::unique_ptr<MegaScheduledMeeting> sm(
-                        MegaScheduledMeeting::createInstance(auxSm->chatid(),
-                                                             auxSm->schedId(),
-                                                             auxSm->parentSchedId(),
-                                                             auxSm->organizerUserid(),
-                                                             true /*cancelled*/,
-                                                             auxSm->timezone(),
-                                                             auxSm->startDateTime(),
-                                                             auxSm->endDateTime(),
-                                                             auxSm->title(),
-                                                             auxSm->description(),
-                                                             auxSm->attributes(),
-                                                             MEGA_INVALID_TIMESTAMP /*overrides*/,
-                                                             flags.get(),
-                                                             rules.get()));
-
-                    std::unique_ptr<RequestTracker> tracker(
-                        new RequestTracker(megaApi[nApi].get()));
-                    megaApi[nApi]->createOrUpdateScheduledMeeting(sm.get(),
-                                                                  c.second->getTitle(),
-                                                                  tracker.get());
-
-                    if (auto reqResult = tracker->waitForResult(); reqResult != API_OK)
-                    {
-                        const string errDetails =
-                            "Error cancelling scheduled meeting for chat (" +
-                            string{Base64Str<MegaClient::CHATHANDLE>(auxSm->chatid())} + ")";
-                        localCleanupSuccess = false;
-                        printCleanupErrMsg(prefix,
-                                           errDetails,
-                                           static_cast<unsigned>(nApi),
-                                           reqResult,
-                                           localCleanupSuccess);
-                    }
+                    const string errDetails =
+                        "Error cancelling scheduled meeting for chat (" +
+                        string{Base64Str<MegaClient::CHATHANDLE>(auxSm->chatid())} + ")";
+                    localCleanupSuccess = false;
+                    printCleanupErrMsg(prefix,
+                                       errDetails,
+                                       static_cast<unsigned>(nApi),
+                                       reqResult,
+                                       localCleanupSuccess);
                 }
             }
         }
