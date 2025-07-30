@@ -926,8 +926,7 @@ void SdkTest::cleanupChatLinksAllAccounts()
             continue;
         }
 
-        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
 
         unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
         for (int i = 0u; i < chats->size(); ++i)
@@ -1006,8 +1005,7 @@ void SdkTest::cleanupChatroomsAllAccounts()
             continue;
         }
 
-        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
 
         unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
         for (int i = 0u; i < chats->size(); ++i)
@@ -1255,8 +1253,7 @@ void SdkTest::cleanupContactsAllAccounts(set<string>& alreadyRemoved)
             continue;
         }
 
-        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
 
         auto myEmail(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()});
         if (!myEmail || !std::strlen(myEmail.get()))
@@ -1338,8 +1335,7 @@ void SdkTest::cleanupSharesAllAccounts(set<string>& alreadyRemoved)
             continue;
         }
 
-        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
 
         auto myEmail(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()});
         if (!myEmail || !std::strlen(myEmail.get()))
@@ -1664,8 +1660,7 @@ void SdkTest::cleanupNodeLinksAllAccounts()
             continue;
         }
 
-        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
 
         unique_ptr<MegaNodeList> nodeLinks(megaApi[nApi]->getPublicLinks());
         for (int i = 0; i < nodeLinks->size(); ++i)
@@ -1698,8 +1693,7 @@ void SdkTest::cleanupNodesAllAccounts()
             continue;
         }
 
-        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
 
         // Remove nodes in Cloud & Rubbish
         purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
@@ -1808,8 +1802,7 @@ void SdkTest::cleanupContactRequestsAllAccounts()
             continue;
         }
 
-        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
 
         std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
         for (int i = 0; i < crl->size(); i++)
@@ -1919,8 +1912,7 @@ void SdkTest::cleanupSyncsAllAccounts()
             continue;
         }
 
-        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(nApi)) << " Failed to catchup for account " << nApi;
+        cleanupCatchupWithApi(nApi, cleanupCatchupTimeoutSecs);
 
         auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
         for (int i = syncs->size(); i--;)
@@ -2069,6 +2061,24 @@ bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void
     return result;
 }
 
+bool SdkTest::synchronousRequestIgnoreErr(unsigned apiIndex,
+                                          int type,
+                                          std::function<void()> f,
+                                          unsigned int timeout)
+{
+    auto& flag = mApi[apiIndex].requestFlags[type];
+    flag = false;
+    f();
+
+    auto result = waitForResponse(&flag, timeout);
+    if (!result)
+    {
+        LOG_err << "Request (type " << type << ") failed after " << timeout << " seconds";
+        mApi[apiIndex].lastError = LOCAL_ETIMEOUT;
+    }
+    return result;
+}
+
 void SdkTest::onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag)
 {
     // if change == -1 this method just checks if we have received onNodesUpdate for the node specified in target
@@ -2154,7 +2164,7 @@ void SdkTest::fetchNodesForAccountsSequentially(const unsigned howMany)
         ASSERT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
         LOG_debug << "fetchNodesForAccountsSequentially: Catching up with API with account index("
                   << index << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(index)) << " Failed to catchup for account " << index;
+        cleanupCatchupWithApi(index, cleanupCatchupTimeoutSecs);
     }
 }
 
@@ -2281,8 +2291,8 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
         {
             LOG_debug << "releaseMegaApi: Catching up with API with account index(" << apiIndex
                       << ")";
-            ASSERT_EQ(API_OK, synchronousCatchup(apiIndex))
-                << " Failed to catchup for account " << apiIndex;
+
+            cleanupCatchupWithApi(apiIndex, cleanupCatchupTimeoutSecs);
 
             if (!gResumeSessions)
                 ASSERT_NO_FATAL_FAILURE( logout(apiIndex, false, maxTimeout) );
@@ -4553,9 +4563,7 @@ void SdkTest::cleanupSchedMeetingsAllAccounts()
             continue;
         }
 
-        LOG_debug << prefix << "Catching up with API with account index(" << nApi << ")";
-        ASSERT_EQ(API_OK, synchronousCatchup(static_cast<unsigned>(nApi)))
-            << " Failed to catchup for account " << nApi;
+        cleanupCatchupWithApi(static_cast<unsigned int>(nApi), cleanupCatchupTimeoutSecs);
 
         for (const auto& c: mApi[nApi].chats)
         {
@@ -9288,7 +9296,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     updloadFile(filename1, "update");
     WaitMillisec(1000);
 
-    synchronousCatchup(0);
+    synchronousCatchup(0, maxTimeout);
 
     LOG_debug << "# SdkRecentsTest: Marking file " << filename1 << " as sensitive";
     std::unique_ptr<MegaNode> f1node(megaApi[0]->getNodeByPath(("/" + filename1).c_str()));
@@ -9303,7 +9311,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     LOG_debug << "# SdkRecentsTest: updating file " << filename2;
     updloadFile(filename2, "update");
 
-    synchronousCatchup(0);
+    synchronousCatchup(0, maxTimeout);
 
     LOG_debug << "# SdkRecentsTest: Get all recent actions (no exclusion)";
     RequestTracker trackerAll(megaApi[0].get());
@@ -11000,6 +11008,26 @@ void SdkTest::resetOnNodeUpdateCompletionCBs()
 {
     for_each(begin(mApi), end(mApi),
              [](PerApi& api) { if (api.mOnNodesUpdateCompletion) api.mOnNodesUpdateCompletion = nullptr; });
+}
+
+void SdkTest::cleanupCatchupWithApi(const unsigned apiIndex, const unsigned int timeoutSecs)
+{
+    const std::string prefix{"cleanupCatchupWithApi"};
+    if (!megaApi[apiIndex]->getClient()->scsn.ready())
+    {
+        LOG_debug << prefix << ". Skipping catching up with API for account (" << apiIndex
+                  << "). scsn not ready";
+        return;
+    }
+
+    const std::string msg =
+        prefix + ". Catching up with API with account index(" + std::to_string(apiIndex) + ")";
+    LOG_debug << msg;
+    const auto res = synchronousCatchupIgnoreErr(apiIndex, timeoutSecs);
+    LOG_warn << msg
+             << (res == API_OK ? " finished successfully" :
+                                 " . Failed, ErrCode(" + std::to_string(res) + "). " +
+                                     string(MegaError::getErrorString(res)));
 }
 
 onNodesUpdateCompletion_t SdkTest::createOnNodesUpdateLambda(const MegaHandle& hfolder, int change, bool& flag)

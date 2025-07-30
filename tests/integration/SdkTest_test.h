@@ -52,6 +52,7 @@ static const unsigned int maxTimeout    = 600;      // Maximum time (seconds) to
 static const unsigned int defaultTimeout = 60;      // Normal time for most operations (seconds) to wait for response from server
 static const unsigned int defaultTimeoutMs = defaultTimeout * 1000;
 static const unsigned int waitForSyncsMs = 4000;    // Time to wait after a sync has been created and before adding new files to it
+constexpr unsigned int cleanupCatchupTimeoutSecs = 15;
 
 #ifdef ENABLE_SYNC
 /**
@@ -755,6 +756,7 @@ protected:
     void onEvent(MegaApi* api, MegaEvent *event) override;
 
     void resetOnNodeUpdateCompletionCBs();
+    void cleanupCatchupWithApi(const unsigned int apiIndex, const unsigned int timeoutSecs);
 
     onNodesUpdateCompletion_t createOnNodesUpdateLambda(const MegaHandle&, int, bool& flag);
 public:
@@ -781,25 +783,50 @@ public:
     static bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs);
 
     bool synchronousRequest(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
+    bool synchronousRequestIgnoreErr(unsigned apiIndex,
+                                     int type,
+                                     std::function<void()> f,
+                                     unsigned int timeout = maxTimeout);
     bool synchronousTransfer(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
 
     // *** WARNING *** THESE FUNCTIONS RETURN VALUE ARE SUBJECT TO RACE CONDITIONS
     // convenience functions - template args just make it easy to code, no need to copy all the exact argument types with listener defaults etc. To add a new one, just copy a line and change the flag and the function called.
     // WARNING: any sort of race can result in the lastError being set from some other command - better to use the listener based ones in the next list below
     template<typename... Args>
-    int synchronousCatchup(unsigned apiIndex, Args... args)
+    int synchronousCatchup(unsigned apiIndex, unsigned int timeoutSecs, Args... args)
     {
         if (megaApi[apiIndex]->isEphemeralPlusPlus())
         {
             return API_OK;
         }
 
-        synchronousRequest(apiIndex,
-                           MegaRequest::TYPE_CATCHUP,
-                           [this, apiIndex, args...]()
-                           {
-                               megaApi[apiIndex]->catchup(args...);
-                           });
+        synchronousRequest(
+            apiIndex,
+            MegaRequest::TYPE_CATCHUP,
+            [this, apiIndex, args...]()
+            {
+                megaApi[apiIndex]->catchup(args...);
+            },
+            timeoutSecs);
+        return mApi[apiIndex].lastError;
+    }
+
+    template<typename... Args>
+    int synchronousCatchupIgnoreErr(unsigned apiIndex, unsigned int timeoutSecs, Args... args)
+    {
+        if (megaApi[apiIndex]->isEphemeralPlusPlus())
+        {
+            return API_OK;
+        }
+
+        synchronousRequestIgnoreErr(
+            apiIndex,
+            MegaRequest::TYPE_CATCHUP,
+            [this, apiIndex, args...]()
+            {
+                megaApi[apiIndex]->catchup(args...);
+            },
+            timeoutSecs);
         return mApi[apiIndex].lastError;
     }
 
