@@ -1290,18 +1290,36 @@ bool FileContext::execute(FileRequest& request)
 
 void FileContext::execute()
 {
-    // Lock the request queue.
-    std::unique_lock lock(mRequestsLock);
-
     // Execute as many requests as we can.
-    while (!mRequests.empty())
+    while (true)
     {
-        // Couldn't execute the request.
-        if (!execute(mRequests.front()))
-            break;
+        // Acquire lock.
+        std::unique_lock lock(mRequestsLock);
 
-        // Pop the request from our queue.
+        // There are no requests waiting to execute.
+        if (mRequests.empty())
+            return;
+
+        // Pop a request off the queue.
+        auto request = std::move(mRequests.front());
+
         mRequests.pop_front();
+
+        // Let other threads queue requests while this one executes.
+        lock.unlock();
+
+        // Couldn't execute this request.
+        if (!execute(request))
+        {
+            // So we can requeue the request.
+            lock.lock();
+
+            // Requeue the request.
+            mRequests.emplace_front(std::move(request));
+
+            // Try to execute this request again later.
+            return;
+        }
     }
 }
 
