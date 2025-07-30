@@ -21177,30 +21177,38 @@ void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool 
     request->setAccess(source);
 
     request->performRequest = [this, request]()
+    {
+        if (client->loggedin() == NOTLOGGEDIN)
         {
-            if (client->loggedin() != FULLACCOUNT)
-            {
-                return API_EACCESS;
-            }
+            return API_EACCESS;
+        }
 
-            int numDetails = request->getNumDetails();
-            bool storage = (numDetails & 0x01) != 0;
-            bool transfer = (numDetails & 0x02) != 0;
-            bool pro = (numDetails & 0x04) != 0;
-            bool transactions = (numDetails & 0x08) != 0;
-            bool purchases = (numDetails & 0x10) != 0;
-            bool sessions = (numDetails & 0x20) != 0;
+        int numDetails = request->getNumDetails();
+        bool storage = (numDetails & 0x01) != 0;
+        bool transfer = (numDetails & 0x02) != 0;
+        bool pro = (numDetails & 0x04) != 0;
+        bool transactions = (numDetails & 0x08) != 0;
+        bool purchases = (numDetails & 0x10) != 0;
+        bool sessions = (numDetails & 0x20) != 0;
 
-            int numReqs = int(storage || transfer || pro) + int(transactions) + int(purchases) + int(sessions);
-            if (numReqs == 0)
-            {
-                return API_EARGS;
-            }
-            request->setNumber(numReqs);
+        int numReqs =
+            int(storage || transfer || pro) + int(transactions) + int(purchases) + int(sessions);
+        if (numReqs == 0)
+        {
+            return API_EARGS;
+        }
+        request->setNumber(numReqs);
 
-            client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions, request->getAccess());
-            return API_OK;
-        };
+        client->getaccountdetails(request->getAccountDetails(),
+                                  storage,
+                                  transfer,
+                                  pro,
+                                  transactions,
+                                  purchases,
+                                  sessions,
+                                  request->getAccess());
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
