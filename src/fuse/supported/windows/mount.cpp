@@ -120,7 +120,7 @@ NTSTATUS Mount::create(const std::wstring& path,
                        PVOID& context,
                        FSP_FSCTL_FILE_INFO& info)
 {
-    // Doesn't allow originating process is self
+    // Reject if the originating process is self
     if (isSelf())
         return STATUS_ACCESS_DENIED;
 
@@ -326,7 +326,7 @@ NTSTATUS Mount::getSecurityByName(const std::wstring& path,
                                   PSECURITY_DESCRIPTOR descriptor,
                                   SIZE_T* descriptorLength)
 {
-    // Doesn't allow originating process is self
+    // Reject if the originating process is self
     if (isSelf())
         return STATUS_ACCESS_DENIED;
 
@@ -394,7 +394,7 @@ NTSTATUS Mount::open(const std::wstring& path,
                      PVOID& context,
                      FSP_FSCTL_FILE_INFO& info)
 {
-    // Doesn't allow originating process is self
+    // Reject if the originating process is self
     if (isSelf())
         return STATUS_ACCESS_DENIED;
 

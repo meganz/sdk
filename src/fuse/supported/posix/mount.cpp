@@ -878,6 +878,10 @@ void Mount::write(Request request,
     request.replyWritten(*result);
 }
 
+// Check if the request's originating process is this process.
+// Don't allow SDK to access the mount if the request is from itself as it will have deadlock issues
+// due to single-threaded execution loop of the SDK.
+//
 bool Mount::isSelf(const Request& request) const
 {
     const auto originatingPid = request.process();
