@@ -29,17 +29,6 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
         return;
     }
 
-    auto data = getURIData(mURI);
-    if (!data.has_value())
-    {
-        data = URIData();
-    }
-    else if (data->mJavaObject.get())
-    {
-        mJavaObject = data->mJavaObject;
-        return;
-    }
-
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
     jmethodID getAndroidFileMethod = env->GetStaticMethodID(
@@ -62,9 +51,7 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     if (temporalObject != nullptr)
     {
         mJavaObject = std::make_shared<JavaObject>(env->NewGlobalRef(temporalObject));
-        data->mJavaObject = mJavaObject;
         env->DeleteLocalRef(temporalObject);
-        setUriData(data.value());
     }
 }
 
@@ -580,15 +567,16 @@ std::shared_ptr<AndroidFileWrapper>
 {
     if (localPath.isURI())
     {
-        auto start = std::chrono::high_resolution_clock::now();
-
         if (auto aux = localPathURICAche.get(localPath.toPath(false)); aux.has_value())
         {
             auto returned = AndroidFileWrapper::getAndroidFileWrapper(aux.value());
-            auto end = std::chrono::high_resolution_clock::now();
-            LOG_debug << "DEBUG getAndroidFileWrapper - Elapsed createOrReturnNestedPath(CACHE): "
-                      << std::chrono::duration<double, std::milli>(end - start).count();
-            return returned;
+
+            // Maybe we have cached element that it already doesn't exist and we have to create
+            // again
+            if (returned && returned->exists())
+            {
+                return returned;
+            }
         }
 
         std::vector<std::string> children;
@@ -613,19 +601,40 @@ std::shared_ptr<AndroidFileWrapper>
             return uriFileWrapper;
         }
 
-        auto auxURI = uriFileWrapper->createOrReturnNestedPath(children, create, lastIsFolder);
-
-        // TODO change for optional
-        if (auxURI.empty())
+        std::string auxURI;
+        for (const auto& child: children)
         {
-            return nullptr;
+            LocalPath p = auxPath;
+            p.appendWithSeparator(LocalPath::fromRelativePath(child), true);
+            if (auto aux = localPathURICAche.get(p.toPath(false)); aux.has_value())
+            {
+                auxURI = aux.value();
+                auxPath = LocalPath::fromURIPath(auxURI);
+            }
+            else
+            {
+                std::vector<std::string> auxChildren{child};
+                auxURI =
+                    uriFileWrapper->createOrReturnNestedPath(auxChildren, create, lastIsFolder);
+                if (auxURI.empty())
+                {
+                    return nullptr;
+                }
+
+                auxPath = LocalPath::fromURIPath(auxURI);
+                localPathURICAche.put(p.toPath(false), auxURI);
+            }
+
+            uriFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(auxPath.toPath(false));
+
+            if (!uriFileWrapper)
+            {
+                return nullptr;
+            }
         }
 
         localPathURICAche.put(localPath.toPath(false), auxURI);
         auto returned = AndroidFileWrapper::getAndroidFileWrapper(auxURI);
-        auto end = std::chrono::high_resolution_clock::now();
-        LOG_debug << "DEBUG getAndroidFileWrapper - Elapsed createOrReturnNestedPath(NO CACHE): "
-                  << std::chrono::duration<double, std::milli>(end - start).count();
         return returned;
     }
     else

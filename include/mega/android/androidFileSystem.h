@@ -107,7 +107,7 @@ private:
         std::optional<bool> mIsFolder;
         std::optional<std::string> mName;
         std::optional<std::string> mPath;
-        std::shared_ptr<JavaObject> mJavaObject;
+        // std::shared_ptr<JavaObject> mJavaObject;
     };
 
     AndroidFileWrapper(const std::string& path);
