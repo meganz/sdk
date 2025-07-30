@@ -79,6 +79,11 @@ uid_t Request::owner() const
     return fuse_req_ctx(mRequest)->uid;
 }
 
+pid_t Request::process() const
+{
+    return fuse_req_ctx(mRequest)->pid;
+}
+
 void Request::replyAttributes(const struct statvfs& attributes)
 {
     reply([&](fuse_req_t request) {
