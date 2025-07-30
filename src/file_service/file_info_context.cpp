@@ -24,6 +24,14 @@ auto FileInfoContext::get(T FileInfoContext::* const property) const
     return this->*property;
 }
 
+template<typename T, typename U>
+void FileInfoContext::set(T FileInfoContext::*property, U&& value)
+{
+    std::lock_guard guard(mLock);
+
+    this->*property = std::forward<U>(value);
+}
+
 void FileInfoContext::notify(const FileEvent& event)
 {
     // Make sure no one's modifying our map of observers.
@@ -102,9 +110,7 @@ std::int64_t FileInfoContext::accessed() const
 
 void FileInfoContext::allocatedSize(std::uint64_t allocatedSize)
 {
-    std::lock_guard guard(mLock);
-
-    mAllocatedSize = allocatedSize;
+    set(&FileInfoContext::mAllocatedSize, allocatedSize);
 }
 
 std::uint64_t FileInfoContext::allocatedSize() const
@@ -119,10 +125,7 @@ bool FileInfoContext::dirty() const
 
 void FileInfoContext::handle(NodeHandle handle)
 {
-    UniqueLock guard(mLock);
-
-    // Update this file's node handle.
-    mHandle = handle;
+    set(&FileInfoContext::mHandle, handle);
 }
 
 NodeHandle FileInfoContext::handle() const
@@ -177,9 +180,7 @@ void FileInfoContext::removeObserver(FileEventObserverID id)
 
 void FileInfoContext::reportedSize(std::uint64_t reportedSize)
 {
-    std::lock_guard guard(mLock);
-
-    mReportedSize = reportedSize;
+    set(&FileInfoContext::mReportedSize, reportedSize);
 }
 
 std::uint64_t FileInfoContext::reportedSize() const
@@ -189,9 +190,7 @@ std::uint64_t FileInfoContext::reportedSize() const
 
 void FileInfoContext::size(std::uint64_t size)
 {
-    std::lock_guard guard(mLock);
-
-    mSize = size;
+    set(&FileInfoContext::mSize, size);
 }
 
 std::uint64_t FileInfoContext::size() const

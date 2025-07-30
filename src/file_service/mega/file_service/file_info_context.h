@@ -26,6 +26,10 @@ class FileInfoContext: public FileSizeInfo
     template<typename T>
     auto get(T FileInfoContext::* const property) const;
 
+    // Set one of our properties in a thread-safe manner.
+    template<typename T, typename U>
+    void set(T FileInfoContext::*property, U&& value);
+
     // Transmit an event to all registered observers.
     void notify(const FileEvent& event);
 
