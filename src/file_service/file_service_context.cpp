@@ -37,6 +37,10 @@ class FileServiceContext::ReclaimContext
     // Reclaim a single file.
     void reclaim(ReclaimContextPtr context, FileID id);
 
+    // Reclaim zero or more files in a batch.
+    template<typename Lock>
+    void reclaimBatch(ReclaimContextPtr context, Lock&& lock);
+
     // Called when a file has been reclaimed.
     void reclaimed(ReclaimContextPtr context, FileResultOr<std::uint64_t> result);
 
@@ -46,14 +50,20 @@ class FileServiceContext::ReclaimContext
     // Who should we call when reclamation completes?
     std::vector<ReclaimCallback> mCallbacks;
 
-    // Tracks how many reclaim requests have yet to complete.
-    std::size_t mCount;
+    // What files are we reclaiming?
+    FileIDVector mIDs;
 
     // Serializes access to mCount, mReclaimed and mResult.
-    std::mutex mLock;
+    std::recursive_mutex mLock;
+
+    // Tracks how many files are currently being reclaimed.
+    std::size_t mNumPending;
 
     // Tracks how much space we've recovered.
     std::uint64_t mReclaimed;
+
+    // Tracks whether we encountered any failures.
+    FileServiceResult mResult;
 
     // What service are we reclaiming storage for?
     FileServiceContext& mService;
@@ -520,13 +530,12 @@ try
     // Get our hands on our current options.
     auto options = this->options();
 
-    // No need to reclaim any storage.
-    if (!reclamationEnabled(options))
-        return FileIDVector();
-
     // Convenience.
-    auto batchSize = options.mReclaimBatchSize;
     auto sizeThreshold = options.mReclaimSizeThreshold;
+
+    // No quota? No need to reclaim anything.
+    if (!sizeThreshold)
+        return FileIDVector();
 
     // So we have exclusive access to the database.
     UniqueLock lock(mDatabase);
@@ -552,7 +561,6 @@ try
 
     // Specify maximum reclaimable access time.
     query.param(":accessed").set(system_clock::to_time_t(accessed));
-    query.param(":count").set(batchSize);
 
     // Tracks the IDs of the files we can reclaim.
     FileIDVector ids;
@@ -1049,6 +1057,9 @@ catch (std::runtime_error& exception)
 
 void FileServiceContext::ReclaimContext::reclaim(ReclaimContextPtr context, FileID id)
 {
+    // Sanity.
+    assert(context);
+
     // Try and open the file.
     auto file = mService.open(id);
 
@@ -1064,38 +1075,75 @@ void FileServiceContext::ReclaimContext::reclaim(ReclaimContextPtr context, File
     file->reclaim(std::move(reclaimed));
 }
 
+template<typename Lock>
+void FileServiceContext::ReclaimContext::reclaimBatch(ReclaimContextPtr context, Lock&& lock)
+{
+    // Sanity.
+    assert(context);
+    assert(lock.mutex() == &mLock);
+    assert(lock.owns_lock());
+
+    // There are no files left to reclaim.
+    if (mIDs.empty())
+    {
+        // We were able to reclaim some space or encountered no failures.
+        if (mReclaimed || mResult == FILE_SERVICE_SUCCESS)
+            return completed(mReclaimed);
+
+        // We encountered some kind of failure.
+        return completed(mResult);
+    }
+
+    // How many files should we reclaim at once?
+    auto batchSize = mService.options().mReclaimBatchSize;
+
+    // Reclaim one or more files.
+    while (mNumPending < batchSize && !mIDs.empty())
+    {
+        // Grab the ID of a file waiting to be reclaimed.
+        auto id = mIDs.back();
+
+        mIDs.pop_back();
+
+        // Increment number of pending reclamations.
+        ++mNumPending;
+
+        // Try and reclaim the file.
+        reclaim(context, id);
+    }
+}
+
 void FileServiceContext::ReclaimContext::reclaimed(ReclaimContextPtr context,
                                                    FileResultOr<std::uint64_t> result)
 {
     // Make sure no one else changes our members.
     std::unique_lock lock(mLock);
 
+    // Sanity.
+    assert(context);
+    assert(mNumPending);
+
+    // Reduce number of pending reclamations.
+    --mNumPending;
+
     // Update total amount of reclaimed space.
     mReclaimed += result.valueOr(0ul);
 
-    // Sanity.
-    assert(mCount);
+    // Remember if we encountered any failures.
+    if (!result)
+        mResult = FILE_SERVICE_UNEXPECTED;
 
-    // Some files are still being reclaimed.
-    if (--mCount)
-        return;
-
-    // Release the lock.
-    lock.unlock();
-
-    // We could recover some space or didn't encounter any failures.
-    if (mReclaimed)
-        return reclaim(std::move(context));
-
-    // We encountered a failure and couldn't recover any space.
-    completed(FILE_SERVICE_UNEXPECTED);
+    // Reclaim remaning files if any.
+    reclaimBatch(std::move(context), std::move(lock));
 }
 
 FileServiceContext::ReclaimContext::ReclaimContext(FileServiceContext& service):
     mActivity(service.mActivities.begin()),
     mCallbacks(),
-    mCount(0u),
+    mIDs(),
+    mNumPending(0),
     mReclaimed(0),
+    mResult(FILE_SERVICE_SUCCESS),
     mService(service)
 {}
 
@@ -1118,9 +1166,6 @@ void FileServiceContext::ReclaimContext::queue(ReclaimCallback callback)
     mCallbacks.emplace_back(std::move(callback));
 }
 
-// No locks are necessary here as:
-// - Only a single thread will ever call this method at a time.
-// - No reclamations will be in progress when this method is called.
 void FileServiceContext::ReclaimContext::reclaim(ReclaimContextPtr context)
 {
     // Try and figure out what files we can reclaim.
@@ -1128,25 +1173,13 @@ void FileServiceContext::ReclaimContext::reclaim(ReclaimContextPtr context)
 
     // Couldn't determine how many files to reclaim.
     if (!ids)
-    {
-        // We were able to reclaim some space.
-        if (mReclaimed)
-            return completed(mReclaimed);
+        return completed(ids.error());
 
-        // We weren't able to reclaim any space.
-        return completed(FILE_SERVICE_UNEXPECTED);
-    }
+    // Remember what file's we're reclaiming.
+    mIDs = std::move(*ids);
 
-    // There are no files to reclaim.
-    if (ids->empty())
-        return completed(mReclaimed);
-
-    // Track how many files we're reclaiming.
-    mCount = ids->size();
-
-    // Try and reclaim each file.
-    for (auto id: *ids)
-        reclaim(context, id);
+    // Reclaim zero or more files in a batch.
+    reclaimBatch(std::move(context), std::unique_lock(mLock));
 }
 
 Database createDatabase(const LocalPath& databasePath)

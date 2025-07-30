@@ -73,8 +73,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
                            "  from files "
                            " where allocated_size <> 0 "
                            "   and accessed <= :accessed "
-                           " order by accessed desc "
-                           " limit :count";
+                           " order by accessed desc";
 
     mGetFileLocation = "select * "
                        "  from file_locations "
