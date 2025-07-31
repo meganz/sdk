@@ -69,6 +69,9 @@ public:
     // Remove a previously added observer.
     void removeObserver(FileEventObserverID id);
 
+    // Has this file been removed?
+    bool removed() const;
+
     // How large does the filesystem say this file is?
     std::uint64_t reportedSize() const;
 

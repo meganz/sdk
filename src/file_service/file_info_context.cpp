@@ -70,6 +70,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
     mModified(modified),
     mObservers(),
     mObserversLock(),
+    mRemoved(false),
     mReportedSize(reportedSize),
     mService(service),
     mSize(size)
@@ -188,6 +189,16 @@ void FileInfoContext::removeObserver(FileEventObserverID id)
 
     // Sanity.
     assert(count);
+}
+
+void FileInfoContext::removed(bool removed)
+{
+    set(&FileInfoContext::mRemoved, removed);
+}
+
+bool FileInfoContext::removed() const
+{
+    return get(&FileInfoContext::mRemoved);
 }
 
 void FileInfoContext::reportedSize(std::uint64_t reportedSize)

@@ -64,6 +64,11 @@ void FileInfo::removeObserver(FileEventObserverID id)
     mContext->removeObserver(id);
 }
 
+bool FileInfo::removed() const
+{
+    return mContext->removed();
+}
+
 std::uint64_t FileInfo::reportedSize() const
 {
     return mContext->reportedSize();

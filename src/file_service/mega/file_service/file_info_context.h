@@ -67,6 +67,9 @@ class FileInfoContext: public FileSizeInfo
     // Serializes access to mObservers.
     std::recursive_mutex mObserversLock;
 
+    // Has this file been removed?
+    bool mRemoved;
+
     // How large does the filesystem say this file is?
     std::uint64_t mReportedSize;
 
@@ -132,6 +135,12 @@ public:
 
     // Remove an observer.
     void removeObserver(FileEventObserverID id);
+
+    // Specify whether this file has been removed.
+    void removed(bool removed);
+
+    // Has this file been removed?
+    bool removed() const;
 
     // Update this file's reported size.
     void reportedSize(std::uint64_t reportedSize) override;
