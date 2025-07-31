@@ -435,20 +435,20 @@ void SdkTest::Cleanup()
         cleanupCatchupWithApi(static_cast<unsigned int>(nApi), cleanupCatchupTimeoutSecs);
 
 #ifdef ENABLE_CHAT
-        cleanupSchedMeetingsAllAccounts(nApi);
-        cleanupChatLinksAllAccounts(nApi);
-        cleanupChatroomsAllAccounts(nApi);
+        cleanupSchedMeetings(nApi);
+        cleanupChatLinks(nApi);
+        cleanupChatrooms(nApi);
 #endif
 
 #ifdef ENABLE_SYNC
-        cleanupSyncsAllAccounts(nApi);
+        cleanupSyncs(nApi);
 #endif
 
-        cleanupContactRequestsAllAccounts(nApi);
-        cleanupContactsAllAccounts(nApi, alreadyRemoved);
-        cleanupSharesAllAccounts(nApi, alreadyRemoved);
-        cleanupNodeLinksAllAccounts(nApi);
-        cleanupNodesAllAccounts(nApi);
+        cleanupContactRequests(nApi);
+        cleanupContacts(nApi, alreadyRemoved);
+        cleanupShares(nApi, alreadyRemoved);
+        cleanupNodeLinks(nApi);
+        cleanupNodes(nApi);
     }
 
     LOG_debug << "[SdkTest::Cleanup]: " << (mCleanupSuccess ? "Finished successfully" : "Failed");
@@ -929,7 +929,7 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     mApi[apiIndex].callCustomCallbackCheck(mApi[apiIndex].megaApi->getMyUserHandleBinary());
 }
 
-void SdkTest::cleanupChatLinksAllAccounts(const unsigned int nApi)
+void SdkTest::cleanupChatLinks(const unsigned int nApi)
 {
     std::set<MegaHandle> skipChats;
     const std::string prefix{"SdkTest::Cleanup(RemoveChatLinks)"};
@@ -1000,7 +1000,7 @@ void SdkTest::cleanupChatLinksAllAccounts(const unsigned int nApi)
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::cleanupChatroomsAllAccounts(const unsigned int nApi)
+void SdkTest::cleanupChatrooms(const unsigned int nApi)
 {
     std::set<MegaHandle> skipChats;
     const std::string prefix{"SdkTest::Cleanup(RemoveChatrooms)"};
@@ -1241,7 +1241,7 @@ void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
     }
 }
 
-void SdkTest::cleanupContactsAllAccounts(const unsigned int nApi, set<string>& alreadyRemoved)
+void SdkTest::cleanupContacts(const unsigned int nApi, set<string>& alreadyRemoved)
 {
     const std::string prefix{"SdkTest::Cleanup(RemoveContacts)"};
     LOG_debug << "# " << prefix;
@@ -1313,7 +1313,7 @@ void SdkTest::cleanupContactsAllAccounts(const unsigned int nApi, set<string>& a
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::cleanupSharesAllAccounts(const unsigned int nApi, set<string>& alreadyRemoved)
+void SdkTest::cleanupShares(const unsigned int nApi, set<string>& alreadyRemoved)
 {
     const std::string prefix{"SdkTest::Cleanup(RemoveShares)"};
     LOG_debug << "# " << prefix;
@@ -1618,7 +1618,7 @@ void SdkTest::cleanupSharesAllAccounts(const unsigned int nApi, set<string>& alr
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::cleanupNodeLinksAllAccounts(const unsigned int nApi)
+void SdkTest::cleanupNodeLinks(const unsigned int nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(Remove node links)"};
     LOG_debug << "# " << prefix;
@@ -1642,7 +1642,7 @@ void SdkTest::cleanupNodeLinksAllAccounts(const unsigned int nApi)
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::cleanupNodesAllAccounts(const unsigned int nApi)
+void SdkTest::cleanupNodes(const unsigned int nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(Remove nodes)"};
     LOG_debug << "# " << prefix;
@@ -1733,7 +1733,7 @@ void SdkTest::cleanupNodesAllAccounts(const unsigned int nApi)
         LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::cleanupContactRequestsAllAccounts(const unsigned int nApi)
+void SdkTest::cleanupContactRequests(const unsigned int nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(RemoveContactRequests)"};
     LOG_debug << "# " << prefix;
@@ -1829,7 +1829,7 @@ void SdkTest::cleanupLocalFiles()
 }
 
 #ifdef ENABLE_SYNC
-void SdkTest::cleanupSyncsAllAccounts(const unsigned int nApi)
+void SdkTest::cleanupSyncs(const unsigned int nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(RemoveSyncs)"};
     LOG_debug << "# " << prefix;
@@ -4490,7 +4490,7 @@ void SdkTest::printCleanupErrMsg(const string& prefix,
 }
 
 #ifdef ENABLE_CHAT
-void SdkTest::cleanupSchedMeetingsAllAccounts(const unsigned nApi)
+void SdkTest::cleanupSchedMeetings(const unsigned nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(CancelSchedMeetings)"};
     LOG_debug << "# " << prefix;
