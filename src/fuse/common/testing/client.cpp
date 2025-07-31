@@ -318,7 +318,14 @@ MountResult Client::discard(bool discard)
 
 MountResult Client::enableMount(const std::string& name, bool remember)
 {
-    return service().enable(name, remember);
+    const auto ret = service().enable(name, remember);
+    // Tell FUSE mount that we need to access mount
+    if (const auto flags = service().flags(name); flags)
+    {
+        flags->mAllowSelfAccess = true;
+        service().flags(name, *flags);
+    }
+    return ret;
 }
 
 Task Client::execute(std::function<void(const Task&)> function)

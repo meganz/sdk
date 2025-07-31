@@ -120,6 +120,10 @@ NTSTATUS Mount::create(const std::wstring& path,
                        PVOID& context,
                        FSP_FSCTL_FILE_INFO& info)
 {
+    // Reject if the originating process is self
+    if (isSelfForbidden())
+        return STATUS_ACCESS_DENIED;
+
     // Try and locate the specified node.
     auto name   = std::string();
     auto result = inodeDB().lookup(PathAdapter(path), handle(), &name);
@@ -322,6 +326,10 @@ NTSTATUS Mount::getSecurityByName(const std::wstring& path,
                                   PSECURITY_DESCRIPTOR descriptor,
                                   SIZE_T* descriptorLength)
 {
+    // Reject if the originating process is self
+    if (isSelfForbidden())
+        return STATUS_ACCESS_DENIED;
+
     // Try and locate the specified inode.
     auto result = inodeDB().lookup(PathAdapter(path), handle());
 
@@ -386,6 +394,10 @@ NTSTATUS Mount::open(const std::wstring& path,
                      PVOID& context,
                      FSP_FSCTL_FILE_INFO& info)
 {
+    // Reject if the originating process is self
+    if (isSelfForbidden())
+        return STATUS_ACCESS_DENIED;
+
     // Try and locate the specified inode.
     auto result = inodeDB().lookup(PathAdapter(path), handle());
 
@@ -837,6 +849,26 @@ NTSTATUS Mount::write(PVOID context,
 
     // Let the caller know the write is underway.
     return STATUS_PENDING;
+}
+
+// Check if the request's originating process is this process and forbidden
+// Don't allow SDK to access the mount if the request is from itself as it will have deadlock issues
+// due to single-threaded execution loop of the SDK.
+//
+// @return true is self and is forbidden, otherwise false
+//
+// Note: FspFileSystemOperationProcessId only provides valid information for
+// getSecurityByName, open, and create operations. This may change in future
+// versions of the FSP
+bool Mount::isSelfForbidden() const
+{
+    if (allowSelfAccess())
+        return false;
+
+    const auto originatingPid = FspFileSystemOperationProcessId();
+    assert(originatingPid);
+
+    return originatingPid != 0 && GetCurrentProcessId() == originatingPid;
 }
 
 Mount::Mount(const MountInfo& info,

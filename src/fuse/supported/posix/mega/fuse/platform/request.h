@@ -33,6 +33,8 @@ public:
 
     uid_t owner() const;
 
+    pid_t process() const;
+
     void replyAttributes(const struct statvfs& attributes);
 
     void replyAttributes(const struct stat& attributes,

@@ -295,6 +295,13 @@ bool Mount::writable() const
     return !mFlags.mReadOnly;
 }
 
+bool Mount::allowSelfAccess() const
+{
+    std::lock_guard<std::mutex> guard(mLock);
+
+    return mFlags.mAllowSelfAccess;
+}
+
 } // fuse
 } // mega
 
