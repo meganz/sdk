@@ -42,6 +42,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  :name, "
                "  :num_references, "
                "  :parent_handle, "
+               "  :removed, "
                "  :reported_size, "
                "  :size "
                ")";

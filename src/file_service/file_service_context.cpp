@@ -330,6 +330,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     query.param(":num_references").set(0u);
     query.param(":name").set(node->mName);
     query.param(":parent_handle").set(node->mParentHandle);
+    query.param(":removed").set(false);
     query.param(":reported_size").set(0u);
     query.param(":size").set(size);
 
@@ -776,6 +777,7 @@ try
     query.param(":name").set(name);
     query.param(":parent_handle").set(parent);
     query.param(":num_references").set(0u);
+    query.param(":removed").set(false);
     query.param(":reported_size").set(0u);
     query.param(":size").set(0u);
 
