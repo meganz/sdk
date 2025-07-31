@@ -163,7 +163,7 @@ class Mount final
                off_t offset,
                fuse_file_info& info);
 
-    bool isSelf(const Request& request) const;
+    bool isSelfForbidden(const Request& request) const;
 
     // Tracks whether any requests are in progress.
     common::ActivityMonitor mActivities;

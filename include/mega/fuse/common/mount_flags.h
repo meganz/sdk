@@ -27,6 +27,7 @@ struct MountFlags
     bool mEnableAtStartup = false;
     bool mPersistent = false;
     bool mReadOnly = false;
+    bool mAllowSelfAccess = false; // Only used by test to allow self process to access the mount.
 }; // MountFlags
 
 } // fuse

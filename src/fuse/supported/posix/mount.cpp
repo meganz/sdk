@@ -49,7 +49,7 @@ void Mount::access(Request request,
                    int mask)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Mask is invalid.
@@ -112,7 +112,7 @@ void Mount::doUnlink(Request request,
                      const std::string& name)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Get our hands on the parent.
@@ -144,7 +144,7 @@ void Mount::lookup(Request request,
                    const std::string& name)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Look up the parent.
@@ -200,7 +200,7 @@ void Mount::forget(Request request,
                    std::size_t num)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Locate the specified inode.
@@ -221,7 +221,7 @@ void Mount::forget_multi(Request request,
     assert(!forgets.empty());
 
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     for (auto& forget : forgets)
@@ -242,7 +242,7 @@ void Mount::forget_multi(Request request,
 void Mount::fsync(Request request, MountInodeID, bool, fuse_file_info& info)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Get our hands on the file's context.
@@ -262,7 +262,7 @@ void Mount::getattr(Request request,
                     MountInodeID inode)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Try and get our hands on the inode.
@@ -300,7 +300,7 @@ void Mount::mknod(Request request,
                   mode_t mode)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Try and locate the parent.
@@ -353,7 +353,7 @@ void Mount::open(Request request,
                  fuse_file_info& info)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Check for invalid flags.
@@ -427,7 +427,7 @@ void Mount::opendir(Request request,
                     fuse_file_info& info)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Try and get a reference to the specified inode.
@@ -464,7 +464,7 @@ void Mount::read(Request request,
                  fuse_file_info& info)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Get our hands on the file's context.
@@ -491,7 +491,7 @@ void Mount::readdir(Request request,
                     fuse_file_info& info)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Retrieve directory context.
@@ -549,7 +549,7 @@ void Mount::readdir(Request request,
 void Mount::release(Request request, MountInodeID, fuse_file_info& info)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Get our hands on the context.
@@ -567,7 +567,7 @@ void Mount::releasedir(Request request,
                        fuse_file_info& info)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Retrieve directory context.
@@ -591,7 +591,7 @@ void Mount::rename(Request request,
                    unsigned int flags)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Get our hands on the parents.
@@ -655,7 +655,7 @@ void Mount::setattr(Request request,
                     int changes)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Get our hands on the inode.
@@ -785,7 +785,7 @@ void Mount::setattr(Request request,
 void Mount::statfs(Request request, MountInodeID inode)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Get our hands on the inode.
@@ -854,7 +854,7 @@ void Mount::write(Request request,
                   fuse_file_info& info)
 {
     // Reject if the originating process is self
-    if (isSelf(request))
+    if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
     // Get our hands on the context.
@@ -878,12 +878,16 @@ void Mount::write(Request request,
     request.replyWritten(*result);
 }
 
-// Check if the request's originating process is this process.
+// Check if the request's originating process is this process and forbidden.
 // Don't allow SDK to access the mount if the request is from itself as it will have deadlock issues
 // due to single-threaded execution loop of the SDK.
+// @return true is self and is forbidden, otherwise false
 //
-bool Mount::isSelf(const Request& request) const
+bool Mount::isSelfForbidden(const Request& request) const
 {
+    if (allowSelfAccess())
+        return false;
+
     const auto originatingPid = request.process();
 
     return originatingPid != 0 && originatingPid == getpid();

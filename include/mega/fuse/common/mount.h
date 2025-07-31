@@ -138,6 +138,9 @@ public:
     // Is this mount writable?
     bool writable() const;
 
+    // Does this mount allow accessing from self process?
+    bool allowSelfAccess() const;
+
     // Which database contains this mount?
     platform::MountDB& mMountDB;
 }; // Mount

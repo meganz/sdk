@@ -121,7 +121,7 @@ NTSTATUS Mount::create(const std::wstring& path,
                        FSP_FSCTL_FILE_INFO& info)
 {
     // Reject if the originating process is self
-    if (isSelf())
+    if (isSelfForbidden())
         return STATUS_ACCESS_DENIED;
 
     // Try and locate the specified node.
@@ -327,7 +327,7 @@ NTSTATUS Mount::getSecurityByName(const std::wstring& path,
                                   SIZE_T* descriptorLength)
 {
     // Reject if the originating process is self
-    if (isSelf())
+    if (isSelfForbidden())
         return STATUS_ACCESS_DENIED;
 
     // Try and locate the specified inode.
@@ -395,7 +395,7 @@ NTSTATUS Mount::open(const std::wstring& path,
                      FSP_FSCTL_FILE_INFO& info)
 {
     // Reject if the originating process is self
-    if (isSelf())
+    if (isSelfForbidden())
         return STATUS_ACCESS_DENIED;
 
     // Try and locate the specified inode.
@@ -851,15 +851,20 @@ NTSTATUS Mount::write(PVOID context,
     return STATUS_PENDING;
 }
 
-// Check if the request's originating process is this process.
+// Check if the request's originating process is this process and forbidden
 // Don't allow SDK to access the mount if the request is from itself as it will have deadlock issues
 // due to single-threaded execution loop of the SDK.
+//
+// @return true is self and is forbidden, otherwise false
 //
 // Note: FspFileSystemOperationProcessId only provides valid information for
 // getSecurityByName, open, and create operations. This may change in future
 // versions of the FSP
-bool Mount::isSelf() const
+bool Mount::isSelfForbidden() const
 {
+    if (allowSelfAccess())
+        return false;
+
     const auto originatingPid = FspFileSystemOperationProcessId();
     assert(originatingPid);
 
