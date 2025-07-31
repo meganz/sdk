@@ -463,46 +463,41 @@ void SdkTest::setTestAccountsToFree()
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(totalAccounts));
 
     auto accountsIdx = Range(0u, totalAccounts);
-    std::for_each(begin(accountsIdx),
-                  end(accountsIdx),
-                  [this, &prefix](const auto idx)
-                  {
-                      auto& client = megaApi[idx];
-                      auto accLevelRes = getAccountLevel(*client);
+    for (const auto& idx: accountsIdx)
+    {
+        auto& client = megaApi[idx];
+        auto accLevelRes = getAccountLevel(*client);
 
-                      if (auto result = ::result(accLevelRes); result != API_OK)
-                      {
-                          // Couldn't retrieve account level.
-                          ASSERT_EQ(result, API_OK)
-                              << prefix << ". ## Account (" << idx << ") getAccountLevel error ("
-                              << std::get<Error>(accLevelRes) << ")";
-                      }
+        if (auto result = ::result(accLevelRes); result != API_OK)
+        {
+            // Couldn't retrieve account level.
+            ASSERT_EQ(result, API_OK) << prefix << ". ## Account (" << idx
+                                      << ") getAccountLevel error (" << result << ")";
+        }
 
-                      auto level = std::get<AccountLevel>(accLevelRes);
-                      if (level.plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
-                      {
-                          LOG_info << prefix << ". ## Account (" << idx << ") is free already";
-                          releaseMegaApi(idx);
-                          return;
-                      }
+        auto level = std::get<AccountLevel>(accLevelRes);
+        if (level.plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+        {
+            LOG_info << prefix << ". ## Account (" << idx << ") is free already";
+            releaseMegaApi(idx);
+            return;
+        }
 
-                      if (!gFreeAccounts)
-                      {
-                          mAccountsRestorer.push_back(accountLevelRestorer(megaApi, idx));
-                      }
+        if (!gFreeAccounts)
+        {
+            mAccountsRestorer.push_back(accountLevelRestorer(megaApi, idx));
+        }
 
-                      LOG_info << prefix << ". ## Force account (" << idx
-                               << ") to free status. Originally at plan: " << level.plan
-                               << " months: " << level.months;
-                      auto result = setAccountLevel(*client,
-                                                    MegaAccountDetails::ACCOUNT_TYPE_FREE,
-                                                    level.months,
-                                                    nullptr);
-                      EXPECT_EQ(result, API_OK) << prefix << ". ## Account (" << idx
-                                                << ") couldn't be reset to free: " << result;
+        LOG_info << prefix << ". ## Force account (" << idx
+                 << ") to free status. Originally at plan: " << level.plan
+                 << " months: " << level.months;
+        auto result =
+            setAccountLevel(*client, MegaAccountDetails::ACCOUNT_TYPE_FREE, level.months, nullptr);
+        EXPECT_EQ(result, API_OK) << prefix << ". ## Account (" << idx
+                                  << ") couldn't be reset to free: " << result;
 
-                      releaseMegaApi(idx);
-                  });
+        releaseMegaApi(idx);
+    }
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
