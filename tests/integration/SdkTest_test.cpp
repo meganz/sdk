@@ -1011,7 +1011,7 @@ void SdkTest::cleanupChatrooms(const unsigned int nApi)
     for (int i = 0u; i < chats->size(); ++i)
     {
         const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
-        if (!c || c->getOwnPrivilege() < PRIV_RO)
+        if (!c || !c->isGroup() || c->getOwnPrivilege() < PRIV_RO)
         {
             continue;
         }
