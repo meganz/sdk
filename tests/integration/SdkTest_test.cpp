@@ -4495,19 +4495,20 @@ void SdkTest::cleanupSchedMeetings(const unsigned nApi)
     const std::string prefix{"SdkTest::Cleanup(CancelSchedMeetings)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
-    for (const auto& c: mApi[nApi].chats)
+
+    unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
+    for (int i = 0u; i < chats->size(); ++i)
     {
-        if (!c.second || c.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
+        const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
+        if (!c || c->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR ||
+            !c->getScheduledMeetingList() || !c->getScheduledMeetingList()->size())
         {
             continue;
         }
 
-        const auto schedList = c.second->getScheduledMeetingList();
-        if (!schedList || !schedList->size())
-        {
-            continue;
-        }
-
+        const char* chatTitle = c->getTitle();
+        auto schedList =
+            std::unique_ptr<MegaScheduledMeetingList>(c->getScheduledMeetingList()->copy());
         for (unsigned long j = 0; j < schedList->size(); ++j)
         {
             if (const MegaScheduledMeeting* auxSm = schedList->at(j); auxSm && !auxSm->cancelled())
@@ -4531,9 +4532,7 @@ void SdkTest::cleanupSchedMeetings(const unsigned nApi)
                                                          rules.get()));
 
                 std::unique_ptr<RequestTracker> tracker(new RequestTracker(megaApi[nApi].get()));
-                megaApi[nApi]->createOrUpdateScheduledMeeting(sm.get(),
-                                                              c.second->getTitle(),
-                                                              tracker.get());
+                megaApi[nApi]->createOrUpdateScheduledMeeting(sm.get(), chatTitle, tracker.get());
 
                 if (auto reqResult = tracker->waitForResult(); reqResult != API_OK)
                 {
