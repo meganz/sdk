@@ -371,8 +371,7 @@ void MegaApiTestDeleter::operator()(MegaApiTest* p) const
 void SdkTest::SetUp()
 {
     SdkTestBase::SetUp();
-
-    setTestAccountsToFree();
+    ASSERT_NO_FATAL_FAILURE(setTestAccountsToFree());
 }
 
 void SdkTest::TearDown()
@@ -458,20 +457,31 @@ void SdkTest::Cleanup()
 
 void SdkTest::setTestAccountsToFree()
 {
-    LOG_info << "# SdkTest::setTestAccountsToFree";
+    const string prefix{"# SdkTest::setTestAccountsToFree"};
+    LOG_info << prefix;
     auto totalAccounts = static_cast<unsigned int>(getEnvVarAccounts().size());
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(totalAccounts));
 
     auto accountsIdx = Range(0u, totalAccounts);
     std::for_each(begin(accountsIdx),
                   end(accountsIdx),
-                  [this](const auto idx)
+                  [this, &prefix](const auto idx)
                   {
                       auto& client = megaApi[idx];
-                      auto level = value(getAccountLevel(*client));
+                      auto accLevelRes = getAccountLevel(*client);
+
+                      if (auto result = ::result(accLevelRes); result != API_OK)
+                      {
+                          // Couldn't retrieve account level.
+                          ASSERT_EQ(result, API_OK)
+                              << prefix << ". ## Account (" << idx << ") getAccountLevel error ("
+                              << std::get<Error>(accLevelRes) << ")";
+                      }
+
+                      auto level = std::get<AccountLevel>(accLevelRes);
                       if (level.plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
                       {
-                          LOG_info << "## Account (" << idx << ") is free already";
+                          LOG_info << prefix << ". ## Account (" << idx << ") is free already";
                           releaseMegaApi(idx);
                           return;
                       }
@@ -481,13 +491,15 @@ void SdkTest::setTestAccountsToFree()
                           mAccountsRestorer.push_back(accountLevelRestorer(megaApi, idx));
                       }
 
-                      LOG_info << "## Force account to free status. Originally at plan: "
-                               << level.plan << " months: " << level.months;
+                      LOG_info << prefix << ". ## Force account (" << idx
+                               << ") to free status. Originally at plan: " << level.plan
+                               << " months: " << level.months;
                       auto result = setAccountLevel(*client,
                                                     MegaAccountDetails::ACCOUNT_TYPE_FREE,
                                                     level.months,
                                                     nullptr);
-                      EXPECT_EQ(result, API_OK) << "Couldn't reset account to free: " << result;
+                      EXPECT_EQ(result, API_OK) << prefix << ". ## Account (" << idx
+                                                << ") couldn't be reset to free: " << result;
 
                       releaseMegaApi(idx);
                   });
@@ -2753,9 +2765,16 @@ auto getAccountLevel(MegaApi& client) -> Expected<AccountLevel>
     }
 
     // Latch the user's plan.
-    auto plan = value(details)->getProLevel();
+    auto& planRes = std::get<std::unique_ptr<MegaAccountDetails>>(details);
+    if (!planRes)
+    {
+        LOG_err << prefix
+                << "getAccountDetails succeeded but cannot retrieve MegaAccountDetails for account("
+                << string{client.getMyEmail() ? client.getMyEmail() : ""} << ")";
+        return Error(API_EINTERNAL);
+    }
 
-    // User has a free account: No need to get features or months.
+    auto plan = planRes->getProLevel();
     if (plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
         return AccountLevel(0, plan);
 
@@ -2772,16 +2791,22 @@ auto getAccountLevel(MegaApi& client) -> Expected<AccountLevel>
     }
 
     // Convenience.
-    auto& priceDetails = *value(pricing);
+    auto& priceDetailRes = std::get<std::unique_ptr<MegaPricing>>(pricing);
+    if (!priceDetailRes)
+    {
+        LOG_err << prefix << "getPricing succeeded but cannot retrieve MegaPricing for account("
+                << string{client.getMyEmail() ? client.getMyEmail() : ""} << ")";
+        return Error(API_EINTERNAL);
+    }
 
     // Locate the user's plan.
-    for (auto i = 0, j = priceDetails.getNumProducts(); i < j; ++i)
+    for (auto i = 0, j = priceDetailRes->getNumProducts(); i < j; ++i)
     {
         // Found the user's plan.
-        if (plan == priceDetails.getProLevel(i))
+        if (plan == priceDetailRes->getProLevel(i))
         {
             // Return plan and its length.
-            return AccountLevel(priceDetails.getMonths(i), plan);
+            return AccountLevel(priceDetailRes->getMonths(i), plan);
         }
     }
 
@@ -2840,7 +2865,7 @@ auto accountLevelRestorer(MegaApi& client) -> ScopedDestructor
     }
 
     // Build a destructor that will restore the user's account level.
-    destructor = [&client, level = value(accountLevel)]()
+    destructor = [&client, level = std::get<AccountLevel>(accountLevel)]()
     {
         // Try and restore the user's account level.
         auto result = setAccountLevel(client, level.plan, level.months, nullptr);
@@ -2862,7 +2887,7 @@ ScopedDestructor accountLevelRestorer(std::vector<MegaApiTestPointer>& clients, 
         return destructor;
     }
 
-    destructor = [&clients, idx, level = value(accountLevel)]()
+    destructor = [&clients, idx, level = std::get<AccountLevel>(accountLevel)]()
     {
         auto result = setAccountLevel(*clients[idx], level.plan, level.months, nullptr);
         EXPECT_EQ(result, API_OK) << "Couldn't restore account " << idx << " level";
