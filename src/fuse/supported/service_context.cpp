@@ -43,7 +43,7 @@ ServiceContext::ServiceContext(const ServiceFlags& flags, Service& service)
   , mMountDB(*this)
 {
     // Inject InodeDB as an event observer.
-    service.mClient.eventObserver(&mInodeDB);
+    service.mClient.addEventObserver(mInodeDB);
 
     // Prune lingering transient mounts from the database.
     mMountDB.prune();
@@ -52,7 +52,7 @@ ServiceContext::ServiceContext(const ServiceFlags& flags, Service& service)
 ServiceContext::~ServiceContext()
 {
     // Detach InodeDB as event observer.
-    client().eventObserver(nullptr);
+    client().removeEventObserver(mInodeDB);
 
     // Tear down any enabled mounts.
     mMountDB.deinitialize();

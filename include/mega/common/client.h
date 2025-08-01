@@ -15,6 +15,7 @@
 #include <mega/types.h>
 
 #include <functional>
+#include <mutex>
 #include <set>
 #include <string>
 #include <tuple>
@@ -34,13 +35,19 @@ protected:
     explicit Client(Logger& logger);
 
     // Who should we notify when something changes in the cloud?
-    NodeEventObserver* mEventObserver;
+    std::set<NodeEventObserver*> mEventObservers;
+
+    // Serializes access to mEventObservers.
+    std::recursive_mutex mEventObserversLock;
 
     // What logger should we use?
     Logger& mLogger;
 
 public:
     virtual ~Client();
+
+    // Notify observer when something changes in the cloud.
+    void addEventObserver(NodeEventObserver& observer);
 
     // What application is our client bound to?
     virtual MegaApp& application() = 0;
@@ -69,9 +76,6 @@ public:
     // Execute a function for each child of a node.
     virtual void each(std::function<void(NodeInfo)> function,
                       NodeHandle handle) const = 0;
-
-    // Specify who we should notify when something changes in the cloud. 
-    void eventObserver(NodeEventObserver* observer);
 
     // Execute some function on the client's thread.
     virtual Task execute(std::function<void(const Task&)> function) = 0;
@@ -162,6 +166,9 @@ public:
 
     // Remove all children of a node.
     Error removeAll(NodeHandle handle);
+
+    // Don't send observer any further change notifications.
+    void removeEventObserver(NodeEventObserver& observer);
 
     // Rename a node.
     virtual void rename(RenameCallback callback,

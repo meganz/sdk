@@ -120,6 +120,9 @@ public:
     // Pop an event from the queue.
     void pop_front() override;
 
+    // Restore any popped events.
+    void restore();
+
     // How many events are in the queue?
     std::size_t size() const override;
 }; // ClientNodeEventQueue
@@ -1125,15 +1128,28 @@ void ClientAdapter::touch(TouchCallback callback,
 
 void ClientAdapter::updated(const sharedNode_vector& nodes)
 {
-    // No observer? Nothing to do!
-    if (!mEventObserver)
+    // Should never happen.
+    if (nodes.empty())
+        return;
+
+    std::lock_guard guard(mEventObserversLock);
+
+    // No observers? Nothing to do!
+    if (mEventObservers.empty())
         return;
 
     // Translate node vector into event queue.
     ClientNodeEventQueue events(nodes);
 
-    // Process node events.
-    mEventObserver->updated(events);
+    // Broadcast events to our observers.
+    for (auto* observer: mEventObservers)
+    {
+        // Let the observer know what's changed.
+        observer->updated(events);
+
+        // Restore any popped events.
+        events.restore();
+    }
 }
 
 UploadPtr ClientAdapter::upload(const LocalPath& logicalPath,
@@ -1385,6 +1401,11 @@ bool ClientNodeEventQueue::empty() const
 const ClientNodeEvent& ClientNodeEventQueue::front() const
 {
     return mCurrent;
+}
+
+void ClientNodeEventQueue::restore()
+{
+    mCurrent = mEvents.begin();
 }
 
 void ClientNodeEventQueue::pop_front()
