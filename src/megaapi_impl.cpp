@@ -5315,6 +5315,10 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_NOTIFICATIONS: return "GET_NOTIFICATIONS";
         case TYPE_DEL_ATTR_USER:
             return "DEL_ATTR_USER";
+        case TYPE_BACKUP_PAUSE_MD:
+            return "BACKUP_PAUSE_MD";
+        case TYPE_BACKUP_RESUME_MD:
+            return "BACKUP_RESUME_MD";
         case TYPE_IMPORT_PASSWORDS_FROM_FILE:
             return "IMPORT_PASSWORDS_FROM_FILE";
         case TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS:
