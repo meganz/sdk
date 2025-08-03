@@ -179,7 +179,7 @@ auto FileRangeContext::failed(Error result, int retries) -> std::variant<Abort, 
     auto options = mManager.options();
 
     // Or if we've already retried the download too many times.
-    if (static_cast<std::uint64_t>(retries) >= options.mMinimumRangeDistance)
+    if (static_cast<std::uint64_t>(retries) >= options.mMaximumRangeRetries)
         return Abort();
 
     // Retry the download.
