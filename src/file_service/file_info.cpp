@@ -1,6 +1,7 @@
 #include <mega/file_service/file_context_badge.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
+#include <mega/file_service/file_location.h>
 #include <mega/file_service/file_service_context_badge.h>
 
 namespace mega
@@ -46,6 +47,11 @@ NodeHandle FileInfo::handle() const
 FileID FileInfo::id() const
 {
     return mContext->id();
+}
+
+FileLocation FileInfo::location() const
+{
+    return mContext->location();
 }
 
 std::int64_t FileInfo::modified() const

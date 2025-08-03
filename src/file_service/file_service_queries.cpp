@@ -11,12 +11,10 @@ using namespace common;
 FileServiceQueries::FileServiceQueries(Database& database):
     mAddFile(database.query()),
     mAddFileID(database.query()),
-    mAddFileLocation(database.query()),
     mAddFileRange(database.query()),
     mGetFile(database.query()),
+    mGetFileByNameAndParentHandle(database.query()),
     mGetFileIDs(database.query()),
-    mGetFileLocation(database.query()),
-    mGetFileLocationByParentAndName(database.query()),
     mGetFileRanges(database.query()),
     mGetFileReferences(database.query()),
     mGetFreeFileID(database.query()),
@@ -25,7 +23,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mGetStorageUsed(database.query()),
     mRemoveFile(database.query()),
     mRemoveFileID(database.query()),
-    mRemoveFileLocation(database.query()),
     mRemoveFileRanges(database.query()),
     mSetFileAccessTime(database.query()),
     mSetFileHandle(database.query()),
@@ -42,18 +39,14 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  :handle, "
                "  :id, "
                "  :modified, "
+               "  :name, "
                "  :num_references, "
+               "  :parent_handle, "
                "  :reported_size, "
                "  :size "
                ")";
 
     mAddFileID = "insert into file_ids values (:id)";
-
-    mAddFileLocation = "insert into file_locations values ( "
-                       "  :id, "
-                       "  :name, "
-                       "  :parent_handle "
-                       ")";
 
     mAddFileRange = "insert into file_ranges values ( "
                     "  :begin, "
@@ -66,6 +59,11 @@ FileServiceQueries::FileServiceQueries(Database& database):
                " where (:handle is not null and handle = :handle) "
                "    or (:id is not null and id = :id)";
 
+    mGetFileByNameAndParentHandle = "select * "
+                                    "  from files "
+                                    " where name = :name "
+                                    "   and parent_handle = :parent_handle";
+
     mGetFileIDs = "select id from files";
 
     mGetReclaimableFiles = "select allocated_size "
@@ -74,15 +72,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                            " where allocated_size <> 0 "
                            "   and accessed <= :accessed "
                            " order by accessed desc";
-
-    mGetFileLocation = "select * "
-                       "  from file_locations "
-                       " where id = :id";
-
-    mGetFileLocationByParentAndName = "select * "
-                                      "  from file_locations "
-                                      " where name = :name "
-                                      "   and parent_handle = :parent_handle";
 
     mGetFileRanges = "select begin "
                      "     , end "
@@ -110,9 +99,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mRemoveFileID = "delete from file_ids "
                     " where id = :id";
 
-    mRemoveFileLocation = "delete from file_locations "
-                          " where id = :id";
-
     mRemoveFileRanges = "delete from file_ranges "
                         " where begin >= :begin "
                         "   and end <= :end "
@@ -126,7 +112,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
                      "   set handle = :handle "
                      " where id = :id";
 
-    mSetFileLocation = "update file_locations "
+    mSetFileLocation = "update files "
                        "   set name = :name "
                        "     , parent_handle = :parent_handle "
                        " where id = :id";

@@ -214,6 +214,8 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
     auto dirty = query.field("dirty").get<bool>();
     auto handle = NodeHandle();
     auto modified = query.field("modified").get<std::int64_t>();
+    auto name = query.field("name").get<std::string>();
+    auto parent = query.field("parent_handle").get<NodeHandle>();
     auto reportedSize = query.field("reported_size").get<std::uint64_t>();
     auto size = query.field("size").get<std::uint64_t>();
 
@@ -222,6 +224,9 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
 
     id = query.field("id").get<FileID>();
 
+    // Convenience.
+    FileLocation location{std::move(name), parent};
+
     // Instantiate a context to represent this file's information.
     auto info = std::make_shared<FileInfoContext>(accessed,
                                                   mActivities.begin(),
@@ -229,6 +234,7 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open)
                                                   dirty,
                                                   handle,
                                                   id,
+                                                  location,
                                                   modified,
                                                   reportedSize,
                                                   *this,
@@ -322,6 +328,8 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     query.param(":id").set(id);
     query.param(":modified").set(node->mModified);
     query.param(":num_references").set(0u);
+    query.param(":name").set(node->mName);
+    query.param(":parent_handle").set(node->mParentHandle);
     query.param(":reported_size").set(0u);
     query.param(":size").set(size);
 
@@ -333,15 +341,22 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     // Persist our database changes.
     transaction.commit();
 
+    // Clarity.
+    auto allocatedSize = 0u;
+    auto dirty = false;
+    auto location = FileLocation{std::move(node->mName), node->mParentHandle};
+    auto reportedSize = 0u;
+
     // Create a context to represent this file's information.
     auto info = std::make_shared<FileInfoContext>(accessed,
                                                   mActivities.begin(),
-                                                  0u,
-                                                  false,
+                                                  allocatedSize,
+                                                  dirty,
                                                   node->mHandle,
                                                   id,
+                                                  location,
                                                   node->mModified,
-                                                  0u,
+                                                  reportedSize,
                                                   *this,
                                                   size);
 
@@ -732,7 +747,7 @@ try
     auto transaction = mDatabase.transaction();
 
     // Check if parent already contains a local child with this name.
-    auto query = transaction.query(mQueries.mGetFileLocationByParentAndName);
+    auto query = transaction.query(mQueries.mGetFileByNameAndParentHandle);
 
     query.param(":parent_handle").set(parent);
     query.param(":name").set(name);
@@ -758,32 +773,33 @@ try
     query.param(":handle").set(nullptr);
     query.param(":id").set(id);
     query.param(":modified").set(modified);
+    query.param(":name").set(name);
+    query.param(":parent_handle").set(parent);
     query.param(":num_references").set(0u);
     query.param(":reported_size").set(0u);
     query.param(":size").set(0u);
 
     query.execute();
 
-    // Specify where this file should be uploaded.
-    query = transaction.query(mQueries.mAddFileLocation);
-
-    query.param(":id").set(id);
-    query.param(":name").set(name);
-    query.param(":parent_handle").set(parent);
-
-    query.execute();
+    // Clarity.
+    auto allocatedSize = 0u;
+    auto dirty = true;
+    auto location = FileLocation{name, parent};
+    auto reportedSize = 0u;
+    auto size = 0u;
 
     // Instantiate an info context to describe our new file.
     auto info = std::make_shared<FileInfoContext>(modified,
                                                   mActivities.begin(),
-                                                  0ul,
-                                                  true,
+                                                  allocatedSize,
+                                                  dirty,
                                                   NodeHandle(),
                                                   id,
+                                                  location,
                                                   modified,
-                                                  0ul,
+                                                  reportedSize,
                                                   *this,
-                                                  0ul);
+                                                  size);
 
     // Instantiate a file context to manipulate our new file.
     auto file = std::make_shared<FileContext>(mActivities.begin(),

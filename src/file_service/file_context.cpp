@@ -18,6 +18,7 @@
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
+#include <mega/file_service/file_location.h>
 #include <mega/file_service/file_range_context.h>
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_reclaim_request.h>
@@ -95,11 +96,8 @@ class FileContext::FlushContext
     // The file's current node handle.
     NodeHandle mHandle;
 
-    // The file's intended name.
-    std::string mName;
-
-    // The file's intended parent.
-    NodeHandle mParentHandle;
+    // Where is this file stored in the cloud?
+    FileLocation mLocation;
 
     // What flush requests are we executing?
     std::vector<FileFlushRequest> mRequests;
@@ -116,9 +114,6 @@ public:
     // Cancel the flush.
     template<typename Lock>
     void cancel(Lock&& lock);
-
-    // Specify this file's intended location.
-    void location(NodeHandle parent, const std::string& name);
 
     // Queue a flush request for execution.
     void queue(FileFlushRequest request);
@@ -682,29 +677,6 @@ bool FileContext::execute(FileFlushRequest request)
 
     // Unlock flush context lock.
     lock.unlock();
-
-    // Specify the file's location if necessary.
-    if (mInfo->handle().isUndef())
-    {
-        // Convenience.
-        auto& database = mService.database();
-
-        // Acquire database lock.
-        UniqueLock databaseLock(database);
-
-        // Initiate a transaction so we can safely access the database.
-        auto transaction = database.transaction();
-
-        // Look up where this file's meant to live in the cloud.
-        auto query = transaction.query(mService.queries().mGetFileLocation);
-
-        query.param(":id").set(mInfo->id());
-        query.execute();
-
-        // Specify where the file should be uploaded.
-        mFlushContext->location(query.field("parent_handle").get<NodeHandle>(),
-                                query.field("name").get<std::string>());
-    }
 
     // Fetch all of this file's data.
     fetch(FileFetchRequest{std::bind(&FlushContext::operator(),
@@ -1777,18 +1749,18 @@ Error FileContext::FlushContext::resolve(Client& client)
 {
     // File's never been flushed before.
     if (mHandle.isUndef())
-        return client.get(mParentHandle).errorOr(API_OK);
+        return client.get(mLocation.mParentHandle).errorOr(API_OK);
 
-    // Check if this file's node still exists.
+    // Check if the file's node still exists.
     auto node = client.get(mHandle);
 
     // File's node no longer exists.
     if (!node)
         return node.error();
 
-    // Latch node's current name and parent.
-    mName = std::move(node->mName);
-    mParentHandle = node->mParentHandle;
+    // Latch the node's current name and parent.
+    mLocation.mName = std::move(node->mName);
+    mLocation.mParentHandle = node->mParentHandle;
 
     // Let the caller know the node still exists.
     return API_OK;
@@ -1822,8 +1794,7 @@ FileContext::FlushContext::FlushContext(FileContext& context, FileFlushRequest r
     mActivity(context.mActivities.begin()),
     mContext(context),
     mHandle(context.mInfo->handle()),
-    mName(),
-    mParentHandle(),
+    mLocation(context.mInfo->location()),
     mRequests(),
     mUpload()
 {
@@ -1861,8 +1832,11 @@ void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult 
     // Where is this file's data stored?
     auto path = service.path(info.id());
 
+    // Convenience.
+    auto& [name, parent] = mLocation;
+
     // Instantiate an upload.
-    mUpload = client.upload(path, mName, mParentHandle, path);
+    mUpload = client.upload(path, name, parent, path);
 
     // So we can use our uploaded method as a callback.
     UploadCallback callback =
@@ -1889,15 +1863,6 @@ void FileContext::FlushContext::cancel(Lock&& lock)
 
     // Cancel the upload.
     upload->cancel();
-}
-
-void FileContext::FlushContext::location(NodeHandle parent, const std::string& name)
-{
-    // Sanity.
-    assert(mHandle.isUndef());
-
-    mName = name;
-    mParentHandle = parent;
 }
 
 void FileContext::FlushContext::queue(FileFlushRequest request)

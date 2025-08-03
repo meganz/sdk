@@ -4,6 +4,7 @@
 #include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info_context_forward.h>
+#include <mega/file_service/file_location.h>
 #include <mega/file_service/file_range_forward.h>
 #include <mega/file_service/file_service_context_forward.h>
 #include <mega/file_service/file_size_info.h>
@@ -51,6 +52,9 @@ class FileInfoContext: public FileSizeInfo
     // The unique identifier for this file.
     const FileID mID;
 
+    // Where is this file located in the cloud?
+    FileLocation mLocation;
+
     // Serializes access to our members.
     mutable common::SharedMutex mLock;
 
@@ -79,6 +83,7 @@ public:
                     bool dirty,
                     NodeHandle handle,
                     FileID id,
+                    const FileLocation& location,
                     std::int64_t modified,
                     std::uint64_t reportedSize,
                     FileServiceContext& service,
@@ -112,6 +117,12 @@ public:
 
     // What is this file's identifier?
     auto id() const -> FileID;
+
+    // Specify where this file is located in the cloud.
+    void location(const FileLocation& location);
+
+    // Where is this file located in the cloud?
+    FileLocation location() const;
 
     // Update the file's access and modification time.
     void modified(std::int64_t accessed, std::int64_t modified);

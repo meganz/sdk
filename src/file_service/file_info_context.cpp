@@ -54,6 +54,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
                                  bool dirty,
                                  NodeHandle handle,
                                  FileID id,
+                                 const FileLocation& location,
                                  std::int64_t modified,
                                  std::uint64_t reportedSize,
                                  FileServiceContext& service,
@@ -64,6 +65,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
     mDirty(dirty),
     mHandle(handle),
     mID(id),
+    mLocation(location),
     mLock(),
     mModified(modified),
     mObservers(),
@@ -136,6 +138,16 @@ NodeHandle FileInfoContext::handle() const
 FileID FileInfoContext::id() const
 {
     return mID;
+}
+
+void FileInfoContext::location(const FileLocation& location)
+{
+    set(&FileInfoContext::mLocation, location);
+}
+
+FileLocation FileInfoContext::location() const
+{
+    return get(&FileInfoContext::mLocation);
 }
 
 void FileInfoContext::modified(std::int64_t accessed, std::int64_t modified)

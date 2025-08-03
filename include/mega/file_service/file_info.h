@@ -6,6 +6,7 @@
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_info_forward.h>
+#include <mega/file_service/file_location_forward.h>
 #include <mega/file_service/file_service_context_badge_forward.h>
 
 #include <cstdint>
@@ -58,6 +59,9 @@ public:
 
     // What node is this file associated with?
     FileID id() const;
+
+    // Where is this file located in the cloud?
+    FileLocation location() const;
 
     // When was this file last modified?
     std::int64_t modified() const;

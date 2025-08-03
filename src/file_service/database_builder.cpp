@@ -58,9 +58,11 @@ void upgrade01(Query& query)
             "  modified integer "
             "  constraint nn_files_modified "
             "             not null, "
+            "  name text, "
             "  num_references integer "
             "  constraint nn_files_num_references "
             "             not null, "
+            "  parent_handle integer, "
             "  reported_size integer "
             "  constraint nn_files_reported_size "
             "             not null, "
@@ -68,27 +70,11 @@ void upgrade01(Query& query)
             "  constraint nn_files_size "
             "             not null, "
             "  constraint pk_files "
-            "             primary key (id) "
-            ")";
-
-    query.execute();
-
-    query = "create table file_locations ( "
-            "  id integer "
-            "  constraint nn_file_locations_id "
-            "             not null, "
-            "  name text "
-            "  constraint nn_file_locations_name "
-            "             not null, "
-            "  parent_handle integer "
-            "  constraint nn_file_locations_parent_handle "
-            "             not null, "
-            "  constraint fk_file_locations_files "
-            "             foreign key (id) "
-            "             references files (id) "
-            "             on delete cascade, "
-            "  constraint pk_file_locations "
-            "             primary key (id) "
+            "             primary key (id), "
+            "  constraint uq_files_handle "
+            "             unique (handle), "
+            "  constraint uq_files_name_parent_handle "
+            "             unique (name, parent_handle) "
             ")";
 
     query.execute();
