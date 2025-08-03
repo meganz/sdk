@@ -7315,6 +7315,51 @@ bool CommandFetchNodes::parsingFinished()
     return true;
 }
 
+CommandQueeryActionPackets::CommandQueeryActionPackets(MegaClient* client)
+{
+    assert(client);
+
+    mFilters.emplace("{[a{\"a",[this, client](JSON* json)
+    {
+        auto name   {json->getnameidvalue()};
+        client->bufferedsc.emplace_back(name);
+        return true;
+    });
+
+    mFilters.emplace("{{w",
+    [this, client](JSON* json)
+    {
+        json->storeobject(&client->scnotifyurl);
+        return true;
+    });
+
+    mFilters.emplace("{\"ir",
+    [this, client](JSON* json)
+    {
+        client->insca_notlast = json->getint() == 1;
+        return true;
+    });
+
+    mFilters.emplace("{\"sn",
+    [this, client](JSON* json)
+    {
+        client->bufferedsc.emplace_back(makeNameid("sn"));
+        return true;
+    });
+}
+
+CommandQueeryActionPackets::~CommandQueeryActionPackets() {}
+
+bool CommandQueeryActionPackets::procresult(Result r, JSON& json)
+{
+    return true;
+}
+
+bool CommandQueeryActionPackets::parsingFinished()
+{
+    return true;
+}
+
 CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph, int phtype, int64_t ts)
 {
     cmd("vpay");

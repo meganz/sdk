@@ -2071,6 +2071,9 @@ public:
     bool insca;
     bool insca_notlast;
 
+    // Buffered Server-MegaClient requests
+    vector<nameid> bufferedsc;
+
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
 
@@ -2383,6 +2386,9 @@ public:
     // client-server request double-buffering
     RequestDispatcher reqs;
 
+    // server-client request queue; only supports action packet querying for now (pendingsc)
+    SCRequestDispatcher screqs;
+
     // returns if the current pendingcs includes a fetch nodes command
     bool isFetchingNodesPendingCS();
 
@@ -2439,6 +2445,9 @@ public:
     void handleauth(handle, byte*);
 
     bool procsc();
+
+    //process the buffered action packets
+    bool procbufferedsc();
     size_t procreqstat();
 
     // API warnings

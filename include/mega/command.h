@@ -516,6 +516,32 @@ protected:
     bool mFirstChunkProcessed = false;
 };
 
+class MEGA_API CommandQueeryActionPackets: public Command
+{
+    bool mLoadSyncs = false;
+
+    const char* getJSON(MegaClient* clientOfRequest) override;
+
+public:
+    bool procresult(Result, JSON&) override;
+    bool parsingFinished();
+
+    CommandQueeryActionPackets(MegaClient* client);
+    ~CommandQueeryActionPackets();
+
+protected:
+    handle mPreviousHandleForAlert = UNDEF;
+    NodeManager::MissingParentNodes mMissingParentNodes;
+
+    // Field to temporarily save the received scsn
+    handle mScsn;
+    // sequence-tag, saved temporary while processing the response (it's received before nodes)
+    string mSt;
+
+    std::unique_lock<recursive_mutex> mNodeTreeIsChanging;
+    bool mFirstChunkProcessed = false;
+};
+
 // update own node keys
 class MEGA_API CommandNodeKeyUpdate : public Command
 {

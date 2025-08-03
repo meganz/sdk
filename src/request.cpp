@@ -31,6 +31,11 @@ bool Request::isFetchNodes() const
     return cmds.size() == 1 && dynamic_cast<CommandFetchNodes*>(cmds.back().get());
 }
 
+bool Request::isQueryActionPackets() const
+{
+    return cmds.size() == 1 && dynamic_cast<CommandQueeryActionPackets*>(cmds.back().get());
+}
+
 void Request::add(Command* c)
 {
     // Once this becomes the in-progress request, it must not have anything added
@@ -165,8 +170,8 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
         return 0;
     }
 
-    // Only fetchnodes command is currently supported
-    assert(isFetchNodes());
+    // Only fetchnodes and queryActionPackets command are currently supported
+    assert(isFetchNodes() || isQueryActionPackets());
 
     m_off_t consumed = 0;
     Command& cmd = *cmds[0];
@@ -594,6 +599,35 @@ void RequestDispatcher::clear()
         processing = false;
         clearWhenSafe = false;
     }
+}
+
+void SCRequestDispatcher::setReq(Command* c) 
+{
+    inflightreq.add(c);
+}
+
+void SCRequestDispatcher::clear()
+{
+    inflightreq.stopProcessing = true;
+    inflightreq.clear();
+    processing = false;
+}
+
+size_t SCRequestDispatcher::serverChunk(const char* chunk, MegaClient* client)
+{
+    processing = true;
+    size_t consumed = static_cast<size_t>(inflightreq.processChunk(chunk, client));
+    processing = false;
+    if (clearWhenSafe)
+    {
+        clear();
+    }
+    return consumed;
+}
+
+size_t SCRequestDispatcher::chunkedProgress()
+{
+    return static_cast<size_t>(inflightreq.totalChunkedProgress());
 }
 
 } // namespace

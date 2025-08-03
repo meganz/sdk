@@ -71,6 +71,9 @@ public:
     // if contains only one command and that command is FetchNodes
     bool isFetchNodes() const;
 
+    // if contains only one command and that command is QueryActionPackets
+    bool isQueryActionPackets() const;
+
     Command* getCurrentCommand();
 };
 
@@ -150,6 +153,17 @@ public:
 
 };
 
+class MEGA_API SCRequestDispatcher
+{
+    Request inflightreq;
+    bool processing{false};
+    bool clearWhenSafe{false};
+public:
+    void setReq(Command* c);
+    void clear();
+    size_t chunkedProgress();
+    size_t serverChunk(const char* chunk, MegaClient* client);
+};
 } // namespace
 
 #endif

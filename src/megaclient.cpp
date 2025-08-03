@@ -3026,7 +3026,11 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (!jsonsc.pos && !pendingscUserAlerts && pendingsc)
+        if (
+#ifndef BUFFER_ACTION_PACKETS
+            !jsonsc.pos 
+#endif
+            && !pendingscUserAlerts && pendingsc)
         {
             #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
                 if (globalMegaTestHooks.interceptSCRequest)
@@ -3049,6 +3053,11 @@ void MegaClient::exec()
                     break;
                 }
 
+#ifdef BUFFER_ACTION_PACKETS
+                pendingsc.reset();
+                screqs.clear();
+                btsc.reset();
+#else
                 if (*pendingsc->in.c_str() == '{')
                 {
                     insca = false;
@@ -3120,7 +3129,7 @@ void MegaClient::exec()
                         scsn.stopScsn();
                     }
                 }
-
+#endif
                 // fall through
             case REQ_FAILURE:
                 pendingscTimedOut = false;
@@ -3175,6 +3184,10 @@ void MegaClient::exec()
                     }
 
                     pendingsc.reset();
+
+#ifdef BUFFER_ACTION_PACKETS
+                    screqs.clear();
+#endif
                 }
 
                 if (scsn.stopped())
@@ -3193,6 +3206,20 @@ void MegaClient::exec()
                 break;
 
             case REQ_INFLIGHT:
+#ifdef BUFFER_ACTION_PACKETS
+                // buffer action packets
+                if (pendingsc->contentlength > 0)
+                {
+                    if (pendingsc->mChunked)
+                    {
+                        size_t consumedBytes = screqs.serverChunk(pendingsc->data(), this);
+                        LOG_verbose << "Consumed a chunk of " << consumedBytes << " bytes. "
+                                    << "Total: " << screqs.chunkedProgress() << " of "
+                                    << pendingsc->contentlength;
+                        pendingsc->purge(consumedBytes);
+                    }                   
+                }
+#endif
                 if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
                     LOG_debug << clientname << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
@@ -3207,6 +3234,12 @@ void MegaClient::exec()
             }
         }
 
+#ifdef BUFFER_ACTION_PACKETS
+        if (pendingsc)
+        {
+            procbufferedsc();
+        }
+#else
         if (!scpaused && jsonsc.pos)
         {
             // FIXME: reload in case of bad JSON
@@ -3218,6 +3251,7 @@ void MegaClient::exec()
                 btsc.reset();
             }
         }
+#endif
 
         if (!pendingsc && !pendingscUserAlerts && scsn.ready() && btsc.armed() && !mBlocked)
         {
@@ -3238,6 +3272,8 @@ void MegaClient::exec()
             }
             else
             {
+                screqs.clear();
+                screqs.setReq(new CommandQueeryActionPackets(this));
                 pendingsc.reset(new HttpReq());
                 pendingsc->setLogName(clientname + "sc ");
                 if (mPendingCatchUps && !mReceivingCatchUp)
@@ -5725,6 +5761,237 @@ bool MegaClient::procsc()
             }
         }
     }
+}
+
+bool MegaClient::procbufferedsc()
+{
+    // thread safe from sync thread
+    std::unique_lock<recursive_mutex> nodeTreeIsChanging(nodeTreeMutex);
+
+    std::shared_ptr<Node> lastAPDeletedNode;
+
+    for (const nameid& action: bufferedsc)
+    {
+        switch (action)
+        {
+            
+            case makeNameid("sn"):
+                // the sn element is guaranteed to be the last in sequence (except for notification
+                // requests (c=50))
+                scsn.setScsn(&jsonsc);
+                // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
+                // when action package is processed and the seq tag matches with mCurrentSeqtag
+                assert(!mCurrentSeqtagSeen);
+                notifypurge();
+                if (sctable)
+                {
+                    if (!pendingcs && !csretrying && !reqs.readyToSend())
+                    {
+                        LOG_debug << "DB transaction COMMIT (sessionid: "
+                                  << string(sessionid, sizeof(sessionid)) << ")";
+                        sctable->commit();
+                        sctable->begin();
+                        app->notify_dbcommit();
+                        pendingsccommit = false;
+                    }
+                    else
+                    {
+                        LOG_debug << "Postponing DB commit until cs requests finish";
+                        pendingsccommit = true;
+                    }
+                }
+                break;
+            case name_id::u:
+                // node update
+                sc_updatenode();
+                break;
+
+            case makeNameid("t"):
+            {
+                bool isMoveOperation = false;
+                // node addition
+                {
+                    if (!loggedIntoFolder())
+                        useralerts.beginNotingSharedNodes();
+                    handle originatingUser =
+                        sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode.get(),
+                                    isMoveOperation);
+                    mergenewshares(1);
+                    if (!loggedIntoFolder())
+                        useralerts.convertNotedSharedNodes(true, originatingUser);
+                }
+                lastAPDeletedNode = nullptr;
+            }
+            break;
+
+            case name_id::d:
+                // node deletion
+                lastAPDeletedNode = sc_deltree();
+                break;
+
+            case makeNameid("s"):
+            case makeNameid("s2"):
+                // share addition/update/revocation
+                if (sc_shares())
+                {
+                    int creqtag = reqtag;
+                    reqtag = 0;
+                    mergenewshares(1);
+                    reqtag = creqtag;
+                }
+                break;
+
+            case name_id::c:
+                // contact addition/update
+                sc_contacts();
+                break;
+
+            case makeNameid("fa"):
+                // file attribute update
+                sc_fileattr();
+                break;
+
+            case makeNameid("ua"):
+                // user attribute update
+                sc_userattr();
+                break;
+
+            case name_id::psts:
+            case name_id::psts_v2:
+            case makeNameid("ftr"):
+                if (sc_upgrade(action))
+                {
+                    app->account_updated();
+                    abortbackoff(true);
+                }
+                break;
+
+            case name_id::pses:
+                sc_paymentreminder();
+                break;
+
+            case name_id::ipc:
+                // incoming pending contact request (to us)
+                sc_ipc();
+                break;
+
+            case makeNameid("opc"):
+                // outgoing pending contact request (from us)
+                sc_opc();
+                break;
+
+            case name_id::upci:
+                // incoming pending contact request update (accept/deny/ignore)
+                sc_upc(true);
+                break;
+
+            case name_id::upco:
+                // outgoing pending contact request update (from them, accept/deny/ignore)
+                sc_upc(false);
+                break;
+
+            case makeNameid("ph"):
+                // public links handles
+                sc_ph();
+                break;
+
+            case makeNameid("se"):
+                // set email
+                sc_se();
+                break;
+#ifdef ENABLE_CHAT
+            case makeNameid("mcpc"):
+            {
+                readingPublicChat = true;
+            } // fall-through
+            case makeNameid("mcc"):
+                // chat creation / peer's invitation / peer's removal
+                sc_chatupdate(readingPublicChat);
+                break;
+
+            case makeNameid("mcfpc"): // fall-through
+            case makeNameid("mcfc"):
+                // chat flags update
+                sc_chatflags();
+                break;
+
+            case makeNameid("mcpna"): // fall-through
+            case makeNameid("mcna"):
+                // granted / revoked access to a node
+                sc_chatnode();
+                break;
+
+            case name_id::mcsmp:
+                // scheduled meetings updates
+                sc_scheduledmeetings();
+                break;
+
+            case name_id::mcsmr:
+                // scheduled meetings removal
+                sc_delscheduledmeeting();
+                break;
+#endif
+            case makeNameid("uac"):
+                sc_uac();
+                break;
+
+            case makeNameid("la"):
+                // last acknowledged
+                sc_la();
+                break;
+
+            case makeNameid("ub"):
+                // business account update
+                sc_ub();
+                break;
+
+            case makeNameid("sqac"):
+                // storage quota allowance changed
+                sc_sqac();
+                break;
+
+            case makeNameid("asp"):
+                // new/update of a Set
+                sc_asp();
+                break;
+
+            case makeNameid("ass"):
+                sc_ass();
+                break;
+
+            case makeNameid("asr"):
+                // removal of a Set
+                sc_asr();
+                break;
+
+            case makeNameid("aep"):
+                // new/update of a Set Element
+                sc_aep();
+                break;
+
+            case makeNameid("aer"):
+                // removal of a Set Element
+                sc_aer();
+                break;
+            case makeNameid("pk"):
+                // pending keys
+                sc_pk();
+                break;
+
+            case makeNameid("uec"):
+                // User Email Confirm (uec)
+                sc_uec();
+                break;
+
+            case makeNameid("cce"):
+                // credit card for this user is potentially expiring soon or new card is registered
+                sc_cce();
+                break;
+        }
+    }
+
+    bufferedsc.clear();
+    return true;
 }
 
 size_t MegaClient::procreqstat()
