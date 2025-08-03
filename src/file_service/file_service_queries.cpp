@@ -29,6 +29,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mSetFileLocation(database.query()),
     mSetFileModificationTime(database.query()),
     mSetFileReferences(database.query()),
+    mSetFileRemoved(database.query()),
     mSetFileSize(database.query()),
     mSetNextFileID(database.query())
 {
@@ -127,6 +128,12 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mSetFileReferences = "update files "
                          "   set num_references = :num_references "
                          " where id = :id";
+
+    mSetFileRemoved = "update files "
+                      "   set name = null "
+                      "     , parent_handle = null "
+                      "     , removed = 1 "
+                      " where id = :id";
 
     mSetFileSize = "update files "
                    "   set allocated_size = :allocated_size "
