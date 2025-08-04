@@ -39,6 +39,22 @@ vcpkg_extract_source_archive(SOURCE_PATH
         mingw-strict-ansi.diff # backport of https://github.com/unicode-org/icu/pull/3003
 )
 
+vcpkg_download_distfile(
+    ICUDATA
+    URLS "https://github.com/unicode-org/icu/releases/download/release-${VERSION3}/icu4c-${VERSION2}-data.zip"
+    FILENAME "icu4c-${VERSION2}-data.zip"
+    SHA512 f9dbd303f78de1bf9089262211f3b618f1ec915e57877855d0bc6496332620f4ea92eabe1dff9fa721600e9a6ce56885f79361bbcdf97d0cfedd18e4a2d58ad0
+)
+
+vcpkg_extract_archive(
+    ARCHIVE "${ICUDATA}"
+    DESTINATION "${SOURCE_PATH}.temp"
+)
+
+file(REMOVE_RECURSE "${SOURCE_PATH}/source/data")
+file(COPY "${SOURCE_PATH}.temp/" DESTINATION "${SOURCE_PATH}/source/")
+file(REMOVE_RECURSE "${SOURCE_PATH}.temp")
+
 vcpkg_find_acquire_program(PYTHON3)
 set(ENV{PYTHON} "${PYTHON3}")
 
@@ -78,6 +94,10 @@ elseif(VCPKG_CROSSCOMPILING)
     string(REGEX REPLACE "^([a-zA-Z]):/" "/\\1/" _VCPKG_TOOL_PATH "${TOOL_PATH}")
     list(APPEND CONFIGURE_OPTIONS "--with-cross-build=${_VCPKG_TOOL_PATH}")
 endif()
+
+file(COPY ${CURRENT_PORT_DIR}/filter.json DESTINATION ${SOURCE_PATH}/)
+
+set(ENV{ICU_DATA_FILTER_FILE} "${SOURCE_PATH}/filter.json")
 
 vcpkg_configure_make(
     SOURCE_PATH "${SOURCE_PATH}"
