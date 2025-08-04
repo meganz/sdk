@@ -33,7 +33,7 @@ bool Request::isFetchNodes() const
 
 bool Request::isQueryActionPackets() const
 {
-    return cmds.size() == 1 && dynamic_cast<CommandQueeryActionPackets*>(cmds.back().get());
+    return cmds.size() == 1 && dynamic_cast<CommandQueryActionPackets*>(cmds.back().get());
 }
 
 void Request::add(Command* c)

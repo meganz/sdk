@@ -516,7 +516,7 @@ protected:
     bool mFirstChunkProcessed = false;
 };
 
-class MEGA_API CommandQueeryActionPackets: public Command
+class MEGA_API CommandQueryActionPackets: public Command
 {
     bool mLoadSyncs = false;
 
@@ -526,8 +526,8 @@ public:
     bool procresult(Result, JSON&) override;
     bool parsingFinished();
 
-    CommandQueeryActionPackets(MegaClient* client);
-    ~CommandQueeryActionPackets();
+    CommandQueryActionPackets(MegaClient* client);
+    ~CommandQueryActionPackets();
 
 protected:
     handle mPreviousHandleForAlert = UNDEF;
