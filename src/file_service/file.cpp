@@ -7,6 +7,7 @@
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_read_result.h>
+#include <mega/file_service/file_remove_request.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_service_context_badge.h>
@@ -94,6 +95,11 @@ void File::reclaim(FileReclaimCallback callback)
 void File::ref()
 {
     mContext->ref();
+}
+
+void File::remove(FileRemoveCallback callback)
+{
+    mContext->remove(FileRemoveRequest{std::move(callback)});
 }
 
 void File::removeObserver(FileEventObserverID id)

@@ -65,6 +65,9 @@ public:
     // Let the service know you want it to keep this file in storage.
     void ref();
 
+    // Remove this file.
+    void remove(FileRemoveCallback callback);
+
     // Remove a previously added observer.
     void removeObserver(FileEventObserverID id);
 

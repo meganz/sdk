@@ -22,6 +22,7 @@
 #include <mega/file_service/file_range_context.h>
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_reclaim_request.h>
+#include <mega/file_service/file_remove_request.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_service_context.h>
 #include <mega/file_service/file_touch_request.h>
@@ -1014,6 +1015,74 @@ bool FileContext::execute(FileReclaimRequest& request)
     return true;
 }
 
+bool FileContext::execute(FileRemoveRequest& request)
+{
+    // Can't remove if there's another request in progress.
+    if (!mReadWriteState.write())
+        return false;
+
+    // File's already been removed.
+    if (mInfo->removed())
+        return completed(std::move(request), FILE_SUCCESS), true;
+
+    // Cancel any pending downloads.
+    cancel(FileRange(0, mInfo->size()));
+
+    // Convenience.
+    auto handle = mInfo->handle();
+
+    // File's never been uploaded.
+    if (handle.isUndef())
+    {
+        // Convenience.
+        auto& database = mService.database();
+        auto& queries = mService.queries();
+
+        // Acquire database lock.
+        std::lock_guard lock(database);
+
+        // Mark the file as removed in the database.
+        auto transaction = database.transaction();
+        auto query = transaction.query(queries.mSetFileRemoved);
+
+        query.param(":id").set(mInfo->id());
+        query.execute();
+
+        // Persist our changes.
+        transaction.commit();
+
+        // Mark the file as removed in memory.
+        mInfo->removed(true);
+
+        // Let the client know the file was removed.
+        completed(std::move(request), FILE_SUCCESS);
+
+        // Let the caller know the request was executed.
+        return true;
+    }
+
+    // Called when the file's been removed.
+    auto removed = [this](auto&&, auto&& request, auto result)
+    {
+        // Let the client know if the file was removed.
+        //
+        // The service will take care of making the file as removed when it
+        // receives an event from the SDK telling us that the file has been
+        // removed.
+        completed(std::move(request), fileResultFromError(result));
+    }; // removed
+
+    // Ask the client to remove our file.
+    mService.client().remove(std::bind(std::move(removed),
+                                       mActivities.begin(),
+                                       std::move(request),
+                                       std::placeholders::_1),
+                             handle);
+
+    // Let our caller know the request was executed.
+    return true;
+}
+
 bool FileContext::execute(FileTouchRequest& request)
 {
     // Can't touch if there's another request in progress.
@@ -1595,6 +1664,11 @@ void FileContext::reclaim(FileReclaimCallback callback)
 void FileContext::ref()
 {
     adjustRef(1);
+}
+
+void FileContext::remove(FileRemoveRequest request)
+{
+    executeOrQueue(std::move(request));
 }
 
 void FileContext::removeObserver(FileEventObserverID id)

@@ -181,6 +181,9 @@ static auto reclaim(File file) -> std::future<FileResultOr<std::uint64_t>>;
 // Reclaim zero or more files managed by client.
 static auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResultOr<std::uint64_t>>;
 
+// Remove a file.
+static auto remove(File file) -> std::future<FileResult>;
+
 // Update the specified file's modification time.
 static auto touch(File file, std::int64_t modified) -> std::future<FileResult>;
 
@@ -1609,6 +1612,130 @@ TEST_F(FileServiceTests, ref_succeeds)
     file->unref();
 }
 
+TEST_F(FileServiceTests, remove_local_succeeds)
+{
+    // Records the ID of the file created directly below.
+    FileID id;
+
+    // Records how much storage space our test file occupied.
+    FileServiceResultOr<std::uint64_t> usedBefore;
+
+    // Create and then remove a local file.
+    {
+        // Generate a name for our file.
+        auto name = randomName();
+
+        // Create a local file.
+        auto file0 = ClientW()->fileCreate(mRootHandle, name);
+
+        // Make sure we could create the file.
+        ASSERT_EQ(file0.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Latch the file's ID.
+        id = file0->info().id();
+
+        // Generate some data to write to our file.
+        auto data = randomBytes(512_KiB);
+
+        // Write some data to the file.
+        ASSERT_EQ(execute(write, data.data(), *file0, 0, data.size()), FILE_SUCCESS);
+
+        // Figure out how much space our file's using.
+        usedBefore = ClientW()->fileStorageUsed();
+
+        // Make sure we could determine how much space our file was using.
+        ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Remove the file.
+        ASSERT_EQ(execute(remove, *file0), FILE_SUCCESS);
+
+        // Make sure the file's been marked as removed.
+        ASSERT_TRUE(file0->info().removed());
+
+        // Make sure we can create another file at the same location.
+        auto file1 = ClientW()->fileCreate(mRootHandle, name);
+
+        // Make sure we could create our file.
+        ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Mark that file for removal, too.
+        ASSERT_EQ(execute(remove, *file1), FILE_SUCCESS);
+    }
+
+    // Make sure the file's been removed.
+    auto file = ClientW()->fileOpen(id);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_FILE_DOESNT_EXIST);
+
+    // Make sure storage space has been recovered.
+    auto usedAfter = ClientW()->fileStorageUsed();
+
+    ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_LT(*usedAfter, *usedBefore);
+}
+
+TEST_F(FileServiceTests, remove_cloud_succeeds)
+{
+    // Generate a name for our file.
+    auto name = randomName();
+
+    // Upload a file to the cloud.
+    auto handle = ClientW()->upload(randomBytes(512_KiB), name, mRootHandle);
+
+    // Make sure our file was uploaded.
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // How much storage space our file used before it was removed.
+    FileServiceResultOr<std::uint64_t> usedBefore;
+
+    // Open the file, read some data and then remove it.
+    {
+        // Try and open our file.
+        auto file0 = ClientW()->fileOpen(*handle);
+
+        // Make sure we could open the file.
+        ASSERT_EQ(file0.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Read all data from the file.
+        ASSERT_EQ(execute(fetch, *file0), FILE_SUCCESS);
+
+        // Figure out how much storage space our file's using.
+        usedBefore = ClientW()->fileStorageUsed();
+        ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Remove the file.
+        ASSERT_EQ(execute(remove, *file0), FILE_SUCCESS);
+
+        // Make sure the file's been removed.
+        ASSERT_TRUE(waitFor(
+            [&]()
+            {
+                return ClientW()->get(*handle).errorOr(API_OK) == API_ENOENT &&
+                       file0->info().removed();
+            },
+            mDefaultTimeout));
+
+        EXPECT_EQ(ClientW()->get(*handle).errorOr(API_OK), API_ENOENT);
+        EXPECT_TRUE(file0->info().removed());
+
+        // Make sure we can create a new file at the same location.
+        auto file1 = ClientW()->fileCreate(mRootHandle, name);
+        ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Mark that file for removal, too.
+        ASSERT_EQ(execute(remove, *file1), FILE_SUCCESS);
+    }
+
+    // Make sure the file's been removed.
+    auto file = ClientW()->fileOpen(*handle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_FILE_DOESNT_EXIST);
+
+    // Make sure storage space has been recovered.
+    auto usedAfter = ClientW()->fileStorageUsed();
+
+    ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_LT(*usedAfter, *usedBefore);
+}
+
 TEST_F(FileServiceTests, removed_when_overwritten_in_cloud)
 {
     // Generate a name for our file.
@@ -2378,6 +2505,25 @@ auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResultOr<std::uint6
 
     // Try and reclaim zero or more files.
     client->fileStorageReclaim(
+        [notifier](auto result)
+        {
+            notifier->set_value(result);
+        });
+
+    // Return the waiter to our caller.
+    return waiter;
+}
+
+auto remove(File file) -> std::future<FileResult>
+{
+    // So we can notify our caller when the file has been removed.
+    auto notifier = makeSharedPromise<FileResult>();
+
+    // So our caller can wait for the file to be removed.
+    auto waiter = notifier->get_future();
+
+    // Try and remove the file.
+    file.remove(
         [notifier](auto result)
         {
             notifier->set_value(result);

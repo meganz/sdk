@@ -68,11 +68,13 @@ FileServiceQueries::FileServiceQueries(Database& database):
 
     mGetFileIDs = "select id from files";
 
+    // Files marked for removal will be purged when closed.
     mGetReclaimableFiles = "select allocated_size "
                            "     , id "
                            "  from files "
                            " where allocated_size <> 0 "
                            "   and accessed <= :accessed "
+                           "   and removed = 0 "
                            " order by accessed desc";
 
     mGetFileRanges = "select begin "
@@ -90,9 +92,10 @@ FileServiceQueries::FileServiceQueries(Database& database):
 
     mGetNextFileID = "select next from file_id";
 
-    mGetStorageUsed = "select sum(allocated_size) as total_allocated_size "
-                      "     , sum(reported_size) as total_reported_size "
-                      "     , sum(size) as total_size "
+    // ifnull(...) is necessary as there may be no files to sum.
+    mGetStorageUsed = "select ifnull(sum(allocated_size), 0) as total_allocated_size "
+                      "     , ifnull(sum(reported_size), 0) as total_reported_size "
+                      "     , ifnull(sum(size), 0) as total_size "
                       "  from files";
 
     mRemoveFile = "delete from files "

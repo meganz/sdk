@@ -5,6 +5,7 @@
 #include <mega/file_service/file_flush_request_forward.h>
 #include <mega/file_service/file_read_request_forward.h>
 #include <mega/file_service/file_reclaim_request_forward.h>
+#include <mega/file_service/file_remove_request_forward.h>
 #include <mega/file_service/file_touch_request_forward.h>
 #include <mega/file_service/file_truncate_request_forward.h>
 #include <mega/file_service/file_write_request_forward.h>
@@ -21,6 +22,7 @@ using FileRequest = std::variant<FileAppendRequest,
                                  FileFlushRequest,
                                  FileReadRequest,
                                  FileReclaimRequest,
+                                 FileRemoveRequest,
                                  FileTouchRequest,
                                  FileTruncateRequest,
                                  FileWriteRequest>;

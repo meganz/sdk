@@ -23,6 +23,7 @@
 #include <mega/file_service/file_read_request_forward.h>
 #include <mega/file_service/file_read_write_state.h>
 #include <mega/file_service/file_reclaim_request_forward.h>
+#include <mega/file_service/file_remove_request_forward.h>
 #include <mega/file_service/file_request_list.h>
 #include <mega/file_service/file_request_traits.h>
 #include <mega/file_service/file_service_context_forward.h>
@@ -108,6 +109,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Try and execute a reclaim request.
     bool execute(FileReclaimRequest& request);
+
+    // Try and execute a remove request.
+    bool execute(FileRemoveRequest& request);
 
     // Try and execute a touch request.
     bool execute(FileTouchRequest& request);
@@ -249,6 +253,9 @@ public:
 
     // Let the service know you want it to keep this file in storage.
     void ref();
+
+    // Remove this file.
+    void remove(FileRemoveRequest request);
 
     // Remove a previously added observer.
     void removeObserver(FileEventObserverID id);

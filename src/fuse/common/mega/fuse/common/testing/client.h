@@ -198,6 +198,8 @@ public:
         -> file_service::FileServiceResultOr<file_service::FileInfo>;
 
     // Open a file managed by the File Service.
+    auto fileOpen(file_service::FileID id) const
+        -> file_service::FileServiceResultOr<file_service::File>;
     auto fileOpen(CloudPath path) const -> file_service::FileServiceResultOr<file_service::File>;
 
     // Set the file service's options.
