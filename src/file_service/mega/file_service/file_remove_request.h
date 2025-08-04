@@ -1,0 +1,28 @@
+#pragma once
+
+#include <mega/file_service/file_callbacks.h>
+#include <mega/file_service/file_remove_request_forward.h>
+#include <mega/file_service/file_request_tags.h>
+
+namespace mega
+{
+namespace file_service
+{
+
+struct FileRemoveRequest
+{
+    // What kind of request is this?
+    using Type = FileWriteRequest;
+
+    // This request's human readable name.
+    static const char* name()
+    {
+        return "remove";
+    }
+
+    // Who should we call when the file's been removed?
+    FileRemoveCallback mCallback;
+}; // FileRemoveRequest
+
+} // file_service
+} // mega
