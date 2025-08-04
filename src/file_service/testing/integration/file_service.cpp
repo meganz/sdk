@@ -6,6 +6,7 @@
 #include <mega/file_service/file_event_vector.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
+#include <mega/file_service/file_location.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_read_result.h>
 #include <mega/file_service/file_result.h>
@@ -874,6 +875,52 @@ TEST_F(FileServiceTests, info_succeeds)
     ASSERT_EQ(info->accessed(), accessed);
 }
 
+TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
+{
+    // Generate a name for our file.
+    auto name = randomName();
+
+    // Upload a file that we can move.
+    auto handle = ClientW()->upload(randomBytes(512), name, mRootHandle);
+
+    // Make sure we could upload the file.
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Try and open the file.
+    auto file = ClientW()->fileOpen(*handle);
+
+    // Make sure we could open the file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure the file's location is correct.
+    auto location = file->info().location();
+
+    EXPECT_EQ(location.mName, name);
+    ASSERT_EQ(location.mParentHandle, mRootHandle);
+
+    // Expected new location.
+    FileLocation newLocation{randomName(), mRootHandle};
+
+    // Sanity.
+    ASSERT_NE(location, newLocation);
+
+    // Move the file in the cloud.
+    ASSERT_EQ(ClientW()->move(newLocation.mName, *handle, mRootHandle), API_OK);
+
+    // Our file's location should change.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return file->info().location() == newLocation;
+        },
+        mDefaultTimeout));
+
+    location = file->info().location();
+
+    EXPECT_EQ(location.mName, newLocation.mName);
+    EXPECT_EQ(location.mParentHandle, newLocation.mParentHandle);
+}
+
 TEST_F(FileServiceTests, open_directory_fails)
 {
     // Can't open a directory.
@@ -1560,6 +1607,108 @@ TEST_F(FileServiceTests, ref_succeeds)
 
     // Let the service know it can remove the file.
     file->unref();
+}
+
+TEST_F(FileServiceTests, removed_when_overwritten_in_cloud)
+{
+    // Generate a name for our file.
+    auto name = randomName();
+
+    // Upload a file that we can replace.
+    auto handle0 = ClientW()->upload(randomBytes(512), name, mRootHandle);
+
+    // Make sure our file was uploaded.
+    ASSERT_EQ(handle0.errorOr(API_OK), API_OK);
+
+    // Try and open our file.
+    auto file = ClientW()->fileOpen(*handle0);
+
+    // Make sure the file was opened.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // The file shouldn't be marked as removed.
+    ASSERT_FALSE(file->info().removed());
+
+    // Upload a new file that we can rename.
+    auto handle1 = ClientW()->upload(randomBytes(512), randomName(), mRootHandle);
+
+    // Make sure the file was uploaded.
+    ASSERT_EQ(handle1.errorOr(API_OK), API_OK);
+
+    // Overwrite our original file.
+    ASSERT_EQ(ClientW()->move(name, *handle1, mRootHandle), API_OK);
+
+    // Make sure our original file has been marked as removed.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return file->info().removed();
+        },
+        mDefaultTimeout));
+
+    EXPECT_TRUE(file->info().removed());
+}
+
+TEST_F(FileServiceTests, removed_when_removed_in_cloud)
+{
+    // Upload a file that we can remove.
+    auto handle = ClientW()->upload(randomBytes(512), randomName(), mRootHandle);
+
+    // Make sure the file was uploaded okay.
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Try and open the file.
+    auto file = ClientW()->fileOpen(*handle);
+
+    // Make sure we could open the file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // The file shouldn't be marked as removed.
+    ASSERT_FALSE(file->info().removed());
+
+    // Remove the filein the cloud.
+    ASSERT_EQ(ClientW()->remove(*handle), API_OK);
+
+    // Make sure the file was marked as removed.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return file->info().removed();
+        },
+        mDefaultTimeout));
+
+    ASSERT_TRUE(file->info().removed());
+}
+
+TEST_F(FileServiceTests, removed_when_replaced_in_the_cloud)
+{
+    // Generate a name for our file.
+    auto name = randomName();
+
+    // Try and create a local file.
+    auto file = ClientW()->fileCreate(mRootHandle, name);
+
+    // Make sure we could create the file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure the file hasn't been marked as removed.
+    ASSERT_FALSE(file->info().removed());
+
+    // Add a new file with the same name in the cloud.
+    auto handle = ClientW()->upload(randomBytes(512), name, mRootHandle);
+
+    // Make sure the file was added.
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Our local file should be marked as removed.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return file->info().removed();
+        },
+        mDefaultTimeout));
+
+    ASSERT_TRUE(file->info().removed());
 }
 
 TEST_F(FileServiceTests, touch_succeeds)

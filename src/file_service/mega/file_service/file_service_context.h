@@ -3,6 +3,7 @@
 #include <mega/common/activity_monitor.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/database.h>
+#include <mega/common/node_event_observer.h>
 #include <mega/common/shared_mutex.h>
 #include <mega/common/task_executor.h>
 #include <mega/common/task_queue.h>
@@ -35,8 +36,11 @@ class LocalPath;
 namespace file_service
 {
 
-class FileServiceContext
+class FileServiceContext: private common::NodeEventObserver
 {
+    // Processes client node events.
+    class EventProcessor;
+
     // Tracks state necessary for reclaim.
     class ReclaimContext;
 
@@ -88,6 +92,8 @@ class FileServiceContext
 
     template<typename Lock, typename Transaction>
     auto storageUsed(Lock&& lock, Transaction&& transaction) -> std::uint64_t;
+
+    void updated(common::NodeEventQueue& events) override;
 
     common::Client& mClient;
 

@@ -1775,6 +1775,10 @@ void FileContext::FlushContext::uploaded(FlushContextPtr& context, ErrorOr<Uploa
     if (!result)
         return completed(std::move(lock), fileResultFromError(result.error()));
 
+    // The file's been removed.
+    if (mContext.mInfo->removed())
+        return completed(std::move(lock), FILE_REMOVED);
+
     // Upload's been cancelled.
     if (mRequests.empty())
         return;
