@@ -376,7 +376,7 @@ bool MegaClient::decryptkey(const char* sk,
         sl = Base64::atob(sk, buf, sl);
 
         // decrypt and set session ID for subsequent API communication
-        if (!asymkey.decrypt(buf, static_cast<size_t>(sl), tk, static_cast<size_t>(tl)))
+        if (!mPrivateRsaKey.decrypt(buf, static_cast<size_t>(sl), tk, static_cast<size_t>(tl)))
         {
             delete[] buf;
             LOG_warn << "Corrupt or invalid RSA node key";
@@ -2010,8 +2010,8 @@ MegaClient::MegaClient(MegaApp* a,
     ststatus = STORAGE_UNKNOWN;
     mOverquotaDeadlineTs = 0;
 
-    signkey = NULL;
-    chatkey = NULL;
+    mEd255Key = NULL;
+    mX255Key = NULL;
 
     init();
 
@@ -5054,9 +5054,9 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
 
     key.setkey(SymmCipher::zeroiv);
     tckey.setkey(SymmCipher::zeroiv);
-    asymkey.resetkey();
-    mPrivKey.clear();
-    pubk.resetkey();
+    mPrivateRsaKey.resetkey();
+    mSerializedPrivateRsaKey.clear();
+    mPublicRsaKey.resetkey();
     sessionkey.clear();
     accountversion = 0;
     accountsalt.clear();
@@ -12386,11 +12386,11 @@ void MegaClient::clearKeys()
 
 void MegaClient::resetKeyring()
 {
-    delete signkey;
-    signkey = NULL;
+    delete mEd255Key;
+    mEd255Key = NULL;
 
-    delete chatkey;
-    chatkey = NULL;
+    delete mX255Key;
+    mX255Key = NULL;
 }
 
 // process node tree (bottom up)
@@ -12545,7 +12545,7 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
     }
 
     mKeyManager.setKey(key);
-    mKeyManager.init(prEd255, prCu255, mPrivKey);
+    mKeyManager.init(prEd255, prCu255, mSerializedPrivateRsaKey);
 
     int migratedInShares = 0;
     int totalInShares = 0;
@@ -14446,7 +14446,7 @@ sessiontype_t MegaClient::loggedin()
         return EPHEMERALACCOUNT;
     }
 
-    if (!asymkey.isvalid(AsymmCipher::PRIVKEY))
+    if (!mPrivateRsaKey.isvalid(AsymmCipher::PRIVKEY))
     {
         return CONFIRMEDACCOUNT;
     }
@@ -14724,10 +14724,15 @@ void MegaClient::setkeypair()
 
     string privks, pubks;
 
-    asymkey.genkeypair(rng, newPubKey, 2048);
+    mPrivateRsaKey.genkeypair(rng, newPubKey, 2048);
 
     AsymmCipher::serializeintarray(newPubKey, AsymmCipher::PUBKEY, &pubks);
-    AsymmCipher::serializeintarray(asymkey.getKey(), AsymmCipher::PRIVKEY, &privks);
+    AsymmCipher::serializeintarray(mPrivateRsaKey.getKey(), AsymmCipher::PRIVKEY, &privks);
+
+    // Initialize pubkey AsymmCipher.
+    mPublicRsaKey.setkey(AsymmCipher::PUBKEY,
+                         reinterpret_cast<const byte*>(pubks.data()),
+                         static_cast<int>(pubks.size()));
 
     // add random padding and ECB-encrypt with master key
     unsigned t = unsigned(privks.size());
@@ -14736,13 +14741,17 @@ void MegaClient::setkeypair()
                   ~(static_cast<size_t>(SymmCipher::BLOCKSIZE) - 1));
     rng.genblock((byte*)(privks.data() + t), privks.size() - t);
 
+    // Initialize serialized private RSA key variable.
+    // After adding the random padding, to match how it is initialized later from the API response.
+    mSerializedPrivateRsaKey = Base64::btoa(privks);
+
     key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), privks.size());
 
     reqs.add(new CommandSetKeyPair(this,
-                                      (const byte*)privks.data(),
-                                      unsigned(privks.size()),
-                                      (const byte*)pubks.data(),
-                                      unsigned(pubks.size())));
+                                   (const byte*)privks.data(),
+                                   unsigned(privks.size()),
+                                   (const byte*)pubks.data(),
+                                   unsigned(pubks.size())));
 
     mKeyManager.setPostRegistration(true);
 }
@@ -15225,24 +15234,132 @@ string MegaClient::getTransferDBName()
 
 void MegaClient::handleDbError(DBError error)
 {
+    std::string reason;
     switch (error)
     {
-        case DBError::DB_ERROR_FULL:
-            fatalError(ErrorReason::REASON_ERROR_DB_FULL);
+        case DBError::DB_ERROR_UNKNOWN:
+            reason = "DB error. unknown error";
+            sendevent(800000, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR:
+            reason = "DB error. Generic error";
+            sendevent(800001, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_INTERNAL:
+            reason = "DB error. Internal logic error";
+            sendevent(800002, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_PERM:
+            reason = "DB error. Access permission denied";
+            sendevent(800003, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_ABORT:
+            reason = "DB error. Callback routine requested an abort";
+            sendevent(800004, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_BUSY:
+            reason = "DB error. File is locked";
+            sendevent(800005, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_LOCKED:
+            reason = "DB error. Table is locked";
+            sendevent(800006, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_NOMEM:
+            reason = "DB error. Memory error";
+            sendevent(800007, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_READONLY:
+            reason = "DB error. Error attempting to write a readonly database";
+            sendevent(800008, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_INTERRUPT:
+            reason = "DB error. Operation interrupted";
+            sendevent(800009, reason.c_str(), 0);
             break;
         case DBError::DB_ERROR_IO:
+            reason = "Writing in DB error";
+            sendevent(99467, reason.c_str(), 0);
             fatalError(ErrorReason::REASON_ERROR_DB_IO);
+            return;
+        case DBError::DB_ERROR_CORRUPT:
+            reason = "DB file is corrupt";
+            sendevent(99497, reason.c_str(), 0);
+            fatalError(ErrorReason::REASON_ERROR_DB_CORRUPT);
+            return;
+        case DBError::DB_ERROR_NOTFOUND:
+            reason = "DB error. Unknown opcode";
+            sendevent(800010, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_FULL:
+            reason = "DB error. Database is full";
+            sendevent(800011, reason.c_str(), 0);
+            fatalError(ErrorReason::REASON_ERROR_DB_FULL);
+            return;
+        case DBError::DB_ERROR_CANTOPEN:
+            reason = "DB error. Unable to open the database file";
+            sendevent(800012, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_PROTOCOL:
+            reason = "DB error. Database lock protocol error";
+            sendevent(800013, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_EMPTY:
+            reason = "DB error. Empty database";
+            sendevent(800014, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_SCHEMA:
+            reason = "DB error. Database schema changed";
+            sendevent(800015, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_TOOBIG:
+            reason = "DB error. Field too big";
+            sendevent(800016, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_CONSTRAINT:
+            reason = "DB error. Abort due to constraint violation";
+            sendevent(800017, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_MISMATCH:
+            reason = "DB error. Data type mismatch";
+            sendevent(800018, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_MISUSE:
+            reason = "DB error. Library used incorrectly";
+            sendevent(800019, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_NOLFS:
+            reason = "DB error. Unsupported features";
+            sendevent(800020, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_AUTH:
+            reason = "DB error. Authorization denied";
+            sendevent(800021, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_FORMAT:
+            reason = "DB error.  Not used";
+            sendevent(800022, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_RANGE:
+            reason = "DB error. Out of range";
+            sendevent(800023, reason.c_str(), 0);
+            break;
+        case DBError::DB_ERROR_NOTADB:
+            reason = "DB error. Database file wrong type";
+            sendevent(800024, reason.c_str(), 0);
             break;
         case DBError::DB_ERROR_INDEX_OVERFLOW:
+            reason = "DB index overflow";
+            sendevent(99471, reason.c_str(), 0);
             fatalError(ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW);
-            break;
-        case DBError::DB_ERROR_CORRUPT:
-            fatalError(ErrorReason::REASON_ERROR_DB_CORRUPT);
-            break;
+            return;
         default:
-            fatalError(ErrorReason::REASON_ERROR_UNKNOWN);
+            reason = "DB error: Unknown";
+            sendevent(800025, reason.c_str(), 0);
             break;
     }
+
+    fatalError(ErrorReason::REASON_ERROR_DB_UNKNOWN);
 }
 
 void MegaClient::fatalError(ErrorReason errorReason)
@@ -15273,7 +15390,6 @@ void MegaClient::fatalError(ErrorReason errorReason)
     {
         case ErrorReason::REASON_ERROR_DB_IO:
             reason = "Writing in DB error";
-            sendevent(99467, reason.c_str(), 0);
             break;
         case ErrorReason::REASON_ERROR_UNSERIALIZE_NODE:
             reason = "Failed to unserialize node";
@@ -15281,15 +15397,18 @@ void MegaClient::fatalError(ErrorReason errorReason)
             break;
         case ErrorReason::REASON_ERROR_DB_FULL:
             reason = "Database is full";
-            // No event as we cannot do anything
             break;
         case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
             reason = "DB index overflow";
-            sendevent(99471, reason.c_str(), 0);
             break;
         case mega::ErrorReason::REASON_ERROR_DB_CORRUPT:
             reason = "DB file is corrupt";
-            sendevent(99497, reason.c_str(), 0);
+            break;
+        case ErrorReason::REASON_ERROR_DB_UNKNOWN:
+            reason = "DB error: Unknown";
+            // map to generic unknown error, since apps don't need
+            // specific handling of the DB unknown errors
+            errorReason = REASON_ERROR_UNKNOWN;
             break;
         case ErrorReason::REASON_ERROR_NO_JSCD:
             reason = "Failed to get JSON SYNC configuration data";
@@ -15465,8 +15584,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                     return;
                 }
 
-                if (loggedin() == FULLACCOUNT
-                        || loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                if (loggedin() == FULLACCOUNT || loggedin() == EPHEMERALACCOUNTPLUSPLUS ||
+                    loggedin() == CONFIRMEDACCOUNT)
                 {
                     initializekeys();
                     loadAuthrings();
@@ -15596,6 +15715,28 @@ void MegaClient::resetScForFetchnodes()
 
 void MegaClient::initializekeys()
 {
+    if (!mPublicRsaKey.isvalid() && !mPrivateRsaKey.isvalid(AsymmCipher::PRIVKEY))
+    {
+        if (loggedin() != EPHEMERALACCOUNTPLUSPLUS)
+        {
+            LOG_info << "Generating and adding missing RSA keypair";
+            setkeypair();
+        }
+        else
+        {
+            LOG_info << "Skip creation of RSA keypair for E++ account.";
+        }
+    }
+    else if (mPublicRsaKey.isvalid() != mPrivateRsaKey.isvalid(AsymmCipher::PRIVKEY))
+    {
+        LOG_err << "One of the RSA keys is missing.";
+        sendevent(99498, "Incomplete RSA keypair");
+        mPrivateRsaKey.resetkey();
+        mPublicRsaKey.resetkey();
+        mSerializedPrivateRsaKey.clear();
+        return;
+    }
+
     string prEd255, puEd255;    // keypair for Ed25519  --> MegaClient::signkey
     string prCu255, puCu255;    // keypair for Cu25519  --> MegaClient::chatkey
     string sigCu255, sigPubk;   // signatures for Cu25519 and RSA
@@ -15643,11 +15784,11 @@ void MegaClient::initializekeys()
     // Initialize private keys
     if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
     {
-        signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
-        if (!signkey->initializationOK)
+        mEd255Key = new EdDSA(rng, (unsigned char*)prEd255.data());
+        if (!mEd255Key->initializationOK)
         {
-            delete signkey;
-            signkey = NULL;
+            delete mEd255Key;
+            mEd255Key = NULL;
             clearKeys();
             return;
         }
@@ -15655,20 +15796,21 @@ void MegaClient::initializekeys()
 
     if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
     {
-        chatkey = new ECDH(prCu255);
-        if (!chatkey->initializationOK)
+        mX255Key = new ECDH(prCu255);
+        if (!mX255Key->initializationOK)
         {
-            delete chatkey;
-            chatkey = NULL;
+            delete mX255Key;
+            mX255Key = NULL;
             clearKeys();
             return;
         }
     }
 
-    if (chatkey && signkey)    // THERE ARE KEYS
+    if (mX255Key && mEd255Key) // THERE ARE KEYS
     {
         // Check Ed25519 public key against derived version
-        if ((puEd255.size() != EdDSA::PUBLIC_KEY_LENGTH) || memcmp(puEd255.data(), signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH))
+        if ((puEd255.size() != EdDSA::PUBLIC_KEY_LENGTH) ||
+            memcmp(puEd255.data(), mEd255Key->pubKey, EdDSA::PUBLIC_KEY_LENGTH))
         {
             LOG_warn << "Public key for Ed25519 mismatch.";
 
@@ -15680,7 +15822,8 @@ void MegaClient::initializekeys()
         }
 
         // Check Cu25519 public key against derive version
-        if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) || memcmp(puCu255.data(), chatkey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH))
+        if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) ||
+            memcmp(puCu255.data(), mX255Key->getPubKey(), ECDH::PUBLIC_KEY_LENGTH))
         {
             LOG_warn << "Public key for Cu25519 mismatch.";
 
@@ -15710,22 +15853,22 @@ void MegaClient::initializekeys()
         if (loggedin() != EPHEMERALACCOUNTPLUSPLUS)   // E++ accounts don't have RSA keys
         {
             // Verify signature for RSA public key
-            if (pubk.isvalid() && sigPubk.empty())
+            if (mPublicRsaKey.isvalid() && sigPubk.empty())
             {
                 string pubkStr;
                 std::string buf;
                 userattr_map attrs;
-                pubk.serializekeyforjs(pubkStr);
-                signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+                mPublicRsaKey.serializekeyforjs(pubkStr);
+                mEd255Key->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
                 buf.assign(sigPubk.data(), sigPubk.size());
                 attrs[ATTR_SIG_RSA_PUBK] = buf;
                 putua(&attrs, 0);
             }
 
             string pubkstr;
-            if (pubk.isvalid())
+            if (mPublicRsaKey.isvalid())
             {
-                pubk.serializekeyforjs(pubkstr);
+                mPublicRsaKey.serializekeyforjs(pubkstr);
             }
             if (!pubkstr.size() || !sigPubk.size())
             {
@@ -15760,12 +15903,13 @@ void MegaClient::initializekeys()
             }
         }
 
-        if (mKeyManager.generation() && asymkey.isvalid(AsymmCipher::PRIVKEY) && !mKeyManager.getPrivRSA().size())
+        if (mKeyManager.generation() && mPrivateRsaKey.isvalid(AsymmCipher::PRIVKEY) &&
+            !mKeyManager.getPrivRSA().size())
         {
             // Ephemeral++ accounts create ^!keys before having RSA keys
             LOG_debug << "Attaching private RSA key into ^!keys";
             std::string privRSA;
-            asymkey.serializekey(&privRSA, AsymmCipher::PRIVKEY_SHORT);
+            mPrivateRsaKey.serializekey(&privRSA, AsymmCipher::PRIVKEY_SHORT);
             mKeyManager.commit(
             [this, privRSA]()
             {
@@ -15777,11 +15921,12 @@ void MegaClient::initializekeys()
         LOG_info << "Keypairs and signatures loaded successfully";
         return;
     }
-    else if (!signkey && !chatkey)       // THERE ARE NO KEYS
+    else if (!mEd255Key && !mX255Key) // THERE ARE NO KEYS
     {
         // Check completeness of keypairs
-        if (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size()
-                || (!pubk.isvalid() && loggedin() != EPHEMERALACCOUNTPLUSPLUS))  // E++ accounts don't have RSA keys
+        if (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size() ||
+            (!mPublicRsaKey.isvalid() &&
+             loggedin() != EPHEMERALACCOUNTPLUSPLUS)) // E++ accounts don't have RSA keys
         {
             LOG_warn << "Public keys and/or signatures found without their respective private key.";
 
@@ -15819,7 +15964,7 @@ void MegaClient::initializekeys()
             // save private keys into the ^!keys attribute
             assert(mKeyManager.generation() == 0);  // creating them, no init() done yet
             mKeyManager.setKey(key);
-            mKeyManager.init(prEd255, prCu255, mPrivKey);
+            mKeyManager.init(prEd255, prCu255, mSerializedPrivateRsaKey);
 
             // We are initializing the keys, so it's safe to assume that authrings are empty
             mAuthRings.emplace(ATTR_AUTHRING, AuthRing(ATTR_AUTHRING));
@@ -15848,7 +15993,7 @@ void MegaClient::initializekeys()
             {
                 // prepare signatures
                 string pubkStr;
-                pubk.serializekeyforjs(pubkStr);
+                mPublicRsaKey.serializekeyforjs(pubkStr);
                 newSignKey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
             }
             newSignKey->signKey(newChatKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
@@ -15890,7 +16035,7 @@ void MegaClient::initializekeys()
     {
         LOG_warn << "Keyring exists, but it's incomplete.";
 
-        if (!chatkey)
+        if (!mX255Key)
         {
             sendevent(99416, "Incomplete keyring detected: private key for Cu25519 not found.", 0);
         }
@@ -23818,7 +23963,7 @@ string KeyManager::computeSymmetricKey(handle user)
     }
 
     std::string sharedSecret;
-    ECDH ecdh(mClient.chatkey->getPrivKey(), attribute->value());
+    ECDH ecdh(mClient.mX255Key->getPrivKey(), attribute->value());
     if (!ecdh.computeSymmetricKey(sharedSecret))
     {
         return std::string();
@@ -23843,7 +23988,7 @@ bool KeyManager::decodeRSAKey()
 //    LOG_verbose << Base64::btoa(mPrivRSA) << "\n\n" << Utils::stringToHex(mPrivRSA);
 
     string currentPK;
-    mClient.asymkey.serializekey(&currentPK, AsymmCipher::PRIVKEY_SHORT);
+    mClient.mPrivateRsaKey.serializekey(&currentPK, AsymmCipher::PRIVKEY_SHORT);
 
     // Compare serialized keys using find just in case pqdKey has extra bytes. It should be found at pos = 0.
     size_t pos = mPrivRSA.find(currentPK);
@@ -23854,7 +23999,9 @@ bool KeyManager::decodeRSAKey()
     // mClient.mPrivKey = Base64::btoa(mPrivRSA);
 
     // update asymcipher to use RSA from ^!keys
-    if (keyOk && !mClient.asymkey.setkey(AsymmCipher::PRIVKEY_SHORT, (const unsigned char*)mPrivRSA.data(), (int)mPrivRSA.size()))
+    if (keyOk && !mClient.mPrivateRsaKey.setkey(AsymmCipher::PRIVKEY_SHORT,
+                                                (const unsigned char*)mPrivRSA.data(),
+                                                (int)mPrivRSA.size()))
     {
         keyOk = false;
     }

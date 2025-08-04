@@ -56,7 +56,7 @@ pipeline {
                         
                         if [ -z \"\$FAILED\" ]; then
                             # Parallel run
-                            ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                            ./tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
                         [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=2
                         fi
                         if [ -n \"\$FAILED\" ]; then

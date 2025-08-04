@@ -6269,6 +6269,8 @@ public:
 
     int getLogLevel() const override;
 
+    int getFileExplorerView() const override;
+
     MegaFuseInodeCacheFlags* getInodeCacheFlags() override;
 
     MegaFuseExecutorFlags* getMountExecutorFlags() override;
@@ -6278,6 +6280,8 @@ public:
     void setFlushDelay(size_t seconds) override;
 
     void setLogLevel(int level) override;
+
+    void setFileExplorerView(int view) override;
 }; // MegaFuseFlagsPrivate
 
 using MegaMountFlagsPtr = std::unique_ptr<MegaMountFlags>;

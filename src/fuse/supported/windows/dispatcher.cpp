@@ -330,6 +330,7 @@ NTSTATUS Dispatcher::open(FSP_FILE_SYSTEM* filesystem,
     assert(info);
 
     auto& dispatcher = platform::dispatcher(*filesystem);
+    auto& mount = dispatcher.mMount;
     auto path_ = normalize(&path[1]);
     
     FUSEDebugF("open: path: %s", fromWideString(path_).c_str());
@@ -337,11 +338,7 @@ NTSTATUS Dispatcher::open(FSP_FILE_SYSTEM* filesystem,
     logAccess("open", access);
     logOptions("open", options);
 
-    auto result = dispatcher.mMount.open(path_,
-                                         options,
-                                         access,
-                                         *context,
-                                         *info);
+    auto result = mount.open(path_, options, access, *context, *info);
 
     FUSEDebugF("open: context: %p, path: %s, result: %lu",
                *context,

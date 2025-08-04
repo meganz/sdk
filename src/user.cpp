@@ -254,11 +254,11 @@ User* User::unserialize(MegaClient* client, string* d)
 
         if (prEd255.size())
         {
-            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
-            if (!client->signkey->initializationOK)
+            client->mEd255Key = new EdDSA(client->rng, (unsigned char*)prEd255.data());
+            if (!client->mEd255Key->initializationOK)
             {
-                delete client->signkey;
-                client->signkey = NULL;
+                delete client->mEd255Key;
+                client->mEd255Key = NULL;
                 LOG_warn << "Failed to load chat key from local cache.";
             }
             else
@@ -268,11 +268,11 @@ User* User::unserialize(MegaClient* client, string* d)
         }
         if (prCu255.size())
         {
-            client->chatkey = new ECDH(prCu255);
-            if (!client->chatkey->initializationOK)
+            client->mX255Key = new ECDH(prCu255);
+            if (!client->mX255Key->initializationOK)
             {
-                delete client->chatkey;
-                client->chatkey = NULL;
+                delete client->mX255Key;
+                client->mX255Key = NULL;
                 LOG_warn << "Failed to load chat key from local cache.";
             }
             else

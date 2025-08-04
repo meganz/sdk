@@ -197,6 +197,7 @@ public:
     std::shared_ptr<AndroidFileWrapper> stealFileWrapper();
 
 protected:
+    void fCloseInternal();
     bool sysread(byte*, unsigned, m_off_t) override;
     bool sysstat(m_time_t*, m_off_t*, FSLogging) override;
     bool sysopen(bool async, FSLogging) override;

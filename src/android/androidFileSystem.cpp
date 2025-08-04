@@ -784,7 +784,7 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
     return true;
 }
 
-void AndroidFileAccess::fclose()
+void AndroidFileAccess::fCloseInternal()
 {
     if (fd >= 0)
     {
@@ -792,6 +792,11 @@ void AndroidFileAccess::fclose()
     }
 
     fd = -1;
+}
+
+void AndroidFileAccess::fclose()
+{
+    fCloseInternal();
 }
 
 bool AndroidFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
@@ -850,7 +855,10 @@ AndroidFileAccess::AndroidFileAccess(Waiter* w, int defaultfilepermissions, bool
     mDefaultFilePermissions(defaultfilepermissions)
 {}
 
-AndroidFileAccess::~AndroidFileAccess() {}
+AndroidFileAccess::~AndroidFileAccess()
+{
+    fCloseInternal();
+}
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileAccess::stealFileWrapper()
 {
@@ -1197,9 +1205,15 @@ bool AndroidFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool)
     return AndroidFileWrapper::getAndroidFileWrapper(name, true, true) != nullptr;
 }
 
-bool AndroidFileSystemAccess::setmtimelocal(const LocalPath&, m_time_t)
+bool AndroidFileSystemAccess::setmtimelocal(const LocalPath& path, m_time_t mtime)
 {
-    return true;
+    auto standardPath = getStandartPath(path);
+    if (standardPath.empty())
+    {
+        return false;
+    }
+
+    return LinuxFileSystemAccess::setmtimelocal(standardPath, mtime);
 }
 
 bool AndroidFileSystemAccess::chdirlocal(LocalPath& path) const

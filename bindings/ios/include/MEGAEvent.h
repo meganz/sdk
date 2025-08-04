@@ -54,6 +54,9 @@ typedef NS_ENUM(NSInteger, ReasonError) {
     ReasonErrorDBIOFailure = 2,             // Input/output error at DB layer
     ReasonErrorDBFull = 3,                  // Failure at DB layer because disk is full
     ReasonErrorDBIndexOverflow = 4,         // Index used to primary key at db overflow
+    ReasonErrorNoJSCD = 5,                  // No JSON Sync Config Data
+    ReasonErrorGenerateJSCD = 6,            // JSON Sync Config Data has been regenerated
+    ReasonErrorDBCorrupt = 7,               // DB file is corrupted
 };
 
 NS_ASSUME_NONNULL_BEGIN

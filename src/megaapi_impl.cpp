@@ -7135,9 +7135,11 @@ char *MegaApiImpl::getMyCredentials()
     }
 
     string result;
-    if (client->signkey)
+    if (client->mEd255Key)
     {
-        result = AuthRing::fingerprint(string((const char*)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH), true);
+        result = AuthRing::fingerprint(
+            string((const char*)client->mEd255Key->pubKey, EdDSA::PUBLIC_KEY_LENGTH),
+            true);
     }
 
     return result.size() ? MegaApi::strdup(result.c_str()) : nullptr;
@@ -21151,30 +21153,38 @@ void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool 
     request->setAccess(source);
 
     request->performRequest = [this, request]()
+    {
+        if (client->loggedin() == NOTLOGGEDIN)
         {
-            if (client->loggedin() != FULLACCOUNT)
-            {
-                return API_EACCESS;
-            }
+            return API_EACCESS;
+        }
 
-            int numDetails = request->getNumDetails();
-            bool storage = (numDetails & 0x01) != 0;
-            bool transfer = (numDetails & 0x02) != 0;
-            bool pro = (numDetails & 0x04) != 0;
-            bool transactions = (numDetails & 0x08) != 0;
-            bool purchases = (numDetails & 0x10) != 0;
-            bool sessions = (numDetails & 0x20) != 0;
+        int numDetails = request->getNumDetails();
+        bool storage = (numDetails & 0x01) != 0;
+        bool transfer = (numDetails & 0x02) != 0;
+        bool pro = (numDetails & 0x04) != 0;
+        bool transactions = (numDetails & 0x08) != 0;
+        bool purchases = (numDetails & 0x10) != 0;
+        bool sessions = (numDetails & 0x20) != 0;
 
-            int numReqs = int(storage || transfer || pro) + int(transactions) + int(purchases) + int(sessions);
-            if (numReqs == 0)
-            {
-                return API_EARGS;
-            }
-            request->setNumber(numReqs);
+        int numReqs =
+            int(storage || transfer || pro) + int(transactions) + int(purchases) + int(sessions);
+        if (numReqs == 0)
+        {
+            return API_EARGS;
+        }
+        request->setNumber(numReqs);
 
-            client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions, request->getAccess());
-            return API_OK;
-        };
+        client->getaccountdetails(request->getAccountDetails(),
+                                  storage,
+                                  transfer,
+                                  pro,
+                                  transactions,
+                                  purchases,
+                                  sessions,
+                                  request->getAccess());
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -40509,6 +40519,11 @@ int MegaFuseFlagsPrivate::getLogLevel() const
     return static_cast<int>(mFlags.mLogLevel);
 }
 
+int MegaFuseFlagsPrivate::getFileExplorerView() const
+{
+    return static_cast<int>(mFlags.mFileExplorerView);
+}
+
 MegaFuseInodeCacheFlags* MegaFuseFlagsPrivate::getInodeCacheFlags()
 {
     return &mInodeCacheFlags;
@@ -40532,6 +40547,11 @@ void MegaFuseFlagsPrivate::setFlushDelay(size_t seconds)
 void MegaFuseFlagsPrivate::setLogLevel(int level)
 {
     mFlags.mLogLevel = static_cast<mega::LogLevel>(level);
+}
+
+void MegaFuseFlagsPrivate::setFileExplorerView(int view)
+{
+    mFlags.mFileExplorerView = static_cast<fuse::FileExplorerView>(view);
 }
 
 MegaMountPrivate::MegaMountPrivate()
