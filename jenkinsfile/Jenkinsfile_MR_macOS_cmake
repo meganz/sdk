@@ -196,7 +196,6 @@ pipeline {
                                     }
                                     sh "echo Running tests"
                                     sh """#!/bin/zsh
-                                    set -x
                                     cd ${env.BUILD_DIR}
 
                                     ./tests/unit/test_unit &
@@ -228,34 +227,25 @@ pipeline {
                                         fi
                                     fi
 
-                                    if [ -n \"\$FAILED\" ]; then
-                                        if [ \"\$FAILED\" -le 2 ]; then
-                                            procFailed=\$pid
-                                        else # FAILED=3
-                                            if [ -z \"${TESTS_PARALLEL}\" ]; then
-                                                # Sequential run
-                                                procFailed=\$pid
-                                            else
-                                                # Parallel run
-                                                procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/' | tr '\\n' ' '`
-                                            fi
-                                        fi
-                                        if [ -n \"\$procFailed\" ]; then
-                                            sleep 10
-                                            for i in `echo \$procFailed`; do
-                                                last_core=`grep \"test_.*\$i\" -rn \$HOME/Library/Logs/DiagnosticReports | cut -d':' -f1`
-                                                if [ -n \"\$last_core\" ]; then
-                                                    cat \"\$last_core\"
-                                                    rm \"\$last_core\"
-                                                fi
-                                            done
-                                        fi
+                                    # Process ips files in case some test crashes
+                                    if [ -z \"${TESTS_PARALLEL}\" ]; then
+                                        pid_list=\$pid
+                                    else
+                                        pid_list=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/' | tr '\\n' ' '`
                                     fi
+                                    for ips_file in ~/Library/Logs/DiagnosticReports/*.ips; do
+                                        ips_pid=`jq '.pid?, .PID?' \$ips_file | grep -iv null`
+                                        if echo \$pid_list | grep -q -w "\$ips_pid" ; then
+                                            cp -v \$ips_file .
+                                            cat \$ips_file
+                                        fi
+                                    done
 
                                     gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || :
-                                    rm test_integration.log || :
-                                    if [ -n \"\$FAILED\" ]; then
-                                        exit \"\$FAILED\"
+
+                                    if [ -n "\${FAILED}" ]; then
+                                         echo "FAILED: \${FAILED}"
+                                         exit "\${FAILED}"
                                     fi
                                     """
                                 }
@@ -274,7 +264,8 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'build_dir/*test_integration*log*, build_dir/examples-*.tar.gz', fingerprint: true
+                    archiveArtifacts artifacts: 'build_dir/*log.gz, build_dir/examples-*.tar.gz', fingerprint: true, onlyIfSuccessful: false
+                    archiveArtifacts artifacts: 'build_dir/*.ips', allowEmptyArchive: true, onlyIfSuccessful: false
                     deleteDir()
                 }
             }
