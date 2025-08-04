@@ -892,7 +892,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
     if (!req->mHashcashToken.empty())
     {
-        string nextValue = gencash(req->mHashcashToken, req->mHashcashEasiness);
+        const auto nextValue =
+            gencash(req->mHashcashToken, req->mHashcashEasiness, req->mCancelSnapshot);
         string xHashcashHeader{"X-Hashcash: 1:" + req->mHashcashToken + ":" + std::move(nextValue)};
         httpctx->headers = curl_slist_append(httpctx->headers, xHashcashHeader.c_str());
         LOG_warn << httpctx->req->getLogName() << "X-Hashcash computed: " << xHashcashHeader;

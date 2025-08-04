@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include "mega/hashcash.h"
 #include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
 #include "mega/network_connectivity_test.h"
@@ -2803,6 +2804,7 @@ void MegaClient::exec()
                                 pendingcs->mHashcashToken.clear(); // just to be sure
                                 mReqHashcashEasiness = pendingcs->mHashcashEasiness;
                             }
+                            processHashcashSendevent();
                         }
 
                         if (!reason && pendingcs->httpstatus != 200)
@@ -2902,6 +2904,7 @@ void MegaClient::exec()
                     pendingcs->protect = true;
                     pendingcs->setLogName(clientname + "cs ");
                     pendingcs_serverBusySent = false;
+                    pendingcs->mCancelSnapshot = mLoginCancelSnapshot;
 
                     bool v3;
                     string idempotenceId;
@@ -24329,6 +24332,53 @@ void MegaClient::getSubscriptionCancellationDetails(
                                                            originalTransactionId,
                                                            gatewayId,
                                                            std::move(completion)));
+}
+
+void MegaClient::processHashcashSendevent()
+{
+    const auto retryGencash = retryGencashData();
+    if (!retryGencash.has_value() || retryGencash->mEasiness == 0)
+        return;
+
+    int eventId{-1};
+    std::string eventMsg;
+    switch (retryGencash->mForceRetryCount)
+    {
+        case 0u:
+        {
+            eventId = 800028;
+            eventMsg = "Hashcash last retry timed out";
+            break;
+        }
+        case 1u:
+        {
+            eventId = 800026;
+            eventMsg = "Hashcash preemptively forces retry n1";
+            break;
+        }
+        case RetryGencash::kMaxRetries:
+        {
+            eventId = 800027;
+            eventMsg =
+                "Hashcash preemptively forces retry n" + std::to_string(RetryGencash::kMaxRetries);
+            break;
+        }
+        default:
+        {
+            LOG_err << "[MegaClient::processHashcashSendeven] unexpected RetryGencash counter: "
+                    << retryGencash->mForceRetryCount;
+            return;
+        }
+    }
+
+    eventMsg.append(". E: ")
+        .append(std::to_string(retryGencash->mEasiness))
+        .append(". B: ")
+        .append(std::to_string(retryGencash->mBudget.count()))
+        .append(". T: ")
+        .append(std::to_string(retryGencash->mGencashTime.count()));
+
+    sendevent(eventId, eventMsg.c_str());
 }
 
 } // namespace

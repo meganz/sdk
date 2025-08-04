@@ -20830,7 +20830,7 @@ TEST_F(SdkTest, ExportNodeWithExpiryDate)
     ASSERT_EQ(result(link), API_OK);
 }
 
-TEST_F(SdkTest, HashCash)
+void SdkTest::testHashcash(const bool logoutDuringLoging = false)
 {
     const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
     ASSERT_FALSE(email.empty() || pass.empty());
@@ -20851,10 +20851,34 @@ TEST_F(SdkTest, HashCash)
         out() << "Resuming session of account #0";
         tracker = asyncRequestFastLogin(0, gSessionIDs[0].c_str());
     }
+
+    if (logoutDuringLoging)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        const auto startTime = std::chrono::steady_clock::now();
+        ASSERT_NO_FATAL_FAILURE(locallogout());
+        LOG_debug << "[testHashcash] Locallogout during logging completed in "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(
+                         std::chrono::steady_clock::now() - startTime)
+                         .count()
+                  << " ms";
+    }
+
     auto loginResult = tracker->waitForResult();
-    ASSERT_EQ(API_OK, loginResult)
+    ErrorCodes loginErrorExpected = logoutDuringLoging ? API_EACCESS : API_OK;
+    ASSERT_EQ(loginErrorExpected, loginResult)
         << " Login error  " << loginResult << " for account " << mApi[0].email;
     megaApi[0]->getClient()->httpio->setuseragent(&USER_AGENT); // stop hashcash, speed up cleanup
+}
+
+TEST_F(SdkTest, HashCash)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::testHashcash());
+}
+
+TEST_F(SdkTest, HashCashAbortDueToLogout)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::testHashcash(true));
 }
 
 /**

@@ -24,6 +24,7 @@
 
 #include "account.h"
 #include "backofftimer.h"
+#include "canceller.h"
 #include "db.h"
 #include "drivenotify.h"
 #include "filefingerprint.h"
@@ -1438,6 +1439,7 @@ public:
     // send event
     void sendevent(int, const char *, const char* viewId = nullptr, bool addJourneyId = false);
     void sendevent(int, const char *, int tag, const char* viewId = nullptr, bool addJourneyId = false);
+    void processHashcashSendevent();
 
     // create support ticket
     void supportticket(const char *message, int type);
@@ -2675,6 +2677,9 @@ public:
 
     // timestamp of the last login with user and password
     m_time_t tsLogin;
+
+    // snapshot of the global cancel_epoch_t when a login request is sent
+    cancel_epoch_t mLoginCancelSnapshot{};
 
     // true if user has disabled fileversioning
     bool versions_disabled;

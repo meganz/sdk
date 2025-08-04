@@ -119,6 +119,7 @@ set(SDKLIB_HEADERS
     include/mega/scoped_helpers.h
     include/mega/traits.h
     include/mega/scoped_timer.h
+    include/mega/canceller.h
     include/mega/command.h
     include/mega/thread.h
     include/mega/json.h
@@ -220,6 +221,7 @@ set(SDKLIB_SOURCES
     src/autocomplete.cpp
     src/backofftimer.cpp
     src/base64.cpp
+    src/canceller.cpp
     src/command.cpp
     src/commands.cpp
     src/db.cpp

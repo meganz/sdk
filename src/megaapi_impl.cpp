@@ -28,6 +28,7 @@
 #define PREFER_STDARG
 #include "megaapi_impl.h"
 
+#include "mega/canceller.h"
 #include "mega/mediafileattribute.h"
 #include "mega/scoped_helpers.h"
 #include "mega/tlv.h"
@@ -7654,6 +7655,7 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
 void MegaApiImpl::fastLogin(const char *session, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    request->setTransferredBytes(static_cast<long long>(cancel_epoch_snapshot()));
     request->setSessionKey(session);
 
     request->performRequest = [this, request]()
@@ -7714,6 +7716,7 @@ void MegaApiImpl::getUserData(const char *user, MegaRequestListener *listener)
 void MegaApiImpl::login(const char *login, const char *password, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    request->setTransferredBytes(static_cast<long long>(cancel_epoch_snapshot()));
     request->setEmail(login);
     request->setPassword(password);
 
@@ -8192,6 +8195,7 @@ void MegaApiImpl::loginToFolder(const char* megaFolderLink,
                                 MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    request->setTransferredBytes(static_cast<long long>(cancel_epoch_snapshot()));
     request->setLink(megaFolderLink);
     request->setPassword(authKey);
     request->setEmail("FOLDER");
@@ -9080,6 +9084,7 @@ void MegaApiImpl::changePassword(const char *oldPassword, const char *newPasswor
 
 void MegaApiImpl::logout(bool keepSyncConfigsFile, MegaRequestListener *listener)
 {
+    cancel_epoch_bump();
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT, listener);
     request->setFlag(true);
     request->setTransferTag(keepSyncConfigsFile);
@@ -9095,6 +9100,7 @@ void MegaApiImpl::logout(bool keepSyncConfigsFile, MegaRequestListener *listener
 
 void MegaApiImpl::localLogout(MegaRequestListener *listener)
 {
+    cancel_epoch_bump();
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT, listener);
     request->setFlag(false);
 
@@ -19982,6 +19988,7 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             const char* megaFolderLink = request->getLink();
             const char* sessionKey = request->getSessionKey();
             const bool tryToResumeFolderLinkFromCache{request->getFlag()};
+            const auto cancelSnapshot{request->getTransferredBytes()};
 
             if (!megaFolderLink && (!(login && password)) && !sessionKey)
             {
@@ -20004,6 +20011,15 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
 
             error e = API_OK;
             client->locallogout(false, true);
+
+            client->mLoginCancelSnapshot = static_cast<cancel_epoch_t>(cancelSnapshot);
+            if (ScopedCanceller(client->mLoginCancelSnapshot).triggered())
+            {
+                // Should we abort at this point?
+                LOG_warn << "[performRequest_login] A MegaApi locallogout triggered the cancel "
+                            "epoch, which will affect this request";
+            }
+
             if (sessionKey)
             {
                 client->login(Base64::atob(string(sessionKey)));
