@@ -214,6 +214,10 @@ struct FindCloneNodeCandidatePredicate
     bool mFoundCandidateHasZeroKey{false};
 
     /**
+    * pointer to FileAccess; used to compare MACs
+    */
+    FileAccess* fileAccess{nullptr};
+    /**
      * @brief Constructs a FindCloneNodeCandidatePredicate instance.
      *
      * @param client Reference to the MegaClient managing synchronization.
@@ -225,11 +229,13 @@ struct FindCloneNodeCandidatePredicate
         MegaClient& client,
         const SyncUpload_inClient& upload,
         const std::string& localExtension,
-        std::function<std::string(const Node& node)>&& extractExtensionFromNode):
+        std::function<std::string(const Node& node)>&& extractExtensionFromNode,
+        FileAccess* fa):
         mClient(client),
         mUpload(upload),
         mLocalExtension(localExtension),
-        mExtractExtensionFromNode(std::move(extractExtensionFromNode))
+        mExtractExtensionFromNode(std::move(extractExtensionFromNode)),
+        fileAccess(fa)
     {}
 
     /**
@@ -256,6 +262,17 @@ struct FindCloneNodeCandidatePredicate
                 mClient.sendevent(99486, "Node has a zerokey");
                 mFoundCandidateHasZeroKey = true;
             }
+
+            // if fileAccess is provided (MAC Comparison enbaled)
+            // A Node can only be considered a candidate if its MAC matches the that of the local file
+            if (fileAccess && fileAccess->fopen(mUpload.sourceLocalname, FSLogging::logOnError))
+            {
+                if (!CompareLocalFileMetaMacWithNodeKey(fileAccess, node.nodekey(), node.type))
+                {
+                    return false;
+                }
+            }
+
             return true; // Done searching (zero key or valid node)
         }
         return false; // keep searching
@@ -288,10 +305,20 @@ Node* findCloneNodeCandidate(MegaClient& mc, const SyncUpload_inClient& upload)
         return removeDot(std::move(extension));
     };
 
+
+// If MAC Comparison is enbaled, pass an instance of FileAccess into the predicate
+std::unique_ptr<FileAccess> fa =
+#ifdef CLONE_NODE_IF_MAC_MATCH
+        mc.fsaccess->newfileaccess();
+#else
+        nullptr;
+#endif
+
     FindCloneNodeCandidatePredicate predicate{mc,
                                               upload,
                                               extLocal,
-                                              std::move(extractExtensionFromNode)};
+                                              std::move(extractExtensionFromNode),
+                                              fa.get()};
 
     const auto candidates{mc.mNodeManager.getNodesByFingerprint(upload)};
 

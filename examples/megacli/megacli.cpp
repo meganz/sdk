@@ -6518,10 +6518,28 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             {
                 if (previousNode->type == FILENODE)
                 {
-                    if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode.get()))
+                    if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode.get()))
                     {
-                        cout << "Identical file already exist. Skipping transfer of " << name << endl;
-                        return;
+                        // if allowDuplicateVersions, check if node with the same file finger print has the same MAC as the
+                        // local file, if so, duplicate the node instead of re-uploading
+                        if (allowDuplicateVersions)
+                        {
+                            if (CompareLocalFileMetaMacWithNode(fa.get(), previousNode.get()))
+                            {
+                                cout << "Identical file found, Duplicating remote file" << endl;
+                                // if duplicate failed, re-upload
+                                if (duplicatefilenode(previousNode, name, vo))
+                                {
+                                    return;
+                                }
+                                cout << "Duplicating remote file failed, re-uploading... " << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "Identical file already exist. Skipping transfer of " << name << endl;
+                            return;
+                        }
                     }
                 }
                 else
@@ -6655,6 +6673,71 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
         }
     }
 #endif
+}
+
+// simplified version of exec_cp, used to duplicate a file node on the same folder
+bool duplicatefilenode(std::shared_ptr<Node> n, string newname, VersioningOption vo)
+{
+    if (n)
+    {
+        if (!n->keyApplied())
+        {
+            cout << "Cannot copy a node without key" << endl;
+            return false;
+        }
+
+        if (n->attrstring)
+        {
+            n->applykey();
+            n->setattr();
+            if (n->attrstring)
+            {
+                cout << "Cannot copy undecryptable node" << endl;
+                return false;
+            }
+        }
+
+        TreeProcCopy_mcli tc;
+
+        // only one file node to be copied
+        tc.nn.resize(1);
+
+        if (newname.size())
+        {
+            SymmCipher key;
+            string attrstring;
+
+            AttrMap attrs;
+
+            attrs.map = n->attrs.map;
+            attrs.map['n'] = newname;
+
+            key.setkey((const byte*)tc.nn[0].nodekey.data(), tc.nn[0].type);
+
+            // JSON-encode object and encrypt attribute string
+            attrs.getjson(&attrstring);
+            tc.nn[0].attrstring.reset(new string);
+            client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+        }
+
+        // tree root: no parent
+        tc.nn[0].parenthandle = UNDEF;
+        tc.nn[0].ovhandle = NodeHandle();
+
+        // add the new node to parent
+        client->putnodes(n->parent->nodeHandle(),
+                            vo,
+                            std::move(tc.nn),
+                            nullptr,
+                            gNextClientTag++,
+                            false);
+        return true;
+    }
+    else
+    {
+        cout << "Unable to duplicate, invalid node " << endl;
+        return false;
+    }
 }
 
 void exec_put(autocomplete::ACState& s)

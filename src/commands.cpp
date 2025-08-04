@@ -7315,7 +7315,7 @@ bool CommandFetchNodes::parsingFinished()
     return true;
 }
 
-CommandQueeryActionPackets::CommandQueeryActionPackets(MegaClient* client)
+CommandQueryActionPackets::CommandQueryActionPackets(MegaClient* client)
 {
     assert(client);
 
@@ -7329,14 +7329,14 @@ CommandQueeryActionPackets::CommandQueeryActionPackets(MegaClient* client)
     mFilters.emplace("{{w",
     [this, client](JSON* json)
     {
-        json->storeobject(&client->scnotifyurl);
+        client->bufferedsc.emplace_back(makeNameid("w"));
         return true;
     });
 
     mFilters.emplace("{\"ir",
     [this, client](JSON* json)
     {
-        client->insca_notlast = json->getint() == 1;
+        client->bufferedsc.emplace_back(makeNameid("ir"));
         return true;
     });
 
@@ -7348,14 +7348,14 @@ CommandQueeryActionPackets::CommandQueeryActionPackets(MegaClient* client)
     });
 }
 
-CommandQueeryActionPackets::~CommandQueeryActionPackets() {}
+CommandQueryActionPackets::~CommandQueryActionPackets() {}
 
-bool CommandQueeryActionPackets::procresult(Result r, JSON& json)
+bool CommandQueryActionPackets::procresult(Result r, JSON& json)
 {
     return true;
 }
 
-bool CommandQueeryActionPackets::parsingFinished()
+bool CommandQueryActionPackets::parsingFinished()
 {
     return true;
 }
