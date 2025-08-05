@@ -101,10 +101,10 @@ auto SparseFileBuffer::write(const void* buffer, std::uint64_t offset, std::uint
     return std::make_pair(count, success);
 }
 
-bool SparseFileBuffer::truncate(std::uint64_t size)
+bool SparseFileBuffer::truncate(std::uint64_t newSize)
 {
     // Couldn't truncate the file.
-    if (!FileBuffer::truncate(size))
+    if (!FileBuffer::truncate(newSize))
         return false;
 
     // Try and retrieve the file's updated sizes.

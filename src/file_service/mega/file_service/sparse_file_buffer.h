@@ -25,7 +25,7 @@ public:
         -> std::pair<std::uint64_t, bool> override;
 
     // Truncate the file's size.
-    bool truncate(std::uint64_t size) override;
+    bool truncate(std::uint64_t newSize) override;
 }; // SparseFileBuffer
 
 } // file_service

@@ -191,7 +191,7 @@ static auto remove(File file) -> std::future<FileResult>;
 static auto touch(File file, std::int64_t modified) -> std::future<FileResult>;
 
 // Truncate the specified file to a particular size.
-static auto truncate(File file, std::uint64_t size) -> std::future<FileResult>;
+static auto truncate(File file, std::uint64_t newSize) -> std::future<FileResult>;
 
 // Write some content to the specified file.
 static auto write(const void* buffer, File file, std::uint64_t offset, std::uint64_t length)
@@ -2548,7 +2548,7 @@ auto touch(File file, std::int64_t modified) -> std::future<FileResult>
     return waiter;
 }
 
-auto truncate(File file, std::uint64_t size) -> std::future<FileResult>
+auto truncate(File file, std::uint64_t newSize) -> std::future<FileResult>
 {
     // So we can notify our waiter when the request completes.
     auto notifier = makeSharedPromise<FileResult>();
@@ -2562,7 +2562,7 @@ auto truncate(File file, std::uint64_t size) -> std::future<FileResult>
         {
             notifier->set_value(result);
         },
-        size);
+        newSize);
 
     // Return the waiter to our caller.
     return waiter;

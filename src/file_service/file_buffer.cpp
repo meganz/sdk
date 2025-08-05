@@ -135,13 +135,13 @@ auto FileBuffer::write(const void* buffer, std::uint64_t offset, std::uint64_t l
     return write(mFile, buffer, offset, length);
 }
 
-bool FileBuffer::truncate(std::uint64_t size)
+bool FileBuffer::truncate(std::uint64_t newSize)
 {
     // Disambiguate.
     using file_service::truncate;
 
     // Truncate the file.
-    return truncate(mFile, size);
+    return truncate(mFile, newSize);
 }
 
 } // file_service

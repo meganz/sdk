@@ -77,7 +77,7 @@ public:
     void touch(FileTouchCallback callback, std::int64_t modified);
 
     // Truncate this file to a specified size.
-    void truncate(FileTruncateCallback callback, std::uint64_t size);
+    void truncate(FileTruncateCallback callback, std::uint64_t newSize);
 
     // Write data to this file.
     void write(const void* buffer,

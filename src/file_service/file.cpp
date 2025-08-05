@@ -112,9 +112,9 @@ void File::touch(FileTouchCallback callback, std::int64_t modified)
     mContext->touch(FileTouchRequest{std::move(callback), modified});
 }
 
-void File::truncate(FileTruncateCallback callback, std::uint64_t size)
+void File::truncate(FileTruncateCallback callback, std::uint64_t newSize)
 {
-    mContext->truncate(FileTruncateRequest{std::move(callback), size});
+    mContext->truncate(FileTruncateRequest{std::move(callback), newSize});
 }
 
 void File::write(const void* buffer,

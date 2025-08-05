@@ -36,7 +36,7 @@ public:
         -> std::pair<std::uint64_t, bool> override;
 
     // Truncate the file's size.
-    virtual bool truncate(std::uint64_t size);
+    virtual bool truncate(std::uint64_t newSize);
 }; // FileBuffer
 
 } // file_service
