@@ -3055,6 +3055,18 @@ void MegaClient::exec()
 
 #ifdef BUFFER_ACTION_PACKETS
                 // skip json process if action packets buffering is enabled
+
+
+                if (pendingsc->mChunked)
+                {
+                    // process the last chunk
+                    size_t consumedBytes = screqs.serverChunk(pendingsc->data(), this);
+                    if (consumedBytes)
+                    {
+                        LOG_verbose << "Consumed the last chunk of " << consumedBytes << " bytes";
+                    }
+                }
+
                 pendingsc.reset();
                 screqs.clear();
                 btsc.reset();
