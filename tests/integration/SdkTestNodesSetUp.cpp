@@ -72,7 +72,9 @@ void SdkTestNodesSetUp::createNode(const sdk_test::FileNodeInfo& fileInfo, MegaN
     bool check = false;
     mApi[0].mOnNodesUpdateCompletion =
         createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    sdk_test::LocalTempFile localFile(fileInfo.name, fileInfo.size);
+    sdk_test::LocalTempFile localFile(
+        LocalPath::fromRelativePath(fileInfo.name).asPlatformEncoded(true),
+        fileInfo.size);
     MegaHandle file1Handle = INVALID_HANDLE;
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
