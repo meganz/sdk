@@ -3071,6 +3071,11 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
     return std::min(1.0, progress);
 }
 
+m_off_t SyncTransferCounts::pendingTransferBytes() const
+{
+    return static_cast<m_off_t>(mDownloads.mPendingBytes + mUploads.mPendingBytes);
+}
+
 void SyncTransferCounts::clearPendingValues()
 {
     mDownloads.clearPendingValues();
