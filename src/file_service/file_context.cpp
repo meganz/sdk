@@ -611,7 +611,7 @@ bool FileContext::execute(FileFetchRequest& request)
                                    mFetchContext.get(),
                                    mFetchContext,
                                    std::placeholders::_1),
-                         FileRange(0, UINT64_MAX)});
+                         FileRange(0, mInfo->size())});
 
     // Let the caller know the request's been executed.
     return true;
@@ -849,6 +849,9 @@ bool FileContext::execute(FileReadRequest& request)
 
     // Extend the read if necessary so that the download is worthwhile.
     end = begin + std::max(end - begin, options.mMinimumRangeSize);
+
+    // Make sure the read doesn't extend past the end of the file.
+    end = std::min(end, size);
 
     // Try and find the first range that begins after our read begins.
     i = mRanges.beginsAfter(begin);
@@ -1685,7 +1688,7 @@ void FileContext::FetchContext::operator()(FetchContextPtr& context,
 
     // Convenience.
     auto offset = result->mOffset + result->mLength;
-    auto length = UINT64_MAX - offset;
+    auto length = mContext.mInfo->size() - offset;
 
     // Try and read the rest of the file's data.
     mContext.read(FileReadRequest{
