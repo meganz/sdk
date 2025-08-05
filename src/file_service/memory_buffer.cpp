@@ -16,8 +16,8 @@ MemoryBuffer::MemoryBuffer(std::uint64_t length):
 {}
 
 auto MemoryBuffer::copy(Buffer& target,
-                        std::uint64_t offset0,
-                        std::uint64_t offset1,
+                        std::uint64_t sourceOffset,
+                        std::uint64_t targetOffset,
                         std::uint64_t length) const -> std::pair<std::uint64_t, bool>
 {
     assert(this != &target);
@@ -27,14 +27,14 @@ auto MemoryBuffer::copy(Buffer& target,
         return std::make_pair(0u, false);
 
     // Clamp length as necessary.
-    length = std::min(length, std::max(mLength, offset0) - offset0);
+    length = std::min(length, std::max(mLength, sourceOffset) - sourceOffset);
 
     // Caller doesn't actually want to transfer any data.
     if (!length)
         return std::make_pair(0u, true);
 
     // Try and transfer our data to the target.
-    return target.write(mBuffer.get() + offset0, offset1, length);
+    return target.write(mBuffer.get() + sourceOffset, targetOffset, length);
 }
 
 auto MemoryBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const

@@ -16,8 +16,8 @@ FileBuffer::FileBuffer(FileAccess& file):
 {}
 
 auto FileBuffer::copy(Buffer& target,
-                      std::uint64_t offset0,
-                      std::uint64_t offset1,
+                      std::uint64_t sourceOffset,
+                      std::uint64_t targetOffset,
                       std::uint64_t length) const -> std::pair<std::uint64_t, bool>
 {
     assert(this != &target);
@@ -63,14 +63,14 @@ auto FileBuffer::copy(Buffer& target,
     while (length > size)
     {
         // Try and read data from storage.
-        auto [count, success] = read(buffer, offset0 + copied, size);
+        auto [count, success] = read(buffer, sourceOffset + copied, size);
 
         // Couldn't read data from storage.
         if (!success)
             return std::make_pair(copied, false);
 
         // Try and write data to the target buffer.
-        std::tie(count, success) = target.write(buffer, offset1 + copied, size);
+        std::tie(count, success) = target.write(buffer, targetOffset + copied, size);
 
         // Bump counters.
         copied += count;
@@ -82,14 +82,14 @@ auto FileBuffer::copy(Buffer& target,
     }
 
     // Try and read data from storage.
-    auto [count, success] = read(buffer, offset0 + copied, length);
+    auto [count, success] = read(buffer, sourceOffset + copied, length);
 
     // Couldn't read data from storage.
     if (!success)
         return std::make_pair(copied, false);
 
     // Try and write data to the target buffer.
-    std::tie(count, success) = target.write(buffer, offset1 + copied, length);
+    std::tie(count, success) = target.write(buffer, targetOffset + copied, length);
 
     // Let the caller know how much data was copied.
     return std::make_pair(count + copied, success);

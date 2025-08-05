@@ -20,8 +20,8 @@ public:
 
     // Copy data from this buffer to another.
     auto copy(Buffer& target,
-              std::uint64_t offset0,
-              std::uint64_t offset1,
+              std::uint64_t sourceOffset,
+              std::uint64_t targetOffset,
               std::uint64_t length) const -> std::pair<std::uint64_t, bool> override;
 
     // Read data from the buffer.

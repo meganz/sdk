@@ -22,8 +22,8 @@ BufferPtr DisplacedBuffer::buffer() const
 }
 
 auto DisplacedBuffer::copy(Buffer& target,
-                           std::uint64_t offset0,
-                           std::uint64_t offset1,
+                           std::uint64_t sourceOffset,
+                           std::uint64_t targetOffset,
                            std::uint64_t length) const -> std::pair<std::uint64_t, bool>
 {
     assert(mBuffer);
@@ -33,7 +33,7 @@ auto DisplacedBuffer::copy(Buffer& target,
         return std::make_pair(0u, false);
 
     // Delegate transfer.
-    return mBuffer->copy(target, mDisplacement + offset0, offset1, length);
+    return mBuffer->copy(target, mDisplacement + sourceOffset, targetOffset, length);
 }
 
 void DisplacedBuffer::displacement(std::uint64_t displacement)
