@@ -92,6 +92,8 @@ class FileServiceContext: private common::NodeEventObserver
     template<typename T>
     bool removeFromIndex(FileID id, FromFileIDMap<T>& map);
 
+    void purgeRemovedFiles();
+
     template<typename Lock, typename Transaction>
     auto storageUsed(Lock&& lock, Transaction&& transaction) -> std::uint64_t;
 

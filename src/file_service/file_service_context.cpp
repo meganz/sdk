@@ -644,6 +644,60 @@ catch (std::runtime_error& exception)
     return FILE_SERVICE_UNEXPECTED;
 }
 
+// No lock necessary as we're called directly from the constructor.
+void FileServiceContext::purgeRemovedFiles()
+try
+{
+    // Tracks synthetic file IDs that we need to deallocate.
+    FileIDVector ids;
+
+    // So we can safely access the database.
+    auto transaction = mDatabase.transaction();
+
+    // Retrieve the ID of each file marked for removal.
+    auto query = transaction.query(mQueries.mGetFileIDs);
+
+    query.param(":removed").set(true);
+
+    // Iterate over each file, purging its data from storage.
+    for (query.execute(); query; ++query)
+    {
+        // Latch the file's ID.
+        auto id = query.field("id").get<FileID>();
+
+        // File's ID is synthetic and needs to be deallocated.
+        if (synthetic(id))
+            ids.emplace_back(id);
+
+        // Remove the file's data from storage.
+        mStorage.removeFile(id);
+    }
+
+    // Deallocate synthetic file IDs.
+    query = transaction.query(mQueries.mAddFileID);
+
+    for (auto id: ids)
+    {
+        query.param(":id").set(id);
+        query.execute();
+    }
+
+    // Removed removed files from the database.
+    query = transaction.query(mQueries.mRemoveFiles);
+
+    query.param(":removed").set(true);
+    query.execute();
+
+    // Persist database changes.
+    transaction.commit();
+}
+
+catch (std::runtime_error& exception)
+{
+    // Leave a trail so we know something went wrong.
+    FSErrorF("Unable to purge removed files: %s", exception.what());
+}
+
 template<typename Lock, typename T>
 bool FileServiceContext::removeFromIndex(FileID id,
                                          [[maybe_unused]] Lock&& lock,
@@ -723,6 +777,9 @@ FileServiceContext::FileServiceContext(Client& client, const FileServiceOptions&
 {
     // Let the client know we want to receive node change events.
     mClient.addEventObserver(*this);
+
+    // Purge any lingering removed files.
+    purgeRemovedFiles();
 
     // User hasn't specified any storage quota.
     if (!mOptions.mReclaimSizeThreshold)

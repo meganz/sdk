@@ -64,7 +64,9 @@ FileServiceQueries::FileServiceQueries(Database& database):
                                     " where name = :name "
                                     "   and parent_handle = :parent_handle";
 
-    mGetFileIDs = "select id from files";
+    mGetFileIDs = "select id "
+                  "  from files "
+                  " where (:removed is null or removed = :removed)";
 
     // Files marked for removal will be purged when closed.
     mGetReclaimableFiles = "select allocated_size "
@@ -103,7 +105,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
                         "   and end <= :end "
                         "   and id = :id";
 
-    mRemoveFiles = "delete from files";
+    mRemoveFiles = "delete from files "
+                   " where (:removed is null or removed = :removed)";
 
     mSetFileAccessTime = "update files "
                          "   set accessed = :accessed "
