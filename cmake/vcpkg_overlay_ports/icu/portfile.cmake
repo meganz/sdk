@@ -37,6 +37,8 @@ vcpkg_extract_source_archive(SOURCE_PATH
         vcpkg-cross-data.patch
         darwin-rpath.patch
         mingw-strict-ansi.diff # backport of https://github.com/unicode-org/icu/pull/3003
+        uconfig.h.patch
+        plurrule.cpp.patch
 )
 
 vcpkg_download_distfile(

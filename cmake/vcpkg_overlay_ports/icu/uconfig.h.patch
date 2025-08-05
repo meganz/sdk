@@ -1,0 +1,22 @@
+diff --git a/source/common/unicode/uconfig.h b/source/common/unicode/uconfig.h
+index 3818ca0..835d9c2 100644
+--- a/source/common/unicode/uconfig.h
++++ b/source/common/unicode/uconfig.h
+@@ -215,7 +215,7 @@
+  * @stable ICU 2.4
+  */
+ #ifndef UCONFIG_ONLY_COLLATION
+-#   define UCONFIG_ONLY_COLLATION 0
++#   define UCONFIG_ONLY_COLLATION 1
+ #endif
+ 
+ #if UCONFIG_ONLY_COLLATION
+@@ -308,7 +308,7 @@
+  * @stable ICU 2.4
+  */
+ #ifndef UCONFIG_NO_LEGACY_CONVERSION
+-#   define UCONFIG_NO_LEGACY_CONVERSION 0
++#   define UCONFIG_NO_LEGACY_CONVERSION 1
+ #endif
+ 
+ /**
