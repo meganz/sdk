@@ -54,6 +54,9 @@ public:
     // Retrieve the file service's current options.
     auto options() -> FileServiceResultOr<FileServiceOptions>;
 
+    // Purge all files from storage.
+    auto purge() -> FileServiceResult;
+
     // Determine what ranges of a file are currently in storage.
     auto ranges(FileID id) -> FileServiceResultOr<FileRangeVector>;
 

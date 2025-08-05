@@ -380,6 +380,11 @@ auto Client::fileServiceOptions() -> FileServiceResultOr<FileServiceOptions>
     return fileService().options();
 }
 
+auto Client::fileServicePurge() -> FileServiceResult
+{
+    return fileService().purge();
+}
+
 void Client::fileStorageReclaim(ReclaimCallback callback)
 {
     fileService().reclaim(std::move(callback));

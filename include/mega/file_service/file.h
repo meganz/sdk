@@ -79,9 +79,6 @@ public:
     // Truncate this file to a specified size.
     void truncate(FileTruncateCallback callback, std::uint64_t size);
 
-    // Let the service know you're happy for it to remove this file.
-    void unref();
-
     // Write data to this file.
     void write(const void* buffer,
                FileWriteCallback callback,

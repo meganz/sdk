@@ -121,6 +121,16 @@ auto FileService::initialize(Client& client) -> FileServiceResult
     return initialize(client, FileServiceOptions());
 }
 
+auto FileService::purge() -> FileServiceResult
+{
+    SharedLock guard(mContextLock);
+
+    if (!mContext)
+        return FILE_SERVICE_UNINITIALIZED;
+
+    return mContext->purge();
+}
+
 auto FileService::ranges(FileID id) -> FileServiceResultOr<FileRangeVector>
 {
     SharedLock guard(mContextLock);

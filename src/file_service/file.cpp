@@ -97,11 +97,6 @@ void File::reclaim(FileReclaimCallback callback)
     mContext->reclaim(std::move(callback));
 }
 
-void File::ref()
-{
-    mContext->ref();
-}
-
 void File::remove(FileRemoveCallback callback)
 {
     mContext->remove(FileRemoveRequest{std::move(callback), false});
@@ -120,11 +115,6 @@ void File::touch(FileTouchCallback callback, std::int64_t modified)
 void File::truncate(FileTruncateCallback callback, std::uint64_t size)
 {
     mContext->truncate(FileTruncateRequest{std::move(callback), size});
-}
-
-void File::unref()
-{
-    mContext->unref();
 }
 
 void File::write(const void* buffer,

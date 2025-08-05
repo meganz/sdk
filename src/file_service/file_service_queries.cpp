@@ -16,7 +16,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mGetFileByNameAndParentHandle(database.query()),
     mGetFileIDs(database.query()),
     mGetFileRanges(database.query()),
-    mGetFileReferences(database.query()),
     mGetFreeFileID(database.query()),
     mGetNextFileID(database.query()),
     mGetReclaimableFiles(database.query()),
@@ -24,11 +23,11 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mRemoveFile(database.query()),
     mRemoveFileID(database.query()),
     mRemoveFileRanges(database.query()),
+    mRemoveFiles(database.query()),
     mSetFileAccessTime(database.query()),
     mSetFileHandle(database.query()),
     mSetFileLocation(database.query()),
     mSetFileModificationTime(database.query()),
-    mSetFileReferences(database.query()),
     mSetFileRemoved(database.query()),
     mSetFileSize(database.query()),
     mSetNextFileID(database.query())
@@ -41,7 +40,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  :id, "
                "  :modified, "
                "  :name, "
-               "  :num_references, "
                "  :parent_handle, "
                "  :removed, "
                "  :reported_size, "
@@ -82,10 +80,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                      "  from file_ranges "
                      " where id = :id";
 
-    mGetFileReferences = "select num_references "
-                         "  from files "
-                         " where id = :id";
-
     mGetFreeFileID = "select id "
                      "  from file_ids "
                      " limit 1";
@@ -109,6 +103,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
                         "   and end <= :end "
                         "   and id = :id";
 
+    mRemoveFiles = "delete from files";
+
     mSetFileAccessTime = "update files "
                          "   set accessed = :accessed "
                          " where id = :id";
@@ -127,10 +123,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                                "     , dirty = 1 "
                                "     , modified = :modified "
                                " where id = :id";
-
-    mSetFileReferences = "update files "
-                         "   set num_references = :num_references "
-                         " where id = :id";
 
     mSetFileRemoved = "update files "
                       "   set name = null "

@@ -171,6 +171,9 @@ static auto fetch(File file) -> std::future<FileResult>;
 // Flush a file's modified content to the cloud.
 static auto flush(File file) -> std::future<FileResult>;
 
+// Purge a file from the service.
+static auto purge(File file) -> std::future<FileResult>;
+
 // Read some content from the specified file.
 static auto read(File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResultOr<std::string>>;
@@ -493,7 +496,7 @@ TEST_F(FileServiceTests, create_flush_succeeds)
     auto computed = execute(read, *file, 0, 128_KiB);
 
     ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
-    ASSERT_EQ(*computed, expected);
+    ASSERT_FALSE(computed->compare(expected));
 }
 
 TEST_F(FileServiceTests, create_succeeds)
@@ -526,6 +529,9 @@ TEST_F(FileServiceTests, create_succeeds)
 
         // Latch the file's ID.
         id0 = info0.id();
+
+        // Remove the file from storage.
+        ASSERT_EQ(execute(remove, *file), FILE_SUCCESS);
     }
 
     // Make sure the file's been purged from storage.
@@ -814,8 +820,8 @@ TEST_F(FileServiceTests, flush_succeeds)
         ASSERT_EQ(info->id(), oldFile->info().id());
     }
 
-    // Release the file (this will purge it from storage.)
-    [](File) {}(std::move(*oldFile));
+    // Remove the file from storage.
+    ASSERT_EQ(execute(purge, std::move(*oldFile)), FILE_SUCCESS);
 
     // newHandle and oldHandle now represent distinct files.
     auto newFile = ClientW()->fileOpen(newHandle);
@@ -1579,39 +1585,6 @@ TEST_F(FileServiceTests, reclaim_single_succeeds)
     ASSERT_TRUE(*computed == expected);
 }
 
-TEST_F(FileServiceTests, ref_succeeds)
-{
-    // Convenience.
-    auto SUCCESS = FILE_SERVICE_SUCCESS;
-    auto UNKNOWN = FILE_SERVICE_UNKNOWN_FILE;
-
-    // Open a file for reading without retaining a reference.
-    EXPECT_EQ(ClientW()->fileOpen(mFileHandle).errorOr(SUCCESS), SUCCESS);
-
-    // The service should've removed the file as it has no references.
-    EXPECT_EQ(ClientW()->fileInfo(mFileHandle).errorOr(UNKNOWN), UNKNOWN);
-
-    // Open a file and establish a reference.
-    {
-        // Open the file.
-        auto file = ClientW()->fileOpen(mFileHandle);
-        ASSERT_EQ(file.errorOr(SUCCESS), SUCCESS);
-
-        // Let the service know it should keep the file.
-        file->ref();
-    }
-
-    // Make sure the service hasn't removed the file.
-    EXPECT_EQ(ClientW()->fileInfo(mFileHandle).errorOr(SUCCESS), SUCCESS);
-
-    // Get our hands on the file again.
-    auto file = ClientW()->fileOpen(mFileHandle);
-    ASSERT_EQ(file.errorOr(SUCCESS), SUCCESS);
-
-    // Let the service know it can remove the file.
-    file->unref();
-}
-
 TEST_F(FileServiceTests, remove_local_succeeds)
 {
     // Records the ID of the file created directly below.
@@ -2271,6 +2244,9 @@ void FileServiceTests::SetUp()
     // Make sure the service's options are in a known state.
     ClientW()->fileServiceOptions(DefaultOptions);
 
+    // Make sure the service contains no lingering data.
+    ASSERT_EQ(ClientW()->fileServicePurge(), FILE_SERVICE_SUCCESS);
+
     // Make sure transfers proceed at full speed.
     ClientW()->setDownloadSpeed(0);
     ClientW()->setUploadSpeed(0);
@@ -2384,6 +2360,25 @@ auto flush(File file) -> std::future<FileResult>
         });
 
     // Return waiter to our caller.
+    return waiter;
+}
+
+auto purge(File file) -> std::future<FileResult>
+{
+    // So we can notify our caller when the file has been purged.
+    auto notifier = makeSharedPromise<FileResult>();
+
+    // So our caller can wait for the file to be purged.
+    auto waiter = notifier->get_future();
+
+    // Try and purge the file.
+    file.purge(
+        [notifier](auto result)
+        {
+            notifier->set_value(result);
+        });
+
+    // Return the waiter to our caller.
     return waiter;
 }
 

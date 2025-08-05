@@ -366,7 +366,6 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     query.param(":handle").set(node->mHandle);
     query.param(":id").set(id);
     query.param(":modified").set(node->mModified);
-    query.param(":num_references").set(0u);
     query.param(":name").set(node->mName);
     query.param(":parent_handle").set(node->mParentHandle);
     query.param(":removed").set(false);
@@ -710,6 +709,7 @@ FileServiceContext::FileServiceContext(Client& client, const FileServiceOptions&
     mDatabase(createDatabase(mStorage.databasePath())),
     mQueries(mDatabase),
     mFileContexts(),
+    mInfoContextRemoved(),
     mInfoContexts(),
     mLock(),
     mOptions(options),
@@ -829,7 +829,6 @@ try
     query.param(":modified").set(modified);
     query.param(":name").set(name);
     query.param(":parent_handle").set(parent);
-    query.param(":num_references").set(0u);
     query.param(":removed").set(false);
     query.param(":reported_size").set(0u);
     query.param(":size").set(0u);
@@ -1001,6 +1000,59 @@ FileServiceQueries& FileServiceContext::queries()
     return mQueries;
 }
 
+auto FileServiceContext::purge() -> FileServiceResult
+try
+{
+    // True when there are no info contexts in memory.
+    auto idle = [this]()
+    {
+        return mInfoContexts.empty();
+    }; // idle
+
+    // Make sure we have exclusive access to the context.
+    UniqueLock lockContexts(mLock);
+
+    // Wait until all info contexts have been removed from memory.
+    mInfoContextRemoved.wait(lockContexts, idle);
+
+    // Make sure we have exclusive access to the database.
+    UniqueLock lockDatabase(mDatabase);
+
+    // Retrieve the ID of each file in storage.
+    auto transaction = mDatabase.transaction();
+    auto query = transaction.query(mQueries.mGetFileIDs);
+
+    // Purge each file's data from storage.
+    for (query.execute(); query; ++query)
+        mStorage.removeFile(query.field("id").get<FileID>());
+
+    // Remove all the files from the database.
+    query = transaction.query(mQueries.mRemoveFiles);
+
+    query.execute();
+
+    // Reset the ID generator to its initial state.
+    query = transaction.query(mQueries.mSetNextFileID);
+
+    query.param(":next").set(0u);
+    query.execute();
+
+    // Persist database changes.
+    transaction.commit();
+
+    // Let the caller know the service has been purged.
+    return FILE_SERVICE_SUCCESS;
+}
+
+catch (std::runtime_error& exception)
+{
+    // Leave a hint as to why we couldn't purge files from the service.
+    FSErrorF("Unable to purge files from storage: %s", exception.what());
+
+    // Let the caller know we couldn't purge files from storage.
+    return FILE_SERVICE_UNEXPECTED;
+}
+
 auto FileServiceContext::ranges(FileID id) -> FileServiceResultOr<FileRangeVector>
 try
 {
@@ -1068,30 +1120,28 @@ try
     // Make sure we have exclusive access to mDatabase.
     UniqueLock lockDatabase(mDatabase);
 
-    // Retrieve this file's reference count.
+    // So we can safely modify the database.
     auto transaction = mDatabase.transaction();
-    auto query = transaction.query(mQueries.mGetFileReferences);
 
-    query.param(":id").set(id);
-    query.execute();
-
-    // Don't purge the file as it still has references.
-    if (query.field("num_references").get<std::uint64_t>())
+    // File hasn't been removed.
+    if (!context.removed())
     {
-        // Update the file's last access time.
-        query = transaction.query(mQueries.mSetFileAccessTime);
+        // Update the file's access time.
+        auto query = transaction.query(mQueries.mSetFileAccessTime);
 
         query.param(":accessed").set(context.accessed());
         query.param(":id").set(id);
-
         query.execute();
 
-        // Persist our changes.
-        return transaction.commit();
+        // Persist database changes.
+        transaction.commit();
+
+        // Let waiters know the context's been removed.
+        return mInfoContextRemoved.notify_all();
     }
 
     // Remove the file from the database.
-    query = transaction.query(mQueries.mRemoveFile);
+    auto query = transaction.query(mQueries.mRemoveFile);
 
     query.param(":id").set(id);
     query.execute();
@@ -1105,6 +1155,9 @@ try
 
     // Persist our changes.
     transaction.commit();
+
+    // Let waiters know the context's been removed.
+    mInfoContextRemoved.notify_all();
 }
 
 catch (std::runtime_error& exception)

@@ -64,9 +64,6 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Add a range to the database.
     void addRange(const FileRange& range, common::Transaction& transaction);
 
-    // Adjust this file's reference count.
-    void adjustRef(std::int64_t adjustment);
-
     // Cancel any reads intersect the specified range.
     void cancel(const FileRange& range);
 
@@ -251,9 +248,6 @@ public:
     // Reclaim this file's storage.
     void reclaim(FileReclaimCallback callback);
 
-    // Let the service know you want it to keep this file in storage.
-    void ref();
-
     // Remove this file.
     void remove(FileRemoveRequest request);
 
@@ -265,9 +259,6 @@ public:
 
     // Truncate this file to a specified size.
     void truncate(FileTruncateRequest request);
-
-    // Let the service know you're happy for it to remove this file.
-    void unref();
 
     // Write data to this file.
     void write(FileWriteRequest request);

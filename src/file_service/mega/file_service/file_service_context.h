@@ -24,6 +24,8 @@
 #include <mega/file_service/file_storage.h>
 #include <mega/file_service/from_file_id_map.h>
 
+#include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -111,6 +113,7 @@ class FileServiceContext: private common::NodeEventObserver
     FileServiceQueries mQueries;
 
     FromFileIDMap<FileContextWeakPtr> mFileContexts;
+    std::condition_variable_any mInfoContextRemoved;
     FromFileIDMap<FileInfoContextWeakPtr> mInfoContexts;
 
     // This lock serializes access to the context's members.
@@ -183,6 +186,9 @@ public:
 
     // Return a reference to this service's queries.
     FileServiceQueries& queries();
+
+    // Purge all files from storage.
+    auto purge() -> FileServiceResult;
 
     // Determine what ranges of a file are currently in storage.
     auto ranges(FileID id) -> FileServiceResultOr<FileRangeVector>;

@@ -210,6 +210,9 @@ public:
     auto fileServiceOptions()
         -> file_service::FileServiceResultOr<file_service::FileServiceOptions>;
 
+    // Purge all data from the file service.
+    auto fileServicePurge() -> file_service::FileServiceResult;
+
     // Try and reclaim storage space.
     void fileStorageReclaim(file_service::ReclaimCallback callback);
 
