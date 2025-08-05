@@ -67,7 +67,7 @@ pipeline {
 
                         tests\\\\unit\\\\${BUILD_TYPE}\\\\test_unit.exe
                         if %ERRORLEVEL% NEQ 0 exit 1
-                        tests\\\\integration\\\\${BUILD_TYPE}\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
+                        tests\\\\integration\\\\${BUILD_TYPE}\\\\test_integration.exe --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
                         if %ERRORLEVEL% NEQ 0 set ERROR_VAL=1
                         gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz
                         rm test_integration.log

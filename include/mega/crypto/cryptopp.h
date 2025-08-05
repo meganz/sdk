@@ -23,20 +23,24 @@
 #ifndef CRYPTOCRYPTOPP_H
 #define CRYPTOCRYPTOPP_H 1
 
-#include <cryptopp/cryptlib.h>
-#include <cryptopp/modes.h>
-#include <cryptopp/ccm.h>
-#include <cryptopp/gcm.h>
-#include <cryptopp/integer.h>
 #include <cryptopp/aes.h>
-#include <cryptopp/osrng.h>
-#include <cryptopp/sha.h>
-#include <cryptopp/rsa.h>
-#include <cryptopp/crc.h>
-#include <cryptopp/nbtheory.h>
 #include <cryptopp/algparam.h>
+#include <cryptopp/ccm.h>
+#include <cryptopp/crc.h>
+#include <cryptopp/cryptlib.h>
+#include <cryptopp/gcm.h>
 #include <cryptopp/hmac.h>
+#include <cryptopp/integer.h>
+#include <cryptopp/modes.h>
+#include <cryptopp/nbtheory.h>
+#include <cryptopp/osrng.h>
 #include <cryptopp/pwdbased.h>
+#include <cryptopp/rsa.h>
+#include <cryptopp/sha.h>
+
+#include <optional>
+#include <type_traits>
+#include <utility>
 
 namespace mega {
 
@@ -79,17 +83,116 @@ private:
     CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aesecb_e;
     CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesecb_d;
 
-    CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption aescbc_e;
-    CryptoPP::CBC_Mode<CryptoPP::AES>::Decryption aescbc_d;
+    std::optional<CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption> mAescbc_e;
+    std::optional<CryptoPP::CBC_Mode<CryptoPP::AES>::Decryption> mAescbc_d;
 
-    CryptoPP::CCM<CryptoPP::AES, 16>::Encryption aesccm16_e;
-    CryptoPP::CCM<CryptoPP::AES, 16>::Decryption aesccm16_d;
+    std::optional<CryptoPP::CCM<CryptoPP::AES, 16>::Encryption> mAesccm16_e;
+    std::optional<CryptoPP::CCM<CryptoPP::AES, 16>::Decryption> mAesccm16_d;
 
-    CryptoPP::CCM<CryptoPP::AES, 8>::Encryption aesccm8_e;
-    CryptoPP::CCM<CryptoPP::AES, 8>::Decryption aesccm8_d;
+    std::optional<CryptoPP::CCM<CryptoPP::AES, 8>::Encryption> mAesccm8_e;
+    std::optional<CryptoPP::CCM<CryptoPP::AES, 8>::Decryption> mAesccm8_d;
 
-    CryptoPP::GCM<CryptoPP::AES>::Encryption aesgcm_e;
-    CryptoPP::GCM<CryptoPP::AES>::Decryption aesgcm_d;
+    std::optional<CryptoPP::GCM<CryptoPP::AES>::Encryption> mAesgcm_e;
+    std::optional<CryptoPP::GCM<CryptoPP::AES>::Decryption> mAesgcm_d;
+
+    /**
+     * @brief Primary template: expression not detected.
+     *
+     * @tparam AlwaysVoid SFINAE helper.
+     * @tparam Op         Template alias that represents the expression to test.
+     * @tparam Args       Optional extra template parameters.
+     */
+    template<class AlwaysVoid, template<class> class Op, class = void>
+    struct detect: std::false_type
+    {};
+
+    /**
+     * @brief Partial specialisation: expression detected (substitution succeeds).
+     */
+    template<class T, template<class> class Op>
+    struct detect<T, Op, std::void_t<Op<T>>>: std::true_type
+    {};
+
+    /**
+     * @brief Detects presence of SetKeyWithIV(key, keyLen, iv, ivLen).
+     *        This overload exists in GCM/CCM cipher modes.
+     */
+    template<class C>
+    using expr_set4 = decltype(std::declval<C&>().SetKeyWithIV(static_cast<const byte*>(nullptr),
+                                                               std::size_t{},
+                                                               static_cast<const byte*>(nullptr),
+                                                               std::size_t{}));
+
+    /**
+     * @brief Detects presence of Resynchronize(iv, ivLen).
+     *        Again specific to GCM/CCM.
+     */
+    template<class C>
+    using expr_resync2 =
+        decltype(std::declval<C&>().Resynchronize(static_cast<const byte*>(nullptr),
+                                                  std::size_t{}));
+
+    /**
+     * @brief Ensure that an optional Crypto++ cipher is ready for use and prepare/resync it as
+     * needed.
+     *
+     * The first call after a setkey() will construct the cipher object and
+     * perform a full key schedule (SetKeyWithIV). Subsequent calls reuse the
+     * schedule and only resynchronise the IV - unless the caller supplies a
+     * different customKey, in which case the schedule is rebuilt.
+     *
+     * @tparam OptCipher  std::optional holding a Crypto++ cipher type.
+     * @param opt         Optional cipher instance to prepare.
+     * @param iv          IV/nonce to use (may be nullptr; defaults to @c zeroiv).
+     * @param ivLen       Length of @p iv in bytes. CBC ignores this parameter.
+     * @param customKey   Optional key buffer. If nullptr or length is 0, the
+     *                    existing key schedule is reused.
+     * @param customKeyLen Length of @p customKey in bytes (ignored when @p customKey is nullptr).
+     * @return Reference to the engaged cipher object (never null).
+     */
+    template<class OptCipher>
+    typename OptCipher::value_type& prepareCipher(OptCipher& opt,
+                                                  const byte* iv,
+                                                  const size_t ivLen,
+                                                  const byte* customKey = nullptr,
+                                                  const size_t customKeyLen = 0)
+    {
+        const byte* useIV = iv ? iv : zeroiv;
+
+        auto callSet = [&](auto& cipher, const byte* k, const size_t kLen)
+        {
+            using C = std::decay_t<decltype(cipher)>;
+            if constexpr (detect<C, expr_set4>::value)
+                cipher.SetKeyWithIV(k, kLen, useIV, ivLen);
+            else
+                cipher.SetKeyWithIV(k, kLen, useIV);
+        };
+
+        auto callSync = [&](auto& cipher)
+        {
+            using C = std::decay_t<decltype(cipher)>;
+            if constexpr (detect<C, expr_resync2>::value)
+                cipher.Resynchronize(useIV, static_cast<int>(ivLen));
+            else
+                cipher.Resynchronize(useIV);
+        };
+
+        if (!opt)
+        {
+            opt.emplace();
+            const byte* k = customKey ? customKey : key;
+            const size_t kLen = customKey ? customKeyLen : KEYLENGTH;
+            callSet(*opt, k, kLen);
+            return *opt;
+        }
+
+        if (customKey && customKeyLen)
+            callSet(*opt, customKey, customKeyLen);
+        else
+            callSync(*opt);
+
+        return *opt;
+    }
 
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode.

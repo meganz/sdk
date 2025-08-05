@@ -567,6 +567,15 @@ NTSTATUS Mount::readDirectory(PVOID context,
         response->Size = sizeof(*response);
         response->IoStatus.Information = static_cast<UINT32>(numWritten);
 
+        // Notify File Explorer
+        //
+        // NOTE: This is called here (after directory entries are read) because:
+        // - It ensures the folder is actually opened before notification.
+        // - Placing this in open() (for both files and directories, it has timing
+        //   problem if only called for openning directories) increases CPU usage (~2%+)
+        //   when opening large folders, so this is more efficient.
+        mMountDB.notifyFileExplorerSetter();
+
         // Send response to caller.
         mDispatcher.reply(*response, STATUS_SUCCESS);
     }; // read

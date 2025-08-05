@@ -25,6 +25,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/fileattributefetch.cpp \
     sdk/src/filefingerprint.cpp \
     sdk/src/filesystem.cpp \
+    sdk/src/hashcash.cpp \
     sdk/src/http.cpp \
     sdk/src/json.cpp \
     sdk/src/megaclient.cpp \
@@ -99,6 +100,7 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/fileattributefetch.h \
         sdk/include/mega/filefingerprint.h \
         sdk/include/mega/filesystem.h \
+        sdk/include/mega/hashcash.h \
         sdk/include/mega/http.h \
         sdk/include/mega/json.h \
         sdk/include/mega/megaapp.h \

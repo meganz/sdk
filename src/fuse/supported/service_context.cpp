@@ -210,6 +210,9 @@ void ServiceContext::serviceFlags(const ServiceFlags& flags)
 
     // Update executor flags for existing mounts.
     mMountDB.executorFlags(flags.mMountExecutorFlags);
+
+    // Update file explorer view flags
+    mMountDB.fileExplorerView(flags.mFileExplorerView);
 }
 
 bool ServiceContext::syncable(const NormalizedPath& path) const

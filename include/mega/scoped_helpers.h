@@ -18,7 +18,15 @@ public:
         mDestructor(std::move(destructor))
     {}
 
-    ScopedDestructor(ScopedDestructor&& other) = default;
+    ScopedDestructor(ScopedDestructor&& other) noexcept
+    {
+        mDestructor = std::move(other.mDestructor);
+        // final status of the source of the moved is not guaranteed by standard beyond staying in a
+        // valid state, and Apple clang actually leaves the previous value
+        other.mDestructor = nullptr;
+    }
+
+    ScopedDestructor(const ScopedDestructor& other) = delete;
 
     ~ScopedDestructor()
     {
@@ -26,7 +34,18 @@ public:
             mDestructor();
     }
 
-    ScopedDestructor& operator=(ScopedDestructor&& rhs) = default;
+    ScopedDestructor& operator=(ScopedDestructor&& rhs) noexcept
+    {
+        mDestructor = std::move(rhs.mDestructor);
+        // final status of the source of the moved is not guaranteed by standard beyond staying in a
+        // valid state, and Apple clang actually leaves the previous value
+        rhs.mDestructor = nullptr;
+
+        return *this;
+    }
+
+    ScopedDestructor& operator=(const ScopedDestructor& rhs) = delete;
+
 }; // ScopedDestructor
 
 // Returns an object that executes function when destroyed.

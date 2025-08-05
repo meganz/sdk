@@ -75,17 +75,17 @@ void SymmCipher::setkey(const byte* newkey, int type)
     aesecb_e.SetKey(key, KEYLENGTH);
     aesecb_d.SetKey(key, KEYLENGTH);
 
-    aescbc_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
-    aescbc_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+    mAescbc_e.reset();
+    mAescbc_d.reset();
 
-    aesccm8_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
-    aesccm8_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+    mAesccm8_e.reset();
+    mAesccm8_d.reset();
 
-    aesccm16_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
-    aesccm16_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+    mAesccm16_e.reset();
+    mAesccm16_d.reset();
 
-    aesgcm_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
-    aesgcm_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+    mAesgcm_e.reset();
+    mAesgcm_d.reset();
 }
 
 bool SymmCipher::setkey(const string* newKey)
@@ -109,7 +109,7 @@ bool SymmCipher::cbc_encrypt_with_key(const std::string& plain,
 {
     try
     {
-        aescbc_e.SetKeyWithIV(encryptionKey, keylen, iv ? iv : zeroiv);
+        auto& aescbc_e = prepareCipher(mAescbc_e, iv, BLOCKSIZE, encryptionKey, keylen);
         StringSource ss(plain, true, new StreamTransformationFilter(aescbc_e, new StringSink(cipher)));
         return true;
     }
@@ -128,7 +128,7 @@ bool SymmCipher::cbc_decrypt_with_key(const std::string& cipher,
 {
     try
     {
-        aescbc_d.SetKeyWithIV(decryptionKey, keylen, iv ? iv : zeroiv);
+        auto& aescbc_d = prepareCipher(mAescbc_d, iv, BLOCKSIZE, decryptionKey, keylen);
         StringSource ss(cipher, true, new StreamTransformationFilter(aescbc_d, new StringSink(plain)));
         return true;
     }
@@ -143,7 +143,7 @@ bool SymmCipher::cbc_encrypt(byte* data, size_t len, const byte* iv)
 {
     try
     {
-        aescbc_e.Resynchronize(iv ? iv : zeroiv);
+        auto& aescbc_e = prepareCipher(mAescbc_e, iv, BLOCKSIZE);
         aescbc_e.ProcessData(data, data, len);
         return true;
     }
@@ -158,7 +158,7 @@ bool SymmCipher::cbc_decrypt(byte* data, size_t len, const byte* iv)
 {
     try
     {
-        aescbc_d.Resynchronize(iv ? iv : zeroiv);
+        auto& aescbc_d = prepareCipher(mAescbc_d, iv, BLOCKSIZE);
         aescbc_d.ProcessData(data, data, len);
         return true;
     }
@@ -182,7 +182,7 @@ bool SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, st
     try
     {
         // Update IV.
-        aescbc_e.Resynchronize(iv ? iv : zeroiv);
+        auto& aescbc_e = prepareCipher(mAescbc_e, iv, BLOCKSIZE);
 
         // Create sink.
         unique_ptr<StringSink> sink =
@@ -222,7 +222,7 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* i
         using Transformation = StreamTransformationFilter;
 
         // Update IV.
-        aescbc_d.Resynchronize(iv ? iv : zeroiv);
+        auto& aescbc_d = prepareCipher(mAescbc_d, iv, BLOCKSIZE);
 
         // Create sink.
         unique_ptr<StringSink> sink =
@@ -266,7 +266,7 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const byte* data,
         using Transformation = StreamTransformationFilter;
 
         // Update IV.
-        aescbc_d.Resynchronize(iv ? iv : zeroiv);
+        auto& aescbc_d = prepareCipher(mAescbc_d, iv, BLOCKSIZE);
 
         // Create sink.
         unique_ptr<StringSink> sink =
@@ -316,14 +316,14 @@ bool SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     {
         if (taglen == 16)
         {
-            aesccm16_e.Resynchronize(iv, static_cast<int>(ivlen));
+            auto& aesccm16_e = prepareCipher(mAesccm16_e, iv, static_cast<size_t>(ivlen));
             aesccm16_e.SpecifyDataLengths(0, data->size(), 0);
             StringSource ss(*data, true, new AuthenticatedEncryptionFilter(aesccm16_e, new StringSink(*result)));
             return true;
         }
         else if (taglen == 8)
         {
-            aesccm8_e.Resynchronize(iv, static_cast<int>(ivlen));
+            auto& aesccm8_e = prepareCipher(mAesccm8_e, iv, static_cast<size_t>(ivlen));
             aesccm8_e.SpecifyDataLengths(0, data->size(), 0);
             StringSource ss(*data, true, new AuthenticatedEncryptionFilter(aesccm8_e, new StringSink(*result)));
             return true;
@@ -348,14 +348,14 @@ bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     {
         if (taglen == 16)
         {
-            aesccm16_d.Resynchronize(iv, static_cast<int>(ivlen));
+            auto& aesccm16_d = prepareCipher(mAesccm16_d, iv, static_cast<size_t>(ivlen));
             aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
             StringSource ss(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
             return true;
         }
         else if (taglen == 8)
         {
-            aesccm8_d.Resynchronize(iv, static_cast<int>(ivlen));
+            auto& aesccm8_d = prepareCipher(mAesccm8_d, iv, static_cast<size_t>(ivlen));
             aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
             StringSource ss(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
             return true;
@@ -379,7 +379,7 @@ bool SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen,
 
     try
     {
-        aesgcm_e.Resynchronize(iv, static_cast<int>(ivlen));
+        auto& aesgcm_e = prepareCipher(mAesgcm_e, iv, static_cast<size_t>(ivlen));
         StringSource ss(*data,
                         true,
                         new AuthenticatedEncryptionFilter(aesgcm_e,
@@ -433,16 +433,8 @@ bool SymmCipher::gcm_encrypt(const byte* data,
 
     try
     {
-        if (!encryptionKey || !keylen)
-        {
-            // resynchronizes with the provided IV
-            aesgcm_e.Resynchronize(iv, static_cast<int>(ivlen));
-        }
-        else
-        {
-            // resynchronizes with the provided Key and IV
-            aesgcm_e.SetKeyWithIV(encryptionKey, keylen, iv, ivlen);
-        }
+        const auto* keyPtr = (encryptionKey && keylen) ? encryptionKey : nullptr;
+        auto& aesgcm_e = prepareCipher(mAesgcm_e, iv, ivlen, keyPtr, keylen);
 
         AuthenticatedEncryptionFilter ef (aesgcm_e, new StringSink(result), false, static_cast<int>(taglen));
         // add additionalData to channel for additional authenticated data
@@ -480,7 +472,7 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
 
     try
     {
-        aesgcm_d.Resynchronize(iv, static_cast<int>(ivlen));
+        auto& aesgcm_d = prepareCipher(mAesgcm_d, iv, static_cast<size_t>(ivlen));
         StringSource ss(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
     }
     catch (CryptoPP::Exception const& e)
@@ -516,16 +508,8 @@ bool SymmCipher::gcm_decrypt(const byte* data,
     }
     try
     {
-        if (!decryptionKey || !keylength)
-        {
-            // resynchronizes with provided IV
-            aesgcm_d.Resynchronize(iv, static_cast<int>(ivlen));
-        }
-        else
-        {
-            // resynchronizes with the provided Key and IV
-            aesgcm_d.SetKeyWithIV(decryptionKey, keylength, iv, ivlen);
-        }
+        const auto* keyPtr = (decryptionKey && keylength) ? decryptionKey : nullptr;
+        auto& aesgcm_d = prepareCipher(mAesgcm_d, iv, ivlen, keyPtr, keylength);
 
         unsigned int flags = AuthenticatedDecryptionFilter::MAC_AT_BEGIN | AuthenticatedDecryptionFilter::THROW_EXCEPTION;
         AuthenticatedDecryptionFilter df(aesgcm_d, nullptr, flags, static_cast<int>(taglen));

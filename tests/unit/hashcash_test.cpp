@@ -17,21 +17,29 @@
  */
 
 #include <gtest/gtest.h>
-
-namespace mega
-{
-std::string gencash(const std::string& token, uint8_t easiness);
-}
+#include <mega/hashcash.h>
 
 TEST(hashcash, gencash)
 {
-    std::vector<std::tuple<std::string, uint8_t, std::string>> hashcash{
-        {"wFqIT_wY3tYKcrm5zqwaUoWym3ZCz32cCsrJOgYBgihtpaWUhGyWJ--EY-zfwI-i", 180, "owAAAA"},
-        {"3NIjq_fgu6bTyepwHuKiaB8a1YRjISBhktWK1fjhRx86RhOqKZNAcOZht0wJvmhQ", 180, "AQAAAA"},
+    std::vector<std::uint8_t> easinessV{180, 192};
+    std::vector<unsigned> numWorkersV{8u, 2u};
+    std::vector<std::string> hashcash{
+        "wFqIT_wY3tYKcrm5zqwaUoWym3ZCz32cCsrJOgYBgihtpaWUhGyWJ--EY-zfwI-i",
+        "3NIjq_fgu6bTyepwHuKiaB8a1YRjISBhktWK1fjhRx86RhOqKZNAcOZht0wJvmhQ",
+        "HGztcvhT0sngIveS6C4CY1nx64YFtXnbcqX_Dvj7NxmX0SCNRlCZ51_pMWQgpHdv",
     };
 
-    for (const auto& t : hashcash)
+    for (const auto& easiness: easinessV)
     {
-        ASSERT_EQ(::mega::gencash(std::get<0>(t), std::get<1>(t)), std::get<2>(t));
+        for (const auto& numWorkers: numWorkersV)
+        {
+            for (const auto& hc: hashcash)
+            {
+                const auto genCashResult = ::mega::gencash(hc, easiness, numWorkers);
+                ASSERT_TRUE(::mega::validateHashcash(hc, easiness, genCashResult))
+                    << "Failed hash: " << hc << ": genCashResult [easiness = " << easiness
+                    << ", numWorkers = " << numWorkers << "]";
+            }
+        }
     }
 }

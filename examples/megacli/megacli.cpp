@@ -33,6 +33,7 @@
 #include "mega/user_attribute.h"
 #include "mega/utils_optional.h"
 
+#include <algorithm>
 #include <bitset>
 #include <charconv>
 #include <chrono>
@@ -97,6 +98,8 @@ using std::dec;
 
 MegaClient* client;
 MegaClient* clientFolder;
+std::string megacliUserAgent{"megacli/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
+    MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION)};
 
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
@@ -1507,44 +1510,116 @@ void exec_devcommand(autocomplete::ACState& s)
     const bool isCampaingProvided = s.extractflagparam("-c", campaign);
     std::string groupId;
     const bool isGroupIdProvided = s.extractflagparam("-g", groupId);
+    std::string quotaLengthInMonths;
+    const bool isQuotaLengthInMonths = s.extractflagparam("-q", quotaLengthInMonths);
+    std::string accountLevel;
+    const bool isAccountLevel = s.extractflagparam("-l", accountLevel);
 
     const auto printElement = [](const auto& p){ std::cout << " " << p; };
+
+    struct Param
+    {
+        bool exists;
+        std::string_view name;
+    };
+
+    auto notifyIgnoredParams = [&printElement, &subcommand](std::vector<Param> params)
+    {
+        std::vector<std::string_view> toIgnore;
+        std::for_each(begin(params),
+                      end(params),
+                      [&toIgnore](Param& param)
+                      {
+                          if (param.exists)
+                              toIgnore.emplace_back(param.name);
+                      });
+        if (!toIgnore.empty())
+        {
+            std::cout << "devcommand " << subcommand << " will ignore unrequired";
+            std::for_each(std::begin(toIgnore), std::end(toIgnore), printElement);
+            std::cout << " provided options\n";
+        }
+    };
+
+    auto requiredParamsPresent = [&printElement, &subcommand](std::vector<Param> params) -> bool
+    {
+        std::vector<std::string_view> missing;
+        std::for_each(begin(params),
+                      end(params),
+                      [&missing](Param& param)
+                      {
+                          if (!param.exists)
+                              missing.emplace_back(param.name);
+                      });
+        if (!missing.empty())
+        {
+            std::cout << "devcommand " << subcommand << " missing required ";
+            std::for_each(std::begin(missing), std::end(missing), printElement);
+            std::cout << " options\n";
+            return false;
+        }
+        return true;
+    };
+
+    const auto checkNatural = [&subcommand](const size_t& length,
+                                            const std::string& numberAsString,
+                                            const std::string_view p) -> bool
+    {
+        if (length != numberAsString.size())
+        {
+            std::cout << subcommand << " param " << p
+                      << " must be a natural number: " << numberAsString << " provided\n";
+            return false;
+        }
+        return true;
+    };
+
     if (subcommand == "abs")
     {
-        if (isEmailProvided) std::cout << "devcommand abs will ignore unrequired -e provided\n";
+        notifyIgnoredParams({Param{isEmailProvided, "-e"},
+                             Param{isQuotaLengthInMonths, "-q"},
+                             Param{isAccountLevel, "-l"}});
 
-        std::vector<std::string> req;
-        if (!isCampaingProvided) req.emplace_back("-c");
-        if (!isGroupIdProvided) req.emplace_back("-g");
-        if (!req.empty())
-        {
-            std::cout << "devcommand abs is missing required";
-            std::for_each(std::begin(req), std::end(req), printElement);
-            std::cout << " options\n";
+        if (!requiredParamsPresent(
+                {Param{isCampaingProvided, "-c"}, Param{isGroupIdProvided, "-g"}}))
             return;
-        }
 
         size_t l;
         const int g = std::stoi(groupId, &l); // it's okay throwing in megacli for non-numeric
-        if(l != groupId.size())
-        {
-            std::cout << "abs param -g must be a natural number: " << groupId << " provided\n";
+        if (!checkNatural(l, groupId, "-g"))
             return;
-        }
 
         client->senddevcommand(subcommand.data(), nullptr, 0, 0, g, campaign.c_str());
     }
+    else if (subcommand == "sal")
+    {
+        notifyIgnoredParams({Param{isEmailProvided, "-e"},
+                             Param{isCampaingProvided, "-c"},
+                             Param{isGroupIdProvided, "-g"}});
+
+        if (!requiredParamsPresent(
+                {Param{isQuotaLengthInMonths, "-q"}, Param{isAccountLevel, "-l"}}))
+            return;
+
+        size_t l = 0;
+        const long long q = std::stoll(quotaLengthInMonths, &l);
+        if (!checkNatural(l, quotaLengthInMonths, "-q"))
+            return;
+
+        l = 0;
+        const int al = std::stoi(accountLevel, &l);
+        if (!checkNatural(l, accountLevel, "-a"))
+            return;
+
+        constexpr int businessStatus = 0;
+        client->senddevcommand(subcommand.data(), nullptr, q, businessStatus, al);
+    }
     else
     {
-        std::vector<std::string> param;
-        if (isCampaingProvided) param.emplace_back("-c");
-        if (isGroupIdProvided) param.emplace_back("-g");
-        if (!param.empty())
-        {
-            std::cout << "devcommand " << subcommand << " will ignore unrequired";
-            std::for_each(std::begin(param), std::end(param), printElement);
-            std::cout << " provided options\n";
-        }
+        notifyIgnoredParams({Param{isCampaingProvided, "-c"},
+                             Param{isGroupIdProvided, "-g"},
+                             Param{isQuotaLengthInMonths, "-q"},
+                             Param{isAccountLevel, "-l"}});
 
         client->senddevcommand(subcommand.data(), isEmailProvided ? email.c_str() : nullptr);
     }
@@ -4340,9 +4415,11 @@ static void exec_fuseflags(autocomplete::ACState& state)
 
     std::string flushDelay;
     std::string logLevel;
+    std::string fileExplorerView;
 
     state.extractflagparam("-flush-delay", flushDelay);
     state.extractflagparam("-log-level", logLevel);
+    state.extractflagparam("-file-explorer-view", fileExplorerView);
 
     auto flags = client->mFuseService.serviceFlags();
 
@@ -4352,47 +4429,32 @@ static void exec_fuseflags(autocomplete::ACState& state)
     if (!logLevel.empty())
         flags.mLogLevel = toLogLevel(logLevel);
 
+    if (!fileExplorerView.empty())
+        flags.mFileExplorerView = fuse::toFileExplorerView(fileExplorerView);
+
     parseCacheFlags(flags.mInodeCacheFlags);
     parseExecutorFlags(flags.mMountExecutorFlags, "mount");
     parseExecutorFlags(flags.mServiceExecutorFlags, "service");
 
     client->mFuseService.serviceFlags(flags);
 
-    std::cout << "Cache Clean Age Threshold: "
-              << flags.mInodeCacheFlags.mCleanAgeThreshold.count()
+    std::cout << "Cache Clean Age Threshold: " << flags.mInodeCacheFlags.mCleanAgeThreshold.count()
               << "\n"
-              << "Cache Clean Interval: "
-              << flags.mInodeCacheFlags.mCleanInterval.count()
+              << "Cache Clean Interval: " << flags.mInodeCacheFlags.mCleanInterval.count() << "\n"
+              << "Cache Clean Size Threshold: " << flags.mInodeCacheFlags.mCleanSizeThreshold
               << "\n"
-              << "Cache Clean Size Threshold: "
-              << flags.mInodeCacheFlags.mCleanSizeThreshold
-              << "\n"
-              << "Cache Max Size: "
-              << flags.mInodeCacheFlags.mMaxSize
-              << "\n"
-              << "Flush Delay: "
-              << flags.mFlushDelay.count()
+              << "Cache Max Size: " << flags.mInodeCacheFlags.mMaxSize << "\n"
+              << "Flush Delay: " << flags.mFlushDelay.count() << "s\n"
+              << "Log Level: " << toString(flags.mLogLevel) << "\n"
+              << "File Explorer View: " << toString(flags.mFileExplorerView) << "\n"
+              << "Mount Max Thread Count: " << flags.mMountExecutorFlags.mMaxWorkers << "\n"
+              << "Mount Max Thread Idle Time: " << flags.mMountExecutorFlags.mIdleTime.count()
               << "s\n"
-              << "Log Level: "
-              << toString(flags.mLogLevel)
-              << "\n"
-              << "Mount Max Thread Count: "
-              << flags.mMountExecutorFlags.mMaxWorkers
-              << "\n"
-              << "Mount Max Thread Idle Time: "
-              << flags.mMountExecutorFlags.mIdleTime.count()
+              << "Mount Min Thread Count: " << flags.mMountExecutorFlags.mMinWorkers << "\n"
+              << "Service Max Thread Count: " << flags.mServiceExecutorFlags.mMaxWorkers << "\n"
+              << "Service Max Thread Idle Time: " << flags.mServiceExecutorFlags.mIdleTime.count()
               << "s\n"
-              << "Mount Min Thread Count: "
-              << flags.mMountExecutorFlags.mMinWorkers
-              << "\n"
-              << "Service Max Thread Count: "
-              << flags.mServiceExecutorFlags.mMaxWorkers
-              << "\n"
-              << "Service Max Thread Idle Time: "
-              << flags.mServiceExecutorFlags.mIdleTime.count()
-              << "s\n"
-              << "Service Min Thread Count: "
-              << flags.mServiceExecutorFlags.mMinWorkers
+              << "Service Min Thread Count: " << flags.mServiceExecutorFlags.mMinWorkers
               << std::endl;
 }
 
@@ -4913,6 +4975,7 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
+    p->Add(exec_useragent, sequence(text("useragent"), opt(param("new_user_agent"))));
     p->Add(exec_login, sequence(text("login"), opt(flag("-fresh")), either(sequence(param("email"), opt(param("password"))),
                                                       sequence(exportedLink(false, true), opt(param("auth_key"))),
                                                       param("session"),
@@ -5113,10 +5176,15 @@ autocomplete::ACN autocompleteSyntax()
                                                                           sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
-    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"),
-                                     opt(sequence(flag("-e"), param("email"))),
-                                     opt(sequence(flag("-c"), param("campaign"),
-                                                  flag("-g"), param("group_id")))));
+    p->Add(exec_devcommand,
+           sequence(text("devcommand"),
+                    param("subcommand"),
+                    opt(sequence(flag("-e"), param("email"))),
+                    opt(sequence(flag("-c"), param("campaign"), flag("-g"), param("group_id"))),
+                    opt(sequence(flag("-q"),
+                                 param("quota_in_months"),
+                                 flag("-l"),
+                                 param("account_level")))));
 #endif
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
@@ -5381,36 +5449,25 @@ autocomplete::ACN autocompleteSyntax()
                     localFSFile("database"),
                     wholenumber(0)));
 
-    p->Add(exec_fuseflags,
-           sequence(text("fuse"),
-                    text("flags"),
-                    repeat(either(sequence(flag("-cache-clean-age-threshold"),
-                                           wholenumber("seconds", 5 * 60)),
-                                  sequence(flag("-cache-clean-interval"),
-                                           wholenumber("seconds", 5 * 60)),
-                                  sequence(flag("-cache-clean-size-threshold"),
-                                           wholenumber("count", 64)),
-                                  sequence(flag("-cache-max-size"),
-                                           wholenumber("count", 256)),
-                                  sequence(flag("-flush-delay"),
-                                           wholenumber("seconds", 4)),
-                                  sequence(flag("-log-level"),
-                                           either(text("DEBUG"),
-                                                  text("ERROR"),
-                                                  text("INFO"),
-                                                  text("WARNING"))),
-                                  sequence(flag("-mount-max-thread-count"),
-                                           wholenumber("count", 16)),
-                                  sequence(flag("-mount-max-thread-idle-time"),
-                                           wholenumber("seconds", 16)),
-                                  sequence(flag("-mount-min-thread-count"),
-                                           wholenumber("count", 0)),
-                                  sequence(flag("-service-max-thread-count"),
-                                           wholenumber("count", 16)),
-                                  sequence(flag("-service-max-thread-idle-time"),
-                                           wholenumber("seconds", 16)),
-                                  sequence(flag("-service-min-thread-count"),
-                                           wholenumber("count", 0))))));
+    p->Add(
+        exec_fuseflags,
+        sequence(text("fuse"),
+                 text("flags"),
+                 repeat(either(
+                     sequence(flag("-cache-clean-age-threshold"), wholenumber("seconds", 5 * 60)),
+                     sequence(flag("-cache-clean-interval"), wholenumber("seconds", 5 * 60)),
+                     sequence(flag("-cache-clean-size-threshold"), wholenumber("count", 64)),
+                     sequence(flag("-cache-max-size"), wholenumber("count", 256)),
+                     sequence(flag("-flush-delay"), wholenumber("seconds", 4)),
+                     sequence(flag("-log-level"),
+                              either(text("DEBUG"), text("ERROR"), text("INFO"), text("WARNING"))),
+                     sequence(flag("-file-explorer-view"), either(text("NONE"), text("LIST"))),
+                     sequence(flag("-mount-max-thread-count"), wholenumber("count", 16)),
+                     sequence(flag("-mount-max-thread-idle-time"), wholenumber("seconds", 16)),
+                     sequence(flag("-mount-min-thread-count"), wholenumber("count", 0)),
+                     sequence(flag("-service-max-thread-count"), wholenumber("count", 16)),
+                     sequence(flag("-service-max-thread-idle-time"), wholenumber("seconds", 16)),
+                     sequence(flag("-service-min-thread-count"), wholenumber("count", 0))))));
 
     p->Add(exec_fusemountadd,
            sequence(text("fuse"),
@@ -8118,6 +8175,25 @@ void exec_apiurl(autocomplete::ACState& s)
     }
 }
 
+void exec_useragent(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        cout << "Current UserAgent = " << client->useragent << endl;
+    }
+    else if (client->loggedin() != NOTLOGGEDIN)
+    {
+        cout << "You must not be logged in, to change UserAgent" << endl;
+    }
+    else if (s.words.size() == 2)
+    {
+        auto newUserAgent = s.words[1].s;
+        client->useragent.replace(0, megacliUserAgent.size(), newUserAgent);
+        client->httpio->setuseragent(&newUserAgent);
+        megacliUserAgent = newUserAgent;
+    }
+}
+
 void exec_passwd(autocomplete::ACState&)
 {
     if (client->loggedin() != NOTLOGGEDIN)
@@ -8267,9 +8343,9 @@ void exec_whoami(autocomplete::ACState& s)
         if ((u = client->finduser(client->me)))
         {
             cout << "Account e-mail: " << u->email << " handle: " << Base64Str<MegaClient::USERHANDLE>(client->me) << endl;
-            if (client->signkey)
+            if (client->mEd255Key)
             {
-                string pubKey((const char *)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                string pubKey((const char*)client->mEd255Key->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
                 cout << "Credentials: " << AuthRing::fingerprint(pubKey, true) << endl;
             }
         }
@@ -10345,30 +10421,27 @@ void DemoApp::nodes_current()
 
 void DemoApp::account_updated()
 {
+    LOG_debug << "Account has been upgraded/downgraded.";
+}
+
+void DemoApp::notify_confirmation(const char* email)
+{
+    // Upon "uac" action packet. Cryptographic system initialized, ready for login.
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed by another client. Proceed to login with credentials.";
-    }
-    else
-    {
-        LOG_debug << "Account has been upgraded/downgraded.";
+        LOG_debug << "Account setup completed with email " << email << ".";
+        cout << "Account setup completed with email " << email
+             << ". Proceed to login with credentials." << endl;
     }
 }
 
-void DemoApp::notify_confirmation(const char *email)
+void DemoApp::notify_confirm_user_email(handle user, const char* email)
 {
+    // Upon "uec" action packet. Account confirmed with the signup link.
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with email " << email << ".";
-    }
-}
-
-void DemoApp::notify_confirm_user_email(handle user, const char *email)
-{
-    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
-    {
-        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
-        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials." << endl;
+        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email "
+                  << email;
     }
 }
 
@@ -11318,9 +11391,7 @@ int main(int argc, char* argv[])
                             dbAccess,
                             gfx,
                             "Gk8DyQBS",
-                            "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
-                            "." TOSTRING(MEGA_MINOR_VERSION)
-                            "." TOSTRING(MEGA_MICRO_VERSION),
+                            megacliUserAgent.c_str(),
                             2,
                             clientType);
 
@@ -12190,27 +12261,27 @@ void exec_syncstatus(autocomplete::ACState& s)
         return std::to_string(value) + *suffix + "B";
     };
 
-    // Display status information to the user.
-    for (auto& info : results)
+    auto getProgress = [](SyncStatusInfo& i) -> double
     {
-        cout << "Sync "
-             << toHandle(info.mBackupID)
-             << ":\n"
-             << "  Name: "
-             << info.mName
-             << "\n"
-             << "  Total number of synced nodes: "
-             << info.mTotalSyncedNodes
-             << "\n"
-             << "  Total size of synced files: "
-             << toSuffixedString(info.mTotalSyncedBytes)
-             << "\n"
-             << "  Transfer progress: "
-             << info.mTransferCounts.progress(0) * 100.0
-             << "%\n"
-             << "  Transfer speed: "
-             << toSuffixedString(speeds[info.mBackupID])
-             << "/s\n";
+        auto p = i.mTransferCounts.progress(0);
+        if (p > 1.0)
+        {
+            const std::string errMsg = "exec_syncstatus: Invalid reportCounts progress value";
+            LOG_err << errMsg;
+            assert(false && errMsg.c_str());
+        }
+        return p * 100.0;
+    };
+
+    // Display status information to the user.
+    for (auto& info: results)
+    {
+        cout << "Sync " << toHandle(info.mBackupID) << ":\n"
+             << "  Name: " << info.mName << "\n"
+             << "  Total number of synced nodes: " << info.mTotalSyncedNodes << "\n"
+             << "  Total size of synced files: " << toSuffixedString(info.mTotalSyncedBytes) << "\n"
+             << "  Transfer progress: " << getProgress(info) << "%\n"
+             << "  Transfer speed: " << toSuffixedString(speeds[info.mBackupID]) << "/s\n";
     }
 }
 

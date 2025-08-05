@@ -2495,17 +2495,17 @@ public:
     SymmCipher tckey;
 
     // account access (full account): RSA private key
-    AsymmCipher asymkey;
-    string mPrivKey;    // serialized version for apps
+    AsymmCipher mPrivateRsaKey;
+    string mSerializedPrivateRsaKey; // serialized version for apps
 
     // RSA public key
-    AsymmCipher pubk;
+    AsymmCipher mPublicRsaKey;
 
     // EdDSA signing key (Ed25519 private key seed).
-    EdDSA *signkey;
+    EdDSA* mEd255Key;
 
     // ECDH key (x25519 private key).
-    ECDH *chatkey;
+    ECDH* mX255Key;
 
     // set when keys for every current contact have been checked
     AuthRingsMap mAuthRings;

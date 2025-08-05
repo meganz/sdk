@@ -13,8 +13,14 @@ macro(load_sdklib_libraries)
             target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium)
         endif()
 
-        find_package(unofficial-sqlite3 REQUIRED)
-        target_link_libraries(SDKlib PRIVATE unofficial::sqlite3::sqlite3)
+        if(IOS)
+            # IOS requires the system sqlite3 libray
+            find_package(SQLite3 REQUIRED)
+            target_link_libraries(SDKlib PRIVATE SQLite::SQLite3)
+        else()
+            find_package(unofficial-sqlite3 REQUIRED)
+            target_link_libraries(SDKlib PRIVATE unofficial::sqlite3::sqlite3)
+        endif()
 
         find_package(CURL REQUIRED)
         target_link_libraries(SDKlib PRIVATE CURL::libcurl)

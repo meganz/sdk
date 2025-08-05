@@ -1,7 +1,5 @@
 #pragma once
 
-#include <functional>
-
 #include <mega/common/activity_monitor.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/lockable.h>
@@ -9,6 +7,7 @@
 #include <mega/common/query.h>
 #include <mega/common/task_executor_flags_forward.h>
 #include <mega/fuse/common/file_cache_forward.h>
+#include <mega/fuse/common/file_explorer_view.h>
 #include <mega/fuse/common/inode_db_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
 #include <mega/fuse/common/mount_db_forward.h>
@@ -17,8 +16,9 @@
 #include <mega/fuse/common/service_callbacks.h>
 #include <mega/fuse/platform/mount_forward.h>
 #include <mega/fuse/platform/service_context_forward.h>
-
 #include <mega/types.h>
+
+#include <functional>
 
 namespace mega
 {
@@ -130,6 +130,9 @@ class MountDB
     // What queries do we perform?
     mutable Queries mQueries;
 
+    // What file explorer view flags
+    std::atomic<FileExplorerView> mFileExplorerView{FILE_EXPLORER_VIEW_LIST};
+
 protected:
     MountDB(platform::ServiceContext& context);
 
@@ -181,6 +184,12 @@ public:
 
     // Query executor flags.
     common::TaskExecutorFlags executorFlags() const;
+
+    // Update file explorer view.
+    void fileExplorerView(FileExplorerView view);
+
+    // Query file explorer view.
+    FileExplorerView fileExplorerView() const;
 
     // Retrieve a reference to the file cache.
     FileCache& fileCache();

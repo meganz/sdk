@@ -23,6 +23,7 @@
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
 #include "mega.h"
+#include "mega/scoped_helpers.h"
 #include "sdk_test_data_provider.h"
 #include "test.h"
 
@@ -643,6 +644,7 @@ public:
     constexpr static unsigned MAX_VAULT_CHILDREN = 2;
     std::vector<PerApi> mApi;
     std::vector<MegaApiTestPointer> megaApi;
+    std::vector<ScopedDestructor> mAccountsRestorer;
 
     std::function<void(MegaTransfer*)> onTransferStartCustomCb;
     m_off_t onTransferStart_progress;
@@ -672,6 +674,7 @@ protected:
     void TearDown() override;
 
     void Cleanup();
+    void setTestAccountsToFree();
 
     int getApiIndex(MegaApi* api);
     bool getApiIndex(MegaApi* api, size_t& apindex);
@@ -1563,6 +1566,21 @@ public:
  * An object that will restore client's plan on destruction.
  */
 auto accountLevelRestorer(MegaApi& client) -> ScopedDestructor;
+
+/**
+ * @brief
+ * Return an object that will restore client's plan on destruction.
+ *
+ * @param clients
+ * Vector of pointers to valid/active MegaApi instances to perform the restoration
+ *
+ * @param idx
+ * Index of the MegaApi instance to use at restoration execution
+ *
+ * @return
+ * An object that will restore client's plan on destruction.
+ */
+ScopedDestructor accountLevelRestorer(std::vector<MegaApiTestPointer>& clients, unsigned int idx);
 
 /**
  * @brief

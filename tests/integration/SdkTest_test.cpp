@@ -25,6 +25,7 @@
 #include "gmock/gmock-matchers.h"
 #include "gtest_common.h"
 #include "integration_test_utils.h"
+#include "mega/account.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/types.h"
@@ -32,6 +33,7 @@
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
+#include "test.h"
 
 #include <gtest/gtest.h>
 
@@ -369,11 +371,19 @@ void MegaApiTestDeleter::operator()(MegaApiTest* p) const
 void SdkTest::SetUp()
 {
     SdkTestBase::SetUp();
+
+    setTestAccountsToFree();
 }
 
 void SdkTest::TearDown()
 {
     out() << "Test done, teardown starts";
+
+    LOG_info << "# SdkTest::TearDown - resetting accounts to initial level";
+    if (!mAccountsRestorer.empty())
+        LOG_info << "## resetting " << mAccountsRestorer.size() << " accounts";
+    mAccountsRestorer.clear();
+
     // do some cleanup
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
@@ -732,6 +742,43 @@ void SdkTest::Cleanup()
             }
         }
     }
+}
+
+void SdkTest::setTestAccountsToFree()
+{
+    LOG_info << "# SdkTest::setTestAccountsToFree";
+    auto totalAccounts = static_cast<unsigned int>(getEnvVarAccounts().size());
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(totalAccounts));
+
+    auto accountsIdx = Range(0u, totalAccounts);
+    std::for_each(begin(accountsIdx),
+                  end(accountsIdx),
+                  [this](const auto idx)
+                  {
+                      auto& client = megaApi[idx];
+                      auto level = value(getAccountLevel(*client));
+                      if (level.plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+                      {
+                          LOG_info << "## Account (" << idx << ") is free already";
+                          releaseMegaApi(idx);
+                          return;
+                      }
+
+                      if (!gFreeAccounts)
+                      {
+                          mAccountsRestorer.push_back(accountLevelRestorer(megaApi, idx));
+                      }
+
+                      LOG_info << "## Force account to free status. Originally at plan: "
+                               << level.plan << " months: " << level.months;
+                      auto result = setAccountLevel(*client,
+                                                    MegaAccountDetails::ACCOUNT_TYPE_FREE,
+                                                    level.months,
+                                                    nullptr);
+                      EXPECT_EQ(result, API_OK) << "Couldn't reset account to free: " << result;
+
+                      releaseMegaApi(idx);
+                  });
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
@@ -1841,7 +1888,9 @@ void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& ch
         inviteTestAccount(0, 1, "Hi contact. This is a test message");
     }
 
-    MegaHandle secondaryAccountHandle = megaApi[apiIndex + 1]->getMyUser()->getHandle();
+    std::unique_ptr<MegaUser> myUser(megaApi[apiIndex + 1]->getMyUser());
+    ASSERT_TRUE(myUser) << "Cannot retrieve my own user";
+    MegaHandle secondaryAccountHandle = myUser->getHandle();
     MegaHandle auxChatid = UNDEF;
     for (const auto &it: mApi[apiIndex].chats)
     {
@@ -1955,14 +2004,23 @@ void SdkTest::updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid
     ASSERT_NE(chat->getScheduledMeetingList(), nullptr) << "Chat doesn't have scheduled meetings";
     ASSERT_NE(chat->getScheduledMeetingList()->at(0), nullptr) << "Invalid scheduled meeting";
     const MegaScheduledMeeting* aux =  chat->getScheduledMeetingList()->at(0);
-    std::unique_ptr<MegaScheduledMeeting> sm(MegaScheduledMeeting::createInstance(aux->chatid(), aux->schedId(), aux->parentSchedId(),
-                                                                                  aux->organizerUserid(), aux->cancelled(),
-                                                                                  aux->timezone(), aux->startDateTime(), aux->endDateTime(),
-                                                                                  (std::string(aux->title())+ "_updated").c_str(),
-                                                                                  (std::string(aux->description())+ "_updated").c_str(),
-                                                                                  aux->attributes(), MEGA_INVALID_TIMESTAMP /*overrides*/,
-                                                                                  aux->flags(), aux->rules()));
-
+    std::unique_ptr<MegaScheduledRules> rules(aux->rules());
+    std::unique_ptr<MegaScheduledFlags> flags(aux->flags());
+    std::unique_ptr<MegaScheduledMeeting> sm(
+        MegaScheduledMeeting::createInstance(aux->chatid(),
+                                             aux->schedId(),
+                                             aux->parentSchedId(),
+                                             aux->organizerUserid(),
+                                             aux->cancelled(),
+                                             aux->timezone(),
+                                             aux->startDateTime(),
+                                             aux->endDateTime(),
+                                             (std::string(aux->title()) + "_updated").c_str(),
+                                             (std::string(aux->description()) + "_updated").c_str(),
+                                             aux->attributes(),
+                                             MEGA_INVALID_TIMESTAMP /*overrides*/,
+                                             flags.get(),
+                                             rules.get()));
 
     std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
     megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), nullptr/*chatTitle*/, tracker.get());
@@ -2308,6 +2366,26 @@ auto accountLevelRestorer(MegaApi& client) -> ScopedDestructor
     };
 
     // Return destructor to caller.
+    return destructor;
+}
+
+ScopedDestructor accountLevelRestorer(std::vector<MegaApiTestPointer>& clients, unsigned int idx)
+{
+    std::function<void()> destructor = []() {};
+
+    auto accountLevel = getAccountLevel(*clients[idx]);
+    if (auto result = ::result(accountLevel); result != API_OK)
+    {
+        EXPECT_EQ(result, API_OK) << "Couldn't retrieve account " << idx << " level";
+        return destructor;
+    }
+
+    destructor = [&clients, idx, level = value(accountLevel)]()
+    {
+        auto result = setAccountLevel(*clients[idx], level.plan, level.months, nullptr);
+        EXPECT_EQ(result, API_OK) << "Couldn't restore account " << idx << " level";
+    };
+
     return destructor;
 }
 
@@ -3410,20 +3488,9 @@ TEST_F(SdkTest, SdkTestUndelete)
     LOG_info << "___TEST Undelete___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-
-    // --- Validate the account ---
-    RequestTracker accDetailsTracker(megaApi[0].get());
-    megaApi[0]->getAccountDetails(&accDetailsTracker);
-    ASSERT_EQ(accDetailsTracker.waitForResult(), API_OK) << "Failed to get account details";
-    std::unique_ptr<MegaAccountDetails> accDtls(accDetailsTracker.request->getMegaAccountDetails());
-    ASSERT_TRUE(accDtls) << "Missing account details";
-    if (accDtls->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE)
-    {
-        string msg = "Skipped: actual test cannot be performed because account " + mApi[0].email + " does not have PRO level";
-        cout << msg << endl;
-        LOG_warn << msg;
-        return;
-    }
+    LOG_info << "# Set " << megaApi[0]->getMyEmail() << " account to Pro I plan";
+    auto restorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer), API_OK);
 
     LOG_info << cwd();
 
@@ -3933,6 +4000,8 @@ void SdkTest::cancelSchedMeetings()
             {
                 if (const MegaScheduledMeeting* aux = schedList->at(j); aux && !aux->cancelled())
                 {
+                    std::unique_ptr<MegaScheduledRules> rules(aux->rules());
+                    std::unique_ptr<MegaScheduledFlags> flags(aux->flags());
                     std::unique_ptr<MegaScheduledMeeting> sm(
                         MegaScheduledMeeting::createInstance(aux->chatid(),
                                                              aux->schedId(),
@@ -3946,8 +4015,8 @@ void SdkTest::cancelSchedMeetings()
                                                              aux->description(),
                                                              aux->attributes(),
                                                              MEGA_INVALID_TIMESTAMP /*overrides*/,
-                                                             aux->flags(),
-                                                             aux->rules()));
+                                                             flags.get(),
+                                                             rules.get()));
 
                     smTrackers.push_back(
                         std::unique_ptr<RequestTracker>(new RequestTracker(megaApi[i].get())));
@@ -8027,13 +8096,16 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     onTransferStart_progress = 0;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    ASSERT_TRUE(WaitFor(
-        [&exitFlagAfterResume]()
-        {
-            // wait for onTransferStart after login + fetchnodes
-            return exitFlagAfterResume.load();
-        },
-        60000));
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    ASSERT_TRUE(WaitFor(std::bind(
+                            [](const std::atomic<bool>& flag)
+                            {
+                                // wait for onTransferStart after login + fetchnodes
+                                return flag.load();
+                            },
+                            std::cref(exitFlagAfterResume)),
+                        60000));
 
     ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
         << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
@@ -8042,6 +8114,7 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     ASSERT_EQ(tProgressContiguousPreResume, tProgressContiguousAfterResume)
         << "Progress contiguous mismatch between logout and onTransferStart values (it shouldn't "
            "have changed)";
+#endif
 
     ASSERT_EQ(API_OK, doSetMaxConnections(0, 4))
         << "doSetMaxConnections failed or took more than 1 minute";
@@ -16592,13 +16665,15 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
-    ASSERT_TRUE(WaitFor(
-        [&exitFlagAfterResume]()
-        {
-            // wait for onTransferStart after login + fetchnodes
-            return exitFlagAfterResume.load();
-        },
-        60000));
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    ASSERT_TRUE(WaitFor(std::bind(
+                            [](const std::atomic<bool>& flag)
+                            {
+                                // wait for onTransferStart after login + fetchnodes
+                                return flag.load();
+                            },
+                            std::cref(exitFlagAfterResume)),
+                        60000));
 
     ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
         << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
@@ -16607,6 +16682,7 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     ASSERT_EQ(tProgressContiguousPreResume, tProgressContiguousAfterResume)
         << "Progress contiguous mismatch between logout and onTransferStart values (it shouldn't "
            "have changed)";
+#endif
 
     // 4. Check upload resumption
     timer.reset();
@@ -16702,13 +16778,15 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
-    ASSERT_TRUE(WaitFor(
-        [&exitFlagAfterResume]()
-        {
-            // wait for onTransferStart after login + fetchnodes
-            return exitFlagAfterResume.load();
-        },
-        60000));
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    ASSERT_TRUE(WaitFor(std::bind(
+                            [](const std::atomic<bool>& flag)
+                            {
+                                // wait for onTransferStart after login + fetchnodes
+                                return flag.load();
+                            },
+                            std::cref(exitFlagAfterResume)),
+                        60000));
 
     ASSERT_EQ(tProgressCompletedPreResume, tProgressCompletedAfterResume)
         << "Progress complete mismatch between logout and onTransferStart values (it shouldn't "
@@ -16717,6 +16795,7 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     ASSERT_EQ(tProgressContiguousPreResume, tProgressContiguousAfterResume)
         << "Progress contiguous mismatch between logout and onTransferStart values (it shouldn't "
            "have changed)";
+#endif
 
     // 8. Check download resumption
     timer.reset();

@@ -71,12 +71,12 @@ pipeline {
                         if [ -z \"\$FAILED\" ]; then
                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                 # Sequential run
-                                ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} &
+                                ./tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} &
                                 pid=\$!
                                 wait \$pid || FAILED=2
                             else
                                 # Parallel run
-                                ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                ./tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
                                 [ \"\${pipestatus[1]}\" != \"0\" ] && FAILED=2
                             fi
                         fi

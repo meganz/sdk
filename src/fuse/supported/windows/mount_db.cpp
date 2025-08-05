@@ -104,6 +104,25 @@ MountDB::MountDB(ServiceContext& context)
     FUSEDebug1("Mount DB constructed");
 }
 
+void MountDB::notifyFileExplorerSetter()
+{
+    auto getPrefixes = [this]()
+    {
+        auto mounts = get(true);
+        std::vector<std::wstring> prefixes;
+        std::transform(mounts.begin(),
+                       mounts.end(),
+                       std::back_inserter(prefixes),
+                       [](const MountInfo& mount)
+                       {
+                           return mount.mPath.asPlatformEncoded(true);
+                       });
+        return prefixes;
+    };
+    if (fileExplorerView() != FILE_EXPLORER_VIEW_NONE)
+        mFileExplorerSetter.notify(getPrefixes);
+}
+
 } // platform
 } // fuse
 } // mega

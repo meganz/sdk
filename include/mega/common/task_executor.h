@@ -1,15 +1,16 @@
 #pragma once
 
+#include <mega/common/logger_forward.h>
+#include <mega/common/task_executor.h>
+#include <mega/common/task_executor_flags.h>
+#include <mega/common/task_queue.h>
+
 #include <chrono>
 #include <condition_variable>
 #include <list>
 #include <memory>
 #include <mutex>
-
-#include <mega/common/logger_forward.h>
-#include <mega/common/task_executor.h>
-#include <mega/common/task_executor_flags.h>
-#include <mega/common/task_queue.h>
+#include <thread>
 
 namespace mega
 {
@@ -49,11 +50,17 @@ class TaskExecutor
     // Tracks who our workers are.
     WorkerList mWorkers;
 
+    // Called on worker thread start
+    virtual void workerStarted(std::thread::id){};
+
+    // Called on worker thread stop
+    virtual void workerStopped(std::thread::id){};
+
 public:
     explicit TaskExecutor(const TaskExecutorFlags& flags,
                           Logger& logger);
 
-    ~TaskExecutor();
+    virtual ~TaskExecutor();
 
     // Execute a task at some point in time.
     Task execute(std::function<void(const Task&)> function,

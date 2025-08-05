@@ -349,10 +349,6 @@ public:
     bool procresult(Result, JSON&) override;
 
     CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
-
-private:
-    std::unique_ptr<byte[]> privkBuffer;
-    unsigned len;
 };
 
 // set visibility
