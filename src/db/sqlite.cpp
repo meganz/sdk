@@ -1182,7 +1182,7 @@ void SqliteAccountState::updateCounterAndFlags(NodeHandle nodeHandle, uint64_t f
     sqlite3_reset(mStmtUpdateNodeAndFlags);
 }
 
-void SqliteAccountState::createIndexes()
+void SqliteAccountState::createIndexes(bool enableIndexesForSearching)
 {
     if (!db)
     {
@@ -1214,26 +1214,71 @@ void SqliteAccountState::createIndexes()
     }
 #endif
 
-    sql = "CREATE INDEX IF NOT EXISTS shareindex on nodes (share)";
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
+    if (enableIndexesForSearching)
     {
-        LOG_err << "Data base error while creating index (shareindex): " << sqlite3_errmsg(db);
+        sql = "CREATE INDEX IF NOT EXISTS shareindex on nodes (share)";
+        result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+        if (result)
+        {
+            LOG_err << "Data base error while creating index (shareindex): " << sqlite3_errmsg(db);
+        }
+
+        sql = "CREATE INDEX IF NOT EXISTS favindex on nodes (fav)";
+        result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+        if (result)
+        {
+            LOG_err << "Data base error while creating index (favindex): " << sqlite3_errmsg(db);
+        }
+
+        sql = "CREATE INDEX IF NOT EXISTS ctimeindex on nodes (type, ctime DESC)";
+        result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+        if (result)
+        {
+            LOG_err << "Data base error while creating index (ctimeindex): " << sqlite3_errmsg(db);
+        }
+    }
+}
+
+void SqliteAccountState::dropSearchDBIndexes()
+{
+    if (!db)
+    {
+        return;
     }
 
-    sql = "CREATE INDEX IF NOT EXISTS favindex on nodes (fav)";
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
+    assert(!inTransaction());
+    // Finalise all statements
+    finalise();
+    begin();
+
+    const std::vector<std::string> indicesToDelete = {"shareindex", "favindex", "ctimeindex"};
+    for (const auto& indexName: indicesToDelete)
     {
-        LOG_err << "Data base error while creating index (favindex): " << sqlite3_errmsg(db);
+        sqlite3_stmt* stmt = nullptr;
+        const std::string query = "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?";
+
+        if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) == SQLITE_OK)
+        {
+            sqlite3_bind_text(stmt, 1, indexName.c_str(), -1, SQLITE_TRANSIENT);
+
+            if (sqlite3_step(stmt) == SQLITE_ROW)
+            {
+                sqlite3_finalize(stmt);
+                const std::string dropStmt = "DROP INDEX " + indexName + ";";
+                if (sqlite3_exec(db, dropStmt.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK)
+                {
+                    LOG_err << "Data base error while dropping index (" << indexName
+                            << "): " << sqlite3_errmsg(db);
+                }
+            }
+            else
+            {
+                sqlite3_finalize(stmt);
+            }
+        }
     }
 
-    sql = "CREATE INDEX IF NOT EXISTS ctimeindex on nodes (type, ctime DESC)";
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
-    {
-        LOG_err << "Data base error while creating index (ctimeindex): " << sqlite3_errmsg(db);
-    }
+    commit();
 }
 
 void SqliteAccountState::remove()

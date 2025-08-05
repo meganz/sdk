@@ -449,6 +449,9 @@ public:
     // This method is called when initial fetch nodes is finished
     // Initialize node counters and create indexes at DB
     void initCompleted();
+    // Drop indexes used for search funtionalities
+    // These indixes aren't required in some apps (S4)
+    void dropSearchDBIndexes();
 
     std::shared_ptr<Node> getNodeFromNodeManagerNode(NodeManagerNode& nodeManagerNode);
 

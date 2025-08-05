@@ -1765,6 +1765,8 @@ public:
     // lang URI component for API requests
     string lang;
 
+    std::atomic<bool> mEnableSearchDBIndexes{true};
+
     struct FolderLink {
         // public handle of the folder link ('&n=' param in the POST)
         handle mPublicHandle = UNDEF;
@@ -2557,6 +2559,13 @@ public:
     string getAuthURI(bool supressSID = false, bool supressAuthKey = false);
 
     bool setlang(string *code);
+
+    // Enable create DB indexes for queries used in search functionality
+    // By default is true (reset to default value at locallogout)
+    void enableSearchDBIndexes(bool enable);
+    // Drop DB indexes for queries used in search functionality
+    // It should be call just after open the DB
+    void dropSearchDBIndexes();
 
     // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
     error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
