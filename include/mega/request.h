@@ -153,6 +153,7 @@ public:
 
 };
 
+// RequestDispatcher for querying action packets
 class MEGA_API SCRequestDispatcher
 {
     Request inflightreq;
@@ -162,6 +163,8 @@ public:
     void setReq(Command* c);
     void clear();
     size_t chunkedProgress();
+
+    // processing chunk of json str for server-client
     size_t serverChunk(const char* chunk, MegaClient* client);
 };
 } // namespace

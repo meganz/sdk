@@ -306,7 +306,7 @@ Node* findCloneNodeCandidate(MegaClient& mc, const SyncUpload_inClient& upload)
     };
 
 
-// If MAC Comparison is enbaled, pass an instance of FileAccess into the predicate
+// If MAC Comparison is enabled, pass an instance of FileAccess into the predicate
 std::unique_ptr<FileAccess> fa =
 #ifdef CLONE_NODE_IF_MAC_MATCH
         mc.fsaccess->newfileaccess();

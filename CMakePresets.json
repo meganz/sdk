@@ -52,6 +52,8 @@
                 "ENABLE_SDKLIB_TESTS": "ON",
                 "ENABLE_SDKLIB_WERROR": "ON",
                 "ENABLE_SYNC": "ON",
+                "CLONE_NODE_IF_MAC_MATCH": "ON",
+                "BUFFER_ACTION_PACKETS": "ON",
                 "ENABLE_TSAN": "OFF",
                 "ENABLE_UBSAN": "OFF"
             }

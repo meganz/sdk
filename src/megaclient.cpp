@@ -3028,9 +3028,9 @@ void MegaClient::exec()
         // handle API server-client requests
         if (
 #ifndef BUFFER_ACTION_PACKETS
-            !jsonsc.pos 
+            !jsonsc.pos &&
 #endif
-            && !pendingscUserAlerts && pendingsc)
+            !pendingscUserAlerts && pendingsc)
         {
             #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
                 if (globalMegaTestHooks.interceptSCRequest)
@@ -3054,6 +3054,7 @@ void MegaClient::exec()
                 }
 
 #ifdef BUFFER_ACTION_PACKETS
+                // skip json process if action packets buffering is enabled
                 pendingsc.reset();
                 screqs.clear();
                 btsc.reset();
@@ -3207,7 +3208,7 @@ void MegaClient::exec()
 
             case REQ_INFLIGHT:
 #ifdef BUFFER_ACTION_PACKETS
-                // buffer action packets
+                // buffer action packets, if the request is still pending
                 if (pendingsc->contentlength > 0)
                 {
                     if (pendingsc->mChunked)
@@ -3235,7 +3236,8 @@ void MegaClient::exec()
         }
 
 #ifdef BUFFER_ACTION_PACKETS
-        if (pendingsc)
+        // if pendingsc has been reset, process buffered actions, if there are any
+        if (!pendingsc && bufferedsc.size())
         {
             procbufferedsc();
         }
@@ -5773,20 +5775,12 @@ bool MegaClient::procbufferedsc()
 
     std::shared_ptr<Node> lastAPDeletedNode;
 
+    // handle list of buffered actions
     for (const nameid& action: bufferedsc)
     {
+        //TODO: Check if it is ok to process the current action packet
         switch (action)
         {
-            case makeNameid("w"):
-                jsonsc.storeobject(&scnotifyurl);
-                break;
-
-            case makeNameid("ir"):
-                // when spoonfeeding is in action, there may still be more actionpackets to be
-                // delivered.
-                insca_notlast = jsonsc.getint() == 1;
-                break;
-
             case makeNameid("sn"):
                 // the sn element is guaranteed to be the last in sequence (except for notification
                 // requests (c=50))
@@ -6002,6 +5996,7 @@ bool MegaClient::procbufferedsc()
         }
     }
 
+    sc_checkSequenceTag(string());
     bufferedsc.clear();
 
     // end of processing action packets (case EOO)

@@ -7308,26 +7308,37 @@ CommandQueryActionPackets::CommandQueryActionPackets(MegaClient* client)
     mFilters.emplace("{[a{\"a",[this, client](JSON* json)
     {
         auto name   {json->getnameidvalue()};
-        client->bufferedsc.emplace_back(name);
+        if (!client->statecurrent)
+        {
+            client->fnstats.actionPackets++;
+        }
+
+        if (!Utils::startswith(json->pos, "\"i\":\"") ||
+            memcmp(json->pos + 5, client->sessionid, sizeof client->sessionid) ||
+            json->pos[5 + sizeof client->sessionid] != '"' || name == name_id::d || name == 't')
+        {
+            client->bufferedsc.emplace_back(name);
+        }
+
         return true;
     });
 
     mFilters.emplace("{{w",
     [this, client](JSON* json)
     {
-        client->bufferedsc.emplace_back(makeNameid("w"));
+        json->storeobject(&client->scnotifyurl);
         return true;
     });
 
     mFilters.emplace("{\"ir",
     [this, client](JSON* json)
     {
-        client->bufferedsc.emplace_back(makeNameid("ir"));
+        client->insca_notlast = json->getint() == 1;
         return true;
     });
 
     mFilters.emplace("{\"sn",
-    [this, client](JSON* json)
+    [this, client](JSON*)
     {
         client->bufferedsc.emplace_back(makeNameid("sn"));
         return true;
@@ -7336,7 +7347,7 @@ CommandQueryActionPackets::CommandQueryActionPackets(MegaClient* client)
 
 CommandQueryActionPackets::~CommandQueryActionPackets() {}
 
-bool CommandQueryActionPackets::procresult(Result r, JSON& json)
+bool CommandQueryActionPackets::procresult(Result, JSON&)
 {
     return true;
 }
@@ -7344,6 +7355,17 @@ bool CommandQueryActionPackets::procresult(Result r, JSON& json)
 bool CommandQueryActionPackets::parsingFinished()
 {
     return true;
+}
+
+const char* CommandQueryActionPackets::getJSON(MegaClient* clientOfRequest)
+{
+    // reset all the sc channel state, prevent sending sc requests while fetchnodes is sent
+    // we wait until this moment, because when `f` is queued, there may be
+    // other commands queued ahead of it, and those may need sc responses in order
+    // to fully complete, and so we can't reset these members at that time.
+    clientOfRequest->resetScForFetchnodes();
+
+    return Command::getJSON(clientOfRequest);
 }
 
 CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph, int phtype, int64_t ts)

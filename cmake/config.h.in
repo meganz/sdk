@@ -36,6 +36,16 @@
 #cmakedefine ENABLE_ISOLATED_GFX 1
 #endif
 
+/* Define to enable action packets buffering. */
+#ifndef BUFFER_ACTION_PACKETS
+#cmakedefine BUFFER_ACTION_PACKETS 1
+#endif
+
+/* Define to enable cloning node if MAC matches local */
+#ifndef CLONE_NODE_IF_MAC_MATCH
+#cmakedefine CLONE_NODE_IF_MAC_MATCH 1
+#endif
+
 /* Define to indicate AIO presence in librt */
 #cmakedefine HAVE_AIO_RT 1
 
