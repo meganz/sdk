@@ -51,6 +51,9 @@ public:
     // Retrieve information about this file.
     FileInfo info() const;
 
+    // Purge this file from the service.
+    void purge(FilePurgeCallback callback);
+
     // What ranges of this file are currently in storage?
     FileRangeVector ranges() const;
 
@@ -62,10 +65,9 @@ public:
     // Reclaim this file's storage.
     void reclaim(FileReclaimCallback callback);
 
-    // Let the service know you want it to keep this file in storage.
-    void ref();
-
-    // Remove this file.
+    // Remove the file.
+    //
+    // Like purge above but the cloud file is removed, too.
     void remove(FileRemoveCallback callback);
 
     // Remove a previously added observer.

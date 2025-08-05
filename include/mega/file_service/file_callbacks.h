@@ -15,6 +15,7 @@ namespace file_service
 using FileAppendCallback = std::function<void(FileResult)>;
 using FileFetchCallback = std::function<void(FileResult)>;
 using FileFlushCallback = std::function<void(FileResult)>;
+using FilePurgeCallback = std::function<void(FileResult)>;
 using FileReadCallback = std::function<void(FileResultOr<FileReadResult>)>;
 using FileReclaimCallback = std::function<void(FileResultOr<std::uint64_t>)>;
 using FileRemoveCallback = std::function<void(FileResult)>;

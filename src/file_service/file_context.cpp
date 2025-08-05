@@ -1031,8 +1031,8 @@ bool FileContext::execute(FileRemoveRequest& request)
     // Convenience.
     auto handle = mInfo->handle();
 
-    // File's never been uploaded.
-    if (handle.isUndef())
+    // We only need to remove the file from the service.
+    if (handle.isUndef() || request.mServiceOnly)
     {
         // Convenience.
         auto& database = mService.database();

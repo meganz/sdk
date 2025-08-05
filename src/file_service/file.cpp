@@ -69,6 +69,11 @@ FileInfo File::info() const
     return mContext->info();
 }
 
+void File::purge(FilePurgeCallback callback)
+{
+    return mContext->remove(FileRemoveRequest{std::move(callback), true});
+}
+
 FileRangeVector File::ranges() const
 {
     return mContext->ranges();
@@ -99,7 +104,7 @@ void File::ref()
 
 void File::remove(FileRemoveCallback callback)
 {
-    mContext->remove(FileRemoveRequest{std::move(callback)});
+    mContext->remove(FileRemoveRequest{std::move(callback), false});
 }
 
 void File::removeObserver(FileEventObserverID id)
