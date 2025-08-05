@@ -148,9 +148,6 @@ public:
     // How large does the filesystem say this file is?
     std::uint64_t reportedSize() const override;
 
-    // Update this file's conceptual size.
-    void size(std::uint64_t size);
-
     // How large is this file conceptually?
     std::uint64_t size() const override;
 

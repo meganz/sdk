@@ -211,11 +211,6 @@ std::uint64_t FileInfoContext::reportedSize() const
     return get(&FileInfoContext::mReportedSize);
 }
 
-void FileInfoContext::size(std::uint64_t size)
-{
-    set(&FileInfoContext::mSize, size);
-}
-
 std::uint64_t FileInfoContext::size() const
 {
     return get(&FileInfoContext::mSize);
