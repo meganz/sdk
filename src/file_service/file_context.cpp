@@ -431,7 +431,7 @@ try
     addRange(range, transaction);
 
     // Update the file's size.
-    updateSize(transaction);
+    updateSize(mInfo->size(), transaction);
 
     // Remove obsolete ranges from memory.
     mRanges.remove(begin, end);
@@ -602,7 +602,7 @@ bool FileContext::execute(FileAppendRequest& request)
     updateAccessAndModificationTimes(modified, modified, transaction);
 
     // Update the file's size.
-    updateSize(transaction);
+    updateSize(range.mEnd, transaction);
 
     // Remove obsolete ranges from memory.
     mRanges.remove(candidate, mRanges.end());
@@ -1000,7 +1000,7 @@ bool FileContext::execute(FileReclaimRequest& request)
     mRanges.clear();
 
     // Update the file's size.
-    updateSize(transaction);
+    updateSize(mInfo->size(), transaction);
 
     // Persist our changes.
     transaction.commit();
@@ -1142,7 +1142,7 @@ bool FileContext::execute(FileTruncateRequest& request)
     updateAccessAndModificationTimes(modified, modified, transaction);
 
     // Update the file's size in the database.
-    updateSize(transaction);
+    updateSize(newSize, transaction);
 
     // Persist our changes.
     transaction.commit();
@@ -1271,7 +1271,7 @@ bool FileContext::execute(FileWriteRequest& request)
     updateAccessAndModificationTimes(modified, modified, transaction);
 
     // Update the file's size in the database.
-    updateSize(transaction);
+    updateSize(std::max(mInfo->size(), effectiveRange.mEnd), transaction);
 
     // Remove obsolete ranges from memory.
     mRanges.remove(begin, end);
@@ -1540,14 +1540,14 @@ void FileContext::updateAccessAndModificationTimes(std::int64_t accessed,
     query.execute();
 }
 
-void FileContext::updateSize(Transaction& transaction)
+void FileContext::updateSize(std::uint64_t size, Transaction& transaction)
 {
     auto query = transaction.query(mService.queries().mSetFileSize);
 
     query.param(":allocated_size").set(mInfo->allocatedSize());
     query.param(":id").set(mInfo->id());
     query.param(":reported_size").set(mInfo->reportedSize());
-    query.param(":size").set(mInfo->size());
+    query.param(":size").set(size);
 
     query.execute();
 }
