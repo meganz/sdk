@@ -72,6 +72,24 @@ using fuse::testing::randomName;
 using fuse::testing::waitFor;
 using ::testing::ElementsAre;
 
+// Forward declaration so we can keep things ordered.
+template<typename T>
+struct IsFuture;
+
+template<typename T>
+constexpr auto IsFutureV = IsFuture<T>::value;
+
+// Check if function(parameters, ...) is an asynchronous function call.
+template<typename Function, typename... Parameters>
+struct IsAsynchronousFunctionCall:
+    public std::conjunction<std::is_invocable<Function, Parameters...>,
+                            IsFuture<std::invoke_result_t<Function, Parameters...>>>
+{}; // IsAsynchronousFunctionCall<Function, Parameters...>
+
+template<typename Function, typename... Parameters>
+constexpr auto IsAsynchronousFunctionCallV =
+    IsAsynchronousFunctionCall<Function, Parameters...>::value;
+
 // Determine the value returned by an std::future.
 template<typename T>
 struct FutureResult
@@ -115,6 +133,9 @@ struct GenerateFailure<FileServiceResult>
         return FILE_SERVICE_UNEXPECTED;
     }
 }; // GenerateFailure<FileServiceResult>
+
+template<typename T>
+constexpr auto GenerateFailureV = GenerateFailure<T>::value();
 
 // Check whether T is an std::future.
 template<typename T>
