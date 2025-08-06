@@ -72,6 +72,20 @@ using fuse::testing::randomName;
 using fuse::testing::waitFor;
 using ::testing::ElementsAre;
 
+// Determine the value returned by an std::future.
+template<typename T>
+struct FutureResult
+{}; // FutureResult<T>
+
+template<typename T>
+struct FutureResult<std::future<T>>
+{
+    using type = T;
+}; // FutureResult<std::future<T>>
+
+template<typename T>
+using FutureResultT = typename FutureResult<T>::type;
+
 template<typename T>
 struct GenerateFailure;
 
