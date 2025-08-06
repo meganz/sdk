@@ -179,25 +179,6 @@ struct FileServiceTests: fuse::testing::Test
     // Perform fixture-wide setup.
     static void SetUpTestSuite();
 
-    // Execute an asynchronous request synchronously.
-    template<typename Function, typename... Parameters>
-    auto execute(Function&& function, Parameters&&... arguments)
-    {
-        // Execute function to kick off our request.
-        auto waiter =
-            std::invoke(std::forward<Function>(function), std::forward<Parameters>(arguments)...);
-
-        // Figure out the function's result type.
-        using Result = decltype(waiter.get());
-
-        // Request timed out.
-        if (waiter.wait_for(std::chrono::minutes(60)) == timeout)
-            return Result(GenerateFailure<Result>::value());
-
-        // Return result to our caller.
-        return waiter.get();
-    }
-
     // The content of the file we want to read.
     static std::string mFileContent;
 
@@ -230,6 +211,12 @@ static bool compare(const std::string& computed,
                     const std::string& expected,
                     std::uint64_t offset,
                     std::uint64_t length);
+
+// Execute an asynchronous request synchronously.
+template<typename Function, typename... Parameters>
+auto execute(Function&& function, Parameters&&... arguments)
+    -> std::enable_if_t<IsAsynchronousFunctionCallV<Function, Parameters...>,
+                        AsynchronousFunctionCallResultT<Function, Parameters...>>;
 
 // Fetch all of a file's content from the cloud.
 static auto fetch(File file) -> std::future<FileResult>;
@@ -2389,6 +2376,26 @@ bool compare(const std::string& computed,
 
     // Make sure the content matches our file.
     return !expected.compare(offset, length, computed);
+}
+
+template<typename Function, typename... Parameters>
+auto execute(Function&& function, Parameters&&... arguments)
+    -> std::enable_if_t<IsAsynchronousFunctionCallV<Function, Parameters...>,
+                        AsynchronousFunctionCallResultT<Function, Parameters...>>
+{
+    // Execute function to kick off our request.
+    auto waiter =
+        std::invoke(std::forward<Function>(function), std::forward<Parameters>(arguments)...);
+
+    // Figure out the function's result type.
+    using Result = decltype(waiter.get());
+
+    // Request timed out.
+    if (waiter.wait_for(std::chrono::minutes(60)) == timeout)
+        return Result(GenerateFailure<Result>::value());
+
+    // Return result to our caller.
+    return waiter.get();
 }
 
 auto fetch(File file) -> std::future<FileResult>
