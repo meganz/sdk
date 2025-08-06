@@ -750,7 +750,7 @@ protected:
 #endif
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
-    void cleanupChatLinks(const unsigned int nApi);
+    void cleanupChatLinks(const unsigned int nApi, std::set<MegaHandle>& skipChats);
     void cleanupChatrooms(const unsigned int nApi);
 #endif
     void onEvent(MegaApi* api, MegaEvent *event) override;

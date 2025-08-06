@@ -423,6 +423,7 @@ std::string SdkTest::getFilePrefix() const
 void SdkTest::Cleanup()
 {
     LOG_debug << "[SdkTest::Cleanup]";
+    std::set<MegaHandle> skipChats;
     mCleanupSuccess = true;
     cleanupLocalFiles();
     for (unsigned nApi = 0; nApi < mApi.size(); ++nApi)
@@ -435,7 +436,7 @@ void SdkTest::Cleanup()
 
 #ifdef ENABLE_CHAT
         cleanupSchedMeetings(nApi);
-        cleanupChatLinks(nApi);
+        cleanupChatLinks(nApi, skipChats);
         cleanupChatrooms(nApi);
 #endif
 
@@ -928,9 +929,8 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     mApi[apiIndex].callCustomCallbackCheck(mApi[apiIndex].megaApi->getMyUserHandleBinary());
 }
 
-void SdkTest::cleanupChatLinks(const unsigned int nApi)
+void SdkTest::cleanupChatLinks(const unsigned int nApi, std::set<MegaHandle>& skipChats)
 {
-    std::set<MegaHandle> skipChats;
     const std::string prefix{"SdkTest::Cleanup(RemoveChatLinks)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
@@ -939,15 +939,15 @@ void SdkTest::cleanupChatLinks(const unsigned int nApi)
     for (int i = 0u; i < chats->size(); ++i)
     {
         const MegaTextChat* c = chats->get(static_cast<unsigned>(i));
-        const auto numPeers = c->getPeerList() ? c->getPeerList()->size() : 0;
-        if (auto processChat = c->isPublicChat() && c->getOwnPrivilege() == PRIV_MODERATOR &&
-                               (numPeers || c->isGroup());
-            !processChat)
+        if (!c || skipChats.find(c->getHandle()) != skipChats.end())
         {
             continue;
         }
 
-        if (skipChats.find(c->getHandle()) != skipChats.end())
+        const auto numPeers = c->getPeerList() ? c->getPeerList()->size() : 0;
+        if (auto processChat = c->isPublicChat() && c->getOwnPrivilege() == PRIV_MODERATOR &&
+                               (numPeers || c->isGroup());
+            !processChat)
         {
             continue;
         }
