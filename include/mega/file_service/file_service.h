@@ -55,6 +55,12 @@ public:
     auto options() -> FileServiceResultOr<FileServiceOptions>;
 
     // Purge all files from storage.
+    //
+    // This function is intended to be used by integration tests.
+    //
+    // If you do happen to call it in a different context, be aware that
+    // this function will block the caller until all file (or file info)
+    // references have been dropped.
     auto purge() -> FileServiceResult;
 
     // Determine what ranges of a file are currently in storage.
