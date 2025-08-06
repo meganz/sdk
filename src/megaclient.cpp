@@ -82,7 +82,7 @@ const string MegaClient::REQSTATURL = "https://reqstat.api.mega.co.nz";
 
 // root URL for Website
 // MegaClient statics must be const or we get threading problems
-const string MegaClient::MEGAURL = "https://mega.nz";
+string MegaClient::MEGAURL = "https://mega.nz";
 
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
@@ -11102,6 +11102,10 @@ error MegaClient::readmiscflags(JSON *json)
                 int64_t value = json->getint();
                 if (value >= 0)
                 {
+                    if (tag == "site" && value == 1)
+                    {
+                        MegaClient::MEGAURL = "https://mega.app";
+                    }
                     mFeatureFlags.set(tag, static_cast<uint32_t>(value));
                 }
                 else

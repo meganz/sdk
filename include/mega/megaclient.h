@@ -1676,7 +1676,7 @@ public:
     static const string REQSTATURL;
 
     // root URL for Website
-    static const string MEGAURL;
+    static string MEGAURL;
 
     // newsignup link URL prefix
     static const char* newsignupLinkPrefix();
