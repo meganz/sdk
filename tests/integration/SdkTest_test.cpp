@@ -1001,7 +1001,6 @@ void SdkTest::cleanupChatLinks(const unsigned int nApi, std::set<MegaHandle>& sk
 
 void SdkTest::cleanupChatrooms(const unsigned int nApi)
 {
-    std::set<MegaHandle> skipChats;
     const std::string prefix{"SdkTest::Cleanup(RemoveChatrooms)"};
     LOG_debug << "# " << prefix;
     bool localCleanupSuccess{true};
@@ -1634,12 +1633,10 @@ void SdkTest::cleanupNodes(const unsigned int nApi)
         purgeVaultTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getVaultNode()}.get());
 #endif
 
-        // Some tests finish logged in but without call to fetch nodes root nodes are undefined
-        // yet
-        uint64_t nodesInRoot = 0;
-        if (std::unique_ptr<MegaNode> rootNode(megaApi[nApi]->getRootNode()); rootNode)
+        auto getFolderInfo =
+            [this, prefix, &localCleanupSuccess](unsigned nApi, MegaNode* n, uint64_t& nodesIn)
         {
-            if (auto res = synchronousFolderInfo(nApi, rootNode.get()); res != MegaError::API_OK)
+            if (auto res = synchronousFolderInfo(nApi, n); res != MegaError::API_OK)
             {
                 const string errDetails = "Cannot get Folder Info for rootnode";
                 localCleanupSuccess = false;
@@ -1651,54 +1648,31 @@ void SdkTest::cleanupNodes(const unsigned int nApi)
             }
             else
             {
-                nodesInRoot = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
-                                                    mApi[nApi].mFolderInfo->getNumFolders() +
-                                                    mApi[nApi].mFolderInfo->getNumVersions());
+                nodesIn = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
+                                                mApi[nApi].mFolderInfo->getNumFolders() +
+                                                mApi[nApi].mFolderInfo->getNumVersions());
             }
+        };
+
+        // Some tests finish logged in but without call to fetch nodes root nodes are undefined
+        // yet
+        uint64_t nodesInRoot = 0;
+        if (std::unique_ptr<MegaNode> rootNode(megaApi[nApi]->getRootNode()); rootNode)
+        {
+            getFolderInfo(nApi, rootNode.get(), nodesInRoot);
         }
 
         uint64_t nodesInRubbishBin = 0;
         if (std::unique_ptr<MegaNode> rubbishbinNode(megaApi[nApi]->getRubbishNode());
             rubbishbinNode)
         {
-            if (auto res = synchronousFolderInfo(nApi, rubbishbinNode.get());
-                res != MegaError::API_OK)
-            {
-                const string errDetails = "Cannot get Folder Info for rubbish bin";
-                localCleanupSuccess = false;
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(nApi),
-                                   res,
-                                   localCleanupSuccess);
-            }
-            else
-            {
-                nodesInRubbishBin = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
-                                                          mApi[nApi].mFolderInfo->getNumFolders() +
-                                                          mApi[nApi].mFolderInfo->getNumVersions());
-            }
+            getFolderInfo(nApi, rubbishbinNode.get(), nodesInRubbishBin);
         }
 
         uint64_t nodesInVault = 0;
         if (std::unique_ptr<MegaNode> vaultNode(megaApi[nApi]->getVaultNode()); vaultNode)
         {
-            if (auto res = synchronousFolderInfo(nApi, vaultNode.get()); res != API_OK)
-            {
-                const string errDetails = "Cannot get Folder Info for vault";
-                localCleanupSuccess = false;
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(nApi),
-                                   res,
-                                   localCleanupSuccess);
-            }
-            else
-            {
-                nodesInVault = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
-                                                     mApi[nApi].mFolderInfo->getNumFolders() +
-                                                     mApi[nApi].mFolderInfo->getNumVersions());
-            }
+            getFolderInfo(nApi, vaultNode.get(), nodesInVault);
         }
 
         if (nodesInRoot > 0 || nodesInRubbishBin > 0 || nodesInVault > 0)
