@@ -445,8 +445,8 @@ void SdkTest::Cleanup()
 #endif
 
         cleanupContactRequests(nApi);
-        cleanupContacts(nApi, alreadyRemoved);
         cleanupShares(nApi, alreadyRemoved);
+        cleanupContacts(nApi, alreadyRemoved);
         cleanupNodeLinks(nApi);
         cleanupNodes(nApi);
     }
