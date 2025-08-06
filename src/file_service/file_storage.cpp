@@ -15,7 +15,15 @@ using namespace common;
 
 FileAccessPtr FileStorage::openFile(const LocalPath& path, bool mustCreate)
 {
+    // So we can access the filesystem.
     auto file = mFilesystem->newfileaccess(false);
+
+    // Sanity.
+    assert(file);
+
+    // Should never happen but hey, just in case.
+    if (!file)
+        throw FSError1("Couldn't create file access instance");
 
     // Vulnerable to TOCTOU race.
     if (file->isfile(path) != !mustCreate || !file->fopen(path, true, true, FSLogging::noLogging))
