@@ -74,10 +74,39 @@ using ::testing::ElementsAre;
 
 // Forward declaration so we can keep things ordered.
 template<typename T>
+struct FutureResult;
+
+template<typename T>
+using FutureResultT = typename FutureResult<T>::type;
+
+template<typename Function, typename... Parameters>
+struct IsAsynchronousFunctionCall;
+
+template<typename Function, typename... Parameters>
+constexpr auto IsAsynchronousFunctionCallV =
+    IsAsynchronousFunctionCall<Function, Parameters...>::value;
+
+template<typename T>
 struct IsFuture;
 
 template<typename T>
 constexpr auto IsFutureV = IsFuture<T>::value;
+
+// Determine the value returned by an asynchronous function call.
+template<typename Function, typename... Parameters>
+struct AsynchronousFunctionCallResult
+{
+    // Ensure that function(parameters, ...) is an asynchronous call.
+    static_assert(IsAsynchronousFunctionCallV<Function, Parameters...>);
+
+    // Convenience.
+    using result = std::invoke_result_t<Function, Parameters...>;
+    using type = FutureResultT<result>;
+}; // AsynchronousFunctionCallResult<Function, Parameters...>
+
+template<typename Function, typename... Parameters>
+using AsynchronousFunctionCallResultT =
+    typename AsynchronousFunctionCallResult<Function, Parameters...>::type;
 
 // Check if function(parameters, ...) is an asynchronous function call.
 template<typename Function, typename... Parameters>
@@ -85,10 +114,6 @@ struct IsAsynchronousFunctionCall:
     public std::conjunction<std::is_invocable<Function, Parameters...>,
                             IsFuture<std::invoke_result_t<Function, Parameters...>>>
 {}; // IsAsynchronousFunctionCall<Function, Parameters...>
-
-template<typename Function, typename... Parameters>
-constexpr auto IsAsynchronousFunctionCallV =
-    IsAsynchronousFunctionCall<Function, Parameters...>::value;
 
 // Determine the value returned by an std::future.
 template<typename T>
@@ -100,9 +125,6 @@ struct FutureResult<std::future<T>>
 {
     using type = T;
 }; // FutureResult<std::future<T>>
-
-template<typename T>
-using FutureResultT = typename FutureResult<T>::type;
 
 template<typename T>
 struct GenerateFailure;
