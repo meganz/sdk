@@ -769,8 +769,8 @@ public:
     void resumeSession(const char *session, unsigned apiIndex = 0);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
-    void cleanupContacts(const unsigned int nApi, set<string>& alreadyRemoved);
-    void cleanupShares(const unsigned int nApi, set<string>& alreadyRemoved);
+    void cleanupContacts(const unsigned int nApi);
+    void cleanupShares(const unsigned int nApi);
     void cleanupNodeLinks(const unsigned int nApi);
     void cleanupNodes(const unsigned int nApi);
     void cleanupContactRequests(const unsigned int nApi);

@@ -424,7 +424,6 @@ void SdkTest::Cleanup()
 {
     LOG_debug << "[SdkTest::Cleanup]";
     mCleanupSuccess = true;
-    set<string> alreadyRemoved;
     cleanupLocalFiles();
     for (unsigned nApi = 0; nApi < mApi.size(); ++nApi)
     {
@@ -445,8 +444,8 @@ void SdkTest::Cleanup()
 #endif
 
         cleanupContactRequests(nApi);
-        cleanupShares(nApi, alreadyRemoved);
-        cleanupContacts(nApi, alreadyRemoved);
+        cleanupShares(nApi);
+        cleanupContacts(nApi);
         cleanupNodeLinks(nApi);
         cleanupNodes(nApi);
     }
@@ -1241,7 +1240,7 @@ void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
     }
 }
 
-void SdkTest::cleanupContacts(const unsigned int nApi, set<string>& alreadyRemoved)
+void SdkTest::cleanupContacts(const unsigned int nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(RemoveContacts)"};
     LOG_debug << "# " << prefix;
@@ -1282,16 +1281,8 @@ void SdkTest::cleanupContacts(const unsigned int nApi, set<string>& alreadyRemov
         // account, again the original disconnection may not have arrived by actionpacket
         // yet
         const string contactEmailStr{contactEmail};
-        if (alreadyRemoved.find(myEmailStr + contactEmailStr) != alreadyRemoved.end())
-            continue;
-        if (alreadyRemoved.find(contactEmailStr + myEmailStr) != alreadyRemoved.end())
-            continue;
-        alreadyRemoved.insert(myEmailStr + contactEmailStr);
-
         if (contacts->get(i)->getVisibility() == MegaUser::VISIBILITY_HIDDEN)
-        {
             continue;
-        }
 
         if (const auto result = synchronousRemoveContact(nApi, contacts->get(i)); result != API_OK)
         {
@@ -1313,7 +1304,7 @@ void SdkTest::cleanupContacts(const unsigned int nApi, set<string>& alreadyRemov
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::cleanupShares(const unsigned int nApi, set<string>& alreadyRemoved)
+void SdkTest::cleanupShares(const unsigned int nApi)
 {
     const std::string prefix{"SdkTest::Cleanup(RemoveShares)"};
     LOG_debug << "# " << prefix;
@@ -1349,40 +1340,34 @@ void SdkTest::cleanupShares(const unsigned int nApi, set<string>& alreadyRemoved
 
         if (auto email = inshare->getUser(); email)
         {
-            if ((alreadyRemoved.find(myEmailStr + email) == alreadyRemoved.end()) &&
-                (alreadyRemoved.find(email + myEmailStr) == alreadyRemoved.end()))
+            LOG_debug << prefix << "megaApi[" << nApi << "] [InShare = " << i
+                      << "] Removing inshare's contact ('" << string(myEmailStr + email) << "')...";
+
+            if (unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email)); shareUser)
             {
-                LOG_debug << prefix << "megaApi[" << nApi << "] [InShare = " << i
-                          << "] Removing inshare's contact (also add '"
-                          << string(myEmailStr + email) << "' as alreadyRemoved)...";
-                alreadyRemoved.insert(myEmailStr + email);
-                if (unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email)); shareUser)
-                {
-                    if (auto result = synchronousRemoveContact(nApi, shareUser.get());
-                        result != API_OK)
-                    {
-                        const string errDetails = "[Inshare = " + std::to_string(i) +
-                                                  "] Error removing inshare's contact (" +
-                                                  std::string{email} + ")";
-                        localCleanupSuccess = false;
-                        printCleanupErrMsg(prefix,
-                                           errDetails,
-                                           static_cast<unsigned>(nApi),
-                                           result,
-                                           localCleanupSuccess);
-                    }
-                }
-                else
+                if (auto result = synchronousRemoveContact(nApi, shareUser.get()); result != API_OK)
                 {
                     const string errDetails = "[Inshare = " + std::to_string(i) +
-                                              "] InShare has user (" + std::string{email} +
-                                              ") but the corresponding user does not exist";
+                                              "] Error removing inshare's contact (" +
+                                              std::string{email} + ")";
+                    localCleanupSuccess = false;
                     printCleanupErrMsg(prefix,
                                        errDetails,
                                        static_cast<unsigned>(nApi),
-                                       API_EINTERNAL,
-                                       true /*localCleanupSuccess*/);
+                                       result,
+                                       localCleanupSuccess);
                 }
+            }
+            else
+            {
+                const string errDetails = "[Inshare = " + std::to_string(i) +
+                                          "] InShare has user (" + std::string{email} +
+                                          ") but the corresponding user does not exist";
+                printCleanupErrMsg(prefix,
+                                   errDetails,
+                                   static_cast<unsigned>(nApi),
+                                   API_EINTERNAL,
+                                   true /*localCleanupSuccess*/);
             }
         }
 
@@ -1432,40 +1417,35 @@ void SdkTest::cleanupShares(const unsigned int nApi, set<string>& alreadyRemoved
 
             if (auto email = os->getUser())
             {
-                if ((alreadyRemoved.find(myEmailStr + email) == alreadyRemoved.end()) &&
-                    (alreadyRemoved.find(email + myEmailStr) == alreadyRemoved.end()))
-                {
-                    LOG_debug << prefix << "megaApi[" << nApi << "] [OutShare = " << i
-                              << "] Removing outshare's contact (also add '"
-                              << string(myEmailStr + email) << "' as alreadyRemoved)...";
-                    alreadyRemoved.insert(myEmailStr + email);
+                LOG_debug << prefix << "megaApi[" << nApi << "] [OutShare = " << i
+                          << "] Removing outshare's contact ('" << string(myEmailStr + email)
+                          << "')...";
 
-                    if (unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email)); shareUser)
+                if (unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email)); shareUser)
+                {
+                    auto result = synchronousRemoveContact(nApi, shareUser.get());
+                    if (result != API_OK && result)
                     {
-                        auto result = synchronousRemoveContact(nApi, shareUser.get());
-                        if (result != API_OK && result)
-                        {
-                            const string errDetails =
-                                "Removal of outshare's contact (" + string{email} + ")";
-                            localCleanupSuccess = false;
-                            printCleanupErrMsg(prefix,
-                                               errDetails,
-                                               static_cast<unsigned>(nApi),
-                                               result,
-                                               localCleanupSuccess);
-                        }
-                    }
-                    else
-                    {
-                        const string errDetails = "[OutShare = " + std::to_string(i) +
-                                                  "] OutShare has user (" + std::string{email} +
-                                                  ") but the corresponding user does not exist";
+                        const string errDetails =
+                            "Removal of outshare's contact (" + string{email} + ")";
+                        localCleanupSuccess = false;
                         printCleanupErrMsg(prefix,
                                            errDetails,
                                            static_cast<unsigned>(nApi),
-                                           API_EINTERNAL,
-                                           true /*localCleanupSuccess*/);
+                                           result,
+                                           localCleanupSuccess);
                     }
+                }
+                else
+                {
+                    const string errDetails = "[OutShare = " + std::to_string(i) +
+                                              "] OutShare has user (" + std::string{email} +
+                                              ") but the corresponding user does not exist";
+                    printCleanupErrMsg(prefix,
+                                       errDetails,
+                                       static_cast<unsigned>(nApi),
+                                       API_EINTERNAL,
+                                       true /*localCleanupSuccess*/);
                 }
             }
 
