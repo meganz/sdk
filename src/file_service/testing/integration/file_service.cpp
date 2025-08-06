@@ -102,6 +102,15 @@ struct GenerateFailure<FileServiceResult>
     }
 }; // GenerateFailure<FileServiceResult>
 
+// Check whether T is an std::future.
+template<typename T>
+struct IsFuture: public std::false_type
+{}; // IsFuture<T>
+
+template<typename T>
+struct IsFuture<std::future<T>>: public std::true_type
+{}; // IsFuture<std::future<T>>
+
 // Convenience.
 constexpr auto timeout = std::future_status::timeout;
 
