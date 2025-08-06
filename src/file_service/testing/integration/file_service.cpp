@@ -108,13 +108,6 @@ template<typename Function, typename... Parameters>
 using AsynchronousFunctionCallResultT =
     typename AsynchronousFunctionCallResult<Function, Parameters...>::type;
 
-// Check if function(parameters, ...) is an asynchronous function call.
-template<typename Function, typename... Parameters>
-struct IsAsynchronousFunctionCall:
-    public std::conjunction<std::is_invocable<Function, Parameters...>,
-                            IsFuture<std::invoke_result_t<Function, Parameters...>>>
-{}; // IsAsynchronousFunctionCall<Function, Parameters...>
-
 // Determine the value returned by an std::future.
 template<typename T>
 struct FutureResult
@@ -158,6 +151,13 @@ struct GenerateFailure<FileServiceResult>
 
 template<typename T>
 constexpr auto GenerateFailureV = GenerateFailure<T>::value();
+
+// Check if function(parameters, ...) is an asynchronous function call.
+template<typename Function, typename... Parameters>
+struct IsAsynchronousFunctionCall:
+    public std::conjunction<std::is_invocable<Function, Parameters...>,
+                            IsFuture<std::invoke_result_t<Function, Parameters...>>>
+{}; // IsAsynchronousFunctionCall<Function, Parameters...>
 
 // Check whether T is an std::future.
 template<typename T>
