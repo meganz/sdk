@@ -1088,6 +1088,11 @@ try
 
     query.execute();
 
+    // Remove any synthetic IDs saved for reuse.
+    query = transaction.query(mQueries.mRemoveFileIDs);
+
+    query.execute();
+
     // Reset the ID generator to its initial state.
     query = transaction.query(mQueries.mSetNextFileID);
 

@@ -22,6 +22,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mGetStorageUsed(database.query()),
     mRemoveFile(database.query()),
     mRemoveFileID(database.query()),
+    mRemoveFileIDs(database.query()),
     mRemoveFileRanges(database.query()),
     mRemoveFiles(database.query()),
     mSetFileAccessTime(database.query()),
@@ -99,6 +100,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
 
     mRemoveFileID = "delete from file_ids "
                     " where id = :id";
+
+    mRemoveFileIDs = "delete from file_ids";
 
     mRemoveFileRanges = "delete from file_ranges "
                         " where begin >= :begin "

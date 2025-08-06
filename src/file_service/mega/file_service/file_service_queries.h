@@ -25,6 +25,7 @@ struct FileServiceQueries
     common::Query mGetStorageUsed;
     common::Query mRemoveFile;
     common::Query mRemoveFileID;
+    common::Query mRemoveFileIDs;
     common::Query mRemoveFileRanges;
     common::Query mRemoveFiles;
     common::Query mSetFileAccessTime;
