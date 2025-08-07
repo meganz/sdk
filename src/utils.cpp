@@ -2501,6 +2501,39 @@ bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node)
     return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type);
 }
 
+node_comparisson_result CompareLocalFileWithNodeFpAndMac(class MegaClient& client,
+                                                         const LocalPath& path,
+                                                         const FileFingerprint& fp,
+                                                         const Node* node)
+{
+    if (!node || !fp.isvalid || !node->isvalid)
+    {
+        return NODE_COMP_EARGS;
+    }
+
+    if (fp != static_cast<const FileFingerprint&>(*node))
+    {
+        return NODE_COMP_DIFFERS_FP;
+    }
+
+    if (auto fa = client.fsaccess->newfileaccess();
+        fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
+    {
+        if (CompareLocalFileMetaMacWithNodeKey(fa.get(), node->nodekey(), node->type))
+        {
+            client.sendevent(800029, "Node found with same Fp and MAC than local file");
+            return NODE_COMP_EQUAL;
+        }
+        else
+        {
+            client.sendevent(800030, "Node found with same Fp but different MAC than local file");
+            return NODE_COMP_DIFFERS_MAC;
+        }
+    }
+
+    return NODE_COMP_EREAD;
+}
+
 void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f, bool discardable)
 {
     if (mThreads.empty())

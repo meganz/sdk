@@ -60,6 +60,15 @@ typedef enum
     FORMAT_ISO8601        = 1,  // 20221205T123045
 } date_time_format_t;
 
+typedef enum
+{
+    NODE_COMP_EREAD = -21,
+    NODE_COMP_EARGS = -2,
+    NODE_COMP_EQUAL = 0,
+    NODE_COMP_DIFFERS_FP = 1,
+    NODE_COMP_DIFFERS_MAC = 2,
+} node_comparisson_result;
+
 std::string backupTypeToStr(BackupType type);
 
 struct MEGA_API ChunkedHash
@@ -604,6 +613,29 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 bool CompareLocalFileMetaMacWithNodeKey(FileAccess* fa, const std::string& nodeKey, int type);
 
 bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
+
+/**
+ * @brief Compares a local file with a remote node based on fingerprint and MAC.
+ *
+ * This function checks whether a local file matches a remote node by comparing:
+ * 1. The fingerprint of the local file with the fingerprint of the node.
+ * 2. The MAC (Message Authentication Code) of the local file with the node key.
+ *
+ * @param client reference to the MegaClient instance.
+ * @param path Local path to the file to be compared.
+ * @param fp Fingerprint of the local file to be compared.
+ * @param node Pointer to the remote node to compare with.
+ * @return A value of type `node_comparisson_result` indicating the comparison result:
+ *         - NODE_COMP_EREAD: Error reading the local file.
+ *         - NODE_COMP_EARGS: Invalid arguments
+ *         - NODE_COMP_DIFFERS_FP: Fingerprints do not match.
+ *         - NODE_COMP_DIFFERS_MAC: Fingerprints match but MACs differ.
+ *         - NODE_COMP_EQUAL: Both fingerprint and MAC match.
+ */
+node_comparisson_result CompareLocalFileWithNodeFpAndMac(MegaClient& client,
+                                                         const LocalPath& path,
+                                                         const FileFingerprint& fp,
+                                                         const Node* node);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
