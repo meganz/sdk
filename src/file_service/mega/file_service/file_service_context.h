@@ -86,6 +86,15 @@ class FileServiceContext: private common::NodeEventObserver
 
     auto reclaimable() -> FileServiceResultOr<FileIDVector>;
 
+    template<typename ContextLock, typename DatabaseLock>
+    void remove(ContextLock&& contextLock,
+                DatabaseLock&& databaseLock,
+                FileID id,
+                common::Transaction& transaction);
+
+    template<typename Lock>
+    void removeFromDatabase(FileID id, Lock&& lock, common::Transaction& transaction);
+
     template<typename Lock, typename T>
     bool removeFromIndex(FileID id, Lock&& lock, FromFileIDMap<T>& map);
 

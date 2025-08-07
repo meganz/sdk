@@ -698,6 +698,44 @@ catch (std::runtime_error& exception)
     FSErrorF("Unable to purge removed files: %s", exception.what());
 }
 
+template<typename ContextLock, typename DatabaseLock>
+void FileServiceContext::remove([[maybe_unused]] ContextLock&& contextLock,
+                                DatabaseLock&& databaseLock,
+                                FileID id,
+                                common::Transaction& transaction)
+{
+    // Sanity.
+    assert(contextLock.mutex() == &mLock);
+    assert(contextLock.owns_lock());
+    assert(databaseLock.mutex() == &mDatabase);
+    assert(databaseLock.owns_lock());
+
+    // Remove the file from the database.
+    removeFromDatabase(id, databaseLock, transaction);
+
+    // Remove the file from storage.
+    mStorage.removeFile(id);
+}
+
+template<typename Lock>
+void FileServiceContext::removeFromDatabase(FileID id,
+                                            [[maybe_unused]] Lock&& lock,
+                                            Transaction& transaction)
+{
+    assert(lock.mutex() == &mDatabase);
+    assert(lock.owns_lock());
+
+    // Remove this file from the database.
+    auto query = transaction.query(mQueries.mRemoveFile);
+
+    query.param(":id").set(id);
+    query.execute();
+
+    // Deallocate the file's ID if necessary.
+    if (synthetic(id))
+        deallocateID(id, std::forward<Lock>(lock), transaction);
+}
+
 template<typename Lock, typename T>
 bool FileServiceContext::removeFromIndex(FileID id,
                                          [[maybe_unused]] Lock&& lock,
@@ -1202,18 +1240,8 @@ try
         return mInfoContextRemoved.notify_all();
     }
 
-    // Remove the file from the database.
-    auto query = transaction.query(mQueries.mRemoveFile);
-
-    query.param(":id").set(id);
-    query.execute();
-
-    // Deallocate the ID if it's synthetic.
-    if (synthetic(id))
-        deallocateID(id, lockDatabase, transaction);
-
-    // Remove the file from storage.
-    mStorage.removeFile(id);
+    // Remove the file.
+    remove(lockContexts, lockDatabase, id, transaction);
 
     // Persist our changes.
     transaction.commit();
@@ -1291,14 +1319,8 @@ void FileServiceContext::EventProcessor::added(const NodeEvent& event)
         return info->removed(true);
     }
 
-    // The file's not in memory so remove it from the database.
-    query = mTransaction.query(mQueries.mRemoveFile);
-
-    query.param(":id").set(id);
-    query.execute();
-
-    // And remove its data from storage.
-    mService.mStorage.removeFile(id);
+    // The file's not in memory so purge it from the service.
+    mService.remove(mServiceLock, mDatabaseLock, id, mTransaction);
 }
 
 void FileServiceContext::EventProcessor::dispatch(const NodeEvent& event)
@@ -1392,14 +1414,8 @@ void FileServiceContext::EventProcessor::moved(const NodeEvent& event)
         return info->removed(true);
     }
 
-    // File's not in memory so purge it from the database.
-    query = mTransaction.query(mQueries.mRemoveFile);
-
-    query.param(":id").set(id);
-    query.execute();
-
-    // And from storage.
-    mService.mStorage.removeFile(id);
+    // The file's not in memory so purge it from the service.
+    mService.remove(mServiceLock, mDatabaseLock, id, mTransaction);
 }
 
 void FileServiceContext::EventProcessor::removed(const NodeEvent& event)
@@ -1425,7 +1441,7 @@ void FileServiceContext::EventProcessor::removed(const NodeEvent& event)
     // Check if this file's in memory.
     auto [info, _] = mService.infoFromIndex(id, mServiceLock, false);
 
-    // Node's in memory.
+    // File's in memory.
     if (info)
     {
         // Mark the file as removed in the database.
@@ -1438,14 +1454,8 @@ void FileServiceContext::EventProcessor::removed(const NodeEvent& event)
         return info->removed(true);
     }
 
-    // Node's not in memory so purge it from the database.
-    query = mTransaction.query(mQueries.mRemoveFile);
-
-    query.param(":id").set(id);
-    query.execute();
-
-    // And remove its data from storage.
-    mService.mStorage.removeFile(id);
+    // File's not in memory so purge it from the service.
+    mService.remove(mServiceLock, mDatabaseLock, id, mTransaction);
 }
 
 void FileServiceContext::EventProcessor::operator()(NodeEventQueue& events)
