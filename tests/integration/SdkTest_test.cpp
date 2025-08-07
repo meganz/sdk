@@ -3013,6 +3013,64 @@ TEST_F(SdkTest, SdkTestKillSession)
 }
 
 /**
+ * @brief Test that verifies behavior when uploading duplicated files.
+ *
+ * - TEST1: upload test file (expected API_OK)
+ * - TEST2: upload same test file again (expected API_OK)
+ * - TEST3: upload same test file (with another name). Remote copy (expected API_OK)
+ *
+ */
+TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
+{
+    const std::string logPre{"TEST SdkTestUploadDuplicatedFiles: "};
+    LOG_info << logPre << "#### Test preconditions. get accounts ####";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    constexpr unsigned idx = 0;
+    std::unique_ptr<MegaNode> rootnode{megaApi[idx]->getRootNode()};
+    ASSERT_TRUE(rootnode) << logPre << "Cannot get root node for account: " << idx;
+
+    string filename = "testfile";
+    string filenameaux = filename + "_copy";
+    ASSERT_TRUE(createFile(filename, false)) << "Couldn't create " << UPFILE;
+    ASSERT_NO_FATAL_FAILURE(copyFile(filename, filenameaux)) << "Couldn't create " << UPFILE;
+
+    auto uploadFile =
+        [this, &logPre, n = rootnode.get()](const string& filename,
+                                            const string& msg) -> std::pair<int, handle>
+    {
+        LOG_debug << logPre << msg;
+        MegaHandle h = UNDEF;
+        const auto res = doStartUpload(idx,
+                                       &h,
+                                       filename.c_str(),
+                                       n,
+                                       nullptr /*fileName*/,
+                                       ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                       nullptr /*appData*/,
+                                       false /*isSourceTemporary*/,
+                                       false /*startFirst*/,
+                                       nullptr /*cancelToken*/);
+        return {res, h};
+    };
+
+    std::string msg = "#### TEST1: upload test file ####";
+    auto [err1, h1] = uploadFile(filename, msg);
+    ASSERT_EQ(err1, API_OK) << msg << " error:" << MegaError::getErrorString(err1);
+
+    msg = "#### TEST2: upload same test file again ####";
+    auto [err2, h2] = uploadFile(filename, msg);
+    ASSERT_EQ(err2, API_OK) << msg << " error:" << MegaError::getErrorString(err2);
+    ASSERT_EQ(h1, h2) << logPre << "NodeHandles don't not match for both uploads";
+
+    msg = "#### TEST3: upload same test file (with another name). Remote copy ####";
+    auto [err3, h3] = uploadFile(filenameaux, msg);
+    ASSERT_EQ(err3, API_OK) << msg << " error:" << MegaError::getErrorString(err3);
+    ASSERT_NE(h2, h3) << logPre
+                      << "NodeHandle of remote copy node, should not match with previous one";
+}
+
+/**
  * @brief TEST_F SdkTestNodeAttributes
  *
  *
