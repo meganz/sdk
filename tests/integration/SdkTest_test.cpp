@@ -1346,15 +1346,19 @@ void SdkTest::cleanupShares(const unsigned int nApi)
             {
                 if (auto result = synchronousRemoveContact(nApi, shareUser.get()); result != API_OK)
                 {
+                    bool iterationCleanupSuccess{true};
                     const string errDetails = "[Inshare = " + std::to_string(i) +
                                               "] Error removing inshare's contact (" +
                                               std::string{email} + ")";
-                    localCleanupSuccess = false;
+                    if (result != API_EEXIST)
+                    {
+                        localCleanupSuccess = iterationCleanupSuccess = false;
+                    }
                     printCleanupErrMsg(prefix,
                                        errDetails,
                                        static_cast<unsigned>(nApi),
                                        result,
-                                       localCleanupSuccess);
+                                       iterationCleanupSuccess);
                 }
             }
             else
