@@ -81,8 +81,10 @@ const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
 const string MegaClient::REQSTATURL = "https://reqstat.api.mega.co.nz";
 
 // root URL for Website
-// MegaClient statics must be const or we get threading problems
+// Non-const MegaClient static
 string MegaClient::MEGAURL = "https://mega.nz";
+// Mutex to protect MEGAURL write access
+std::mutex MegaClient::megaUrlMutex;
 
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
@@ -11104,6 +11106,7 @@ error MegaClient::readmiscflags(JSON *json)
                 {
                     if (tag == "site" && value == 1)
                     {
+                        std::lock_guard<std::mutex> lock(MegaClient::megaUrlMutex);
                         MegaClient::MEGAURL = "https://mega.app";
                     }
                     mFeatureFlags.set(tag, static_cast<uint32_t>(value));

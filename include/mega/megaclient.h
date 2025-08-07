@@ -1677,6 +1677,7 @@ public:
 
     // root URL for Website
     static string MEGAURL;
+    static std::mutex megaUrlMutex;
 
     // newsignup link URL prefix
     static const char* newsignupLinkPrefix();
