@@ -38,6 +38,14 @@ using namespace std::chrono;
 class FileServiceContext::EventProcessor
 {
     // Called when a new node has been added.
+    //
+    // If the event describes a node we added, ignore it.
+    //
+    // Otherwise, check if the node would "replace" a file we manage.
+    // If so, remove the file.
+    //
+    // Note that a directory with the same name and parent as some file that
+    // we manage will "replace" the file that we manage.
     void added(const NodeEvent& event);
 
     // Called to dispatch an event.
@@ -49,12 +57,30 @@ class FileServiceContext::EventProcessor
     bool mark(FileID id);
 
     // Called when a node has been moved or renamed.
+    //
+    // If the event describes a node that would "replace" a file we manage,
+    // remove the file.
+    //
+    // If the event describe a file that we manage and that file has been
+    // superseded by a new version in the cloud, remove it.
+    //
+    // Otherwise, update the file's location to match the cloud.
     void moved(const NodeEvent& event);
 
     // Called when a node has been removed.
+    //
+    // If event describes a directory, delegate to removedDirectory(...).
+    //
+    // If event describes a file we manage, remove it.
+    // Otherwise, ignore the event.
     void removed(const NodeEvent& event);
 
     // Called when a directory node has been removed.
+    //
+    // Remove any files associated with the directory described by event.
+    //
+    // This is necessary as the directory may conceptually contain one or
+    // more local files.
     void removedDirectory(const NodeEvent& event);
 
     // The service we're processing events for.
