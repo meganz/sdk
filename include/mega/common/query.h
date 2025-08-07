@@ -143,7 +143,7 @@ struct Query
 
     void clear();
 
-    void execute();
+    bool execute();
 
     auto field(const std::string& name) -> Field;
 
