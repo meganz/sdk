@@ -1399,78 +1399,48 @@ void SdkTest::cleanupShares(const unsigned int nApi)
                                API_EINTERNAL,
                                true /*localCleanupSuccess*/);
         }
+    }
 
-        // Delete any outshares
-        unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
-        for (int i = 0; i < outshares->size(); ++i)
+    // Delete any outshares
+    unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
+    for (int i = 0; i < outshares->size(); ++i)
+    {
+        LOG_debug << prefix << "megaApi[" << nApi << "] [OutShare = " << i
+                  << "] OutShare detected!";
+        auto os = outshares->get(i);
+        if (!os)
         {
             LOG_debug << prefix << "megaApi[" << nApi << "] [OutShare = " << i
-                      << "] OutShare detected!";
-            auto os = outshares->get(i);
-            if (!os)
-            {
-                LOG_debug << prefix << "megaApi[" << nApi << "] [OutShare = " << i
-                          << "] MegaShare object is null, skipping...";
-                continue;
-            }
+                      << "] MegaShare object is null, skipping...";
+            continue;
+        }
 
-            if (auto email = os->getUser())
-            {
-                LOG_debug << prefix << "megaApi[" << nApi << "] [OutShare = " << i
-                          << "] Removing outshare's contact ('" << string(myEmailStr + email)
-                          << "')...";
-
-                if (unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email)); shareUser)
-                {
-                    auto result = synchronousRemoveContact(nApi, shareUser.get());
-                    if (result != API_OK && result)
-                    {
-                        const string errDetails =
-                            "Removal of outshare's contact (" + string{email} + ")";
-                        localCleanupSuccess = false;
-                        printCleanupErrMsg(prefix,
-                                           errDetails,
-                                           static_cast<unsigned>(nApi),
-                                           result,
-                                           localCleanupSuccess);
-                    }
-                }
-                else
-                {
-                    const string errDetails = "[OutShare = " + std::to_string(i) +
-                                              "] OutShare has user (" + std::string{email} +
-                                              ") but the corresponding user does not exist";
-                    printCleanupErrMsg(prefix,
-                                       errDetails,
-                                       static_cast<unsigned>(nApi),
-                                       API_EINTERNAL,
-                                       true /*localCleanupSuccess*/);
-                }
-            }
-
+        if (auto email = os->getUser())
+        {
             LOG_debug << prefix << "megaApi[" << nApi << "] [OutShare = " << i
-                      << "] Removing outshare...";
-            if (unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(os->getNodeHandle())); n)
+                      << "] Removing outshare's contact ('" << string(myEmailStr + email)
+                      << "')...";
+
+            if (unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email)); shareUser)
             {
-                RequestTracker rt(megaApi[nApi].get());
-                megaApi[nApi]->share(n.get(), os->getUser(), MegaShare::ACCESS_UNKNOWN, &rt);
-                if (const auto res = rt.waitForResult(300); res != API_OK)
+                auto result = synchronousRemoveContact(nApi, shareUser.get());
+                if (result != API_OK && result)
                 {
                     const string errDetails =
-                        "Removal of outshare folder (" +
-                        string{Base64Str<MegaClient::NODEHANDLE>(n->getHandle())} +
-                        +") failed or took more than 5 minutes";
+                        "Removal of outshare's contact (" + string{email} + ")";
                     localCleanupSuccess = false;
                     printCleanupErrMsg(prefix,
                                        errDetails,
                                        static_cast<unsigned>(nApi),
-                                       res,
+                                       result,
                                        localCleanupSuccess);
                 }
             }
             else
             {
-                const string errDetails = "[OutShare = " + std::to_string(i) + "] No node found!!!";
+                const string errDetails = "[OutShare = " + std::to_string(i) +
+                                          "] OutShare has user (" + std::string{email} +
+                                          ") but the corresponding user does not exist";
                 printCleanupErrMsg(prefix,
                                    errDetails,
                                    static_cast<unsigned>(nApi),
@@ -1479,39 +1449,69 @@ void SdkTest::cleanupShares(const unsigned int nApi)
             }
         }
 
-        // Delete Sets and their public links
-        unique_ptr<MegaSetList> sets(megaApi[nApi]->getSets());
-        for (unsigned i = 0u; i < sets->size(); ++i)
+        LOG_debug << prefix << "megaApi[" << nApi << "] [OutShare = " << i
+                  << "] Removing outshare...";
+        if (unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(os->getNodeHandle())); n)
         {
-            const MegaSet* s = sets->get(i);
-            if (s->isExported())
+            RequestTracker rt(megaApi[nApi].get());
+            megaApi[nApi]->share(n.get(), os->getUser(), MegaShare::ACCESS_UNKNOWN, &rt);
+            if (const auto res = rt.waitForResult(300); res != API_OK)
             {
-                if (const auto resDisable = doDisableExportSet(nApi, s->id()); resDisable != API_OK)
-                {
-                    const string errDetails = "Stop sharing a set (" + std::to_string(i) + ")";
-                    localCleanupSuccess = false;
-                    printCleanupErrMsg(prefix,
-                                       errDetails,
-                                       static_cast<unsigned>(nApi),
-                                       resDisable,
-                                       localCleanupSuccess);
-                }
-            }
-
-            if (const auto resRemove = doRemoveSet(nApi, s->id()); resRemove != API_OK)
-            {
-                const string errDetails = "Removing a set (" + std::to_string(i) + ")";
-                bool iterationCleanupSuccess{true};
-                if (resRemove != API_EACCESS)
-                {
-                    localCleanupSuccess = iterationCleanupSuccess = false;
-                }
+                const string errDetails =
+                    "Removal of outshare folder (" +
+                    string{Base64Str<MegaClient::NODEHANDLE>(n->getHandle())} +
+                    +") failed or took more than 5 minutes";
+                localCleanupSuccess = false;
                 printCleanupErrMsg(prefix,
                                    errDetails,
                                    static_cast<unsigned>(nApi),
-                                   resRemove,
-                                   iterationCleanupSuccess);
+                                   res,
+                                   localCleanupSuccess);
             }
+        }
+        else
+        {
+            const string errDetails = "[OutShare = " + std::to_string(i) + "] No node found!!!";
+            printCleanupErrMsg(prefix,
+                               errDetails,
+                               static_cast<unsigned>(nApi),
+                               API_EINTERNAL,
+                               true /*localCleanupSuccess*/);
+        }
+    }
+
+    // Delete Sets and their public links
+    unique_ptr<MegaSetList> sets(megaApi[nApi]->getSets());
+    for (unsigned i = 0u; i < sets->size(); ++i)
+    {
+        const MegaSet* s = sets->get(i);
+        if (s->isExported())
+        {
+            if (const auto resDisable = doDisableExportSet(nApi, s->id()); resDisable != API_OK)
+            {
+                const string errDetails = "Stop sharing a set (" + std::to_string(i) + ")";
+                localCleanupSuccess = false;
+                printCleanupErrMsg(prefix,
+                                   errDetails,
+                                   static_cast<unsigned>(nApi),
+                                   resDisable,
+                                   localCleanupSuccess);
+            }
+        }
+
+        if (const auto resRemove = doRemoveSet(nApi, s->id()); resRemove != API_OK)
+        {
+            const string errDetails = "Removing a set (" + std::to_string(i) + ")";
+            bool iterationCleanupSuccess{true};
+            if (resRemove != API_EACCESS)
+            {
+                localCleanupSuccess = iterationCleanupSuccess = false;
+            }
+            printCleanupErrMsg(prefix,
+                               errDetails,
+                               static_cast<unsigned>(nApi),
+                               resRemove,
+                               iterationCleanupSuccess);
         }
     }
 
