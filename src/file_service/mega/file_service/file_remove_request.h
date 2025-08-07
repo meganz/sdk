@@ -12,7 +12,7 @@ namespace file_service
 struct FileRemoveRequest
 {
     // What kind of request is this?
-    using Type = FileWriteRequest;
+    using Type = FileWriteRequestTag;
 
     // This request's human readable name.
     static const char* name()

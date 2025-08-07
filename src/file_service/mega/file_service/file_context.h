@@ -93,34 +93,34 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     void execute(std::function<void()> function) override;
 
     // Try and execute an append request.
-    bool execute(FileAppendRequest& request);
+    void execute(FileAppendRequest& request);
 
     // Try and execute a fetch request.
-    bool execute(FileFetchRequest& request);
+    void execute(FileFetchRequest& request);
 
     // Try and execute a flush request.
-    bool execute(FileFlushRequest request);
+    void execute(FileFlushRequest request);
 
     // Try and execute a read request.
-    bool execute(FileReadRequest& request);
+    void execute(FileReadRequest& request);
 
     // Try and execute a reclaim request.
-    bool execute(FileReclaimRequest& request);
+    void execute(FileReclaimRequest& request);
 
     // Try and execute a remove request.
-    bool execute(FileRemoveRequest& request);
+    void execute(FileRemoveRequest& request);
 
     // Try and execute a touch request.
-    bool execute(FileTouchRequest& request);
+    void execute(FileTouchRequest& request);
 
     // Try and execute a truncate request.
-    bool execute(FileTruncateRequest& request);
+    void execute(FileTruncateRequest& request);
 
     // Try and execute a write request.
-    bool execute(FileWriteRequest& request);
+    void execute(FileWriteRequest& request);
 
     // Try and execute a request.
-    bool execute(FileRequest& request);
+    void execute(FileRequest& request);
 
     // Execute zero or more queued requests.
     void execute();

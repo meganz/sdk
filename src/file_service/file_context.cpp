@@ -147,6 +147,26 @@ public:
     void queue(FileReclaimCallback callback);
 }; // ReclaimContext
 
+// Check if a request can be executed.
+bool executable(FileReadWriteState& readWriteState, const FileRequest& request);
+
+// Check if a particular class of request can be executed.
+//
+// The check works by trying to acquire the kind of lock that the request
+// requires. For instance, a read request will try and acquire a read-lock
+// on the context. If it succeeds, we know the request can execute.
+bool executable(FileReadWriteState& readWriteState, FileReadRequestTag tag);
+bool executable(FileReadWriteState& readWriteState, FileWriteRequestTag tag);
+
+// Called when a request of a particular class has executed.
+void executed(FileReadWriteState& readWriteState, FileReadRequestTag tag);
+void executed(FileReadWriteState& readWriteState, FileWriteRequestTag tag);
+
+// Retrieve an instance of a request's type tag.
+template<typename Request>
+auto tag(const Request& request)
+    -> std::enable_if_t<IsFileRequestV<Request>, typename Request::Type>;
+
 // Wrap a callback to ensure that exceptions are always handled.
 template<typename Callback>
 Callback swallow(Callback callback, const char* name);
@@ -435,12 +455,8 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
     // Make sure request has been passed by rvalue reference.
     static_assert(std::is_rvalue_reference_v<decltype(request)>);
 
-    // What kind of request are we completing?
-    constexpr auto complete = IsFileReadRequestV<Request> ? &FileReadWriteState::readCompleted :
-                                                            &FileReadWriteState::writeCompleted;
-
     // Called to complete the user's request.
-    auto callback = [=](auto& callback, auto& cookie, auto&, auto&&...)
+    auto callback = [=](auto& callback, auto& cookie, auto&, auto& tag, auto&&...)
     {
         // Are we passing a file result?
         if constexpr (std::is_same_v<FileResult, Result>)
@@ -467,8 +483,8 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
         if (!context)
             return;
 
-        // Let the context know the read has completed.
-        (context->mReadWriteState.*complete)();
+        // Let the context know the request has completed.
+        executed(context->mReadWriteState, tag);
 
         // See if we can't execute any queued requests.
         context->execute();
@@ -479,6 +495,7 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
                                swallow(std::move(request.mCallback), request.name()),
                                weak_from_this(),
                                std::placeholders::_1,
+                               tag(request),
                                std::forward<Captures>(captures)...));
 }
 
@@ -507,12 +524,8 @@ void FileContext::execute(std::function<void()> function)
     mService.execute(std::move(wrapper));
 }
 
-bool FileContext::execute(FileAppendRequest& request)
+void FileContext::execute(FileAppendRequest& request)
 {
-    // Can't execute an append if there's another request in progress.
-    if (!mReadWriteState.write())
-        return false;
-
     // Convenience.
     auto size = mInfo->size();
 
@@ -539,7 +552,7 @@ bool FileContext::execute(FileAppendRequest& request)
 
     // Couldn't write all of the user's data to disk.
     if (length < request.mLength)
-        return completed(std::move(request), FILE_FAILED), true;
+        return completed(std::move(request), FILE_FAILED);
 
     // Convenience.
     auto& database = mService.database();
@@ -582,23 +595,16 @@ bool FileContext::execute(FileAppendRequest& request)
 
     // Queue the user's request for execution.
     completed(std::move(request), FILE_SUCCESS);
-
-    // Let the caller know the request was executed.
-    return true;
 }
 
-bool FileContext::execute(FileFetchRequest& request)
+void FileContext::execute(FileFetchRequest& request)
 {
-    // Can't execute a fetch if there's a write in progress.
-    if (!mReadWriteState.read())
-        return false;
-
     // Acquire fetch context lock.
     std::unique_lock lock(mFetchContextLock);
 
     // A fetch is already in progress.
     if (mFetchContext)
-        return mFetchContext->queue(std::move(request)), true;
+        return mFetchContext->queue(std::move(request));
 
     // Instantiate a context for our fetch.
     mFetchContext = std::make_shared<FetchContext>(*this, std::move(request));
@@ -612,27 +618,20 @@ bool FileContext::execute(FileFetchRequest& request)
                                    mFetchContext,
                                    std::placeholders::_1),
                          FileRange(0, mInfo->size())});
-
-    // Let the caller know the request's been executed.
-    return true;
 }
 
-bool FileContext::execute(FileFlushRequest request)
+void FileContext::execute(FileFlushRequest request)
 {
-    // Can't execute a flush if a write's in progress.
-    if (!mReadWriteState.read())
-        return false;
-
     // The file hasn't been modified.
     if (!mInfo->dirty())
-        return completed(std::move(request), FILE_SUCCESS), true;
+        return completed(std::move(request), FILE_SUCCESS);
 
     // Acquire flush context lock.
     std::unique_lock lock(mFlushContextLock);
 
     // A flush is already in progress.
     if (mFlushContext)
-        return mFlushContext->queue(std::move(request)), true;
+        return mFlushContext->queue(std::move(request));
 
     // Instantiate a new flush context.
     mFlushContext = std::make_shared<FlushContext>(*this, std::move(request));
@@ -645,9 +644,6 @@ bool FileContext::execute(FileFlushRequest request)
                                      mFlushContext.get(),
                                      mFlushContext,
                                      std::placeholders::_1)});
-
-    // Let the caller know the request's been executed.
-    return true;
 }
 
 // This function is pretty complex as it handles a lot of cases.
@@ -701,12 +697,8 @@ bool FileContext::execute(FileFlushRequest request)
 //   - This case is handled pretty much the same as the case above.
 //   - It differs in that the user's request will be executed when the
 //     first hole is downloaded.
-bool FileContext::execute(FileReadRequest& request)
+void FileContext::execute(FileReadRequest& request)
 {
-    // Can't execute a read if there's a write in progress.
-    if (!mReadWriteState.read())
-        return false;
-
     // The service's current options.
     auto options = mService.options();
 
@@ -730,7 +722,7 @@ bool FileContext::execute(FileReadRequest& request)
 
     // The user doesn't actually need to read anything.
     if (begin == end)
-        return completed(mBuffer, std::move(request)), true;
+        return completed(mBuffer, std::move(request));
 
     // Update the file's access time.
     mInfo->accessed(now());
@@ -825,7 +817,7 @@ bool FileContext::execute(FileReadRequest& request)
         }
 
         // Nothing more to do as the range completely contained our read.
-        return true;
+        return;
     }
 
     // Add a range to our map and return a reference to its context.
@@ -895,7 +887,7 @@ bool FileContext::execute(FileReadRequest& request)
 
     // No holes need to be filled.
     if (ranges.empty())
-        return true;
+        return;
 
     // Queue the request if it hasn't already been done.
     if (request.mCallback)
@@ -926,18 +918,11 @@ bool FileContext::execute(FileReadRequest& request)
     // Begin the downloads.
     for (auto& download: downloads)
         download->begin();
-
-    // Let our caller know the request was executed.
-    return true;
 }
 
 // When this request is executed, any pending downloads will have completed.
-bool FileContext::execute(FileReclaimRequest& request)
+void FileContext::execute(FileReclaimRequest& request)
 {
-    // Can't reclaim if there's another request in progress.
-    if (!mReadWriteState.write())
-        return false;
-
     // Make sure no one else is modifying mRanges.
     std::lock_guard rangesLock(mRangesLock);
 
@@ -958,7 +943,7 @@ bool FileContext::execute(FileReclaimRequest& request)
 
     // Couldn't reduce the file's size.
     if (!mBuffer->truncate(0))
-        return completed(std::move(request), FILE_FAILED), true;
+        return completed(std::move(request), FILE_FAILED);
 
     // Remove all of the ranges from memory.
     mRanges.clear();
@@ -974,20 +959,13 @@ bool FileContext::execute(FileReclaimRequest& request)
 
     // Let waiters know how much space we reclaimed.
     completed(std::move(request), reclaimed);
-
-    // Let our caller know the request has been executed.
-    return true;
 }
 
-bool FileContext::execute(FileRemoveRequest& request)
+void FileContext::execute(FileRemoveRequest& request)
 {
-    // Can't remove if there's another request in progress.
-    if (!mReadWriteState.write())
-        return false;
-
     // File's already been removed.
     if (mInfo->removed())
-        return completed(std::move(request), FILE_SUCCESS), true;
+        return completed(std::move(request), FILE_SUCCESS);
 
     // Cancel any pending downloads.
     cancel(FileRange(0, mInfo->size()));
@@ -1019,10 +997,7 @@ bool FileContext::execute(FileRemoveRequest& request)
         mInfo->removed(true);
 
         // Let the client know the file was removed.
-        completed(std::move(request), FILE_SUCCESS);
-
-        // Let the caller know the request was executed.
-        return true;
+        return completed(std::move(request), FILE_SUCCESS);
     }
 
     // Called when the file's been removed.
@@ -1042,17 +1017,10 @@ bool FileContext::execute(FileRemoveRequest& request)
                                        std::move(request),
                                        std::placeholders::_1),
                              handle);
-
-    // Let our caller know the request was executed.
-    return true;
 }
 
-bool FileContext::execute(FileTouchRequest& request)
+void FileContext::execute(FileTouchRequest& request)
 {
-    // Can't touch if there's another request in progress.
-    if (!mReadWriteState.write())
-        return false;
-
     // Compute the file's new access time.
     auto accessed = now();
 
@@ -1076,24 +1044,17 @@ bool FileContext::execute(FileTouchRequest& request)
 
     // Queue the user's request for completion.
     completed(std::move(request), FILE_SUCCESS);
-
-    // Let the caller know the request was executed.
-    return true;
 }
 
-bool FileContext::execute(FileTruncateRequest& request)
+void FileContext::execute(FileTruncateRequest& request)
 {
-    // Can't truncate if there's another request in progress.
-    if (!mReadWriteState.write())
-        return false;
-
     // Convenience.
     auto newSize = request.mSize;
     auto oldSize = mInfo->size();
 
     // User isn't changing this file's size.
     if (newSize == oldSize)
-        return completed(std::move(request), FILE_SUCCESS), true;
+        return completed(std::move(request), FILE_SUCCESS);
 
     // Grow or shrink the file as necessary.
     auto [databaseLock, transaction] =
@@ -1116,17 +1077,10 @@ bool FileContext::execute(FileTruncateRequest& request)
 
     // Queue the user's request to for completion.
     completed(std::move(request), FILE_SUCCESS);
-
-    // Let our caller know the truncate was executed.
-    return true;
 }
 
-bool FileContext::execute(FileWriteRequest& request)
+void FileContext::execute(FileWriteRequest& request)
 {
-    // Can't execute a write if there's another request in progress.
-    if (!mReadWriteState.write())
-        return false;
-
     // Convenience.
     auto& range = request.mRange;
 
@@ -1134,11 +1088,11 @@ bool FileContext::execute(FileWriteRequest& request)
 
     // Caller doesn't actually want to write anything.
     if (!length)
-        return completed(std::move(request)), true;
+        return completed(std::move(request));
 
     // Caller hasn't passed us a valid buffer.
     if (!request.mBuffer)
-        return completed(std::move(request), FILE_INVALID_ARGUMENTS), true;
+        return completed(std::move(request), FILE_INVALID_ARGUMENTS);
 
     // Cancel any downloads in progress that intersect our write.
     cancel(range);
@@ -1154,7 +1108,7 @@ bool FileContext::execute(FileWriteRequest& request)
 
     // Couldn't write any content to storage.
     if (!length)
-        return completed(std::move(request), FILE_FAILED), true;
+        return completed(std::move(request), FILE_FAILED);
 
     // Compute actual end of the written range.
     range.mEnd = range.mBegin + length;
@@ -1251,12 +1205,9 @@ bool FileContext::execute(FileWriteRequest& request)
 
     // Queue the user's request for completion.
     completed(std::move(request));
-
-    // Let our caller know the write was executed.
-    return true;
 }
 
-bool FileContext::execute(FileRequest& request)
+void FileContext::execute(FileRequest& request)
 {
     // Is this context still alive?
     auto alive = !weak_from_this().expired();
@@ -1272,9 +1223,6 @@ bool FileContext::execute(FileRequest& request)
 
             // Context's being destructed so cancel the request.
             completed(std::move(request), FILE_CANCELLED);
-
-            // Let the caller know the request's been executed.
-            return true;
         }
         catch (std::exception& exception)
         {
@@ -1283,14 +1231,11 @@ bool FileContext::execute(FileRequest& request)
 
             // Try and fail the request.
             completed(std::move(request), FILE_FAILED);
-
-            // Let the caller know the request was executed.
-            return true;
         }
     }; // execute
 
     // Execute the user's request.
-    return std::visit(std::move(execute), request);
+    std::visit(std::move(execute), request);
 }
 
 void FileContext::execute()
@@ -1305,7 +1250,11 @@ void FileContext::execute()
         if (mRequests.empty())
             return;
 
-        // Pop a request off the queue.
+        // Request isn't executable.
+        if (!executable(mReadWriteState, mRequests.front()))
+            return;
+
+        // Pop the request off the queue.
         auto request = std::move(mRequests.front());
 
         mRequests.pop_front();
@@ -1313,18 +1262,8 @@ void FileContext::execute()
         // Let other threads queue requests while this one executes.
         lock.unlock();
 
-        // Couldn't execute this request.
-        if (!execute(request))
-        {
-            // So we can requeue the request.
-            lock.lock();
-
-            // Requeue the request.
-            mRequests.emplace_front(std::move(request));
-
-            // Try to execute this request again later.
-            return;
-        }
+        // Execute the request.
+        execute(request);
     }
 }
 
@@ -1338,9 +1277,12 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
     if (weak_from_this().expired())
         return completed(std::move(request), FILE_CANCELLED);
 
-    // Can't execute the request so queue it for later execution.
-    if (!execute(request))
-        queue(std::forward<Request>(request));
+    // Request isn't executable so queue it for later execution.
+    if (!executable(mReadWriteState, request))
+        return queue(std::forward<Request>(request));
+
+    // Otherwise execute the request.
+    execute(request);
 }
 
 void FileContext::failed(FileReadRequest&& request, FileResult result)
@@ -1946,6 +1888,36 @@ void FileContext::ReclaimContext::queue(FileReclaimCallback callback)
     mCallbacks.emplace_back(swallow(std::move(callback), "reclaim"));
 }
 
+bool executable(FileReadWriteState& readWriteState, const FileRequest& request)
+{
+    return std::visit(
+        [&readWriteState](auto&& request)
+        {
+            return executable(readWriteState, tag(request));
+        },
+        request);
+}
+
+bool executable(FileReadWriteState& readWriteState, FileReadRequestTag)
+{
+    return readWriteState.read();
+}
+
+bool executable(FileReadWriteState& readWriteState, FileWriteRequestTag)
+{
+    return readWriteState.write();
+}
+
+void executed(FileReadWriteState& readWriteState, FileReadRequestTag)
+{
+    readWriteState.readCompleted();
+}
+
+void executed(FileReadWriteState& readWriteState, FileWriteRequestTag)
+{
+    readWriteState.writeCompleted();
+}
+
 template<typename Callback>
 Callback swallow(Callback callback, const char* name)
 {
@@ -1962,6 +1934,12 @@ Callback swallow(Callback callback, const char* name)
             FSErrorF("User %s callback threw an exception: %s", name, exception.what());
         }
     };
+}
+
+template<typename Request>
+auto tag(const Request&) -> std::enable_if_t<IsFileRequestV<Request>, typename Request::Type>
+{
+    return typename Request::Type();
 }
 
 } // file_service
