@@ -13741,7 +13741,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
 
         if (pwdNode->isPasswordNode())
         {
-            const auto nRemoved =
+            [[maybe_unused]] const auto nRemoved =
                 entryData->map.erase(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP));
             assert(nRemoved <= 1);
         }

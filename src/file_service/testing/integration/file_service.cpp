@@ -448,6 +448,137 @@ TEST_F(FileServiceTests, append_succeeds)
     ASSERT_EQ(expected, received);
 }
 
+TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
+{
+    // Create a tree we can mess with.
+    auto d0 = ClientW()->makeDirectory(randomName(), mRootHandle);
+    ASSERT_EQ(d0.errorOr(API_OK), API_OK);
+
+    auto d1 = ClientW()->makeDirectory(randomName(), *d0);
+    ASSERT_EQ(d1.errorOr(API_OK), API_OK);
+
+    auto d0f = ClientW()->upload(randomBytes(512), randomName(), *d0);
+    ASSERT_EQ(d0f.errorOr(API_OK), API_OK);
+
+    auto d1f = ClientW()->upload(randomBytes(512), randomName(), *d1);
+    ASSERT_EQ(d1f.errorOr(API_OK), API_OK);
+
+    // Open d0f and d1f.
+    auto file0 = ClientW()->fileOpen(*d0f);
+    ASSERT_EQ(file0.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    auto file1 = ClientW()->fileOpen(*d1f);
+    ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Remove d0 and by proxy, d0f, d1 and d1f.
+    ASSERT_EQ(ClientW()->remove(*d0), API_OK);
+
+    // Make sure our files are marked as removed.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return file0->info().removed() && file1->info().removed();
+        },
+        mDefaultTimeout));
+
+    EXPECT_TRUE(file0->info().removed());
+    EXPECT_TRUE(file1->info().removed());
+}
+
+TEST_F(FileServiceTests, cloud_file_removed_when_removed_in_cloud)
+{
+    // Create a test file in the cloud.
+    auto handle = ClientW()->upload(randomBytes(512), randomName(), mRootHandle);
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Open our test file.
+    auto file = ClientW()->fileOpen(*handle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Remove the file from the cloud.
+    ASSERT_EQ(ClientW()->remove(*handle), API_OK);
+
+    // Make sure our file's been marked as removed.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return file->info().removed();
+        },
+        mDefaultTimeout));
+
+    EXPECT_TRUE(file->info().removed());
+}
+
+TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_cloud_add)
+{
+    // So we have a stable name.
+    auto name = randomName();
+
+    // Create a test file in the cloud.
+    auto handle = ClientW()->upload(randomBytes(512), name, mRootHandle);
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Open our test file.
+    auto file = ClientW()->fileOpen(*handle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Add a directory with the same name and parent as our file.
+    auto directory = ClientW()->makeDirectory(name, mRootHandle);
+    ASSERT_EQ(directory.errorOr(API_OK), API_OK);
+
+    // Make sure our file's been marked as removed.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return file->info().removed();
+        },
+        mDefaultTimeout));
+
+    EXPECT_TRUE(file->info().removed());
+}
+
+TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_new_version)
+{
+    // So we have a stable name.
+    auto name = randomName();
+
+    // Create an initial version of name in the cloud.
+    auto handle0 = ClientW()->upload(randomBytes(512), name, mRootHandle);
+    ASSERT_EQ(handle0.errorOr(API_OK), API_OK);
+
+    // Open our file.
+    auto file = ClientW()->fileOpen(*handle0);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Upload a new version of our file.
+    auto handle1 = ClientW()->upload(randomBytes(512), name, mRootHandle);
+    ASSERT_EQ(handle1.errorOr(API_OK), API_OK);
+
+    // Make sure the client sees our new file.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return ClientW()->get(*handle1);
+        },
+        mDefaultTimeout));
+
+    auto info0 = ClientW()->get(*handle0);
+    auto info1 = ClientW()->get(*handle1);
+
+    // For a better log message in Jenkins.
+    EXPECT_EQ(info0.errorOr(API_OK), API_OK);
+    EXPECT_EQ(info1.errorOr(API_OK), API_OK);
+
+    if (HasFailure())
+        return;
+
+    // Make sure version relationship has been updated correctly.
+    EXPECT_EQ(info0->mParentHandle, info1->mHandle);
+
+    // Make sure our file has been marked as removed.
+    EXPECT_TRUE(file->info().removed());
+}
+
 TEST_F(FileServiceTests, create_fails_when_file_already_exists)
 {
     // Generate a name for a local file.
@@ -866,6 +997,23 @@ TEST_F(FileServiceTests, flush_succeeds)
     // Make sure the file's handle has changed.
     ASSERT_NE(newHandle, oldHandle);
 
+    // Make sure our updated file's in the cloud.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return ClientW()->get(newHandle);
+        },
+        mDefaultTimeout));
+
+    // Better log message in Jenkins.
+    EXPECT_EQ(ClientW()->get(newHandle).errorOr(API_OK), API_OK);
+
+    if (HasFailure())
+        return;
+
+    // Make sure the file hasn't been marked as removed.
+    ASSERT_FALSE(oldFile->info().removed());
+
     // Make sure we can get information about the file using its new handle.
     {
         auto info = ClientW()->fileInfo(newHandle);
@@ -895,6 +1043,41 @@ TEST_F(FileServiceTests, flush_succeeds)
     computed = execute(read, *newFile, 0, 512_KiB);
     ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
     ASSERT_EQ(computed, expected);
+
+    // Touch the file so that it's considered modified.
+    ASSERT_EQ(execute(touch, *newFile, newFile->info().modified() - 1), FILE_SUCCESS);
+
+    // Disable versioning.
+    //
+    // The reason for this is that when we upload a new version of our file,
+    // the original version will first be removed and we want to make sure
+    // the node event logic properly handles this situation.
+    ClientW()->useVersioning(false);
+
+    // Flush our file to the cloud.
+    ASSERT_EQ(execute(flush, *newFile), FILE_SUCCESS);
+
+    // Make sure our file's handle has changed.
+    oldHandle = newHandle;
+    newHandle = newFile->info().handle();
+
+    ASSERT_NE(oldHandle, newHandle);
+
+    // Make sure our updated file is in the cloud.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return ClientW()->get(newHandle);
+        },
+        mDefaultTimeout));
+
+    EXPECT_EQ(ClientW()->get(newHandle).errorOr(API_OK), API_OK);
+
+    if (HasFailure())
+        return;
+
+    // Make sure our file hasn't been marked as removed.
+    ASSERT_FALSE(newFile->info().removed());
 }
 
 TEST_F(FileServiceTests, info_directory_fails)
@@ -935,6 +1118,133 @@ TEST_F(FileServiceTests, info_succeeds)
 
     // Make sure the file's access time hasn't changed.
     ASSERT_EQ(info->accessed(), accessed);
+}
+
+TEST_F(FileServiceTests, local_file_removed_when_parent_removed)
+{
+    // Create a directory tree for us to play with.
+    auto d0 = ClientW()->makeDirectory(randomName(), mRootHandle);
+    ASSERT_EQ(d0.errorOr(API_OK), API_OK);
+
+    auto d1 = ClientW()->makeDirectory(randomName(), *d0);
+    ASSERT_EQ(d1.errorOr(API_OK), API_OK);
+
+    // Make sure the directories are visible to our client.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return ClientW()->get(*d0) && ClientW()->get(*d1);
+        },
+        mDefaultTimeout));
+
+    // For better log messages on Jenkins.
+    EXPECT_EQ(ClientW()->get(*d0).errorOr(API_OK), API_OK);
+    EXPECT_EQ(ClientW()->get(*d1).errorOr(API_OK), API_OK);
+
+    if (HasFailure())
+        return;
+
+    // Create a couple test files.
+    auto d0f = ClientW()->fileCreate(*d0, randomName());
+    ASSERT_EQ(d0f.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    auto d1f = ClientW()->fileCreate(*d1, randomName());
+    ASSERT_EQ(d1f.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Remove d0 and by proxy, d0f, d1 and d1f.
+    ASSERT_EQ(ClientW()->remove(*d0), API_OK);
+
+    // Make sure the directories are no longer visible to our client.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return !ClientW()->get(*d0) && !ClientW()->get(*d1);
+        },
+        mDefaultTimeout));
+
+    // Better log messages.
+    EXPECT_EQ(ClientW()->get(*d0).errorOr(API_OK), API_ENOENT);
+    EXPECT_EQ(ClientW()->get(*d1).errorOr(API_OK), API_ENOENT);
+
+    if (HasFailure())
+        return;
+
+    // Make sure our files have been marked as removed.
+    EXPECT_TRUE(d0f->info().removed());
+    EXPECT_TRUE(d1f->info().removed());
+}
+
+TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_add)
+{
+    // Generate a name for our file.
+    auto name = randomName();
+
+    // Create a local file.
+    auto file = ClientW()->fileCreate(mRootHandle, name);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Add a directory with the same name and parent as our file.
+    auto directory = ClientW()->makeDirectory(name, mRootHandle);
+    ASSERT_EQ(directory.errorOr(API_OK), API_OK);
+
+    // Make sure our client's aware of the new directory.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return ClientW()->get(*directory);
+        },
+        mDefaultTimeout));
+
+    // For better messages on Jenkins.
+    EXPECT_EQ(ClientW()->get(*directory).errorOr(API_OK), API_OK);
+
+    if (HasFailure())
+        return;
+
+    // Make sure our file has been marked as removed.
+    ASSERT_TRUE(file->info().removed());
+}
+
+TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_move)
+{
+    // So we have a stable name.
+    auto fileName0 = randomName();
+
+    // Create a local test file.
+    auto file0 = ClientW()->fileCreate(mRootHandle, fileName0);
+    ASSERT_EQ(file0.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // As above.
+    auto fileName1 = randomName();
+
+    // Add a new file to the cloud.
+    auto handle0 = ClientW()->upload(randomBytes(512), fileName1, mRootHandle);
+    ASSERT_EQ(handle0.errorOr(API_OK), API_OK);
+
+    // Open the file.
+    auto file1 = ClientW()->fileOpen(*handle0);
+    ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Move file1 so it replaces file0.
+    ASSERT_EQ(ClientW()->move(fileName0, *handle0, mRootHandle), API_OK);
+
+    // Make sure the client recognizes the move.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return !ClientW()->get(mRootHandle, fileName1) &&
+                   ClientW()->get(mRootHandle, fileName0);
+        },
+        mDefaultTimeout));
+
+    EXPECT_EQ(ClientW()->get(mRootHandle, fileName1).errorOr(API_OK), API_ENOENT);
+    EXPECT_EQ(ClientW()->get(mRootHandle, fileName0).errorOr(API_OK), API_OK);
+
+    if (HasFailure())
+        return;
+
+    // Make sure file0 has been marked as removed.
+    EXPECT_TRUE(file0->info().removed());
 }
 
 TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
@@ -1762,108 +2072,6 @@ TEST_F(FileServiceTests, remove_cloud_succeeds)
     ASSERT_LT(*usedAfter, *usedBefore);
 }
 
-TEST_F(FileServiceTests, removed_when_overwritten_in_cloud)
-{
-    // Generate a name for our file.
-    auto name = randomName();
-
-    // Upload a file that we can replace.
-    auto handle0 = ClientW()->upload(randomBytes(512), name, mRootHandle);
-
-    // Make sure our file was uploaded.
-    ASSERT_EQ(handle0.errorOr(API_OK), API_OK);
-
-    // Try and open our file.
-    auto file = ClientW()->fileOpen(*handle0);
-
-    // Make sure the file was opened.
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // The file shouldn't be marked as removed.
-    ASSERT_FALSE(file->info().removed());
-
-    // Upload a new file that we can rename.
-    auto handle1 = ClientW()->upload(randomBytes(512), randomName(), mRootHandle);
-
-    // Make sure the file was uploaded.
-    ASSERT_EQ(handle1.errorOr(API_OK), API_OK);
-
-    // Overwrite our original file.
-    ASSERT_EQ(ClientW()->move(name, *handle1, mRootHandle), API_OK);
-
-    // Make sure our original file has been marked as removed.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return file->info().removed();
-        },
-        mDefaultTimeout));
-
-    EXPECT_TRUE(file->info().removed());
-}
-
-TEST_F(FileServiceTests, removed_when_removed_in_cloud)
-{
-    // Upload a file that we can remove.
-    auto handle = ClientW()->upload(randomBytes(512), randomName(), mRootHandle);
-
-    // Make sure the file was uploaded okay.
-    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
-
-    // Try and open the file.
-    auto file = ClientW()->fileOpen(*handle);
-
-    // Make sure we could open the file.
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // The file shouldn't be marked as removed.
-    ASSERT_FALSE(file->info().removed());
-
-    // Remove the filein the cloud.
-    ASSERT_EQ(ClientW()->remove(*handle), API_OK);
-
-    // Make sure the file was marked as removed.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return file->info().removed();
-        },
-        mDefaultTimeout));
-
-    ASSERT_TRUE(file->info().removed());
-}
-
-TEST_F(FileServiceTests, removed_when_replaced_in_the_cloud)
-{
-    // Generate a name for our file.
-    auto name = randomName();
-
-    // Try and create a local file.
-    auto file = ClientW()->fileCreate(mRootHandle, name);
-
-    // Make sure we could create the file.
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // Make sure the file hasn't been marked as removed.
-    ASSERT_FALSE(file->info().removed());
-
-    // Add a new file with the same name in the cloud.
-    auto handle = ClientW()->upload(randomBytes(512), name, mRootHandle);
-
-    // Make sure the file was added.
-    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
-
-    // Our local file should be marked as removed.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return file->info().removed();
-        },
-        mDefaultTimeout));
-
-    ASSERT_TRUE(file->info().removed());
-}
-
 TEST_F(FileServiceTests, touch_succeeds)
 {
     // Open a file for modification.
@@ -2303,6 +2511,9 @@ void FileServiceTests::SetUp()
     // Make sure transfers proceed at full speed.
     ClientW()->setDownloadSpeed(0);
     ClientW()->setUploadSpeed(0);
+
+    // Make sure the client uses versioning unless disabled explicitly.
+    ClientW()->useVersioning(true);
 }
 
 void FileServiceTests::SetUpTestSuite()

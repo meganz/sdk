@@ -13,8 +13,10 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileID(database.query()),
     mAddFileRange(database.query()),
     mGetFile(database.query()),
+    mGetFileByHandleOrNameAndParentHandle(database.query()),
     mGetFileByNameAndParentHandle(database.query()),
     mGetFileIDs(database.query()),
+    mGetFileIDsByParentHandle(database.query()),
     mGetFileRanges(database.query()),
     mGetFreeFileID(database.query()),
     mGetNextFileID(database.query()),
@@ -57,26 +59,27 @@ FileServiceQueries::FileServiceQueries(Database& database):
 
     mGetFile = "select * "
                "  from files "
-               " where (:handle is not null and handle = :handle) "
-               "    or (:id is not null and id = :id)";
+               " where ((:handle is not null and handle = :handle) "
+               "        or (:id is not null and id = :id)) "
+               "   and (:removed is null or removed = :removed)";
+
+    mGetFileByHandleOrNameAndParentHandle =
+        "select * "
+        "  from files "
+        " where handle = :handle "
+        "    or name = :name and parent_handle = :parent_handle";
 
     mGetFileByNameAndParentHandle = "select * "
                                     "  from files "
-                                    " where name = :name "
-                                    "   and parent_handle = :parent_handle";
+                                    " where name = :name and parent_handle = :parent_handle";
 
     mGetFileIDs = "select id "
                   "  from files "
                   " where (:removed is null or removed = :removed)";
 
-    // Files marked for removal will be purged when closed.
-    mGetReclaimableFiles = "select allocated_size "
-                           "     , id "
-                           "  from files "
-                           " where allocated_size <> 0 "
-                           "   and accessed <= :accessed "
-                           "   and removed = 0 "
-                           " order by accessed desc";
+    mGetFileIDsByParentHandle = "select id "
+                                "  from files "
+                                " where parent_handle = :parent_handle";
 
     mGetFileRanges = "select begin "
                      "     , end "
@@ -88,6 +91,15 @@ FileServiceQueries::FileServiceQueries(Database& database):
                      " limit 1";
 
     mGetNextFileID = "select next from file_id";
+
+    // Files marked for removal will be purged when closed.
+    mGetReclaimableFiles = "select allocated_size "
+                           "     , id "
+                           "  from files "
+                           " where allocated_size <> 0 "
+                           "   and accessed <= :accessed "
+                           "   and removed = 0 "
+                           " order by accessed desc";
 
     // ifnull(...) is necessary as there may be no files to sum.
     mGetStorageUsed = "select ifnull(sum(allocated_size), 0) as total_allocated_size "
