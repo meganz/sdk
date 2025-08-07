@@ -131,6 +131,9 @@ ErrorOr<NodeHandle> Client::uploadFile(const std::string& name,
                                        NodeHandle parentHandle,
                                        const Path& path)
 {
+    // Get the handle of any existing child with this name.
+    auto handle = this->handle(parentHandle, name);
+
     // Create the upload.
     auto upload = client().upload(LocalPath(),
                                   name,
@@ -140,14 +143,25 @@ ErrorOr<NodeHandle> Client::uploadFile(const std::string& name,
     // So we can wait for the upload's result.
     auto notifier = makeSharedPromise<ErrorOr<NodeHandle>>();
 
-    // Called when our file has been bound.
-    BoundCallback bound = [notifier](ErrorOr<NodeHandle> result) {
-        // Broadcast result to our waiter.
+    // Called when our file's been bound.
+    BoundCallback bound = [notifier](auto result)
+    {
         notifier->set_value(result);
     }; // bound
 
+    // Called when our file's data has been uploaded.
+    UploadCallback uploaded = [bound, handle, notifier](auto result)
+    {
+        // Couldn't upload the file's data.
+        if (!result)
+            return notifier->set_value(unexpected(result.error()));
+
+        // Bind the file.
+        (*result)(std::move(bound), handle);
+    }; // uploaded
+
     // Try and upload the file.
-    upload->begin(std::move(bound));
+    upload->begin(std::move(uploaded));
 
     // Return the upload's result to the caller.
     return waitFor(notifier->get_future());
