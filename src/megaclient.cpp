@@ -10627,6 +10627,11 @@ int MegaClient::readnode(JSON* j,
                 n->applykey();
             }
 
+            if (!n->keyApplied())
+            {
+                mNodeManager.addNodePendingApplykey(n);
+            }
+
             if (notify)
             {
                 // node is save in DB at notifypurge

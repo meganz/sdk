@@ -378,6 +378,8 @@ public:
     // attempt to apply received keys to decrypt node's keys
     void applyKeys(uint32_t appliedKeys);
 
+    void addNodePendingApplykey(std::shared_ptr<Node> node);
+
     // add node to the notification queue
     void notifyNode(std::shared_ptr<Node> node, sharedNode_vector* nodesToReport = nullptr);
 
@@ -536,6 +538,8 @@ private:
 
     // nodes that have changed and are pending to notify to app and dump to DB
     sharedNode_vector mNodeNotify;
+
+    std::list<std::shared_ptr<Node>> mNodePendingApplyKeys;
 
     shared_ptr<Node> getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode, MissingParentNodes& missingParentNodes);    // takes ownership

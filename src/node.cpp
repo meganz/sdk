@@ -1826,7 +1826,9 @@ handle NodeData::getHandle()
     return mHandle;
 }
 
-std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
+std::shared_ptr<Node> NodeData::createNode(MegaClient& client,
+                                           bool fromOldCache,
+                                           std::list<std::unique_ptr<NewShare>>& ownNewshares)
 {
     assert(mComp == COMPONENT_ALL);
     if (readFailed())
@@ -1834,8 +1836,14 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
         return nullptr;
     }
 
-    unique_ptr<Node> n = std::make_unique<Node>(client, NodeHandle().set6byte(mHandle), NodeHandle().set6byte(mParentHandle),
-                                                 mType, mSize, mUserHandle, mFileAttributes.c_str(), mCtime);
+    std::shared_ptr<Node> n = std::make_shared<Node>(client,
+                                                     NodeHandle().set6byte(mHandle),
+                                                     NodeHandle().set6byte(mParentHandle),
+                                                     mType,
+                                                     mSize,
+                                                     mUserHandle,
+                                                     mFileAttributes.c_str(),
+                                                     mCtime);
 
     // read inshare, outshares, or pending shares
     for (const auto& s : mShares)
@@ -1889,6 +1897,11 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
     }
 
     n->setKey(mNodeKey); // it can be decrypted or encrypted
+
+    if (!n->keyApplied())
+    {
+        client.mNodeManager.addNodePendingApplykey(n);
+    }
 
     if (!mIsEncrypted)
     {

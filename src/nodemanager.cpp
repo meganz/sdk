@@ -1345,12 +1345,27 @@ void NodeManager::removeChanges_internal()
 {
     assert(mMutex.owns_lock());
 
-    for (auto& it : mNodes)
+    if (mNodesInRam <= mCacheLRU.size() + rootnodes.mRootNodes.size())
     {
-        std::shared_ptr<Node> node = it.second.getNodeInRam(false);
-        if (node)
+        for (auto& node: mCacheLRU)
         {
             memset(&(node->changed), 0, sizeof node->changed);
+        }
+
+        for (auto& it: rootnodes.mRootNodes)
+        {
+            memset(&(it.second->changed), 0, sizeof it.second->changed);
+        }
+    }
+    else
+    {
+        for (auto& it: mNodes)
+        {
+            std::shared_ptr<Node> node = it.second.getNodeInRam(false);
+            if (node)
+            {
+                memset(&(node->changed), 0, sizeof node->changed);
+            }
         }
     }
 }
@@ -1371,6 +1386,7 @@ void NodeManager::cleanNodes_internal()
     mNodesInRam = 0;
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
+    mNodePendingApplyKeys.clear();
 
     rootnodes.clear();
 
@@ -1433,24 +1449,46 @@ void NodeManager::applyKeys(uint32_t appliedKeys)
     applyKeys_internal(appliedKeys);
 }
 
-void NodeManager::applyKeys_internal(uint32_t appliedKeys)
+void NodeManager::addNodePendingApplykey(std::shared_ptr<Node> node)
+{
+    LockGuard g(mMutex);
+    if (node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == VAULTNODE)
+    {
+        return;
+    }
+
+    mNodePendingApplyKeys.push_back(node);
+}
+
+void NodeManager::applyKeys_internal([[maybe_unused]] uint32_t appliedKeys)
 {
     assert(mMutex.owns_lock());
 
-    if (mNodes.size() > appliedKeys)
+    for (auto it = mNodePendingApplyKeys.begin(); it != mNodePendingApplyKeys.end();)
     {
-        for (auto& it : mNodes)
+        if (it->get()->applykey() || it->get()->keyApplied())
         {
-            if (shared_ptr<Node> node = it.second.getNodeInRam(false))
-            {
-               node->applykey();
-            }
+            it = mNodePendingApplyKeys.erase(it);
+        }
+        else
+        {
+            it++;
         }
     }
+
+    int rootNodeUndecrypted =
+        (!getRootNodeFiles().isUndef() && rootnodes.mRootNodes[ROOTNODE]->type == ROOTNODE) ? 1 : 0;
+    int noKeyExpected = rootNodeUndecrypted + (getRootNodeVault().isUndef() ? 0 : 1) +
+                        (getRootNodeRubbish().isUndef() ? 0 : 1);
+
+    assert(mNodesInRam - (mClient.mAppliedKeyNodeCount + noKeyExpected) ==
+           mNodePendingApplyKeys.size());
 }
 
 void NodeManager::notifyPurge()
 {
+    mClient.applykeys();
+
     // only lock to get the nodes to report
     sharedNode_vector nodesToReport;
     {
@@ -1462,8 +1500,6 @@ void NodeManager::notifyPurge()
 
     if (!nodesToReport.empty())
     {
-        mClient.applykeys();
-
         if (!mClient.fetchingnodes)
         {
             assert(!mMutex.owns_lock());
@@ -2049,7 +2085,6 @@ void NodeManager::saveNodeInDb_internal(Node *node)
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
         assert(mNodeToWriteInDb.get() == node);
-        assert(mNodeToWriteInDb.use_count() == 2);
         mNodeToWriteInDb.reset();
     }
 }
