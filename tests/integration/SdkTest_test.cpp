@@ -445,8 +445,10 @@ void SdkTest::Cleanup()
 #endif
 
         cleanupContactRequests(nApi);
-        cleanupShares(nApi);
+        // we have deciced to remove contacts before removing shares to minimize the API_LOCKS due
+        // to SDK implicit commands
         cleanupContacts(nApi);
+        cleanupShares(nApi);
         cleanupNodeLinks(nApi);
         cleanupNodes(nApi);
     }
