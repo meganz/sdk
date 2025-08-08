@@ -254,6 +254,9 @@ public:
     // Remove a previously added observer.
     void removeObserver(FileEventObserverID id);
 
+    // Check if this file has been removed.
+    bool removed() const;
+
     // Update the file's modification time.
     void touch(FileTouchRequest request);
 

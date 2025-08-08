@@ -13,6 +13,7 @@
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_forward.h>
+#include <mega/file_service/file_range_vector.h>
 #include <mega/file_service/file_service_callbacks.h>
 #include <mega/file_service/file_service_forward.h>
 #include <mega/file_service/file_service_options.h>
@@ -200,7 +201,15 @@ public:
     // Open a file managed by the File Service.
     auto fileOpen(file_service::FileID id) const
         -> file_service::FileServiceResultOr<file_service::File>;
+
     auto fileOpen(CloudPath path) const -> file_service::FileServiceResultOr<file_service::File>;
+
+    // Determine what ranges of a file we have in storage.
+    auto fileRanges(file_service::FileID id) const
+        -> file_service::FileServiceResultOr<file_service::FileRangeVector>;
+
+    auto fileRanges(CloudPath path) const
+        -> file_service::FileServiceResultOr<file_service::FileRangeVector>;
 
     // Set the file service's options.
     auto fileServiceOptions(const file_service::FileServiceOptions& options)

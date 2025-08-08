@@ -6,6 +6,7 @@
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
+#include <mega/file_service/file_range.h>
 #include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
@@ -382,6 +383,16 @@ auto Client::fileOpen(FileID id) const -> FileServiceResultOr<file_service::File
 auto Client::fileOpen(CloudPath path) const -> FileServiceResultOr<file_service::File>
 {
     return fileOpen(FileID::from(path.resolve(*this)));
+}
+
+auto Client::fileRanges(FileID id) const -> FileServiceResultOr<FileRangeVector>
+{
+    return fileService().ranges(id);
+}
+
+auto Client::fileRanges(CloudPath path) const -> FileServiceResultOr<FileRangeVector>
+{
+    return fileRanges(FileID::from(path.resolve(*this)));
 }
 
 auto Client::fileServiceOptions(const FileServiceOptions& options) -> FileServiceResult

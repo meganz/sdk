@@ -1577,6 +1577,11 @@ void FileContext::removeObserver(FileEventObserverID id)
     mInfo->removeObserver(id);
 }
 
+bool FileContext::removed() const
+{
+    return mInfo->removed();
+}
+
 void FileContext::touch(FileTouchRequest request)
 {
     executeOrQueue(std::move(request));

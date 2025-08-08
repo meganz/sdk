@@ -43,6 +43,15 @@ class FileServiceContext: private common::NodeEventObserver
     // Processes client node events.
     class EventProcessor;
 
+    // Returned from info(From(Database|Index)).
+    using InfoContextResult = FileServiceResultOr<std::pair<FileInfoContextPtr, FileAccessPtr>>;
+
+    // Returned from openFrom(Cloud|Database|Index).
+    using FileContextResult = FileServiceResultOr<FileContextPtr>;
+
+    // Returned from rangesFrom(Database|Index).
+    using RangesResult = FileServiceResultOr<std::optional<FileRangeVector>>;
+
     // Tracks state necessary for reclaim.
     class ReclaimContext;
 
@@ -59,26 +68,25 @@ class FileServiceContext: private common::NodeEventObserver
     auto getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
         -> std::shared_ptr<T>;
 
-    auto infoFromDatabase(FileID id, bool open) -> std::pair<FileInfoContextPtr, FileAccessPtr>;
+    auto infoFromDatabase(FileID id, bool open) -> InfoContextResult;
 
     template<typename Lock>
-    auto infoFromIndex(FileID id, Lock&& lock, bool open)
-        -> std::pair<FileInfoContextPtr, FileAccessPtr>;
+    auto infoFromIndex(FileID id, Lock&& lock, bool open) -> InfoContextResult;
 
-    auto info(FileID id, bool open) -> std::pair<FileInfoContextPtr, FileAccessPtr>;
+    auto info(FileID id, bool open) -> InfoContextResult;
 
-    auto openFromCloud(FileID id) -> FileServiceResultOr<FileContextPtr>;
+    auto openFromCloud(FileID id) -> FileContextResult;
 
-    auto openFromDatabase(FileID id) -> FileServiceResultOr<FileContextPtr>;
-
-    template<typename Lock>
-    auto openFromIndex(FileID id, Lock&& lock) -> FileContextPtr;
+    auto openFromDatabase(FileID id) -> FileContextResult;
 
     template<typename Lock>
-    auto rangesFromDatabase(FileID id, Lock&& lock) -> std::optional<FileRangeVector>;
+    auto openFromIndex(FileID id, Lock&& lock) -> FileContextResult;
 
     template<typename Lock>
-    auto rangesFromIndex(FileID id, Lock&& lock) -> std::optional<FileRangeVector>;
+    auto rangesFromDatabase(FileID id, Lock&& lock) -> RangesResult;
+
+    template<typename Lock>
+    auto rangesFromIndex(FileID id, Lock&& lock) -> RangesResult;
 
     void reclaimTaskCallback(common::Activity& activity,
                              std::chrono::steady_clock::time_point when,
