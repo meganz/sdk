@@ -3026,7 +3026,7 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
     LOG_info << logPre << "#### Test preconditions. get accounts ####";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    constexpr unsigned idx = 0;
+    unsigned idx = 0;
     std::unique_ptr<MegaNode> rootnode{megaApi[idx]->getRootNode()};
     ASSERT_TRUE(rootnode) << logPre << "Cannot get root node for account: " << idx;
 
@@ -3036,21 +3036,21 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
     ASSERT_NO_FATAL_FAILURE(copyFile(filename, filenameaux)) << "Couldn't create " << UPFILE;
 
     auto uploadFile =
-        [this, &logPre, n = rootnode.get()](const string& filename,
-                                            const string& msg) -> std::pair<int, handle>
+        [this, &logPre, idx, n = rootnode.get()](const string& filename,
+                                                 const string& msg) -> std::pair<int, uint64_t>
     {
         LOG_debug << logPre << msg;
         MegaHandle h = UNDEF;
-        const auto res = doStartUpload(idx,
-                                       &h,
-                                       filename.c_str(),
-                                       n,
-                                       nullptr /*fileName*/,
-                                       ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                       nullptr /*appData*/,
-                                       false /*isSourceTemporary*/,
-                                       false /*startFirst*/,
-                                       nullptr /*cancelToken*/);
+        const int res = doStartUpload(idx,
+                                      &h,
+                                      filename.c_str(),
+                                      n,
+                                      nullptr /*fileName*/,
+                                      ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                      nullptr /*appData*/,
+                                      false /*isSourceTemporary*/,
+                                      false /*startFirst*/,
+                                      nullptr /*cancelToken*/);
         return {res, h};
     };
 
