@@ -959,34 +959,32 @@ void SdkTest::cleanupChatLinks(const unsigned int nApi, std::set<MegaHandle>& sk
             RequestTracker rtD(megaApi[nApi].get());
             megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
 
-            if (auto errCld = rtD.waitForResult(); errCld != API_OK)
+            if (auto errCld = rtD.waitForResult();
+                errCld != API_OK && errCld != API_ENOENT && errCld != API_EACCESS)
             {
-                bool iterationCleanupSuccess{true};
                 const string errDetails =
                     "Error deleting chatlink for chat (" +
                     string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} + ")";
-
-                if (errCld != API_EACCESS)
-                {
-                    localCleanupSuccess = iterationCleanupSuccess = false;
-                }
+                localCleanupSuccess = false;
                 printCleanupErrMsg(prefix,
                                    errDetails,
                                    static_cast<unsigned>(nApi),
                                    errCld,
-                                   iterationCleanupSuccess);
+                                   localCleanupSuccess);
             }
         }
         else
         {
-            if (e == API_ENOENT)
+            if (e == API_ENOENT || e == API_EACCESS)
             {
                 skipChats.emplace(c->getHandle());
+                continue;
             }
 
             const string errDetails = "Error getting chat link for chat (" +
                                       string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} +
                                       ")";
+            localCleanupSuccess = false;
             printCleanupErrMsg(prefix,
                                errDetails,
                                static_cast<unsigned>(nApi),
@@ -1016,22 +1014,17 @@ void SdkTest::cleanupChatrooms(const unsigned int nApi)
 
         RequestTracker rt(megaApi[nApi].get());
         megaApi[nApi]->removeFromChat(c->getHandle(), INVALID_HANDLE, &rt);
-        if (const auto e = rt.waitForResult(); e != API_OK)
+        if (const auto e = rt.waitForResult(); e != API_OK && e != API_ENOENT && e != API_EACCESS)
         {
-            bool iterationCleanupSuccess{true};
             const string errDetails =
                 "Error removing myself from " + string(c->isGroup() ? "group" : "1on1") +
                 " chat (" + string{Base64Str<MegaClient::CHATHANDLE>(c->getHandle())} + ")";
-
-            if (e != API_ENOENT && e != API_EACCESS)
-            {
-                localCleanupSuccess = iterationCleanupSuccess = false;
-            }
+            localCleanupSuccess = false;
             printCleanupErrMsg(prefix,
                                errDetails,
                                static_cast<unsigned>(nApi),
                                e,
-                               iterationCleanupSuccess);
+                               localCleanupSuccess);
         }
     }
 
@@ -1283,19 +1276,16 @@ void SdkTest::cleanupContacts(const unsigned int nApi)
         if (contacts->get(i)->getVisibility() == MegaUser::VISIBILITY_HIDDEN)
             continue;
 
-        if (const auto result = synchronousRemoveContact(nApi, contacts->get(i)); result != API_OK)
+        if (const auto result = synchronousRemoveContact(nApi, contacts->get(i));
+            result != API_OK && result != API_EEXIST)
         {
-            bool iterationCleanupSuccess{true};
             const string errDetails = "Could not remove contact (" + contactEmailStr + ")";
-            if (result != API_EEXIST)
-            {
-                localCleanupSuccess = iterationCleanupSuccess = false;
-            }
+            localCleanupSuccess = false;
             printCleanupErrMsg(prefix,
                                errDetails,
                                static_cast<unsigned>(nApi),
                                result,
-                               iterationCleanupSuccess);
+                               localCleanupSuccess);
         }
     }
 
@@ -1344,33 +1334,20 @@ void SdkTest::cleanupShares(const unsigned int nApi)
 
             if (unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email)); shareUser)
             {
-                if (auto result = synchronousRemoveContact(nApi, shareUser.get()); result != API_OK)
+                if (auto result = synchronousRemoveContact(nApi, shareUser.get());
+                    result != API_OK && result != API_EEXIST)
                 {
-                    bool iterationCleanupSuccess{true};
                     const string errDetails = "[Inshare = " + std::to_string(i) +
                                               "] Error removing inshare's contact (" +
                                               std::string{email} + ")";
-                    if (result != API_EEXIST)
-                    {
-                        localCleanupSuccess = iterationCleanupSuccess = false;
-                    }
+
+                    localCleanupSuccess = false;
                     printCleanupErrMsg(prefix,
                                        errDetails,
                                        static_cast<unsigned>(nApi),
                                        result,
-                                       iterationCleanupSuccess);
+                                       localCleanupSuccess);
                 }
-            }
-            else
-            {
-                const string errDetails = "[Inshare = " + std::to_string(i) +
-                                          "] InShare has user (" + std::string{email} +
-                                          ") but the corresponding user does not exist";
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(nApi),
-                                   API_EINTERNAL,
-                                   true /*localCleanupSuccess*/);
             }
         }
 
@@ -1386,6 +1363,7 @@ void SdkTest::cleanupShares(const unsigned int nApi)
                     "Removal of inshare folder (" +
                     string{Base64Str<MegaClient::NODEHANDLE>(n->getHandle())} +
                     +") failed or took more than 5 minutes";
+
                 localCleanupSuccess = false;
                 printCleanupErrMsg(prefix,
                                    errDetails,
@@ -1393,15 +1371,6 @@ void SdkTest::cleanupShares(const unsigned int nApi)
                                    res,
                                    localCleanupSuccess);
             }
-        }
-        else
-        {
-            const string errDetails = "[Inshare = " + std::to_string(i) + "] No node found!!!";
-            printCleanupErrMsg(prefix,
-                               errDetails,
-                               static_cast<unsigned>(nApi),
-                               API_EINTERNAL,
-                               true /*localCleanupSuccess*/);
         }
     }
 
@@ -1428,10 +1397,11 @@ void SdkTest::cleanupShares(const unsigned int nApi)
             if (unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email)); shareUser)
             {
                 auto result = synchronousRemoveContact(nApi, shareUser.get());
-                if (result != API_OK && result)
+                if (result != API_OK && result != API_EEXIST)
                 {
                     const string errDetails =
                         "Removal of outshare's contact (" + string{email} + ")";
+
                     localCleanupSuccess = false;
                     printCleanupErrMsg(prefix,
                                        errDetails,
@@ -1439,17 +1409,6 @@ void SdkTest::cleanupShares(const unsigned int nApi)
                                        result,
                                        localCleanupSuccess);
                 }
-            }
-            else
-            {
-                const string errDetails = "[OutShare = " + std::to_string(i) +
-                                          "] OutShare has user (" + std::string{email} +
-                                          ") but the corresponding user does not exist";
-                printCleanupErrMsg(prefix,
-                                   errDetails,
-                                   static_cast<unsigned>(nApi),
-                                   API_EINTERNAL,
-                                   true /*localCleanupSuccess*/);
             }
         }
 
@@ -1459,28 +1418,20 @@ void SdkTest::cleanupShares(const unsigned int nApi)
         {
             RequestTracker rt(megaApi[nApi].get());
             megaApi[nApi]->share(n.get(), os->getUser(), MegaShare::ACCESS_UNKNOWN, &rt);
-            if (const auto res = rt.waitForResult(300); res != API_OK)
+            if (const auto res = rt.waitForResult(300); res != API_OK && res != API_ENOENT)
             {
                 const string errDetails =
                     "Removal of outshare folder (" +
                     string{Base64Str<MegaClient::NODEHANDLE>(n->getHandle())} +
                     +") failed or took more than 5 minutes";
                 localCleanupSuccess = false;
+
                 printCleanupErrMsg(prefix,
                                    errDetails,
                                    static_cast<unsigned>(nApi),
                                    res,
                                    localCleanupSuccess);
             }
-        }
-        else
-        {
-            const string errDetails = "[OutShare = " + std::to_string(i) + "] No node found!!!";
-            printCleanupErrMsg(prefix,
-                               errDetails,
-                               static_cast<unsigned>(nApi),
-                               API_EINTERNAL,
-                               true /*localCleanupSuccess*/);
         }
     }
 
@@ -1640,7 +1591,8 @@ void SdkTest::cleanupNodes(const unsigned int nApi)
         auto getFolderInfo =
             [this, prefix, &localCleanupSuccess](unsigned nApi, MegaNode* n, uint64_t& nodesIn)
         {
-            if (auto res = synchronousFolderInfo(nApi, n); res != MegaError::API_OK)
+            if (auto res = synchronousFolderInfo(nApi, n);
+                res != MegaError::API_OK && res != MegaError::API_ENOENT)
             {
                 const string errDetails = "Cannot get Folder Info for rootnode";
                 localCleanupSuccess = false;
@@ -1712,26 +1664,16 @@ void SdkTest::cleanupContactRequests(const unsigned int nApi)
                                          cr->getTargetEmail(),
                                          "Test cleanup removing outgoing contact request",
                                          MegaContactRequest::INVITE_ACTION_DELETE);
-            resOut != API_OK)
+            resOut != API_OK && resOut != API_EARGS)
         {
-            string errDetails;
-            bool iterationCleanupSuccess{true};
-            if (resOut == API_EARGS)
-            {
-                errDetails = "No pending outgoing contact request exists for user (" +
-                             std::string(cr->getTargetEmail() ? cr->getTargetEmail() : "") + ")";
-            }
-            else
-            {
-                errDetails = "Error removing outgoing contact request (" +
-                             std::string(cr->getTargetEmail() ? cr->getTargetEmail() : "") + ")";
-                localCleanupSuccess = iterationCleanupSuccess = false;
-            }
+            localCleanupSuccess = false;
+            string errDetails = "Error removing outgoing contact request (" +
+                                std::string(cr->getTargetEmail() ? cr->getTargetEmail() : "") + ")";
             printCleanupErrMsg(prefix,
                                errDetails,
                                static_cast<unsigned>(nApi),
                                resOut,
-                               iterationCleanupSuccess);
+                               localCleanupSuccess);
         }
     }
 
@@ -1747,27 +1689,17 @@ void SdkTest::cleanupContactRequests(const unsigned int nApi)
 
         if (const auto resIn =
                 synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
-            resIn != API_OK)
+            resIn != API_OK && resIn != API_EARGS)
         {
-            string errDetails;
-            bool iterationCleanupSuccess{true};
-            if (resIn == API_EARGS)
-            {
-                errDetails = "No pending incoming contact request exists for user (" +
-                             std::string(cr->getSourceEmail() ? cr->getSourceEmail() : "") + ")";
-            }
-            else
-            {
-                errDetails = "Error removing incoming contact request (" +
-                             std::string(cr->getSourceEmail() ? cr->getSourceEmail() : "") + ")";
-                localCleanupSuccess = iterationCleanupSuccess = false;
-            }
+            string errDetails = "Error removing incoming contact request (" +
+                                std::string(cr->getSourceEmail() ? cr->getSourceEmail() : "") + ")";
 
+            localCleanupSuccess = false;
             printCleanupErrMsg(prefix,
                                errDetails,
                                static_cast<unsigned>(nApi),
                                resIn,
-                               iterationCleanupSuccess);
+                               localCleanupSuccess);
         }
     }
 
@@ -4492,7 +4424,8 @@ void SdkTest::cleanupSchedMeetings(const unsigned nApi)
                 std::unique_ptr<RequestTracker> tracker(new RequestTracker(megaApi[nApi].get()));
                 megaApi[nApi]->createOrUpdateScheduledMeeting(sm.get(), chatTitle, tracker.get());
 
-                if (auto reqResult = tracker->waitForResult(); reqResult != API_OK)
+                if (auto reqResult = tracker->waitForResult();
+                    reqResult != API_OK && reqResult != API_ENOENT && reqResult != API_EACCESS)
                 {
                     const string errDetails =
                         "Error cancelling scheduled meeting for chat (" +
