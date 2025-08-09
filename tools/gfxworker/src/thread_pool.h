@@ -5,6 +5,7 @@
 #include <deque>
 #include <condition_variable>
 #include <thread>
+#include <vector>
 
 namespace mega
 {

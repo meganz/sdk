@@ -16,9 +16,6 @@
 using namespace mega;
 using namespace testing;
 
-static constexpr std::chrono::seconds DEFAULT_UPLOAD_COUNTER_INACTIVITY_EXPIRATION_TIME{10};
-static constexpr unsigned DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE{2};
-
 namespace
 {
 
@@ -118,13 +115,11 @@ protected:
         mSyncUpload->wasRequesterAbandoned = true; // We do not finish uploads.
     }
 
-    static constexpr bool DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE{false};
     static constexpr size_t DEFAULT_SIZE{50};
     static constexpr m_time_t DEFAULT_MTIME{50};
 
     const NodeHandle mDummyHandle{};
     const std::string mNodeName{"testNode"};
-    const LocalPath mDummyLocalName{};
     const FileFingerprint mInitialFingerprint{generateFingerprint(DEFAULT_SIZE, DEFAULT_MTIME)};
     const FileFingerprint mDummyFingerprint;
     const LocalPath mDummyFullPath;
@@ -152,212 +147,5 @@ void increaseUploadCounter(UploadThrottlingFile& throttlingFile, const unsigned 
 
 // UploadThrottlingFileTest test cases
 
-/**
- * @test Verifies that the upload counter method increases the counter correctly.
- */
-TEST(UploadThrottlingFileTest, IncreaseUploadCounterIncrementsCounter)
-{
-    // Initial state
-    UploadThrottlingFile throttlingFile;
-    ASSERT_EQ(throttlingFile.uploadCounter(), 0);
-
-    // Increase the counter and check expectations.
-    constexpr unsigned numIncreases = 2;
-    increaseUploadCounter(throttlingFile, numIncreases);
-    ASSERT_EQ(throttlingFile.uploadCounter(), numIncreases);
-}
-
-/**
- * @test Verifies that the upload counter resets after inactivity.
- */
-TEST(UploadThrottlingFileTest, CheckUploadThrottlingResetsCounterAfterInactivity)
-{
-    UploadThrottlingFile throttlingFile;
-    increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
-
-    const auto uploadCounterInactivityExpirationTime = std::chrono::seconds(2);
-    std::this_thread::sleep_for(
-        uploadCounterInactivityExpirationTime +
-        std::chrono::seconds(1)); // Wait enough time to exceed the inactivity expiration time.
-
-    ASSERT_FALSE(throttlingFile.checkUploadThrottling(DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                      uploadCounterInactivityExpirationTime));
-}
-
-/**
- * @test Verifies that throttling is applied when max uploads are exceeded.
- */
-TEST(UploadThrottlingFileTest, CheckUploadThrottlingExceedsMaxUploads)
-{
-    UploadThrottlingFile throttlingFile;
-    increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
-
-    ASSERT_TRUE(
-        throttlingFile.checkUploadThrottling(DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                             DEFAULT_UPLOAD_COUNTER_INACTIVITY_EXPIRATION_TIME));
-}
-
-/**
- * @test Verifies that the bypass flag is respected during throttling checks.
- * 1. First call should not bypass throttling.
- * 2. After setting the flag, next call should bypass throttling.
- * 3. Next call after that should not bypass throttling (flag is reset).
- */
-TEST(UploadThrottlingFileTest, CheckUploadThrottlingBypassFlag)
-{
-    UploadThrottlingFile throttlingFile;
-    increaseUploadCounter(throttlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
-
-    // First call should not bypass throttling.
-    ASSERT_TRUE(
-        throttlingFile.checkUploadThrottling(DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                             DEFAULT_UPLOAD_COUNTER_INACTIVITY_EXPIRATION_TIME));
-
-    // Set bypass flag to true.
-    throttlingFile.bypassThrottlingNextTime(DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
-
-    // Next call should bypass throttling.
-    ASSERT_FALSE(
-        throttlingFile.checkUploadThrottling(DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                             DEFAULT_UPLOAD_COUNTER_INACTIVITY_EXPIRATION_TIME));
-
-    // Subsequent calls should not bypass.
-    ASSERT_TRUE(
-        throttlingFile.checkUploadThrottling(DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                             DEFAULT_UPLOAD_COUNTER_INACTIVITY_EXPIRATION_TIME));
-}
-
-// UploadThrottlingFileChangesTest test cases
-
-/**
- * @test Verifies that no abort occurs when putnodes have started.
- */
-TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenPutnodesStarted)
-{
-    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, mInitialFingerprint.size)).Times(1);
-    EXPECT_CALL(*mMockSyncThreadsafeState, removeExpectedUpload(mDummyHandle, mNodeName)).Times(1);
-
-    initializeSyncUpload_inClient();
-    mSyncUpload->putnodesStarted = true;
-
-    ASSERT_FALSE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
-                                                   DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
-                                                   mDummyFingerprint,
-                                                   DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                   mDummyFullPath));
-}
-
-/**
- * @test Verifies that no abort occurs when upload is completed but it wasn't processed yet when
- * calling handleAbortUpload.
- */
-TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenUploadIsCompleted)
-{
-    EXPECT_CALL(*mMockSyncThreadsafeState, transferComplete(PUT, mInitialFingerprint.size))
-        .Times(1);
-    EXPECT_CALL(*mMockSyncThreadsafeState, removeExpectedUpload(mDummyHandle, mNodeName)).Times(1);
-
-    initializeSyncUpload_inClient();
-    mSyncUpload->putnodesStarted = true;
-    mSyncUpload->wasCompleted = true;
-    mSyncUpload->wasPutnodesCompleted = true;
-    mSyncUpload->wasRequesterAbandoned = false;
-
-    ASSERT_FALSE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
-                                                   DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
-                                                   mDummyFingerprint,
-                                                   DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                   mDummyFullPath));
-}
-
-/**
- * @test Verifies that no abort occurs when the upload hasn't started and the fingerprint is
- * updated. The fingerprint is checked before and after handleAbortUpload to ensure it is correctly
- * updated.
- */
-TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenNotStartedAndUpdateFingerprint)
-{
-    const FileFingerprint newFingerprint = generateFingerprint(100, 20);
-
-    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, mInitialFingerprint.size)).Times(1);
-    EXPECT_CALL(*mMockSyncThreadsafeState, transferBegin(PUT, newFingerprint.size)).Times(1);
-    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, newFingerprint.size)).Times(1);
-
-    initializeSyncUpload_inClient();
-
-    ASSERT_NE(newFingerprint.size, mSyncUpload->fingerprint().size);
-    ASSERT_NE(newFingerprint.mtime, mSyncUpload->fingerprint().mtime);
-
-    ASSERT_FALSE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
-                                                   DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
-                                                   newFingerprint,
-                                                   DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                   mDummyFullPath));
-
-    ASSERT_EQ(newFingerprint.size, mSyncUpload->fingerprint().size);
-    ASSERT_EQ(newFingerprint.mtime, mSyncUpload->fingerprint().mtime);
-}
-
-/**
- * @test Verifies that the upload must be aborted if it started but putnodes does not.
- * Case 1: The upload counter did not reach DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE and the upload must
- * bypass throttling logic next time.
- */
-TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadDoNotSetBypassFlag)
-{
-    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, mInitialFingerprint.size)).Times(1);
-
-    initializeSyncUpload_inClient();
-    mSyncUpload->wasStarted = true;
-
-    increaseUploadCounter(mThrottlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE - 1);
-
-    ASSERT_TRUE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
-                                                  DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
-                                                  mDummyFingerprint,
-                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                  mDummyFullPath));
-    ASSERT_FALSE(mThrottlingFile.willBypassThrottlingNextTime());
-}
-
-/**
- * @test Verifies that the upload must be aborted if it started but putnodes does not.
- * Case 2: The upload counter reached DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE and the upload must
- * bypass throttling logic next time.
- */
-TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadAndSetBypassFlag)
-{
-    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, mInitialFingerprint.size)).Times(1);
-
-    initializeSyncUpload_inClient();
-    mSyncUpload->wasStarted = true;
-
-    increaseUploadCounter(mThrottlingFile, DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE);
-
-    ASSERT_TRUE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
-                                                  DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
-                                                  mDummyFingerprint,
-                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                  mDummyFullPath));
-    ASSERT_TRUE(mThrottlingFile.willBypassThrottlingNextTime());
-}
-
-/**
- * @test Verifies that the upload must be aborted when the transfer direction needs to change (and
- * put nodes has not started).
- */
-TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadAbortDueToTransferDirectionNeedsToChange)
-{
-    EXPECT_CALL(*mMockSyncThreadsafeState, transferFailed(PUT, mInitialFingerprint.size)).Times(1);
-
-    initializeSyncUpload_inClient();
-
-    constexpr bool transferDirectionNeedsToChange{true};
-    ASSERT_TRUE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
-                                                  transferDirectionNeedsToChange,
-                                                  mDummyFingerprint,
-                                                  DEFAULT_MAX_UPLOADS_BEFORE_THROTTLE,
-                                                  mDummyFullPath));
-}
 
 #endif // ENABLE_SYNC

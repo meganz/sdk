@@ -73,6 +73,7 @@ namespace mega {
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_map>
 
 namespace mega {
 
@@ -900,7 +901,6 @@ typedef enum {
     REASON_ERROR_NO_JSCD = 5,
     REASON_ERROR_REGENERATE_JSCD = 6,
     REASON_ERROR_DB_CORRUPT = 7,
-    REASON_ERROR_DB_UNKNOWN = 8,
 } ErrorReason;
 
 // enum matching 1:1 MegaEvent::NetworkActivityChannel

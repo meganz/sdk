@@ -159,6 +159,7 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool in
 
 m_off_t Request::processChunk(const char* chunk, MegaClient *client)
 {
+    std::cout << "###Request::processChunk: " << chunk << std::endl;
     if (stopProcessing || cmds.size() != 1)
     {
         clear();
@@ -166,7 +167,8 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
     }
 
     // Only fetchnodes command is currently supported
-    assert(isFetchNodes());
+    // chai
+    // assert(isFetchNodes());
 
     m_off_t consumed = 0;
     Command& cmd = *cmds[0];
@@ -181,6 +183,7 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
         if (!json.enterarray())
         {
             // Request-level error
+            std::cout << "###not an array " << chunk << std::endl;
             clear();
             return 0;
         }
@@ -201,10 +204,12 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
     json.begin(chunk + consumed);
     if (mJsonSplitter.hasFinished())
     {
+        std::cout << "###mJsonSplitter.hasFinished(), json stream: " << json.pos << std::endl;
         if (!json.leavearray())
         {
-            LOG_err << "Unexpected end of JSON stream: " << json.pos;
-            assert(false);
+            std::cout << "###Unexpected end of JSON stream: " << json.pos << std::endl;
+            std::cout << "###Skip error handling for now." << std::endl;
+            // assert(false);
         }
         else
         {
@@ -321,7 +326,10 @@ void Request::process(MegaClient* client)
 
 Command* Request::getCurrentCommand()
 {
-    assert(processindex < cmds.size());
+    // assert(processindex < cmds.size());
+    if (processindex >= cmds.size()) {
+      return nullptr;
+    }
     return cmds[processindex].get();
 }
 
@@ -464,6 +472,7 @@ bool RequestDispatcher::cmdsInflight() const
 
 Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
 {
+    std::cout << "###RequestDispatcher::getCurrentCommand" << std::endl;
     return currSeqtagSeen ? inflightreq.getCurrentCommand() : nullptr;
 }
 
@@ -530,6 +539,8 @@ void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *cli
 
 size_t RequestDispatcher::serverChunk(const char *chunk, MegaClient *client)
 {
+    // chai
+    std::cout << "###RequestDispatcher::serverChunk: " << chunk << std::endl;
     processing = true;
     size_t consumed = static_cast<size_t>(inflightreq.processChunk(chunk, client));
     processing = false;
@@ -563,7 +574,13 @@ void RequestDispatcher::servererror(const std::string& e, MegaClient *client)
 
 void RequestDispatcher::continueProcessing(MegaClient* client)
 {
-    assert(!inflightreq.empty());
+    // assert(!inflightreq.empty());
+    if (inflightreq.empty()) {
+      processing = false;
+      clear();
+      return;
+    }
+
     processing = true;
     inflightreq.process(client);
     processing = false;

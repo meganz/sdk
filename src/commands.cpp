@@ -1959,6 +1959,10 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         client->loginResult(std::move(mCompletion), API_ENOENT);
                         return true;
                     }
+
+                    // add missing RSA keypair
+                    LOG_info << "Generating and adding missing RSA keypair";
+                    client->setkeypair();
                 }
                 else
                 {
@@ -1970,20 +1974,22 @@ bool CommandLogin::procresult(Result r, JSON& json)
                             client->loginResult(std::move(mCompletion), API_EINTERNAL);
                             return true;
                         }
+                        else if (!client->ephemeralSessionPlusPlus && !client->ephemeralSession)
+                        {
+                            // logging in with tsid to an account without a RSA keypair
+                            LOG_info << "Generating and adding missing RSA keypair";
+                            client->setkeypair();
+                        }
                     }
                     else
                     {
                         // decrypt and set private key
                         client->key.ecb_decrypt(privkbuf, static_cast<size_t>(len_privk));
-                        client->mSerializedPrivateRsaKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
-                        client->mSerializedPrivateRsaKey.resize(static_cast<size_t>(
-                            Base64::btoa(privkbuf,
-                                         len_privk,
-                                         (char*)client->mSerializedPrivateRsaKey.data())));
+                        client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                        client->mPrivKey.resize(static_cast<size_t>(
+                            Base64::btoa(privkbuf, len_privk, (char*)client->mPrivKey.data())));
 
-                        if (!client->mPrivateRsaKey.setkey(AsymmCipher::PRIVKEY,
-                                                           privkbuf,
-                                                           len_privk))
+                        if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                         {
                             LOG_warn << "Error checking private key";
                             client->loginResult(std::move(mCompletion), API_ENOENT);
@@ -2002,10 +2008,10 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         byte buf[sizeof me];
 
                         // decrypt and set session ID for subsequent API communication
-                        if (!client->mPrivateRsaKey.decrypt(sidbuf,
-                                                            static_cast<size_t>(len_csid),
-                                                            sidbuf,
-                                                            MegaClient::SIDLEN)
+                        if (!client->asymkey.decrypt(sidbuf,
+                                                     static_cast<size_t>(len_csid),
+                                                     sidbuf,
+                                                     MegaClient::SIDLEN)
                             // additionally, check that the user's handle included in the session
                             // matches the own user's handle (me)
                             ||
@@ -2214,6 +2220,18 @@ bool CommandSetShare::procresult(Result r, JSON& json)
                 }
                 break;
 
+            case makeNameid("snk"):
+                client->procsnk(&json);
+                break;
+
+            case makeNameid("suk"):
+                client->procsuk(&json);
+                break;
+
+            case makeNameid("cr"):
+                client->proccr(&json);
+                break;
+
             case EOO:
                 completion(API_OK, mWritable);
                 return true;
@@ -2329,7 +2347,7 @@ bool CommandPendingKeys::procresult(Result r, JSON& json)
 CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, Completion completion)
 {
     mSeqtagArray = true;
-    
+
     cmd("upc");
 
     if (oemail != NULL)
@@ -2530,19 +2548,13 @@ void CommandUpdatePendingContact::doComplete(error e, ipcactions_t actions)
     mCompletion(e, actions);
 }
 
-CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(
-    const std::optional<std::string>& countryCode,
-    MegaClient* client)
+CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
     arg("nf", 3);
     arg("b", 1);    // support for Business accounts
     arg("p", 1);    // support for Pro Flexi
     arg("ft", 1);   // support for Feature plans
-    if (countryCode && !countryCode->empty())
-    {
-        arg("c", countryCode->c_str()); // Support for forcing the currency of a specific country
-    }
     tag = client->reqtag;
 }
 
@@ -3136,7 +3148,7 @@ bool CommandPurchaseCheckout::procresult(Result r, JSON& json)
 CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show, Completion completion)
 {
     mSeqtagArray = true;
-    
+
     this->email = m ? m : "";
     this->v = show;
 
@@ -3254,18 +3266,17 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
                         string prEd255{std::move((*records)[EdDSA::TLV_KEY])};
                         if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                         {
-                            client->mEd255Key =
-                                new EdDSA(client->rng, (unsigned char*)prEd255.data());
+                            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
                         }
 
                         string prCu255{std::move((*records)[ECDH::TLV_KEY])};
                         if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                         {
-                            client->mX255Key = new ECDH(prCu255);
+                            client->chatkey = new ECDH(prCu255);
                         }
 
-                        if (!client->mX255Key || !client->mX255Key->initializationOK ||
-                            !client->mEd255Key || !client->mEd255Key->initializationOK)
+                        if (!client->chatkey || !client->chatkey->initializationOK ||
+                                !client->signkey || !client->signkey->initializationOK)
                         {
                             client->resetKeyring();
                             client->sendevent(99418, "Failed to load attached keys", 0);
@@ -4751,12 +4762,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     static_cast<size_t>(Base64::btoa(privkbuf, len_privk, (char*)privk.data())));
 
                 // RSA private key should be already assigned at login
-                assert(privk == client->mSerializedPrivateRsaKey);
-                if (client->mSerializedPrivateRsaKey.empty())
+                assert(privk == client->mPrivKey);
+                if (client->mPrivKey.empty())
                 {
-                    client->mSerializedPrivateRsaKey = privk;
+                    client->mPrivKey = privk;
                     LOG_warn << "Private key not set by login, setting at `ug` response...";
-                    if (!client->mPrivateRsaKey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+                    if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                     {
                         LOG_warn << "Error checking private key at `ug` response";
                     }
@@ -4765,7 +4776,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
             if (len_pubk)
             {
-                client->mPublicRsaKey.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
+                client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
             }
 
             if (v)
@@ -6765,6 +6776,10 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
     arg("pubk", pubk, static_cast<int>(pubklen));
 
     tag = client->reqtag;
+
+    len = privklen;
+    privkBuffer.reset(new byte[privklen]);
+    memcpy(privkBuffer.get(), privk, len);
 }
 
 bool CommandSetKeyPair::procresult(Result r, JSON& json)
@@ -6772,15 +6787,20 @@ bool CommandSetKeyPair::procresult(Result r, JSON& json)
     if (r.hasJsonItem())
     {
         json.storeobject();
+
+        client->key.ecb_decrypt(privkBuffer.get(), len);
+        client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+        client->mPrivKey.resize(static_cast<size_t>(Base64::btoa(privkBuffer.get(),
+                                                                 static_cast<int>(len),
+                                                                 (char*)client->mPrivKey.data())));
+
         client->app->setkeypair_result(API_OK);
         return true;
+
     }
     else if (r.wasErrorOrOK())
     {
-        // clear local value, since it failed to set
-        client->mPrivateRsaKey.resetkey();
-        client->mPublicRsaKey.resetkey();
-        client->mSerializedPrivateRsaKey.clear();
+        client->asymkey.resetkey(); // clear local value, since it failed to set
         client->app->setkeypair_result(r.errorOrOK());
         return true;
     }
@@ -6796,6 +6816,8 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                                      bool loadSyncs,
                                      const NodeHandle partialFetchRoot)
 {
+    // chai
+    std::cout << "###CommandFetchNodes::CommandFetchNodes" << std::endl;
     assert(client);
 
     cmd("f");
@@ -6888,6 +6910,11 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     // Node objects (one by one)
     auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
     {
+        // chai
+        // std::cout << "### client readnode" << std::endl;
+        // auto len = strlen(json->getvalue1());
+        // chai
+        // std::cout << "### raw now content: " << std::string(json->getvalue1(), len) << std::endl;
         if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true,
                              mMissingParentNodes, mPreviousHandleForAlert,
                              nullptr, // allParents disabled because Syncs::triggerSync
@@ -6973,6 +7000,23 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
             return false;
         }
         return json->leaveobject();
+    });
+
+    // Legacy node key requests (array)
+    f = mFilters.emplace("{[cr", [client](JSON *json)
+    {
+        client->proccr(json);
+        return true;
+    });
+
+    // Legacy node key requests (object)
+    mFilters.emplace("{{cr", f.first->second);
+
+    // Legacy share key requests
+    mFilters.emplace("{[sr", [client](JSON *json)
+    {
+        client->procsr(json);
+        return true;
     });
 
     // sn tag
@@ -7198,6 +7242,16 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
+                break;
+
+            case makeNameid("cr"):
+                // crypto key request
+                client->proccr(&json);
+                break;
+
+            case makeNameid("sr"):
+                // sharekey distribution request
+                client->procsr(&json);
                 break;
 
             case makeNameid("sn"):
@@ -7495,10 +7549,10 @@ bool CommandCopySession::procresult(Result r, JSON& json)
                     return false;
                 }
 
-                if (!client->mPrivateRsaKey.decrypt(sidbuf,
-                                                    static_cast<size_t>(len_csid),
-                                                    sidbuf,
-                                                    MegaClient::SIDLEN))
+                if (!client->asymkey.decrypt(sidbuf,
+                                             static_cast<size_t>(len_csid),
+                                             sidbuf,
+                                             MegaClient::SIDLEN))
                 {
                     client->app->copysession_result(NULL, API_EINTERNAL);
                     return false;
@@ -12957,91 +13011,6 @@ bool CommandSetThrottlingParams::procresult(Result r, JSON& json)
     }
 
     mCompletion(*throttlingParams);
-    return true;
-}
-
-CommandGetSubscriptionCancellationDetails::CommandGetSubscriptionCancellationDetails(
-    MegaClient* client,
-    const char* originalTransactionId,
-    unsigned int gatewayId,
-    CompletionCallback&& completion)
-{
-    assert(completion);
-
-    cmd("gsc");
-
-    if (originalTransactionId)
-    {
-        arg("id", originalTransactionId);
-    }
-
-    arg("gw", gatewayId);
-
-    tag = client->reqtag;
-
-    mCompletion = std::move(completion);
-}
-
-bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JSON& json)
-{
-    if (!r.hasJsonObject())
-    {
-        if (mCompletion)
-        {
-            if (r.wasErrorOrOK())
-            {
-                mCompletion(r.errorOrOK(), {}, {}, {});
-            }
-            else
-            {
-                mCompletion(API_EINTERNAL, {}, {}, {});
-            }
-        }
-        return true;
-    }
-
-    std::string originalTransactionId;
-    int expiresDate = 0;
-    int cancelledDate = -1;
-
-    for (bool finished = false; !finished;)
-    {
-        switch (json.getnameid())
-        {
-            case makeNameid("id"):
-                json.storeobject(&originalTransactionId);
-                break;
-            case makeNameid("expires"):
-                expiresDate = json.getint32();
-                break;
-            case makeNameid("canceled"):
-                cancelledDate = json.getint32();
-                break;
-            default:
-                if (!json.storeobject())
-                {
-                    if (mCompletion)
-                    {
-                        mCompletion(API_EINTERNAL, {}, {}, {});
-                    }
-                    return false;
-                }
-                break;
-            case EOO:
-            {
-                finished = true;
-            }
-            break;
-        }
-    }
-
-    if (mCompletion)
-    {
-        mCompletion((originalTransactionId.empty() || expiresDate == 0) ? API_EINTERNAL : API_OK,
-                    std::move(originalTransactionId),
-                    std::move(expiresDate),
-                    std::move(cancelledDate));
-    }
     return true;
 }
 

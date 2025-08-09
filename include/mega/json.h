@@ -36,16 +36,21 @@ struct MEGA_API JSON
     }
 
     explicit JSON(const string& data)
-      : pos(data.c_str())
+      : pos(data.c_str()), raw(data.c_str())
     {
     }
 
     explicit JSON(const char* data)
-      : pos(data)
+      : pos(data), raw(data)
     {
     }
 
     const char* pos;
+    const char* raw;
+
+    const char* tostring() const {
+        return raw;
+    }
 
     bool isnumeric();
 
@@ -53,6 +58,7 @@ struct MEGA_API JSON
 
     m_off_t getint();
     double getfloat();
+    const char* getvalue1();
     const char* getvalue();
 
     std::uint64_t getfsfp();

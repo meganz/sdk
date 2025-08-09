@@ -33,7 +33,6 @@
 #include "mega/user_attribute.h"
 #include "mega/utils_optional.h"
 
-#include <algorithm>
 #include <bitset>
 #include <charconv>
 #include <chrono>
@@ -98,8 +97,6 @@ using std::dec;
 
 MegaClient* client;
 MegaClient* clientFolder;
-std::string megacliUserAgent{"megacli/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
-    MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION)};
 
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
@@ -1181,10 +1178,14 @@ void DemoApp::unlink_result(handle, error e)
     }
 }
 
+// chai
 void DemoApp::fetchnodes_result(const Error& e)
 {
+    // chai
+    std::cout << "###DemoApp::fetchnodes_result" << std::endl;
     if (e)
     {
+      // std::cout << "###DemoApp::fetchnodes_result haserror" << std::endl;
         if (e == API_ENOENT && e.hasExtraInfo())
         {
             cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
@@ -1197,9 +1198,12 @@ void DemoApp::fetchnodes_result(const Error& e)
     }
     else
     {
+        // std::cout << "###DemoApp::fetchnodes_result no error" << std::endl;
         // check if we fetched a folder link and the key is invalid
         if (client->loggedIntoFolder())
         {
+            // std::cout << "###DemoApp::fetchnodes_result logged into folder" << std::endl;
+
             if (client->isValidFolderLink())
             {
                 cout << "Folder link loaded correctly." << endl;
@@ -1213,15 +1217,20 @@ void DemoApp::fetchnodes_result(const Error& e)
 
         if (pdf_to_import)
         {
+            // std::cout << "###DemoApp::fetchnodes_result pdf to import" << std::endl;
+
             client->importOrDelayWelcomePdf();
         }
         else if (client->shouldWelcomePdfImported())
         {
+            // std::cout << "###DemoApp::fetchnodes_result should welcome pdf imported" << std::endl;
+
             client->importWelcomePdfIfDelayed();
         }
 
         if (client->ephemeralSessionPlusPlus)
         {
+            // std::cout << "###DemoApp::fetchnodes_result ephemeral session plus" << std::endl;
             client->putua(ATTR_FIRSTNAME, (const byte*)ephemeralFirstname.c_str(), unsigned(ephemeralFirstname.size()));
             client->putua(ATTR_LASTNAME, (const byte*)ephemeralLastName.c_str(), unsigned(ephemeralLastName.size()));
         }
@@ -1510,116 +1519,44 @@ void exec_devcommand(autocomplete::ACState& s)
     const bool isCampaingProvided = s.extractflagparam("-c", campaign);
     std::string groupId;
     const bool isGroupIdProvided = s.extractflagparam("-g", groupId);
-    std::string quotaLengthInMonths;
-    const bool isQuotaLengthInMonths = s.extractflagparam("-q", quotaLengthInMonths);
-    std::string accountLevel;
-    const bool isAccountLevel = s.extractflagparam("-l", accountLevel);
 
     const auto printElement = [](const auto& p){ std::cout << " " << p; };
-
-    struct Param
-    {
-        bool exists;
-        std::string_view name;
-    };
-
-    auto notifyIgnoredParams = [&printElement, &subcommand](std::vector<Param> params)
-    {
-        std::vector<std::string_view> toIgnore;
-        std::for_each(begin(params),
-                      end(params),
-                      [&toIgnore](Param& param)
-                      {
-                          if (param.exists)
-                              toIgnore.emplace_back(param.name);
-                      });
-        if (!toIgnore.empty())
-        {
-            std::cout << "devcommand " << subcommand << " will ignore unrequired";
-            std::for_each(std::begin(toIgnore), std::end(toIgnore), printElement);
-            std::cout << " provided options\n";
-        }
-    };
-
-    auto requiredParamsPresent = [&printElement, &subcommand](std::vector<Param> params) -> bool
-    {
-        std::vector<std::string_view> missing;
-        std::for_each(begin(params),
-                      end(params),
-                      [&missing](Param& param)
-                      {
-                          if (!param.exists)
-                              missing.emplace_back(param.name);
-                      });
-        if (!missing.empty())
-        {
-            std::cout << "devcommand " << subcommand << " missing required ";
-            std::for_each(std::begin(missing), std::end(missing), printElement);
-            std::cout << " options\n";
-            return false;
-        }
-        return true;
-    };
-
-    const auto checkNatural = [&subcommand](const size_t& length,
-                                            const std::string& numberAsString,
-                                            const std::string_view p) -> bool
-    {
-        if (length != numberAsString.size())
-        {
-            std::cout << subcommand << " param " << p
-                      << " must be a natural number: " << numberAsString << " provided\n";
-            return false;
-        }
-        return true;
-    };
-
     if (subcommand == "abs")
     {
-        notifyIgnoredParams({Param{isEmailProvided, "-e"},
-                             Param{isQuotaLengthInMonths, "-q"},
-                             Param{isAccountLevel, "-l"}});
+        if (isEmailProvided) std::cout << "devcommand abs will ignore unrequired -e provided\n";
 
-        if (!requiredParamsPresent(
-                {Param{isCampaingProvided, "-c"}, Param{isGroupIdProvided, "-g"}}))
+        std::vector<std::string> req;
+        if (!isCampaingProvided) req.emplace_back("-c");
+        if (!isGroupIdProvided) req.emplace_back("-g");
+        if (!req.empty())
+        {
+            std::cout << "devcommand abs is missing required";
+            std::for_each(std::begin(req), std::end(req), printElement);
+            std::cout << " options\n";
             return;
+        }
 
         size_t l;
         const int g = std::stoi(groupId, &l); // it's okay throwing in megacli for non-numeric
-        if (!checkNatural(l, groupId, "-g"))
+        if(l != groupId.size())
+        {
+            std::cout << "abs param -g must be a natural number: " << groupId << " provided\n";
             return;
+        }
 
         client->senddevcommand(subcommand.data(), nullptr, 0, 0, g, campaign.c_str());
     }
-    else if (subcommand == "sal")
-    {
-        notifyIgnoredParams({Param{isEmailProvided, "-e"},
-                             Param{isCampaingProvided, "-c"},
-                             Param{isGroupIdProvided, "-g"}});
-
-        if (!requiredParamsPresent(
-                {Param{isQuotaLengthInMonths, "-q"}, Param{isAccountLevel, "-l"}}))
-            return;
-
-        size_t l = 0;
-        const long long q = std::stoll(quotaLengthInMonths, &l);
-        if (!checkNatural(l, quotaLengthInMonths, "-q"))
-            return;
-
-        l = 0;
-        const int al = std::stoi(accountLevel, &l);
-        if (!checkNatural(l, accountLevel, "-a"))
-            return;
-
-        constexpr int businessStatus = 0;
-        client->senddevcommand(subcommand.data(), nullptr, q, businessStatus, al);
-    }
     else
     {
-        notifyIgnoredParams({Param{isCampaingProvided, "-c"},
-                             Param{isGroupIdProvided, "-g"},
-                             Param{isQuotaLengthInMonths, "-q"},
-                             Param{isAccountLevel, "-l"}});
+        std::vector<std::string> param;
+        if (isCampaingProvided) param.emplace_back("-c");
+        if (isGroupIdProvided) param.emplace_back("-g");
+        if (!param.empty())
+        {
+            std::cout << "devcommand " << subcommand << " will ignore unrequired";
+            std::for_each(std::begin(param), std::end(param), printElement);
+            std::cout << " provided options\n";
+        }
 
         client->senddevcommand(subcommand.data(), isEmailProvided ? email.c_str() : nullptr);
     }
@@ -4415,11 +4352,9 @@ static void exec_fuseflags(autocomplete::ACState& state)
 
     std::string flushDelay;
     std::string logLevel;
-    std::string fileExplorerView;
 
     state.extractflagparam("-flush-delay", flushDelay);
     state.extractflagparam("-log-level", logLevel);
-    state.extractflagparam("-file-explorer-view", fileExplorerView);
 
     auto flags = client->mFuseService.serviceFlags();
 
@@ -4429,32 +4364,47 @@ static void exec_fuseflags(autocomplete::ACState& state)
     if (!logLevel.empty())
         flags.mLogLevel = toLogLevel(logLevel);
 
-    if (!fileExplorerView.empty())
-        flags.mFileExplorerView = fuse::toFileExplorerView(fileExplorerView);
-
     parseCacheFlags(flags.mInodeCacheFlags);
     parseExecutorFlags(flags.mMountExecutorFlags, "mount");
     parseExecutorFlags(flags.mServiceExecutorFlags, "service");
 
     client->mFuseService.serviceFlags(flags);
 
-    std::cout << "Cache Clean Age Threshold: " << flags.mInodeCacheFlags.mCleanAgeThreshold.count()
+    std::cout << "Cache Clean Age Threshold: "
+              << flags.mInodeCacheFlags.mCleanAgeThreshold.count()
               << "\n"
-              << "Cache Clean Interval: " << flags.mInodeCacheFlags.mCleanInterval.count() << "\n"
-              << "Cache Clean Size Threshold: " << flags.mInodeCacheFlags.mCleanSizeThreshold
+              << "Cache Clean Interval: "
+              << flags.mInodeCacheFlags.mCleanInterval.count()
               << "\n"
-              << "Cache Max Size: " << flags.mInodeCacheFlags.mMaxSize << "\n"
-              << "Flush Delay: " << flags.mFlushDelay.count() << "s\n"
-              << "Log Level: " << toString(flags.mLogLevel) << "\n"
-              << "File Explorer View: " << toString(flags.mFileExplorerView) << "\n"
-              << "Mount Max Thread Count: " << flags.mMountExecutorFlags.mMaxWorkers << "\n"
-              << "Mount Max Thread Idle Time: " << flags.mMountExecutorFlags.mIdleTime.count()
+              << "Cache Clean Size Threshold: "
+              << flags.mInodeCacheFlags.mCleanSizeThreshold
+              << "\n"
+              << "Cache Max Size: "
+              << flags.mInodeCacheFlags.mMaxSize
+              << "\n"
+              << "Flush Delay: "
+              << flags.mFlushDelay.count()
               << "s\n"
-              << "Mount Min Thread Count: " << flags.mMountExecutorFlags.mMinWorkers << "\n"
-              << "Service Max Thread Count: " << flags.mServiceExecutorFlags.mMaxWorkers << "\n"
-              << "Service Max Thread Idle Time: " << flags.mServiceExecutorFlags.mIdleTime.count()
+              << "Log Level: "
+              << toString(flags.mLogLevel)
+              << "\n"
+              << "Mount Max Thread Count: "
+              << flags.mMountExecutorFlags.mMaxWorkers
+              << "\n"
+              << "Mount Max Thread Idle Time: "
+              << flags.mMountExecutorFlags.mIdleTime.count()
               << "s\n"
-              << "Service Min Thread Count: " << flags.mServiceExecutorFlags.mMinWorkers
+              << "Mount Min Thread Count: "
+              << flags.mMountExecutorFlags.mMinWorkers
+              << "\n"
+              << "Service Max Thread Count: "
+              << flags.mServiceExecutorFlags.mMaxWorkers
+              << "\n"
+              << "Service Max Thread Idle Time: "
+              << flags.mServiceExecutorFlags.mIdleTime.count()
+              << "s\n"
+              << "Service Min Thread Count: "
+              << flags.mServiceExecutorFlags.mMinWorkers
               << std::endl;
 }
 
@@ -4565,7 +4515,7 @@ static void exec_fusemountenable(autocomplete::ACState& state)
     if (result == MOUNT_SUCCESS)
     {
         std::cout << "Successfully enabled mount \""
-                  << name 
+                  << name
                   << "\"."
                   << std::endl;
 
@@ -4573,7 +4523,7 @@ static void exec_fusemountenable(autocomplete::ACState& state)
     }
 
     std::cerr << "Failed to enable mount \""
-              << name 
+              << name
               << "\": "
               << toString(result)
               << std::endl;
@@ -4975,7 +4925,6 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
-    p->Add(exec_useragent, sequence(text("useragent"), opt(param("new_user_agent"))));
     p->Add(exec_login, sequence(text("login"), opt(flag("-fresh")), either(sequence(param("email"), opt(param("password"))),
                                                       sequence(exportedLink(false, true), opt(param("auth_key"))),
                                                       param("session"),
@@ -5176,15 +5125,10 @@ autocomplete::ACN autocompleteSyntax()
                                                                           sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
-    p->Add(exec_devcommand,
-           sequence(text("devcommand"),
-                    param("subcommand"),
-                    opt(sequence(flag("-e"), param("email"))),
-                    opt(sequence(flag("-c"), param("campaign"), flag("-g"), param("group_id"))),
-                    opt(sequence(flag("-q"),
-                                 param("quota_in_months"),
-                                 flag("-l"),
-                                 param("account_level")))));
+    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"),
+                                     opt(sequence(flag("-e"), param("email"))),
+                                     opt(sequence(flag("-c"), param("campaign"),
+                                                  flag("-g"), param("group_id")))));
 #endif
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
@@ -5449,25 +5393,36 @@ autocomplete::ACN autocompleteSyntax()
                     localFSFile("database"),
                     wholenumber(0)));
 
-    p->Add(
-        exec_fuseflags,
-        sequence(text("fuse"),
-                 text("flags"),
-                 repeat(either(
-                     sequence(flag("-cache-clean-age-threshold"), wholenumber("seconds", 5 * 60)),
-                     sequence(flag("-cache-clean-interval"), wholenumber("seconds", 5 * 60)),
-                     sequence(flag("-cache-clean-size-threshold"), wholenumber("count", 64)),
-                     sequence(flag("-cache-max-size"), wholenumber("count", 256)),
-                     sequence(flag("-flush-delay"), wholenumber("seconds", 4)),
-                     sequence(flag("-log-level"),
-                              either(text("DEBUG"), text("ERROR"), text("INFO"), text("WARNING"))),
-                     sequence(flag("-file-explorer-view"), either(text("NONE"), text("LIST"))),
-                     sequence(flag("-mount-max-thread-count"), wholenumber("count", 16)),
-                     sequence(flag("-mount-max-thread-idle-time"), wholenumber("seconds", 16)),
-                     sequence(flag("-mount-min-thread-count"), wholenumber("count", 0)),
-                     sequence(flag("-service-max-thread-count"), wholenumber("count", 16)),
-                     sequence(flag("-service-max-thread-idle-time"), wholenumber("seconds", 16)),
-                     sequence(flag("-service-min-thread-count"), wholenumber("count", 0))))));
+    p->Add(exec_fuseflags,
+           sequence(text("fuse"),
+                    text("flags"),
+                    repeat(either(sequence(flag("-cache-clean-age-threshold"),
+                                           wholenumber("seconds", 5 * 60)),
+                                  sequence(flag("-cache-clean-interval"),
+                                           wholenumber("seconds", 5 * 60)),
+                                  sequence(flag("-cache-clean-size-threshold"),
+                                           wholenumber("count", 64)),
+                                  sequence(flag("-cache-max-size"),
+                                           wholenumber("count", 256)),
+                                  sequence(flag("-flush-delay"),
+                                           wholenumber("seconds", 4)),
+                                  sequence(flag("-log-level"),
+                                           either(text("DEBUG"),
+                                                  text("ERROR"),
+                                                  text("INFO"),
+                                                  text("WARNING"))),
+                                  sequence(flag("-mount-max-thread-count"),
+                                           wholenumber("count", 16)),
+                                  sequence(flag("-mount-max-thread-idle-time"),
+                                           wholenumber("seconds", 16)),
+                                  sequence(flag("-mount-min-thread-count"),
+                                           wholenumber("count", 0)),
+                                  sequence(flag("-service-max-thread-count"),
+                                           wholenumber("count", 16)),
+                                  sequence(flag("-service-max-thread-idle-time"),
+                                           wholenumber("seconds", 16)),
+                                  sequence(flag("-service-min-thread-count"),
+                                           wholenumber("count", 0))))));
 
     p->Add(exec_fusemountadd,
            sequence(text("fuse"),
@@ -5520,8 +5475,7 @@ autocomplete::ACN autocompleteSyntax()
                     text("remove"),
                     param("name")));
 
-    p->Add(exec_getpricing,
-           sequence(text("getpricing"), opt(sequence(flag("-country"), param("countryCode")))));
+    p->Add(exec_getpricing, text("getpricing"));
 
     p->Add(exec_collectAndPrintTransferStats,
            sequence(text("getTransferStats"), opt(either(flag("-uploads"), flag("-downloads")))));
@@ -5573,8 +5527,6 @@ autocomplete::ACN autocompleteSyntax()
                     opt(flag("-IPv4toIPv6"))));
 
     p->Add(exec_dnsservers, sequence(text("setdns"), either(param("dnslist"), flag("-clear"))));
-
-    p->Add(exec_cleanVault, text("cleanvault"));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -6556,11 +6508,24 @@ void exec_more(autocomplete::ACState& s)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions);
 
+string toHexString(const string& str) {
+    std::ostringstream hexStream;
+    hexStream << std::hex << std::setfill('0');
+    for (char c : str) {
+        unsigned char uc = static_cast<unsigned char>(c);
+        hexStream << std::setw(2) << static_cast<unsigned int>(uc);
+    }
+
+    return hexStream.str();
+}
+
+// chai
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions)
 {
 
+    std::cout << "###uploadLocalpath:" << name << std::endl;
     std::shared_ptr<Node> previousNode = client->childnodebyname(parent, name.c_str(), false);
 
     if (type == FILENODE)
@@ -6569,16 +6534,59 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
         if (fa->fopen(localname, true, false, FSLogging::logOnError))
         {
             FileFingerprint fp;
+            string name1 = localname.serialize().substr(3);
+            std::cout << "###local name:" << name1 << std::endl;
+            // remove leading hex char, "004600"
+            // F/Users/chai/Downloads/2025_start/meganz/build_dir/examples/megacli/_/1
+            ifstream fin(name1);
+            // if (!fin.is_open()) {
+            //   std::cout << "###failed to open file" << std::endl;
+            // }
+            // string line;
+            // string content;
+            // while (getline(fin, line)) {
+            //   content += line + "\n";
+            //   std::cout << "###line: " << line << std::endl;
+            // }
+
+            // 使用迭代器读取整个文件
+            std::string content(
+                (std::istreambuf_iterator<char>(fin)),
+                std::istreambuf_iterator<char>()
+            );
+
+            std::cout << "###file content:" << content << std::endl;
+
             fp.genfingerprint(fa.get());
 
             if (previousNode)
             {
                 if (previousNode->type == FILENODE)
                 {
+                    if (previousNode->keyApplied()) {
+                      fp.genMAC(content, previousNode->nodekey());
+                      // std::cout << "###key size: " << key.size() << std::endl;
+
+                      // // 使用无符号转换
+                      // std::ostringstream hexStream;
+                      // hexStream << std::hex << std::setfill('0');
+                      // for (char c : key) {
+                      //     unsigned char uc = static_cast<unsigned char>(c);
+                      //     hexStream << std::setw(2) << static_cast<unsigned int>(uc);
+                      // }
+
+                      // std::string hexKey = hexStream.str();
+                      // std::cout << "Previous file key (hex): " << hexKey << std::endl;
+                    }
+
+
+                    // if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp.getMac() == ((FileFingerprint *)previousNode.get()->getMac()))
                     if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode.get()))
                     {
-                        cout << "Identical file already exist. Skipping transfer of " << name << endl;
-                        return;
+                        if (fp.getMac() == ((FileFingerprint *)previousNode.get())->getMac()) {
+                          cout << "Identical file already exist. Skipping transfer of " << name << endl;
+                          return;
+                        }
                     }
                 }
                 else
@@ -6593,6 +6601,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             f->noRetries = noRetries;
 
             if (onCompletedGenerator) f->onCompleted = onCompletedGenerator(localname);
+            // chai
             *static_cast<FileFingerprint*>(f) = fp;
             f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
             client->startxfer(PUT, f, committer, false, false, false, vo, nullptr, client->nextreqtag());
@@ -8092,25 +8101,6 @@ void exec_apiurl(autocomplete::ACState& s)
     }
 }
 
-void exec_useragent(autocomplete::ACState& s)
-{
-    if (s.words.size() == 1)
-    {
-        cout << "Current UserAgent = " << client->useragent << endl;
-    }
-    else if (client->loggedin() != NOTLOGGEDIN)
-    {
-        cout << "You must not be logged in, to change UserAgent" << endl;
-    }
-    else if (s.words.size() == 2)
-    {
-        auto newUserAgent = s.words[1].s;
-        client->useragent.replace(0, megacliUserAgent.size(), newUserAgent);
-        client->httpio->setuseragent(&newUserAgent);
-        megacliUserAgent = newUserAgent;
-    }
-}
-
 void exec_passwd(autocomplete::ACState&)
 {
     if (client->loggedin() != NOTLOGGEDIN)
@@ -8260,9 +8250,9 @@ void exec_whoami(autocomplete::ACState& s)
         if ((u = client->finduser(client->me)))
         {
             cout << "Account e-mail: " << u->email << " handle: " << Base64Str<MegaClient::USERHANDLE>(client->me) << endl;
-            if (client->mEd255Key)
+            if (client->signkey)
             {
-                string pubKey((const char*)client->mEd255Key->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                string pubKey((const char *)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
                 cout << "Credentials: " << AuthRing::fingerprint(pubKey, true) << endl;
             }
         }
@@ -10338,27 +10328,30 @@ void DemoApp::nodes_current()
 
 void DemoApp::account_updated()
 {
-    LOG_debug << "Account has been upgraded/downgraded.";
-}
-
-void DemoApp::notify_confirmation(const char* email)
-{
-    // Upon "uac" action packet. Cryptographic system initialized, ready for login.
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account setup completed with email " << email << ".";
-        cout << "Account setup completed with email " << email
-             << ". Proceed to login with credentials." << endl;
+        LOG_debug << "Account has been confirmed by another client. Proceed to login with credentials.";
+    }
+    else
+    {
+        LOG_debug << "Account has been upgraded/downgraded.";
     }
 }
 
-void DemoApp::notify_confirm_user_email(handle user, const char* email)
+void DemoApp::notify_confirmation(const char *email)
 {
-    // Upon "uec" action packet. Account confirmed with the signup link.
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email "
-                  << email;
+        LOG_debug << "Account has been confirmed with email " << email << ".";
+    }
+}
+
+void DemoApp::notify_confirm_user_email(handle user, const char *email)
+{
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+    {
+        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials." << endl;
     }
 }
 
@@ -11308,7 +11301,9 @@ int main(int argc, char* argv[])
                             dbAccess,
                             gfx,
                             "Gk8DyQBS",
-                            megacliUserAgent.c_str(),
+                            "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
+                            "." TOSTRING(MEGA_MINOR_VERSION)
+                            "." TOSTRING(MEGA_MICRO_VERSION),
                             2,
                             clientType);
 
@@ -12178,27 +12173,27 @@ void exec_syncstatus(autocomplete::ACState& s)
         return std::to_string(value) + *suffix + "B";
     };
 
-    auto getProgress = [](SyncStatusInfo& i) -> double
-    {
-        auto p = i.mTransferCounts.progress(0);
-        if (p > 1.0)
-        {
-            const std::string errMsg = "exec_syncstatus: Invalid reportCounts progress value";
-            LOG_err << errMsg;
-            assert(false && errMsg.c_str());
-        }
-        return p * 100.0;
-    };
-
     // Display status information to the user.
-    for (auto& info: results)
+    for (auto& info : results)
     {
-        cout << "Sync " << toHandle(info.mBackupID) << ":\n"
-             << "  Name: " << info.mName << "\n"
-             << "  Total number of synced nodes: " << info.mTotalSyncedNodes << "\n"
-             << "  Total size of synced files: " << toSuffixedString(info.mTotalSyncedBytes) << "\n"
-             << "  Transfer progress: " << getProgress(info) << "%\n"
-             << "  Transfer speed: " << toSuffixedString(speeds[info.mBackupID]) << "/s\n";
+        cout << "Sync "
+             << toHandle(info.mBackupID)
+             << ":\n"
+             << "  Name: "
+             << info.mName
+             << "\n"
+             << "  Total number of synced nodes: "
+             << info.mTotalSyncedNodes
+             << "\n"
+             << "  Total size of synced files: "
+             << toSuffixedString(info.mTotalSyncedBytes)
+             << "\n"
+             << "  Transfer progress: "
+             << info.mTransferCounts.progress(0) * 100.0
+             << "%\n"
+             << "  Transfer speed: "
+             << toSuffixedString(speeds[info.mBackupID])
+             << "/s\n";
     }
 }
 
@@ -14126,18 +14121,10 @@ void exec_nodeTag(autocomplete::ACState& s)
     }
 }
 
-void exec_getpricing(autocomplete::ACState& s)
+void exec_getpricing(autocomplete::ACState&)
 {
-    cout << "Getting pricing plans";
-
-    std::optional<std::string> countryCode{s.extractflagparam("-country")};
-    if (countryCode)
-    {
-        cout << " localized for " << *countryCode;
-    }
-    cout << "..." << endl;
-
-    client->purchase_enumeratequotaitems(countryCode);
+    cout << "Getting pricing plans... " << endl;
+    client->purchase_enumeratequotaitems();
 }
 
 void exec_collectAndPrintTransferStats(autocomplete::ACState& state)
@@ -14257,65 +14244,4 @@ void exec_dnsservers(autocomplete::ACState& s)
                 "c-ares support to use this functionality."
              << endl;
     }
-}
-
-void exec_cleanVault(autocomplete::ACState&)
-{
-    std::map<attr_t, NodeHandle> nodeHandles;
-    auto cleanVault = [&nodeHandles]()
-    {
-        // If this method is called and both attributes aren't set, we return without doing nothing
-        // In standard situation both vaules are received at ug response
-        // If one of attributes needs to be requested to server we have to wait until is received to
-        // proceed with clean vault
-        auto itBackup = nodeHandles.find(ATTR_MY_BACKUPS_FOLDER);
-        auto itPwmBase = nodeHandles.find(ATTR_PWM_BASE);
-        if (itBackup == nodeHandles.end() || itPwmBase == nodeHandles.end())
-        {
-            return;
-        }
-
-        auto vault = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
-        if (!vault.get())
-        {
-            return;
-        }
-        auto vaultChildren = client->getChildren(vault.get());
-        for (auto const& child: vaultChildren)
-        {
-            if (child->nodeHandle() != itBackup->second && child->nodeHandle() != itPwmBase->second)
-            {
-                client->unlink(child.get(), false, 0, true);
-            }
-        }
-    };
-
-    // Vault is only clean if both attributes are set
-    auto getUserAttributeAndCleanVault = [&nodeHandles, cleanVault](attr_t attribute)
-    {
-        client->getua(
-            client->ownuser(),
-            attribute,
-            0,
-            [&nodeHandles, attribute, cleanVault](error e)
-            {
-                if (e == API_ENOENT)
-                {
-                    nodeHandles[attribute] = NodeHandle();
-                }
-
-                cleanVault();
-            },
-            [&nodeHandles, cleanVault](byte* buffer, unsigned, attr_t attr)
-            {
-                handle h;
-                memcpy(&h, buffer, MegaClient::NODEHANDLE);
-                nodeHandles[attr].set6byte(h);
-                cleanVault();
-            },
-            nullptr);
-    };
-
-    getUserAttributeAndCleanVault(ATTR_PWM_BASE);
-    getUserAttributeAndCleanVault(ATTR_MY_BACKUPS_FOLDER);
 }
