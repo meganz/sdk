@@ -6556,6 +6556,15 @@ void exec_more(autocomplete::ACState& s)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions);
 
+// Read local file content into string
+string readFileContent(const LocalPath& localname) {
+  // Strip leading special characters 004600
+  ifstream fin(localname.serialize().substr(3));
+  std::string content((std::istreambuf_iterator<char>(fin)),
+                       std::istreambuf_iterator<char>());
+  return content;
+}
+
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions)
@@ -6575,10 +6584,18 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             {
                 if (previousNode->type == FILENODE)
                 {
+                    // generate MAC based on file content & node key.
+                    if (previousNode->keyApplied()) {
+                      fp.genMAC(readFileContent(localname, previousNode->nodekey()))
+                    }
+
                     if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode.get()))
                     {
-                        cout << "Identical file already exist. Skipping transfer of " << name << endl;
-                        return;
+                        // Compare mac
+                        if (fp.getMac() == ((FileFingerprint *)previousNode.get())->getMac()) {
+                          cout << "Identical file already exist. Skipping transfer of " << name << endl;
+                          return;
+                        }
                     }
                 }
                 else

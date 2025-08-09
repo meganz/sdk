@@ -41,6 +41,7 @@ struct MEGA_API FileFingerprint : public Cacheable
     m_off_t size = -1;
     m_time_t mtime = 0;
     std::array<int32_t, 4> crc{};
+    int mac;
 
     // if true, represents actual file data
     // if false, is constructed from node ctime/key
@@ -51,6 +52,11 @@ struct MEGA_API FileFingerprint : public Cacheable
 
     // Generates a fingerprint by iterating through `is`
     bool genfingerprint(InputStreamAccess* is, m_time_t cmtime, bool ignoremtime = false);
+
+    // Genenate MAC based on given key
+    int genMAC(const string& content, const string& key);
+
+    inline int getMac() const { return mac; }
 
     // Includes CRC and mtime
     // Be wary that these must be used in pair; do not mix with serialize pair

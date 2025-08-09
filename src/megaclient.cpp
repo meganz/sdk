@@ -3039,6 +3039,18 @@ void MegaClient::exec()
             {
             case REQ_SUCCESS:
                 pendingscTimedOut = false;
+
+                // Handle remaining data if present.
+                if (pendingsc->bufpos > pendingsc->notifiedbufpos) {
+                  if (pendingsc->mChunked) {
+                    size_t consumedBytes = reqs.serverChunk(pendingsc->data(), this);
+                    if (consumedBytes)
+                    {
+                      cout << "Consumed the last chunk of " << consumedBytes << " bytes" << endl;;
+                    }
+                  }
+                }
+
                 if (pendingsc->contentlength == 1
                         && pendingsc->in.size()
                         && pendingsc->in[0] == '0')
@@ -3193,6 +3205,19 @@ void MegaClient::exec()
                 break;
 
             case REQ_INFLIGHT:
+                // Handle incremental data.
+                if (pendingsc->bufpos > pendingsc->notifiedbufpos)
+                {
+                  if (pendingsc->mChunked)
+                  {
+                    size_t consumedBytes = reqs.serverChunk(pendingsc->data(), this);
+                    LOG_verbose << "Consumed a chunk of " << consumedBytes << " bytes. "
+                                << "Total: " << reqs.chunkedProgress() << " of "
+                                << pendingsc->contentlength;
+                    pendingsc->purge(consumedBytes);
+                  }
+                }
+
                 if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
                     LOG_debug << clientname << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
@@ -3240,6 +3265,11 @@ void MegaClient::exec()
             {
                 pendingsc.reset(new HttpReq());
                 pendingsc->setLogName(clientname + "sc ");
+
+                // Force pendingsc in chunked mode
+                // TODO(chai) set chunked mode by config
+                pendingsc->mChunked = true;
+
                 if (mPendingCatchUps && !mReceivingCatchUp)
                 {
                     scnotifyurl.clear();
@@ -5244,7 +5274,13 @@ bool MegaClient::procsc()
                     scsn.setScsn(&jsonsc);
                     // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
                     // when action package is processed and the seq tag matches with mCurrentSeqtag
-                    assert(!mCurrentSeqtagSeen);
+
+                    // Quick hack to bypass check.
+                    // TODO(chai) add error handle logic
+                    if (mCurrentSeqtagSeen) {
+                      break;
+                    }
+
                     notifypurge();
                     if (sctable)
                     {

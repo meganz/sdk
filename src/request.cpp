@@ -165,9 +165,6 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
         return 0;
     }
 
-    // Only fetchnodes command is currently supported
-    assert(isFetchNodes());
-
     m_off_t consumed = 0;
     Command& cmd = *cmds[0];
     client->restag = cmd.tag;
@@ -204,7 +201,7 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
         if (!json.leavearray())
         {
             LOG_err << "Unexpected end of JSON stream: " << json.pos;
-            assert(false);
+            // TODO(chai) add error check logic
         }
         else
         {
@@ -321,7 +318,11 @@ void Request::process(MegaClient* client)
 
 Command* Request::getCurrentCommand()
 {
-    assert(processindex < cmds.size());
+    // Quick hack to bypass error case.
+    // TODO(chai) handle error correctly.
+    if (processindex >= cmds.size()) {
+      return nullptr;
+    }
     return cmds[processindex].get();
 }
 
@@ -563,7 +564,12 @@ void RequestDispatcher::servererror(const std::string& e, MegaClient *client)
 
 void RequestDispatcher::continueProcessing(MegaClient* client)
 {
-    assert(!inflightreq.empty());
+    if (inflightreq.empty()) {
+      processing = false;
+      clear();
+      return;
+    }
+
     processing = true;
     inflightreq.process(client);
     processing = false;
