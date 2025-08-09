@@ -485,10 +485,6 @@ double JSON::getfloat()
     return r;
 }
 
-const char* JSON::getvalue1() {
-  return pos;
-}
-
 // return pointer to JSON payload data
 const char* JSON::getvalue()
 {

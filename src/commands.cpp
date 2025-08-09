@@ -6910,11 +6910,6 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     // Node objects (one by one)
     auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
     {
-        // chai
-        // std::cout << "### client readnode" << std::endl;
-        // auto len = strlen(json->getvalue1());
-        // chai
-        // std::cout << "### raw now content: " << std::string(json->getvalue1(), len) << std::endl;
         if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true,
                              mMissingParentNodes, mPreviousHandleForAlert,
                              nullptr, // allParents disabled because Syncs::triggerSync

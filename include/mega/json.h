@@ -58,7 +58,6 @@ struct MEGA_API JSON
 
     m_off_t getint();
     double getfloat();
-    const char* getvalue1();
     const char* getvalue();
 
     std::uint64_t getfsfp();
