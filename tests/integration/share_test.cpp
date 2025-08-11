@@ -29,6 +29,9 @@ protected:
     // Use mApi[0] and mApi[1]
     void removeShareAtoB(MegaNode* node);
 
+    // Reset credential between two accounts if contact found
+    void resetCredentialsIfContactFound(const unsigned i, const unsigned j);
+
     // Reset credential between two accounts
     void resetCredential(unsigned apiIndexA, unsigned apiIndexB);
 
@@ -131,6 +134,17 @@ void SdkTestShare::removeShareAtoB(MegaNode* node)
         << "Node update not received after " << maxTimeout << " seconds";
     resetOnNodeUpdateCompletionCBs();
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+}
+
+void SdkTestShare::resetCredentialsIfContactFound(const unsigned i, const unsigned j)
+{
+    std::unique_ptr<MegaUser> c1(mApi[i].megaApi->getContact(mApi[j].email.c_str()));
+    std::unique_ptr<MegaUser> c2(mApi[j].megaApi->getContact(mApi[i].email.c_str()));
+    if (!c1 || !c2)
+    {
+        return;
+    }
+    ASSERT_NO_FATAL_FAILURE(resetCredential(i, j));
 }
 
 void SdkTestShare::resetCredential(unsigned apiIndexA, unsigned apiIndexB)
@@ -1079,8 +1093,8 @@ TEST_F(SdkTestShareOrder, GetOutSharesOrUnverifiedOutSharesOrderedByCreationTime
     megaApi[2]->setManualVerificationFlag(true);
 
     // Ensure no account has the other verified from previous unfinished tests.
-    ASSERT_NO_FATAL_FAILURE(resetCredential(0, 1));
-    ASSERT_NO_FATAL_FAILURE(resetCredential(0, 2));
+    ASSERT_NO_FATAL_FAILURE(resetCredentialsIfContactFound(0, 1));
+    ASSERT_NO_FATAL_FAILURE(resetCredentialsIfContactFound(0, 2));
 
     LOG_info << "Invite from account 0 to 1 and verify credential";
     ASSERT_NO_FATAL_FAILURE(addContactsAndVerifyCredential(0, 1));
@@ -1153,8 +1167,8 @@ TEST_F(SdkTestShare, TestSharesPermission)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
 
     // Ensure no account has the other verified from previous unfinished tests.
-    ASSERT_NO_FATAL_FAILURE(resetCredential(0, 1));
-    ASSERT_NO_FATAL_FAILURE(resetCredential(0, 2));
+    ASSERT_NO_FATAL_FAILURE(resetCredentialsIfContactFound(0, 1));
+    ASSERT_NO_FATAL_FAILURE(resetCredentialsIfContactFound(0, 2));
 
     LOG_info << logPre
              << "#### Test preconditions. Invite from account 0 to 1 and verify "
