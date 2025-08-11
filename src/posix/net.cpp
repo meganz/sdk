@@ -1478,6 +1478,7 @@ void CurlHttpIO::cancel(HttpReq* req)
         }
 
         req->httpstatus = 0;
+        req->mErrCode = 0;
 
         if (req->status != REQ_FAILURE)
         {
@@ -1568,6 +1569,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 measureLatency(msg->easy_handle, req);
 
                 CURLcode errorCode = msg->data.result;
+                req->mErrCode = errorCode;
                 if (errorCode != CURLE_OK && errorCode != CURLE_HTTP_RETURNED_ERROR && errorCode != CURLE_WRITE_ERROR)
                 {
                     LOG_debug << req->getLogName() << "CURLMSG_DONE with error " << errorCode
