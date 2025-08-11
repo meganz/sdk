@@ -236,7 +236,7 @@ TEST_F(SdkTestNodeTagsBasic, RenameTagSucceeds)
     EXPECT_EQ(renameTag(*client0, *directory, "D0", "d1"), API_OK);
 }
 
-TEST_F(SdkTestNodeTagsSearch, DISABLED_AllTagsSucceeds)
+TEST_F(SdkTestNodeTagsSearch, AllTagsSucceeds)
 {
     using testing::UnorderedElementsAre;
 
