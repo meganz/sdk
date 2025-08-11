@@ -1494,16 +1494,6 @@ bool FileServiceContext::EventProcessor::mark(FileID id)
 
 void FileServiceContext::EventProcessor::moved(const NodeEvent& event)
 {
-    // Convenience.
-    auto name = event.name();
-    auto parentHandle = event.parentHandle();
-
-    // Check if this node would replace a file managed by the service.
-    auto query = mTransaction.query(mQueries.mGetFileByNameAndParentHandle);
-
-    query.param(":name").set(name);
-    query.param(":parent_handle").set(parentHandle);
-
     // Mark or remove a file managed by the service.
     auto remove = [this](FileID id)
     {
@@ -1514,6 +1504,16 @@ void FileServiceContext::EventProcessor::moved(const NodeEvent& event)
         // File's not in memory so remove it immediately.
         mService.remove(mServiceLock, mDatabaseLock, id, mTransaction);
     }; // remove
+
+    // Convenience.
+    auto name = event.name();
+    auto parentHandle = event.parentHandle();
+
+    // Check if this node would replace a file managed by the service.
+    auto query = mTransaction.query(mQueries.mGetFileByNameAndParentHandle);
+
+    query.param(":name").set(name);
+    query.param(":parent_handle").set(parentHandle);
 
     // Node replaces a file managed by the service.
     //
