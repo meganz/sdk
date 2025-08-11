@@ -1259,6 +1259,7 @@ void SdkTest::cleanupContacts(const unsigned int nApi)
     for (int i = 0; i < contacts->size(); i++)
     {
         const auto contactEmail = contacts->get(i)->getEmail();
+        // sometimes the email is an empty string (!)
         if (!contactEmail || !*contactEmail)
         {
             continue;
@@ -1266,14 +1267,9 @@ void SdkTest::cleanupContacts(const unsigned int nApi)
 
         if (areCredentialsVerified(nApi, contactEmail))
         {
-            // sometimes the email is an empty string (!)
             resetCredentials(nApi, contactEmail);
         }
 
-        // avoid removing the same contact again in a 2nd client of the same account
-        // (actionpackets from the first may not have arrived yet) or removing via the other
-        // account, again the original disconnection may not have arrived by actionpacket
-        // yet
         const string contactEmailStr{contactEmail};
         if (contacts->get(i)->getVisibility() == MegaUser::VISIBILITY_HIDDEN)
             continue;
