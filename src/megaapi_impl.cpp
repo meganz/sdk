@@ -19124,8 +19124,35 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         fp_forCloud.mtime = mtime;
                     }
 
-                    bool forceToUpload = false;
-                    auto prevNodeSameName = client->childnodebyname(parent.get(), fileName, false);
+                    auto finishTransferSameNodeNameFoundInTarget =
+                        [transfer, nextTag, this](const handle h)
+                    {
+                        LOG_debug << "Previous node exists and the upload is not forced "
+                                     "copy node handle";
+                        transfer->setState(MegaTransfer::STATE_QUEUED);
+                        transferMap[nextTag] = transfer;
+                        transfer->setTag(nextTag);
+                        transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
+                        transfer->setTransferredBytes(0);
+                        transfer->setStartTime(Waiter::ds);
+                        transfer->setUpdateTime(Waiter::ds);
+                        fireOnTransferStart(transfer);
+                        transfer->setNodeHandle(h);
+                        transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
+                        transfer->setSpeed(0);
+                        transfer->setMeanSpeed(0);
+                        transfer->setState(MegaTransfer::STATE_COMPLETED);
+                        fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_OK));
+                    };
+
+                    auto forceToUpload{false};
+                    const auto skipSearchBySameName =
+                        client->getNumberOfChildren(parent->nodeHandle()) >
+                        MAX_CHILDREN_FOR_SAME_NAME_SEARCH;
+                    const auto prevNodeSameName =
+                        !skipSearchBySameName ?
+                            client->childnodebyname(parent.get(), fileName, false) :
+                            nullptr;
                     if (prevNodeSameName)
                     {
                         if (prevNodeSameName->type == FOLDERNODE && !recursiveTransfer)
@@ -19160,23 +19187,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                      hasToForceUpload(*prevNodeSameName.get(), *transfer);
                                  !forceToUpload && compRes == NODE_COMP_EQUAL)
                         {
-                            LOG_debug << "Previous node exists and the upload is not forced "
-                                         "copy node handle";
-                            transfer->setState(MegaTransfer::STATE_QUEUED);
-                            transferMap[nextTag] = transfer;
-                            transfer->setTag(nextTag);
-                            transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
-                            transfer->setTransferredBytes(0);
-                            transfer->setStartTime(Waiter::ds);
-                            transfer->setUpdateTime(Waiter::ds);
-                            fireOnTransferStart(transfer);
-                            transfer->setNodeHandle(prevNodeSameName->nodehandle);
-                            transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
-                            transfer->setSpeed(0);
-                            transfer->setMeanSpeed(0);
-                            transfer->setState(MegaTransfer::STATE_COMPLETED);
-                            fireOnTransferFinish(transfer,
-                                                 std::make_unique<MegaErrorPrivate>(API_OK));
+                            finishTransferSameNodeNameFoundInTarget(prevNodeSameName->nodehandle);
                             break;
                         }
                     }
@@ -19185,9 +19196,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     // look for it again
                     if (!forceToUpload)
                     {
-                        std::shared_ptr<Node> sameNodeFound;
+                        std::shared_ptr<Node> sameNodeFpFound;
                         sharedNode_vector nodes =
                             client->mNodeManager.getNodesByFingerprint(fp_forCloud);
+
+                        const auto alreadyCheckedSameNodeNameInTarget = !skipSearchBySameName;
+                        bool sameNodeSameNameInTarget{false};
                         for (auto& n: nodes)
                         {
                             if (!hasToForceUpload(*n.get(), *transfer) &&
@@ -19196,13 +19210,28 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                                                  fp_forCloud,
                                                                  n.get()) == NODE_COMP_EQUAL)
                             {
-                                sameNodeFound = n;
-                                break;
+                                sameNodeFpFound = n;
+                                if (alreadyCheckedSameNodeNameInTarget ||
+                                        (sameNodeSameNameInTarget =
+                                             (fileName == sameNodeFpFound->displayname()) &&
+                                             (sameNodeFpFound->parent->nodeHandle() ==
+                                              parent->nodeHandle()));
+                                    sameNodeSameNameInTarget)
+                                {
+                                    break;
+                                }
                             }
                         }
 
-                        if (sameNodeFound)
+                        if (sameNodeFpFound)
                         {
+                            if (sameNodeSameNameInTarget)
+                            {
+                                finishTransferSameNodeNameFoundInTarget(
+                                    sameNodeFpFound->nodehandle);
+                                break;
+                            }
+
                             LOG_debug
                                 << "Another node with same fp and MAC exists, perform remote copy";
                             transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -19214,19 +19243,19 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             fireOnTransferStart(transfer);
 
                             TreeProcCopy tc;
-                            client->proctree(sameNodeFound, &tc, false, true);
+                            client->proctree(sameNodeFpFound, &tc, false, true);
                             tc.allocnodes();
-                            client->proctree(sameNodeFound, &tc, false, true);
+                            client->proctree(sameNodeFpFound, &tc, false, true);
                             tc.nn[0].parenthandle = UNDEF;
 
                             SymmCipher key;
                             AttrMap attrs;
                             string attrstring;
-                            key.setkey((const byte*)tc.nn[0].nodekey.data(), sameNodeFound->type);
+                            key.setkey((const byte*)tc.nn[0].nodekey.data(), sameNodeFpFound->type);
                             string sname = fileName;
                             LocalPath::utf8_normalize(&sname);
                             attrs.map['n'] = sname;
-                            attrs.map['c'] = sameNodeFound->attrs.map['c'];
+                            attrs.map['c'] = sameNodeFpFound->attrs.map['c'];
                             attrs.getjson(&attrstring);
                             client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                             if (tc.nn[0].type == FILENODE)
