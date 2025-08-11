@@ -1654,6 +1654,7 @@ void FileServiceContext::EventProcessor::removedDirectory(const NodeEvent& event
 }
 
 void FileServiceContext::EventProcessor::operator()(NodeEventQueue& events)
+try
 {
     // Process each event in turn.
     for (; !events.empty(); events.pop_front())
@@ -1661,6 +1662,11 @@ void FileServiceContext::EventProcessor::operator()(NodeEventQueue& events)
 
     // Persist any database changes.
     mTransaction.commit();
+}
+
+catch (std::runtime_error& exception)
+{
+    FSErrorF("Unable to dispatch node events: %s", exception.what());
 }
 
 void FileServiceContext::ReclaimContext::reclaim(ReclaimContextPtr context, FileID id)
