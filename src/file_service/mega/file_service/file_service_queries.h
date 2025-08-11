@@ -16,7 +16,6 @@ struct FileServiceQueries
     common::Query mAddFileID;
     common::Query mAddFileRange;
     common::Query mGetFile;
-    common::Query mGetFileByHandleOrNameAndParentHandle;
     common::Query mGetFileByNameAndParentHandle;
     common::Query mGetFileIDs;
     common::Query mGetFileIDsByParentHandle;

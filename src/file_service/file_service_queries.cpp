@@ -13,7 +13,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileID(database.query()),
     mAddFileRange(database.query()),
     mGetFile(database.query()),
-    mGetFileByHandleOrNameAndParentHandle(database.query()),
     mGetFileByNameAndParentHandle(database.query()),
     mGetFileIDs(database.query()),
     mGetFileIDsByParentHandle(database.query()),
@@ -62,12 +61,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                " where ((:handle is not null and handle = :handle) "
                "        or (:id is not null and id = :id)) "
                "   and (:removed is null or removed = :removed)";
-
-    mGetFileByHandleOrNameAndParentHandle =
-        "select * "
-        "  from files "
-        " where handle = :handle "
-        "    or name = :name and parent_handle = :parent_handle";
 
     mGetFileByNameAndParentHandle = "select * "
                                     "  from files "
