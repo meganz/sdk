@@ -3653,7 +3653,7 @@ static icu::Collator* createCollator()
     return collator;
 }
 
-int naturalsorting_compare(const char* i, const char* j)
+static int naturalsorting_compare(icu::StringPiece i, icu::StringPiece j)
 {
     static_assert(UCOL_EQUAL == 0 && UCOL_GREATER == 1 && UCOL_LESS == -1,
                   "UCollationResult not expected");
@@ -3664,23 +3664,32 @@ int naturalsorting_compare(const char* i, const char* j)
     {
         assert(false && "No collator");
         // Fallback
-        return strcmp(i, j);
+        return i.compare(j);
     }
 
     UErrorCode ec{U_ZERO_ERROR};
-    auto iStr = icu::StringPiece{i};
-    auto jStr = icu::StringPiece{j};
-    auto result = static_cast<int>(collator->compareUTF8(iStr, jStr, ec));
+    auto result = static_cast<int>(collator->compareUTF8(i, j, ec));
     if (U_FAILURE(ec))
     {
         assert(false && "compareUTF8 error");
         // Fallback
-        return strcmp(i, j);
+        return i.compare(j);
     }
 
     // Additionally, StringPiece::compare two strings if they are numeric natural equal for
     // cases: 0, 00, 01, 001, a0, a00, 0a00, 00a0.
-    return result != 0 ? result : iStr.compare(jStr);
+    return result != 0 ? result : i.compare(j);
+}
+
+int naturalsorting_compare(const char* i, const char* j)
+{
+    return naturalsorting_compare(icu::StringPiece{i}, icu::StringPiece{j});
+}
+
+int naturalsorting_compare(const char* i, size_t iSize, const char* j, size_t jSize)
+{
+    return naturalsorting_compare(icu::StringPiece{i, static_cast<int32_t>(iSize)},
+                                  icu::StringPiece{j, static_cast<int32_t>(jSize)});
 }
 
 std::string ensureAsteriskSurround(std::string str)

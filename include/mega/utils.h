@@ -1349,6 +1349,20 @@ SplitResult split(const std::string& value, char delimiter);
 int naturalsorting_compare(const char* i, const char* j);
 
 /**
+ * @brief Compares two utf8 strings using natural sorting
+ *
+ * This function uses icu collator
+ *
+ * @param i Pointer to a utf-8 string.
+ * @param iSize Size of the first utf-8 string.
+ * @param j Pointer to a utf-8 string.
+ * @param jSize Size of the second utf-8 string.
+ *
+ * @returns 0 if i == j, negative if i < j, otherwise positive
+ */
+int naturalsorting_compare(const char* i, size_t iSize, const char* j, size_t jSize);
+
+/**
  * @class NaturalSortingComparator
  * @brief A helper struct to be used in container templates such as std::set to force natural
  * sorting
