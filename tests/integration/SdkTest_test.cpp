@@ -113,6 +113,12 @@ void copyFile(std::string& from, std::string& to)
     fileSystemAccess->copylocal(f, t, m_time());
 }
 
+bool removeFile(std::string& filename)
+{
+    LocalPath f = LocalPath::fromAbsolutePath(filename);
+    return fileSystemAccess->unlinklocal(f);
+}
+
 std::string megaApiCacheFolder(int index)
 {
     std::string p(cwd());
@@ -3015,10 +3021,13 @@ TEST_F(SdkTest, SdkTestKillSession)
 /**
  * @brief Test that verifies behavior when uploading duplicated files.
  *
- * - TEST1: upload test file (expected API_OK)
- * - TEST2: upload same test file again (expected API_OK)
- * - TEST3: upload same test file (with another name). Remote copy (expected API_OK)
- *
+ *  - TEST1: upload testfile(v1)
+ *  - TEST2: upload testfile(v1) again (no remote action required)
+ *  - TEST3: modify testfile to (v2) and upload it (new node version added)
+ *  - TEST4: remove and then recreate testfile(v1) locally, and upload again (new node version
+ * added)
+ *  - TEST5: upload testfile(v1) again (no remote action required)
+ *  - TEST6: upload same testfile_copy with same content than testfilev1 (remote copy)
  */
 TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
 {
@@ -3026,48 +3035,78 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
     LOG_info << logPre << "#### Test preconditions. get accounts ####";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    LOG_info << logPre << "#### Test preconditions. create required local folders/files ####";
     unsigned idx = 0;
     std::unique_ptr<MegaNode> rootnode{megaApi[idx]->getRootNode()};
     ASSERT_TRUE(rootnode) << logPre << "Cannot get root node for account: " << idx;
 
+    const std::string rootFolderName{"testfolder1"};
+    const MegaHandle fh = createFolder(0, rootFolderName.c_str(), rootnode.get());
+    ASSERT_NE(fh, INVALID_HANDLE) << "Cannot create " << rootFolderName;
+
+    std::unique_ptr<MegaNode> rootFolderNode{megaApi[idx]->getNodeByHandle(fh)};
+    ASSERT_TRUE(rootFolderNode) << logPre << "Cannot get " << rootFolderName
+                                << " node for account: " << idx;
+    ASSERT_EQ(megaApi[idx]->getNumChildren(rootFolderNode.get()), 0)
+        << "Unexpected number of children";
+
     string filename = "testfile";
     string filenameaux = filename + "_copy";
-    ASSERT_TRUE(createFile(filename, false)) << "Couldn't create " << UPFILE;
-    ASSERT_NO_FATAL_FAILURE(copyFile(filename, filenameaux)) << "Couldn't create " << UPFILE;
+    ASSERT_TRUE(createFile(filename, false)) << "Couldn't create " << filename;
+    ASSERT_NO_FATAL_FAILURE(copyFile(filename, filenameaux))
+        << "Couldn't copy file " << filenameaux;
 
-    auto uploadFile =
-        [this, &logPre, idx, n = rootnode.get()](const string& filename,
-                                                 const string& msg) -> std::pair<int, uint64_t>
+    auto uploadFile = [this, &logPre, idx, n = rootFolderNode.get()](const string& filename,
+                                                                     const string& msg,
+                                                                     const int expErr,
+                                                                     const int expParentChildren,
+                                                                     const int expNversions)
     {
         LOG_debug << logPre << msg;
         MegaHandle h = UNDEF;
-        const int res = doStartUpload(idx,
-                                      &h,
-                                      filename.c_str(),
-                                      n,
-                                      nullptr /*fileName*/,
-                                      ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                      nullptr /*appData*/,
-                                      false /*isSourceTemporary*/,
-                                      false /*startFirst*/,
-                                      nullptr /*cancelToken*/);
-        return {res, h};
+        const int errCode = doStartUpload(idx,
+                                          &h,
+                                          filename.c_str(),
+                                          n,
+                                          nullptr /*fileName*/,
+                                          ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                          nullptr /*appData*/,
+                                          false /*isSourceTemporary*/,
+                                          false /*startFirst*/,
+                                          nullptr /*cancelToken*/);
+
+        ASSERT_EQ(errCode, expErr) << msg << " unexpected error: " << errCode << "("
+                                   << MegaError::getErrorString(errCode) << ")";
+        ASSERT_EQ(megaApi[idx]->getNumChildren(n), expParentChildren)
+            << "unexpected number of children";
+        std::unique_ptr<MegaNode> nn(megaApi[idx]->getNodeByHandle(h));
+        ASSERT_TRUE(nn) << "Cannot retrieve node";
+        ASSERT_EQ(megaApi[idx]->getNumVersions(nn.get()), expNversions);
     };
 
-    std::string msg = "#### TEST1: upload test file ####";
-    auto [err1, h1] = uploadFile(filename, msg);
-    ASSERT_EQ(err1, API_OK) << msg << " error:" << MegaError::getErrorString(err1);
+    std::string msg = "#### TEST1: upload testfile(v1) ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(filename, msg, API_OK, 1, 1));
 
-    msg = "#### TEST2: upload same test file again ####";
-    auto [err2, h2] = uploadFile(filename, msg);
-    ASSERT_EQ(err2, API_OK) << msg << " error:" << MegaError::getErrorString(err2);
-    ASSERT_EQ(h1, h2) << logPre << "NodeHandles don't not match for both uploads";
+    msg = "#### TEST2: upload testfile(v1) again (no remote action required) ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(filename, msg, API_OK, 1, 1));
 
-    msg = "#### TEST3: upload same test file (with another name). Remote copy ####";
-    auto [err3, h3] = uploadFile(filenameaux, msg);
-    ASSERT_EQ(err3, API_OK) << msg << " error:" << MegaError::getErrorString(err3);
-    ASSERT_NE(h2, h3) << logPre
-                      << "NodeHandle of remote copy node, should not match with previous one";
+    msg = "#### TEST3: modify testfile to (v2) and upload it (new node version added) ####";
+    sdk_test::appendToFile(fs::path(filename), 20000); // v1
+    ASSERT_NO_FATAL_FAILURE(uploadFile(filename, msg, API_OK, 1, 2));
+
+    msg = "#### TEST4: remove and then recreate testfile(v1) locally, and upload again (new node "
+          "version added) ####";
+    ASSERT_TRUE(removeFile(filename)) << "Couldn't remove " << filename;
+    ASSERT_NO_FATAL_FAILURE(copyFile(filenameaux, filename))
+        << "Couldn't recreate file " << filename << "(v1)";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(filename, msg, API_OK, 1, 3));
+
+    msg = "#### TEST5: upload testfile(v1) again (no remote action required) ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(filename, msg, API_OK, 1, 3));
+
+    msg = "#### TEST6: upload same testfile_copy with same content than testfilev1 (remote copy) "
+          "####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(filenameaux, msg, API_OK, 2, 1));
 }
 
 /**
