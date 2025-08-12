@@ -53,9 +53,6 @@ class Client
     // Retrieve the handle associated with the specified child.
     NodeHandle handle(NodeHandle parent, const std::string& name) const;
 
-    // Get our hands on the client's FileService interface.
-    virtual file_service::FileService& fileService() const = 0;
-
     using MakeDirectoryCallback =
       std::function<void(common::ErrorOr<NodeHandle>)>;
 
@@ -211,22 +208,8 @@ public:
     auto fileRanges(CloudPath path) const
         -> file_service::FileServiceResultOr<file_service::FileRangeVector>;
 
-    // Set the file service's options.
-    auto fileServiceOptions(const file_service::FileServiceOptions& options)
-        -> file_service::FileServiceResult;
-
-    // Get the file service's current options.
-    auto fileServiceOptions()
-        -> file_service::FileServiceResultOr<file_service::FileServiceOptions>;
-
-    // Purge all data from the file service.
-    auto fileServicePurge() -> file_service::FileServiceResult;
-
-    // Try and reclaim storage space.
-    void fileStorageReclaim(file_service::ReclaimCallback callback);
-
-    // How much storage space is the service using?
-    auto fileStorageUsed() -> file_service::FileServiceResultOr<std::uint64_t>;
+    // Get our hands on the client's FileService interface.
+    virtual file_service::FileService& fileService() const = 0;
 
     // Retrieve information about a specific child.
     common::ErrorOr<common::NodeInfo> get(CloudPath parentPath, const std::string& name) const;

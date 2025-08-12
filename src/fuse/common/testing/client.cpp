@@ -395,31 +395,6 @@ auto Client::fileRanges(CloudPath path) const -> FileServiceResultOr<FileRangeVe
     return fileRanges(FileID::from(path.resolve(*this)));
 }
 
-auto Client::fileServiceOptions(const FileServiceOptions& options) -> FileServiceResult
-{
-    return fileService().options(options);
-}
-
-auto Client::fileServiceOptions() -> FileServiceResultOr<FileServiceOptions>
-{
-    return fileService().options();
-}
-
-auto Client::fileServicePurge() -> FileServiceResult
-{
-    return fileService().purge();
-}
-
-void Client::fileStorageReclaim(ReclaimCallback callback)
-{
-    fileService().reclaim(std::move(callback));
-}
-
-auto Client::fileStorageUsed() -> FileServiceResultOr<std::uint64_t>
-{
-    return fileService().storageUsed();
-}
-
 ErrorOr<NodeInfo> Client::get(CloudPath parentPath,
                               const std::string& name) const
 {

@@ -11,6 +11,7 @@
 #include <mega/file_service/file_read_result.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_result_or.h>
+#include <mega/file_service/file_service.h>
 #include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
@@ -364,7 +365,7 @@ TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
 TEST_F(FileServiceTests, append_succeeds)
 {
     // Disable readahead.
-    ClientW()->fileServiceOptions(DisableReadahead);
+    ClientW()->fileService().options(DisableReadahead);
 
     // Open file for writing.
     auto file = ClientW()->fileOpen(mFileHandle);
@@ -744,7 +745,7 @@ TEST_F(FileServiceTests, create_succeeds)
 TEST_F(FileServiceTests, create_write_succeeds)
 {
     // Disable readahead.
-    ClientW()->fileServiceOptions(DisableReadahead);
+    ClientW()->fileService().options(DisableReadahead);
 
     // Create a new file.
     auto file = ClientW()->fileCreate(mRootHandle, randomName());
@@ -819,7 +820,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
 TEST_F(FileServiceTests, fetch_succeeds)
 {
     // Disable readahead.
-    ClientW()->fileServiceOptions(DisableReadahead);
+    ClientW()->fileService().options(DisableReadahead);
 
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
@@ -1370,7 +1371,7 @@ TEST_F(FileServiceTests, ranges_succeeds)
     static const FileRangeVector expected = {FileRange(0, 256_KiB)}; // expected
 
     // Disable readahead so we get only what we ask for.
-    ClientW()->fileServiceOptions(DisableReadahead);
+    ClientW()->fileService().options(DisableReadahead);
 
     // Test that we can get ranges when the file is in memory.
     {
@@ -1404,7 +1405,7 @@ TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
     ASSERT_EQ(client->login(1), API_OK);
 
     // Disable readahead.
-    client->fileServiceOptions(DisableReadahead);
+    client->fileService().options(DisableReadahead);
 
     // Open a file for reading.
     auto file = client->fileOpen(mFileHandle);
@@ -1429,7 +1430,7 @@ TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
 TEST_F(FileServiceTests, read_cancel_on_file_destruction_succeeds)
 {
     // Disable readahead.
-    ClientW()->fileServiceOptions(DisableReadahead);
+    ClientW()->fileService().options(DisableReadahead);
 
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
@@ -1467,10 +1468,10 @@ TEST_F(FileServiceTests, read_cancel_on_file_destruction_succeeds)
 TEST_F(FileServiceTests, read_extension_succeeds)
 {
     // No minimum read size, extend if another range is <= 32K distant.
-    ClientW()->fileServiceOptions(FileServiceOptions{DefaultOptions.mMaximumRangeRetries,
-                                                     32_KiB,
-                                                     0u,
-                                                     DefaultOptions.mRangeRetryBackoff});
+    ClientW()->fileService().options(FileServiceOptions{DefaultOptions.mMaximumRangeRetries,
+                                                        32_KiB,
+                                                        0u,
+                                                        DefaultOptions.mRangeRetryBackoff});
 
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
@@ -1547,7 +1548,7 @@ TEST_F(FileServiceTests, read_removed_file_succeeds)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Disable readahead.
-    ClientW()->fileServiceOptions(DisableReadahead);
+    ClientW()->fileService().options(DisableReadahead);
 
     // Read some data from the file.
     auto data0 = execute(read, *file, 0, 256_KiB);
@@ -1572,10 +1573,10 @@ TEST_F(FileServiceTests, read_removed_file_succeeds)
 TEST_F(FileServiceTests, read_size_extension_succeeds)
 {
     // Minimum read size is 64KiB, everything else are defaults.
-    ClientW()->fileServiceOptions(FileServiceOptions{DefaultOptions.mMaximumRangeRetries,
-                                                     DefaultOptions.mMinimumRangeDistance,
-                                                     64_KiB,
-                                                     DefaultOptions.mRangeRetryBackoff});
+    ClientW()->fileService().options(FileServiceOptions{DefaultOptions.mMaximumRangeRetries,
+                                                        DefaultOptions.mMinimumRangeDistance,
+                                                        64_KiB,
+                                                        DefaultOptions.mRangeRetryBackoff});
 
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
@@ -1593,7 +1594,7 @@ TEST_F(FileServiceTests, read_size_extension_succeeds)
 TEST_F(FileServiceTests, read_succeeds)
 {
     // Disable readahead.
-    ClientW()->fileServiceOptions(DisableReadahead);
+    ClientW()->fileService().options(DisableReadahead);
 
     // Open a file for reading.
     auto file = ClientW()->fileOpen(mFileHandle);
@@ -1762,7 +1763,7 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     // Disable readahead.
     //
     // This is necessary to ensure we read only as much as specified.
-    ClientW()->fileServiceOptions(options);
+    ClientW()->fileService().options(options);
 
     // Open, read and modify each file.
     for (auto handle: handles)
@@ -1787,7 +1788,7 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     }
 
     // Determine how much storage the service is using.
-    auto usedBefore = ClientW()->fileStorageUsed();
+    auto usedBefore = ClientW()->fileService().storageUsed();
     ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Make sure we're using only as much as we read.
@@ -1801,7 +1802,7 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     ASSERT_EQ(reclaimed.valueOr(0ul), 0ul);
 
     // Make sure no storage was reclaimed.
-    auto usedAfter = ClientW()->fileStorageUsed();
+    auto usedAfter = ClientW()->fileService().storageUsed();
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_EQ(*usedAfter, *usedBefore);
 
@@ -1811,7 +1812,7 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     // Reclaim files that haven't been accessed for three hours.
     options.mReclaimAgeThreshold = std::chrono::hours(3);
 
-    ClientW()->fileServiceOptions(options);
+    ClientW()->fileService().options(options);
 
     // Try and reclaim storage.
     //
@@ -1821,7 +1822,7 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     ASSERT_EQ(reclaimed.valueOr(0ul), 0ul);
 
     // Make sure no storage was reclaimed.
-    usedAfter = ClientW()->fileStorageUsed();
+    usedAfter = ClientW()->fileService().storageUsed();
 
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_EQ(*usedBefore, *usedAfter);
@@ -1832,14 +1833,14 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     // Reclaim a single file at a time.
     options.mReclaimBatchSize = 1;
 
-    ClientW()->fileServiceOptions(options);
+    ClientW()->fileService().options(options);
 
     // Try and reclaim storage.
     reclaimed = execute(reclaimAll, ClientW());
     ASSERT_EQ(reclaimed.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Make sure storage was reclaimed.
-    usedAfter = ClientW()->fileStorageUsed();
+    usedAfter = ClientW()->fileService().storageUsed();
 
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_LT(*usedAfter, *usedBefore);
@@ -1856,7 +1857,7 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     ASSERT_EQ(reclaimed.valueOr(0ul), 0ul);
 
     // Make sure no more storage was reclaimed.
-    usedAfter = ClientW()->fileStorageUsed();
+    usedAfter = ClientW()->fileService().storageUsed();
 
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_EQ(*usedAfter, *usedBefore);
@@ -1877,7 +1878,7 @@ TEST_F(FileServiceTests, reclaim_periodic_succeeds)
 
     options.mReclaimSizeThreshold = 0;
 
-    ClientW()->fileServiceOptions(options);
+    ClientW()->fileService().options(options);
 
     // Create a few files for us to test with.
     for (auto i = 0; i < 4; ++i)
@@ -1908,7 +1909,7 @@ TEST_F(FileServiceTests, reclaim_periodic_succeeds)
     }
 
     // Make sure our storage footprint is as we expect.
-    auto usedBefore = ClientW()->fileStorageUsed();
+    auto usedBefore = ClientW()->fileService().storageUsed();
     ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_EQ(*usedBefore, 512_KiB * files.size());
 
@@ -1917,18 +1918,18 @@ TEST_F(FileServiceTests, reclaim_periodic_succeeds)
     options.mReclaimPeriod = seconds(15);
     options.mReclaimSizeThreshold = 512_KiB;
 
-    ClientW()->fileServiceOptions(options);
+    ClientW()->fileService().options(options);
 
     // Wait for storage to be reclaimed.
     EXPECT_TRUE(waitFor(
         [&]()
         {
-            return ClientW()->fileStorageUsed().valueOr(0) == 512_KiB;
+            return ClientW()->fileService().storageUsed().valueOr(0) == 512_KiB;
         },
         minutes(5)));
 
     // So we get useful logs.
-    auto usedAfter = ClientW()->fileStorageUsed();
+    auto usedAfter = ClientW()->fileService().storageUsed();
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     EXPECT_LT(*usedAfter, *usedBefore);
     EXPECT_EQ(*usedAfter, 512_KiB);
@@ -1965,7 +1966,7 @@ TEST_F(FileServiceTests, reclaim_single_succeeds)
     expected.replace(256_KiB, 64_KiB, expected, 0, 64_KiB);
 
     // Find out how much space the service is currently using.
-    auto usedBefore = ClientW()->fileStorageUsed();
+    auto usedBefore = ClientW()->fileService().storageUsed();
     ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Try and reclaim the file's storage.
@@ -1997,7 +1998,7 @@ TEST_F(FileServiceTests, reclaim_single_succeeds)
     ASSERT_NE(*handle, info->mHandle);
 
     // Make sure we actually reclaimed space.
-    auto usedAfter = ClientW()->fileStorageUsed();
+    auto usedAfter = ClientW()->fileService().storageUsed();
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_LT(*usedAfter, *usedBefore);
 
@@ -2040,7 +2041,7 @@ TEST_F(FileServiceTests, remove_local_succeeds)
         ASSERT_EQ(execute(write, data.data(), *file0, 0, data.size()), FILE_SUCCESS);
 
         // Figure out how much space our file's using.
-        usedBefore = ClientW()->fileStorageUsed();
+        usedBefore = ClientW()->fileService().storageUsed();
 
         // Make sure we could determine how much space our file was using.
         ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -2073,7 +2074,7 @@ TEST_F(FileServiceTests, remove_local_succeeds)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_FILE_DOESNT_EXIST);
 
     // Make sure storage space has been recovered.
-    auto usedAfter = ClientW()->fileStorageUsed();
+    auto usedAfter = ClientW()->fileService().storageUsed();
 
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_LT(*usedAfter, *usedBefore);
@@ -2105,7 +2106,7 @@ TEST_F(FileServiceTests, remove_cloud_succeeds)
         ASSERT_EQ(execute(fetch, *file0), FILE_SUCCESS);
 
         // Figure out how much storage space our file's using.
-        usedBefore = ClientW()->fileStorageUsed();
+        usedBefore = ClientW()->fileService().storageUsed();
         ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
         // Remove the file.
@@ -2146,7 +2147,7 @@ TEST_F(FileServiceTests, remove_cloud_succeeds)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_FILE_DOESNT_EXIST);
 
     // Make sure storage space has been recovered.
-    auto usedAfter = ClientW()->fileStorageUsed();
+    auto usedAfter = ClientW()->fileService().storageUsed();
 
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_LT(*usedAfter, *usedBefore);
@@ -2206,7 +2207,7 @@ TEST_F(FileServiceTests, touch_succeeds)
 TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
 {
     // Disable readahead.
-    ClientW()->fileServiceOptions(DisableReadahead);
+    ClientW()->fileService().options(DisableReadahead);
 
     // Open the file for truncation.
     auto file = ClientW()->fileOpen(mFileHandle);
@@ -2421,7 +2422,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
 TEST_F(FileServiceTests, write_succeeds)
 {
     // Disable readahead.
-    ClientW()->fileServiceOptions(DisableReadahead);
+    ClientW()->fileService().options(DisableReadahead);
 
     // File content that's updated as we write.
     auto expected = mFileContent;
@@ -2582,10 +2583,10 @@ void FileServiceTests::SetUp()
     Test::SetUp();
 
     // Make sure the service's options are in a known state.
-    ClientW()->fileServiceOptions(DefaultOptions);
+    ClientW()->fileService().options(DefaultOptions);
 
     // Make sure the service contains no lingering data.
-    ASSERT_EQ(ClientW()->fileServicePurge(), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(ClientW()->fileService().purge(), FILE_SERVICE_SUCCESS);
 
     // Make sure transfers proceed at full speed.
     ClientW()->setDownloadSpeed(0);
@@ -2862,7 +2863,7 @@ auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResultOr<std::uint6
     auto waiter = notifier->get_future();
 
     // Try and reclaim zero or more files.
-    client->fileStorageReclaim(
+    client->fileService().reclaim(
         [notifier](auto result)
         {
             notifier->set_value(result);

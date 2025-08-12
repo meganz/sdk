@@ -55,9 +55,6 @@ class RealClient
     // Called when we receive a response for a fetch request.
     void fetchnodes_result(const Error& result) override;
 
-    // Get our hands on the client's FileService interface.
-    file_service::FileService& fileService() const override;
-
     // Is a friendship invite associated with the specified user?
     auto invited(const std::string& email,
                  std::unique_lock<std::mutex>& lock) const -> InvitePtr;
@@ -131,6 +128,9 @@ public:
 
     // Query whether a node has file attributes.
     bool hasFileAttribute(NodeHandle handle, fatype type) const override;
+
+    // Get our hands on the client's FileService interface.
+    file_service::FileService& fileService() const override;
 
     // Send a friendship invite to the specified user.
     auto invite(const std::string& email) -> common::ErrorOr<InvitePtr> override;
