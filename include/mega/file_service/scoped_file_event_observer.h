@@ -1,7 +1,9 @@
 #pragma once
 
+#include <mega/common/expected_forward.h>
 #include <mega/file_service/file_event_observer.h>
 #include <mega/file_service/file_event_observer_id.h>
+#include <mega/file_service/file_event_vector.h>
 #include <mega/file_service/type_traits.h>
 
 #include <type_traits>
@@ -13,6 +15,24 @@ namespace file_service
 namespace detail
 {
 
+// Convenience.
+using common::Expected;
+
+template<typename T>
+struct IsFileEventObserverID: std::false_type
+{}; // IsFileEventObserverID<T>
+
+template<>
+struct IsFileEventObserverID<FileEventObserverID>: std::true_type
+{}; // IsFileEventObserverID<FileEventObserverID>
+
+template<typename E>
+struct IsFileEventObserverID<Expected<E, FileEventObserverID>>: std::true_type
+{}; // IsFileEventObserverID<Expected<E, FileEventObserverID>>
+
+template<typename T>
+constexpr auto IsFileEventObserverIDV = IsFileEventObserverID<T>::value;
+
 template<typename T>
 using DetectAddObserver =
     decltype(std::declval<T>().addObserver(std::declval<FileEventObserver>()));
@@ -22,59 +42,100 @@ using DetectRemoveObserver =
     decltype(std::declval<T>().removeObserver(std::declval<FileEventObserverID>()));
 
 template<typename T>
-using HasAddObserver = std::is_same<DetectedT<DetectAddObserver, T>, FileEventObserverID>;
+using HasAddObserver = IsFileEventObserverID<DetectedT<DetectAddObserver, T>>;
 
 template<typename T>
-using HasRemoveObserver = std::is_same<DetectedT<DetectRemoveObserver, T>, void>;
-
-template<typename T>
-using IsFileEventObserver = std::is_invocable_r<void, T, const FileEvent&>;
+using HasRemoveObserver = IsNotNoneSuch<DetectedT<DetectRemoveObserver, T>>;
 
 template<typename T>
 using IsFileEventSource = std::conjunction<HasAddObserver<T>, HasRemoveObserver<T>>;
 
+template<typename T>
+constexpr auto IsFileEventSourceV = IsFileEventSource<T>::value;
+
 } // detail
 
 // Convenience.
-using detail::IsFileEventObserver;
 using detail::IsFileEventSource;
+using detail::IsFileEventSourceV;
 
 template<typename Source>
 class ScopedFileEventObserver
 {
-    template<typename O, typename S>
-    friend auto observe(O&& observer, S& source)
-        -> std::enable_if_t<std::conjunction_v<IsFileEventObserver<O>, IsFileEventSource<S>>,
-                            ScopedFileEventObserver<S>>;
+    template<typename E>
+    auto extract(common::Expected<E, FileEventObserverID> id)
+    {
+        return id.value();
+    }
 
-    ScopedFileEventObserver(FileEventObserverID id, Source& source):
-        mID(id),
-        mSource(source)
-    {}
+    auto extract(FileEventObserverID id)
+    {
+        return id;
+    }
+
+    template<typename S>
+    friend auto observe(S& source)
+        -> std::enable_if_t<IsFileEventSourceV<S>, ScopedFileEventObserver<S>>;
+
+    ScopedFileEventObserver(Source& source):
+        mID(),
+        mSource(&source)
+    {
+        mID = extract(source.addObserver(
+            [this](auto& event)
+            {
+                mEvents.emplace_back(event);
+            }));
+    }
+
+    // What events has this observer received?
+    FileEventVector mEvents;
 
     // The ID of our event observer.
     FileEventObserverID mID;
 
     // The event source that our observer is observing.
-    Source& mSource;
+    Source* mSource;
 
 public:
-    ScopedFileEventObserver(ScopedFileEventObserver& other) = delete;
+    ScopedFileEventObserver(ScopedFileEventObserver&& other):
+        mEvents(std::exchange(other.mEvents, {})),
+        mID(other.mID),
+        mSource(std::exchange(other.mSource, nullptr))
+    {}
 
     ~ScopedFileEventObserver()
     {
-        mSource.removeObserver(mID);
+        if (mSource)
+            mSource->removeObserver(mID);
+    }
+
+    ScopedFileEventObserver& operator=(ScopedFileEventObserver&& rhs)
+    {
+        if (this == &rhs)
+            return *this;
+
+        if (mSource)
+            mSource->removeObserver(mID);
+
+        mEvents = std::exchange(rhs.mEvents, {});
+        mID = rhs.mID;
+        mSource = std::exchange(rhs.mSource, nullptr);
+
+        return *this;
+    }
+
+    const FileEventVector& events() const
+    {
+        return mEvents;
     }
 }; // ScopedFileEventObserver
 
-template<typename Observer, typename Source>
-auto observe(Observer&& observer, Source& source) -> std::enable_if_t<
-    std::conjunction_v<IsFileEventObserver<Observer>, IsFileEventSource<Source>>,
-    ScopedFileEventObserver<Source>>
+template<typename Source>
+auto observe(Source& source)
+    -> std::enable_if_t<IsFileEventSourceV<Source>, ScopedFileEventObserver<Source>>
 {
-    auto id = source.addObserver(std::forward<Observer>(observer));
-
-    return ScopedFileEventObserver(id, source);
+    return ScopedFileEventObserver(source);
 }
 
 } // file_service

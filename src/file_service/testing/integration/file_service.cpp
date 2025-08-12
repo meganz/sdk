@@ -399,16 +399,8 @@ TEST_F(FileServiceTests, append_succeeds)
     // Events that we expect to receive.
     FileEventVector expected;
 
-    // Events that we actually received.
-    FileEventVector received;
-
     // Store events emitted for our file.
-    auto observer = observe(
-        [&received](auto& event)
-        {
-            received.emplace_back(event);
-        },
-        *file);
+    auto observer = observe(*file);
 
     // Convenience.
     using fuse::testing::randomBytes;
@@ -450,7 +442,7 @@ TEST_F(FileServiceTests, append_succeeds)
                 ElementsAre(range, FileRange(size - computed.size(), size + computed.size())));
 
     // Make sure we received the events we expected.
-    ASSERT_EQ(expected, received);
+    ASSERT_EQ(expected, observer.events());
 }
 
 TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
@@ -756,16 +748,8 @@ TEST_F(FileServiceTests, create_write_succeeds)
     // Events we expect to receive.
     FileEventVector expected;
 
-    // Events we actually received.
-    FileEventVector received;
-
     // So we can track what events were emitted for our file.
-    auto observer = observe(
-        [&received](auto& event)
-        {
-            received.emplace_back(event);
-        },
-        *file);
+    auto observer = observe(*file);
 
     // Generate some data for us to write to the file.
     auto data = randomBytes(64_KiB);
@@ -814,7 +798,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
     ASSERT_EQ(data, *computed);
 
     // Make sure we received the events we were expecting.
-    ASSERT_EQ(expected, received);
+    ASSERT_EQ(expected, observer.events());
 }
 
 TEST_F(FileServiceTests, fetch_succeeds)
@@ -1703,16 +1687,8 @@ TEST_F(FileServiceTests, read_write_sequence)
     // The events we expect to be emitted for our file.
     FileEventVector expected;
 
-    // What events were emitted for our file?
-    FileEventVector received;
-
     // So we can store the events emitted for our file.
-    auto observer = observe(
-        [&received](auto& event)
-        {
-            received.emplace_back(event);
-        },
-        *file);
+    auto observer = observe(*file);
 
     // Initiate a read of the file's data.
     file->read([](auto) {}, 0, file->info().size());
@@ -1727,7 +1703,7 @@ TEST_F(FileServiceTests, read_write_sequence)
         FSDebugF("Range: %s", toString(range).c_str());
 
     // Make sure we received the events we expected.
-    ASSERT_EQ(expected, received);
+    ASSERT_EQ(expected, observer.events());
 }
 
 TEST_F(FileServiceTests, reclaim_all_succeeds)
@@ -2164,16 +2140,8 @@ TEST_F(FileServiceTests, touch_succeeds)
     // Events we expect to receive.
     FileEventVector expected;
 
-    // Events we've received.
-    FileEventVector received;
-
     // So we can keep track of our file's events.
-    auto observer = observe(
-        [&received](auto& event)
-        {
-            received.emplace_back(event);
-        },
-        *file);
+    auto observer = observe(*file);
 
     // Get our hands on the file's attributes.
     auto info = file->info();
@@ -2201,7 +2169,7 @@ TEST_F(FileServiceTests, touch_succeeds)
     EXPECT_EQ(info.modified(), modified - 1);
 
     // Make sure we received an event.
-    ASSERT_EQ(expected, received);
+    ASSERT_EQ(expected, observer.events());
 }
 
 TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
@@ -2233,16 +2201,8 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         // The events we expect to receive.
         FileEventVector expected;
 
-        // The events we've received.
-        FileEventVector received;
-
         // So we can receive events.
-        auto observer = observe(
-            [&received](auto& event)
-            {
-                received.emplace_back(event);
-            },
-            *file);
+        auto observer = observe(*file);
 
         // Get our hands on the file's attributes.
         auto info = file->info();
@@ -2286,7 +2246,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         EXPECT_EQ(info.size(), newSize);
 
         // Make sure we received our expected events.
-        EXPECT_EQ(expected, received);
+        EXPECT_EQ(expected, observer.events());
 
         // One of the above expectations wasn't met.
         if (HasFailure())
@@ -2346,16 +2306,8 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     // The events we expect to receive.
     FileEventVector expected;
 
-    // The events we've actually received.
-    FileEventVector received;
-
     // So we can receive file events.
-    auto observer = observe(
-        [&received](auto& event)
-        {
-            received.emplace_back(event);
-        },
-        *file);
+    auto observer = observe(*file);
 
     // Get our hands on the file's attributes.
     auto info = file->info();
@@ -2416,7 +2368,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     EXPECT_EQ(result->find_first_not_of('\0', length), npos);
 
     // Make sure we received the events we expected.
-    ASSERT_EQ(expected, received);
+    ASSERT_EQ(expected, observer.events());
 }
 
 TEST_F(FileServiceTests, write_succeeds)
@@ -2454,19 +2406,11 @@ TEST_F(FileServiceTests, write_succeeds)
     // Write content to our file.
     auto write = [&](const void* content, std::uint64_t offset, std::uint64_t length)
     {
-        // Events we actually received.
-        FileEventVector received;
-
         // Events we want to receive.
         FileEventVector wanted;
 
         // So we can receive events.
-        auto observer = observe(
-            [&received](auto& event)
-            {
-                received.emplace_back(event);
-            },
-            *file);
+        auto observer = observe(*file);
 
         // Get our hands on the file's information.
         auto info = file->info();
@@ -2508,7 +2452,7 @@ TEST_F(FileServiceTests, write_succeeds)
         EXPECT_EQ(info.size(), size);
 
         // Make sure we received the events we wanted.
-        EXPECT_EQ(received, wanted);
+        EXPECT_EQ(observer.events(), wanted);
 
         // One or more of our expectations weren't satisfied.
         if (HasFailure())
