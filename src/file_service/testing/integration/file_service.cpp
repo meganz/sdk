@@ -32,30 +32,38 @@ namespace mega
 namespace file_service
 {
 
-// Teach gtest how to print FileEvent instances.
-void PrintTo(const FileEvent& event, std::ostream* ostream)
+// Teach gtest how to print our file event instances.
+void PrintTo(const FileTouchEvent& event, std::ostream* ostream)
 {
-    // Assume the event holds no range.
+    *ostream << "Touch {id: " << toString(event.mID) << ", modified: " << event.mModified << "}";
+}
+
+void PrintTo(const FileTruncateEvent& event, std::ostream* ostream)
+{
+    // Assume no part of the file has been "cut off."
     std::string range = "[]";
 
-    // Event actually holds a range.
+    // Actually did cut off some part of the file.
     if (event.mRange)
         range = toString(*event.mRange);
 
-    // Print the range in a form we can understand.
-    *ostream << "{" << range << ", " << event.mModified << ", " << event.mSize << "}";
+    *ostream << "Truncate {range: " << range << ", id: " << toString(event.mID)
+             << ", size: " << event.mSize << "}";
 }
 
-// Check whether lhs and rhs represent the same event.
-bool operator==(const FileEvent& lhs, const FileEvent& rhs)
+void PrintTo(const FileWriteEvent& event, std::ostream* ostream)
 {
-    return lhs.mRange == rhs.mRange && lhs.mModified == rhs.mModified && lhs.mSize == rhs.mSize;
+    *ostream << "Write {range: " << event.mRange << ", id: " << toString(event.mID) << "}";
 }
 
-// Check whether lhs and rhs represent different events.
-bool operator!=(const FileEvent& lhs, const FileEvent& rhs)
+void PrintTo(const FileEvent& event, std::ostream* ostream)
 {
-    return !(lhs == rhs);
+    std::visit(
+        [ostream](const auto& event)
+        {
+            PrintTo(event, ostream);
+        },
+        event);
 }
 
 namespace testing
@@ -414,9 +422,7 @@ TEST_F(FileServiceTests, append_succeeds)
     // Try and append the data to the end of the file.
     ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
 
-    expected.emplace_back(FileEvent{FileRange(size, size + computed.size()),
-                                    info.modified(),
-                                    size + computed.size()});
+    expected.emplace_back(FileWriteEvent{FileRange(size, size + computed.size()), info.id()});
 
     // The file should now have two ranges.
     ASSERT_THAT(file->ranges(), ElementsAre(range, FileRange(size, size + computed.size())));
@@ -434,9 +440,7 @@ TEST_F(FileServiceTests, append_succeeds)
     // Append again to make sure contigous ranges are extended.
     ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
 
-    expected.emplace_back(FileEvent{FileRange(size, size + computed.size()),
-                                    info.modified(),
-                                    size + computed.size()});
+    expected.emplace_back(FileWriteEvent{FileRange(size, size + computed.size()), info.id()});
 
     ASSERT_GE(info.modified(), modified);
     ASSERT_EQ(info.size(), size + computed.size());
@@ -768,7 +772,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
     // Try and write data to the file.
     ASSERT_EQ(execute(write, data.data(), *file, 128_KiB, 64_KiB), FILE_SUCCESS);
 
-    expected.emplace_back(FileEvent{FileRange(128_KiB, 192_KiB), file->info().modified(), 192_KiB});
+    expected.emplace_back(FileWriteEvent{FileRange(128_KiB, 192_KiB), file->info().id()});
 
     // Make sure the file's size is correct.
     ASSERT_EQ(file->info().size(), 192_KiB);
@@ -794,7 +798,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
     // Write more data to the file.
     ASSERT_EQ(execute(write, data.data(), *file, 320_KiB, 64_KiB), FILE_SUCCESS);
 
-    expected.emplace_back(FileEvent{FileRange(320_KiB, 384_KiB), file->info().modified(), 384_KiB});
+    expected.emplace_back(FileWriteEvent{FileRange(320_KiB, 384_KiB), file->info().id()});
 
     // Make sure the file's size is correct.
     ASSERT_EQ(file->info().size(), 384_KiB);
@@ -1715,8 +1719,7 @@ TEST_F(FileServiceTests, read_write_sequence)
     // Write our data to the file.
     ASSERT_EQ(execute(write, data.data(), *file, 256_KiB, 512_KiB), FILE_SUCCESS);
 
-    expected.emplace_back(
-        FileEvent{FileRange(256_KiB, 768_KiB), file->info().modified(), file->info().size()});
+    expected.emplace_back(FileWriteEvent{FileRange(256_KiB, 768_KiB), file->info().id()});
 
     // Curiosity.
     for (const auto& range: file->ranges())
@@ -2184,7 +2187,7 @@ TEST_F(FileServiceTests, touch_succeeds)
     // Try and update the file's modification time.
     ASSERT_EQ(execute(touch, *file, modified - 1), FILE_SUCCESS);
 
-    expected.emplace_back(FileEvent{std::nullopt, modified - 1, file->info().size()});
+    expected.emplace_back(FileTouchEvent{file->info().id(), modified - 1});
 
     // Make sure the file's now considered dirty.
     EXPECT_TRUE(info.dirty());
@@ -2266,13 +2269,13 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         if (dirty)
         {
             // Assume the file's size is increasing.
-            std::optional<FileRange> range;
+            FileTruncateEvent event{std::nullopt, info.id(), newSize};
 
             // File's size is actually decreasing.
             if (newSize < size)
-                range.emplace(newSize, size);
+                event.mRange.emplace(newSize, size);
 
-            expected.emplace_back(FileEvent{range, info.modified(), newSize});
+            expected.emplace_back(event);
         }
 
         // Make sure the file's attributes have been updated.
@@ -2369,7 +2372,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     // We should be able to reduce the file's size.
     ASSERT_EQ(execute(truncate, *file, size / 2), FILE_SUCCESS);
 
-    expected.emplace_back(FileEvent{FileRange(size / 2, size), info.modified(), size / 2});
+    expected.emplace_back(FileTruncateEvent{FileRange(size / 2, size), info.id(), size / 2});
 
     // Mak sure the file's become dirty.
     EXPECT_TRUE(info.dirty());
@@ -2387,7 +2390,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     // We should be able to grow the file's size.
     ASSERT_EQ(execute(truncate, *file, size), FILE_SUCCESS);
 
-    expected.emplace_back(FileEvent{std::nullopt, info.modified(), size});
+    expected.emplace_back(FileTruncateEvent{std::nullopt, info.id(), size});
 
     // Make sure the file's attributes were updated.
     EXPECT_GE(info.modified(), modified);
@@ -2480,8 +2483,7 @@ TEST_F(FileServiceTests, write_succeeds)
         if (result != FILE_SUCCESS)
             return result;
 
-        wanted.emplace_back(
-            FileEvent{FileRange(offset, offset + length), info.modified(), info.size()});
+        wanted.emplace_back(FileWriteEvent{FileRange(offset, offset + length), info.id()});
 
         // Compute size of local file content.
         auto size = std::max<std::uint64_t>(expected.size(), offset + length);

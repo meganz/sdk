@@ -37,6 +37,12 @@ target_sources(SDKlib PRIVATE
                       file_service_result_forward.h
                       file_service_result_or.h
                       file_service_result_or_forward.h
+                      file_touch_event.h
+                      file_touch_event_forward.h
+                      file_truncate_event.h
+                      file_truncate_event_forward.h
+                      file_write_event.h
+                      file_write_event_forward.h
                       file_write_result.h
                       scoped_file_event_observer.h
                       sink.h

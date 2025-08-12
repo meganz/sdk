@@ -170,7 +170,7 @@ void FileInfoContext::modified(std::int64_t accessed, std::int64_t modified)
             mModified = modified;
 
             // Return an event to our caller.
-            return FileEvent{std::nullopt, mModified, mSize};
+            return FileTouchEvent{mID, mModified};
         }());
 }
 
@@ -241,7 +241,7 @@ void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
             swap(mSize, size);
 
             // Assume the file's size hasn't decreased.
-            FileEvent event{std::nullopt, mModified, mSize};
+            FileTruncateEvent event{std::nullopt, mID, mSize};
 
             // File's size has decreased.
             if (mSize < size)
@@ -274,7 +274,7 @@ void FileInfoContext::written(std::int64_t modified, const FileRange& range)
             mSize = std::max(mSize, range.mEnd);
 
             // Return a suitable event.
-            return FileEvent{range, modified, mSize};
+            return FileWriteEvent{range, mID};
         }());
 }
 
