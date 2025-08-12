@@ -62,12 +62,13 @@ typedef enum
 
 typedef enum
 {
+    NODE_COMP_INVALID_NODE_TYPE = -31,
     NODE_COMP_EREAD = -21,
     NODE_COMP_EARGS = -2,
     NODE_COMP_EQUAL = 0,
     NODE_COMP_DIFFERS_FP = 1,
     NODE_COMP_DIFFERS_MAC = 2,
-} node_comparisson_result;
+} node_comparison_result;
 
 std::string backupTypeToStr(BackupType type);
 
@@ -610,7 +611,9 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAcces
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
 
-bool CompareLocalFileMetaMacWithNodeKey(FileAccess* fa, const std::string& nodeKey, int type);
+std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
+                                                            const std::string& nodeKey,
+                                                            int type);
 
 bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
 
@@ -625,17 +628,19 @@ bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
  * @param path Local path to the file to be compared.
  * @param fp Fingerprint of the local file to be compared.
  * @param node Pointer to the remote node to compare with.
- * @return A value of type `node_comparisson_result` indicating the comparison result:
+ * @return A value of type `node_comparison_result` indicating the comparison result:
  *         - NODE_COMP_EREAD: Error reading the local file.
  *         - NODE_COMP_EARGS: Invalid arguments
  *         - NODE_COMP_DIFFERS_FP: Fingerprints do not match.
  *         - NODE_COMP_DIFFERS_MAC: Fingerprints match but MACs differ.
  *         - NODE_COMP_EQUAL: Both fingerprint and MAC match.
  */
-node_comparisson_result CompareLocalFileWithNodeFpAndMac(MegaClient& client,
-                                                         const LocalPath& path,
-                                                         const FileFingerprint& fp,
-                                                         const Node* node);
+std::pair<node_comparison_result, int64_t>
+    CompareLocalFileWithNodeFpAndMac(MegaClient& client,
+                                     const LocalPath& path,
+                                     const FileFingerprint& fp,
+                                     const Node* node,
+                                     bool debugMode = false);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data

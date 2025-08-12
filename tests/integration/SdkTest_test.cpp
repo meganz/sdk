@@ -2501,6 +2501,16 @@ void SdkTest::getContactRequest(unsigned int apiIndex, bool outgoing, int expect
     mApi[apiIndex].cr.reset(crl->get(0)->copy());
 }
 
+std::pair<int, MegaHandle> SdkTest::createRemoteFolder(const unsigned int apiIndex,
+                                                       const char* name,
+                                                       MegaNode* parent,
+                                                       const int timeout)
+{
+    RequestTracker tracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createFolder(name, parent, &tracker);
+    return {tracker.waitForResult(timeout), tracker.request->getNodeHandle()};
+}
+
 MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int timeout)
 {
     RequestTracker tracker(megaApi[apiIndex].get());
@@ -3041,8 +3051,12 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
     ASSERT_TRUE(rootnode) << logPre << "Cannot get root node for account: " << idx;
 
     const std::string rootFolderName{"testfolder1"};
-    const MegaHandle fh = createFolder(0, rootFolderName.c_str(), rootnode.get());
-    ASSERT_NE(fh, INVALID_HANDLE) << "Cannot create " << rootFolderName;
+    auto [errCode, fh] = createRemoteFolder(0, rootFolderName.c_str(), rootnode.get());
+    ASSERT_TRUE(errCode == API_OK && fh != INVALID_HANDLE) << "Cannot create " << rootFolderName;
+
+    auto [errCodeAux, _] = createRemoteFolder(0, rootFolderName.c_str(), rootnode.get());
+    ASSERT_EQ(errCodeAux, API_EEXIST)
+        << "Unexpected ErrCode upon creating same folder again: " << rootFolderName;
 
     std::unique_ptr<MegaNode> rootFolderNode{megaApi[idx]->getNodeByHandle(fh)};
     ASSERT_TRUE(rootFolderNode) << logPre << "Cannot get " << rootFolderName

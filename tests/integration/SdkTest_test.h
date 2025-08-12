@@ -1273,6 +1273,10 @@ public:
 
     void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
 
+    std::pair<int, MegaHandle> createRemoteFolder(const unsigned int apiIndex,
+                                                  const char* name,
+                                                  MegaNode* parent,
+                                                  const int timeout = maxTimeout);
     MegaHandle createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int timeout = maxTimeout);
 
     // SMS verification was deprecated. This function should be removed in the future,

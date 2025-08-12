@@ -9556,24 +9556,29 @@ void MegaApiImpl::abortPendingActions(error preverror)
     }
 }
 
-bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const
+bool MegaApiImpl::hasToForceUpload(const Node& node, const MegaTransferPrivate& transfer) const
 {
-    bool hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
-    bool hasThumbnail = (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
-    string name = node.displayname();
-    LocalPath lp = LocalPath::fromRelativePath(name);
-    bool isMedia = gfxAccess && (gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp));
-    bool canForceUpload = transfer.isForceNewUpload();
-    bool isPdf = name.find(".pdf") != string::npos;
+    const string name = node.displayname();
+    const auto lp = LocalPath::fromRelativePath(name);
+    const auto hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
+    const auto hasThumbnail =
+        (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
+    const auto isMedia = gfxAccess && (gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp));
+    const auto canForceUpload = transfer.isForceNewUpload();
+    const auto isPdf = name.find(".pdf") != string::npos;
 
     if (canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail))
     {
+        LOG_debug << "[MegaApiImpl::hasToForceUpload] Force to upload a local file (Media type or "
+                     "Pdf) if previous node in cloud doesn't have but thumbnail or preview..."
+                  << " [handle = " << node.nodeHandle() << "]";
         return true;
     }
     if (node.hasZeroKey())
     {
         // If the node has a zerokey, we need to discard it, regardless other conditions.
-        LOG_warn << "[MegaApiImpl::hasToForceUpload] Node has a zerokey, forcing a new upload..." << " [handle = " << node.nodeHandle() << "]";
+        LOG_warn << "[MegaApiImpl::hasToForceUpload] Node has a zerokey, forcing a new upload..."
+                 << " [handle = " << node.nodeHandle() << "]";
         client->sendevent(99486, "Node has a zerokey");
         return true;
     }
@@ -18868,7 +18873,8 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
         return false;
     }
 
-    return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType());
+    return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType())
+        .first;
 }
 
 CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option)
@@ -19153,40 +19159,38 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         !skipSearchBySameName ?
                             client->childnodebyname(parent.get(), fileName, false) :
                             nullptr;
+
                     if (prevNodeSameName)
                     {
-                        if (prevNodeSameName->type == FOLDERNODE && !recursiveTransfer)
+                        if (prevNodeSameName->type == FOLDERNODE)
                         {
-                            e = API_EARGS;
-                            break;
-                        }
-                        /* In case we found a folder (in cloud drive) with a duplicate name for any
-                         * subfile of the folder we are trying to upload SDK core will resolve the
-                         * name conflict
-                         *   - If versioning is enabled, it creates a new version.
-                         *   - If versioning is disabled, it overwrites the file (old one is deleted
-                         * permanently).
-                         */
-
-                        if (const auto compRes =
-                                CompareLocalFileWithNodeFpAndMac(*client,
-                                                                 wLocalPath,
-                                                                 fp_forCloud,
-                                                                 prevNodeSameName.get());
-                            compRes == NODE_COMP_EARGS)
-                        {
-                            e = API_EARGS;
-                            break;
-                        }
-                        else if (compRes == NODE_COMP_EREAD)
-                        {
-                            e = API_EREAD;
-                            break;
+                            if (!recursiveTransfer)
+                            {
+                                e = API_EARGS;
+                                break;
+                            }
+                            /* In case we found a folder (in cloud drive) with a duplicate name for
+                             * any subfile of the folder we are trying to upload SDK core will
+                             * resolve the name conflict
+                             *   - If versioning is enabled, it creates a new version.
+                             *   - If versioning is disabled, it overwrites the file (old one is
+                             * deleted permanently).
+                             */
                         }
                         else if (forceToUpload =
                                      hasToForceUpload(*prevNodeSameName.get(), *transfer);
-                                 !forceToUpload && compRes == NODE_COMP_EQUAL)
+                                 !forceToUpload &&
+                                 CompareLocalFileWithNodeFpAndMac(*client,
+                                                                  wLocalPath,
+                                                                  fp_forCloud,
+                                                                  prevNodeSameName.get())
+                                         .first == NODE_COMP_EQUAL)
                         {
+                            LOG_debug
+                                << "Another node ("
+                                << Base64Str<MegaClient::NODEHANDLE>(prevNodeSameName->nodehandle)
+                                << ") with same name, FP and MAC exists in target "
+                                   "node.";
                             finishTransferSameNodeNameFoundInTarget(prevNodeSameName->nodehandle);
                             break;
                         }
@@ -19208,7 +19212,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                 CompareLocalFileWithNodeFpAndMac(*client,
                                                                  wLocalPath,
                                                                  fp_forCloud,
-                                                                 n.get()) == NODE_COMP_EQUAL)
+                                                                 n.get())
+                                        .first == NODE_COMP_EQUAL)
                             {
                                 sameNodeFpFound = n;
                                 if (alreadyCheckedSameNodeNameInTarget ||
@@ -19227,13 +19232,23 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         {
                             if (sameNodeSameNameInTarget)
                             {
+                                LOG_debug << "Another node ("
+                                          << Base64Str<MegaClient::NODEHANDLE>(
+                                                 sameNodeFpFound->nodehandle)
+                                          << ") with same name, FP and MAC exists in target "
+                                             "node.";
+
                                 finishTransferSameNodeNameFoundInTarget(
                                     sameNodeFpFound->nodehandle);
                                 break;
                             }
 
                             LOG_debug
-                                << "Another node with same fp and MAC exists, perform remote copy";
+                                << "Another node ("
+                                << Base64Str<MegaClient::NODEHANDLE>(sameNodeFpFound->nodehandle)
+                                << ") with same FP and MAC exists in target node. Perform remote "
+                                   "copy";
+
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
