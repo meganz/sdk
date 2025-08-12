@@ -2218,9 +2218,6 @@ public:
     // total number of Node objects
     std::atomic_ullong totalNodes;
 
-    // tracks how many nodes have had a successful applykey()
-    std::atomic<long long> mAppliedKeyNodeCount;
-
     // server-client request sequence number
     SCSN scsn;
 

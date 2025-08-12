@@ -376,7 +376,7 @@ public:
     std::shared_ptr<Node> getNodeFromBlob(const string* nodeSerialized);
 
     // attempt to apply received keys to decrypt node's keys
-    void applyKeys(uint32_t appliedKeys);
+    void applyKeys();
 
     void addNodePendingApplykey(std::shared_ptr<Node> node);
 
@@ -430,6 +430,9 @@ public:
     // This method only can be used in Megacli for testing purposes
     uint64_t getNumberNodesInRam() const;
 
+    // Return number of nodes have had a successful applykey()
+    long long getNumNodesKeyApplied() const;
+
     // Add new relationship between parent and child
     void addChild(NodeHandle parent, NodeHandle child, Node *node);
     // remove relationship between parent and child
@@ -458,6 +461,9 @@ public:
 
     void increaseNumNodesInRam();
     void decreaseNumNodesInRam();
+
+    void increaseNumNodesAppliedKey();
+    void decreaseNumNodesAppliedKey();
 
     uint64_t getCacheLRUMaxSize() const;
     void setCacheLRUMaxSize(uint64_t cacheLRUMaxSize);
@@ -540,6 +546,9 @@ private:
     sharedNode_vector mNodeNotify;
 
     std::list<std::shared_ptr<Node>> mNodePendingApplyKeys;
+
+    // tracks how many nodes have had a successful applykey()
+    std::atomic<long long> mAppliedKeyNodeCount{0};
 
     shared_ptr<Node> getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode, MissingParentNodes& missingParentNodes);    // takes ownership
@@ -636,7 +645,7 @@ private:
     void removeChanges_internal();
     void cleanNodes_internal();
     std::shared_ptr<Node> getNodeFromBlob_internal(const string* nodeSerialized);
-    void applyKeys_internal(uint32_t appliedKeys);
+    void applyKeys_internal();
     void notifyNode_internal(std::shared_ptr<Node> node, sharedNode_vector* nodesToReport);
     bool loadNodes_internal();
     uint64_t getNodeCount_internal();

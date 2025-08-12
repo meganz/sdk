@@ -1383,7 +1383,6 @@ void NodeManager::cleanNodes_internal()
     mFingerPrints.clear();
     mNodes.clear();
     mCacheLRU.clear();
-    mNodesInRam = 0;
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
     mNodePendingApplyKeys.clear();
@@ -1393,6 +1392,9 @@ void NodeManager::cleanNodes_internal()
     if (mTable) mTable->removeNodes();
 
     mInitialized = false;
+
+    mAppliedKeyNodeCount = 0;
+    mNodesInRam = 0;
 }
 
 std::shared_ptr<Node> NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
@@ -1443,10 +1445,10 @@ shared_ptr<Node> NodeManager::unserializeNode(const std::string *d, bool fromOld
     return nullptr;
 }
 
-void NodeManager::applyKeys(uint32_t appliedKeys)
+void NodeManager::applyKeys()
 {
     LockGuard g(mMutex);
-    applyKeys_internal(appliedKeys);
+    applyKeys_internal();
 }
 
 void NodeManager::addNodePendingApplykey(std::shared_ptr<Node> node)
@@ -1460,7 +1462,7 @@ void NodeManager::addNodePendingApplykey(std::shared_ptr<Node> node)
     mNodePendingApplyKeys.push_back(node);
 }
 
-void NodeManager::applyKeys_internal([[maybe_unused]] uint32_t appliedKeys)
+void NodeManager::applyKeys_internal()
 {
     assert(mMutex.owns_lock());
 
@@ -1476,13 +1478,16 @@ void NodeManager::applyKeys_internal([[maybe_unused]] uint32_t appliedKeys)
         }
     }
 
-    int rootNodeUndecrypted =
+#ifdef DEBUG
+    // In case of folder links, root node is not from type rootnode and it is decriptable
+    unsigned rootNodeUndecrypted =
         (!getRootNodeFiles().isUndef() && rootnodes.mRootNodes[ROOTNODE]->type == ROOTNODE) ? 1 : 0;
-    int noKeyExpected = rootNodeUndecrypted + (getRootNodeVault().isUndef() ? 0 : 1) +
-                        (getRootNodeRubbish().isUndef() ? 0 : 1);
+    unsigned noKeyExpected = rootNodeUndecrypted + (getRootNodeVault().isUndef() ? 0 : 1) +
+                             (getRootNodeRubbish().isUndef() ? 0 : 1);
 
-    assert(mNodesInRam - (mClient.mAppliedKeyNodeCount + noKeyExpected) ==
+    assert(mNodesInRam - (static_cast<uint64_t>(mAppliedKeyNodeCount) + noKeyExpected) ==
            mNodePendingApplyKeys.size());
+#endif
 }
 
 void NodeManager::notifyPurge()
@@ -1819,6 +1824,16 @@ void NodeManager::decreaseNumNodesInRam()
     mNodesInRam--;
 }
 
+void NodeManager::increaseNumNodesAppliedKey()
+{
+    mAppliedKeyNodeCount++;
+}
+
+void NodeManager::decreaseNumNodesAppliedKey()
+{
+    mAppliedKeyNodeCount--;
+}
+
 uint64_t NodeManager::getCacheLRUMaxSize() const
 {
     return mCacheLRUMaxSize;
@@ -2093,6 +2108,12 @@ uint64_t NodeManager::getNumberNodesInRam() const
 {
     LockGuard g(mMutex);
     return mNodesInRam;
+}
+
+long long NodeManager::getNumNodesKeyApplied() const
+{
+    LockGuard g(mMutex);
+    return mAppliedKeyNodeCount;
 }
 
 void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)

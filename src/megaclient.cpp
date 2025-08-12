@@ -1856,7 +1856,6 @@ void MegaClient::init()
     statecurrent = false;
     actionpacketsCurrent = false;
     totalNodes.store(0);
-    mAppliedKeyNodeCount = 0;
     faretrying = false;
 
 #ifdef ENABLE_SYNC
@@ -1980,8 +1979,6 @@ MegaClient::MegaClient(MegaApp* a,
     minstreamingrate = -1;
     ephemeralSession = false;
     ephemeralSessionPlusPlus = false;
-
-    mAppliedKeyNodeCount = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -11224,12 +11221,7 @@ int MegaClient::procphelement(JSON *j)
 void MegaClient::applykeys()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
-
-    int noKeyExpected = (mNodeManager.getRootNodeFiles().isUndef() ? 0 : 1)
-                      + (mNodeManager.getRootNodeVault().isUndef() ? 0 : 1)
-                      + (mNodeManager.getRootNodeRubbish().isUndef() ? 0 : 1);
-
-    mNodeManager.applyKeys(uint32_t(mAppliedKeyNodeCount + noKeyExpected));
+    mNodeManager.applyKeys();
 
     if (!nodekeyrewrite.empty())
     {
