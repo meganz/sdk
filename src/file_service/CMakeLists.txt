@@ -21,6 +21,7 @@ target_sources(SDKlib PRIVATE
                       file_access.cpp
                       file_buffer.cpp
                       file_context.cpp
+                      file_event_emitter.cpp
                       file_id.cpp
                       file_info.cpp
                       file_info_context.cpp
