@@ -34,18 +34,11 @@ void FileInfoContext::set(T FileInfoContext::*property, U&& value)
 
 void FileInfoContext::notify(const FileEvent& event)
 {
-    // Make sure no one's modifying our map of observers.
-    std::lock_guard guard(mObserversLock);
+    // Notify observers interested in this particular file.
+    FileEventEmitter::notify(event);
 
-    // Transmit event to each observer.
-    for (auto i = mObservers.begin(); i != mObservers.end();)
-    {
-        // Just in case the observer removes itself.
-        auto j = i++;
-
-        // Transmit event to our observer.
-        j->second(event);
-    }
+    // Notify observers interested in all files.
+    mService.notify(event);
 }
 
 FileInfoContext::FileInfoContext(std::int64_t accessed,
@@ -59,6 +52,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
                                  std::uint64_t reportedSize,
                                  FileServiceContext& service,
                                  std::uint64_t size):
+    FileEventEmitter(),
     mAccessed(accessed),
     mActivity(std::move(activity)),
     mAllocatedSize(allocatedSize),
@@ -68,8 +62,6 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
     mLocation(location),
     mLock(),
     mModified(modified),
-    mObservers(),
-    mObserversLock(),
     mRemoved(false),
     mReportedSize(reportedSize),
     mService(service),
@@ -79,24 +71,6 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
 FileInfoContext::~FileInfoContext()
 {
     mService.removeFromIndex(FileInfoContextBadge(), *this);
-}
-
-FileEventObserverID FileInfoContext::addObserver(FileEventObserver observer)
-{
-    // Should be sufficient.
-    static std::atomic<FileEventObserverID> next{0ul};
-
-    // Sanity.
-    assert(observer);
-
-    // Make sure no one else is messing with our observers.
-    std::lock_guard guard(mObserversLock);
-
-    // Add the observer to our map.
-    auto [iterator, added] = mObservers.emplace(next.fetch_add(1), std::move(observer));
-
-    // Return the observer's ID to our caller.
-    return iterator->first;
 }
 
 void FileInfoContext::accessed(std::int64_t accessed)
@@ -177,18 +151,6 @@ void FileInfoContext::modified(std::int64_t accessed, std::int64_t modified)
 std::int64_t FileInfoContext::modified() const
 {
     return get(&FileInfoContext::mModified);
-}
-
-void FileInfoContext::removeObserver(FileEventObserverID id)
-{
-    // Make sure no one else is messing with our observers.
-    std::lock_guard guard(mObserversLock);
-
-    // Remove the observer from our map.
-    [[maybe_unused]] auto count = mObservers.erase(id);
-
-    // Sanity.
-    assert(count);
 }
 
 void FileInfoContext::removed(bool removed)

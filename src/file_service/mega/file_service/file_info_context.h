@@ -1,5 +1,6 @@
 #include <mega/common/activity_monitor.h>
 #include <mega/common/shared_mutex.h>
+#include <mega/file_service/file_event_emitter.h>
 #include <mega/file_service/file_event_observer.h>
 #include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_id.h>
@@ -18,7 +19,7 @@ namespace mega
 namespace file_service
 {
 
-class FileInfoContext: public FileSizeInfo
+class FileInfoContext: FileEventEmitter, public FileSizeInfo
 {
     // Maps observer IDs to observer callbacks.
     using FileEventObserverMap = std::map<FileEventObserverID, FileEventObserver>;
@@ -61,12 +62,6 @@ class FileInfoContext: public FileSizeInfo
     // The time the file was last modified.
     std::int64_t mModified;
 
-    // Who should we notify when this file's information changes?
-    FileEventObserverMap mObservers;
-
-    // Serializes access to mObservers.
-    std::recursive_mutex mObserversLock;
-
     // Has this file been removed?
     bool mRemoved;
 
@@ -101,7 +96,7 @@ public:
     std::int64_t accessed() const;
 
     // Add an observer.
-    FileEventObserverID addObserver(FileEventObserver observer);
+    using FileEventEmitter::addObserver;
 
     // Update this file's allocated size.
     void allocatedSize(std::uint64_t allocatedSize) override;
@@ -134,7 +129,7 @@ public:
     auto modified() const -> std::int64_t;
 
     // Remove an observer.
-    void removeObserver(FileEventObserverID id);
+    using FileEventEmitter::removeObserver;
 
     // Specify whether this file has been removed.
     void removed(bool removed);

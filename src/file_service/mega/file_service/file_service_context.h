@@ -9,6 +9,7 @@
 #include <mega/common/task_queue.h>
 #include <mega/file_service/file_context_badge_forward.h>
 #include <mega/file_service/file_context_pointer.h>
+#include <mega/file_service/file_event_emitter.h>
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_id_vector.h>
@@ -38,7 +39,7 @@ class LocalPath;
 namespace file_service
 {
 
-class FileServiceContext: private common::NodeEventObserver
+class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
 {
     // Processes client node events.
     class EventProcessor;

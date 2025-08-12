@@ -26,6 +26,17 @@ FileService::FileService():
 
 FileService::~FileService() = default;
 
+auto FileService::addObserver(FileEventObserver observer)
+    -> FileServiceResultOr<FileEventObserverID>
+{
+    SharedLock guard(mContextLock);
+
+    if (mContext)
+        return mContext->addObserver(std::move(observer));
+
+    return FILE_SERVICE_UNINITIALIZED;
+}
+
 auto FileService::create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>
 {
     SharedLock guard(mContextLock);
@@ -152,6 +163,18 @@ void FileService::reclaim(ReclaimCallback callback)
         return callback(FILE_SERVICE_UNINITIALIZED);
 
     return mContext->reclaim(std::move(callback));
+}
+
+auto FileService::removeObserver(FileEventObserverID id) -> FileServiceResult
+{
+    SharedLock guard(mContextLock);
+
+    if (!mContext)
+        return FILE_SERVICE_UNINITIALIZED;
+
+    mContext->removeObserver(id);
+
+    return FILE_SERVICE_SUCCESS;
 }
 
 auto FileService::storageUsed() -> FileServiceResultOr<std::uint64_t>

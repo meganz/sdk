@@ -895,6 +895,7 @@ void FileServiceContext::updated(NodeEventQueue& events)
 
 FileServiceContext::FileServiceContext(Client& client, const FileServiceOptions& options):
     NodeEventObserver(),
+    FileEventEmitter(),
     mClient(client),
     mStorage(mClient),
     mDatabase(createDatabase(mStorage.databasePath())),

@@ -2,6 +2,8 @@
 
 #include <mega/common/client_forward.h>
 #include <mega/common/shared_mutex.h>
+#include <mega/file_service/file_event_observer.h>
+#include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_forward.h>
@@ -30,6 +32,9 @@ public:
     FileService();
 
     ~FileService();
+
+    // Notify observer when a file changes.
+    auto addObserver(FileEventObserver observer) -> FileServiceResultOr<FileEventObserverID>;
 
     // Create a new file.
     auto create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
@@ -68,6 +73,9 @@ public:
 
     // Reclaim storage space.
     void reclaim(ReclaimCallback callback);
+
+    // Remove a previously added file observer.
+    auto removeObserver(FileEventObserverID id) -> FileServiceResult;
 
     // How much storage is the service using?
     auto storageUsed() -> FileServiceResultOr<std::uint64_t>;
