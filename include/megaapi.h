@@ -19880,8 +19880,12 @@ class MegaApi
          *
          * @param enable Set to `true` to enable indexes for search functionality, or `false` to
          * disable them.
+         * @return
+         * - `API_OK`      - Operation completed successfully.
+         * - `API_EACCESS` - The operation could not be performed because the user is already logged
+         * in.
          */
-        void enableSearchDBIndexes(bool enable);
+        int enableSearchDBIndexes(bool enable);
 
         /**
          * @brief Generate an unique ViewID

@@ -450,7 +450,7 @@ public:
     // Initialize node counters and create indexes at DB
     void initCompleted();
     // Drop indexes used for search funtionalities
-    // These indixes aren't required in some apps (S4)
+    // These indexes aren't required in some apps (S4)
     void dropSearchDBIndexes();
 
     std::shared_ptr<Node> getNodeFromNodeManagerNode(NodeManagerNode& nodeManagerNode);

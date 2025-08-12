@@ -1265,10 +1265,12 @@ void SqliteAccountState::dropSearchDBIndexes()
             {
                 sqlite3_finalize(stmt);
                 const std::string dropStmt = "DROP INDEX " + indexName + ";";
-                if (sqlite3_exec(db, dropStmt.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK)
+                if (int sqlResult = sqlite3_exec(db, dropStmt.c_str(), nullptr, nullptr, nullptr);
+                    sqlResult != SQLITE_OK)
                 {
-                    LOG_err << "Data base error while dropping index (" << indexName
-                            << "): " << sqlite3_errmsg(db);
+                    errorHandler(sqlResult,
+                                 "Error while dropping index (" + indexName + ")",
+                                 false);
                 }
             }
             else

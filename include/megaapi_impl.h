@@ -4312,7 +4312,7 @@ public:
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
-        void enableSearchDBIndexes(bool enable);
+        int enableSearchDBIndexes(bool enable);
         string generateViewId();
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);

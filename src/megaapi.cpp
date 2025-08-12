@@ -4333,9 +4333,9 @@ bool MegaApi::setLanguage(const char *languageCode)
     return pImpl->setLanguage(languageCode);
 }
 
-void MegaApi::enableSearchDBIndexes(bool enable)
+int MegaApi::enableSearchDBIndexes(bool enable)
 {
-    pImpl->enableSearchDBIndexes(enable);
+    return pImpl->enableSearchDBIndexes(enable);
 }
 
 const char* MegaApi::generateViewId()
