@@ -254,6 +254,7 @@ void ensureAccountDeviceName(MegaApi* megaApi)
 std::optional<int> downloadNode(MegaApi* megaApi,
                                 MegaNode* node,
                                 const std::filesystem::path& fsPath,
+                                bool pathIsFolder,
                                 const std::chrono::seconds timeoutInSecs,
                                 const int collisionCheck,
                                 const int collisionResolution,
@@ -278,9 +279,14 @@ std::optional<int> downloadNode(MegaApi* megaApi,
                 err = error ? error->getErrorCode() : API_EINTERNAL;
                 mtl.markAsFinished();
             });
+    std::string downLoadPath{fsPath.u8string()};
+    if (pathIsFolder && downLoadPath.back() != std::filesystem::path::preferred_separator)
+    {
+        downLoadPath.push_back(std::filesystem::path::preferred_separator);
+    }
 
     megaApi->startDownload(node,
-                           fsPath.u8string().c_str(),
+                           downLoadPath.c_str(),
                            customName,
                            appData,
                            startFirst,

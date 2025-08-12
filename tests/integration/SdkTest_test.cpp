@@ -3565,6 +3565,7 @@ TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
     const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
                                                 newNode.get(),
                                                 basePath / itemName,
+                                                false,
                                                 180s /*timeout*/,
                                                 MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
                                                 MegaTransfer::COLLISION_RESOLUTION_OVERWRITE);

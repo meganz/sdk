@@ -1273,7 +1273,30 @@ LocalPath FileNameGenerator::suffixWithN(FileAccess* fa, const LocalPath& localn
 
 LocalPath FileNameGenerator::suffixWithOldN(FileAccess* fa, const LocalPath& localname)
 {
-    return suffix(fa, localname, [](unsigned num) { return ".old" + std::to_string(num); });
+    LocalPath currentLeafName;
+    // We need to get current name, in case of unsensitive case systems, suffix is added to current
+    // name without any change case
+    fa->fopen(localname,
+              true,
+              false,
+              FSLogging::logExceptFileNotFound,
+              nullptr,
+              false,
+              false,
+              &currentLeafName);
+
+    LocalPath path = localname;
+    if (!currentLeafName.empty() && !currentLeafName.isAbsolute() && !currentLeafName.isURI())
+    {
+        path.changeLeaf(currentLeafName);
+    }
+
+    return suffix(fa,
+                  path,
+                  [](unsigned num)
+                  {
+                      return ".old" + std::to_string(num);
+                  });
 }
 
 LocalPath FileNameGenerator::suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF)

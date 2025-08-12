@@ -181,6 +181,7 @@ std::optional<int> downloadNode(
     ::mega::MegaApi* megaApi,
     ::mega::MegaNode* node,
     const std::filesystem::path& fsPath,
+    bool pathIsFolder,
     const std::chrono::seconds timeoutInSecs = MAX_TIMEOUT,
     const int collisionCheck = ::mega::MegaTransfer::COLLISION_CHECK_FINGERPRINT,
     const int collisionResolution = ::mega::MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,

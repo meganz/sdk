@@ -1349,86 +1349,10 @@ bool Sync::determineCaseInsenstivity(bool secondTry)
 
     static constexpr auto logPre = "[Sync::determineCaseInsenstivity] ";
 
-    auto da = unique_ptr<DirAccess>(syncs.fsaccess->newdiraccess());
-    auto lp = mLocalPath;
-    if (da->dopen(&lp, NULL, false))
+    if (auto caseInsensitive = isCaseInsensitive(mLocalPath, syncs.fsaccess.get());
+        caseInsensitive != std::nullopt)
     {
-        LocalPath leafName;
-        nodetype_t dirEntryType;
-        while (da->dnext(lp, leafName, false, &dirEntryType))
-        {
-            auto uc = Utils::toUpperUtf8(leafName.toPath(false));
-            auto lc = Utils::toLowerUtf8(leafName.toPath(false));
-
-            if (uc == lc) continue;
-
-            auto lpuc = mLocalPath;
-            auto lplc = mLocalPath;
-
-            lpuc.appendWithSeparator(LocalPath::fromRelativePath(uc), true);
-            lplc.appendWithSeparator(LocalPath::fromRelativePath(lc), true);
-
-            LOG_debug << logPre << "Testing sync case sensitivity with " << lpuc << " vs " << lplc;
-
-            auto fa1 = syncs.fsaccess->newfileaccess();
-            auto fa2 = syncs.fsaccess->newfileaccess();
-
-            LOG_verbose << logPre << "Opening " << lpuc;
-            bool opened1 = fa1->fopen(lpuc,
-                                      true,
-                                      false,
-                                      FSLogging::logExceptFileNotFound,
-                                      nullptr,
-                                      false,
-                                      true);
-            LOG_verbose << logPre << "Opened " << lpuc << " with result: " << opened1
-                        << ". Closing...";
-            fa1->closef();
-            LOG_verbose << logPre << "Closed " << lpuc;
-
-            LOG_verbose << logPre << "Opening " << lplc;
-            bool opened2 = fa2->fopen(lplc,
-                                      true,
-                                      false,
-                                      FSLogging::logExceptFileNotFound,
-                                      nullptr,
-                                      false,
-                                      true);
-            LOG_verbose << logPre << "Opened " << lplc << " with result: " << opened2
-                        << ". Closing...";
-            fa2->closef();
-            LOG_verbose << logPre << "Closed " << lplc;
-
-            opened1 = opened1 && fa1->fsidvalid;
-            opened2 = opened2 && fa2->fsidvalid;
-
-            if (!opened1 && !opened2)
-            {
-                LOG_verbose
-                    << logPre << "Neither " << lpuc << " nor " << lplc
-                    << " were opened or both fsid were invalid. Continue... [fa1->fsidvalid = "
-                    << fa1->fsidvalid << ", fa2->fsidvalid = " << fa2->fsidvalid << "]";
-                continue;
-            }
-
-            if (opened1 != opened2)
-            {
-                LOG_verbose << logPre << "Either " << lpuc << " or " << lplc
-                            << " were not opened or the fsid were invalid. Return false. "
-                               "[fa1->fsidvalid = "
-                            << fa1->fsidvalid << ", fa2->fsidvalid = " << fa2->fsidvalid << "]";
-                return false;
-            }
-
-            LOG_verbose << logPre << "Return fa1->fsidvalid(" << fa1->fsidvalid
-                        << ") && fa2->fsidvalid(" << fa2->fsidvalid << ") && fa1->fsid("
-                        << fa1->fsid << ") == fa2->fsid(" << fa2->fsid << ")";
-            return fa1->fsidvalid && fa2->fsidvalid && fa1->fsid == fa2->fsid;
-        }
-    }
-    else
-    {
-        LOG_debug << logPre << mLocalPath << " could not be opened";
+        return caseInsensitive.value();
     }
 
     if (secondTry)
@@ -1455,8 +1379,6 @@ bool Sync::determineCaseInsenstivity(bool secondTry)
     LOG_verbose << logPre << "Debris folder created, run second try for determineCaseInsensitivity";
     return determineCaseInsenstivity(true);
 }
-
-
 
 void Sync::createDebrisTmpLockOnce()
 {

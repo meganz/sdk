@@ -1140,6 +1140,7 @@ bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, boo
 
         target_name_too_long = isPathError(e) && exists(namePath.parentPath());
         transient_error = istransientorexists(e);
+        target_exists = e == ERROR_ALREADY_EXISTS;
 
         if (!target_exists || logAlreadyExistsError)
         {

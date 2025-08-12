@@ -7998,15 +7998,64 @@ bool MegaApiImpl::createLocalFolder(const char *path)
     return client->fsaccess->mkdirlocal(localpath, false, true);
 }
 
-Error MegaApiImpl::createLocalFolder_unlocked(LocalPath & localPath,  FileSystemAccess& fsaccess)
+Error MegaApiImpl::createLocalFolder_unlocked(LocalPath& localPath,
+                                              FileSystemAccess& fsaccess,
+                                              const CollisionResolution& collisionResolution)
 {
     auto da = fsaccess.newfileaccess();
-    if (!da->fopen(localPath, true, false, FSLogging::logOnError))
+    LocalPath currentLeafName;
+    // Try to open the target path in case-sensitive mode
+    // (unless collision resolution is Overwrite, in which case open insensitive case (merge
+    // folders))
+    bool opened = da->fopen(localPath,
+                            true,
+                            false,
+                            FSLogging::logOnError,
+                            nullptr,
+                            false,
+                            (collisionResolution == CollisionResolution::Overwrite) ? true : false,
+                            &currentLeafName);
+    if (!opened)
     {
-        if (!fsaccess.mkdirlocal(localPath, false, false))
+        // Target folder doesn't exist, try to create it
+        bool mkdirSucceeded = fsaccess.mkdirlocal(localPath, false, false);
+        if (!mkdirSucceeded)
         {
-            LOG_err << "Unable to create folder: " << localPath;
-            return API_EWRITE;
+            // If the folder still doesn't exist, report an error
+            if (!fsaccess.target_exists)
+            {
+                LOG_err << "Unable to create folder: " << localPath;
+                return API_EWRITE;
+            }
+
+            // Target already exists — apply collision resolution strategy
+            switch (collisionResolution)
+            {
+                case CollisionResolution::RenameExistingToOldN:
+                {
+                    auto newPath = FileNameGenerator::suffixWithOldN(da.get(), localPath);
+                    fsaccess.renamelocal(localPath, newPath, true);
+                    break;
+                }
+                case CollisionResolution::RenameNewWithN:
+                    localPath = FileNameGenerator::suffixWithN(da.get(), localPath);
+                    break;
+                case CollisionResolution::Overwrite:
+                    LOG_err << "Unexpected error for Overwrite CollisionResolution " << localPath;
+                    return API_EINTERNAL;
+                    break;
+                default:
+                    LOG_err << "Invalid folder resolution strategy " << localPath;
+                    return API_EARGS;
+                    break;
+            }
+
+            // Retry folder creation with the new (renamed) path
+            if (!fsaccess.mkdirlocal(localPath, false, false))
+            {
+                LOG_err << "Unable to create folder: " << localPath;
+                return API_EWRITE;
+            }
         }
     }
     else if (da->type == FILENODE)
@@ -32264,8 +32313,9 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
 
         LocalPath &localpath = it->localPath;
 
+        auto collistionResolution = transfer->getCollisionResolution();
         // try to create the folder
-        e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
+        e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess, collistionResolution);
 
         // errors besides the folder already exists is an error
         if (e && e != API_EEXIST)
