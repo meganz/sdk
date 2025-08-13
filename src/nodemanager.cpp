@@ -1585,10 +1585,6 @@ bool NodeManager::loadNodes_internal()
     }
 
     sharedNode_vector allRootNodes = getRootNodes_internal();
-    // We can't base in `user.sharing` because it's set yet. We have to get from DB
-    sharedNode_vector inshares =
-        getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES); // it includes nested inshares
-
     for (const auto& node: allRootNodes)
     {
         getChildren_internal(node.get());
