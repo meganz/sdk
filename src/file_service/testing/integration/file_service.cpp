@@ -400,7 +400,8 @@ TEST_F(FileServiceTests, append_succeeds)
     FileEventVector expected;
 
     // Store events emitted for our file.
-    auto observer = observe(*file);
+    auto fileObserver = observe(*file);
+    auto serviceObserver = observe(ClientW()->fileService());
 
     // Convenience.
     using fuse::testing::randomBytes;
@@ -442,7 +443,8 @@ TEST_F(FileServiceTests, append_succeeds)
                 ElementsAre(range, FileRange(size - computed.size(), size + computed.size())));
 
     // Make sure we received the events we expected.
-    ASSERT_EQ(expected, observer.events());
+    ASSERT_EQ(expected, fileObserver.events());
+    ASSERT_EQ(expected, serviceObserver.events());
 }
 
 TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
@@ -749,7 +751,8 @@ TEST_F(FileServiceTests, create_write_succeeds)
     FileEventVector expected;
 
     // So we can track what events were emitted for our file.
-    auto observer = observe(*file);
+    auto fileObserver = observe(*file);
+    auto serviceObserver = observe(ClientW()->fileService());
 
     // Generate some data for us to write to the file.
     auto data = randomBytes(64_KiB);
@@ -798,7 +801,8 @@ TEST_F(FileServiceTests, create_write_succeeds)
     ASSERT_EQ(data, *computed);
 
     // Make sure we received the events we were expecting.
-    ASSERT_EQ(expected, observer.events());
+    ASSERT_EQ(expected, fileObserver.events());
+    ASSERT_EQ(expected, serviceObserver.events());
 }
 
 TEST_F(FileServiceTests, fetch_succeeds)
@@ -1688,7 +1692,8 @@ TEST_F(FileServiceTests, read_write_sequence)
     FileEventVector expected;
 
     // So we can store the events emitted for our file.
-    auto observer = observe(*file);
+    auto fileObserver = observe(*file);
+    auto serviceObserver = observe(ClientW()->fileService());
 
     // Initiate a read of the file's data.
     file->read([](auto) {}, 0, file->info().size());
@@ -1703,7 +1708,8 @@ TEST_F(FileServiceTests, read_write_sequence)
         FSDebugF("Range: %s", toString(range).c_str());
 
     // Make sure we received the events we expected.
-    ASSERT_EQ(expected, observer.events());
+    ASSERT_EQ(expected, fileObserver.events());
+    ASSERT_EQ(expected, serviceObserver.events());
 }
 
 TEST_F(FileServiceTests, reclaim_all_succeeds)
@@ -2141,7 +2147,8 @@ TEST_F(FileServiceTests, touch_succeeds)
     FileEventVector expected;
 
     // So we can keep track of our file's events.
-    auto observer = observe(*file);
+    auto fileObserver = observe(*file);
+    auto serviceObserver = observe(ClientW()->fileService());
 
     // Get our hands on the file's attributes.
     auto info = file->info();
@@ -2169,7 +2176,8 @@ TEST_F(FileServiceTests, touch_succeeds)
     EXPECT_EQ(info.modified(), modified - 1);
 
     // Make sure we received an event.
-    ASSERT_EQ(expected, observer.events());
+    ASSERT_EQ(expected, fileObserver.events());
+    ASSERT_EQ(expected, serviceObserver.events());
 }
 
 TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
@@ -2202,7 +2210,8 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         FileEventVector expected;
 
         // So we can receive events.
-        auto observer = observe(*file);
+        auto fileObserver = observe(*file);
+        auto serviceObserver = observe(ClientW()->fileService());
 
         // Get our hands on the file's attributes.
         auto info = file->info();
@@ -2246,7 +2255,8 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         EXPECT_EQ(info.size(), newSize);
 
         // Make sure we received our expected events.
-        EXPECT_EQ(expected, observer.events());
+        EXPECT_EQ(expected, fileObserver.events());
+        EXPECT_EQ(expected, serviceObserver.events());
 
         // One of the above expectations wasn't met.
         if (HasFailure())
@@ -2307,7 +2317,8 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     FileEventVector expected;
 
     // So we can receive file events.
-    auto observer = observe(*file);
+    auto fileObserver = observe(*file);
+    auto serviceObserver = observe(ClientW()->fileService());
 
     // Get our hands on the file's attributes.
     auto info = file->info();
@@ -2368,7 +2379,8 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     EXPECT_EQ(result->find_first_not_of('\0', length), npos);
 
     // Make sure we received the events we expected.
-    ASSERT_EQ(expected, observer.events());
+    ASSERT_EQ(expected, fileObserver.events());
+    ASSERT_EQ(expected, serviceObserver.events());
 }
 
 TEST_F(FileServiceTests, write_succeeds)
@@ -2410,7 +2422,8 @@ TEST_F(FileServiceTests, write_succeeds)
         FileEventVector wanted;
 
         // So we can receive events.
-        auto observer = observe(*file);
+        auto fileObserver = observe(*file);
+        auto serviceObserver = observe(ClientW()->fileService());
 
         // Get our hands on the file's information.
         auto info = file->info();
@@ -2452,7 +2465,8 @@ TEST_F(FileServiceTests, write_succeeds)
         EXPECT_EQ(info.size(), size);
 
         // Make sure we received the events we wanted.
-        EXPECT_EQ(observer.events(), wanted);
+        EXPECT_EQ(fileObserver.events(), wanted);
+        EXPECT_EQ(serviceObserver.events(), wanted);
 
         // One or more of our expectations weren't satisfied.
         if (HasFailure())
