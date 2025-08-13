@@ -34,6 +34,12 @@ namespace file_service
 {
 
 // Teach gtest how to print our file event instances.
+void PrintTo(const FileFlushEvent& event, std::ostream* ostream)
+{
+    *ostream << "Flush {handle: " << toNodeHandle(event.mHandle) << ", id: " << toString(event.mID)
+             << "}";
+}
+
 void PrintTo(const FileTouchEvent& event, std::ostream* ostream)
 {
     *ostream << "Touch {id: " << toString(event.mID) << ", modified: " << event.mModified << "}";
@@ -635,8 +641,15 @@ TEST_F(FileServiceTests, create_flush_succeeds)
     ASSERT_EQ(execute(write, expected.data(), *file, 0, 128_KiB), FILE_SUCCESS);
 
     // Try and flush the file to the cloud.
-    auto handle = [file = std::move(file), this]() -> FileResultOr<NodeHandle>
+    auto handle = [file = std::move(file), this]() mutable -> FileResultOr<NodeHandle>
     {
+        // What events do we expect to receive?
+        FileEventVector wanted;
+
+        // So we can receive file events.
+        auto fileObserver = observe(*file);
+        auto serviceObserver = observe(ClientW()->fileService());
+
         // Convenience.
         auto info = file->info();
 
@@ -656,6 +669,16 @@ TEST_F(FileServiceTests, create_flush_succeeds)
 
         // And that the file's modification time is unchanged.
         EXPECT_EQ(info.modified(), modified);
+
+        // Make sure we received the events we expected.
+        wanted.emplace_back(FileFlushEvent{info.handle(), info.id()});
+
+        EXPECT_EQ(fileObserver.events(), wanted);
+        EXPECT_EQ(serviceObserver.events(), wanted);
+
+        // One or more of our expectations failed.
+        if (HasFailure())
+            return unexpected(FILE_FAILED);
 
         // Return the file's handle.
         return file->info().handle();
@@ -974,6 +997,13 @@ TEST_F(FileServiceTests, flush_succeeds)
 
     // Flush our modifications to the cloud.
     {
+        // So we can receive file events.
+        auto fileObserver = observe(*oldFile);
+        auto serviceObserver = observe(ClientW()->fileService());
+
+        // The file events we expect to receive.
+        FileEventVector wanted;
+
         // Latch the file's ID.
         auto id = oldFile->info().id();
 
@@ -982,6 +1012,12 @@ TEST_F(FileServiceTests, flush_succeeds)
 
         // Make sure the file's ID hasn't changed.
         ASSERT_EQ(oldFile->info().id(), id);
+
+        // Make sure we received a flush event.
+        wanted.emplace_back(FileFlushEvent{oldFile->info().handle(), id});
+
+        EXPECT_EQ(fileObserver.events(), wanted);
+        EXPECT_EQ(serviceObserver.events(), wanted);
     }
 
     // Latch the file's new handle.
@@ -1047,6 +1083,13 @@ TEST_F(FileServiceTests, flush_succeeds)
     // the node event logic properly handles this situation.
     ClientW()->useVersioning(false);
 
+    // What events do we expect to receive?
+    FileEventVector wanted;
+
+    // So we can receive file events.
+    auto fileObserver = observe(*newFile);
+    auto serviceObserver = observe(ClientW()->fileService());
+
     // Flush our file to the cloud.
     ASSERT_EQ(execute(flush, *newFile), FILE_SUCCESS);
 
@@ -1055,6 +1098,12 @@ TEST_F(FileServiceTests, flush_succeeds)
     newHandle = newFile->info().handle();
 
     ASSERT_NE(oldHandle, newHandle);
+
+    // Make sure we received a flush event.
+    wanted.emplace_back(FileFlushEvent{newHandle, newFile->info().id()});
+
+    EXPECT_EQ(fileObserver.events(), wanted);
+    EXPECT_EQ(serviceObserver.events(), wanted);
 
     // Make sure our updated file is in the cloud.
     EXPECT_TRUE(waitFor(

@@ -1684,8 +1684,8 @@ void FileContext::FlushContext::bound(ErrorOr<NodeHandle> result)
         // Persist our changes.
         transaction.commit();
 
-        // Remember what our new handle is.
-        info.handle(*result);
+        // Update the file's node handle.
+        info.flushed(*result);
 
         // File's flushed.
         completed(std::move(lock), FILE_SUCCESS);

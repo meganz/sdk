@@ -100,9 +100,16 @@ bool FileInfoContext::dirty() const
     return get(&FileInfoContext::mDirty);
 }
 
-void FileInfoContext::handle(NodeHandle handle)
+void FileInfoContext::flushed(NodeHandle handle)
 {
+    // Sanity.
+    assert(!handle.isUndef());
+
+    // Update the file's node handle.
     set(&FileInfoContext::mHandle, handle);
+
+    // Let observers know the file's been flushed.
+    notify(FileFlushEvent{handle, mID});
 }
 
 NodeHandle FileInfoContext::handle() const
