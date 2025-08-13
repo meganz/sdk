@@ -26462,6 +26462,8 @@ public:
         NAME_TAKEN,
         // The specified name is too long.
         NAME_TOO_LONG,
+        // The specified name contains invalid character(s).
+        NAME_INVALID_CHAR,
         // No name has been specified for a mount.
         NO_NAME,
         // Mount source doesn't describe a directory.

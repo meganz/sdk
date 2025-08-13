@@ -14,6 +14,24 @@ namespace fuse
 namespace testing
 {
 
+TEST_F(FUSEMountTests, add_fails_when_name_contains_illegal_characters)
+{
+    MountInfo info;
+
+    info.mHandle = ClientW()->handle("/x/s");
+    info.name("s|a");
+
+    auto observer = ClientW()->mountEventObserver();
+
+    observer->expect({info.name(), MOUNT_NAME_INVALID_CHAR, MOUNT_ADDED});
+
+    ASSERT_EQ(ClientW()->addMount(info), MOUNT_NAME_INVALID_CHAR);
+
+    ASSERT_TRUE(observer->wait(mDefaultTimeout));
+
+    ASSERT_TRUE(ClientW()->mounts(false).empty());
+}
+
 TEST_F(FUSEMountTests, add_succeeds_when_target_is_unspecified)
 {
     MountInfo info;
