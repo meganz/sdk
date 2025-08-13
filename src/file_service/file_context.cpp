@@ -994,7 +994,7 @@ void FileContext::execute(FileRemoveRequest& request)
         transaction.commit();
 
         // Mark the file as removed in memory.
-        mInfo->removed(true);
+        mInfo->removed(false);
 
         // Let the client know the file was removed.
         return completed(std::move(request), FILE_SUCCESS);

@@ -160,9 +160,11 @@ std::int64_t FileInfoContext::modified() const
     return get(&FileInfoContext::mModified);
 }
 
-void FileInfoContext::removed(bool removed)
+void FileInfoContext::removed(bool replaced)
 {
-    set(&FileInfoContext::mRemoved, removed);
+    set(&FileInfoContext::mRemoved, true);
+
+    notify(FileRemoveEvent{mID, replaced});
 }
 
 bool FileInfoContext::removed() const

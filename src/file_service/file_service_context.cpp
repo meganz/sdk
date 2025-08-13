@@ -11,11 +11,13 @@
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
+#include <mega/file_service/file_event.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_info_context_badge.h>
 #include <mega/file_service/file_range.h>
+#include <mega/file_service/file_remove_event.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_service_context.h>
 #include <mega/file_service/file_service_result.h>
@@ -57,7 +59,7 @@ class FileServiceContext::EventProcessor
     // Mark an in-memory file as removed.
     //
     // Returns true iff the file was in memory.
-    bool mark(FileID id);
+    bool mark(FileID id, bool replaced);
 
     // Called when a node has been moved or renamed.
     //
@@ -69,6 +71,9 @@ class FileServiceContext::EventProcessor
     //
     // Otherwise, update the file's location to match the cloud.
     void moved(const NodeEvent& event);
+
+    // Remove a file from the database and from storage.
+    void remove(FileID id, bool replaced);
 
     // Called when a node has been removed.
     //
@@ -1426,12 +1431,9 @@ void FileServiceContext::EventProcessor::added(const NodeEvent& event)
     // Latch the file's ID.
     auto id = query.field("id").get<FileID>();
 
-    // File's in memory and has been marked as removed.
-    if (mark(id))
-        return;
-
     // The file's not in memory so purge it from the service.
-    mService.remove(mServiceLock, mDatabaseLock, id, mTransaction);
+    if (!mark(id, true))
+        remove(id, true);
 }
 
 void FileServiceContext::EventProcessor::dispatch(const NodeEvent& event)
@@ -1471,7 +1473,7 @@ FileInfoContextPtr FileServiceContext::EventProcessor::info(FileID id)
     return maybeInfo->first;
 }
 
-bool FileServiceContext::EventProcessor::mark(FileID id)
+bool FileServiceContext::EventProcessor::mark(FileID id, bool replaced)
 {
     // Check if the file's in memory.
     auto info = this->info(id);
@@ -1487,7 +1489,7 @@ bool FileServiceContext::EventProcessor::mark(FileID id)
     query.execute();
 
     // Mark the file as removed in memory.
-    info->removed(true);
+    info->removed(replaced);
 
     // Let our caller know we marked an in-memory file.
     return true;
@@ -1498,12 +1500,9 @@ void FileServiceContext::EventProcessor::moved(const NodeEvent& event)
     // Mark or remove a file managed by the service.
     auto remove = [this](FileID id)
     {
-        // File's in memory and has been marked as removed.
-        if (mark(id))
-            return;
-
         // File's not in memory so remove it immediately.
-        mService.remove(mServiceLock, mDatabaseLock, id, mTransaction);
+        if (!mark(id, true))
+            this->remove(id, true);
     }; // remove
 
     // Convenience.
@@ -1572,6 +1571,15 @@ void FileServiceContext::EventProcessor::moved(const NodeEvent& event)
     query.execute();
 }
 
+void FileServiceContext::EventProcessor::remove(FileID id, bool replaced)
+{
+    // Remove a file from the database and from storage.
+    mService.remove(mServiceLock, mDatabaseLock, id, mTransaction);
+
+    // Let observers know the file's been removed.
+    mService.notify(FileRemoveEvent{id, replaced});
+}
+
 void FileServiceContext::EventProcessor::removed(const NodeEvent& event)
 {
     // Directories are not managed by the service.
@@ -1593,21 +1601,18 @@ void FileServiceContext::EventProcessor::removed(const NodeEvent& event)
     // Convenience.
     auto id = query.field("id").get<FileID>();
 
-    // File's in memory and has been marked as removed.
-    if (mark(id))
-        return;
-
     // File's not in memory so purge it from the service.
-    mService.remove(mServiceLock, mDatabaseLock, id, mTransaction);
+    if (!mark(id, false))
+        remove(id, false);
 }
 
 void FileServiceContext::EventProcessor::removedDirectory(const NodeEvent& event)
 {
     // IDs of children we should mark as removed.
-    FileIDVector mark;
+    FileIDVector pendingMark;
 
     // IDs of children we should remove immediately.
-    FileIDVector remove;
+    FileIDVector pendingRemove;
 
     // Retrieve the ID of each child under this directory.
     auto query = mTransaction.query(mQueries.mGetFileIDsByParentHandle);
@@ -1627,31 +1632,31 @@ void FileServiceContext::EventProcessor::removedDirectory(const NodeEvent& event
         if (info)
         {
             // Mark the file as removed in memory.
-            info->removed(true);
+            info->removed(false);
 
             // Remember to mark this child in the database.
-            mark.emplace_back(id);
+            pendingMark.emplace_back(id);
 
             // Move onto the next child.
             continue;
         }
 
         // Child's not in memory: remember to remove it.
-        remove.emplace_back(id);
+        pendingRemove.emplace_back(id);
     }
 
     query = mTransaction.query(mQueries.mSetFileRemoved);
 
     // Mark in-memory children as removed in the database.
-    for (auto id: mark)
+    for (auto id: pendingMark)
     {
         query.param(":id").set(id);
         query.execute();
     }
 
     // Remove out-of-memory children from the service.
-    for (auto id: remove)
-        mService.remove(mServiceLock, mDatabaseLock, id, mTransaction);
+    for (auto id: pendingRemove)
+        remove(id, false);
 }
 
 void FileServiceContext::EventProcessor::operator()(NodeEventQueue& events)

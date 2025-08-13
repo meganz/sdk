@@ -13,6 +13,7 @@
 
 #include <mutex>
 #include <optional>
+#include <type_traits>
 
 namespace mega
 {
@@ -132,7 +133,7 @@ public:
     using FileEventEmitter::removeObserver;
 
     // Specify whether this file has been removed.
-    void removed(bool removed);
+    void removed(bool replaced);
 
     // Has this file been removed?
     bool removed() const;
