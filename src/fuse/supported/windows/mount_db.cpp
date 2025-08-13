@@ -62,6 +62,7 @@ MountResult MountDB::check(const Client& client,
 
         return MOUNT_NAME_INVALID_CHAR;
     }
+
     // An unspecified path signals we should assign a drive letter.
     if (path.empty())
         return MOUNT_SUCCESS;
