@@ -198,31 +198,55 @@ WinFileAccess::~WinFileAccess()
 
 bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 {
-    DWORD dwRead;
+    // Sanity.
+    assert(dst || !len);
     assert(hFile != INVALID_HANDLE_VALUE);
 
-    if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
+    // Convenience.
+    auto buffer = reinterpret_cast<void*>(dst);
+    auto length = static_cast<DWORD>(len);
+    auto offset = static_cast<std::uint64_t>(pos);
+
+    // So we can read from a particular offset without races.
+    OVERLAPPED overlapped{};
+
+    // Specify where we should read from.
+    overlapped.Offset = offset & UINT32_MAX;
+    overlapped.OffsetHigh = offset >> 32;
+
+    // Tracks how many bytes we were able to read.
+    DWORD numRead{};
+
+    // Assume the read fails due to a persistent error.
+    retry = false;
+
+    // Couldn't perform read.
+    if (!ReadFile(hFile, buffer, length, &numRead, &overlapped))
     {
-        DWORD e = GetLastError();
-        retry = WinFileSystemAccess::istransient(e);
-        LOG_err << "SetFilePointerEx failed for reading. Error: " << e;
+        // Latch the error.
+        auto error = GetLastError();
+
+        // Let the caller know if it's worth retrying the read.
+        retry = WinFileSystemAccess::istransient(error);
+
+        // Leave a trail of what went wrong.
+        LOG_err << "ReadFile failed. Error: " << error;
+
+        // Let the caller know the read failed.
         return false;
     }
 
-    if (!ReadFile(hFile, (LPVOID)dst, (DWORD)len, &dwRead, NULL))
+    // Read was successful but didn't get everything we asked for.
+    if (length != numRead)
     {
-        DWORD e = GetLastError();
-        retry = WinFileSystemAccess::istransient(e);
-        LOG_err << "ReadFile failed. Error: " << e;
+        // Leave a trail.
+        LOG_err << "ReadFile failed (dwRead) " << numRead << " - " << length;
+
+        // Let the caller know the read failed.
         return false;
     }
 
-    if (dwRead != len)
-    {
-        retry = false;
-        LOG_err << "ReadFile failed (dwRead) " << dwRead << " - " << len;
-        return false;
-    }
+    // Read was successful.
     return true;
 }
 
@@ -244,39 +268,71 @@ void WinFileAccess::fclose()
 
 bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 {
-    DWORD dwWritten;
+    // Sanity.
+    assert(data || !len);
 
-    if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
+    // Convenience.
+    auto buffer = reinterpret_cast<const void*>(data);
+    auto length = static_cast<DWORD>(len);
+    auto offset = static_cast<std::uint64_t>(pos);
+
+    // So we can explicitly specify where the write should begin.
+    OVERLAPPED overlapped{};
+
+    // Specify where the write should begin.
+    overlapped.Offset = offset & UINT32_MAX;
+    overlapped.OffsetHigh = offset >> 32;
+
+    // Tracks how many bytes were written.
+    DWORD numWritten{};
+
+    // Assume the write fails due to a persistent error.
+    retry = false;
+
+    // Couldn't perform the write.
+    if (!WriteFile(hFile, buffer, length, &numWritten, &overlapped))
     {
-        DWORD e = GetLastError();
-        retry = WinFileSystemAccess::istransient(e);
-        LOG_err << "SetFilePointerEx failed for writing. Error: " << e;
+        // Latch error.
+        auto error = GetLastError();
+
+        // Should the caller retry the write?
+        retry = WinFileSystemAccess::istransient(error);
+
+        // Leave a trail.
+        LOG_err << "WriteFile failed. Error: " << error;
+
+        // Let the caller know the write failed.
         return false;
     }
 
-    if (!WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL))
+    // Write succeeded but didn't write everything we specified.
+    if (length != numWritten)
     {
-        DWORD e = GetLastError();
-        retry = WinFileSystemAccess::istransient(e);
-        LOG_err << "WriteFile failed. Error: " << e;
+        // Leave a trail.
+        LOG_err << "WriteFile failed (dwWritten) " << numWritten << " - " << length;
+
+        // Let the caller know the write failed.
         return false;
     }
 
-     if (dwWritten != len)
-     {
-         retry = false;
-         LOG_err << "WriteFile failed (dwWritten) " << dwWritten << " - " << len;
-         return false;
-     }
+    // Couldn't flush write to storage.
+    if (!FlushFileBuffers(hFile))
+    {
+        // Latch error.
+        auto error = GetLastError();
 
-     if (!FlushFileBuffers(hFile))
-     {
-         DWORD e = GetLastError();
-         retry = WinFileSystemAccess::istransient(e);
-         LOG_err << "FlushFileBuffers failed. Error: " << e;
-         return false;
-     }
-     return true;
+        // Should the caller retry the write?
+        retry = WinFileSystemAccess::istransient(error);
+
+        // Trail.
+        LOG_err << "FlushFileBuffers failed. Error: " << error;
+
+        // Let the caller know the write failed.
+        return false;
+    }
+
+    // Let the caller know the write was successful.
+    return true;
 }
 
 bool WinFileAccess::ftruncate(m_off_t newSize)
