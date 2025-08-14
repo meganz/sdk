@@ -8,6 +8,7 @@
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_location.h>
+#include <mega/file_service/file_move_event.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_read_result.h>
 #include <mega/file_service/file_remove_event.h>
@@ -38,11 +39,24 @@ namespace mega
 namespace file_service
 {
 
+// Convenience.
+std::ostream& operator<<(std::ostream& ostream, const FileLocation& location)
+{
+    return ostream << "{name: " << location.mName
+                   << ", parent: " << toNodeHandle(location.mParentHandle) << "}";
+}
+
 // Teach gtest how to print our file event instances.
 void PrintTo(const FileFlushEvent& event, std::ostream* ostream)
 {
     *ostream << "Flush {handle: " << toNodeHandle(event.mHandle) << ", id: " << toString(event.mID)
              << "}";
+}
+
+void PrintTo(const FileMoveEvent& event, std::ostream* ostream)
+{
+    *ostream << "Move {from: " << event.mFrom << ", to: " << event.mTo
+             << ", id: " << toString(event.mID) << "}";
 }
 
 void PrintTo(const FileRemoveEvent& event, std::ostream* ostream)
@@ -1238,6 +1252,15 @@ TEST_F(FileServiceTests, inactive_file_moved)
 
     EXPECT_EQ(location.mName, name1);
     EXPECT_EQ(location.mParentHandle, mRootHandle);
+
+    // And that we received a move event.
+    FileEventVector expected;
+
+    expected.emplace_back(FileMoveEvent{FileLocation{name0, mRootHandle},
+                                        FileLocation{name1, mRootHandle},
+                                        FileID::from(*handle)});
+
+    EXPECT_EQ(expected, observer.events());
 }
 
 TEST_F(FileServiceTests, inactive_file_removed)
@@ -1501,6 +1524,7 @@ TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_move)
 
     // So we can receive file events.
     auto fileObserver0 = observe(*file0);
+    auto fileObserver1 = observe(*file1);
     auto serviceObserver = observe(ClientW()->fileService());
 
     // Move file1 so it replaces file0.
@@ -1525,12 +1549,25 @@ TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_move)
     EXPECT_TRUE(file0->info().removed());
 
     // And that we received a remove event.
-    FileEventVector expected;
+    struct
+    {
+        FileEventVector file0;
+        FileEventVector file1;
+        FileEventVector service;
+    } expected;
 
-    expected.emplace_back(FileRemoveEvent{file0->info().id(), true});
+    expected.file0.emplace_back(FileRemoveEvent{file0->info().id(), true});
 
-    EXPECT_EQ(expected, fileObserver0.events());
-    EXPECT_EQ(expected, serviceObserver.events());
+    expected.file1.emplace_back(FileMoveEvent{FileLocation{fileName1, mRootHandle},
+                                              FileLocation{fileName0, mRootHandle},
+                                              file1->info().id()});
+
+    expected.service.emplace_back(expected.file0.back());
+    expected.service.emplace_back(expected.file1.back());
+
+    EXPECT_EQ(expected.file0, fileObserver0.events());
+    EXPECT_EQ(expected.file1, fileObserver1.events());
+    EXPECT_EQ(expected.service, serviceObserver.events());
 }
 
 TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
@@ -1546,6 +1583,10 @@ TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
 
     // Try and open the file.
     auto file = ClientW()->fileOpen(*handle);
+
+    // So we can receive file events.
+    auto fileObserver = observe(*file);
+    auto serviceObserver = observe(ClientW()->fileService());
 
     // Make sure we could open the file.
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -1573,10 +1614,17 @@ TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
         },
         mDefaultTimeout));
 
-    location = file->info().location();
+    // Make sure the file's location has updated.
+    EXPECT_EQ(file->info().location(), newLocation);
 
-    EXPECT_EQ(location.mName, newLocation.mName);
-    EXPECT_EQ(location.mParentHandle, newLocation.mParentHandle);
+    // And that we received a move event.
+    FileEventVector expected;
+
+    expected.emplace_back(
+        FileMoveEvent{std::move(location), std::move(newLocation), file->info().id()});
+
+    EXPECT_EQ(expected, fileObserver.events());
+    EXPECT_EQ(expected, serviceObserver.events());
 }
 
 TEST_F(FileServiceTests, open_directory_fails)

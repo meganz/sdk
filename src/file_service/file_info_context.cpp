@@ -122,9 +122,23 @@ FileID FileInfoContext::id() const
     return mID;
 }
 
-void FileInfoContext::location(const FileLocation& location)
+void FileInfoContext::location(const FileLocation& to)
 {
-    set(&FileInfoContext::mLocation, location);
+    notify(
+        [&]()
+        {
+            // Make sure no one else is modifying the location.
+            std::lock_guard guard(mLock);
+
+            // Latch the file's current location.
+            auto from = std::move(mLocation);
+
+            // Update the file's current location.
+            mLocation = to;
+
+            // Return a moved event.
+            return FileMoveEvent{std::move(from), to, mID};
+        }());
 }
 
 FileLocation FileInfoContext::location() const

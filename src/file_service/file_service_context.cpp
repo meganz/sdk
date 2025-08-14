@@ -16,6 +16,7 @@
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_info_context_badge.h>
+#include <mega/file_service/file_move_event.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_remove_event.h>
 #include <mega/file_service/file_result.h>
@@ -1545,22 +1546,14 @@ void FileServiceContext::EventProcessor::moved(const NodeEvent& event)
     if (!query)
         return;
 
-    // Latch the file's ID.
+    // Latch the file's ID and current location.
     auto id = query.field("id").get<FileID>();
-
-    // Try and locate the node's parent.
-    auto parent = mService.mClient.get(parentHandle);
+    auto oldName = query.field("name").get<std::string>();
+    auto oldParentHandle = query.field("parent_handle").get<NodeHandle>();
 
     // Node's been superseded by another version.
-    if (parent && !parent->mIsDirectory)
+    if (auto parent = mService.mClient.get(parentHandle); parent && !parent->mIsDirectory)
         return remove(id);
-
-    // Check if the file's in memory.
-    auto info = this->info(id);
-
-    // File's in memory so update it's in-memory location.
-    if (info)
-        info->location(FileLocation{name, parentHandle});
 
     // Update the file's location in the database.
     query = mTransaction.query(mQueries.mSetFileLocation);
@@ -1569,6 +1562,15 @@ void FileServiceContext::EventProcessor::moved(const NodeEvent& event)
     query.param(":name").set(name);
     query.param(":parent_handle").set(parentHandle);
     query.execute();
+
+    // File's in memory so update it's in-memory location.
+    if (auto info = this->info(id))
+        return info->location(FileLocation{name, parentHandle});
+
+    // Let observers know the file's been moved.
+    mService.notify(FileMoveEvent{FileLocation{std::move(oldName), oldParentHandle},
+                                  FileLocation{std::move(name), parentHandle},
+                                  id});
 }
 
 void FileServiceContext::EventProcessor::remove(FileID id, bool replaced)
