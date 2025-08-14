@@ -103,6 +103,9 @@ public:
     // Initialize the client for use.
     virtual void initialize() = 0;
 
+    // Check whether a node is a directory.
+    ErrorOr<bool> isDirectory(NodeHandle handle) const;
+
     // Check whether a node is a file.
     virtual ErrorOr<bool> isFile(NodeHandle handle) const = 0;
 

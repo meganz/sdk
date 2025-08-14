@@ -36,6 +36,19 @@ void Client::addEventObserver(NodeEventObserver& observer)
     mEventObservers.emplace(&observer);
 }
 
+ErrorOr<bool> Client::isDirectory(NodeHandle handle) const
+{
+    // Check if the node's a file.
+    auto result = isFile(handle);
+
+    // Couldn't get information about the node.
+    if (!result)
+        return result;
+
+    // The node can't be a directory if it's a file.
+    return !*result;
+}
+
 template<typename T>
 auto Client::lookup(const T& path, NodeHandle parent)
   -> typename EnableIfPath<T, ErrorOr<NodeInfo>>::type
