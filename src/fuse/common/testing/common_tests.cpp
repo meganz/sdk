@@ -264,7 +264,9 @@ TEST_F(FUSECommonTests, duplicate_names)
     ASSERT_EQ(ClientW()->makeDirectory("sd0", "/x/s").errorOr(API_OK), API_OK);
 
     // Sanity.
-    EXPECT_EQ(ClientW()->childNames("/x/s").count("sd0"), 0u);
+    auto names = ClientW()->childNames("/x/s");
+    ASSERT_EQ(names.errorOr(API_OK), API_OK);
+    EXPECT_EQ(names->count("sd0"), 0u);
 
     // Wait for the directory to become inaccessible.
     std::error_code error;
@@ -286,10 +288,13 @@ TEST_F(FUSECommonTests, file_cache_load)
     // Log the client in.
     ASSERT_EQ(client->login(1), API_OK);
 
+    auto handle = client->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     // Add a new mount.
     MountInfo mount;
 
-    mount.mHandle = client->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mFlags.mPersistent = true;
     mount.mPath = client->storagePath() / "s";
@@ -375,10 +380,13 @@ TEST_F(FUSECommonTests, reload)
     // Log the client in.
     ASSERT_EQ(client->login(1), API_OK);
 
+    auto handle = client->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     // Add a new mount.
     MountInfo mount;
 
-    mount.mHandle = client->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = client->storagePath() / "s";
 
@@ -520,25 +528,27 @@ TEST_F(FUSECommonTests, share_changes_permissions)
         auto email = ClientS()->email();
 
         auto rs = ClientR()->handle("/x/s");
-        ASSERT_FALSE(rs.isUndef());
+        ASSERT_EQ(rs.errorOr(API_OK), API_OK);
 
         auto ws = ClientW()->handle("/x/s");
-        ASSERT_FALSE(ws.isUndef());
+        ASSERT_EQ(ws.errorOr(API_OK), API_OK);
 
         // Make read-only share writable.
-        ASSERT_EQ(ClientR()->share(email, rs, FULL), API_OK);
+        ASSERT_EQ(ClientR()->share(email, *rs, FULL), API_OK);
 
         // Make writalbe share read-only.
-        ASSERT_EQ(ClientW()->share(email, ws, RDONLY), API_OK);
+        ASSERT_EQ(ClientW()->share(email, *ws, RDONLY), API_OK);
 
         // Wait for sharee to recognize permission changes.
-        ASSERT_TRUE(waitFor([&]() {
-            auto rs_ = ClientS()->get(rs);
-            auto ws_ = ClientS()->get(ws);
+        ASSERT_TRUE(waitFor(
+            [&]()
+            {
+                auto rs_ = ClientS()->get(*rs);
+                auto ws_ = ClientS()->get(*ws);
 
-            return (rs_ && rs_->mPermissions == FULL)
-                   && (ws_ && ws_->mPermissions == RDONLY);
-        }, mDefaultTimeout));
+                return (rs_ && rs_->mPermissions == FULL) && (ws_ && ws_->mPermissions == RDONLY);
+            },
+            mDefaultTimeout));
     }
 
     // Wait for mounts to recognize new permissions.
@@ -571,26 +581,29 @@ TEST_F(FUSECommonTests, supports_entities_with_international_names)
 
     // Convenience.
     auto sd0 = ClientW()->handle("x/s/sd0");
-    ASSERT_FALSE(sd0.isUndef());
+    ASSERT_EQ(sd0.errorOr(API_OK), API_OK);
 
     auto sd0f0 = ClientW()->handle("x/s/sd0/sd0f0");
-    ASSERT_FALSE(sd0f0.isUndef());
+    ASSERT_EQ(sd0f0.errorOr(API_OK), API_OK);
 
     // Give some cloud entities an internationalized name.
     ASSERT_EQ(ClientW()->move(fileName, "x/s/sd0/sd0f0", "x/s/sd0"), API_OK);
     ASSERT_EQ(ClientW()->move(directoryName, "x/s/sd0", "x/s"), API_OK);
 
     // Wait for our changes to be recognized by the SDK.
-    ASSERT_TRUE(waitFor([&]() {
-        auto info = ClientW()->get(sd0);
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            auto info = ClientW()->get(*sd0);
 
-        if (!info || info->mName != directoryName)
-            return false;
+            if (!info || info->mName != directoryName)
+                return false;
 
-        info = ClientW()->get(sd0f0);
+            info = ClientW()->get(*sd0f0);
 
-        return info && info->mName == fileName;
-    }, mDefaultTimeout));
+            return info && info->mName == fileName;
+        },
+        mDefaultTimeout));
 
     // Wait for our changes to be visible via our mount.
     ASSERT_TRUE(waitFor([&]() {

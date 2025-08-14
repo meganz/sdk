@@ -1,3 +1,4 @@
+#include <mega/common/error_or.h>
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
@@ -19,9 +20,12 @@ using platform::MaxMountNameLength;
 
 TEST_F(FUSEMountTests, add_fails_when_name_contains_illegal_characters)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.name("s|a");
 
     auto observer = ClientW()->mountEventObserver();
@@ -37,9 +41,12 @@ TEST_F(FUSEMountTests, add_fails_when_name_contains_illegal_characters)
 
 TEST_F(FUSEMountTests, add_fails_when_name_is_too_long)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.mFlags.mName = std::string(MaxMountNameLength + 1, 'a');
 
     auto observer = ClientW()->mountEventObserver();
@@ -53,9 +60,12 @@ TEST_F(FUSEMountTests, add_fails_when_name_is_too_long)
 
 TEST_F(FUSEMountTests, add_succeeds_when_target_is_unspecified)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.name("s");
 
     auto observer = ClientW()->mountEventObserver();
@@ -75,9 +85,12 @@ TEST_F(FUSEMountTests, add_succeeds_when_target_is_unspecified)
 
 TEST_F(FUSEMountTests, enable_succeeds_with_long_name)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.mFlags.mName = std::string(MaxMountNameLength, 'a');
 
     auto observer = ClientW()->mountEventObserver();
@@ -91,9 +104,12 @@ TEST_F(FUSEMountTests, enable_succeeds_with_long_name)
 
 TEST_F(FUSEMountTests, enable_succeeds_when_target_is_empty)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.name("s");
 
     auto observer = ClientW()->mountEventObserver();

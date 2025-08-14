@@ -756,15 +756,15 @@ Error RealClient::share(const std::string& email,
     auto handle = path.resolve(*this);
 
     // Directory doesn't exist.
-    if (handle.isUndef())
-        return API_ENOENT;
+    if (!handle)
+        return handle.error();
 
     // Have we already shared this node with email?
-    if (shared(email, handle, permissions))
+    if (shared(email, *handle, permissions))
         return API_OK;
 
     // Couldn't prepare node for sharing.
-    if (auto result = openShareDialog(handle))
+    if (auto result = openShareDialog(*handle))
         return result;
 
     // Open share dialog if necessary.
@@ -776,7 +776,7 @@ Error RealClient::share(const std::string& email,
 
     std::unique_lock<std::mutex> lock(mClientLock);
 
-    auto node = mClient->nodeByHandle(handle);
+    auto node = mClient->nodeByHandle(*handle);
 
     // Node no longer exists.
     if (!node)
@@ -811,11 +811,11 @@ bool RealClient::shared(const std::string& email,
     auto handle = path.resolve(*this);
 
     // Can't share a node that doesn't exist.
-    if (handle.isUndef())
+    if (!handle)
         return false;
 
     // Have we shared node with the user?
-    return shared(email, handle, permissions);
+    return shared(email, *handle, permissions);
 }
 
 void RealClient::useVersioning(bool useVersioning)

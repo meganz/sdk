@@ -9,6 +9,7 @@ namespace fuse
 namespace testing
 {
 
+using common::ErrorOr;
 
 CloudPath::CloudPath(const std::string& path)
   : mHandle()
@@ -28,7 +29,7 @@ CloudPath::CloudPath(NodeHandle handle)
 {
 }
 
-NodeHandle CloudPath::resolve(const Client& client) const
+ErrorOr<NodeHandle> CloudPath::resolve(const Client& client) const
 {
     if (mHandle.isUndef())
         return client.handle(mPath);

@@ -300,9 +300,8 @@ public:
 }; // ClientUploadAdapter
 
 // Retrieves a reference to a specific child.
-static std::shared_ptr<Node> child(MegaClient& client,
-                                   NodeHandle parent,
-                                   const std::string& name);
+static auto child(MegaClient& client, NodeHandle parent, const std::string& name)
+    -> ErrorOr<std::shared_ptr<Node>>;
 
 // Translates a node into a description.
 static void describe(NodeInfo& destination,
@@ -335,7 +334,7 @@ MegaApp& ClientAdapter::application()
     return *mClient.app;
 }
 
-std::set<std::string> ClientAdapter::childNames(NodeHandle parent) const
+ErrorOr<std::set<std::string>> ClientAdapter::childNames(NodeHandle parent) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
@@ -350,9 +349,13 @@ std::set<std::string> ClientAdapter::childNames(NodeHandle parent) const
     // Try and locate specified parent.
     auto parent_ = mClient.nodeByHandle(parent);
 
-    // Node doesn't exist.
+    // Parent doesn't exist.
     if (!parent_)
-        return std::set<std::string>();
+        return unexpected(API_ENOENT);
+
+    // Parent isn't a directory.
+    if (parent_->type == FILENODE)
+        return unexpected(API_FUSE_ENOTDIR);
 
     // Keeps track of duplicate names.
     std::set<const std::string*> duplicates;
@@ -668,16 +671,18 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle parent,
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
-    // Retrieve the child's description.
-    if (auto node = child(mClient, parent, name))
-        return describe(*node);
+    // Try and retrieve a reference to the named child.
+    auto node = child(mClient, parent, name);
 
-    // Parent or child doesn't exist.
-    return unexpected(API_ENOENT);
+    // Couldn't get a reference to the named child.
+    if (!node)
+        return unexpected(node.error());
+
+    // Return the child's description.
+    return describe(**node);
 }
 
-NodeHandle ClientAdapter::handle(NodeHandle parent,
-                                 const std::string& name) const
+ErrorOr<NodeHandle> ClientAdapter::handle(NodeHandle parent, const std::string& name) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
@@ -689,12 +694,15 @@ NodeHandle ClientAdapter::handle(NodeHandle parent,
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
-    // Retrieve the child's handle.
-    if (auto node = child(mClient, parent, name))
-        return node->nodeHandle();
+    // Try and retrive a reference to the child.
+    auto node = child(mClient, parent, name);
 
-    // Parent or child doesn't exist.
-    return NodeHandle();
+    // Couldn't retrieve child reference.
+    if (!node)
+        return unexpected(node.error());
+
+    // Return the child's handle.
+    return (*node)->nodeHandle();
 }
 
 ErrorOr<bool> ClientAdapter::hasChildren(NodeHandle parent) const
@@ -1253,16 +1261,19 @@ bool ClientDownload::begin(MegaClient& client)
     return false;
 }
 
-std::shared_ptr<Node> child(MegaClient& client,
-                            NodeHandle parent,
-                            const std::string& name)
+auto child(MegaClient& client, NodeHandle parent, const std::string& name)
+    -> ErrorOr<std::shared_ptr<Node>>
 {
     // Locate specified parent.
     auto parent_ = client.nodeByHandle(parent);
 
     // Parent doesn't exist.
     if (!parent_)
-        return nullptr;
+        return unexpected(API_ENOENT);
+
+    // Parent isn't a directory.
+    if (parent_->type == FILENODE)
+        return unexpected(API_FUSE_ENOTDIR);
 
     std::shared_ptr<Node> candidate;
 
@@ -1275,11 +1286,15 @@ std::shared_ptr<Node> child(MegaClient& client,
 
         // Already seen an instance of this name.
         if (candidate)
-            return nullptr;
+            return unexpected(API_FUSE_EDUPLICATE);
 
         // Remember that we've seen this name.
         candidate = child;
     }
+
+    // Couldn't find the named child.
+    if (!candidate)
+        return unexpected(API_FUSE_ENOTFOUND);
 
     // Return child (if any) to caller.
     return candidate;

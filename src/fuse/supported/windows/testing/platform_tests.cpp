@@ -254,16 +254,19 @@ TEST_P(FUSEPlatformTests, find_first_file_succeeds)
 
     {
         auto s = ClientW()->get("/x/s");
-        ASSERT_TRUE(s);
+        ASSERT_EQ(s.errorOr(API_OK), API_OK);
 
         expectations[".."] = *s;
 
         auto sd0 = ClientW()->get("/x/s/sd0");
-        ASSERT_TRUE(sd0);
+        ASSERT_EQ(sd0.errorOr(API_OK), API_OK);
 
         expectations["."] = *sd0;
 
-        for (const auto& name : ClientW()->childNames(sd0->mHandle))
+        auto names = ClientW()->childNames(sd0->mHandle);
+        ASSERT_EQ(names.errorOr(API_OK), API_OK);
+
+        for (const auto& name: *names)
         {
             auto child = ClientW()->get(sd0->mHandle, name);
             ASSERT_TRUE(child);

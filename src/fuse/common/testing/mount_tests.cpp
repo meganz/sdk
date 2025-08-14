@@ -22,9 +22,12 @@ namespace testing
 
 TEST_F(FUSEMountTests, add_fails_when_name_isnt_specified)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.mPath = MountPathW();
 
     auto observer = ClientW()->mountEventObserver();
@@ -44,9 +47,12 @@ TEST_F(FUSEMountTests, add_fails_when_name_isnt_specified)
 
 TEST_F(FUSEMountTests, add_fails_when_source_is_file)
 {
+    auto handle = ClientW()->handle("/x/s/sf0");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s/sf0");
+    info.mHandle = *handle;
     info.name("sf0");
     info.mPath = MountPathW();
 
@@ -89,11 +95,14 @@ TEST_F(FUSEMountTests, add_fails_when_source_is_unknown)
 
 TEST_F(FUSEMountTests, add_fails_when_target_is_file)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     File sf0("sf0", "sf0", mScratchPath);
 
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.name("s");
     info.mPath = sf0.path();
 
@@ -115,9 +124,12 @@ TEST_F(FUSEMountTests, add_fails_when_target_is_file)
 
 TEST_F(FUSEMountTests, add_succeeds)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.name("s");
     info.mPath = MountPathW();
 
@@ -138,10 +150,13 @@ TEST_F(FUSEMountTests, add_succeeds)
 
 TEST_F(FUSEMountTests, add_fails_when_name_is_not_unique)
 {
+    auto handle = ClientW()->handle("/x/s/sd0");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfoVector mounts;
 
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd0");
+    mounts.back().mHandle = *handle;
     mounts.back().name("d");
     mounts.back().mPath = MountPathW();
 
@@ -155,8 +170,11 @@ TEST_F(FUSEMountTests, add_fails_when_name_is_not_unique)
 
     ASSERT_EQ(ClientW()->addMount(mounts.back()), MOUNT_SUCCESS);
 
+    handle = ClientW()->handle("/x/s/sd1");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     mounts.emplace_back(mounts.back());
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd1");
+    mounts.back().mHandle = *handle;
     mounts.back().mPath = MountPathO();
 
     observer->expect({
@@ -176,9 +194,12 @@ TEST_F(FUSEMountTests, add_fails_when_name_is_not_unique)
 
 TEST_F(FUSEMountTests, add_succeeds_when_node_is_read_only_share)
 {
+    auto handle = ClientR()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientR()->handle("/x/s");
+    info.mHandle = *handle;
     info.name("s");
     info.mPath = MountPathR();
 
@@ -199,9 +220,12 @@ TEST_F(FUSEMountTests, add_succeeds_when_node_is_read_only_share)
 
 TEST_F(FUSEMountTests, add_succeeds_when_node_is_read_write_share)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.name("s");
     info.mPath = MountPathW();
 
@@ -222,10 +246,13 @@ TEST_F(FUSEMountTests, add_succeeds_when_node_is_read_write_share)
 
 TEST_F(FUSEMountTests, add_succeeds_when_target_is_not_unique)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfoVector mounts;
 
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s");
+    mounts.back().mHandle = *handle;
     mounts.back().name("s0");
     mounts.back().mPath = MountPathW();
 
@@ -274,9 +301,12 @@ TEST_F(FUSEMountTests, disable_fails_when_mount_unknown)
 
 TEST_F(FUSEMountTests, disable_succeeds_when_mount_disabled)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -304,9 +334,12 @@ TEST_F(FUSEMountTests, disable_succeeds_when_mount_disabled)
 
 TEST_F(FUSEMountTests, disable_succeeds)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -360,7 +393,7 @@ TEST_F(FUSEMountTests, disable_succeeds)
 TEST_F(FUSEMountTests, disable_when_source_removed)
 {
     auto result = ClientW()->remove("/t");
-    ASSERT_TRUE(result == API_ENOENT || result == API_OK);
+    ASSERT_TRUE(result == API_FUSE_ENOTFOUND || result == API_OK);
 
     auto handle = ClientW()->makeDirectory("t", "/");
     ASSERT_EQ(handle.errorOr(API_OK), API_OK);
@@ -432,7 +465,7 @@ TEST_F(FUSEMountTests, enable_fails_when_mount_unknown)
 TEST_F(FUSEMountTests, enable_fails_when_source_is_unknown)
 {
     auto result = ClientW()->remove("/t");
-    ASSERT_TRUE(result == API_ENOENT || result == API_OK);
+    ASSERT_TRUE(result == API_FUSE_ENOTFOUND || result == API_OK);
 
     auto handle = ClientW()->makeDirectory("t", "/");
     ASSERT_EQ(handle.errorOr(API_OK), API_OK);
@@ -470,6 +503,9 @@ TEST_F(FUSEMountTests, enable_fails_when_source_is_unknown)
 
 TEST_F(FUSEMountTests, enable_fails_when_target_is_file)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
     auto observer = ClientW()->mountEventObserver();
@@ -478,7 +514,7 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_file)
         UNIX_ONLY(Directory sd0("sd0", mScratchPath));
 
         mount.name("s");
-        mount.mHandle = ClientW()->handle("/x/s");
+        mount.mHandle = *handle;
         mount.mPath = mScratchPath / "sd0";
 
         observer->expect({
@@ -514,10 +550,13 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_file)
 
 TEST_F(FUSEMountTests, enable_fails_when_target_is_not_unique)
 {
+    auto handle = ClientW()->handle("/x/s/sd0");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfoVector mounts;
 
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd0");
+    mounts.back().mHandle = *handle;
     mounts.back().name("s");
     mounts.back().mPath = MountPathW();
 
@@ -531,8 +570,11 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_not_unique)
 
     ASSERT_EQ(ClientW()->addMount(mounts.back()), MOUNT_SUCCESS);
 
+    handle = ClientW()->handle("/x/s/sd1");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     mounts.emplace_back(mounts.back());
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd1");
+    mounts.back().mHandle = *handle;
     mounts.back().name("t");
     mounts.back().mPath = MountPathW();
 
@@ -572,10 +614,13 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_not_unique)
 
 TEST_F(FUSEMountTests, enable_succeeds_when_target_is_unique)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfoVector mounts;
 
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s");
+    mounts.back().mHandle = *handle;
     mounts.back().name("s");
     mounts.back().mPath = MountPathW();
 
@@ -625,9 +670,12 @@ TEST_F(FUSEMountTests, enable_succeeds_when_target_is_unique)
 
 TEST_F(FUSEMountTests, enable_succeeds)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -661,10 +709,13 @@ TEST_F(FUSEMountTests, enable_succeeds)
 
 TEST_F(FUSEMountTests, enable_succeeds_when_mount_enabled)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
     mount.name("s");
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.mPath = MountPathW();
 
     auto observer = ClientW()->mountEventObserver();
@@ -703,9 +754,12 @@ TEST_F(FUSEMountTests, enables_enabled_persisent_mounts_after_login)
 
     ASSERT_EQ(client->login(1), API_OK);
 
+    auto handle = client->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
-    
-    mount.mHandle = client->handle("/x/s");
+
+    mount.mHandle = *handle;
     mount.mFlags.mEnableAtStartup = true;
     mount.name("s");
     mount.mFlags.mPersistent = true;
@@ -743,9 +797,12 @@ TEST_F(FUSEMountTests, enables_enabled_persisent_mounts_after_login)
 
 TEST_F(FUSEMountTests, enabled_false_when_disabled)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -771,9 +828,12 @@ TEST_F(FUSEMountTests, enabled_false_when_unknown)
 
 TEST_F(FUSEMountTests, enabled_true_when_enabled)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -802,10 +862,13 @@ TEST_F(FUSEMountTests, enabled_true_when_enabled)
 
 TEST_F(FUSEMountTests, flags_fails_when_enabled_name_not_unique)
 {
+    auto handle = ClientW()->handle("/x/s/sd0");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfoVector mounts;
 
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd0");
+    mounts.back().mHandle = *handle;
     mounts.back().name("sd0");
     mounts.back().mPath = MountPathW();
 
@@ -828,8 +891,11 @@ TEST_F(FUSEMountTests, flags_fails_when_enabled_name_not_unique)
     ASSERT_EQ(ClientW()->enableMount(mounts.back().name(), false),
               MOUNT_SUCCESS);
 
+    handle = ClientW()->handle("/x/s/sd1");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd1");
+    mounts.back().mHandle = *handle;
     mounts.back().name("sd1");
     mounts.back().mPath = MountPathO();
 
@@ -898,9 +964,12 @@ TEST_F(FUSEMountTests, flags_fails_when_mount_unknown)
 
 TEST_F(FUSEMountTests, flags_fails_when_name_isnt_specified)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -932,9 +1001,12 @@ TEST_F(FUSEMountTests, flags_fails_when_name_isnt_specified)
 
 TEST_F(FUSEMountTests, flags_succeeds)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -978,9 +1050,12 @@ TEST_F(FUSEMountTests, flags_succeeds)
 
 TEST_F(FUSEMountTests, info_fails_unknown_mount)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -1001,9 +1076,12 @@ TEST_F(FUSEMountTests, info_fails_unknown_mount)
 
 TEST_F(FUSEMountTests, info_succeeds)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -1029,10 +1107,13 @@ TEST_F(FUSEMountTests, list_all)
 {
     ASSERT_TRUE(ClientW()->mounts(false).empty());
 
+    auto handle = ClientW()->handle("/x/s/sd0");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfoVector mounts;
 
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd0");
+    mounts.back().mHandle = *handle;
     mounts.back().name("sd0");
     mounts.back().mPath = MountPathW();
 
@@ -1046,8 +1127,11 @@ TEST_F(FUSEMountTests, list_all)
 
     ASSERT_EQ(ClientW()->addMount(mounts.back()), MOUNT_SUCCESS);
 
+    handle = ClientW()->handle("/x/s/sd1");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd1");
+    mounts.back().mHandle = *handle;
     mounts.back().name("sd1");
     mounts.back().mPath = MountPathO();
 
@@ -1069,10 +1153,13 @@ TEST_F(FUSEMountTests, list_all)
 
 TEST_F(FUSEMountTests, list_enabled)
 {
+    auto handle = ClientW()->handle("/x/s/sd0");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfoVector mounts;
 
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd0");
+    mounts.back().mHandle = *handle;
     mounts.back().name("sd0");
     mounts.back().mPath = MountPathW();
 
@@ -1086,8 +1173,11 @@ TEST_F(FUSEMountTests, list_enabled)
 
     ASSERT_EQ(ClientW()->addMount(mounts.back()), MOUNT_SUCCESS);
 
+    handle = ClientW()->handle("/x/s/sd1");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd1");
+    mounts.back().mHandle = *handle;
     mounts.back().name("sd1");
     mounts.back().mPath = MountPathO();
 
@@ -1120,10 +1210,13 @@ TEST_F(FUSEMountTests, list_enabled)
 
 TEST_F(FUSEMountTests, path_distinct_names)
 {
+    auto handle = ClientW()->handle("/x/s/sd0");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfoVector mounts;
 
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd0");
+    mounts.back().mHandle = *handle;
     mounts.back().name("sd0");
     mounts.back().mPath = MountPathW();
 
@@ -1137,8 +1230,11 @@ TEST_F(FUSEMountTests, path_distinct_names)
 
     ASSERT_EQ(ClientW()->addMount(mounts.back()), MOUNT_SUCCESS);
 
+    handle = ClientW()->handle("/x/s/sd1");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     mounts.emplace_back();
-    mounts.back().mHandle = ClientW()->handle("/x/s/sd1");
+    mounts.back().mHandle = *handle;
     mounts.back().name("sd1");
     mounts.back().mPath = MountPathO();
 
@@ -1165,9 +1261,12 @@ TEST_F(FUSEMountTests, path_distinct_names)
 
 TEST_F(FUSEMountTests, path_unused_name)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -1193,9 +1292,12 @@ TEST_F(FUSEMountTests, persistent_mounts_are_persistent)
 
     ASSERT_EQ(client->login(1), API_OK);
 
+    auto handle = client->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = client->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mFlags.mPersistent = true;
     mount.mPath = client->storagePath() / "s";
@@ -1227,9 +1329,12 @@ TEST_F(FUSEMountTests, persistent_mounts_are_persistent)
 
 TEST_F(FUSEMountTests, remember_disable_implies_persistence)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
-    
-    mount.mHandle = ClientW()->handle("/x/s");
+
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -1261,9 +1366,12 @@ TEST_F(FUSEMountTests, remember_disable_implies_persistence)
 
 TEST_F(FUSEMountTests, remember_enable_implies_persistence)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
-    
-    mount.mHandle = ClientW()->handle("/x/s");
+
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -1296,9 +1404,12 @@ TEST_F(FUSEMountTests, remember_enable_implies_persistence)
 
 TEST_F(FUSEMountTests, remove_fails_when_mount_enabled)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -1340,9 +1451,12 @@ TEST_F(FUSEMountTests, remove_fails_when_mount_enabled)
 
 TEST_F(FUSEMountTests, remove_succeeds)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -1387,9 +1501,12 @@ TEST_F(FUSEMountTests, remove_succeeds_when_mount_unknown)
 
 TEST_F(FUSEMountTests, temporary_disable_is_not_remembered)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.mFlags.mEnableAtStartup = true;
     mount.name("s");
     mount.mFlags.mPersistent = true;
@@ -1423,9 +1540,12 @@ TEST_F(FUSEMountTests, temporary_disable_is_not_remembered)
 
 TEST_F(FUSEMountTests, temporary_enable_is_not_remembered)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = ClientW()->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = MountPathW();
 
@@ -1462,9 +1582,12 @@ TEST_F(FUSEMountTests, transient_mounts_are_transient)
 
     ASSERT_EQ(client->login(1), API_OK);
 
+    auto handle = client->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
-    mount.mHandle = client->handle("/x/s");
+    mount.mHandle = *handle;
     mount.name("s");
     mount.mPath = client->storagePath() / "s";
 

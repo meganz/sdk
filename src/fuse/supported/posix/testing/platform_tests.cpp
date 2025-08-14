@@ -941,7 +941,10 @@ TEST_P(FUSEPlatformTests, readdir_succeeds)
     ASSERT_EQ(fstat(sd0, expectations["."]), 0);
     ASSERT_EQ(statat(sd0, "..", expectations[".."]), 0);
 
-    for (const auto& child : ClientW()->childNames("/x/s/sd0"))
+    auto names = ClientW()->childNames("/x/s/sd0");
+    ASSERT_EQ(names.errorOr(API_OK), API_OK);
+
+    for (const auto& child: *names)
         ASSERT_EQ(statat(sd0, child, expectations[child]), 0);
 
     auto iterator = fdopendir(std::move(sd0));
@@ -1263,7 +1266,7 @@ TEST_P(FUSEPlatformTests, rmdir_succeeds)
         auto info = ClientW()->get("/x/s/sd0/sd0d0");
 
         // Directory should no longer be visible in the cloud.
-        if (info.errorOr(API_OK) != API_ENOENT)
+        if (info.errorOr(API_OK) != API_FUSE_ENOTFOUND)
             return false;
 
         // Directory should no longer be visible to observer.
@@ -1519,7 +1522,7 @@ TEST_P(FUSEPlatformTests, unlink_at_directory_succeeds)
         auto info = ClientW()->get("/x/s/sd0/sd0d0");
 
         // File's still visible in the cloud.
-        if (info.errorOr(API_OK) != API_ENOENT)
+        if (info.errorOr(API_OK) != API_FUSE_ENOTFOUND)
             return false;
 
         // File should no longer be visible by observer.
@@ -1540,7 +1543,7 @@ TEST_P(FUSEPlatformTests, unlink_at_file_succeeds)
         auto info = ClientW()->get("/x/s/sf0");
 
         // File's still visible in the cloud.
-        if (info.errorOr(API_OK) != API_ENOENT)
+        if (info.errorOr(API_OK) != API_FUSE_ENOTFOUND)
             return false;
 
         // File should no longer be visible by observer.
@@ -1591,7 +1594,7 @@ TEST_P(FUSEPlatformTests, unlink_succeeds)
         auto info = ClientW()->get("/x/s/sf0");
 
         // File's still visible in the cloud.
-        if (info.errorOr(API_OK) != API_ENOENT)
+        if (info.errorOr(API_OK) != API_FUSE_ENOTFOUND)
             return false;
 
         // File should no longer be visible by observer.

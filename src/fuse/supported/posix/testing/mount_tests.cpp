@@ -1,5 +1,6 @@
-#include <mega/fuse/common/mount_event_type.h>
+#include <mega/common/error_or.h>
 #include <mega/fuse/common/mount_event.h>
+#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/testing/client.h>
@@ -18,9 +19,12 @@ using namespace common;
 
 TEST_F(FUSEMountTests, add_fails_when_target_is_unknown)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.name("s");
     info.mPath = Path(MountPathW().path() / "bogus");
 
@@ -41,9 +45,12 @@ TEST_F(FUSEMountTests, add_fails_when_target_is_unknown)
 
 TEST_F(FUSEMountTests, add_fails_when_target_is_unspecified)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo info;
 
-    info.mHandle = ClientW()->handle("/x/s");
+    info.mHandle = *handle;
     info.name("s");
     info.mPath = NormalizedPath();
 
@@ -64,6 +71,9 @@ TEST_F(FUSEMountTests, add_fails_when_target_is_unspecified)
 
 TEST_F(FUSEMountTests, enable_fails_when_target_is_unknown)
 {
+    auto handle = ClientW()->handle("/x/s");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
     MountInfo mount;
 
     auto observer = ClientW()->mountEventObserver();
@@ -72,7 +82,7 @@ TEST_F(FUSEMountTests, enable_fails_when_target_is_unknown)
         Directory sd0("sd0", mScratchPath);
 
         mount.name("s");
-        mount.mHandle = ClientW()->handle("/x/s");
+        mount.mHandle = *handle;
         mount.mPath = sd0.path();
 
         observer->expect({

@@ -1111,7 +1111,7 @@ TEST_F(FileServiceTests, flush_succeeds)
     auto newHandle = oldFile->info().handle();
 
     // Make sure the file's handle has changed.
-    ASSERT_NE(newHandle, oldHandle);
+    ASSERT_NE(newHandle, *oldHandle);
 
     // Make sure our updated file's in the cloud.
     EXPECT_TRUE(waitFor(
@@ -1237,7 +1237,7 @@ TEST_F(FileServiceTests, inactive_file_moved)
         },
         mDefaultTimeout));
 
-    EXPECT_EQ(ClientW()->get(mRootHandle, name0).errorOr(API_OK), API_ENOENT);
+    EXPECT_EQ(ClientW()->get(mRootHandle, name0).errorOr(API_OK), API_FUSE_ENOTFOUND);
     EXPECT_EQ(ClientW()->get(mRootHandle, name1).errorOr(API_OK), API_OK);
 
     if (HasFailure())
@@ -1335,7 +1335,7 @@ TEST_F(FileServiceTests, inactive_file_replaced)
         },
         mDefaultTimeout));
 
-    EXPECT_EQ(ClientW()->get(mRootHandle, name0).errorOr(API_OK), API_ENOENT);
+    EXPECT_EQ(ClientW()->get(mRootHandle, name0).errorOr(API_OK), API_FUSE_ENOTFOUND);
     EXPECT_EQ(ClientW()->get(mRootHandle, name1).errorOr(API_OK), API_OK);
 
     // Make sure we received a remove event for our inactive file.
@@ -1539,7 +1539,7 @@ TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_move)
         },
         mDefaultTimeout));
 
-    EXPECT_EQ(ClientW()->get(mRootHandle, fileName1).errorOr(API_OK), API_ENOENT);
+    EXPECT_EQ(ClientW()->get(mRootHandle, fileName1).errorOr(API_OK), API_FUSE_ENOTFOUND);
     EXPECT_EQ(ClientW()->get(mRootHandle, fileName0).errorOr(API_OK), API_OK);
 
     if (HasFailure())
@@ -1583,6 +1583,7 @@ TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
 
     // Try and open the file.
     auto file = ClientW()->fileOpen(*handle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // So we can receive file events.
     auto fileObserver = observe(*file);
@@ -2930,7 +2931,7 @@ void FileServiceTests::SetUpTestSuite()
     Test::SetUpTestSuite();
 
     // Make sure the test root is clean.
-    ASSERT_THAT(ClientW()->remove("/z"), AnyOf(API_ENOENT, API_OK));
+    ASSERT_THAT(ClientW()->remove("/z"), AnyOf(API_FUSE_ENOTFOUND, API_OK));
 
     // Recreate the test root.
     auto rootHandle = ClientW()->makeDirectory("z", "/");

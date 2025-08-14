@@ -33,14 +33,19 @@ Error Test::regenerate(Client& client,
     EXPECT_EQ(befriended, API_OK);
 
     // Clients don't want to be friends.
-    if (befriended != API_OK)
+    if (HasFailure())
         return befriended;
 
     // Check if the test root is present.
     auto handle = client.handle("/x");
 
+    EXPECT_THAT(handle.errorOr(API_OK), AnyOf(API_FUSE_ENOTFOUND, API_OK));
+
+    if (HasFailure())
+        return handle.error();
+
     // Create the test root if necessary.
-    if (handle.isUndef())
+    if (!handle)
     {
         // Try and create the test root.
         auto created = client.makeDirectory("x", "/");
@@ -49,7 +54,7 @@ Error Test::regenerate(Client& client,
         EXPECT_EQ(created.errorOr(API_OK), API_OK);
 
         // Couldn't create test root.
-        if (!created)
+        if (HasFailure())
             return created.error();
 
         // Latch the test root's handle.
@@ -57,13 +62,13 @@ Error Test::regenerate(Client& client,
     }
 
     // Try and share the test root with our friend.
-    auto shared = client.share(sharee.email(), handle, permissions);
+    auto shared = client.share(sharee.email(), *handle, permissions);
 
     // Make sure the test root was shared.
     EXPECT_EQ(shared, API_OK);
 
     // Couldn't share the test root with our friend.
-    if (shared != API_OK)
+    if (HasFailure())
         return shared;
 
     // Cloud hasn't changed state.
@@ -74,10 +79,10 @@ Error Test::regenerate(Client& client,
     auto removed = client.removeAll("/x");
 
     // Make sure cloud content was removed.
-    EXPECT_THAT(removed, AnyOf(API_ENOENT, API_OK));
-    
+    EXPECT_THAT(removed, AnyOf(API_FUSE_ENOTFOUND, API_OK));
+
     // Couldn't clear cloud content.
-    if (removed != API_ENOENT && removed != API_OK)
+    if (HasFailure())
         return removed;
 
     // Create scratch directory.
@@ -93,7 +98,7 @@ Error Test::regenerate(Client& client,
     EXPECT_EQ(uploaded.errorOr(API_OK), API_OK);
 
     // Couldn't upload cloud content.
-    if (!uploaded)
+    if (HasFailure())
         return uploaded.error();
 
     // Wait until our friend sees our new content.

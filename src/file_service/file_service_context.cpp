@@ -972,27 +972,25 @@ try
     if (name.empty())
         return unexpected(FILE_SERVICE_INVALID_NAME);
 
-    // Parent already contains a child with this name.
-    if (auto node = mClient.get(parent, name))
-        return unexpected(FILE_SERVICE_FILE_ALREADY_EXISTS);
-
-    // Try and get information about parent.
-    auto node = mClient.get(parent);
-
-    // Couldn't get information about parent.
-    if (!node)
+    // Check if the parent already contains a child with this name.
+    switch (auto node = mClient.get(parent, name); node.errorOr(API_OK))
     {
-        // Because we encountered some unexpected error.
-        if (node.error() != API_ENOENT)
+        case API_ENOENT:
+            // Parent doesn't exist.
+            return unexpected(FILE_SERVICE_PARENT_DOESNT_EXIST);
+        case API_FUSE_ENOTDIR:
+            // Parent isn't a directory.
+            return unexpected(FILE_SERVICE_PARENT_IS_A_FILE);
+        case API_FUSE_ENOTFOUND:
+            // Parent doesn't contain a child with this name.
+            break;
+        case API_OK:
+            // Parent already contains a child with this name.
+            return unexpected(FILE_SERVICE_FILE_ALREADY_EXISTS);
+        default:
+            // Encountered an unknown failure.
             return unexpected(FILE_SERVICE_UNEXPECTED);
-
-        // Because it doesn't exist.
-        return unexpected(FILE_SERVICE_PARENT_DOESNT_EXIST);
     }
-
-    // Parent isn't a directory.
-    if (!node->mIsDirectory)
-        return unexpected(FILE_SERVICE_PARENT_IS_A_FILE);
 
     // Acquire context and database locks.
     UniqueLock lockContexts(mLock);

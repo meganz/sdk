@@ -85,7 +85,7 @@ public:
                                    Path path);
 }; // Uploader
 
-NodeHandle Client::handle(NodeHandle parent, const std::string& name) const
+ErrorOr<NodeHandle> Client::handle(NodeHandle parent, const std::string& name) const
 {
     return client().handle(parent, name);
 }
@@ -158,7 +158,7 @@ ErrorOr<NodeHandle> Client::uploadFile(const std::string& name,
             return notifier->set_value(unexpected(result.error()));
 
         // Bind the file.
-        (*result)(std::move(bound), handle);
+        (*result)(std::move(bound), handle.valueOr(NodeHandle()));
     }; // uploaded
 
     // Try and upload the file.
@@ -228,17 +228,17 @@ MountResult Client::addMount(const MountInfo& info)
     return service().add(info);
 }
 
-std::set<std::string> Client::childNames(CloudPath path) const
+ErrorOr<std::set<std::string>> Client::childNames(CloudPath path) const
 {
     // Try and resolve the parent's handle.
     auto parentHandle = path.resolve(*this);
 
     // Parent doesn't exist.
-    if (parentHandle.isUndef())
-        return std::set<std::string>();
+    if (!parentHandle)
+        return unexpected(parentHandle.error());
 
     // Retrieve the names of the parent's children.
-    return client().childNames(parentHandle);
+    return client().childNames(*parentHandle);
 }
 
 ErrorOr<InodeInfo> Client::describe(const Path& path) const
@@ -367,7 +367,7 @@ auto Client::fileCreate(NodeHandle parent, const std::string& name)
 
 auto Client::fileInfo(CloudPath path) const -> FileServiceResultOr<FileInfo>
 {
-    return fileInfo(FileID::from(path.resolve(*this)));
+    return fileInfo(FileID::from(path.resolve(*this).valueOr(NodeHandle())));
 }
 
 auto Client::fileInfo(FileID id) const -> file_service::FileServiceResultOr<file_service::FileInfo>
@@ -382,7 +382,7 @@ auto Client::fileOpen(FileID id) const -> FileServiceResultOr<file_service::File
 
 auto Client::fileOpen(CloudPath path) const -> FileServiceResultOr<file_service::File>
 {
-    return fileOpen(FileID::from(path.resolve(*this)));
+    return fileOpen(FileID::from(path.resolve(*this).valueOr(NodeHandle())));
 }
 
 auto Client::fileRanges(FileID id) const -> FileServiceResultOr<FileRangeVector>
@@ -392,7 +392,7 @@ auto Client::fileRanges(FileID id) const -> FileServiceResultOr<FileRangeVector>
 
 auto Client::fileRanges(CloudPath path) const -> FileServiceResultOr<FileRangeVector>
 {
-    return fileRanges(FileID::from(path.resolve(*this)));
+    return fileRanges(FileID::from(path.resolve(*this).valueOr(NodeHandle())));
 }
 
 ErrorOr<NodeInfo> Client::get(CloudPath parentPath,
@@ -402,38 +402,37 @@ ErrorOr<NodeInfo> Client::get(CloudPath parentPath,
     auto parentHandle = parentPath.resolve(*this);
 
     // Parent doens't exist.
-    if (parentHandle.isUndef())
-        return unexpected(API_ENOENT);
+    if (!parentHandle)
+        return unexpected(parentHandle.error());
 
     // Try and get info about the specified child.
-    return client().get(parentHandle, name);
+    return client().get(*parentHandle, name);
 }
 
 ErrorOr<NodeInfo> Client::get(CloudPath path) const
 {
     auto handle = path.resolve(*this);
 
-    if (!handle.isUndef())
-        return client().get(handle);
+    if (handle)
+        return client().get(*handle);
 
-    return unexpected(API_ENOENT);
+    return unexpected(handle.error());
 }
 
-NodeHandle Client::handle(CloudPath parentPath,
-                          const std::string& name) const
+ErrorOr<NodeHandle> Client::handle(CloudPath parentPath, const std::string& name) const
 {
     // Resolve the parent's handle.
     auto parentHandle = parentPath.resolve(*this);
 
     // Parent doesn't exist.
-    if (parentHandle.isUndef())
-        return NodeHandle();
+    if (!parentHandle)
+        return unexpected(parentHandle.error());
 
     // Try and retrieve the child's handle.
-    return client().handle(parentHandle, name);
+    return client().handle(*parentHandle, name);
 }
 
-NodeHandle Client::handle(const std::string& path) const
+ErrorOr<NodeHandle> Client::handle(const std::string& path) const
 {
     // Try and locate the specified node.
     auto info = client().lookup(RemotePath(path), rootHandle());
@@ -443,7 +442,7 @@ NodeHandle Client::handle(const std::string& path) const
         return info->mHandle;
 
     // Couldn't locate the specified node.
-    return NodeHandle();
+    return unexpected(info.error());
 }
 
 bool Client::isCached(const Path& path) const
@@ -474,10 +473,10 @@ ErrorOr<NodeHandle> Client::makeDirectory(const std::string& name,
 
     auto parentHandle = parent.resolve(*this);
 
-    if (parentHandle.isUndef())
-        return unexpected(API_ENOENT);
+    if (!parentHandle)
+        return unexpected(parentHandle.error());
 
-    auto result = client().makeDirectory(name, parentHandle);
+    auto result = client().makeDirectory(name, *parentHandle);
 
     if (result)
         return result->mHandle;
@@ -536,12 +535,16 @@ Error Client::move(const std::string& name,
     auto sourceHandle = source.resolve(*this);
     auto targetHandle = target.resolve(*this);
 
-    // Source and/or target doesn't exist.
-    if (sourceHandle.isUndef() || targetHandle.isUndef())
-        return API_ENOENT;
+    // Source doesn't exist.
+    if (!sourceHandle)
+        return sourceHandle.error();
+
+    // Target doesn't exist.
+    if (!targetHandle)
+        return targetHandle.error();
 
     // Move the node.
-    return client().move(name, sourceHandle, targetHandle);
+    return client().move(name, *sourceHandle, *targetHandle);
 }
 
 auto Client::partialDownload(PartialDownloadCallback& callback,
@@ -551,30 +554,30 @@ auto Client::partialDownload(PartialDownloadCallback& callback,
 {
     auto handle = path.resolve(*this);
 
-    if (!handle.isUndef())
-        return client().partialDownload(callback, handle, offset, length);
+    if (handle)
+        return client().partialDownload(callback, *handle, offset, length);
 
-    return unexpected(API_ENOENT);
+    return unexpected(handle.error());
 }
 
 Error Client::remove(CloudPath path)
 {
     auto handle = path.resolve(*this);
 
-    if (!handle.isUndef())
-        return client().remove(handle);
+    if (handle)
+        return client().remove(*handle);
 
-    return API_ENOENT;
+    return handle.error();
 }
 
 Error Client::removeAll(CloudPath path)
 {
     auto handle = path.resolve(*this);
 
-    if (!handle.isUndef())
-        return client().removeAll(handle);
+    if (handle)
+        return client().removeAll(*handle);
 
-    return API_ENOENT;
+    return handle.error();
 }
 
 MountResult Client::removeMount(const std::string& name)
@@ -634,12 +637,16 @@ Error Client::replace(CloudPath source,
     auto sourceHandle = source.resolve(*this);
     auto targetHandle = target.resolve(*this);
 
-    // Source and/or target doesn't exist.
-    if (sourceHandle.isUndef() || targetHandle.isUndef())
-        return API_ENOENT;
+    // Source doesn't exist.
+    if (!sourceHandle)
+        return sourceHandle.error();
+
+    // Target doesn't exist.
+    if (!targetHandle)
+        return targetHandle.error();
 
     // Replace target with source.
-    return client().replace(sourceHandle, targetHandle);
+    return client().replace(*sourceHandle, *targetHandle);
 }
 
 ErrorOr<StorageInfo> Client::storageInfo()
@@ -655,7 +662,7 @@ const Path& Client::storagePath() const
 auto Client::synchronize(const Path& path, CloudPath target)
   -> std::tuple<::mega::handle, Error, SyncError>
 {
-    return client().synchronize(path.localPath(), target.resolve(*this));
+    return client().synchronize(path.localPath(), target.resolve(*this).valueOr(NodeHandle()));
 }
 
 ErrorOr<NodeHandle> Client::upload(const std::string& name,
@@ -669,8 +676,8 @@ ErrorOr<NodeHandle> Client::upload(const std::string& name,
     auto parentHandle = parent.resolve(*this);
 
     // Parent doesn't exist.
-    if (parentHandle.isUndef())
-        return unexpected(API_ENOENT);
+    if (!parentHandle)
+        return unexpected(parentHandle.error());
 
     std::error_code error;
 
@@ -685,9 +692,9 @@ ErrorOr<NodeHandle> Client::upload(const std::string& name,
     switch (status.type())
     {
     case fs::file_type::directory:
-        return Uploader(*this)(name, parentHandle, path);
+        return Uploader(*this)(name, *parentHandle, path);
     case fs::file_type::regular:
-        return uploadFile(name, parentHandle, path);
+        return uploadFile(name, *parentHandle, path);
     default:
         break;
     }

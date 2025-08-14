@@ -143,7 +143,7 @@ auto Model::DirectoryNode::from(const Client& client, NodeInfo info) -> NodePtr
     auto directory = std::make_unique<DirectoryNode>(std::move(info.mName));
 
     // Determine the names of this node's children.
-    auto childNames = client.childNames(CloudPath(info.mHandle));
+    auto childNames = client.childNames(CloudPath(info.mHandle)).valueOr({});
 
     // Populate directory from the cloud.
     for (const auto& name : childNames)

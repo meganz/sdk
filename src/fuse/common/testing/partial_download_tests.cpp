@@ -427,7 +427,7 @@ void FUSEPartialDownloadTests::SetUpTestSuite()
     Test::SetUpTestSuite();
 
     // Make sure the test root is clean.
-    ASSERT_THAT(ClientW()->remove("/y"), AnyOf(API_ENOENT, API_OK));
+    ASSERT_THAT(ClientW()->remove("/y"), AnyOf(API_FUSE_ENOTFOUND, API_OK));
 
     // Recreate the test root.
     auto rootHandle = ClientW()->makeDirectory("y", "/");

@@ -51,7 +51,7 @@ class Client
     virtual common::Client& client() const = 0;
 
     // Retrieve the handle associated with the specified child.
-    NodeHandle handle(NodeHandle parent, const std::string& name) const;
+    common::ErrorOr<NodeHandle> handle(NodeHandle parent, const std::string& name) const;
 
     using MakeDirectoryCallback =
       std::function<void(common::ErrorOr<NodeHandle>)>;
@@ -155,7 +155,7 @@ public:
     MountResult addMount(const MountInfo& info);
 
     // Retrieve the names of this node's children.
-    std::set<std::string> childNames(CloudPath path) const;
+    common::ErrorOr<std::set<std::string>> childNames(CloudPath path) const;
 
     // Is the specified user a contact?
     virtual auto contact(const std::string& email) const -> ContactPtr = 0;
@@ -218,10 +218,10 @@ public:
     common::ErrorOr<common::NodeInfo> get(CloudPath path) const;
 
     // Query what a child's node handle is.
-    NodeHandle handle(CloudPath parentPath, const std::string& name) const;
+    common::ErrorOr<NodeHandle> handle(CloudPath parentPath, const std::string& name) const;
 
     // Retrieve the handle of the node at the specified path.
-    NodeHandle handle(const std::string& path) const;
+    common::ErrorOr<NodeHandle> handle(const std::string& path) const;
 
     // Query whether a node has file attributes.
     virtual bool hasFileAttribute(NodeHandle handle, fatype type) const = 0;

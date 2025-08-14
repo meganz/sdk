@@ -51,7 +51,7 @@ public:
     MegaApp& application() override;
 
     // Retrieve the names of a parent's children.
-    std::set<std::string> childNames(NodeHandle parent) const override;
+    ErrorOr<std::set<std::string>> childNames(NodeHandle parent) const override;
 
     // Get our hands on the underlying client.
     MegaClient& client() const;
@@ -98,8 +98,7 @@ public:
                           const std::string& name) const override;
 
     // Query what a child's node handle is.
-    NodeHandle handle(NodeHandle parent,
-                      const std::string& name) const override;
+    ErrorOr<NodeHandle> handle(NodeHandle parent, const std::string& name) const override;
 
     // Query whether a parent contains any children.
     ErrorOr<bool> hasChildren(NodeHandle parent) const override;

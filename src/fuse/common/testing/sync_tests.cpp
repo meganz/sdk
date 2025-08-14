@@ -1,3 +1,4 @@
+#include <mega/common/error_or.h>
 #include <mega/common/normalized_path.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_event.h>
@@ -102,7 +103,7 @@ ScopedMount::ScopedMount(ClientPtr& client,
 
     // Describe our new mount.
     info.name(mName);
-    info.mHandle = targetPath.resolve(mClient);
+    info.mHandle = targetPath.resolve(mClient).valueOr(NodeHandle());
     info.mPath = sourcePath;
 
     // Try and add our mount.

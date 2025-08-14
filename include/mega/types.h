@@ -237,7 +237,8 @@ typedef enum ErrorCodes : int
     API_FUSE_EPERM = -2006,
     API_FUSE_EROFS = -2007,
     API_FUSE_EALREADY = -2008,
-    API_FUSE_ECANCELLED = -2009
+    API_FUSE_ECANCELLED = -2009,
+    API_FUSE_EDUPLICATE = -2010
 } error;
 
 class Error

@@ -53,7 +53,7 @@ public:
     virtual MegaApp& application() = 0;
 
     // Retrieve the names of a parent's children.
-    virtual std::set<std::string> childNames(NodeHandle parent) const = 0;
+    virtual ErrorOr<std::set<std::string>> childNames(NodeHandle parent) const = 0;
 
     // Compute a suitable path for a database.
     virtual LocalPath dbPath(const std::string& name) const = 0;
@@ -94,8 +94,7 @@ public:
                                   const std::string& name) const = 0;
 
     // Query what a child's node handle is.
-    virtual NodeHandle handle(NodeHandle parent,
-                              const std::string& name) const = 0;
+    virtual ErrorOr<NodeHandle> handle(NodeHandle parent, const std::string& name) const = 0;
 
     // Query whether a parent contains any children.
     virtual ErrorOr<bool> hasChildren(NodeHandle parent) const = 0;

@@ -913,16 +913,16 @@ InodeID InodeDB::hasChild(const DirectoryInode& parent,
     auto guard = lockAll(mContext.mDatabase, *this);
 
     // Child exists in the cloud.
-    if (!childHandle.isUndef())
+    if (childHandle)
     {
         // Assume the child's inode ID is its node handle.
-        auto id = InodeID(childHandle);
+        auto id = InodeID(*childHandle);
 
         auto transaction = mContext.mDatabase.transaction();
         auto query = transaction.query(mQueries.mGetInodeIDByHandle);
 
         // Check if the inode is known locally.
-        query.param(":handle").set(childHandle);
+        query.param(":handle").set(*childHandle);
         query.execute();
 
         // Child's known locally (under some parent.)
@@ -934,7 +934,7 @@ InodeID InodeDB::hasChild(const DirectoryInode& parent,
             // We don't track a cloud node's name or parent.
             query = transaction.query(mQueries.mSetHandleNameParentHandleByID);
 
-            query.param(":handle").set(childHandle);
+            query.param(":handle").set(*childHandle);
             query.param(":id").set(id);
             query.param(":name").set(nullptr);
             query.param(":parent_handle").set(nullptr);
