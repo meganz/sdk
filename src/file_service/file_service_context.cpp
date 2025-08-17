@@ -1116,6 +1116,81 @@ catch (std::runtime_error& exception)
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
+auto FileServiceContext::open(NodeHandle parent, const std::string& name)
+    -> FileServiceResultOr<File>
+try
+{
+    // Caller's given us a bogus name.
+    if (name.empty())
+        return unexpected(FILE_SERVICE_INVALID_NAME);
+
+    // Check if the specified child exists in the cloud.
+    switch (auto node = mClient.get(parent, name); node.errorOr(API_OK))
+    {
+        case API_ENOENT:
+            // Parent doesn't exist.
+            return unexpected(FILE_SERVICE_PARENT_DOESNT_EXIST);
+        case API_FUSE_ENOTDIR:
+            // Parent isn't a directory.
+            return unexpected(FILE_SERVICE_PARENT_IS_A_FILE);
+        case API_FUSE_ENOTFOUND:
+            // Child doesn't exist in the cloud.
+            break;
+        case API_OK:
+            // Child exists but denotes a directory.
+            if (node->mIsDirectory)
+                return unexpected(FILE_SERVICE_FILE_IS_A_DIRECTORY);
+
+            // Open file by node handle.
+            return open(FileID::from(node->mHandle));
+        default:
+            // Encountered an unknown failure.
+            return unexpected(FILE_SERVICE_UNEXPECTED);
+    }
+
+    FileID id;
+
+    // Try and determine this child's file ID.
+    {
+        // Acquire context lock.
+        UniqueLock lockContexts(mLock);
+
+        // Acquire database lock.
+        UniqueLock lockDatabase(mDatabase);
+
+        // So we can safely access the database.
+        auto transaction = mDatabase.transaction();
+
+        // Check if this child exists in the database.
+        auto query = transaction.query(mQueries.mGetFileByNameAndParentHandle);
+
+        query.param(":name").set(name);
+        query.param(":parent_handle").set(parent);
+
+        // Child doesn't exist in the database.
+        if (!query.execute())
+            return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+
+        // Latch the child's ID.
+        id = query.field("id").get<FileID>();
+    }
+
+    // Try and open the child.
+    return open(id);
+}
+
+catch (std::runtime_error& exception)
+{
+    // Leave a trail for debuggers.
+    FSErrorF("Unable to open file %s under %s: %s",
+             name.c_str(),
+             toNodeHandle(parent).c_str(),
+             exception.what());
+
+    // Let the caller know we couldn't open the file.
+    return unexpected(FILE_SERVICE_UNEXPECTED);
+}
+
 auto FileServiceContext::open(FileID id) -> FileServiceResultOr<File>
 try
 {

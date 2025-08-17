@@ -380,6 +380,12 @@ auto Client::fileOpen(FileID id) const -> FileServiceResultOr<file_service::File
     return fileService().open(id);
 }
 
+auto Client::fileOpen(CloudPath parentPath, const std::string& name) const
+    -> FileServiceResultOr<file_service::File>
+{
+    return fileService().open(parentPath.resolve(*this).valueOr(NodeHandle()), name);
+}
+
 auto Client::fileOpen(CloudPath path) const -> FileServiceResultOr<file_service::File>
 {
     return fileOpen(FileID::from(path.resolve(*this).valueOr(NodeHandle())));

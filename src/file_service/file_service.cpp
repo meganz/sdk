@@ -67,6 +67,16 @@ auto FileService::info(FileID id) -> FileServiceResultOr<FileInfo>
     return mContext->info(id);
 }
 
+auto FileService::open(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>
+{
+    SharedLock guard(mContextLock);
+
+    if (!mContext)
+        return unexpected(FILE_SERVICE_UNINITIALIZED);
+
+    return mContext->open(parent, name);
+}
+
 auto FileService::open(FileID id) -> FileServiceResultOr<File>
 {
     SharedLock guard(mContextLock);

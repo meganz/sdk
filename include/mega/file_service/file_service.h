@@ -51,6 +51,7 @@ public:
     auto initialize(common::Client& client) -> FileServiceResult;
 
     // Open a file for reading or writing.
+    auto open(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
     auto open(FileID id) -> FileServiceResultOr<File>;
 
     // Update the file service's options.

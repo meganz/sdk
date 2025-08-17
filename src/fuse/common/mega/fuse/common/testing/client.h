@@ -199,6 +199,9 @@ public:
     auto fileOpen(file_service::FileID id) const
         -> file_service::FileServiceResultOr<file_service::File>;
 
+    auto fileOpen(CloudPath parentPath, const std::string& name) const
+        -> file_service::FileServiceResultOr<file_service::File>;
+
     auto fileOpen(CloudPath path) const -> file_service::FileServiceResultOr<file_service::File>;
 
     // Determine what ranges of a file we have in storage.

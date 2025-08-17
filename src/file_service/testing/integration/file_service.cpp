@@ -1628,6 +1628,43 @@ TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
     EXPECT_EQ(expected, serviceObserver.events());
 }
 
+TEST_F(FileServiceTests, open_by_path_fails_when_file_is_a_directory)
+{
+    EXPECT_EQ(ClientW()->fileOpen("/", "z").errorOr(FILE_SERVICE_SUCCESS),
+              FILE_SERVICE_FILE_IS_A_DIRECTORY);
+}
+
+TEST_F(FileServiceTests, open_by_path_fails_when_file_is_unknown)
+{
+    EXPECT_EQ(ClientW()->fileOpen("/z", "q").errorOr(FILE_SERVICE_SUCCESS),
+              FILE_SERVICE_FILE_DOESNT_EXIST);
+}
+
+TEST_F(FileServiceTests, open_by_path_fails_when_name_is_empty)
+{
+    EXPECT_EQ(ClientW()->fileOpen("/z", "").errorOr(FILE_SERVICE_SUCCESS),
+              FILE_SERVICE_INVALID_NAME);
+}
+
+TEST_F(FileServiceTests, open_by_path_fails_when_parent_is_a_file)
+{
+    EXPECT_EQ(ClientW()->fileOpen(mFileHandle, "x").errorOr(FILE_SERVICE_SUCCESS),
+              FILE_SERVICE_PARENT_IS_A_FILE);
+}
+
+TEST_F(FileServiceTests, open_by_path_fails_when_parent_is_unknown)
+{
+    EXPECT_EQ(ClientW()->fileOpen("/bogus", "x").errorOr(FILE_SERVICE_SUCCESS),
+              FILE_SERVICE_PARENT_DOESNT_EXIST);
+}
+
+TEST_F(FileServiceTests, open_by_path_succeeds)
+{
+    auto file = ClientW()->fileOpen("/z", mFileName);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    EXPECT_EQ(file->info().handle(), mFileHandle);
+}
+
 TEST_F(FileServiceTests, open_directory_fails)
 {
     // Can't open a directory.

@@ -193,6 +193,7 @@ public:
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
 
     // Open a file for reading or writing.
+    auto open(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
     auto open(FileID id) -> FileServiceResultOr<File>;
 
     // Update the file service's options.
