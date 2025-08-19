@@ -8036,7 +8036,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
+    auto importHandle =
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
     MegaHandle imported_file_handle = importHandle;
 
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(imported_file_handle));
@@ -8230,7 +8231,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
+    auto importHandle =
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -8303,7 +8305,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
     std::string url100MB = "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; //https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url100MB, rootnode.get());
+    auto importHandle = importPublicLink(0, MegaClient::getMegaURL() + url100MB, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -8359,7 +8361,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
+    auto importHandle =
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -8425,7 +8428,7 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
 
     LOG_debug << logPre << "Get CloudRAID file from public link";
     const auto importRaidHandle =
-        importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
 
     unique_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -8719,8 +8722,10 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL,
-                                         std::unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get());
+    auto importHandle =
+        importPublicLink(0,
+                         MegaClient::getMegaURL() + PUBLIC_IMAGE_URL,
+                         std::unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get());
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(importHandle));
 
     // set up to simulate 509 error
@@ -8914,7 +8919,10 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 #endif
 
     // ensure we have our standard raid test file
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
+    auto importHandle =
+        importPublicLink(0,
+                         MegaClient::getMegaURL() + PUBLIC_IMAGE_URL,
+                         std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
     MegaNode *nimported = megaApi[0]->getNodeByHandle(importHandle);
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
@@ -9182,7 +9190,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
     auto importRaidHandle =
-        importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
     std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
     ASSERT_NE(rootnode.get(), nullptr) << "Cannot get CloudRaidNode node from public link";
 
@@ -9341,7 +9349,8 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferBestCase)
     ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
     std::string url100MB =
         "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; // https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
-    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL + url100MB, rootnode.get());
+    auto importRaidHandle =
+        importPublicLink(0, MegaClient::getMegaURL() + url100MB, rootnode.get());
     std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
     ASSERT_NE(rootnode.get(), nullptr) << "Cannot get CloudRaidNode node from public link";
 
@@ -12694,7 +12703,10 @@ TEST_F(SdkTest, SyncOQTransitions)
     handle backupId = sync->getBackupId();
 
     LOG_verbose << "SyncOQTransitions :  Filling up storage space";
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg", remoteFillNode.get());
+    auto importHandle = importPublicLink(
+        0,
+        MegaClient::getMegaURL() + "/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg",
+        remoteFillNode.get());
     std::unique_ptr<MegaNode> remote1GBFile(megaApi[0]->getNodeByHandle(importHandle));
 
     ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Get account size.

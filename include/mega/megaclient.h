@@ -1677,7 +1677,11 @@ public:
 
     // root URL for Website
     static string MEGAURL;
-    static std::mutex megaUrlMutex;
+    static std::shared_mutex megaUrlMutex;
+
+    // root URL getter and setter
+    static std::string getMegaURL();
+    static void setMegaURL(const std::string& url);
 
     // newsignup link URL prefix
     static const char* newsignupLinkPrefix();

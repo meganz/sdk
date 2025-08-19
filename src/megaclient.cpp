@@ -84,7 +84,7 @@ const string MegaClient::REQSTATURL = "https://reqstat.api.mega.co.nz";
 // Non-const MegaClient static
 string MegaClient::MEGAURL = "https://mega.nz";
 // Mutex to protect MEGAURL write access
-std::mutex MegaClient::megaUrlMutex;
+std::shared_mutex MegaClient::megaUrlMutex;
 
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
@@ -2117,7 +2117,7 @@ TypeOfLink MegaClient::validTypeForPublicURL(nodetype_t type)
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, TypeOfLink type, handle ph, const char *key)
 {
-    string strlink = MegaClient::MEGAURL + "/";
+    string strlink = MegaClient::getMegaURL() + "/";
     string nodeType;
     if (newLinkFormat)
     {
@@ -11106,8 +11106,7 @@ error MegaClient::readmiscflags(JSON *json)
                 {
                     if (tag == "site" && value == 1)
                     {
-                        std::lock_guard<std::mutex> lock(MegaClient::megaUrlMutex);
-                        MegaClient::MEGAURL = "https://mega.app";
+                        setMegaURL("https://mega.app");
                     }
                     mFeatureFlags.set(tag, static_cast<uint32_t>(value));
                 }
@@ -14422,7 +14421,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         Base64::btoa(encLinkBytes, encLink);
 
         encryptedLink->clear();
-        encryptedLink->append(MegaClient::MEGAURL);
+        encryptedLink->append(MegaClient::getMegaURL());
         encryptedLink->append("/#P!");
         encryptedLink->append(encLink);
 
@@ -24386,6 +24385,18 @@ void MegaClient::processHashcashSendevent()
         .append(std::to_string(retryGencash->mGencashTime.count()));
 
     sendevent(eventId, eventMsg.c_str());
+}
+
+std::string MegaClient::getMegaURL()
+{
+    std::shared_lock lock(megaUrlMutex);
+    return MEGAURL;
+}
+
+void MegaClient::setMegaURL(const std::string& url)
+{
+    std::unique_lock lock(megaUrlMutex);
+    MEGAURL = url;
 }
 
 } // namespace
