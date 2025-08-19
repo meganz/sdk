@@ -72,7 +72,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
 
     mGetFileIDsByParentHandle = "select id "
                                 "  from files "
-                                " where parent_handle = :parent_handle";
+                                " where parent_handle = :parent_handle "
+                                "   and (:removed is null or removed = :removed)";
 
     mGetFileRanges = "select begin "
                      "     , end "

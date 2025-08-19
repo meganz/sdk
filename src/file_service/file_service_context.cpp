@@ -1493,13 +1493,10 @@ void FileServiceContext::EventProcessor::added(const NodeEvent& event)
         return;
 
     // Latch the file's handle, if any.
-    NodeHandle handle;
-
-    if (!query.field("handle").null())
-        handle = query.field("handle").get<NodeHandle>();
+    auto handle = query.field("handle").get<std::optional<NodeHandle>>();
 
     // Node describes a file managed by the service.
-    if (event.handle() == handle)
+    if (handle && event.handle() == *handle)
         return;
 
     // Latch the file's ID.
@@ -1589,21 +1586,19 @@ void FileServiceContext::EventProcessor::moved(const NodeEvent& event)
     query.param(":name").set(name);
     query.param(":parent_handle").set(parentHandle);
 
-    // Node replaces a file managed by the service.
-    //
-    // do...while used here for control flow.
-    do
+    // Node may replace a file managed by the service.
+    if (query.execute())
     {
-        if (!query.execute())
-            break;
+        // Latch the file's handle, if any.
+        auto handle = query.field("handle").get<std::optional<NodeHandle>>();
 
-        // Latch the file's ID.
-        auto id = query.field("id").get<FileID>();
+        // File's location is already up to date.
+        if (handle && event.handle() == *handle)
+            return;
 
         // Mark or remove the file.
-        remove(id);
+        remove(query.field("id").get<FileID>());
     }
-    while (0);
 
     // Node's a directory so it can't be managed by the service.
     if (event.isDirectory())
@@ -1613,10 +1608,9 @@ void FileServiceContext::EventProcessor::moved(const NodeEvent& event)
     query = mTransaction.query(mQueries.mGetFile);
 
     query.param(":handle").set(event.handle());
-    query.execute();
 
     // Node isn't a file managed by the service.
-    if (!query)
+    if (!query.execute())
         return;
 
     // Latch the file's ID and current location.
@@ -1667,10 +1661,9 @@ void FileServiceContext::EventProcessor::removed(const NodeEvent& event)
     query.param(":handle").set(event.handle());
     query.param(":id").set(nullptr);
     query.param(":removed").set(false);
-    query.execute();
 
     // Node isn't managed by the service.
-    if (!query)
+    if (!query.execute())
         return;
 
     // Convenience.
@@ -1693,6 +1686,7 @@ void FileServiceContext::EventProcessor::removedDirectory(const NodeEvent& event
     auto query = mTransaction.query(mQueries.mGetFileIDsByParentHandle);
 
     query.param(":parent_handle").set(event.handle());
+    query.param(":removed").set(false);
 
     // Iterate over this directory's children.
     for (query.execute(); query; ++query)
