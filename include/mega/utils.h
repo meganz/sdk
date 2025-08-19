@@ -607,6 +607,8 @@ struct FileAccess;
 struct InputStreamAccess;
 class SymmCipher;
 
+static constexpr int64_t INVALID_META_MAC{0xFFFFFFFF};
+
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv);
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);

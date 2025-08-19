@@ -3038,6 +3038,8 @@ TEST_F(SdkTest, SdkTestKillSession)
  * added)
  *  - TEST5: upload testfile(v1) again (no remote action required)
  *  - TEST6: upload same testfile_copy with same content than testfilev1 (remote copy)
+ *  - TEST7: upload same testfile_copy with same content than testfilev1 but to another target
+ * (remote copy) "
  */
 TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
 {
@@ -3054,14 +3056,27 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
     auto [errCode, fh] = createRemoteFolder(0, rootFolderName.c_str(), rootnode.get());
     ASSERT_TRUE(errCode == API_OK && fh != INVALID_HANDLE) << "Cannot create " << rootFolderName;
 
-    auto [errCodeAux, _] = createRemoteFolder(0, rootFolderName.c_str(), rootnode.get());
-    ASSERT_EQ(errCodeAux, API_EEXIST)
+    auto [errCode1, fh1] = createRemoteFolder(0, rootFolderName.c_str(), rootnode.get());
+    ASSERT_EQ(errCode1, API_EEXIST)
         << "Unexpected ErrCode upon creating same folder again: " << rootFolderName;
+
+    std::unique_ptr<MegaNode> folderNode1(megaApi[0]->getNodeByHandle(fh1));
+    ASSERT_TRUE(folderNode1) << "Cannot retrieve folderNode1";
 
     std::unique_ptr<MegaNode> rootFolderNode{megaApi[idx]->getNodeByHandle(fh)};
     ASSERT_TRUE(rootFolderNode) << logPre << "Cannot get " << rootFolderName
                                 << " node for account: " << idx;
-    ASSERT_EQ(megaApi[idx]->getNumChildren(rootFolderNode.get()), 0)
+    ASSERT_EQ(megaApi[idx]->getNumChildren(rootFolderNode.get()), 0);
+
+    auto [errCode2, fh2] = createRemoteFolder(0, rootFolderName.c_str(), folderNode1.get());
+    ASSERT_EQ(errCode2, API_OK)
+        << "Unexpected ErrCode upon creating same folder name inside previous one: "
+        << rootFolderName << "/" << rootFolderName;
+
+    rootFolderNode.reset(megaApi[idx]->getNodeByHandle(fh));
+    ASSERT_TRUE(rootFolderNode) << logPre << "Cannot get " << rootFolderName
+                                << " node for account: " << idx;
+    ASSERT_EQ(megaApi[idx]->getNumChildren(rootFolderNode.get()), 1)
         << "Unexpected number of children";
 
     string filename = "testfile";
@@ -3070,11 +3085,12 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
     ASSERT_NO_FATAL_FAILURE(copyFile(filename, filenameaux))
         << "Couldn't copy file " << filenameaux;
 
-    auto uploadFile = [this, &logPre, idx, n = rootFolderNode.get()](const string& filename,
-                                                                     const string& msg,
-                                                                     const int expErr,
-                                                                     const int expParentChildren,
-                                                                     const int expNversions)
+    auto uploadFile = [this, &logPre, idx](MegaNode* n,
+                                           const string& filename,
+                                           const string& msg,
+                                           const int expErr,
+                                           const int expParentChildren,
+                                           const int expNversions)
     {
         LOG_debug << logPre << msg;
         MegaHandle h = UNDEF;
@@ -3099,28 +3115,36 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
     };
 
     std::string msg = "#### TEST1: upload testfile(v1) ####";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(filename, msg, API_OK, 1, 1));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filename, msg, API_OK, 2, 1));
 
     msg = "#### TEST2: upload testfile(v1) again (no remote action required) ####";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(filename, msg, API_OK, 1, 1));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filename, msg, API_OK, 2, 1));
 
     msg = "#### TEST3: modify testfile to (v2) and upload it (new node version added) ####";
     sdk_test::appendToFile(fs::path(filename), 20000); // v1
-    ASSERT_NO_FATAL_FAILURE(uploadFile(filename, msg, API_OK, 1, 2));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filename, msg, API_OK, 2, 2));
 
     msg = "#### TEST4: remove and then recreate testfile(v1) locally, and upload again (new node "
           "version added) ####";
     ASSERT_TRUE(removeFile(filename)) << "Couldn't remove " << filename;
     ASSERT_NO_FATAL_FAILURE(copyFile(filenameaux, filename))
         << "Couldn't recreate file " << filename << "(v1)";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(filename, msg, API_OK, 1, 3));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filename, msg, API_OK, 2, 3));
 
     msg = "#### TEST5: upload testfile(v1) again (no remote action required) ####";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(filename, msg, API_OK, 1, 3));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filename, msg, API_OK, 2, 3));
 
     msg = "#### TEST6: upload same testfile_copy with same content than testfilev1 (remote copy) "
           "####";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(filenameaux, msg, API_OK, 2, 1));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filenameaux, msg, API_OK, 3, 1));
+
+    msg = "#### TEST7: upload same testfile_copy with same content than testfilev1 but to another "
+          "target (remote copy) "
+          "####";
+    folderNode1.reset(megaApi[0]->getNodeByHandle(fh2));
+    ASSERT_TRUE(folderNode1) << logPre << "Cannot get " << rootFolderName << "/" << rootFolderName
+                             << " node for account: " << idx;
+    ASSERT_NO_FATAL_FAILURE(uploadFile(folderNode1.get(), filenameaux, msg, API_OK, 1, 1));
 }
 
 /**

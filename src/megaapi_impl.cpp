@@ -19194,6 +19194,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             finishTransferSameNodeNameFoundInTarget(prevNodeSameName->nodehandle);
                             break;
                         }
+                        // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
+                        // is not NODE_COMP_EQUAL, just continue with transfer
                     }
 
                     // If has been found by name and it's necessary force upload, it isn't necessary
@@ -19226,6 +19228,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                     break;
                                 }
                             }
+                            // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
+                            // is not NODE_COMP_EQUAL, just continue with transfer
                         }
 
                         if (sameNodeFpFound)

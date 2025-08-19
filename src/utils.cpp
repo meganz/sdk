@@ -2512,23 +2512,31 @@ std::pair<node_comparison_result, int64_t>
 {
     if (!node)
     {
-        return {NODE_COMP_EARGS, 0};
+        return {NODE_COMP_EARGS, INVALID_META_MAC};
     }
 
     if (node->type != FILENODE)
     {
+        LOG_err << "CompareLocalFileWithNodeFpAndMac called with invalid node type";
         assert(false && "CompareLocalFileWithNodeFpAndMac called with invalid node type");
-        return {NODE_COMP_INVALID_NODE_TYPE, 0};
+        return {NODE_COMP_INVALID_NODE_TYPE, INVALID_META_MAC};
     }
 
-    if (!node->isvalid || node->nodekey().empty() || !fp.isvalid)
+    if (node->nodekey().empty())
     {
         return {NODE_COMP_EARGS, 0};
     }
 
+    if (!node->isvalid || !fp.isvalid)
+    {
+        LOG_warn << "CompareLocalFileWithNodeFpAndMac: valid node: " << node->isvalid
+                 << " valid file fingerprint: " << fp.isvalid;
+        return {NODE_COMP_EARGS, INVALID_META_MAC};
+    }
+
     if (fp != static_cast<const FileFingerprint&>(*node))
     {
-        return {NODE_COMP_DIFFERS_FP, 0};
+        return {NODE_COMP_DIFFERS_FP, INVALID_META_MAC};
     }
 
     if (auto fa = client.fsaccess->newfileaccess();
@@ -2554,7 +2562,8 @@ std::pair<node_comparison_result, int64_t>
         }
     }
 
-    return {NODE_COMP_EREAD, 0};
+    LOG_warn << "CompareLocalFileWithNodeFpAndMac: cannot read local file: " << path.toPath(false);
+    return {NODE_COMP_EREAD, INVALID_META_MAC};
 }
 
 void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f, bool discardable)
