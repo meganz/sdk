@@ -5100,7 +5100,8 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     mMyAccount = MyAccountData{};
     mKeyManager.reset();
 
-    mLastErrorDetected = REASON_ERROR_NO_ERROR;
+    mLastFatalErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+    mLastDBErrorDetected = DBError::DB_ERROR_UNKNOWN;
 
     mReqHashcashEasiness = 0;
     mReqHashcashToken.clear();
@@ -15266,6 +15267,15 @@ string MegaClient::getTransferDBName()
 
 void MegaClient::handleDbError(DBError error)
 {
+    // Return early for repeated errors
+    if (mLastDBErrorDetected == error)
+    {
+        return;
+    }
+
+    // Remember the new error
+    mLastDBErrorDetected = error;
+
     std::string reason;
     switch (error)
     {
@@ -15397,13 +15407,13 @@ void MegaClient::handleDbError(DBError error)
 void MegaClient::fatalError(ErrorReason errorReason)
 {
     // Return early for repeated errorReason
-    if (mLastErrorDetected == errorReason)
+    if (mLastFatalErrorDetected == errorReason)
     {
         return;
     }
 
     // Remember the new errorReason
-    mLastErrorDetected = errorReason;
+    mLastFatalErrorDetected = errorReason;
 
     // Disable sync.
     // Sync is not enabled in case of ErrorReason::REASON_ERROR_NO_JSCD or
@@ -15466,7 +15476,7 @@ void MegaClient::fatalError(ErrorReason errorReason)
 
 bool MegaClient::accountShouldBeReloadedOrRestarted() const
 {
-    return mLastErrorDetected != REASON_ERROR_NO_ERROR;
+    return mLastFatalErrorDetected != REASON_ERROR_NO_ERROR;
 }
 
 void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServers)
@@ -24300,11 +24310,11 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     {
         return callback({}, result);
     }
-    else if (mLastErrorDetected == ErrorReason::REASON_ERROR_REGENERATE_JSCD)
+    else if (mLastFatalErrorDetected == ErrorReason::REASON_ERROR_REGENERATE_JSCD)
     {
         LOG_debug << "JSON SYNC configuration has been correctly regenerated.";
         // Cleanup error to allow syncs to be configured
-        mLastErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+        mLastFatalErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
     }
 
     JSCData data;

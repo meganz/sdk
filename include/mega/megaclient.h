@@ -1994,8 +1994,13 @@ public:
     // None actions has been taken yet (reload, restart app, ...)
     bool accountShouldBeReloadedOrRestarted() const;
 
-    // This flag keeps the last error detected. It's overwritten by new errors and reset upon logout.It's cleaned after reload or other error is generated
-    ErrorReason mLastErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+    // This flag keeps the last fatal error detected. It's overwritten by new errors and reset upon
+    // logout. It's cleaned after reload or other error is generated
+    ErrorReason mLastFatalErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+
+    // This flag keeps the last DB error detected. It's overwritten by new errors and reset upon
+    // logout. It's cleaned after reload or other error is generated
+    DBError mLastDBErrorDetected = DBError::DB_ERROR_UNKNOWN;
 
     // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.
     // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
