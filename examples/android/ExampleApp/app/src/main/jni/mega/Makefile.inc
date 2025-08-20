@@ -291,6 +291,8 @@ HEADERS += \
     sdk/include/mega/file_service/file_event_forward.h \
     sdk/include/mega/file_service/file_event_observer.h \
     sdk/include/mega/file_service/file_event_observer_id.h \
+    sdk/include/mega/file_service/file_flush_event.h \
+    sdk/include/mega/file_service/file_flush_event_forward.h \
     sdk/include/mega/file_service/file_forward.h \
     sdk/include/mega/file_service/file_id.h \
     sdk/include/mega/file_service/file_id_forward.h \
@@ -298,10 +300,16 @@ HEADERS += \
     sdk/include/mega/file_service/file_info_context_forward.h \
     sdk/include/mega/file_service/file_info_context_pointer.h \
     sdk/include/mega/file_service/file_info_forward.h \
+    sdk/include/mega/file_service/file_location.h \
+    sdk/include/mega/file_service/file_location_forward.h \
+    sdk/include/mega/file_service/file_move_event.h \
+    sdk/include/mega/file_service/file_move_event_forward.h \
     sdk/include/mega/file_service/file_range.h \
     sdk/include/mega/file_service/file_range_forward.h \
     sdk/include/mega/file_service/file_range_vector.h \
     sdk/include/mega/file_service/file_read_result.h \
+    sdk/include/mega/file_service/file_remove_event.h \
+    sdk/include/mega/file_service/file_remove_event_forward.h \
     sdk/include/mega/file_service/file_result.h \
     sdk/include/mega/file_service/file_result_forward.h \
     sdk/include/mega/file_service/file_result_or.h \
@@ -319,6 +327,12 @@ HEADERS += \
     sdk/include/mega/file_service/file_service_result_forward.h \
     sdk/include/mega/file_service/file_service_result_or.h \
     sdk/include/mega/file_service/file_service_result_or_forward.h \
+    sdk/include/mega/file_service/file_touch_event.h \
+    sdk/include/mega/file_service/file_touch_event_forward.h \
+    sdk/include/mega/file_service/file_truncate_event.h \
+    sdk/include/mega/file_service/file_truncate_event_forward.h \
+    sdk/include/mega/file_service/file_write_event.h \
+    sdk/include/mega/file_service/file_write_event_forward.h \
     sdk/include/mega/file_service/file_write_result.h \
     sdk/include/mega/file_service/scoped_file_event_observer.h \
     sdk/include/mega/file_service/sink.h \
@@ -335,6 +349,7 @@ CPP_SOURCES += \
     sdk/src/file_service/file_access.cpp \
     sdk/src/file_service/file_buffer.cpp \
     sdk/src/file_service/file_context.cpp \
+    sdk/src/file_service/file_event_emitter.cpp \
     sdk/src/file_service/file_id.cpp \
     sdk/src/file_service/file_info.cpp \
     sdk/src/file_service/file_info_context.cpp \
