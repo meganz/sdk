@@ -42,7 +42,6 @@ public:
 
     bool exists() const;
     int getFileDescriptor(bool write);
-    void close();
     std::string getName();
     std::vector<std::shared_ptr<AndroidFileWrapper>> getChildren();
     // Check if tree exists
@@ -138,6 +137,11 @@ private:
     static LRUCache<std::string, URIData> URIDataCache;
     static LRUCache<std::string, std::string> localPathURICAche;
     static std::mutex URIDataCacheLock;
+    static std::shared_ptr<AndroidFileWrapper>
+        getAndroidFileWrapperFromURI(const LocalPath& localPath, bool create, bool lastIsFolder);
+
+    static std::shared_ptr<AndroidFileWrapper>
+        getAndroidFileWrapperFromPath(const LocalPath& localPath, bool create, bool lastIsFolder);
 };
 
 /**

@@ -567,93 +567,118 @@ std::shared_ptr<AndroidFileWrapper>
 {
     if (localPath.isURI())
     {
-        if (auto aux = localPathURICAche.get(localPath.toPath(false)); aux.has_value())
-        {
-            auto returned = AndroidFileWrapper::getAndroidFileWrapper(aux.value());
+        return getAndroidFileWrapperFromURI(localPath, create, lastIsFolder);
+    }
+    else
+    {
+        return getAndroidFileWrapperFromPath(localPath, create, lastIsFolder);
+    }
 
-            // Maybe we have cached element that it already doesn't exist and we have to create
-            // again
-            if (returned && returned->exists())
+    return nullptr;
+}
+
+std::shared_ptr<AndroidFileWrapper>
+    AndroidFileWrapper::getAndroidFileWrapperFromURI(const LocalPath& localPath,
+                                                     bool create,
+                                                     bool lastIsFolder)
+{
+    // Attempt to resolve from URI cache
+    if (auto cachedURI = localPathURICAche.get(localPath.toPath(false)); cachedURI.has_value())
+    {
+        auto fileWrapper = AndroidFileWrapper::getAndroidFileWrapper(cachedURI.value());
+
+        // Check if cached reference is still valid
+        if (fileWrapper->exists())
+        {
+            return fileWrapper;
+        }
+    }
+
+    // Decompose URI path into segments
+    std::vector<std::string> pathSegments;
+    LocalPath pathCursor = localPath;
+    while (!pathCursor.isRootPath())
+    {
+        pathSegments.insert(pathSegments.begin(), pathCursor.leafOrParentName());
+        pathCursor = pathCursor.parentPath();
+    }
+
+    std::shared_ptr<AndroidFileWrapper> currentWrapper =
+        AndroidFileWrapper::getAndroidFileWrapper(pathCursor.toPath(false));
+
+    if (!currentWrapper->exists())
+    {
+        return nullptr;
+    }
+
+    if (pathSegments.empty())
+    {
+        return currentWrapper;
+    }
+
+    std::string currentURI;
+    for (const auto& segment: pathSegments)
+    {
+        LocalPath compositePath = pathCursor;
+        compositePath.appendWithSeparator(LocalPath::fromRelativePath(segment), true);
+
+        std::shared_ptr<AndroidFileWrapper> nextWrapper;
+
+        if (auto cachedChildURI = localPathURICAche.get(compositePath.toPath(false));
+            cachedChildURI.has_value())
+        {
+            currentURI = cachedChildURI.value();
+            pathCursor = LocalPath::fromURIPath(currentURI);
+            nextWrapper = AndroidFileWrapper::getAndroidFileWrapper(pathCursor.toPath(false));
+        }
+
+        // Create intermediate path if necessary
+        if (!nextWrapper || !nextWrapper->exists())
+        {
+            std::vector<std::string> singleSegment{segment};
+            currentURI =
+                currentWrapper->createOrReturnNestedPath(singleSegment, create, lastIsFolder);
+
+            if (currentURI.empty())
             {
-                return returned;
+                return nullptr;
             }
+
+            pathCursor = LocalPath::fromURIPath(currentURI);
+            localPathURICAche.put(compositePath.toPath(false), currentURI);
+            nextWrapper = AndroidFileWrapper::getAndroidFileWrapper(pathCursor.toPath(false));
         }
 
-        std::vector<std::string> children;
-        LocalPath auxPath{localPath};
-        while (!auxPath.isRootPath()) // for URIs, this method returns true just if PathURI doesn't
-                                      // contains any leaf
-        {
-            children.insert(children.begin(), auxPath.leafOrParentName());
-            auxPath = auxPath.parentPath();
-        }
-
-        std::shared_ptr<AndroidFileWrapper> uriFileWrapper =
-            AndroidFileWrapper::getAndroidFileWrapper(auxPath.toPath(false));
-
-        if (!uriFileWrapper->exists())
+        if (!nextWrapper->exists())
         {
             return nullptr;
         }
 
-        if (children.empty())
+        currentWrapper = nextWrapper;
+    }
+
+    localPathURICAche.put(localPath.toPath(false), currentURI);
+    return currentWrapper;
+}
+
+std::shared_ptr<AndroidFileWrapper>
+    AndroidFileWrapper::getAndroidFileWrapperFromPath(const LocalPath& localPath,
+                                                      bool create,
+                                                      bool lastIsFolder)
+{
+    if (create)
+    {
+        LocalPath parentPath = localPath.parentPath();
+        auto parentFileWrapper =
+            AndroidFileWrapper::getAndroidFileWrapper(parentPath.toPath(false));
+        if (parentFileWrapper->exists())
         {
-            return uriFileWrapper;
+            return parentFileWrapper->createChild(localPath.leafName().toPath(false), lastIsFolder);
         }
-
-        std::string auxURI;
-        for (const auto& child: children)
-        {
-            LocalPath p = auxPath;
-            p.appendWithSeparator(LocalPath::fromRelativePath(child), true);
-            if (auto aux = localPathURICAche.get(p.toPath(false)); aux.has_value())
-            {
-                auxURI = aux.value();
-                auxPath = LocalPath::fromURIPath(auxURI);
-            }
-            else
-            {
-                std::vector<std::string> auxChildren{child};
-                auxURI =
-                    uriFileWrapper->createOrReturnNestedPath(auxChildren, create, lastIsFolder);
-                if (auxURI.empty())
-                {
-                    return nullptr;
-                }
-
-                auxPath = LocalPath::fromURIPath(auxURI);
-                localPathURICAche.put(p.toPath(false), auxURI);
-            }
-
-            uriFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(auxPath.toPath(false));
-
-            if (!uriFileWrapper)
-            {
-                return nullptr;
-            }
-        }
-
-        localPathURICAche.put(localPath.toPath(false), auxURI);
-        auto returned = AndroidFileWrapper::getAndroidFileWrapper(auxURI);
-        return returned;
     }
     else
     {
-        if (create)
-        {
-            LocalPath parentPath = localPath.parentPath();
-            auto parentFileWrapper =
-                AndroidFileWrapper::getAndroidFileWrapper(parentPath.toPath(false));
-            if (parentFileWrapper->exists())
-            {
-                return parentFileWrapper->createChild(localPath.leafName().toPath(false),
-                                                      lastIsFolder);
-            }
-        }
-        else
-        {
-            return AndroidFileWrapper::getAndroidFileWrapper(localPath.toPath(false));
-        }
+        return AndroidFileWrapper::getAndroidFileWrapper(localPath.toPath(false));
     }
 
     return nullptr;
