@@ -133,8 +133,9 @@ private:
 
     void setUriData(const URIData& uriData);
     std::optional<URIData> getURIData(const std::string& uri) const;
+    static constexpr std::size_t LRUCacheSize = 30000;
     static LRUCache<std::string, URIData> URIDataCache;
-    static LRUCache<std::string, std::string> localPathURICAche;
+    static LRUCache<std::string, std::string> localPathURICache;
     static std::mutex URIDataCacheLock;
     static std::mutex localPathURICacheLock;
     static void setLocalPathURI(const std::string& path, const std::string& uri);

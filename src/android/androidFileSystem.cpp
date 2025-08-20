@@ -16,8 +16,8 @@ namespace mega
 
 AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
 
-LRUCache<std::string, AndroidFileWrapper::URIData> AndroidFileWrapper::URIDataCache(30000);
-LRUCache<std::string, std::string> AndroidFileWrapper::localPathURICAche(30000);
+LRUCache<std::string, AndroidFileWrapper::URIData> AndroidFileWrapper::URIDataCache(LRUCacheSize);
+LRUCache<std::string, std::string> AndroidFileWrapper::localPathURICache(LRUCacheSize);
 std::mutex AndroidFileWrapper::URIDataCacheLock;
 std::mutex AndroidFileWrapper::localPathURICacheLock;
 
@@ -197,6 +197,10 @@ std::string AndroidFileWrapper::getName()
     jstring name = static_cast<jstring>(env->CallObjectMethod(mJavaObject->mObj, methodID));
 
     const char* nameStr = env->GetStringUTFChars(name, nullptr);
+    if (!nameStr)
+    {
+        return {};
+    }
     data->mName = nameStr;
     setUriData(data.value());
     env->ReleaseStringUTFChars(name, nameStr);
@@ -233,6 +237,10 @@ std::vector<std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::getChildren
     {
         jstring element = (jstring)env->CallObjectMethod(childrenUris, getMethod, i);
         const char* elementStr = env->GetStringUTFChars(element, nullptr);
+        if (!elementStr)
+        {
+            return {};
+        }
         children.push_back(AndroidFileWrapper::getAndroidFileWrapper(elementStr));
         env->ReleaseStringUTFChars(element, elementStr);
         env->DeleteLocalRef(element);
@@ -310,7 +318,11 @@ std::optional<std::string> AndroidFileWrapper::createOrReturnElement(const std::
     if (uriString != nullptr)
     {
         const char* elementStr = env->GetStringUTFChars(uriString, nullptr);
-        // auto aux = AndroidFileWrapper::getAndroidFileWrapper(elementStr);
+        if (!elementStr)
+        {
+            return std::nullopt;
+        }
+
         std::string uri{elementStr};
         env->ReleaseStringUTFChars(uriString, elementStr);
         env->DeleteLocalRef(uriString);
@@ -391,6 +403,11 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getChildByName(const std
     }
 
     const char* elementStr = env->GetStringUTFChars(uriString, nullptr);
+    if (!elementStr)
+    {
+        return {};
+    }
+
     auto aux = AndroidFileWrapper::getAndroidFileWrapper(elementStr);
     env->ReleaseStringUTFChars(uriString, elementStr);
     env->DeleteLocalRef(uriString);
@@ -573,24 +590,20 @@ std::shared_ptr<AndroidFileWrapper>
     {
         return getAndroidFileWrapperFromURI(localPath, create, lastIsFolder);
     }
-    else
-    {
-        return getAndroidFileWrapperFromPath(localPath, create, lastIsFolder);
-    }
 
-    return nullptr;
+    return getAndroidFileWrapperFromPath(localPath, create, lastIsFolder);
 }
 
 void AndroidFileWrapper::setLocalPathURI(const std::string& path, const std::string& uri)
 {
     std::unique_lock<std::mutex> lock(localPathURICacheLock);
-    localPathURICAche.put(path, uri);
+    localPathURICache.put(path, uri);
 }
 
 std::optional<std::string> AndroidFileWrapper::getLocalPathURI(const std::string& path)
 {
     std::unique_lock<std::mutex> lock(localPathURICacheLock);
-    return localPathURICAche.get(path);
+    return localPathURICache.get(path);
 }
 
 std::shared_ptr<AndroidFileWrapper>
@@ -615,7 +628,13 @@ std::shared_ptr<AndroidFileWrapper>
     LocalPath pathCursor = localPath;
     while (!pathCursor.isRootPath())
     {
-        pathSegments.insert(pathSegments.begin(), pathCursor.leafOrParentName());
+        auto name{pathCursor.leafOrParentName()};
+        if (name.empty())
+        {
+            return {};
+        }
+
+        pathSegments.insert(pathSegments.begin(), name);
         pathCursor = pathCursor.parentPath();
     }
 
