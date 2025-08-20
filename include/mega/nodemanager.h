@@ -474,6 +474,8 @@ public:
     // i.e., when nodes have been fully loaded from a fetchnodes or from cache
     bool ready();
 
+    bool isFromRootNodeType(const Node& node) const;
+
 private:
     class NoKeyLogger
     {

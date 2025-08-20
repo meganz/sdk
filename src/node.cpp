@@ -531,7 +531,7 @@ void Node::setKey(const string& key)
 {
     if (keyApplied())
         client->mNodeManager.decreaseNumNodesAppliedKey();
-    ;
+
     nodekeydata = key;
     if (keyApplied())
         client->mNodeManager.increaseNumNodesAppliedKey();

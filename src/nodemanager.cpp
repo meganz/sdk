@@ -294,7 +294,7 @@ bool NodeManager::addNode_internal(std::shared_ptr<Node> node, bool notify, bool
     // 'notify' is false when loading nodes from API or DB. True when node is received from
     // actionpackets and/or from response of CommandPutnodes
 
-    bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == VAULTNODE;
+    bool rootNode = isFromRootNodeType(*node.get());
 
     // getRootNodeFiles() is always set for folder links before adding any node (upon login)
     bool isFolderLink = rootnodes.files == node->nodeHandle();
@@ -1352,16 +1352,16 @@ void NodeManager::removeChanges_internal()
             memset(&(node->changed), 0, sizeof node->changed);
         }
 
-        for (auto& it: rootnodes.mRootNodes)
+        for (auto& [_, node]: rootnodes.mRootNodes)
         {
-            memset(&(it.second->changed), 0, sizeof it.second->changed);
+            memset(&(node->changed), 0, sizeof node->changed);
         }
     }
     else
     {
-        for (auto& it: mNodes)
+        for (auto& [_, nodeManagerNode]: mNodes)
         {
-            std::shared_ptr<Node> node = it.second.getNodeInRam(false);
+            std::shared_ptr<Node> node = nodeManagerNode.getNodeInRam(false);
             if (node)
             {
                 memset(&(node->changed), 0, sizeof node->changed);
@@ -1454,7 +1454,7 @@ void NodeManager::applyKeys()
 void NodeManager::addNodePendingApplykey(std::shared_ptr<Node> node)
 {
     LockGuard g(mMutex);
-    if (node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == VAULTNODE)
+    if (isFromRootNodeType(*node.get()))
     {
         return;
     }
@@ -1479,7 +1479,7 @@ void NodeManager::applyKeys_internal()
     }
 
 #ifdef DEBUG
-    // In case of folder links, root node is not from type rootnode and it is decriptable
+    // In case of folder links, root node is not from type rootnode and it is decryptable
     unsigned rootNodeUndecrypted =
         (!getRootNodeFiles().isUndef() && rootnodes.mRootNodes[ROOTNODE]->type == ROOTNODE) ? 1 : 0;
     unsigned noKeyExpected = rootNodeUndecrypted + (getRootNodeVault().isUndef() ? 0 : 1) +
@@ -1816,22 +1816,22 @@ void NodeManager::insertNodeCacheLRU(std::shared_ptr<Node> node)
 
 void NodeManager::increaseNumNodesInRam()
 {
-    mNodesInRam++;
+    ++mNodesInRam;
 }
 
 void NodeManager::decreaseNumNodesInRam()
 {
-    mNodesInRam--;
+    --mNodesInRam;
 }
 
 void NodeManager::increaseNumNodesAppliedKey()
 {
-    mAppliedKeyNodeCount++;
+    ++mAppliedKeyNodeCount;
 }
 
 void NodeManager::decreaseNumNodesAppliedKey()
 {
-    mAppliedKeyNodeCount--;
+    --mAppliedKeyNodeCount;
 }
 
 uint64_t NodeManager::getCacheLRUMaxSize() const
@@ -1883,6 +1883,11 @@ void NodeManager::initCompleted_internal()
 bool NodeManager::ready()
 {
     return mInitialized;
+}
+
+bool NodeManager::isFromRootNodeType(const Node& node) const
+{
+    return node.type == ROOTNODE || node.type == RUBBISHNODE || node.type == VAULTNODE;
 }
 
 void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
