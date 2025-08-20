@@ -19,6 +19,7 @@ AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
 LRUCache<std::string, AndroidFileWrapper::URIData> AndroidFileWrapper::URIDataCache(30000);
 LRUCache<std::string, std::string> AndroidFileWrapper::localPathURICAche(30000);
 std::mutex AndroidFileWrapper::URIDataCacheLock;
+std::mutex AndroidFileWrapper::localPathURICacheLock;
 
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mURI(path)
@@ -580,13 +581,25 @@ std::shared_ptr<AndroidFileWrapper>
     return nullptr;
 }
 
+void AndroidFileWrapper::setLocalPathURI(const std::string& path, const std::string& uri)
+{
+    std::unique_lock<std::mutex> lock(localPathURICacheLock);
+    localPathURICAche.put(path, uri);
+}
+
+std::optional<std::string> AndroidFileWrapper::getLocalPathURI(const std::string& path)
+{
+    std::unique_lock<std::mutex> lock(localPathURICacheLock);
+    return localPathURICAche.get(path);
+}
+
 std::shared_ptr<AndroidFileWrapper>
     AndroidFileWrapper::getAndroidFileWrapperFromURI(const LocalPath& localPath,
                                                      bool create,
                                                      bool lastIsFolder)
 {
     // Attempt to resolve from URI cache
-    if (auto cachedURI = localPathURICAche.get(localPath.toPath(false)); cachedURI.has_value())
+    if (auto cachedURI = getLocalPathURI(localPath.toPath(false)); cachedURI.has_value())
     {
         auto fileWrapper = AndroidFileWrapper::getAndroidFileWrapper(cachedURI.value());
 
@@ -627,7 +640,7 @@ std::shared_ptr<AndroidFileWrapper>
 
         std::shared_ptr<AndroidFileWrapper> nextWrapper;
 
-        if (auto cachedChildURI = localPathURICAche.get(compositePath.toPath(false));
+        if (auto cachedChildURI = getLocalPathURI(compositePath.toPath(false));
             cachedChildURI.has_value())
         {
             currentURI = cachedChildURI.value();
@@ -646,7 +659,7 @@ std::shared_ptr<AndroidFileWrapper>
             }
 
             pathCursor = LocalPath::fromURIPath(currentURI.value());
-            localPathURICAche.put(compositePath.toPath(false), currentURI.value());
+            setLocalPathURI(compositePath.toPath(false), currentURI.value());
             nextWrapper = AndroidFileWrapper::getAndroidFileWrapper(pathCursor.toPath(false));
         }
 
@@ -658,7 +671,7 @@ std::shared_ptr<AndroidFileWrapper>
         currentWrapper = nextWrapper;
     }
 
-    localPathURICAche.put(localPath.toPath(false), currentURI.value());
+    setLocalPathURI(localPath.toPath(false), currentURI.value());
     return currentWrapper;
 }
 

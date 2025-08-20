@@ -136,6 +136,9 @@ private:
     static LRUCache<std::string, URIData> URIDataCache;
     static LRUCache<std::string, std::string> localPathURICAche;
     static std::mutex URIDataCacheLock;
+    static std::mutex localPathURICacheLock;
+    static void setLocalPathURI(const std::string& path, const std::string& uri);
+    static std::optional<std::string> getLocalPathURI(const std::string& path);
     static std::shared_ptr<AndroidFileWrapper>
         getAndroidFileWrapperFromURI(const LocalPath& localPath, bool create, bool lastIsFolder);
 
