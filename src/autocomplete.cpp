@@ -347,10 +347,18 @@ std::ostream& Text::describe(std::ostream& s) const
 
 bool ExportedLink::isLink(const string& s, bool file, bool folder)
 {
-    bool filestr = (s.find("https://mega.nz/#!") != string::npos || s.find("https://mega.nz/file/") != string::npos) ||
-                   (s.find("https://mega.co.nz/#!") != string::npos || s.find("https://mega.co.nz/file/") != string::npos);
-    bool folderstr = (s.find("https://mega.nz/#F!") != string::npos || s.find("https://mega.nz/folder/") != string::npos) ||
-                     (s.find("https://mega.co.nz/#F!") != string::npos || s.find("https://mega.co.nz/folder/") != string::npos);
+    bool filestr = (s.find("https://mega.nz/#!") != string::npos ||
+                    s.find("https://mega.nz/file/") != string::npos) ||
+                   (s.find("https://mega.co.nz/#!") != string::npos ||
+                    s.find("https://mega.co.nz/file/") != string::npos) ||
+                   (s.find("https://mega.app/#!") != string::npos ||
+                    s.find("https://mega.app/file/") != string::npos);
+    bool folderstr = (s.find("https://mega.nz/#F!") != string::npos ||
+                      s.find("https://mega.nz/folder/") != string::npos) ||
+                     (s.find("https://mega.co.nz/#F!") != string::npos ||
+                      s.find("https://mega.co.nz/folder/") != string::npos) ||
+                     (s.find("https://mega.app/#F!") != string::npos ||
+                      s.find("https://mega.app/folder/") != string::npos);
 
     if (file && !folder)
     {

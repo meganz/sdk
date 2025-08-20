@@ -15377,7 +15377,7 @@ void MegaApiImpl::copysession_result(string *session, error e)
     {
         const char *path = request->getText();
         string data = client->sessiontransferdata(path, session);
-        data.insert(0, MegaClient::MEGAURL+"/#sitetransfer!");
+        data.insert(0, MegaClient::getMegaURL() + "/#sitetransfer!");
 
         request->setLink(data.c_str());
     }
@@ -24274,7 +24274,7 @@ void MegaApiImpl::getSessionTransferURL(const char* path, MegaRequestListener* l
 
             if (e == API_ENOENT)    // no session to copy because not logged in
             {
-                string url = MegaClient::MEGAURL + "/#";
+                string url = MegaClient::getMegaURL() + "/#";
                 auto path = request->getText();
                 if (path) url.append(path);
                 request->setLink(url.c_str());
@@ -34621,7 +34621,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         LOG_debug << httpctx->getLogName() << "Favicon requested";
         response << "HTTP/1.1 301 Moved Permanently\r\n"
                     "Location: ";
-        response << MegaClient::MEGAURL;
+        response << MegaClient::getMegaURL();
         response << "/favicon.ico\r\n"
                     "Connection: close\r\n"
                     "\r\n";

@@ -1675,8 +1675,9 @@ public:
     // root URL for reqstat requests
     static const string REQSTATURL;
 
-    // root URL for Website
-    static const string MEGAURL;
+    // root URL getter and setter
+    static std::string getMegaURL();
+    static void setMegaURL(const std::string& url);
 
     // newsignup link URL prefix
     static const char* newsignupLinkPrefix();
@@ -1724,6 +1725,14 @@ public:
     bool driveMonitorEnabled();
 
 private:
+    // root URL for Website
+    static string MEGAURL;
+    static std::shared_mutex megaUrlMutex;
+
+    // possible root URLs
+    static const std::string MEGAURL_NZ;
+    static const std::string MEGAURL_APP;
+
 #ifdef USE_DRIVE_NOTIFICATIONS
     DriveInfoCollector mDriveInfoCollector;
 #endif
