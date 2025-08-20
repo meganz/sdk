@@ -9376,6 +9376,111 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferBestCase)
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
+/**
+ * @brief SdkTestStreaming
+ *
+ * Verifies on-demand file streaming:
+ * - Create a 50MB local file with random content
+ * - Read three 1MB slices (head/middle/tail) from disk
+ * - Upload the file
+ * - Stream the same slices from the backend and assert byte-for-byte equality
+ */
+TEST_F(SdkTest, SdkTestStreaming)
+{
+    LOG_info << "___TEST SdkTestStreaming___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    static const size_t kFileSize = 50ull * 1024 * 1024; // 50 MB
+    static const size_t kChunkSize = 1ull * 1024 * 1024; // 1 MB
+    static const size_t kMidOffset = 20ull * 1024 * 1024; // 20 MB
+    static const size_t kTailOffset = kFileSize - kChunkSize; // last 1MB safely within file
+
+    // Create local random file
+    fs::path filePath = fs::current_path() / PUBLICFILE;
+    sdk_test::LocalTempFile localFile(filePath, kFileSize);
+    auto fsAccess = std::make_unique<FSACCESS_CLASS>();
+    LocalPath localPath = fspathToLocal(filePath);
+
+    // Read three slices from disk
+    std::unique_ptr<FileAccess> fa(fsAccess->newfileaccess(false));
+    ASSERT_TRUE(fa->fopen(localPath, true, false, FSLogging::logOnError))
+        << "Failed to open local file";
+
+    std::string bufHead;
+    bufHead.reserve(kChunkSize);
+    std::string bufMid;
+    bufMid.reserve(kChunkSize);
+    std::string bufTail;
+    bufTail.reserve(kChunkSize);
+
+    ASSERT_TRUE(fa->fread(&bufHead, kChunkSize, 0, 0, FSLogging::logOnError))
+        << "Read head slice failed";
+    ASSERT_TRUE(fa->fread(&bufMid, kChunkSize, 0, kMidOffset, FSLogging::logOnError))
+        << "Read middle slice failed";
+    ASSERT_TRUE(fa->fread(&bufTail, kChunkSize, 0, kTailOffset, FSLogging::logOnError))
+        << "Read tail slice failed";
+
+    // Upload File
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    MegaHandle uploadedNode{UNDEF};
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &uploadedNode,
+                            filePath.u8string().c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(uploadedNode));
+    ASSERT_TRUE(!!node) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
+
+    auto streamNode = [&node, this](const std::string& expected, int64_t start, int64_t size)
+    {
+        int err{API_OK};
+        std::string receivedBuffer;
+        receivedBuffer.reserve(kChunkSize);
+        testing::NiceMock<MockMegaTransferListener> mtl{megaApi[0].get()};
+        EXPECT_CALL(mtl, onTransferData)
+            .WillRepeatedly(
+                [&receivedBuffer](MegaApi*, MegaTransfer*, char* buffer, size_t size)
+                {
+                    receivedBuffer.append(buffer, size);
+                    return true;
+                });
+        EXPECT_CALL(mtl, onTransferFinish)
+            .WillOnce(
+                [&mtl, &err](MegaApi*, MegaTransfer*, MegaError* error)
+                {
+                    err = error ? error->getErrorCode() : API_EINTERNAL;
+                    mtl.markAsFinished();
+                });
+        megaApi[0]->startStreaming(node.get(), start, size, &mtl);
+
+        if (!mtl.waitForFinishOrTimeout(180s /*timeout*/))
+        {
+            LOG_err << "TimeOut streaming slice";
+            return false;
+        }
+
+        EXPECT_EQ(receivedBuffer.size(), expected.size());
+        bool equalContain = receivedBuffer == expected;
+        EXPECT_TRUE(equalContain) << "Initial Position: " << start;
+
+        return err == API_OK && equalContain;
+    };
+
+    ASSERT_TRUE(streamNode(bufHead, 0, static_cast<int64_t>(kChunkSize)));
+    ASSERT_TRUE(
+        streamNode(bufMid, static_cast<int64_t>(kMidOffset), static_cast<int64_t>(kChunkSize)));
+    ASSERT_TRUE(
+        streamNode(bufTail, static_cast<int64_t>(kTailOffset), static_cast<int64_t>(kChunkSize)));
+}
+
 #if !USE_FREEIMAGE
 TEST_F(SdkTest, DISABLED_SdkHttpReqCommandPutFATest)
 #else
