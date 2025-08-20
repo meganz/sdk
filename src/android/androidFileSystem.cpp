@@ -275,13 +275,13 @@ jobject AndroidFileWrapper::vectorToJavaList(JNIEnv* env, const std::vector<std:
     return list;
 }
 
-std::string AndroidFileWrapper::createOrReturnNestedPath(const std::vector<std::string>& subPaths,
-                                                         bool create,
-                                                         bool isFolder)
+std::optional<std::string> AndroidFileWrapper::createOrReturnElement(const std::string& element,
+                                                                     bool create,
+                                                                     bool isFolder)
 {
     if (!exists())
     {
-        return nullptr;
+        return std::nullopt;
     }
 
     JNIEnv* env{nullptr};
@@ -293,9 +293,12 @@ std::string AndroidFileWrapper::createOrReturnNestedPath(const std::vector<std::
     {
         env->ExceptionDescribe();
         env->ExceptionClear();
-        LOG_err << "Error: AndroidFileWrapper::createChild";
-        return nullptr;
+        LOG_err << "Error: AndroidFileWrapper::createOrReturnElement";
+        return std::nullopt;
     }
+
+    std::vector<std::string> subPaths;
+    subPaths.push_back(element);
 
     jobject list = vectorToJavaList(env, subPaths);
 
@@ -313,7 +316,7 @@ std::string AndroidFileWrapper::createOrReturnNestedPath(const std::vector<std::
         return uri;
     }
 
-    return std::string{};
+    return std::nullopt;
 }
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::string& childName,
@@ -616,7 +619,7 @@ std::shared_ptr<AndroidFileWrapper>
         return currentWrapper;
     }
 
-    std::string currentURI;
+    std::optional<std::string> currentURI;
     for (const auto& segment: pathSegments)
     {
         LocalPath compositePath = pathCursor;
@@ -628,24 +631,22 @@ std::shared_ptr<AndroidFileWrapper>
             cachedChildURI.has_value())
         {
             currentURI = cachedChildURI.value();
-            pathCursor = LocalPath::fromURIPath(currentURI);
+            pathCursor = LocalPath::fromURIPath(currentURI.value());
             nextWrapper = AndroidFileWrapper::getAndroidFileWrapper(pathCursor.toPath(false));
         }
 
         // Create intermediate path if necessary
         if (!nextWrapper || !nextWrapper->exists())
         {
-            std::vector<std::string> singleSegment{segment};
-            currentURI =
-                currentWrapper->createOrReturnNestedPath(singleSegment, create, lastIsFolder);
+            currentURI = currentWrapper->createOrReturnElement(segment, create, lastIsFolder);
 
-            if (currentURI.empty())
+            if (!currentURI.has_value())
             {
                 return nullptr;
             }
 
-            pathCursor = LocalPath::fromURIPath(currentURI);
-            localPathURICAche.put(compositePath.toPath(false), currentURI);
+            pathCursor = LocalPath::fromURIPath(currentURI.value());
+            localPathURICAche.put(compositePath.toPath(false), currentURI.value());
             nextWrapper = AndroidFileWrapper::getAndroidFileWrapper(pathCursor.toPath(false));
         }
 
@@ -657,7 +658,7 @@ std::shared_ptr<AndroidFileWrapper>
         currentWrapper = nextWrapper;
     }
 
-    localPathURICAche.put(localPath.toPath(false), currentURI);
+    localPathURICAche.put(localPath.toPath(false), currentURI.value());
     return currentWrapper;
 }
 

@@ -47,9 +47,9 @@ public:
     // Check if tree exists
     std::shared_ptr<AndroidFileWrapper> pathExists(const std::vector<std::string>& subPaths);
 
-    std::string createOrReturnNestedPath(const std::vector<std::string>& subPaths,
-                                         bool create,
-                                         bool isFolder);
+    std::optional<std::string> createOrReturnElement(const std::string& element,
+                                                     bool create,
+                                                     bool isFolder);
 
     // Create child (only first level)
     std::shared_ptr<AndroidFileWrapper> createChild(const std::string& childName, bool isFolder);
@@ -106,7 +106,6 @@ private:
         std::optional<bool> mIsFolder;
         std::optional<std::string> mName;
         std::optional<std::string> mPath;
-        // std::shared_ptr<JavaObject> mJavaObject;
     };
 
     AndroidFileWrapper(const std::string& path);
