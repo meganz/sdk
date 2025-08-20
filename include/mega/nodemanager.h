@@ -545,6 +545,7 @@ private:
     // nodes that have changed and are pending to notify to app and dump to DB
     sharedNode_vector mNodeNotify;
 
+    // Stores nodes pending key application
     std::list<std::shared_ptr<Node>> mNodePendingApplyKeys;
 
     // tracks how many nodes have had a successful applykey()
