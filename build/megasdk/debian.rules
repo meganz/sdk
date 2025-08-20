@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 NJOBS := $(shell echo ${DEB_BUILD_OPTIONS} | sed -rn 's/.*parallel=([0-9]*).*/\1/p')
 VCPKG_ROOT := $(shell [ -f /opt/vcpkg.tar.gz ] && echo "-DVCPKG_ROOT=vcpkg" || echo "")
-DPKGXZ := $(shell cat /etc/issue | grep "Ubuntu 25\|Plucky Puffin\|Ubuntu 24\|Ubuntu 23\|Ubuntu 22\|Ubuntu 21" >/dev/null && echo "-- -Zxz" || echo "")
+DPKGXZ := $(shell cat /etc/issue | grep "Ubuntu 25\|Questing Quokka\|Plucky Puffin\|Ubuntu 24\|Ubuntu 23\|Ubuntu 22" >/dev/null && echo "-- -Zxz" || echo "")
 EXPORT_VCPKG_FORCE_SYSTEM_BINARIES := $(shell uname -m | grep "armv7l" >/dev/null && echo "VCPKG_FORCE_SYSTEM_BINARIES=1" || echo "")
 export VCPKG_DEFAULT_BINARY_CACHE := $(shell [ -f /opt/vcpkg.tar.gz ] && echo "/opt/persistent/vcpkg_cache" || echo "")
 export PATH := $(shell [ -f /opt/cmake.tar.gz ] && echo "`pwd`/cmake_inst/bin:${PATH}" || echo "${PATH}")
@@ -19,8 +19,17 @@ build-stamp:
 		tar xzf /opt/vcpkg.tar.gz;              \
 		mkdir -p $(VCPKG_DEFAULT_BINARY_CACHE); \
 	fi
+	
+	if [ -f /opt/cmake.tar.gz ]; then																						\
+		HASH=$$(md5sum /opt/cmake.tar.gz | awk '{print $$1}');																\
+		if [ "$$HASH" = "ebc26503469f12bf1e956c564fcfa82a" ] || [ "$$HASH" = "2e278820bb4ec6fb71dbef1704fb5359" ]; then		\
+			echo "Valid cmake.tar.gz (hash: $$HASH)";																		\
+		else																												\
+			echo "Invalid cmake.tar.gz hash: $$HASH" >&2;																	\
+			exit 1;																											\
+		fi;																													\
+	fi
 
-	if [ -f /opt/cmake.tar.gz ]; then echo "ebc26503469f12bf1e956c564fcfa82a  /opt/cmake.tar.gz" | md5sum -c -; fi
 	if [ -f /opt/cmake.tar.gz ]; then     \
 		tar xzf /opt/cmake.tar.gz;        \
 		ln -s cmake-*-linux* cmake_inst;  \

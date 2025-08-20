@@ -11585,6 +11585,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getEmail - Returns the first parameter
          * - MegaRequest::getPassword - Returns the second parameter
+         * - MegaRequest::getTransferredBytes - Returns a relative epoch (global counter starting
+         * from 0). This is used internally to early exit from expensive computations when a
+         * cancellation request (ex: locallogout) needs to be executed quickly.
          *
          * If the email/password aren't valid the error code provided in onRequestFinish is
          * MegaError::API_ENOENT.
@@ -11605,6 +11608,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getEmail - Retuns the string "FOLDER"
          * - MegaRequest::getLink - Returns the public link to the folder
+         * - MegaRequest::getTransferredBytes - See MegaApi::login()
          *
          * @param megaFolderLink Public link to a folder in MEGA
          * @param listener MegaRequestListener to track this request
@@ -11666,6 +11670,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_LOGIN.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getSessionKey - Returns the session key
+         * - MegaRequest::getTransferredBytes - See MegaApi::login()
          *
          * @param session Session key previously dumped with MegaApi::dumpSession
          * @param listener MegaRequestListener to track this request

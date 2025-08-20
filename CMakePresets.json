@@ -47,6 +47,7 @@
                 "ENABLE_ISOLATED_GFX": "ON",
                 "ENABLE_JAVA_BINDINGS": "OFF",
                 "ENABLE_LOG_PERFORMANCE": "OFF",
+                "ENABLE_MEDIA_FILE_METADATA" : "ON",
                 "ENABLE_QT_BINDINGS": "OFF",
                 "ENABLE_SDKLIB_EXAMPLES": "ON",
                 "ENABLE_SDKLIB_TESTS": "ON",
@@ -59,7 +60,10 @@
         {
             "name": "mega",
             "hidden": true,
-            "inherits": "default"
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_MEDIA_FILE_METADATA" : "ON"
+            }
         },
         {
             "name": "megasync",
@@ -68,6 +72,7 @@
             "cacheVariables": {
                 "ENABLE_ISOLATED_GFX": "ON",
                 "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_MEDIA_FILE_METADATA" : "ON",
                 "ENABLE_QT_BINDINGS": "ON",
                 "USE_LIBUV": "ON"
             }
@@ -78,6 +83,7 @@
             "inherits": "default",
             "cacheVariables": {
                 "ENABLE_ISOLATED_GFX": "OFF",
+                "ENABLE_MEDIA_FILE_METADATA" : "ON",
                 "USE_LIBUV": "ON",
                 "WITH_FUSE": "ON"
             }
@@ -89,6 +95,7 @@
             "cacheVariables": {
                 "ENABLE_ISOLATED_GFX": "OFF",
                 "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_MEDIA_FILE_METADATA" : "ON",
                 "ENABLE_SYNC": "OFF",
                 "USE_LIBUV": "OFF",
                 "USE_READLINE": "OFF"

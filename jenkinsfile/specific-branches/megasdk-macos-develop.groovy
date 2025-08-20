@@ -25,13 +25,13 @@ pipeline {
                 //Build SDK for arm64
                 sh "echo Building SDK for arm64"
                 sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
-                sh "cmake -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR}"
+                sh "cmake -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DVCPKG_ROOT=${VCPKGPATH} -DENABLE_MEDIA_FILE_METADATA=ON -DCMAKE_VERBOSE_MAKEFILE=ON -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR}"
                 sh "cmake --build ${WORKSPACE}/${BUILD_DIR} -j1"
 
                 //Build SDK for x64
                 sh "echo \"Building SDK for x64 (crosscompiling)\""
                 sh "rm -rf ${BUILD_DIR_X64}; mkdir ${BUILD_DIR_X64}"
-                sh "cmake -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_OSX_ARCHITECTURES=x86_64 -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_X64}"
+                sh "cmake -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_MEDIA_FILE_METADATA=ON -DCMAKE_OSX_ARCHITECTURES=x86_64 -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_X64}"
                 sh "cmake --build ${WORKSPACE}/${BUILD_DIR_X64} -j1"
             }
         }

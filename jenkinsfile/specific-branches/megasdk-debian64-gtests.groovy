@@ -18,7 +18,7 @@ pipeline {
             }
             steps{
                 sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
-                sh "cmake -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR}"
+                sh "cmake -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DVCPKG_ROOT=${VCPKGPATH} -DENABLE_MEDIA_FILE_METADATA=ON -DCMAKE_VERBOSE_MAKEFILE=ON -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR}"
                 sh "cmake --build ${WORKSPACE}/${BUILD_DIR} -j1"
             }
         }
