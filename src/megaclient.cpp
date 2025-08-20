@@ -76,14 +76,16 @@ const string MegaClient::SUPPORT_USER_HANDLE = "pGTOqu7_Fek";
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
 
-// root URL for request status monitoring
+// root URLs for request status monitoring
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::REQSTATURL = "https://reqstat.api.mega.co.nz";
 
-// root URL for Website
-// Non-const MegaClient static
-string MegaClient::MEGAURL = "https://mega.nz";
-// Mutex to protect MEGAURL write access
+// root URLs for Website
+const string MegaClient::MEGAURL_NZ = "https://mega.nz";
+const string MegaClient::MEGAURL_APP = "https://mega.app";
+
+// Non-const MegaClient static protected with a shared_mutex
+string MegaClient::MEGAURL = MegaClient::MEGAURL_NZ;
 std::shared_mutex MegaClient::megaUrlMutex;
 
 // maximum number of concurrent transfers (uploads + downloads)
@@ -11077,12 +11079,23 @@ error MegaClient::readmiscflags(JSON *json)
             }
             break;
         case EOO:
-            if (!journeyIdFound && trackJourneyId()) // If there is no value or tracking flag is false, do nothing
             {
-                LOG_verbose << "[MegaClient::readmiscflags] No JourneyId found -> set tracking to false";
-                mJourneyId->setValue("");
+                if (!journeyIdFound &&
+                    trackJourneyId()) // If there is no value or tracking flag is false, do nothing
+                {
+                    LOG_verbose << "[MegaClient::readmiscflags] No JourneyId found -> set tracking "
+                                   "to false";
+                    mJourneyId->setValue("");
+                }
+                auto flagValue = mFeatureFlags.get("site");
+                const auto& targetURL = (flagValue && *flagValue == 1) ? MegaClient::MEGAURL_APP :
+                                                                         MegaClient::MEGAURL_NZ;
+                if (getMegaURL() != targetURL)
+                {
+                    setMegaURL(targetURL);
+                }
+                return API_OK;
             }
-            return API_OK;
         default:
             if (fieldName.rfind("ab_", 0) == 0) // Starting with "ab_"
             {
@@ -11104,10 +11117,6 @@ error MegaClient::readmiscflags(JSON *json)
                 int64_t value = json->getint();
                 if (value >= 0)
                 {
-                    if (tag == "site" && value == 1)
-                    {
-                        setMegaURL("https://mega.app");
-                    }
                     mFeatureFlags.set(tag, static_cast<uint32_t>(value));
                 }
                 else
