@@ -19879,6 +19879,28 @@ class MegaApi
         bool setLanguage(const char* languageCode);
 
         /**
+         * @brief Enables or disables database indexes used for search functionality.
+         *
+         * To optimize performance for applications that do not require search operations,
+         * it is possible to disable specific database indexes that are only used for search
+         * queries. This can reduce database overhead in apps where search is not used (S4).
+         *
+         * @note By default, this option is enabled (`true`).
+         *
+         * @note This method must be called before login and fetchnodes and its value is not reset
+         * upon logout. If indexes already exist, they will be removed when the database is opened.
+         * If indexes has been removed or never created, they won't be created
+         *
+         * @param enable Set to `true` to enable indexes for search functionality, or `false` to
+         * disable them.
+         * @return
+         * - `API_OK`      - Operation completed successfully.
+         * - `API_EACCESS` - The operation could not be performed because the user is already logged
+         * in.
+         */
+        int enableSearchDBIndexes(bool enable);
+
+        /**
          * @brief Generate an unique ViewID
          *
          * The caller gets the ownership of the object. Use delete[] to release the memory.

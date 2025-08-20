@@ -1751,6 +1751,18 @@ void NodeManager::initCompleted()
     initCompleted_internal();
 }
 
+void NodeManager::dropSearchDBIndexes()
+{
+    assert(mNodeNotify.empty());
+    if (!mTable || mNodesInRam > 0)
+    {
+        LOG_err << "DB isn't opened yet or nodes has been already loaded";
+        return;
+    }
+
+    mTable->dropSearchDBIndexes();
+}
+
 std::shared_ptr<Node> NodeManager::getNodeFromNodeManagerNode(NodeManagerNode& nodeManagerNode)
 {
     LockGuard g(mMutex);
@@ -1821,7 +1833,7 @@ void NodeManager::initCompleted_internal()
         }
     }
 
-    mTable->createIndexes();
+    mTable->createIndexes(mClient.mEnableSearchDBIndexes);
     mInitialized = true;
 }
 
@@ -2020,7 +2032,7 @@ void NodeManager::dumpNodes_internal()
         }
     }
 
-    mTable->createIndexes();
+    mTable->createIndexes(mClient.mEnableSearchDBIndexes);
     mInitialized = true;
 }
 

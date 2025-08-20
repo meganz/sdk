@@ -4333,6 +4333,11 @@ bool MegaApi::setLanguage(const char *languageCode)
     return pImpl->setLanguage(languageCode);
 }
 
+int MegaApi::enableSearchDBIndexes(bool enable)
+{
+    return pImpl->enableSearchDBIndexes(enable);
+}
+
 const char* MegaApi::generateViewId()
 {
     return strdup(pImpl->generateViewId().c_str());

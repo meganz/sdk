@@ -12750,6 +12750,18 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
     return client->setlang(&code);
 }
 
+int MegaApiImpl::enableSearchDBIndexes(bool enable)
+{
+    if (client->loggedin() != sessiontype_t::NOTLOGGEDIN)
+    {
+        LOG_warn << "This method should be called before login";
+        return API_EACCESS;
+    }
+
+    client->enableSearchDBIndexes(enable);
+    return API_OK;
+}
+
 string MegaApiImpl::generateViewId()
 {
     return MegaClient::generateViewId(client->rng);

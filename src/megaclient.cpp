@@ -826,6 +826,16 @@ bool MegaClient::setlang(string *code)
     return false;
 }
 
+void MegaClient::enableSearchDBIndexes(bool enable)
+{
+    mEnableSearchDBIndexes = enable;
+}
+
+void MegaClient::dropSearchDBIndexes()
+{
+    mNodeManager.dropSearchDBIndexes();
+}
+
 // -- MegaClient JourneyID methods --
 string MegaClient::getJourneyId() const
 {
@@ -12054,6 +12064,10 @@ void MegaClient::opensctable()
                 DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
                 assert(nodeTable);
                 mNodeManager.setTable(nodeTable);
+                if (!mEnableSearchDBIndexes)
+                {
+                    mNodeManager.dropSearchDBIndexes();
+                }
 
                 // DB connection always has a transaction started (applies to both tables, statecache and nodes)
                 // We only commit once we have an up to date SCSN and the table state matches it.
