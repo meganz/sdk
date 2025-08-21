@@ -12,10 +12,7 @@ namespace fuse
 namespace platform
 {
 
-constexpr auto MaxMountNameLength =
-  FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(wchar_t);
-
-constexpr auto MaxNameLength = 32u;
+constexpr auto MaxMountNameLength = 32u;
 
 constexpr auto MaxVolumePrefixLength =
   FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(wchar_t);

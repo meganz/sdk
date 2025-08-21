@@ -15,7 +15,7 @@ namespace fuse
 namespace testing
 {
 
-using platform::MaxNameLength;
+using platform::MaxMountNameLength;
 
 TEST_F(FUSEMountTests, add_fails_when_name_contains_illegal_characters)
 {
@@ -40,7 +40,7 @@ TEST_F(FUSEMountTests, add_fails_when_name_is_too_long)
     MountInfo info;
 
     info.mHandle = ClientW()->handle("/x/s");
-    info.mFlags.mName = std::string(MaxNameLength + 1, 'a');
+    info.mFlags.mName = std::string(MaxMountNameLength + 1, 'a');
 
     auto observer = ClientW()->mountEventObserver();
 
@@ -78,7 +78,7 @@ TEST_F(FUSEMountTests, enable_succeeds_with_long_name)
     MountInfo info;
 
     info.mHandle = ClientW()->handle("/x/s");
-    info.mFlags.mName = std::string(MaxNameLength, 'a');
+    info.mFlags.mName = std::string(MaxMountNameLength, 'a');
 
     auto observer = ClientW()->mountEventObserver();
 

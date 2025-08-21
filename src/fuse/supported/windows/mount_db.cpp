@@ -36,9 +36,9 @@ MountResult MountDB::check(const Client& client,
         return MOUNT_BACKEND_UNAVAILABLE;
 
     // Make sure the mount's name is within limits.
-    if (name.size() > MaxNameLength)
+    if (name.size() > MaxMountNameLength)
     {
-        FUSEErrorF("Name too long: %s (%lu > %lu)", name.c_str(), name.size(), MaxNameLength);
+        FUSEErrorF("Name too long: %s (%lu > %lu)", name.c_str(), name.size(), MaxMountNameLength);
 
         return MOUNT_NAME_TOO_LONG;
     }
