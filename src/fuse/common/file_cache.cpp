@@ -160,6 +160,10 @@ FileCache::FileCache(platform::ServiceContext& context)
     FUSEDebug1("File Cache constructed");
 
     ensureCachePathExists(client(), mCachePath);
+
+    // Prevent others, especially file explorer, from opening files under the folder, generating
+    // thumbnail while we're running. We have seen we're blocked to open files forever due to this.
+    WINDOWS_ONLY(mFolderLocker = platform::FolderLocker{mCachePath.asPlatformEncoded(true)});
 }
 
 FileCache::~FileCache()
@@ -407,6 +411,7 @@ LocalPath FileCache::path(const FileExtension& extension, InodeID id) const
 
     path.appendWithSeparator(name, false);
     path.append(LocalPath::fromRelativePath(extension));
+    // path.append(LocalPath::fromRelativePath(".3b7a"));
 
     return path;
 }
