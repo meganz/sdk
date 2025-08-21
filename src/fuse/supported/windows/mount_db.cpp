@@ -35,20 +35,10 @@ MountResult MountDB::check(const Client& client,
     if (FspLoad(nullptr) != STATUS_SUCCESS)
         return MOUNT_BACKEND_UNAVAILABLE;
 
-    // Assume path isn't suitable for a network device.
-    auto maxNameLength = MaxMountNameLength;
-
-    // Path's suitable for mounting as a network device.
-    if (path.empty() || path.isRootPath())
-        maxNameLength = MaxVolumePrefixLength - UNCPrefix.size();
-
     // Make sure the mount's name is within limits.
-    if (name.size() > maxNameLength)
+    if (name.size() > MaxNameLength)
     {
-        FUSEErrorF("Name too long: %s (%lu > %lu)",
-                   name.c_str(),
-                   name.size(),
-                   maxNameLength);
+        FUSEErrorF("Name too long: %s (%lu > %lu)", name.c_str(), name.size(), MaxNameLength);
 
         return MOUNT_NAME_TOO_LONG;
     }
