@@ -48,6 +48,7 @@
 #include "treeproc.h"
 #include "user.h"
 #include "useralerts.h"
+#include "wsupload.h"
 
 // FUSE support.
 #include <mega/common/client_adapter.h>
@@ -521,6 +522,8 @@ struct DynamicMessageNotification
 
 class MEGA_API MegaClient
 {
+    std::unique_ptr<ws::UploadEngine> m_wsEngine;
+
 public:
     // own identity
     handle me;
@@ -568,7 +571,15 @@ private:
     // Pro Flexi plan is enabled
     bool mProFlexi = false;
 public:
-    bool isProFlexi() const { return mProFlexi; }
+    bool isProFlexi() const
+    {
+        return mProFlexi;
+    }
+
+    ws::UploadEngine* wsEngine() const
+    {
+        return m_wsEngine.get();
+    }
 
     Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 

@@ -347,6 +347,13 @@ target_sources_conditional(SDKlib
     src/impl/tcp_context_pool.cpp
 )
 
+target_sources_conditional(SDKlib
+    FLAG MEGA_USE_WSUPLOAD
+    PRIVATE
+    include/mega/wsupload.h
+    src/transfer/ws/wsupload.cpp
+)
+
 # Include directories
 target_include_directories(SDKlib
     PUBLIC
@@ -386,6 +393,11 @@ target_compile_definitions(SDKlib
     $<$<PLATFORM_ID:Android>:USE_POLL>
     $<$<PLATFORM_ID:Android>:USE_INOTIFY>
     $<$<PLATFORM_ID:Android>:HAVE_SDK_CONFIG_H>
+)
+
+target_compile_definitions(SDKlib
+    PRIVATE
+    $<$<BOOL:${MEGA_USE_WSUPLOAD}>:MEGA_USE_WSUPLOAD>
 )
 
 set_target_properties(SDKlib PROPERTIES

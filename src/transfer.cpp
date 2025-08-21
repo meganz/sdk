@@ -2844,6 +2844,15 @@ void TransferList::addtransfer(Transfer *transfer, TransferDbCommitter& committe
         assert(it == transfers[transfer->type].end() || it->transfer->priority != transfer->priority);
         transfers[transfer->type].insert(it, transfer);
     }
+
+    if (transfer->type == PUT)
+    {
+#ifdef MEGA_USE_WSUPLOAD
+        transfer->channel = Transfer::Channel::WebSocket;
+        if (client->wsEngine())
+            client->wsEngine()->enqueue(*transfer);
+#endif
+    }
 }
 
 void TransferList::removetransfer(Transfer *transfer)
@@ -2851,6 +2860,10 @@ void TransferList::removetransfer(Transfer *transfer)
     transfer_list::iterator it;
     if (getIterator(transfer, it, true))
     {
+#ifdef MEGA_USE_WSUPLOAD
+        if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine())
+            client->wsEngine()->remove(*transfer);
+#endif
         transfers[transfer->type].erase(it);
     }
 }
@@ -2979,6 +2992,15 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     transfers[transfer->type].insert(fit, transfer);
     client->transfercacheadd(transfer, &committer);
     client->app->transfer_update(transfer);
+
+#ifdef MEGA_USE_WSUPLOAD
+    if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine())
+    {
+        // resolve the 'before' Transfer* depending on the method:
+        Transfer* before = fit->transfer; /* compute per method, or nullptr for end */
+        client->wsEngine()->reposition(*transfer, before);
+    }
+#endif
 }
 
 void TransferList::movetofirst(Transfer *transfer, TransferDbCommitter& committer)
@@ -3077,6 +3099,14 @@ error TransferList::pause(Transfer *transfer, bool enable, TransferDbCommitter& 
         if (getIterator(transfer, it))
         {
             prepareIncreasePriority(transfer, it, it, committer);
+#ifdef MEGA_USE_WSUPLOAD
+            if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine())
+            {
+                client->wsEngine()->unpause(*transfer);
+                // ToDo: check where the transfer-state moves to TRANSFERSTATE_ACTIVE and should
+                // really be unpaused
+            }
+#endif
         }
 
         client->transfercacheadd(transfer, &committer);
@@ -3098,6 +3128,12 @@ error TransferList::pause(Transfer *transfer, bool enable, TransferDbCommitter& 
             transfer->slot = NULL;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
+#ifdef MEGA_USE_WSUPLOAD
+        if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine())
+        {
+            client->wsEngine()->pause(*transfer);
+        }
+#endif
         client->transfercacheadd(transfer, &committer);
         client->app->transfer_update(transfer);
         return API_OK;

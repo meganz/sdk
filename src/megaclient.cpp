@@ -2160,6 +2160,12 @@ MegaClient::MegaClient(MegaApp* a,
 
     // Initialize filters in the streaming parser for action packets
     scStreamingParser.init();
+
+#ifdef MEGA_USE_WSUPLOAD
+    m_wsEngine.reset(new ws::UploadEngine(*this));
+    if (ws::wsEnabled(*this))
+        m_wsEngine->start();
+#endif
 }
 
 MegaClient::~MegaClient()
@@ -4528,6 +4534,20 @@ void MegaClient::dispatchTransfers()
             // verify that a local path was given and start/resume transfer
             if (!nexttransfer->localfilename.empty())
             {
+#ifdef MEGA_USE_WSUPLOAD
+                if (nexttransfer->type == PUT &&
+                    nexttransfer->channel == Transfer::Channel::WebSocket)
+                {
+                    // WS engine handles starts; we only give it a nudge for later FA/back-pressure
+                    // logic
+                    if (wsEngine())
+                        wsEngine()->kick();
+                    continue; // do not create TransferSlot/HttpReq for WS PUT
+
+                    // ToDo: connect / add fa / thumbnail generation etcc
+                    // ToDo: should we move this code elsewhere?
+                }
+#endif
                 TransferSlot *ts = nullptr;
 
                 if (!nexttransfer->slot)
@@ -6510,6 +6530,7 @@ void MegaClient::activatefa()
 // has the limit of concurrent transfer tslots been reached?
 bool MegaClient::slotavail() const
 {
+    // ToDo: include wsuploads here!!!
     return !mBlocked && tslots.size() < MAXTOTALTRANSFERS;
 }
 

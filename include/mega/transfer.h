@@ -34,6 +34,11 @@ namespace mega
 {
 using namespace std::literals;
 
+namespace ws
+{
+class UploadEngine;
+}
+
 // helper class for categorizing transfers for upload/download queues
 struct TransferCategory
 {
@@ -153,6 +158,18 @@ struct MEGA_API Transfer : public FileFingerprint
     // backlink to base
     MegaClient* client;
     int tag;
+
+    // Websockets or legacy
+    enum class Channel
+    {
+        LegacyHTTP,
+        WebSocket
+    };
+    Channel channel = Channel::LegacyHTTP;
+
+    // WebSocket composition (PUT only)
+    // (No ownership cycles: engine keeps no owning ptrs to Transfer)
+    // std::unique_ptr<ws::UploadFile> lives inside engine; Transfer only tracks channel.
 
     void setProgresscompleted(const m_off_t p, const bool append = false);
 
