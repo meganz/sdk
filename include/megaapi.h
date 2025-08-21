@@ -12224,6 +12224,7 @@ class MegaApi
         /**
          * @deprecated Use the signature without the \c password parameter
          */
+        MEGA_DEPRECATED
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
 
         /**
