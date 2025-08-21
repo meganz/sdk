@@ -17929,8 +17929,11 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
     transfer->setTransferredBytes(tr->size);
     transfer->setPriority(tr->priority);
     transfer->setDeltaSize(deltaSize);
-    transfer->setSpeed(tr->slot ? tr->slot->speed : 0);
-    transfer->setMeanSpeed(tr->slot ? tr->slot->meanSpeed : 0);
+    if (tr->slot)
+    {
+        transfer->setSpeed(tr->slot->speed);
+        transfer->setMeanSpeed(tr->slot->meanSpeed);
+    }
 
     if (tr->type == GET)
     {
