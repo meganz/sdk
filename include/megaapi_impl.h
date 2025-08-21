@@ -3693,7 +3693,7 @@ class MegaApiImpl : public MegaApp
         void cancelCreateAccount(MegaRequestListener* listener = NULL);
         void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
-        void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
+        void confirmAccount(const char* link, MegaRequestListener* listener = NULL);
         void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
         void queryRecoveryLink(const char *link, MegaRequestListener *listener = NULL);
         void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);

@@ -2502,9 +2502,16 @@ void MegaApi::querySignupLink(const char* link, MegaRequestListener *listener)
     pImpl->querySignupLink(link, listener);
 }
 
-void MegaApi::confirmAccount(const char* link, const char *password, MegaRequestListener *listener)
+void MegaApi::confirmAccount(const char* link, MegaRequestListener* listener)
 {
-    pImpl->confirmAccount(link, password, listener);
+    pImpl->confirmAccount(link, listener);
+}
+
+void MegaApi::confirmAccount(const char* link,
+                             const char* /*password*/,
+                             MegaRequestListener* listener)
+{
+    pImpl->confirmAccount(link, listener);
 }
 
 void MegaApi::resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener)
