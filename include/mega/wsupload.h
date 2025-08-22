@@ -36,11 +36,12 @@ public:
     void pause(Transfer& t);
     void unpause(Transfer& t);
     void remove(Transfer& t);
+    bool isUploading(Transfer& t) const;
 
     // Hint the engine that conditions may have changed (e.g. FA queue).
     void kick();
 
-    struct Impl; // PImpl keeps heavy includes out of headers
+    struct Impl; // pImpl keeps heavy includes out of headers
 
 private:
     std::unique_ptr<Impl> pImpl;
