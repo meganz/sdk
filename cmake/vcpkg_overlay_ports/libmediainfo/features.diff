@@ -1,83 +1,74 @@
 diff --git a/Project/CMake/CMakeLists.txt b/Project/CMake/CMakeLists.txt
-index 6c0eb058e..96f2016ba 100644
+index 6c0eb05..1f1def9 100644
 --- a/Project/CMake/CMakeLists.txt
 +++ b/Project/CMake/CMakeLists.txt
-@@ -387,6 +387,65 @@ endif()
+@@ -387,6 +387,69 @@ endif()
  
  # disable some features. Maybe it should be enabled.
  target_compile_definitions(mediainfo PRIVATE MEDIAINFO_LIBMMS_NO PRIVATE MEDIAINFO_GRAPHVIZ_NO)
++# Flags in order as defined in configure.ac.
 +target_compile_definitions(mediainfo
 +  PRIVATE
-+  MEDIAINFO_MINIMIZESIZE
++  # Global flags
 +  MEDIAINFO_MINIMAL_YES
-+  MEDIAINFO_CONFORMANCE_YES # Required for MEDIAINFO_MINIMAL_YES
++  MEDIAINFO_CONFORMANCE_YES # Bug in the minimal configuration.
++  MEDIAINFO_ADVANCED_YES # Disabled in the minimal configuration, needed at leat for the mp3.
 +  MEDIAINFO_ARCHIVE_NO
 +  MEDIAINFO_IMAGE_NO
-+  MEDIAINFO_TAG_NO
-+  MEDIAINFO_SWF_NO
-+  MEDIAINFO_FLV_NO
-+  MEDIAINFO_HDSF4M_NO
-+  MEDIAINFO_CDXA_NO
-+  MEDIAINFO_DPG_NO
-+  MEDIAINFO_PMP_NO
-+  MEDIAINFO_RM_NO
-+  MEDIAINFO_WTV_NO
-+  MEDIAINFO_MXF_NO
-+  MEDIAINFO_DCP_NO
-+  MEDIAINFO_AAF_NO
++  MEDIAINFO_TEXT_NO
++
++  # Disable all tag except the id3
++  MEDIAINFO_APETAG_NO
++  MEDIAINFO_ICC_NO
++  MEDIAINFO_LYRICS3_NO
++  MEDIAINFO_LYRICS3V2_NO
++  MEDIAINFO_PROPERTYLIST_NO
++  MEDIAINFO_SPHERICALVIDEO_NO
++  MEDIAINFO_VORBISCOM_NO
++  MEDIAINFO_XMP_NO
++
++  # Disable some "Multiple" formats
++  MEDIAINFO_ANCILLARY_NO
 +  MEDIAINFO_BDAV_NO
 +  MEDIAINFO_BDMV_NO
-+  MEDIAINFO_DVDV_NO
-+  MEDIAINFO_GXF_NO
-+  MEDIAINFO_MIXML_NO
-+  MEDIAINFO_SKM_NO
-+  MEDIAINFO_NUT_NO
-+  MEDIAINFO_TSP_NO
-+  MEDIAINFO_HLS_NO
-+  MEDIAINFO_DXW_NO
-+  MEDIAINFO_DVDIF_NO
++  MEDIAINFO_CDXA_NO
 +  MEDIAINFO_DASHMPD_NO
++  MEDIAINFO_DCP_NO
++  MEDIAINFO_DPG_NO
++  MEDIAINFO_REFERENCES_NO
++  MEDIAINFO_DVDIF_NO
++  MEDIAINFO_DVDV_NO
++  MEDIAINFO_DXW_NO
++  MEDIAINFO_FLV_NO
++  MEDIAINFO_GXF_NO
++  MEDIAINFO_HDSF4M_NO
++  MEDIAINFO_HLS_NO
++  MEDIAINFO_MIXML_NO
++  MEDIAINFO_MXF_NO
++  MEDIAINFO_NUT_NO
++  MEDIAINFO_PMP_NO
++  MEDIAINFO_SKM_NO
++  MEDIAINFO_SWF_NO
++  MEDIAINFO_VBI_NO
++
++  # Disable some "Video" formats
 +  MEDIAINFO_AIC_NO
 +  MEDIAINFO_AVSV_NO
 +  MEDIAINFO_CANOPUS_NO
 +  MEDIAINFO_FFV1_NO
 +  MEDIAINFO_FLIC_NO
 +  MEDIAINFO_HUFFYUV_NO
-+  MEDIAINFO_PRORES_NO
++  MEDIAINFO_VC3_NO
 +  MEDIAINFO_Y4M_NO
++
++  # Disable some "Audio" formats
++  MEDIAINFO_ADIF_NO
 +  MEDIAINFO_ADPCM_NO
-+  MEDIAINFO_AMR_NO
-+  MEDIAINFO_AMV_NO
-+  MEDIAINFO_APE_NO
-+  MEDIAINFO_AU_NO
-+  MEDIAINFO_LA_NO
 +  MEDIAINFO_CELT_NO
-+  MEDIAINFO_MIDI_NO
-+  MEDIAINFO_MPC_NO
-+  MEDIAINFO_OPENMG_NO
-+  MEDIAINFO_PCM_NO
-+  MEDIAINFO_SMPTEST0337_NO # Required for MEDIAINFO_PCM_NO
++  MEDIAINFO_DAT_NO
 +  MEDIAINFO_PS2A_NO
-+  MEDIAINFO_RKAU_NO
-+  MEDIAINFO_SPEEX_NO
-+  MEDIAINFO_TAK_NO
 +  MEDIAINFO_TTA_NO
-+  MEDIAINFO_TWINVQ_NO
-+  MEDIAINFO_REFERENCES_NO
 +)
  if(NOT CURL_FOUND)
    target_compile_definitions(mediainfo PRIVATE MEDIAINFO_LIBCURL_NO)
  else()
-diff --git a/Source/MediaInfo/Multiple/File_MpegTs.cpp b/Source/MediaInfo/Multiple/File_MpegTs.cpp
-index 06a0055e7..e2acbf326 100644
---- a/Source/MediaInfo/Multiple/File_MpegTs.cpp
-+++ b/Source/MediaInfo/Multiple/File_MpegTs.cpp
-@@ -81,7 +81,7 @@ static const char* Scte128_tag (int8u tag)
-     const size_t BDAV_Size=0;
- #endif
- #if !defined(MEDIAINFO_TSP_YES)
--    const size_t TSP_Size=0;
-+    size_t TSP_Size=0;
- #endif
- #if !defined(MEDIAINFO_BDAV_YES) && !defined(MEDIAINFO_TSP_YES)
-     const size_t TS_Size=188;
