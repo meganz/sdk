@@ -53,6 +53,10 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
         return false;
     }
 
+    if (lhs.mac != rhs.mac) {
+      return false;
+    }
+
     return !memcmp(lhs.crc.data(), rhs.crc.data(), sizeof lhs.crc);
 }
 
@@ -115,6 +119,7 @@ FileFingerprint::FileFingerprint(const FileFingerprint& other)
 : size{other.size}
 , mtime{other.mtime}
 , crc(other.crc)
+, mac(other.mac)
 , isvalid{other.isvalid}
 {}
 
@@ -125,7 +130,15 @@ FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
     mtime = other.mtime;
     crc = other.crc;
     isvalid = other.isvalid;
+    mac = other.mac;
     return *this;
+}
+
+// dummy mac generator
+// TODO(chai) use openssl library to generate real MAC value.
+int FileFingerprint::genMAC(const string& content, const string& key) {
+  mac = (int) content[0] + (int) key[0];
+  return mac;
 }
 
 bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
