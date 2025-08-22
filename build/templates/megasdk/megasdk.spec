@@ -9,6 +9,7 @@ Source0:	megasdk_%{version}.tar.gz
 Vendor:		MEGA Limited
 Packager:	MEGA Linux Team <linux@mega.co.nz>
 
+%global __requires_exclude ^lib(avcodec|avformat|avutil|swresample|swscale)\\.so\\.
 
 BuildRequires: autoconf, autoconf-archive, automake, libtool, gcc-c++
 BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
@@ -34,7 +35,6 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
     BuildRequires: pkgconf-pkg-config
 %endif
 
-
 #OpenSUSE
 %if 0%{?suse_version} || 0%{?sle_version}
     # disabling post-build-checks that ocassionally prevent opensuse rpms from being generated
@@ -59,6 +59,12 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
         Requires: qt5-qtbase >= 5.6, qt5-qtsvg, qt5-qtdeclarative, qqc2-desktop-style, qt5-qtquickcontrols, qt5-qtquickcontrols2
     %endif
 %endif
+
+# RHEL/CentOS/Alma/Rocky/Oracle >= 9: allow $ORIGIN
+%if (0%{?rhel} >= 9) || (0%{?rhel_version} >= 900) || (0%{?centos_version} >= 900)
+    %define __brp_check_rpaths QA_RPATHS=$(( 0x0002|0x0008 )) /usr/lib/rpm/check-rpaths
+%endif
+
 
 %description
 This SDK brings you all the power of our client applications and let you create
