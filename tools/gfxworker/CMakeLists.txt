@@ -55,6 +55,11 @@ target_platform_compile_options(
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
+target_arch_compile_options(
+    TARGET libgfxworker
+    ARM -mno-unaligned-access
+)
+
 if(ENABLE_SDKLIB_WERROR)
     target_platform_compile_options(
         TARGET libgfxworker
@@ -78,6 +83,11 @@ target_platform_compile_options(
     WINDOWS /W4
             /we4800 # Implicit conversion from 'type' to bool. Possible information loss
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
+)
+
+target_arch_compile_options(
+    TARGET gfxworker
+    ARM -mno-unaligned-access
 )
 
 if(ENABLE_SDKLIB_WERROR)

@@ -15,6 +15,11 @@ target_platform_compile_options(
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
+target_arch_compile_options(
+    TARGET megacli
+    ARM -mno-unaligned-access
+)
+
 if(ENABLE_SDKLIB_WERROR)
     target_platform_compile_options(
         TARGET megacli

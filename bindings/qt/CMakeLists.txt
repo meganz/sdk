@@ -43,6 +43,11 @@ target_platform_compile_options(
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
+target_arch_compile_options(
+    TARGET SDKQtBindings
+    ARM -mno-unaligned-access
+)
+
 if(ENABLE_CHATLIB_WERROR)
     target_platform_compile_options(
         TARGET SDKQtBindings
