@@ -1739,6 +1739,8 @@ private:
     std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
 
+    bool isFirstScChunk = true;
+
     int mPendingCatchUps = 0;
     bool mReceivingCatchUp = false;
 
