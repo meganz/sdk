@@ -66,6 +66,9 @@
 #include "mega/utils.h"
 #include "mega/waiter.h"
 
+#include "mega/increment_packet.h"
+#include "mega/file_smart_upload.h"
+
 // target-specific headers
 #include "mega/thread/posixthread.h"
 #include "mega/thread/cppthread.h"
