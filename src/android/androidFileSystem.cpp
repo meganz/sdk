@@ -939,12 +939,8 @@ bool AndroidFileAccess::fwrite(const void* buffer,
     // Write failures are not retriable on POSIX systems.
     *cretry = false;
 
-    // Couldn't set the file's position.
-    if (lseek64(fd, offset, SEEK_SET) < 0)
-        return false;
-
     // Try and perform the write.
-    auto result = write(fd, buffer, offset);
+    auto result = pwrite(fd, buffer, length, offset);
 
     // Couldn't perform the write.
     if (result < 0)
@@ -1057,12 +1053,8 @@ bool AndroidFileAccess::sysread(void* buffer, unsigned long length, m_off_t offs
     // Reads are never retriable on POSIX systems.
     *cretry = false;
 
-    // Couldn't set the file's position.
-    if (lseek64(fd, offset, SEEK_SET) < 0)
-        return false;
-
     // Perform the read.
-    auto result = read(fd, buffer, length);
+    auto result = pread(fd, buffer, length, offset);
 
     // Read failed.
     if (result < 0)
