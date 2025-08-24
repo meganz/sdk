@@ -10,6 +10,8 @@
 #include <mega/fuse/platform/utility.h>
 #include <mega/fuse/platform/windows.h>
 
+#include <optional>
+
 template<typename T>
 using IsNativeInfoLike =
   mega::common::IsOneOf<T,
@@ -95,6 +97,12 @@ struct FindHandleDeleter
     }
 }; // FindHandleDeleter
 
+struct VolumeInfo
+{
+    std::string mVolumeName;
+    std::string mFilesystemName;
+}; // VolumeInfo
+
 using FindHandle = platform::Handle<FindHandleDeleter>;
 
 bool operator==(const FileTimes& lhs, const FileTimes& rhs);
@@ -128,6 +136,8 @@ BOOL GetFileInformationByPath(const Path& path,
 platform::SecurityDescriptor GetFileSecurityP(const Path& path);
 
 long GetLastError();
+
+std::optional<VolumeInfo> GetVolumeInformationByPath(const Path& path);
 
 BOOL MoveFileExP(const Path& source, const Path& target, DWORD flags);
 

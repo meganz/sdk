@@ -396,6 +396,22 @@ TEST_P(FUSEPlatformTests, get_file_security_succeeds)
     EXPECT_EQ(toString(computed), expected);
 }
 
+TEST_P(FUSEPlatformTests, get_volume_information_succeeds)
+{
+    auto info = GetVolumeInformationByPath(MountPathW());
+    EXPECT_TRUE(info);
+    EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
+
+    if (HasFailure())
+        return;
+
+    EXPECT_EQ(info->mFilesystemName, "WinFsp");
+
+    using ::testing::StrCaseEq;
+
+    EXPECT_THAT(info->mVolumeName, StrCaseEq("s"));
+}
+
 TEST_P(FUSEPlatformTests, move_fails_when_below_file)
 {
     EXPECT_FALSE(MoveFileExP(MountPathW() / "sd0",
