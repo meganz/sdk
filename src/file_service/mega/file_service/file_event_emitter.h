@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/file_service/file_event_emitter_forward.h>
 #include <mega/file_service/file_event_forward.h>
 #include <mega/file_service/file_event_observer.h>
 #include <mega/file_service/file_event_observer_id.h>
@@ -15,12 +16,15 @@ namespace file_service
 class FileEventEmitter
 {
     // Convenience.
-    using FileEventObserverMap = std::map<FileEventObserverID, FileEventObserver>;
+    using FileEventObserverMap = std::map<std::uint64_t, FileEventObserver>;
+
+    // Next available observer ID.
+    std::uint64_t mNextID = 0u;
 
     // Who should we notify when an event is emitted?
     FileEventObserverMap mObservers;
 
-    // Serializes access to mObservers.
+    // Serializes access to mNextID and mObservers.
     std::recursive_mutex mObserversLock;
 
 protected:

@@ -34,7 +34,7 @@ auto FileService::addObserver(FileEventObserver observer)
     if (mContext)
         return mContext->addObserver(std::move(observer));
 
-    return FILE_SERVICE_UNINITIALIZED;
+    return unexpected(FILE_SERVICE_UNINITIALIZED);
 }
 
 auto FileService::create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>

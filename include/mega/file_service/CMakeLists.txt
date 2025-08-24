@@ -5,6 +5,7 @@ target_sources(SDKlib PRIVATE
                       file_context_forward.h
                       file_context_pointer.h
                       file_event.h
+                      file_event_emitter_forward.h
                       file_event_forward.h
                       file_event_observer.h
                       file_event_observer_id.h
