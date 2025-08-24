@@ -9,6 +9,8 @@ target_sources(SDKlib PRIVATE
                       file_event_forward.h
                       file_event_observer.h
                       file_event_observer_id.h
+                      file_event_observer_result.h
+                      file_event_observer_result_forward.h
                       file_flush_event.h
                       file_flush_event_forward.h
                       file_forward.h

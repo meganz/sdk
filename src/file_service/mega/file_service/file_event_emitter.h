@@ -25,7 +25,7 @@ class FileEventEmitter
     FileEventObserverMap mObservers;
 
     // Serializes access to mNextID and mObservers.
-    std::recursive_mutex mObserversLock;
+    std::mutex mObserversLock;
 
 protected:
     FileEventEmitter() = default;

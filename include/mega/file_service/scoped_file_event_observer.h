@@ -3,6 +3,7 @@
 #include <mega/common/expected_forward.h>
 #include <mega/file_service/file_event_observer.h>
 #include <mega/file_service/file_event_observer_id.h>
+#include <mega/file_service/file_event_observer_result.h>
 #include <mega/file_service/file_event_vector.h>
 #include <mega/file_service/type_traits.h>
 
@@ -85,6 +86,8 @@ class ScopedFileEventObserver
             [this](auto& event)
             {
                 mEvents.emplace_back(event);
+
+                return FILE_EVENT_OBSERVER_KEEP;
             }));
     }
 

@@ -1,5 +1,6 @@
 #include <mega/file_service/file_event.h>
 #include <mega/file_service/file_event_emitter.h>
+#include <mega/file_service/file_event_observer_result.h>
 
 #include <cassert>
 
@@ -32,7 +33,11 @@ void FileEventEmitter::notify(const FileEvent& event)
         auto j = i++;
 
         // Transmit event to our observer.
-        j->second(event);
+        auto result = j->second(event);
+
+        // Observer wants to be removed.
+        if (result == FILE_EVENT_OBSERVER_REMOVE)
+            mObservers.erase(j);
     }
 }
 
