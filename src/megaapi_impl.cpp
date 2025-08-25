@@ -7867,11 +7867,10 @@ void MegaApiImpl::resendSignupLink(const char *email, const char *name, MegaRequ
     waiter->notify();
 }
 
-void MegaApiImpl::confirmAccount(const char* link, const char *password, MegaRequestListener *listener)
+void MegaApiImpl::confirmAccount(const char* link, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
     request->setLink(link);
-    request->setPassword(password);
 
     request->performRequest = [this, request]()
     {
@@ -22613,9 +22612,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
 error MegaApiImpl::performRequest_confirmAccount(MegaRequestPrivate* request)
 {
             const char* link = request->getLink();
-            const char* password = request->getPassword();
-
-            if (!link || !password)
+            if (!link)
             {
                 return API_EARGS;
             }

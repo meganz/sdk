@@ -224,7 +224,7 @@ void SdkTestCreateAccount::doCreateAccountTest(const std::string& testName, int 
         initialConn.resetlastEvent();
 
         // Use confirmation link
-        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(1, conformLink.c_str(), origTestPwd));
+        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(1, conformLink.c_str()));
 
         // check for event triggered by 'uec' action packet received after the confirmation
         EXPECT_TRUE(WaitFor(
