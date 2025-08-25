@@ -175,6 +175,9 @@ if(ENABLE_SDKLIB_TESTS)
     add_subdirectory(tests)
 endif()
 
+## Load common utilities.
+add_subdirectory(src/common)
+
 ## Load File Service support.
 add_subdirectory(src/file_service)
 
