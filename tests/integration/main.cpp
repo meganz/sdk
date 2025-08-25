@@ -584,7 +584,7 @@ int main (int argc, char *argv[])
     if (argVals.isMainProcWithWorkers())
     {
         // Don't run tests, only manage subprocesses.
-        // To get here run with --INSTANCES:2 [--EMAIL-POOL:foo+bar-{1-28}@mega.nz]
+        // To get here run with --INSTANCES:2 [--EMAIL-POOL:foo+bar-{1-28}@mega.io]
         // If --EMAIL-POOL runtime arg is missing, email template will be taken from MEGA_EMAIL env var.
         // Password for all emails built from template will be taken from MEGA_PWD env var.
         // If it did not get an email template, it'll use 1 single subprocess with the existing env vars.

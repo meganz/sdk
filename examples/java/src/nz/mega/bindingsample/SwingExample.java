@@ -6,9 +6,7 @@
  * Created: 2015-04-30 Sergio Hernández Sánchez <shs@mega.co.nz>
  * Changed:
  *
- * (c) 2015 by Mega Limited, Auckland, New Zealand
- *     https://mega.nz/
- *     Simplified (2-clause) BSD License.
+ * (c) Simplified (2-clause) BSD License.
  *
  * You should have received a copy of the license along with this
  * program.
@@ -62,7 +60,7 @@ public class SwingExample extends JFrame implements MegaRequestListenerInterface
 
     /**
      * Mega SDK application key.
-     * Generate one for free here: https://mega.nz/#sdk
+     * Generate one for free here: https://mega.io/developers
      */
     static final String APP_KEY = "YYJwAIRI";
     

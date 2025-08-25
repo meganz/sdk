@@ -11099,11 +11099,11 @@ class MegaApi
          * this method will return API_EACCESS.
          *
          * If the client is not logged in, there won't be any session to transfer, but this method will still
-         * return the https://mega.nz/#<path>.
+         * return the URL followed by /#<path>.
          *
-         * @param path Path inside https://mega.nz/# that we want to open with the current session
+         * @param path Path inside the URL that we want to open with the current session
          *
-         * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+         * For example, if you want to open the upgrade page, the parameter of this function should be "pro".
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -15412,7 +15412,6 @@ class MegaApi
          *
          * With the master key, it's possible to start the recovery of an account when the
          * password is lost:
-         * - https://mega.nz/#recovery
          * - MegaApi::resetPassword()
          *
          * You take ownership of the returned value. Use delete[] to release the memory.

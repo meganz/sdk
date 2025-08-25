@@ -816,9 +816,9 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 * is MEGAErrorTypeApiOk:
 * - [MEGARequest link] - URL to open the desired page with the same account
 *
-* @param url URL inside https://mega.nz/# that we want to open with the current session
+* @param url Path inside the URL that we want to open with the current session
 *
-* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+* For example, if you want to open the upgrade page, the parameter of this function should be "pro".
 *
 * @param delegate MEGARequestDelegate to track this request
 */
@@ -832,9 +832,9 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 * is MEGAErrorTypeApiOk:
 * - [MEGARequest link] - URL to open the desired page with the same account
 *
-* @param url URL inside https://mega.nz/# that we want to open with the current session
+* @param url Path inside the URL that we want to open with the current session
 *
-* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+* For example, if you want to open the upgrade page, the parameter of this function should be "pro".
 */
 - (void)getSessionTransferURL:(NSString *)path;
 
