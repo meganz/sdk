@@ -1,8 +1,8 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/path.h>
 #include <mega/fuse/common/testing/client.h>
-#include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/model.h>
 #include <mega/fuse/common/testing/utility.h>
 #include <mega/fuse/platform/date_time.h>

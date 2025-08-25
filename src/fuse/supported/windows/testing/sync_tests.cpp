@@ -1,5 +1,5 @@
+#include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/directory.h>
-#include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/sync_tests.h>
 
 namespace mega

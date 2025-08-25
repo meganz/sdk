@@ -1,19 +1,21 @@
 #include "mega.h"
 
 #include <mega/common/error_or.h>
+#include <mega/common/testing/cloud_path.h>
 #include <mega/common/utility.h>
 #include <mega/db/sqlite.h>
 #include <mega/fuse/common/logging.h>
-#include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/real_client.h>
-#include <mega/gfx.h>
 #include <mega/log_level.h>
 #include <mega/logging.h>
 #include <tests/integration/test.h>
 
+// clang-format off
+#include "megawaiter.h"
+// clang-format on
+
 #include <chrono>
 #include <future>
-#include <memory>
 #include <utility>
 
 namespace mega

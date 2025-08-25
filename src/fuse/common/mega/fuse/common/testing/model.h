@@ -1,9 +1,9 @@
 #pragma once
 
 #include <mega/common/node_info_forward.h>
+#include <mega/common/testing/cloud_path_forward.h>
 #include <mega/common/testing/path_forward.h>
 #include <mega/fuse/common/testing/client_forward.h>
-#include <mega/fuse/common/testing/cloud_path_forward.h>
 #include <mega/fuse/common/testing/model_forward.h>
 #include <mega/fuse/platform/date_time.h>
 #include <tests/stdfs.h>
@@ -178,7 +178,7 @@ public:
     static auto file(const std::string& name) -> FileNodePtr;
 
     // Build a model based on the contents of the cloud.
-    static Model from(const Client& client, CloudPath path);
+    static Model from(const Client& client, common::testing::CloudPath path);
 
     // Build a model based on the contents of path.
     static Model from(const common::testing::Path& path);

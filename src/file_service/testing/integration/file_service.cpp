@@ -1,5 +1,6 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/file.h>
 #include <mega/common/testing/path.h>
 #include <mega/common/utility.h>
@@ -28,7 +29,6 @@
 #include <mega/file_service/source.h>
 #include <mega/file_service/testing/integration/scoped_file_event_observer.h>
 #include <mega/fuse/common/testing/client.h>
-#include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/common/testing/utility.h>
 

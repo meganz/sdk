@@ -170,12 +170,12 @@ public:
 
     // Share a directory with another user.
     Error share(const std::string& email,
-                CloudPath path,
+                common::testing::CloudPath path,
                 accesslevel_t permissions) override;
 
     // Check if a directory has already been shared with the specified user.
     bool shared(const std::string& email,
-                CloudPath path,
+                common::testing::CloudPath path,
                 accesslevel_t permissions) const override;
 
     // Specify whether files should be versioned.

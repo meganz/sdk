@@ -8,6 +8,7 @@
 #include <mega/common/partial_download_callback_forward.h>
 #include <mega/common/partial_download_forward.h>
 #include <mega/common/task_queue_forward.h>
+#include <mega/common/testing/cloud_path_forward.h>
 #include <mega/common/testing/path.h>
 #include <mega/common/upload_callbacks.h>
 #include <mega/common/upload_forward.h>
@@ -26,7 +27,6 @@
 #include <mega/fuse/common/mount_result_forward.h>
 #include <mega/fuse/common/service_forward.h>
 #include <mega/fuse/common/testing/client_forward.h>
-#include <mega/fuse/common/testing/cloud_path_forward.h>
 #include <mega/fuse/common/testing/mount_event_observer_forward.h>
 #include <mega/types.h>
 
@@ -157,7 +157,7 @@ public:
     MountResult addMount(const MountInfo& info);
 
     // Retrieve the names of this node's children.
-    common::ErrorOr<std::set<std::string>> childNames(CloudPath path) const;
+    common::ErrorOr<std::set<std::string>> childNames(common::testing::CloudPath path) const;
 
     // Is the specified user a contact?
     virtual auto contact(const std::string& email) const -> ContactPtr = 0;
@@ -194,36 +194,39 @@ public:
     auto fileInfo(file_service::FileID id) const
         -> file_service::FileServiceResultOr<file_service::FileInfo>;
 
-    auto fileInfo(CloudPath path) const
+    auto fileInfo(common::testing::CloudPath path) const
         -> file_service::FileServiceResultOr<file_service::FileInfo>;
 
     // Open a file managed by the File Service.
     auto fileOpen(file_service::FileID id) const
         -> file_service::FileServiceResultOr<file_service::File>;
 
-    auto fileOpen(CloudPath parentPath, const std::string& name) const
+    auto fileOpen(common::testing::CloudPath parentPath, const std::string& name) const
         -> file_service::FileServiceResultOr<file_service::File>;
 
-    auto fileOpen(CloudPath path) const -> file_service::FileServiceResultOr<file_service::File>;
+    auto fileOpen(common::testing::CloudPath path) const
+        -> file_service::FileServiceResultOr<file_service::File>;
 
     // Determine what ranges of a file we have in storage.
     auto fileRanges(file_service::FileID id) const
         -> file_service::FileServiceResultOr<file_service::FileRangeVector>;
 
-    auto fileRanges(CloudPath path) const
+    auto fileRanges(common::testing::CloudPath path) const
         -> file_service::FileServiceResultOr<file_service::FileRangeVector>;
 
     // Get our hands on the client's FileService interface.
     virtual file_service::FileService& fileService() const = 0;
 
     // Retrieve information about a specific child.
-    common::ErrorOr<common::NodeInfo> get(CloudPath parentPath, const std::string& name) const;
+    common::ErrorOr<common::NodeInfo> get(common::testing::CloudPath parentPath,
+                                          const std::string& name) const;
 
     // Retrieve information about a node.
-    common::ErrorOr<common::NodeInfo> get(CloudPath path) const;
+    common::ErrorOr<common::NodeInfo> get(common::testing::CloudPath path) const;
 
     // Query what a child's node handle is.
-    common::ErrorOr<NodeHandle> handle(CloudPath parentPath, const std::string& name) const;
+    common::ErrorOr<NodeHandle> handle(common::testing::CloudPath parentPath,
+                                       const std::string& name) const;
 
     // Retrieve the handle of the node at the specified path.
     common::ErrorOr<NodeHandle> handle(const std::string& path) const;
@@ -257,7 +260,8 @@ public:
     virtual Error logout(bool keepSession) = 0;
 
     // Create a directory in the cloud.
-    common::ErrorOr<NodeHandle> makeDirectory(const std::string& name, CloudPath parent);
+    common::ErrorOr<NodeHandle> makeDirectory(const std::string& name,
+                                              common::testing::CloudPath parent);
 
     // Return a reference to a new mount event observer.
     MountEventObserverPtr mountEventObserver();
@@ -282,12 +286,12 @@ public:
 
     // Move a node in the cloud.
     Error move(const std::string& name,
-               CloudPath source,
-               CloudPath target);
+               common::testing::CloudPath source,
+               common::testing::CloudPath target);
 
     // Download part of a file from the cloud.
     auto partialDownload(common::PartialDownloadCallback& callback,
-                         CloudPath path,
+                         common::testing::CloudPath path,
                          std::uint64_t offset,
                          std::uint64_t length) -> common::ErrorOr<common::PartialDownloadPtr>;
 
@@ -295,10 +299,10 @@ public:
     virtual Error reload() = 0;
 
     // Remove a node in the cloud.
-    Error remove(CloudPath path);
+    Error remove(common::testing::CloudPath path);
 
     // Remove all children beneath the specified node.
-    Error removeAll(CloudPath path);
+    Error removeAll(common::testing::CloudPath path);
 
     // Remove a mount from the database.
     MountResult removeMount(const std::string& name);
@@ -307,7 +311,7 @@ public:
     MountResult removeMounts(bool disable);
 
     // Replace a node in the cloud.
-    Error replace(CloudPath source, CloudPath target);
+    Error replace(common::testing::CloudPath source, common::testing::CloudPath target);
 
     // Retrieve the handle of the root node.
     virtual NodeHandle rootHandle() const = 0;
@@ -323,12 +327,12 @@ public:
 
     // Share a directory with another user.
     virtual Error share(const std::string& email,
-                        CloudPath path,
+                        common::testing::CloudPath path,
                         accesslevel_t permissions) = 0;
 
     // Check if a directory has already been shared with the specified user.
     virtual bool shared(const std::string& email,
-                        CloudPath path,
+                        common::testing::CloudPath path,
                         accesslevel_t permissions) const = 0;
 
     // Retrieve storage statistics from the cloud.
@@ -338,19 +342,20 @@ public:
     const common::testing::Path& storagePath() const;
 
     // Synchronize a local tree against some location in the cloud.
-    auto synchronize(const common::testing::Path& path, CloudPath target)
+    auto synchronize(const common::testing::Path& path, common::testing::CloudPath target)
         -> std::tuple<::mega::handle, Error, SyncError>;
 
     // Upload a directory tree or file to the cloud.
     common::ErrorOr<NodeHandle> upload(const std::string& name,
-                                       CloudPath parent,
+                                       common::testing::CloudPath parent,
                                        const common::testing::Path& path);
 
     common::ErrorOr<NodeHandle> upload(const std::string& content,
                                        const std::string& name,
-                                       CloudPath parent);
+                                       common::testing::CloudPath parent);
 
-    common::ErrorOr<NodeHandle> upload(CloudPath parent, const common::testing::Path& path);
+    common::ErrorOr<NodeHandle> upload(common::testing::CloudPath parent,
+                                       const common::testing::Path& path);
 
     // Specify whether files should be versioned.
     virtual void useVersioning(bool useVersioning) = 0;

@@ -3,13 +3,13 @@
 
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/file.h>
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/testing/client.h>
-#include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/mount_event_observer.h>
 #include <mega/fuse/common/testing/printers.h>
 #include <mega/fuse/common/testing/test_base.h>

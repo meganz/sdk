@@ -2,7 +2,7 @@
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
@@ -10,6 +10,5 @@ namespace testing
 class CloudPath;
 
 } // testing
-} // fuse
+} // common
 } // mega
-
