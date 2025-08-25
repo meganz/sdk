@@ -1,22 +1,17 @@
-#include <fstream>
-
-#include <mega/fuse/common/testing/file.h>
-
+#include <mega/common/testing/file.h>
 #include <mega/logging.h>
+
+#include <fstream>
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
 
-using namespace common::testing;
-
-File::File(const std::string& content,
-           const std::string& name,
-           const Path& parentPath)
-  : mPath(parentPath.path() / fs::u8path(name))
+File::File(const std::string& content, const std::string& name, const Path& parentPath):
+    mPath(parentPath.path() / fs::u8path(name))
 {
     std::ofstream ostream;
 
@@ -27,18 +22,15 @@ File::File(const std::string& content,
     ostream.open(mPath.string(), std::ios::binary | std::ios::trunc);
 
     // Write data to the file.
-    ostream.write(content.data(),
-                  static_cast<std::streamsize>(content.size()));
+    ostream.write(content.data(), static_cast<std::streamsize>(content.size()));
 
     // Flush content to disk.
     ostream.flush();
 }
 
-File::File(const std::string& content,
-           const std::string& name)
-  : File(content, name, fs::current_path())
-{
-}
+File::File(const std::string& content, const std::string& name):
+    File(content, name, fs::current_path())
+{}
 
 File::~File()
 {
@@ -50,8 +42,7 @@ File::~File()
     if (!error)
         return;
 
-    LOG_warn << "Unable to remove file at: "
-             << mPath.localPath();
+    LOG_warn << "Unable to remove file at: " << mPath.localPath();
 }
 
 const Path& File::path() const
@@ -62,4 +53,3 @@ const Path& File::path() const
 } // testing
 } // fuse
 } // mega
-

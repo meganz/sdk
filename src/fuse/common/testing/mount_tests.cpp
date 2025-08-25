@@ -1,6 +1,7 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
 #include <mega/common/testing/directory.h>
+#include <mega/common/testing/file.h>
 #include <mega/common/testing/path.h>
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_event_type.h>
@@ -8,7 +9,6 @@
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
-#include <mega/fuse/common/testing/file.h>
 #include <mega/fuse/common/testing/mount_event_observer.h>
 #include <mega/fuse/common/testing/mount_tests.h>
 #include <mega/fuse/common/testing/utility.h>
@@ -21,7 +21,9 @@ namespace fuse
 namespace testing
 {
 
-using namespace common::testing;
+using common::testing::Directory;
+using common::testing::File;
+using common::testing::Path;
 
 TEST_F(FUSEMountTests, add_fails_when_name_isnt_specified)
 {

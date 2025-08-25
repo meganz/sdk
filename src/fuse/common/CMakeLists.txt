@@ -130,7 +130,6 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_INC}/client.h
                                 ${FUSE_COMMON_TESTING_INC}/cloud_path.h
                                 ${FUSE_COMMON_TESTING_INC}/cloud_path_forward.h
-                                ${FUSE_COMMON_TESTING_INC}/file.h
                                 ${FUSE_COMMON_TESTING_INC}/mock_client.h
                                 ${FUSE_COMMON_TESTING_INC}/model.h
                                 ${FUSE_COMMON_TESTING_INC}/model_forward.h
@@ -149,7 +148,6 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_SRC}/client.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/cloud_path.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/common_tests.cpp
-                                ${FUSE_COMMON_TESTING_SRC}/file.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/mock_client.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/model.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/mount_event_observer.cpp

@@ -1,11 +1,11 @@
 #include <mega/common/error_or.h>
 #include <mega/common/partial_download.h>
 #include <mega/common/partial_download_callback.h>
+#include <mega/common/testing/file.h>
 #include <mega/common/testing/path.h>
 #include <mega/common/utility.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
-#include <mega/fuse/common/testing/file.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/common/testing/utility.h>
 #include <mega/logging.h>
@@ -104,6 +104,8 @@ static std::uint64_t operator""_MiB(unsigned long long value);
 std::string FUSEPartialDownloadTests::mFileContent;
 
 NodeHandle FUSEPartialDownloadTests::mFileHandle;
+
+using common::testing::File;
 
 TEST_F(FUSEPartialDownloadTests, DISABLED_measure_average_fetch_times)
 {

@@ -1,6 +1,7 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
 #include <mega/common/normalized_path.h>
+#include <mega/common/testing/file.h>
 #include <mega/common/upload.h>
 #include <mega/common/utility.h>
 #include <mega/file_service/file.h>
@@ -18,7 +19,6 @@
 #include <mega/fuse/common/service.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
-#include <mega/fuse/common/testing/file.h>
 #include <mega/fuse/common/testing/mount_event_observer.h>
 #include <mega/fuse/common/testing/utility.h>
 #include <tests/integration/env_var_accounts.h>
@@ -35,8 +35,9 @@ namespace fuse
 namespace testing
 {
 
+using common::testing::File;
+using common::testing::Path;
 using namespace common;
-using namespace common::testing;
 using namespace file_service;
 
 class Client::Uploader
