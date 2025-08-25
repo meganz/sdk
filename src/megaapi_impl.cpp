@@ -22531,6 +22531,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
             const char* ptr = link;
             const char* tptr;
 
+            // is it a link to confirm the account? ie. https://mega.app/#confirm<code_in_B64>
             tptr = strstr(ptr, MegaClient::confirmLinkPrefix());
             if (tptr)
             {
@@ -22564,6 +22565,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
                     }
                 }
             }
+            // is it a new singup link? ie. https://mega.app/#newsignup<code_in_B64>
             else if ((tptr = strstr(ptr, MegaClient::newsignupLinkPrefix())) != nullptr)
             {
                 ptr = tptr + strlen(MegaClient::newsignupLinkPrefix());
