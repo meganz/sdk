@@ -1785,10 +1785,9 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
- * @param password Password for the account.
  * @param delegate Delegate to track this request.
  */
-- (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+- (void)confirmAccountWithLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Confirm a MEGA account using a confirmation link and the user password.
@@ -1816,9 +1815,8 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
- * @param password Password for the account.
  */
-- (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password;
+- (void)confirmAccountWithLink:(NSString *)link;
 
 /**
  * @brief Initialize the reset of the existing password, with and without the Master Key.
