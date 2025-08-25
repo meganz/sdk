@@ -13,7 +13,9 @@ class MockClient
   : public Client
 {
 public:
-    MockClient(const std::string& clientName, const Path& databasePath, const Path& storagePath);
+    MockClient(const std::string& clientName,
+               const common::testing::Path& databasePath,
+               const common::testing::Path& storagePath);
 
     ~MockClient();
 }; // MockClient

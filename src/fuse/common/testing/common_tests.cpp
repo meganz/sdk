@@ -27,12 +27,13 @@ namespace fuse
 namespace testing
 {
 
-using namespace common;
-
 struct FUSECommonTests
   : TestBase
 {
 }; // FUSECommonTests
+
+using namespace common;
+using namespace common::testing;
 
 static handle fsidOf(const Path& path);
 
@@ -662,14 +663,14 @@ TEST_F(FUSECommonTests, adds_thumbnails_to_images)
             const auto h = ClientW()->handle(imagePath);
 
             // File isn't in the cloud.
-            if (h.isUndef())
+            if (!h)
                 return false;
 
             // File doesn't have expected attributes.
-            if (!ClientW()->hasFileAttribute(h, THUMBNAIL))
+            if (!ClientW()->hasFileAttribute(*h, THUMBNAIL))
                 return false;
 
-            if (!ClientW()->hasFileAttribute(h, PREVIEW))
+            if (!ClientW()->hasFileAttribute(*h, PREVIEW))
                 return false;
 
             return true;

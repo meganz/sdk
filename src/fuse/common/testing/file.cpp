@@ -11,6 +11,8 @@ namespace fuse
 namespace testing
 {
 
+using namespace common::testing;
+
 File::File(const std::string& content,
            const std::string& name,
            const Path& parentPath)

@@ -16,6 +16,7 @@ namespace testing
 {
 
 using namespace common;
+using namespace common::testing;
 
 TEST_F(FUSEMountTests, add_fails_when_target_is_unknown)
 {

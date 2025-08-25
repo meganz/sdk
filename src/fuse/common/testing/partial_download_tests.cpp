@@ -1,11 +1,11 @@
 #include <mega/common/error_or.h>
 #include <mega/common/partial_download.h>
 #include <mega/common/partial_download_callback.h>
+#include <mega/common/testing/path.h>
 #include <mega/common/utility.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/file.h>
-#include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/common/testing/utility.h>
 #include <mega/logging.h>

@@ -1,18 +1,17 @@
 #pragma once
 
+#include <mega/common/node_info_forward.h>
+#include <mega/common/testing/path_forward.h>
+#include <mega/fuse/common/testing/client_forward.h>
+#include <mega/fuse/common/testing/cloud_path_forward.h>
+#include <mega/fuse/common/testing/model_forward.h>
+#include <mega/fuse/platform/date_time.h>
+#include <tests/stdfs.h>
+
 #include <chrono>
 #include <map>
 #include <memory>
 #include <string>
-
-#include <mega/common/node_info_forward.h>
-#include <mega/fuse/common/testing/client_forward.h>
-#include <mega/fuse/common/testing/cloud_path_forward.h>
-#include <mega/fuse/common/testing/model_forward.h>
-#include <mega/fuse/common/testing/path_forward.h>
-#include <mega/fuse/platform/date_time.h>
-
-#include <tests/stdfs.h>
 
 namespace mega
 {
@@ -182,7 +181,7 @@ public:
     static Model from(const Client& client, CloudPath path);
 
     // Build a model based on the contents of path.
-    static Model from(const Path& path);
+    static Model from(const common::testing::Path& path);
 
     // Generate a model.
     static Model generate(const std::string& prefix,
@@ -199,7 +198,7 @@ public:
     bool match(const Model& rhs) const;
 
     // Populate path with the contents of this model.
-    void populate(const Path& path) const;
+    void populate(const common::testing::Path& path) const;
 
     // Remove a node from the model.
     auto remove(const std::string& path) -> NodePtr;

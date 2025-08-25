@@ -36,6 +36,7 @@ namespace testing
 {
 
 using namespace common;
+using namespace common::testing;
 using namespace file_service;
 
 class Client::Uploader

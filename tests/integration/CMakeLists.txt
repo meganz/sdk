@@ -72,6 +72,7 @@ target_link_libraries(test_integration
 target_include_directories(test_integration
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}
 )
 
 # Adjust compilation flags for warnings and errors

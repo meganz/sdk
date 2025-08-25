@@ -126,17 +126,6 @@ endif()
 set(FUSE_COMMON_TESTING_INC ${FUSE_COMMON_SRC}/mega/fuse/common/testing)
 set(FUSE_COMMON_TESTING_SRC ${FUSE_COMMON_SRC}/testing)
 
-# Assume we're not building using the legacy scripts.
-set(SDK_SOURCE_DIR ${PROJECT_SOURCE_DIR})
-
-# We are building using the legacy scripts.
-if (TARGET Mega)
-    set(SDK_SOURCE_DIR ${MegaDir})
-endif()
-
-target_include_directories(test_integration PRIVATE ${SDK_SOURCE_DIR})
-target_include_directories(test_unit PRIVATE ${SDK_SOURCE_DIR})
-
 target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_INC}/client.h
                                 ${FUSE_COMMON_TESTING_INC}/cloud_path.h
@@ -151,8 +140,6 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_INC}/mount_tests.h
                                 ${FUSE_COMMON_TESTING_INC}/parameters.h
                                 ${FUSE_COMMON_TESTING_INC}/parameters_forward.h
-                                ${FUSE_COMMON_TESTING_INC}/path.h
-                                ${FUSE_COMMON_TESTING_INC}/path_forward.h
                                 ${FUSE_COMMON_TESTING_INC}/printers.h
                                 ${FUSE_COMMON_TESTING_INC}/real_client.h
                                 ${FUSE_COMMON_TESTING_INC}/sync_tests.h
@@ -171,7 +158,6 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_SRC}/mount_tests.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/parameters.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/partial_download_tests.cpp
-                                ${FUSE_COMMON_TESTING_SRC}/path.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/printers.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/real_client.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/test.cpp

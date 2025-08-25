@@ -1,7 +1,6 @@
 #pragma once
 
-#include <mega/fuse/common/testing/path.h>
-
+#include <mega/common/testing/path.h>
 #include <tests/stdfs.h>
 
 namespace mega
@@ -13,19 +12,19 @@ namespace testing
 
 class File
 {
-    Path mPath;
+    common::testing::Path mPath;
 
 public:
     File(const std::string& content,
          const std::string& name,
-         const Path& parentPath);
+         const common::testing::Path& parentPath);
 
     File(const std::string& content,
          const std::string& name);
 
     ~File();
 
-    const Path& path() const;
+    const common::testing::Path& path() const;
 }; // File
 
 } // testing

@@ -7,6 +7,8 @@ namespace fuse
 namespace testing
 {
 
+using namespace common::testing;
+
 MockClient::MockClient(const std::string& clientName,
                        const Path& databasePath,
                        const Path& storagePath):

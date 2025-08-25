@@ -1,5 +1,6 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/testing/path.h>
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
@@ -19,6 +20,8 @@ namespace fuse
 {
 namespace testing
 {
+
+using namespace common::testing;
 
 TEST_F(FUSEMountTests, add_fails_when_name_isnt_specified)
 {

@@ -16,6 +16,8 @@ namespace fuse
 namespace testing
 {
 
+using namespace common::testing;
+
 bool TestBase::DoSetUp(const Parameters& parameters)
 {
     // Make sure the basic stuff is up and running.

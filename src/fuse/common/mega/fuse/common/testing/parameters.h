@@ -1,11 +1,11 @@
 #pragma once
 
-#include <iosfwd>
-#include <string>
-
+#include <mega/common/testing/path_forward.h>
 #include <mega/fuse/common/testing/client_forward.h>
 #include <mega/fuse/common/testing/parameters_forward.h>
-#include <mega/fuse/common/testing/path_forward.h>
+
+#include <iosfwd>
+#include <string>
 
 namespace mega
 {
@@ -28,7 +28,7 @@ struct Parameters
 
     struct
     {
-        using Accessor = const Path& (*)();
+        using Accessor = const common::testing::Path& (*)();
 
         Accessor mObserver;
         Accessor mReadOnly;

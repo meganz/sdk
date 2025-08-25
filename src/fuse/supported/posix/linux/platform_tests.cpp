@@ -14,6 +14,8 @@ namespace fuse
 namespace testing
 {
 
+using namespace common::testing;
+
 using platform::FileDescriptor;
 
 static int futimesat(const FileDescriptor& descriptor,

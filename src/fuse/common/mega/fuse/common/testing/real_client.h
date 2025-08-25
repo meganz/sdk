@@ -119,7 +119,9 @@ class RealClient
     std::unique_ptr<GfxProc> mGfxProc;
 
 public:
-    RealClient(const std::string& clientName, const Path& databasePath, const Path& storagePath);
+    RealClient(const std::string& clientName,
+               const common::testing::Path& databasePath,
+               const common::testing::Path& storagePath);
 
     ~RealClient();
 

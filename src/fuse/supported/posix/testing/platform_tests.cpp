@@ -31,6 +31,8 @@ namespace testing
 #define O_PATH O_RDONLY
 #endif // !HAS_OPEN_PATH
 
+using namespace common::testing;
+
 TEST_P(FUSEPlatformTests, access_at_fails_when_below_file)
 {
     auto sf0 = open(MountPathW() / "sf0", O_PATH);

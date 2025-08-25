@@ -1,15 +1,14 @@
+#include <mega/common/testing/path.h>
+#include <mega/fuse/common/logging.h>
+#include <mega/fuse/platform/testing/directory_monitor.h>
+#include <mega/fuse/platform/testing/wrappers.h>
+#include <mega/fuse/platform/utility.h>
 #include <mega/fuse/platform/windows.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <functional>
-
-#include <mega/fuse/common/logging.h>
-#include <mega/fuse/common/testing/path.h>
-#include <mega/fuse/platform/testing/directory_monitor.h>
-#include <mega/fuse/platform/testing/wrappers.h>
-#include <mega/fuse/platform/utility.h>
 
 namespace mega
 {
@@ -18,6 +17,7 @@ namespace fuse
 namespace testing
 {
 
+using namespace common::testing;
 using namespace platform;
 
 constexpr auto BUFFER_LENGTH = 32768;

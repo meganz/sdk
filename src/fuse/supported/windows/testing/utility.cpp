@@ -1,9 +1,8 @@
-#include <mega/fuse/platform/windows.h>
-
-#include <mega/fuse/common/testing/path.h>
+#include <mega/common/testing/path.h>
 #include <mega/fuse/common/testing/utility.h>
 #include <mega/fuse/platform/date_time.h>
 #include <mega/fuse/platform/handle.h>
+#include <mega/fuse/platform/windows.h>
 
 namespace mega
 {
@@ -11,6 +10,8 @@ namespace fuse
 {
 namespace testing
 {
+
+using namespace common::testing;
 
 DateTime lastWriteTime(const Path& path, std::error_code& result)
 {

@@ -9,6 +9,8 @@ namespace fuse
 namespace testing
 {
 
+using namespace common::testing;
+
 Directory::Directory(const std::string& name,
                      const Path& parentPath)
   : mPath(parentPath.path() / fs::u8path(name))

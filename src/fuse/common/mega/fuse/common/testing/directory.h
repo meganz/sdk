@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
+#include <mega/common/testing/path.h>
 
-#include <mega/fuse/common/testing/path.h>
+#include <string>
 
 namespace mega
 {
@@ -13,17 +13,16 @@ namespace testing
 
 class Directory
 {
-    Path mPath;
+    common::testing::Path mPath;
 
 public:
-    Directory(const std::string& name,
-              const Path& parentPath);
+    Directory(const std::string& name, const common::testing::Path& parentPath);
 
     Directory(const std::string& name);
 
     ~Directory();
 
-    const Path& path() const;
+    const common::testing::Path& path() const;
 }; // Directory
 
 } // testing

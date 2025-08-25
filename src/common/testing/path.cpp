@@ -1,33 +1,29 @@
-#include <ostream>
+#include <mega/common/testing/path.h>
 
-#include <mega/fuse/common/testing/path.h>
+#include <ostream>
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
 
-Path::Path(const LocalPath& path)
-  : mPath(path.toPath(false))
-{
-}
+Path::Path(const LocalPath& path):
+    mPath(path.toPath(false))
+{}
 
-Path::Path(const fs::path& path)
-  : mPath(path)
-{
-}
+Path::Path(const fs::path& path):
+    mPath(path)
+{}
 
-Path::Path(const std::string& path)
-  : Path(fs::u8path(path))
-{
-}
+Path::Path(const std::string& path):
+    Path(fs::u8path(path))
+{}
 
-Path::Path(const char* path)
-  : Path(fs::u8path(path))
-{
-}
+Path::Path(const char* path):
+    Path(fs::u8path(path))
+{}
 
 Path& Path::operator/=(const Path& rhs)
 {
@@ -94,6 +90,5 @@ std::ostream& operator<<(std::ostream& ostream, const Path& path)
 }
 
 } // testing
-} // fuse
+} // common
 } // mega
-

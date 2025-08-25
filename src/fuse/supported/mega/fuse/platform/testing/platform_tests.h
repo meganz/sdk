@@ -25,11 +25,11 @@ struct FUSEPlatformTests
 
     #undef DEFINE_CLIENT_ACCESSOR
 
-    #define DEFINE_MOUNT_PATH_ACCESSOR(accessor, name) \
-        static const Path& MountPath##name() \
-        { \
-            return (*GetParam().mPaths.m##accessor)(); \
-        }
+#define DEFINE_MOUNT_PATH_ACCESSOR(accessor, name) \
+    static const common::testing::Path& MountPath##name() \
+    { \
+        return (*GetParam().mPaths.m##accessor)(); \
+    }
 
     DEFINE_MOUNT_PATH_ACCESSOR(Observer,  O);
     DEFINE_MOUNT_PATH_ACCESSOR(ReadOnly,  R);

@@ -1,15 +1,14 @@
 #pragma once
 
-#include <chrono>
-
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <mega/common/testing/path.h>
 #include <mega/fuse/common/testing/client_forward.h>
 #include <mega/fuse/common/testing/model.h>
 #include <mega/fuse/common/testing/parameters_forward.h>
-#include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/common/testing/watchdog.h>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include <chrono>
 
 namespace mega
 {
@@ -53,9 +52,8 @@ class Test
     // Convenience.
     using ClientPtrArray =
       std::array<ClientPtr, NUM_CLIENT_TYPES>;
-    
-    using PathArray =
-      std::array<Path, NUM_PATH_TYPES>;
+
+    using PathArray = std::array<common::testing::Path, NUM_PATH_TYPES>;
 
     // Regenerate cloud content if necessary.
     static Error regenerate(Client& client,
@@ -67,7 +65,7 @@ class Test
     static ClientPtrArray mClients;
 
     // Where will our clients put their databases?
-    static Path mDatabasePath;
+    static common::testing::Path mDatabasePath;
 
     // Expected contents of the cloud.
     static Model mModel;
@@ -79,7 +77,7 @@ class Test
     static PathArray mSentinelPaths;
 
     // Where will out clients put their local state?
-    static Path mStoragePath;
+    static common::testing::Path mStoragePath;
 
     // Makes sure our tests don't run forever.
     static Watchdog mWatchdog;
@@ -111,11 +109,11 @@ public:
     static ClientPtr CreateClient(const std::string& name);
 
     // Defines a path accesor method.
-    #define DEFINE_PATH_ACCESSOR(name, scope, slot) \
-        static const Path& scope##name() \
-        { \
-            return m##scope##s[(slot)]; \
-        }
+#define DEFINE_PATH_ACCESSOR(name, scope, slot) \
+    static const common::testing::Path& scope##name() \
+    { \
+        return m##scope##s[(slot)]; \
+    }
 
     // Define mount path accessors.
     DEFINE_PATH_ACCESSOR(O,  MountPath, PT_OBSERVER);
@@ -152,7 +150,7 @@ public:
     static const std::chrono::seconds mDefaultTimeout;
 
     // Where should we store temporary state?
-    static Path mScratchPath;
+    static common::testing::Path mScratchPath;
 }; // Test
 
 } // testing

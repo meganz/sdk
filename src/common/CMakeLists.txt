@@ -30,3 +30,7 @@ if(ENABLE_SYNC)
 else()
     target_sources(SDKlib PRIVATE client_adapter_without_sync.cpp)
 endif()
+
+if(TARGET test_integration)
+    add_subdirectory(testing)
+endif()

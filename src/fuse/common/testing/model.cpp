@@ -1,19 +1,18 @@
+#include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
+#include <mega/common/testing/path.h>
+#include <mega/fuse/common/testing/client.h>
+#include <mega/fuse/common/testing/cloud_path.h>
+#include <mega/fuse/common/testing/model.h>
+#include <mega/fuse/common/testing/utility.h>
+#include <mega/fuse/platform/date_time.h>
+#include <mega/logging.h>
+
 #include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <fstream>
 #include <stdexcept>
-
-#include <mega/common/error_or.h>
-#include <mega/common/node_info.h>
-#include <mega/fuse/common/testing/client.h>
-#include <mega/fuse/common/testing/cloud_path.h>
-#include <mega/fuse/common/testing/model.h>
-#include <mega/fuse/common/testing/path.h>
-#include <mega/fuse/common/testing/utility.h>
-#include <mega/fuse/platform/date_time.h>
-
-#include <mega/logging.h>
 
 namespace mega
 {
@@ -23,6 +22,7 @@ namespace testing
 {
 
 using namespace common;
+using namespace common::testing;
 
 static Model::DirectoryNodePtr generate(const std::string& prefix,
                                         std::size_t height,

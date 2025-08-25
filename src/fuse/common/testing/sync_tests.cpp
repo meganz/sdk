@@ -1,5 +1,6 @@
 #include <mega/common/error_or.h>
 #include <mega/common/normalized_path.h>
+#include <mega/common/testing/path.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_event_type.h>
@@ -8,7 +9,6 @@
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/directory.h>
 #include <mega/fuse/common/testing/mount_event_observer.h>
-#include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/common/testing/sync_tests.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/platform/platform.h>
@@ -19,6 +19,8 @@ namespace fuse
 {
 namespace testing
 {
+
+using namespace common::testing;
 
 TEST_F(FUSESyncTests, cant_mount_above_sync)
 {

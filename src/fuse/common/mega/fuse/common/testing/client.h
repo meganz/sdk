@@ -8,6 +8,7 @@
 #include <mega/common/partial_download_callback_forward.h>
 #include <mega/common/partial_download_forward.h>
 #include <mega/common/task_queue_forward.h>
+#include <mega/common/testing/path.h>
 #include <mega/common/upload_callbacks.h>
 #include <mega/common/upload_forward.h>
 #include <mega/file_service/file_forward.h>
@@ -27,7 +28,6 @@
 #include <mega/fuse/common/testing/client_forward.h>
 #include <mega/fuse/common/testing/cloud_path_forward.h>
 #include <mega/fuse/common/testing/mount_event_observer_forward.h>
-#include <mega/fuse/common/testing/path.h>
 #include <mega/types.h>
 
 #include <chrono>
@@ -64,7 +64,7 @@ class Client
     // Upload a file to the cloud.
     common::ErrorOr<NodeHandle> uploadFile(const std::string& name,
                                            NodeHandle parentHandle,
-                                           const Path& path);
+                                           const common::testing::Path& path);
 
     // Get our hands on the client's FUSE interface.
     virtual Service& service() const = 0;
@@ -85,7 +85,9 @@ class Client
     std::mutex mNodesCurrentLock;
 
 protected:
-    Client(const std::string& clientName, const Path& databasePath, const Path& storagePath);
+    Client(const std::string& clientName,
+           const common::testing::Path& databasePath,
+           const common::testing::Path& storagePath);
 
     // Called when a mount event has been emitted.
     void mountEvent(const MountEvent& event);
@@ -94,10 +96,10 @@ protected:
     void nodesCurrent(bool nodesCurrent);
 
     // Where should we create our databases?
-    const Path mDatabasePath;
+    const common::testing::Path mDatabasePath;
 
     // Where should we create our test files?
-    const Path mStoragePath;
+    const common::testing::Path mStoragePath;
 
 public:
     // Represents an individual contact.
@@ -161,7 +163,7 @@ public:
     virtual auto contact(const std::string& email) const -> ContactPtr = 0;
 
     // Describe the inode associated with the specified path.
-    common::ErrorOr<InodeInfo> describe(const Path& path) const;
+    common::ErrorOr<InodeInfo> describe(const common::testing::Path& path) const;
 
     // Remove a sync previously created with synchronize(...)
     void desynchronize(::mega::handle id);
@@ -236,7 +238,7 @@ public:
     virtual auto invited(const std::string& email) const -> InvitePtr = 0;
 
     // Check if a file is cached.
-    bool isCached(const Path& path) const;
+    bool isCached(const common::testing::Path& path) const;
 
     // Try and log the specified user in.
     virtual Error login(const std::string& email,
@@ -333,23 +335,22 @@ public:
     common::ErrorOr<StorageInfo> storageInfo();
 
     // Where are we storing our files
-    const Path& storagePath() const;
+    const common::testing::Path& storagePath() const;
 
     // Synchronize a local tree against some location in the cloud.
-    auto synchronize(const Path& path, CloudPath target)
-      -> std::tuple<::mega::handle, Error, SyncError>;
+    auto synchronize(const common::testing::Path& path, CloudPath target)
+        -> std::tuple<::mega::handle, Error, SyncError>;
 
     // Upload a directory tree or file to the cloud.
     common::ErrorOr<NodeHandle> upload(const std::string& name,
                                        CloudPath parent,
-                                       const Path& path);
+                                       const common::testing::Path& path);
 
     common::ErrorOr<NodeHandle> upload(const std::string& content,
                                        const std::string& name,
                                        CloudPath parent);
 
-    common::ErrorOr<NodeHandle> upload(CloudPath parent,
-                                       const Path& path);
+    common::ErrorOr<NodeHandle> upload(CloudPath parent, const common::testing::Path& path);
 
     // Specify whether files should be versioned.
     virtual void useVersioning(bool useVersioning) = 0;

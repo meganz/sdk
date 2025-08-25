@@ -1,15 +1,14 @@
-#include <fcntl.h>
-#include <unistd.h>
-
-#include <cstring>
-
 #include <mega/common/node_info.h>
+#include <mega/common/testing/path.h>
 #include <mega/fuse/common/constants.h>
 #include <mega/fuse/common/inode_info.h>
-#include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/platform/file_descriptor.h>
 #include <mega/fuse/platform/platform.h>
 #include <mega/fuse/platform/testing/wrappers.h>
+
+#include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
 
 bool operator==(const struct dirent& lhs, const struct dirent& rhs)
 {
@@ -94,6 +93,7 @@ template bool operator==(const common::NodeInfo&, const Stat&);
 namespace testing
 {
 
+using namespace common::testing;
 using namespace platform;
 
 int access(const Path& path, int mode)

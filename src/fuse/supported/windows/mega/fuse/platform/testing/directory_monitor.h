@@ -1,5 +1,8 @@
 #pragma once
 
+#include <mega/common/testing/path_forward.h>
+#include <mega/fuse/platform/handle.h>
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -7,9 +10,6 @@
 #include <memory>
 #include <mutex>
 #include <thread>
-
-#include <mega/fuse/common/testing/path_forward.h>
-#include <mega/fuse/platform/handle.h>
 
 namespace mega
 {
@@ -27,8 +27,8 @@ struct DirectoryEvent
                && mTo == rhs.mTo;
     }
 
-    Path mFrom;
-    Path mTo;
+    common::testing::Path mFrom;
+    common::testing::Path mTo;
     unsigned long mType;
 }; // DirectoryEvent
 
@@ -49,7 +49,7 @@ class DirectoryMonitor
     std::thread mWorker;
 
 public:
-    DirectoryMonitor(const Path& path);
+    DirectoryMonitor(const common::testing::Path& path);
 
     ~DirectoryMonitor();
 

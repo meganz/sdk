@@ -1,6 +1,6 @@
 #include <mega/common/node_info.h>
+#include <mega/common/testing/path.h>
 #include <mega/fuse/common/inode_info.h>
-#include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/platform/date_time.h>
 #include <mega/fuse/platform/handle.h>
 #include <mega/fuse/platform/local_pointer.h>
@@ -120,6 +120,8 @@ template bool operator==(const NodeInfo&,  const WIN32_FILE_ATTRIBUTE_DATA&);
 
 namespace testing
 {
+
+using namespace common::testing;
 
 bool operator==(const FileTimes& lhs, const FileTimes& rhs)
 {

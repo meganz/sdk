@@ -20,6 +20,8 @@ namespace fuse
 namespace testing
 {
 
+using namespace common::testing;
+
 Error Test::regenerate(Client& client,
                        Client& sharee,
                        const Model& model,

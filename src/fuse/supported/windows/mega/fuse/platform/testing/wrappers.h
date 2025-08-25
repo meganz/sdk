@@ -1,9 +1,9 @@
 #pragma once
 
 #include <mega/common/node_info_forward.h>
+#include <mega/common/testing/path_forward.h>
 #include <mega/common/type_traits.h>
 #include <mega/fuse/common/inode_info_forward.h>
-#include <mega/fuse/common/testing/path_forward.h>
 #include <mega/fuse/common/testing/utility.h>
 #include <mega/fuse/platform/handle_forward.h>
 #include <mega/fuse/platform/security_descriptor_forward.h>
@@ -109,10 +109,9 @@ bool operator==(const FileTimes& lhs, const FileTimes& rhs);
 
 bool operator!=(const FileTimes& lhs, const FileTimes& rhs);
 
-BOOL CreateDirectoryP(const Path& path,
-                      LPSECURITY_ATTRIBUTES securityAttributes);
+BOOL CreateDirectoryP(const common::testing::Path& path, LPSECURITY_ATTRIBUTES securityAttributes);
 
-platform::Handle<> CreateFileP(const Path& path,
+platform::Handle<> CreateFileP(const common::testing::Path& path,
                                DWORD desiredAccess,
                                DWORD shareMode,
                                LPSECURITY_ATTRIBUTES securityAttributes,
@@ -120,35 +119,36 @@ platform::Handle<> CreateFileP(const Path& path,
                                DWORD flagsAndAttributes,
                                const platform::Handle<>& templateFile);
 
-BOOL DeleteFileP(const Path& path);
+BOOL DeleteFileP(const common::testing::Path& path);
 
-FindHandle FindFirstFileP(const Path& path, LPWIN32_FIND_DATAW info);
+FindHandle FindFirstFileP(const common::testing::Path& path, LPWIN32_FIND_DATAW info);
 
-DWORD GetFileAttributesP(const Path& path);
+DWORD GetFileAttributesP(const common::testing::Path& path);
 
-BOOL GetFileAttributesExP(const Path& path,
+BOOL GetFileAttributesExP(const common::testing::Path& path,
                           GET_FILEEX_INFO_LEVELS level,
                           LPVOID info);
 
-BOOL GetFileInformationByPath(const Path& path,
-                              BY_HANDLE_FILE_INFORMATION& info);
+BOOL GetFileInformationByPath(const common::testing::Path& path, BY_HANDLE_FILE_INFORMATION& info);
 
-platform::SecurityDescriptor GetFileSecurityP(const Path& path);
+platform::SecurityDescriptor GetFileSecurityP(const common::testing::Path& path);
 
 long GetLastError();
 
-std::optional<VolumeInfo> GetVolumeInformationByPath(const Path& path);
+std::optional<VolumeInfo> GetVolumeInformationByPath(const common::testing::Path& path);
 
-BOOL MoveFileExP(const Path& source, const Path& target, DWORD flags);
+BOOL MoveFileExP(const common::testing::Path& source,
+                 const common::testing::Path& target,
+                 DWORD flags);
 
-BOOL RemoveDirectoryP(const Path& path);
+BOOL RemoveDirectoryP(const common::testing::Path& path);
 
-BOOL SetFileAttributesP(const Path& path, DWORD attributes);
+BOOL SetFileAttributesP(const common::testing::Path& path, DWORD attributes);
 
-BOOL SetFileSecurityP(const Path& path,
+BOOL SetFileSecurityP(const common::testing::Path& path,
                       const platform::SecurityDescriptor& descriptor);
 
-bool flushFile(const Path& path);
+bool flushFile(const common::testing::Path& path);
 
 } // testing
 } // fuse

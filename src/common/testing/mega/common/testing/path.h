@@ -1,16 +1,14 @@
 #pragma once
 
-#include <iosfwd>
-
-#include <mega/fuse/common/testing/path_forward.h>
-
+#include <mega/common/testing/path_forward.h>
 #include <mega/filesystem.h>
-
 #include <tests/stdfs.h>
+
+#include <iosfwd>
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
@@ -64,6 +62,5 @@ public:
 std::ostream& operator<<(std::ostream& ostream, const Path& path);
 
 } // testing
-} // fuse
+} // common
 } // mega
-

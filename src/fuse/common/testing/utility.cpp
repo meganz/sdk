@@ -1,18 +1,18 @@
-#include <chrono>
-#include <fstream>
-#include <sstream>
+#include "mega/base64.h"
+#include "mega/types.h"
 
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/testing/path.h>
 #include <mega/fuse/common/date_time.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/testing/client.h>
-#include <mega/fuse/common/testing/path.h>
 #include <mega/fuse/common/testing/utility.h>
 
-#include "mega/base64.h"
-#include "mega/types.h"
+#include <chrono>
+#include <fstream>
+#include <sstream>
 
 namespace mega
 {
@@ -22,6 +22,7 @@ namespace testing
 {
 
 using namespace common;
+using namespace common::testing;
 
 class StandardInputStream
   : public InputStreamAccess
