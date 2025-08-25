@@ -1,17 +1,17 @@
+#include "tests/integration/test.h"
+
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/testing/directory.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/testing/cloud_path.h>
-#include <mega/fuse/common/testing/directory.h>
 #include <mega/fuse/common/testing/model.h>
 #include <mega/fuse/common/testing/parameters.h>
 #include <mega/fuse/common/testing/real_client.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/common/testing/utility.h>
 #include <mega/fuse/platform/platform.h>
-
-#include "tests/integration/test.h"
 
 namespace mega
 {

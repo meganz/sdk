@@ -1,5 +1,5 @@
+#include <mega/common/testing/directory.h>
 #include <mega/fuse/common/testing/cloud_path.h>
-#include <mega/fuse/common/testing/directory.h>
 #include <mega/fuse/common/testing/sync_tests.h>
 
 namespace mega
@@ -8,6 +8,8 @@ namespace fuse
 {
 namespace testing
 {
+
+using namespace common::testing;
 
 TEST_F(FUSESyncTests, can_sync_when_an_empty_path_mount_is_on)
 {

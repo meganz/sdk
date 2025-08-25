@@ -5,5 +5,6 @@ target_include_directories(test_integration PRIVATE
 add_subdirectory(mega)
 
 target_sources(test_integration PRIVATE
+                                directory.cpp
                                 path.cpp
 )

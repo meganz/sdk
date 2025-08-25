@@ -6,26 +6,25 @@
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
 
 class Directory
 {
-    common::testing::Path mPath;
+    Path mPath;
 
 public:
-    Directory(const std::string& name, const common::testing::Path& parentPath);
+    Directory(const std::string& name, const Path& parentPath);
 
     Directory(const std::string& name);
 
     ~Directory();
 
-    const common::testing::Path& path() const;
+    const Path& path() const;
 }; // Directory
 
 } // testing
-} // fuse
+} // common
 } // mega
-

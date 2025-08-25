@@ -1,10 +1,10 @@
 #include <mega/common/error_or.h>
+#include <mega/common/testing/directory.h>
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/testing/client.h>
-#include <mega/fuse/common/testing/directory.h>
 #include <mega/fuse/common/testing/mount_event_observer.h>
 #include <mega/fuse/common/testing/mount_tests.h>
 #include <mega/fuse/platform/constants.h>

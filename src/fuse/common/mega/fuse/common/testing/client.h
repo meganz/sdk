@@ -143,7 +143,7 @@ public:
     // Convenience.
     using Clock = std::chrono::steady_clock;
     using ContactPtr = std::unique_ptr<Contact>;
-    using Handle = mega::handle;
+    using Handle = ::mega::handle;
     using InvitePtr = std::unique_ptr<Invite>;
 
     template<typename Rep, typename Period>
