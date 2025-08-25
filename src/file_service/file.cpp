@@ -71,7 +71,7 @@ FileInfo File::info() const
 
 void File::purge(FilePurgeCallback callback)
 {
-    return mContext->remove(FileRemoveRequest{std::move(callback), true});
+    return mContext->remove(FileRemoveRequest{std::move(callback), false, true});
 }
 
 FileRangeVector File::ranges() const
@@ -97,9 +97,9 @@ void File::reclaim(FileReclaimCallback callback)
     mContext->reclaim(std::move(callback));
 }
 
-void File::remove(FileRemoveCallback callback)
+void File::remove(FileRemoveCallback callback, bool replaced)
 {
-    mContext->remove(FileRemoveRequest{std::move(callback), false});
+    mContext->remove(FileRemoveRequest{std::move(callback), replaced, false});
 }
 
 void File::removeObserver(FileEventObserverID id)

@@ -152,6 +152,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Remove zero or more ranges from the database.
     void removeRanges(const FileRange& range, common::Transaction& transaction);
 
+    // Mark the file as removed.
+    FileResult setRemoved(bool replaced);
+
     // Decrease this file's size.
     auto shrink(std::uint64_t newSize, std::uint64_t oldSize)
         -> std::pair<common::UniqueLock<common::Database>, common::Transaction>;

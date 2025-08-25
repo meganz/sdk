@@ -68,7 +68,7 @@ public:
     // Remove the file.
     //
     // Like purge above but the cloud file is removed, too.
-    void remove(FileRemoveCallback callback);
+    void remove(FileRemoveCallback callback, bool replaced);
 
     // Remove a previously added observer.
     void removeObserver(FileEventObserverID id);

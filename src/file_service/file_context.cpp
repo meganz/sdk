@@ -32,7 +32,6 @@
 #include <mega/file_service/sparse_file_buffer.h>
 #include <mega/file_service/type_traits.h>
 #include <mega/filesystem.h>
-#include <mega/overloaded.h>
 
 #include <chrono>
 #include <iterator>
@@ -972,42 +971,21 @@ void FileContext::execute(FileRemoveRequest& request)
 
     // Convenience.
     auto handle = mInfo->handle();
+    auto replaced = request.mReplaced;
+    auto serviceOnly = request.mServiceOnly;
 
     // We only need to remove the file from the service.
-    if (handle.isUndef() || request.mServiceOnly)
-    {
-        // Convenience.
-        auto& database = mService.database();
-        auto& queries = mService.queries();
-
-        // Acquire database lock.
-        std::lock_guard lock(database);
-
-        // Mark the file as removed in the database.
-        auto transaction = database.transaction();
-        auto query = transaction.query(queries.mSetFileRemoved);
-
-        query.param(":id").set(mInfo->id());
-        query.execute();
-
-        // Persist our changes.
-        transaction.commit();
-
-        // Mark the file as removed in memory.
-        mInfo->removed(false);
-
-        // Let the client know the file was removed.
-        return completed(std::move(request), FILE_SUCCESS);
-    }
+    if (handle.isUndef() || serviceOnly)
+        return completed(std::move(request), setRemoved(replaced));
 
     // Called when the file's been removed.
-    auto removed = [this](auto&&, auto&& request, auto result)
+    auto removed = [replaced, this](auto&&, auto&& request, auto result)
     {
-        // Let the client know if the file was removed.
-        //
-        // The service will take care of making the file as removed when it
-        // receives an event from the SDK telling us that the file has been
-        // removed.
+        // File was removed from the cloud.
+        if (result == API_OK)
+            return completed(std::move(request), setRemoved(replaced));
+
+        // Couldn't remove the file from the cloud.
         completed(std::move(request), fileResultFromError(result));
     }; // removed
 
@@ -1376,6 +1354,44 @@ void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
     query.param(":id").set(mInfo->id());
 
     query.execute();
+}
+
+FileResult FileContext::setRemoved(bool replaced)
+try
+{
+    // Convenience.
+    auto& database = mService.database();
+    auto& queries = mService.queries();
+
+    // Acquire database lock.
+    std::lock_guard lock(database);
+
+    // Mark the file as removed in the database.
+    auto transaction = database.transaction();
+    auto query = transaction.query(queries.mSetFileRemoved);
+
+    query.param(":id").set(mInfo->id());
+    query.execute();
+
+    // Persist our changes.
+    transaction.commit();
+
+    // Mark the file as removed in memory.
+    mInfo->removed(replaced);
+
+    // Let the caller know the file was removed.
+    return FILE_SUCCESS;
+}
+
+catch (std::runtime_error& exception)
+{
+    // Let debuggers know why we couldn't remove the file.
+    FSErrorF("Unable to mark file %s as removed: %s",
+             toString(mInfo->id()).c_str(),
+             exception.what());
+
+    // Let our caller know we couldn't remove the file.
+    return FILE_FAILED;
 }
 
 auto FileContext::shrink(std::uint64_t newSize, std::uint64_t oldSize)

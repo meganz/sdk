@@ -3249,7 +3249,8 @@ auto remove(File file) -> std::future<FileResult>
         [notifier](auto result)
         {
             notifier->set_value(result);
-        });
+        },
+        false);
 
     // Return the waiter to our caller.
     return waiter;
