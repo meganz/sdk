@@ -585,9 +585,10 @@ int main (int argc, char *argv[])
     {
         // Don't run tests, only manage subprocesses.
         // To get here run with --INSTANCES:2 [--EMAIL-POOL:foo+bar-{1-28}@mega.nz]
-        // If --EMAIL-POOL runtime arg is missing, email template will be taken from MEGA_EMAIL env var.
+        // If --EMAIL-POOL runtime arg is missing, email template will be taken from MEGA_EMAIL.
         // Password for all emails built from template will be taken from MEGA_PWD env var.
-        // If it did not get an email template, it'll use 1 single subprocess with the existing env vars.
+        // If it did not get an email template, it'll use a single subprocess with the existing env
+        // vars.
         GTestParallelRunner pr(std::move(argVals));
         string testBase = (TestFS::GetBaseFolder() / "pid_").u8string(); // see TestFS::GetProcessFolder()
         pr.useWorkerOutputPathForPid(std::move(testBase));

@@ -8304,7 +8304,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    std::string url100MB = "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; //https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
+    // https://mega.app/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
+    std::string url100MB = "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA";
     auto importHandle = importPublicLink(0, MegaClient::getMegaURL() + url100MB, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
@@ -9347,8 +9348,9 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferBestCase)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
+    // https://mega.app/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
     std::string url100MB =
-        "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; // https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
+        "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA";
     auto importRaidHandle =
         importPublicLink(0, MegaClient::getMegaURL() + url100MB, rootnode.get());
     std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};

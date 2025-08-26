@@ -496,24 +496,23 @@ public class MegaApiJava {
     /**
      * Get an URL to transfer the current session to the webclient
      * <p>
-     * This function creates a new session for the link so logging out in the web client won't log out
-     * the current session.
+     * This function creates a new session for the link so logging out in the web client won't
+     * log out the current session.
      * <p>
-     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * The associated request type is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getLink - URL to open the desired page with the same account
      * <p>
-     * If the client is logged in, but the account is not fully confirmed (ie. signup not completed yet),
-     * this method will return API_EACCESS.
+     * If the client is logged in, but the account is not fully confirmed (ie. singup not
+     * completed yet), this method will return API_EACCESS.
      * <p>
-     * If the client is not logged in, there won't be any session to transfer, but this method will still
-     * return the https://mega.nz/#<path>.
-     * <p>
-     * You take the ownership of the returned value.
+     * If the client is not logged in, there won't be any session to transfer, but this method
+     * will still return the MEGA's host (ie. https://mega.app) followed by /#<path>.
      *
-     * @param path     Path inside https://mega.nz/# that we want to open with the current session
-     *                 For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     * @param path     Path inside the MEGA's host that we want to open with the current session.
+     *                 For example, if you want to open https://mega.app/#pro, the parameter of this function
+     *                 should be "pro".
      * @param listener MegaRequestListener to track this request
      */
     public void getSessionTransferURL(String path, MegaRequestListenerInterface listener) {
@@ -523,24 +522,23 @@ public class MegaApiJava {
     /**
      * Get an URL to transfer the current session to the webclient
      * <p>
-     * This function creates a new session for the link so logging out in the web client won't log out
-     * the current session.
+     * This function creates a new session for the link so logging out in the web client won't
+     * log out the current session.
      * <p>
-     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * The associated request type is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getLink - URL to open the desired page with the same account
      * <p>
-     * If the client is logged in, but the account is not fully confirmed (ie. signup not completed yet),
-     * this method will return API_EACCESS.
+     * If the client is logged in, but the account is not fully confirmed (ie. singup not
+     * completed yet), this method will return API_EACCESS.
      * <p>
-     * If the client is not logged in, there won't be any session to transfer, but this method will still
-     * return the https://mega.nz/#<path>.
-     * <p>
-     * You take the ownership of the returned value.
+     * If the client is not logged in, there won't be any session to transfer, but this method
+     * will still return the MEGA's host (ie. https://mega.app) followed by /#<path>.
      *
-     * @param path Path inside https://mega.nz/# that we want to open with the current session
-     *             For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     * @param path Path inside the MEGA's host that we want to open with the current session.
+     *             For example, if you want to open https://mega.app/#pro, the parameter of this function
+     *             should be "pro".
      */
     public void getSessionTransferURL(String path) {
         megaApi.getSessionTransferURL(path);
@@ -5501,7 +5499,6 @@ public class MegaApiJava {
      * <p>
      * With the master key, it's possible to start the recovery of an account when the
      * password is lost:
-     * - https://mega.nz/#recovery
      * - MegaApi::resetPassword()
      * <p>
      * You take the ownership of the returned value.
