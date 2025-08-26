@@ -54,7 +54,6 @@ target_sources(SDKlib PRIVATE
                       file_write_event.h
                       file_write_event_forward.h
                       file_write_result.h
-                      scoped_file_event_observer.h
                       sink.h
                       sink_forward.h
                       source.h

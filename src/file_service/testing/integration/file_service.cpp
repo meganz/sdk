@@ -23,8 +23,8 @@
 #include <mega/file_service/file_write_event.h>
 #include <mega/file_service/file_write_result.h>
 #include <mega/file_service/logging.h>
-#include <mega/file_service/scoped_file_event_observer.h>
 #include <mega/file_service/source.h>
+#include <mega/file_service/testing/integration/scoped_file_event_observer.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/file.h>
@@ -110,6 +110,7 @@ using fuse::testing::randomBytes;
 using fuse::testing::randomName;
 using fuse::testing::waitFor;
 using ::testing::ElementsAre;
+using testing::observe;
 using ::testing::UnorderedElementsAreArray;
 
 // Forward declaration so we can keep things ordered.

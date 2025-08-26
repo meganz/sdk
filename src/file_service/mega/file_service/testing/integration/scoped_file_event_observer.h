@@ -13,6 +13,8 @@ namespace mega
 {
 namespace file_service
 {
+namespace testing
+{
 namespace detail
 {
 
@@ -141,5 +143,6 @@ auto observe(Source& source)
     return ScopedFileEventObserver(source);
 }
 
+} // testing
 } // file_service
 } // mega
