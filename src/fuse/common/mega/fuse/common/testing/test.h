@@ -2,9 +2,9 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <mega/common/testing/model.h>
 #include <mega/common/testing/path.h>
 #include <mega/fuse/common/testing/client_forward.h>
-#include <mega/fuse/common/testing/model.h>
 #include <mega/fuse/common/testing/parameters_forward.h>
 #include <mega/fuse/common/testing/watchdog.h>
 
@@ -58,7 +58,7 @@ class Test
     // Regenerate cloud content if necessary.
     static Error regenerate(Client& client,
                             Client& sharee,
-                            const Model& model,
+                            const common::testing::Model& model,
                             accesslevel_t permissions);
 
     // What clients should we use for testing?
@@ -68,7 +68,7 @@ class Test
     static common::testing::Path mDatabasePath;
 
     // Expected contents of the cloud.
-    static Model mModel;
+    static common::testing::Model mModel;
 
     // Where should we mount cloud entities?
     static PathArray mMountPaths;

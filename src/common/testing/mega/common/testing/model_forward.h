@@ -2,7 +2,7 @@
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
@@ -11,6 +11,5 @@ class Model;
 class ModelVisitor;
 
 } // testing
-} // fuse
+} // common
 } // mega
-

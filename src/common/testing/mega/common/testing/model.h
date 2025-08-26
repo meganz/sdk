@@ -3,9 +3,9 @@
 #include <mega/common/node_info_forward.h>
 #include <mega/common/platform/date_time.h>
 #include <mega/common/testing/cloud_path_forward.h>
+#include <mega/common/testing/model_forward.h>
 #include <mega/common/testing/path_forward.h>
 #include <mega/fuse/common/testing/client_forward.h>
-#include <mega/fuse/common/testing/model_forward.h>
 #include <tests/stdfs.h>
 
 #include <chrono>
@@ -15,7 +15,7 @@
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
@@ -65,15 +65,14 @@ public:
         virtual void populate(fs::path path) const = 0;
 
         // When was this node last modified?
-        common::DateTime mModified;
+        DateTime mModified;
 
         // The name of the node.
         std::string mName;
     }; // Node
 
     // Describes a directory in the model.
-    class DirectoryNode
-      : public Node
+    class DirectoryNode: public Node
     {
         // Who are this directory's children?
         NodeMap mChildren;
@@ -100,7 +99,7 @@ public:
         auto directory() -> DirectoryNode* override;
 
         // Create a directory based on the content of the cloud.
-        static auto from(const Client& client, common::NodeInfo info) -> NodePtr;
+        static auto from(const fuse::testing::Client& client, NodeInfo info) -> NodePtr;
 
         // Create a directory based on the content of path.
         static auto from(const fs::path& path) -> NodePtr;
@@ -124,8 +123,7 @@ public:
     }; // DirectoryNode
 
     // Describes a file in the model.
-    class FileNode
-      : public Node
+    class FileNode: public Node
     {
     public:
         FileNode(std::string name);
@@ -137,7 +135,7 @@ public:
         auto file() -> FileNode* override;
 
         // Create a file based on the content of the cloud.
-        static auto from(const Client& client, common::NodeInfo info) -> NodePtr;
+        static auto from(const fuse::testing::Client& client, NodeInfo info) -> NodePtr;
 
         // Create a file based on the content of path.
         static auto from(const fs::path& path) -> NodePtr;
@@ -150,7 +148,7 @@ public:
 
         // What is this file's content?
         std::string mContent;
-        
+
         // How large is this file?
         std::uint64_t mSize;
     }; // FileNode
@@ -172,16 +170,15 @@ public:
     static auto directory(const std::string& name) -> DirectoryNodePtr;
 
     // Create a new file node.
-    static auto file(const std::string& name,
-                     const std::string& content) -> FileNodePtr;
+    static auto file(const std::string& name, const std::string& content) -> FileNodePtr;
 
     static auto file(const std::string& name) -> FileNodePtr;
 
     // Build a model based on the contents of the cloud.
-    static Model from(const Client& client, common::testing::CloudPath path);
+    static Model from(const fuse::testing::Client& client, CloudPath path);
 
     // Build a model based on the contents of path.
-    static Model from(const common::testing::Path& path);
+    static Model from(const Path& path);
 
     // Generate a model.
     static Model generate(const std::string& prefix,
@@ -198,7 +195,7 @@ public:
     bool match(const Model& rhs) const;
 
     // Populate path with the contents of this model.
-    void populate(const common::testing::Path& path) const;
+    void populate(const Path& path) const;
 
     // Remove a node from the model.
     auto remove(const std::string& path) -> NodePtr;
@@ -215,6 +212,5 @@ private:
 void swap(Model& lhs, Model& rhs);
 
 } // testing
-} // fuse
+} // common
 } // mega
-

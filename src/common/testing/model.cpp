@@ -2,9 +2,9 @@
 #include <mega/common/node_info.h>
 #include <mega/common/platform/date_time.h>
 #include <mega/common/testing/cloud_path.h>
+#include <mega/common/testing/model.h>
 #include <mega/common/testing/path.h>
 #include <mega/fuse/common/testing/client.h>
-#include <mega/fuse/common/testing/model.h>
 #include <mega/fuse/common/testing/utility.h>
 #include <mega/logging.h>
 
@@ -16,13 +16,12 @@
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
 
-using namespace common;
-using namespace common::testing;
+using fuse::testing::Client;
 
 static Model::DirectoryNodePtr generate(const std::string& prefix,
                                         std::size_t height,
@@ -31,18 +30,17 @@ static Model::DirectoryNodePtr generate(const std::string& prefix,
 
 static bool mismatch(const std::string& path, const std::string& type);
 
-static const std::string MISMATCH_EXIST_LEFT  = "E<";
+static const std::string MISMATCH_EXIST_LEFT = "E<";
 static const std::string MISMATCH_EXIST_RIGHT = ">E";
-static const std::string MISMATCH_CONTENT     = "CN";
-static const std::string MISMATCH_MODIFIED    = "MT";
-static const std::string MISMATCH_SIZE        = "SZ";
-static const std::string MISMATCH_TYPE        = "TY";
+static const std::string MISMATCH_CONTENT = "CN";
+static const std::string MISMATCH_MODIFIED = "MT";
+static const std::string MISMATCH_SIZE = "SZ";
+static const std::string MISMATCH_TYPE = "TY";
 
-Model::Node::Node(std::string name)
-  : mModified()
-  , mName(std::move(name))
-{
-}
+Model::Node::Node(std::string name):
+    mModified(),
+    mName(std::move(name))
+{}
 
 void Model::Node::swap(Node& other)
 {
@@ -72,26 +70,24 @@ auto Model::Node::file() -> FileNode*
     return nullptr;
 }
 
-Model::DirectoryNode::DirectoryNode(std::string name)
-  : Node(std::move(name))
-  , mChildren()
-{
-}
+Model::DirectoryNode::DirectoryNode(std::string name):
+    Node(std::move(name)),
+    mChildren()
+{}
 
-Model::DirectoryNode::DirectoryNode(const DirectoryNode& other)
-  : Node(other)
-  , mChildren()
+Model::DirectoryNode::DirectoryNode(const DirectoryNode& other):
+    Node(other),
+    mChildren()
 {
     // Copy other's children.
-    for (auto& c : other.mChildren)
+    for (auto& c: other.mChildren)
         add(c.second->copy());
 }
 
-Model::DirectoryNode::DirectoryNode(DirectoryNode&& other)
-  : Node(std::move(other))
-  , mChildren(std::move(other.mChildren))
-{
-}
+Model::DirectoryNode::DirectoryNode(DirectoryNode&& other):
+    Node(std::move(other)),
+    mChildren(std::move(other.mChildren))
+{}
 
 auto Model::DirectoryNode::operator=(DirectoryNode&& rhs) -> DirectoryNode&
 {
@@ -146,7 +142,7 @@ auto Model::DirectoryNode::from(const Client& client, NodeInfo info) -> NodePtr
     auto childNames = client.childNames(CloudPath(info.mHandle)).valueOr({});
 
     // Populate directory from the cloud.
-    for (const auto& name : childNames)
+    for (const auto& name: childNames)
     {
         // Retrieve information about this child.
         auto info_ = client.get(info.mHandle, name);
@@ -177,17 +173,17 @@ auto Model::DirectoryNode::from(const fs::path& path) -> NodePtr
     auto j = fs::directory_iterator();
 
     // Populate directory from disk.
-    for ( ; i != j; ++i)
+    for (; i != j; ++i)
     {
         switch (i->status().type())
         {
-        case fs::file_type::directory:
-            directory->add(DirectoryNode::from(i->path()));
-            break;
-        case fs::file_type::regular:
-            directory->add(FileNode::from(i->path()));
-        default:
-            break;
+            case fs::file_type::directory:
+                directory->add(DirectoryNode::from(i->path()));
+                break;
+            case fs::file_type::regular:
+                directory->add(FileNode::from(i->path()));
+            default:
+                break;
         }
     }
 
@@ -224,17 +220,17 @@ bool Model::DirectoryNode::match(const std::string& path, const Node& rhs) const
     std::set<std::string> childNames;
 
     // Retrieve names of children.
-    for (auto& child : mChildren)
+    for (auto& child: mChildren)
         childNames.emplace(child.first);
 
-    for (auto& child : rhsDirectory->mChildren)
+    for (auto& child: rhsDirectory->mChildren)
         childNames.emplace(child.first);
 
     // Assume our children are matched.
     auto matched = true;
 
     // Try and match children.
-    for (auto& child : mChildren)
+    for (auto& child: mChildren)
     {
         // Compute child path.
         auto childPath = path + child.first + "/";
@@ -264,7 +260,7 @@ bool Model::DirectoryNode::match(const std::string& path, const Node& rhs) const
         return matched;
 
     // Emit a mismatch message for children that exist only on the right.
-    for (auto& name : childNames)
+    for (auto& name: childNames)
         mismatch(path + name + "/", MISMATCH_EXIST_RIGHT);
 
     return false;
@@ -279,7 +275,7 @@ void Model::DirectoryNode::populate(fs::path path) const
     fs::create_directories(path);
 
     // Populate the new directory with our children.
-    for (auto& c : mChildren)
+    for (auto& c: mChildren)
         c.second->populate(path);
 }
 
@@ -311,12 +307,11 @@ void Model::DirectoryNode::swap(DirectoryNode& other)
     swap(mChildren, other.mChildren);
 }
 
-Model::FileNode::FileNode(std::string name)
-  : Node(std::move(name))
-  , mContent()
-  , mSize(0)
-{
-}
+Model::FileNode::FileNode(std::string name):
+    Node(std::move(name)),
+    mContent(),
+    mSize(0)
+{}
 
 auto Model::FileNode::copy() -> NodePtr
 {
@@ -383,13 +378,10 @@ auto Model::FileNode::from(const fs::path& path) -> NodePtr
     // Couldn't read the file from disk.
     std::ostringstream ostream;
 
-    ostream << "Couldn't read \""
-            << path
-            << "\" from disk";
+    ostream << "Couldn't read \"" << path << "\" from disk";
 
     throw std::runtime_error(ostream.str());
 }
-
 
 bool Model::FileNode::match(const std::string& path, const Node& rhs) const
 {
@@ -426,11 +418,9 @@ void Model::FileNode::populate(fs::path path) const
     path /= fs::u8path(mName);
 
     // Convenience.
-    constexpr auto flags =
-      std::ios::binary | std::ios::trunc;
+    constexpr auto flags = std::ios::binary | std::ios::trunc;
 
-    constexpr auto mask =
-      std::ios::badbit | std::ios::failbit;
+    constexpr auto mask = std::ios::badbit | std::ios::failbit;
 
     std::ofstream ostream;
 
@@ -441,8 +431,7 @@ void Model::FileNode::populate(fs::path path) const
     ostream.open(path.u8string(), flags);
 
     // Try and write our content to disk.
-    ostream.write(mContent.data(),
-                  static_cast<std::streamsize>(mContent.size()));
+    ostream.write(mContent.data(), static_cast<std::streamsize>(mContent.size()));
 
     // Make sure our content has been written.
     ostream.flush();
@@ -454,20 +443,17 @@ void Model::FileNode::populate(fs::path path) const
     lastWriteTime(path, mModified);
 }
 
-Model::Model()
-  : mRoot("")
-{
-}
+Model::Model():
+    mRoot("")
+{}
 
-Model::Model(const Model& other)
-  : mRoot(other.mRoot)
-{
-}
+Model::Model(const Model& other):
+    mRoot(other.mRoot)
+{}
 
-Model::Model(Model&& other)
-  : mRoot(std::move(other.mRoot))
-{
-}
+Model::Model(Model&& other):
+    mRoot(std::move(other.mRoot))
+{}
 
 Model& Model::operator=(const Model& rhs)
 {
@@ -519,8 +505,7 @@ auto Model::directory(const std::string& name) -> DirectoryNodePtr
     return directory;
 }
 
-auto Model::file(const std::string& name,
-                 const std::string& content) -> FileNodePtr
+auto Model::file(const std::string& name, const std::string& content) -> FileNodePtr
 {
     // Convenience.
     using Clock = std::chrono::system_clock;
@@ -595,10 +580,7 @@ Model Model::generate(const std::string& prefix,
         return model;
 
     // Generate root node.
-    auto root = testing::generate(prefix,
-                                  height - 1,
-                                  numDirectories,
-                                  numFiles);
+    auto root = testing::generate(prefix, height - 1, numDirectories, numFiles);
 
     // Add root node.
     model.mRoot.add(std::move(root));
@@ -728,10 +710,7 @@ Model::DirectoryNodePtr generate(const std::string& prefix,
         auto name = prefix + "d" + std::to_string(d);
 
         // Generate subdirectory.
-        auto subdirectory = generate(name,
-                                     height - 1,
-                                     numDirectories,
-                                     numFiles);
+        auto subdirectory = generate(name, height - 1, numDirectories, numFiles);
 
         // Add subdirectory.
         directory->add(std::move(subdirectory));
@@ -753,10 +732,7 @@ Model::DirectoryNodePtr generate(const std::string& prefix,
 
 bool mismatch(const std::string& path, const std::string& type)
 {
-    LOG_debug << "Mismatch "
-              << type
-              << ": "
-              << path;
+    LOG_debug << "Mismatch " << type << ": " << path;
 
     return false;
 }
@@ -764,4 +740,3 @@ bool mismatch(const std::string& path, const std::string& type)
 } // testing
 } // fuse
 } // mega
-
