@@ -386,11 +386,6 @@ void RealClient::requestCompleted(RequestKey key, Error result)
     callback(result);
 }
 
-Service& RealClient::service() const
-{
-    return mClient->mFuseService;
-}
-
 m_off_t RealClient::setTransferSpeed(m_off_t (MegaClient::*get)(),
                                      bool (MegaClient::*set)(m_off_t),
                                      m_off_t speed)
@@ -556,10 +551,14 @@ bool RealClient::hasFileAttribute(NodeHandle handle, fatype type) const
     return node->hasfileattribute(type) != 0;
 }
 
-// Get our hands on the client's FileService interface.
 FileService& RealClient::fileService() const
 {
     return mClient->mFileService;
+}
+
+Service& RealClient::fuseService() const
+{
+    return mClient->mFuseService;
 }
 
 auto RealClient::invite(const std::string& email) -> ErrorOr<InvitePtr>

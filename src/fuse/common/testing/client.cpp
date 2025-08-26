@@ -117,10 +117,10 @@ void Client::makeDirectory(MakeDirectoryCallback callback,
         }; // wrapper
 
         // Invoke the callback in a safe context.
-        service().execute(std::bind(std::move(wrapper),
-                                    std::move(callback),
-                                    std::move(result),
-                                    std::placeholders::_1));
+        fuseService().execute(std::bind(std::move(wrapper),
+                                        std::move(callback),
+                                        std::move(result),
+                                        std::placeholders::_1));
     }; // result
 
     // Try and make the directory.
@@ -228,7 +228,7 @@ void Client::nodesCurrent(bool nodesCurrent)
 
 MountResult Client::addMount(const MountInfo& info)
 {
-    return service().add(info);
+    return fuseService().add(info);
 }
 
 ErrorOr<std::set<std::string>> Client::childNames(CloudPath path) const
@@ -246,7 +246,7 @@ ErrorOr<std::set<std::string>> Client::childNames(CloudPath path) const
 
 ErrorOr<InodeInfo> Client::describe(const Path& path) const
 {
-    return service().describe(path.localPath());
+    return fuseService().describe(path.localPath());
 }
 
 void Client::desynchronize(::mega::handle id)
@@ -265,9 +265,7 @@ MountResult Client::disableMount(const std::string& name, bool remember)
     }; // disabled
 
     // Try and disable the mount.
-    service().disable(std::move(disabled),
-                      name,
-                      remember);
+    fuseService().disable(std::move(disabled), name, remember);
 
     // Wait for the mount to be disabled.
     auto result = notifier.get_future().get();
@@ -338,17 +336,17 @@ MountResult Client::disableMounts(bool remember)
 
 MountResult Client::discard(bool discard)
 {
-    return service().discard(discard);
+    return fuseService().discard(discard);
 }
 
 MountResult Client::enableMount(const std::string& name, bool remember)
 {
-    const auto ret = service().enable(name, remember);
+    const auto ret = fuseService().enable(name, remember);
     // Tell FUSE mount that we need to access mount
-    if (const auto flags = service().flags(name); flags)
+    if (const auto flags = fuseService().flags(name); flags)
     {
         flags->mAllowSelfAccess = true;
-        service().flags(name, *flags);
+        fuseService().flags(name, *flags);
     }
     return ret;
 }
@@ -456,7 +454,7 @@ ErrorOr<NodeHandle> Client::handle(const std::string& path) const
 
 bool Client::isCached(const Path& path) const
 {
-    return service().cached(path.localPath());
+    return fuseService().cached(path.localPath());
 }
 
 Error Client::login(std::size_t accountIndex)
@@ -506,32 +504,32 @@ MountEventObserverPtr Client::mountEventObserver()
 
 bool Client::mountEnabled(const std::string& name) const
 {
-    return service().enabled(name);
+    return fuseService().enabled(name);
 }
 
 MountResult Client::mountFlags(const std::string& name, const MountFlags& flags)
 {
-    return service().flags(name, flags);
+    return fuseService().flags(name, flags);
 }
 
 MountFlagsPtr Client::mountFlags(const std::string& name) const
 {
-    return service().flags(name);
+    return fuseService().flags(name);
 }
 
 MountInfoPtr Client::mountInfo(const std::string& name) const
 {
-    return service().get(name);
+    return fuseService().get(name);
 }
 
 NormalizedPath Client::mountPath(const std::string& name) const
 {
-    return service().path(name);
+    return fuseService().path(name);
 }
 
 MountInfoVector Client::mounts(bool onlyEnabled) const
 {
-    return service().get(onlyEnabled);
+    return fuseService().get(onlyEnabled);
 }
 
 Error Client::move(const std::string& name,
@@ -592,7 +590,7 @@ Error Client::removeAll(CloudPath path)
 MountResult Client::removeMount(const std::string& name)
 {
     // Try and remove the mount.
-    auto result = service().remove(name);
+    auto result = fuseService().remove(name);
 
     // Couldn't remove the mount.
     if (result != MOUNT_SUCCESS)

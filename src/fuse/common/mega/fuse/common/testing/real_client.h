@@ -82,9 +82,6 @@ class RealClient
     // Called when a request has completed.
     void requestCompleted(RequestKey key, Error result);
 
-    // Retrieve this client's FUSE interface.
-    Service& service() const override;
-
     // Set the client's transfer speed.
     m_off_t setTransferSpeed(m_off_t (MegaClient::*get)(),
                              bool (MegaClient::*set)(m_off_t),
@@ -133,6 +130,9 @@ public:
 
     // Get our hands on the client's FileService interface.
     file_service::FileService& fileService() const override;
+
+    // Get our hands on the client's FUSE interface.
+    Service& fuseService() const override;
 
     // Send a friendship invite to the specified user.
     auto invite(const std::string& email) -> common::ErrorOr<InvitePtr> override;

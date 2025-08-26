@@ -66,9 +66,6 @@ class Client
                                            NodeHandle parentHandle,
                                            const common::testing::Path& path);
 
-    // Get our hands on the client's FUSE interface.
-    virtual Service& service() const = 0;
-
     // What observers are monitoring mount events?
     MountEventObserverWeakPtrSet mMountEventObservers;
 
@@ -216,6 +213,9 @@ public:
 
     // Get our hands on the client's FileService interface.
     virtual file_service::FileService& fileService() const = 0;
+
+    // Get our hands on the client's FUSE interface.
+    virtual Service& fuseService() const = 0;
 
     // Retrieve information about a specific child.
     common::ErrorOr<common::NodeInfo> get(common::testing::CloudPath parentPath,
