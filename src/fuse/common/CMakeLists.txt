@@ -125,7 +125,6 @@ set(FUSE_COMMON_TESTING_SRC ${FUSE_COMMON_SRC}/testing)
 
 target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_INC}/client.h
-                                ${FUSE_COMMON_TESTING_INC}/mock_client.h
                                 ${FUSE_COMMON_TESTING_INC}/mount_event_observer.h
                                 ${FUSE_COMMON_TESTING_INC}/mount_event_observer_forward.h
                                 ${FUSE_COMMON_TESTING_INC}/mount_tests.h
@@ -140,7 +139,6 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_INC}/watchdog.h
                                 ${FUSE_COMMON_TESTING_SRC}/client.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/common_tests.cpp
-                                ${FUSE_COMMON_TESTING_SRC}/mock_client.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/mount_event_observer.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/mount_tests.cpp
                                 ${FUSE_COMMON_TESTING_SRC}/parameters.cpp
