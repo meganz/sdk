@@ -19133,8 +19133,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     auto finishTransferSameNodeNameFoundInTarget =
                         [transfer, nextTag, this](const handle h)
                     {
-                        LOG_debug << "Previous node exists and the upload is not forced "
-                                     "copy node handle";
+                        LOG_debug << "Previous node exists with same name in target node, and the "
+                                     "upload is not forced: "
+                                  << Base64Str<MegaClient::NODEHANDLE>(h);
                         transfer->setState(MegaTransfer::STATE_QUEUED);
                         transferMap[nextTag] = transfer;
                         transfer->setTag(nextTag);
@@ -19218,12 +19219,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                         .first == NODE_COMP_EQUAL)
                             {
                                 sameNodeFpFound = n;
-                                if (alreadyCheckedSameNodeNameInTarget ||
-                                        (sameNodeSameNameInTarget =
-                                             (fileName == sameNodeFpFound->displayname()) &&
-                                             (sameNodeFpFound->parent->nodeHandle() ==
-                                              parent->nodeHandle()));
-                                    sameNodeSameNameInTarget)
+                                sameNodeSameNameInTarget =
+                                    (fileName == sameNodeFpFound->displayname()) &&
+                                    (sameNodeFpFound->parent->nodeHandle() == parent->nodeHandle());
+                                if (alreadyCheckedSameNodeNameInTarget || sameNodeSameNameInTarget)
                                 {
                                     break;
                                 }

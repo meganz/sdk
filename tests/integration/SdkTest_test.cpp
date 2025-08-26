@@ -3039,7 +3039,9 @@ TEST_F(SdkTest, SdkTestKillSession)
  *  - TEST5: upload testfile(v1) again (no remote action required)
  *  - TEST6: upload same testfile_copy with same content than testfilev1 (remote copy)
  *  - TEST7: upload same testfile_copy with same content than testfilev1 but to another target
- * (remote copy) "
+ * (remote copy)
+ *  - TEST8: upload same testfile_copy_2 with same content than testfilev1 but to another target
+ * (remote copy)
  */
 TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
 {
@@ -3081,29 +3083,34 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
 
     string filename = "testfile";
     string filenameaux = filename + "_copy";
+    string filenameaux2 = filenameaux + "_2";
     ASSERT_TRUE(createFile(filename, false)) << "Couldn't create " << filename;
     ASSERT_NO_FATAL_FAILURE(copyFile(filename, filenameaux))
         << "Couldn't copy file " << filenameaux;
+    ASSERT_NO_FATAL_FAILURE(copyFile(filenameaux, filenameaux2))
+        << "Couldn't copy file " << filenameaux2;
 
     auto uploadFile = [this, &logPre, idx](MegaNode* n,
                                            const string& filename,
                                            const string& msg,
                                            const int expErr,
                                            const int expParentChildren,
-                                           const int expNversions)
+                                           const int expNversions,
+                                           const bool expFullUpload)
     {
         LOG_debug << logPre << msg;
         MegaHandle h = UNDEF;
-        const int errCode = doStartUpload(idx,
-                                          &h,
-                                          filename.c_str(),
-                                          n,
-                                          nullptr /*fileName*/,
-                                          ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                          nullptr /*appData*/,
-                                          false /*isSourceTemporary*/,
-                                          false /*startFirst*/,
-                                          nullptr /*cancelToken*/);
+        const auto [errCode, transferSpeed, transferMeanSpeed] =
+            doStartUploadWithSpeed(idx,
+                                   &h,
+                                   filename.c_str(),
+                                   n,
+                                   nullptr /*fileName*/,
+                                   ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                   nullptr /*appData*/,
+                                   false /*isSourceTemporary*/,
+                                   false /*startFirst*/,
+                                   nullptr /*cancelToken*/);
 
         ASSERT_EQ(errCode, expErr) << msg << " unexpected error: " << errCode << "("
                                    << MegaError::getErrorString(errCode) << ")";
@@ -3112,39 +3119,117 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
         std::unique_ptr<MegaNode> nn(megaApi[idx]->getNodeByHandle(h));
         ASSERT_TRUE(nn) << "Cannot retrieve node";
         ASSERT_EQ(megaApi[idx]->getNumVersions(nn.get()), expNversions);
+
+        if (expFullUpload)
+        {
+            ASSERT_GT(transferSpeed, 0)
+                << msg << " full file upload expected, but transferspeed is Zero";
+            ASSERT_GT(transferMeanSpeed, 0)
+                << msg << " full file upload expected, but transferMeanSpeed is Zero";
+        }
+        else
+        {
+            ASSERT_LE(transferSpeed, 0)
+                << msg << " unexpected full file upload, but transferSpeed is greater than Zero";
+            ASSERT_LE(transferMeanSpeed, 0)
+                << msg
+                << " unexpected full file upload, but transferMeanSpeed is greater than Zero";
+        }
     };
 
-    std::string msg = "#### TEST1: upload testfile(v1) ####";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filename, msg, API_OK, 2, 1));
+    std::string msg =
+        "#### TEST1: upload testfile(FileVersion_1) to Folder1 => NodeVersion_1 added ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       filename,
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       1 /*expNversions*/,
+                                       true /*expFullUpload*/));
 
-    msg = "#### TEST2: upload testfile(v1) again (no remote action required) ####";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filename, msg, API_OK, 2, 1));
+    msg = "#### TEST2: upload testfile(FileVersion_1) to Folder1 again => No remote action "
+          "required ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       filename,
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       1 /*expNversions*/,
+                                       false /*expFullUpload*/));
 
-    msg = "#### TEST3: modify testfile to (v2) and upload it (new node version added) ####";
+    msg = "#### TEST3: modify testfile to (FileVersion_2) and upload it to Folder1 => "
+          "NodeVersion_2 added ####";
     sdk_test::appendToFile(fs::path(filename), 20000); // v1
-    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filename, msg, API_OK, 2, 2));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       filename,
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       2 /*expNversions*/,
+                                       true /*expFullUpload*/));
 
-    msg = "#### TEST4: remove and then recreate testfile(v1) locally, and upload again (new node "
-          "version added) ####";
+    msg = "#### TEST4: remove and then recreate (FileVersion_1) locally, and upload again to "
+          "Folder1 => NodeVersion_3 added ####";
     ASSERT_TRUE(removeFile(filename)) << "Couldn't remove " << filename;
     ASSERT_NO_FATAL_FAILURE(copyFile(filenameaux, filename))
         << "Couldn't recreate file " << filename << "(v1)";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filename, msg, API_OK, 2, 3));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       filename,
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       3 /*expNversions*/,
+                                       true /*expFullUpload*/));
 
-    msg = "#### TEST5: upload testfile(v1) again (no remote action required) ####";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filename, msg, API_OK, 2, 3));
+    msg = "#### TEST5: upload testfile(FileVersion_1) again to Folder1 => No remote action "
+          "required ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       filename,
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       3 /*expNversions*/,
+                                       false /*expFullUpload*/));
 
-    msg = "#### TEST6: upload same testfile_copy with same content than testfilev1 (remote copy) "
+    msg = "#### TEST6: upload testfile_copy(FileVersion_1) with same content than "
+          "testfile(FileVersion_1) to Folder1 => Perform remote copy, NodeVersion_1 added"
           "####";
-    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(), filenameaux, msg, API_OK, 3, 1));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       filenameaux,
+                                       msg,
+                                       API_OK,
+                                       3 /*expParentChildren*/,
+                                       1 /*expNversions*/,
+                                       false /*expFullUpload*/));
 
-    msg = "#### TEST7: upload same testfile_copy with same content than testfilev1 but to another "
-          "target (remote copy) "
+    msg = "#### TEST7: upload same testfile_copy(FileVersion_1) to Folder2 => Perform remote copy, "
+          "NodeVersion_1 added"
           "####";
     folderNode1.reset(megaApi[0]->getNodeByHandle(fh2));
     ASSERT_TRUE(folderNode1) << logPre << "Cannot get " << rootFolderName << "/" << rootFolderName
                              << " node for account: " << idx;
-    ASSERT_NO_FATAL_FAILURE(uploadFile(folderNode1.get(), filenameaux, msg, API_OK, 1, 1));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(folderNode1.get(),
+                                       filenameaux,
+                                       msg,
+                                       API_OK,
+                                       1 /*expParentChildren*/,
+                                       1 /*expNversions*/,
+                                       false /*expFullUpload*/));
+
+    msg = "#### TEST8: upload same testfile_copy_2(FileVersion_1) with same content than "
+          "testfile(FileVersion_1) to Folder2 => Perform remote copy, NodeVersion_1 added ####";
+    folderNode1.reset(megaApi[0]->getNodeByHandle(fh2));
+    ASSERT_TRUE(folderNode1) << logPre << "Cannot get " << rootFolderName << "/" << rootFolderName
+                             << " node for account: " << idx;
+    ASSERT_NO_FATAL_FAILURE(removeFile(filename));
+    ASSERT_NO_FATAL_FAILURE(removeFile(filenameaux));
+    ASSERT_NO_FATAL_FAILURE(uploadFile(folderNode1.get(),
+                                       filenameaux2,
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       1 /*expNversions*/,
+                                       false /*expFullUpload*/));
 }
 
 /**
