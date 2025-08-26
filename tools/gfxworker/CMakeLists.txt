@@ -57,7 +57,11 @@ target_platform_compile_options(
 
 target_arch_compile_options(
     TARGET libgfxworker
-    ARM -mno-unaligned-access
+    ARM32 -mno-unaligned-access
+    # Clang accepts the -mno-unaligned-access flag for ARM64, but GCC does not.
+    ARM64
+        $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-mno-unaligned-access>
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-mstrict-align>
 )
 
 if(ENABLE_SDKLIB_WERROR)
@@ -87,7 +91,11 @@ target_platform_compile_options(
 
 target_arch_compile_options(
     TARGET gfxworker
-    ARM -mno-unaligned-access
+    ARM32 -mno-unaligned-access
+    # Clang accepts the -mno-unaligned-access flag for ARM64, but GCC does not.
+    ARM64
+        $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-mno-unaligned-access>
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-mstrict-align>
 )
 
 if(ENABLE_SDKLIB_WERROR)
