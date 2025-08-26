@@ -105,10 +105,10 @@ using common::Expected;
 using common::makeSharedPromise;
 using common::now;
 using common::unexpected;
+using common::testing::randomBytes;
+using common::testing::randomName;
+using common::testing::waitFor;
 using fuse::testing::ClientPtr;
-using fuse::testing::randomBytes;
-using fuse::testing::randomName;
-using fuse::testing::waitFor;
 using ::testing::ElementsAre;
 using testing::observe;
 using ::testing::UnorderedElementsAreArray;
@@ -434,9 +434,6 @@ TEST_F(FileServiceTests, append_succeeds)
     // Store events emitted for our file.
     auto fileObserver = observe(*file);
     auto serviceObserver = observe(ClientW()->fileService());
-
-    // Convenience.
-    using fuse::testing::randomBytes;
 
     // Generate some data for us to append to the file.
     auto computed = randomBytes(32_KiB);
@@ -2881,9 +2878,6 @@ TEST_F(FileServiceTests, write_succeeds)
         // Let our caller know the write was successful.
         return FILE_SUCCESS;
     }; // write
-
-    // Convenience.
-    using fuse::testing::randomBytes;
 
     // Generate some content for us to write to the file.
     auto computed = randomBytes(256u * 1024);

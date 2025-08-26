@@ -170,7 +170,6 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_POSIX_TESTING_SRC}/mount_tests.cpp
                                 ${FUSE_POSIX_TESTING_SRC}/platform_tests.cpp
                                 ${FUSE_POSIX_TESTING_SRC}/printers.cpp
-                                ${FUSE_POSIX_TESTING_SRC}/utility.cpp
                                 ${FUSE_POSIX_TESTING_SRC}/wrappers.cpp
 )
 

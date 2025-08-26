@@ -4,6 +4,7 @@
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/testing/printers.h>
+#include <mega/fuse/common/testing/utility.h>
 
 #include <ostream>
 

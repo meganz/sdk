@@ -26,6 +26,9 @@ namespace testing
 
 using common::DateTime;
 using common::testing::Directory;
+using common::testing::randomBytes;
+using common::testing::randomName;
+using common::testing::waitFor;
 using platform::fromWideString;
 using platform::Handle;
 using platform::readOnlySecurityDescriptor;

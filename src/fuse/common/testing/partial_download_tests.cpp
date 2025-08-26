@@ -106,6 +106,8 @@ std::string FUSEPartialDownloadTests::mFileContent;
 NodeHandle FUSEPartialDownloadTests::mFileHandle;
 
 using common::testing::File;
+using common::testing::randomBytes;
+using common::testing::randomName;
 
 TEST_F(FUSEPartialDownloadTests, DISABLED_measure_average_fetch_times)
 {

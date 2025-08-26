@@ -71,7 +71,6 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_WINDOWS_TESTING_SRC}/platform_tests.cpp
                                 ${FUSE_WINDOWS_TESTING_SRC}/printers.cpp
                                 ${FUSE_WINDOWS_TESTING_SRC}/sync_tests.cpp
-                                ${FUSE_WINDOWS_TESTING_SRC}/utility.cpp
                                 ${FUSE_WINDOWS_TESTING_SRC}/wrappers.cpp
 )
 

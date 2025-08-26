@@ -24,6 +24,8 @@ namespace testing
 using common::testing::Directory;
 using common::testing::File;
 using common::testing::Path;
+using common::testing::randomName;
+using common::testing::waitFor;
 
 TEST_F(FUSEMountTests, add_fails_when_name_isnt_specified)
 {

@@ -35,6 +35,9 @@ struct FUSECommonTests
 using namespace common;
 using common::testing::File;
 using common::testing::Path;
+using common::testing::randomBytes;
+using common::testing::randomName;
+using common::testing::waitFor;
 
 static handle fsidOf(const Path& path);
 

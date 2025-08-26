@@ -1,26 +1,21 @@
 #include <mega/common/platform/date_time.h>
 #include <mega/common/platform/windows.h>
 #include <mega/common/testing/path.h>
-#include <mega/fuse/common/testing/utility.h>
+#include <mega/common/testing/utility.h>
 #include <mega/fuse/platform/handle.h>
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
-
-using namespace common;
-using namespace common::testing;
 
 DateTime lastWriteTime(const Path& path, std::error_code& result)
 {
     WIN32_FILE_ATTRIBUTE_DATA attributes;
 
-    if (GetFileAttributesExW(path.path().c_str(),
-                             GetFileExInfoStandard,
-                             &attributes))
+    if (GetFileAttributesExW(path.path().c_str(), GetFileExInfoStandard, &attributes))
         return attributes.ftLastWriteTime;
 
     result = std::error_code(GetLastError(), std::system_category());
@@ -28,11 +23,9 @@ DateTime lastWriteTime(const Path& path, std::error_code& result)
     return DateTime();
 }
 
-void lastWriteTime(const Path path,
-                   const DateTime& modified,
-                   std::error_code& result)
+void lastWriteTime(const Path path, const DateTime& modified, std::error_code& result)
 {
-    using platform::Handle;
+    using fuse::platform::Handle;
 
     FILETIME modified_ = modified;
 
@@ -51,6 +44,5 @@ void lastWriteTime(const Path path,
 }
 
 } // testing
-} // fuse
+} // common
 } // mega
-
