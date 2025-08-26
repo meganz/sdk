@@ -65,6 +65,15 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
     %define __brp_check_rpaths QA_RPATHS=$(( 0x0002|0x0008 )) /usr/lib/rpm/check-rpaths
 %endif
 
+#CentOS/RedHat/AlmaLinux
+%if 0%{?centos_version} || 0%{?rhel_version}
+    BuildRequires: openssl-devel, sqlite-devel, c-ares-devel, bzip2-devel
+    BuildRequires: desktop-file-utils
+    BuildRequires: systemd-devel
+    BuildRequires: bzip2-devel
+    BuildRequires: qt5-qtbase-devel qt5-qttools-devel, qt5-linguist, qt5-qtsvg-devel, qt5-qtx11extras-devel, qt5-qtdeclarative-devel
+    Requires: qt5-qtbase qt5-qtquickcontrols qt5-qtquickcontrols2 qt5-qtdeclarative
+%endif
 
 %description
 This SDK brings you all the power of our client applications and let you create
