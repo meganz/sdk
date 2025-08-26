@@ -1,13 +1,12 @@
+#include <mega/common/date_time.h>
+#include <mega/utils.h>
+
 #include <iomanip>
 #include <sstream>
 
-#include <mega/utils.h>
-
-#include <mega/fuse/common/date_time.h>
-
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace detail
 {
@@ -35,6 +34,5 @@ std::string toString(const DateTime& value)
 }
 
 } // detail
-} // fuse
+} // common
 } // mega
-

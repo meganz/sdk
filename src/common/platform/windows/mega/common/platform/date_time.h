@@ -1,12 +1,11 @@
 #pragma once
 
-#include <mega/fuse/platform/windows.h>
-
-#include <mega/fuse/common/date_time.h>
+#include <mega/common/date_time.h>
+#include <mega/common/platform/windows.h>
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace detail
 {
@@ -52,6 +51,5 @@ struct TimeValueTraits<FILETIME>
 }; // TimeValueTraits<FILETIME>
 
 } // detail
-} // fuse
-} // fuse
-
+} // common
+} // mega

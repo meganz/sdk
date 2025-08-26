@@ -1,7 +1,7 @@
 #include <mega/common/node_info.h>
+#include <mega/common/platform/date_time.h>
 #include <mega/common/testing/path.h>
 #include <mega/fuse/common/inode_info.h>
-#include <mega/fuse/platform/date_time.h>
 #include <mega/fuse/platform/handle.h>
 #include <mega/fuse/platform/local_pointer.h>
 #include <mega/fuse/platform/security_descriptor.h>
@@ -16,7 +16,7 @@ bool operator==(const BY_HANDLE_FILE_INFORMATION& lhs,
 bool operator==(const BY_HANDLE_FILE_INFORMATION& lhs,
                 const WIN32_FILE_ATTRIBUTE_DATA& rhs)
 {
-    using mega::fuse::DateTime;
+    using mega::common::DateTime;
 
     return lhs.dwFileAttributes == rhs.dwFileAttributes
            && DateTime(lhs.ftCreationTime) == rhs.ftCreationTime

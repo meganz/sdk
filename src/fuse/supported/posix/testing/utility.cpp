@@ -1,6 +1,6 @@
+#include <mega/common/platform/date_time.h>
 #include <mega/common/testing/path.h>
 #include <mega/fuse/common/testing/utility.h>
-#include <mega/fuse/platform/date_time.h>
 #include <sys/stat.h>
 
 #include <utime.h>
@@ -12,7 +12,8 @@ namespace fuse
 namespace testing
 {
 
-using namespace common::testing;
+using common::DateTime;
+using common::testing::Path;
 
 DateTime lastWriteTime(const Path& path, std::error_code& result)
 {

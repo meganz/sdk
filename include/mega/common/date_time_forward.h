@@ -2,7 +2,7 @@
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace detail
 {
@@ -28,6 +28,5 @@ using DateTime = detail::DateTime;
 template<typename T>
 using IsTimeValue = detail::IsTimeValue<T>;
 
-} // fuse
+} // common
 } // mega
-

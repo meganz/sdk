@@ -1,9 +1,11 @@
+#include <mega/common/date_time.h>
 #include <mega/common/node_info.h>
-#include <mega/fuse/common/date_time.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/testing/printers.h>
+
+#include <ostream>
 
 namespace mega
 {
@@ -15,11 +17,6 @@ using namespace common;
 static std::ostream& operator<<(std::ostream& ostream, accesslevel_t permissions);
 
 static const std::string indent = std::string(6, ' ');
-
-std::ostream& operator<<(std::ostream& ostream, const DateTime& value)
-{
-    return ostream << toString(value);
-}
 
 template<typename T>
 auto operator<<(std::ostream& ostream, const T& value)

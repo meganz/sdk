@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mega/common/node_info_forward.h>
+#include <mega/common/platform/windows.h>
 #include <mega/common/testing/path_forward.h>
 #include <mega/common/type_traits.h>
 #include <mega/fuse/common/inode_info_forward.h>
@@ -8,7 +9,6 @@
 #include <mega/fuse/platform/handle_forward.h>
 #include <mega/fuse/platform/security_descriptor_forward.h>
 #include <mega/fuse/platform/utility.h>
-#include <mega/fuse/platform/windows.h>
 
 #include <optional>
 

@@ -5,4 +5,5 @@ target_sources(test_integration PRIVATE
                                 file.h
                                 path.h
                                 path_forward.h
+                                printers.h
 )

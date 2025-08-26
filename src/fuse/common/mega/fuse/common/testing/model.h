@@ -1,11 +1,11 @@
 #pragma once
 
 #include <mega/common/node_info_forward.h>
+#include <mega/common/platform/date_time.h>
 #include <mega/common/testing/cloud_path_forward.h>
 #include <mega/common/testing/path_forward.h>
 #include <mega/fuse/common/testing/client_forward.h>
 #include <mega/fuse/common/testing/model_forward.h>
-#include <mega/fuse/platform/date_time.h>
 #include <tests/stdfs.h>
 
 #include <chrono>
@@ -65,7 +65,7 @@ public:
         virtual void populate(fs::path path) const = 0;
 
         // When was this node last modified?
-        DateTime mModified;
+        common::DateTime mModified;
 
         // The name of the node.
         std::string mName;

@@ -1,5 +1,5 @@
+#include <mega/common/platform/windows.h>
 #include <mega/fuse/platform/shell.h>
-#include <mega/fuse/platform/windows.h>
 #include <mega/scoped_helpers.h>
 #include <mega/utils.h>
 

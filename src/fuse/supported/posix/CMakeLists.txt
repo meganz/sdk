@@ -95,7 +95,6 @@ endif()
 # Add sources required by libfuse backend.
 target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_POSIX_INC}/constants.h
-                             ${FUSE_POSIX_INC}/date_time.h
                              ${FUSE_POSIX_INC}/directory_context.h
                              ${FUSE_POSIX_INC}/file_descriptor.h
                              ${FUSE_POSIX_INC}/file_descriptor_forward.h

@@ -1,7 +1,6 @@
 #pragma once
 
-#include <mega/fuse/platform/windows.h>
-
+#include <mega/common/platform/windows.h>
 #include <mega/fuse/common/testing/printers.h>
 #include <mega/fuse/platform/security_descriptor_forward.h>
 #include <mega/fuse/platform/testing/wrappers.h>

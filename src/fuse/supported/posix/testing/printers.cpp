@@ -1,10 +1,10 @@
+#include <mega/common/platform/date_time.h>
+#include <mega/fuse/common/mount_inode_id.h>
+#include <mega/fuse/platform/testing/printers.h>
+
 #include <iomanip>
 #include <sstream>
 #include <string>
-
-#include <mega/fuse/common/mount_inode_id.h>
-#include <mega/fuse/platform/date_time.h>
-#include <mega/fuse/platform/testing/printers.h>
 
 struct Mode
 {
@@ -36,6 +36,7 @@ void PrintTo(const struct dirent& entry, std::ostream* ostream)
 
 void PrintTo(const struct stat& stat, std::ostream* ostream)
 {
+    using namespace mega::common;
     using namespace mega::fuse;
 
     *ostream << "\n"

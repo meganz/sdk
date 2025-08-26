@@ -13,8 +13,6 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_INC}/any_lock_set.h
                              ${FUSE_COMMON_INC}/any_lock_set_forward.h
                              ${FUSE_COMMON_INC}/client.h
-                             ${FUSE_COMMON_INC}/date_time.h
-                             ${FUSE_COMMON_INC}/date_time_forward.h
                              ${FUSE_COMMON_INC}/file_explorer_view.h
                              ${FUSE_COMMON_INC}/file_move_flag.h
                              ${FUSE_COMMON_INC}/file_move_flag_forward.h
@@ -49,7 +47,6 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_COMMON_INC}/service_forward.h
                              ${FUSE_COMMON_SRC}/any_lock_set.cpp
                              ${FUSE_COMMON_SRC}/client.cpp
-                             ${FUSE_COMMON_SRC}/date_time.cpp
                              ${FUSE_COMMON_SRC}/file_explorer_view.cpp
                              ${FUSE_COMMON_SRC}/file_move_flag.cpp
                              ${FUSE_COMMON_SRC}/inode_id.cpp

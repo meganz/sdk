@@ -1,7 +1,8 @@
-#include <cstring>
+#include "megafs.h"
 
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/platform/date_time.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/directory_inode.h>
 #include <mega/fuse/common/file_inode.h>
@@ -16,7 +17,6 @@
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/ref.h>
 #include <mega/fuse/platform/context.h>
-#include <mega/fuse/platform/date_time.h>
 #include <mega/fuse/platform/directory_context.h>
 #include <mega/fuse/platform/file_context.h>
 #include <mega/fuse/platform/library.h>
@@ -26,7 +26,7 @@
 #include <mega/fuse/platform/service_context.h>
 #include <mega/fuse/platform/utility.h>
 
-#include "megafs.h"
+#include <cstring>
 
 namespace mega
 {

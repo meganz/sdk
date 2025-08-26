@@ -9,4 +9,5 @@ target_sources(test_integration PRIVATE
                                 directory.cpp
                                 file.cpp
                                 path.cpp
+                                printers.cpp
 )

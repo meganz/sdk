@@ -1,5 +1,4 @@
-#include <mega/fuse/platform/windows.h>
-
+#include <mega/common/platform/windows.h>
 #include <mega/fuse/platform/local_pointer.h>
 
 namespace mega

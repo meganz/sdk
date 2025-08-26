@@ -1,9 +1,9 @@
+#include <mega/common/platform/windows.h>
 #include <mega/common/testing/path.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/platform/testing/directory_monitor.h>
 #include <mega/fuse/platform/testing/wrappers.h>
 #include <mega/fuse/platform/utility.h>
-#include <mega/fuse/platform/windows.h>
 
 #include <algorithm>
 #include <cassert>

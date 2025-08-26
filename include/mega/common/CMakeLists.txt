@@ -11,6 +11,8 @@ target_sources(SDKlib PRIVATE
                       database_builder.h
                       database_forward.h
                       database_utilities.h
+                      date_time.h
+                      date_time_forward.h
                       deciseconds.h
                       directory.h
                       error_or.h

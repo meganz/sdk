@@ -1,26 +1,23 @@
 #pragma once
 
+#include <mega/common/date_time_forward.h>
+#include <mega/common/type_traits.h>
+#include <mega/types.h>
+
 #include <chrono>
 #include <cstdint>
 #include <string>
 
-#include <mega/types.h>
-
-#include <mega/common/type_traits.h>
-#include <mega/fuse/common/date_time_forward.h>
-
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace detail
 {
 
 template<typename T, typename... Ts>
-struct AreTimeValues
-  : std::bool_constant<IsTimeValue<T>::value && IsTimeValue<Ts...>::value>
-{
-}; // AreTimeValues<T, Ts...>
+struct AreTimeValues: std::bool_constant<IsTimeValue<T>::value && IsTimeValue<Ts...>::value>
+{}; // AreTimeValues<T, Ts...>
 
 class DateTime
 {
@@ -34,10 +31,9 @@ public:
     template<typename T,
              typename U = IsTimeValue<T>,
              typename V = typename std::enable_if<U::value>::type>
-    DateTime(const T& other)
-      : mValue(TimeValueTraits<T>::from(other))
-    {
-    }
+    DateTime(const T& other):
+        mValue(TimeValueTraits<T>::from(other))
+    {}
 
     DateTime& operator=(const DateTime& rhs) = default;
 
@@ -87,10 +83,8 @@ public:
 }; // DateTime
 
 template<typename T>
-struct IsTimeValue
-  : common::IsComplete<TimeValueTraits<T>>
-{
-}; // IsTimeValue<T>
+struct IsTimeValue: common::IsComplete<TimeValueTraits<T>>
+{}; // IsTimeValue<T>
 
 template<>
 struct TimeValueTraits<m_time_t>
@@ -127,7 +121,5 @@ struct TimeValueTraits<SystemTime>
 std::string toString(const DateTime& value);
 
 } // detail
-
-} // fuse
+} // common
 } // mega
-

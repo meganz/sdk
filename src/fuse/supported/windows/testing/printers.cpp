@@ -1,11 +1,15 @@
-#include <iomanip>
-#include <string>
-
+#include <mega/common/platform/date_time.h>
+#include <mega/common/testing/printers.h>
 #include <mega/fuse/common/mount_inode_id.h>
-#include <mega/fuse/platform/date_time.h>
 #include <mega/fuse/platform/security_descriptor.h>
 #include <mega/fuse/platform/testing/printers.h>
 #include <mega/fuse/platform/utility.h>
+
+#include <iomanip>
+#include <string>
+
+using namespace mega::common;
+using namespace mega::fuse;
 
 static UINT64 toUint64(DWORD low, DWORD high);
 
@@ -13,8 +17,6 @@ static const std::string indent = std::string(6, ' ');
 
 void PrintTo(const BY_HANDLE_FILE_INFORMATION& info, std::ostream* ostream)
 {
-    using namespace mega::fuse;
-
     auto fill = ostream->fill();
     auto flags = ostream->flags();
     auto index = MountInodeID(toUint64(info.nFileIndexLow, info.nFileIndexHigh));
@@ -56,15 +58,11 @@ void PrintTo(const BY_HANDLE_FILE_INFORMATION& info, std::ostream* ostream)
 
 void PrintTo(const FILETIME& value, std::ostream* ostream)
 {
-    using namespace mega::fuse;
-
     *ostream << DateTime(value);
 }
 
 void PrintTo(const WIN32_FILE_ATTRIBUTE_DATA& info, std::ostream* ostream)
 {
-    using namespace mega::fuse;
-
     auto fill = ostream->fill();
     auto flags = ostream->flags();
     auto width = ostream->width();
@@ -128,6 +126,8 @@ namespace testing
 
 void PrintTo(const FileTimes& value, std::ostream* ostream)
 {
+    using common::operator<<;
+
     *ostream << "\n"
              << indent
              << "accessed: "

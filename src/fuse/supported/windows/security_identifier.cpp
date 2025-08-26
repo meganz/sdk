@@ -1,11 +1,10 @@
-#include <mega/fuse/platform/windows.h>
-#include <sddl.h>
+#include <mega/common/platform/windows.h>
+#include <mega/fuse/common/logging.h>
+#include <mega/fuse/platform/security_identifier.h>
 
 #include <cassert>
 #include <cstring>
-
-#include <mega/fuse/common/logging.h>
-#include <mega/fuse/platform/security_identifier.h>
+#include <sddl.h>
 
 namespace mega
 {

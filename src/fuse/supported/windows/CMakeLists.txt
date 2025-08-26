@@ -17,7 +17,6 @@ target_include_directories(${SDK_TARGET} PRIVATE ${FUSE_WINDOWS_SRC})
 # Add sources required by WinFSP backend.
 target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_WINDOWS_INC}/constants.h
-                             ${FUSE_WINDOWS_INC}/date_time.h
                              ${FUSE_WINDOWS_INC}/directory_context.h
                              ${FUSE_WINDOWS_INC}/dispatcher.h
                              ${FUSE_WINDOWS_INC}/dispatcher_forward.h
@@ -36,7 +35,6 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_WINDOWS_INC}/security_identifier_forward.h
                              ${FUSE_WINDOWS_INC}/shell.h
                              ${FUSE_WINDOWS_INC}/utility.h
-                             ${FUSE_WINDOWS_INC}/windows.h
                              ${FUSE_WINDOWS_SRC}/constants.cpp
                              ${FUSE_WINDOWS_SRC}/directory_context.cpp
                              ${FUSE_WINDOWS_SRC}/dispatcher.cpp

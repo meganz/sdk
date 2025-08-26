@@ -1,10 +1,10 @@
-#include <cstring>
-
+#include <mega/common/platform/date_time.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/logging.h>
-#include <mega/fuse/platform/date_time.h>
 #include <mega/fuse/platform/mount.h>
 #include <mega/fuse/platform/utility.h>
+
+#include <cstring>
 
 namespace mega
 {
@@ -154,6 +154,8 @@ void translate(FSP_FSCTL_FILE_INFO& destination,
                const Mount& mount,
                const InodeInfo& source)
 {
+    using common::DateTime;
+
     // Make sure destination's in a well-defined state.
     std::memset(&destination, 0, sizeof(destination));
 

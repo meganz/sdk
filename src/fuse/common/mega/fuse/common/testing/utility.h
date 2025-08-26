@@ -1,10 +1,10 @@
 #pragma once
 
+#include <mega/common/date_time_forward.h>
 #include <mega/common/error_or_forward.h>
 #include <mega/common/node_info_forward.h>
 #include <mega/common/testing/path_forward.h>
 #include <mega/common/type_traits.h>
-#include <mega/fuse/common/date_time_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/testing/client_forward.h>
@@ -67,14 +67,14 @@ void forEach(Container&& container, Function function)
 NodeHandle id(const common::NodeInfo& info);
 InodeID id(const InodeInfo& info);
 
-DateTime lastWriteTime(const common::testing::Path& path, std::error_code& result);
-DateTime lastWriteTime(const common::testing::Path& path);
+common::DateTime lastWriteTime(const common::testing::Path& path, std::error_code& result);
+common::DateTime lastWriteTime(const common::testing::Path& path);
 
 void lastWriteTime(const common::testing::Path path,
-                   const DateTime& modified,
+                   const common::DateTime& modified,
                    std::error_code& result);
 
-void lastWriteTime(const common::testing::Path& path, const DateTime& modified);
+void lastWriteTime(const common::testing::Path& path, const common::DateTime& modified);
 
 NodeHandle parentID(const common::NodeInfo& info);
 InodeID parentID(const InodeInfo& info);

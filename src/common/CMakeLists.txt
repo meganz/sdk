@@ -9,6 +9,7 @@ target_sources(SDKlib PRIVATE
                       client_adapter.cpp
                       database.cpp
                       database_builder.cpp
+                      date_time.cpp
                       directory.cpp
                       logger.cpp
                       node_event_type.cpp
@@ -30,6 +31,8 @@ if(ENABLE_SYNC)
 else()
     target_sources(SDKlib PRIVATE client_adapter_without_sync.cpp)
 endif()
+
+add_subdirectory(platform)
 
 if(TARGET test_integration)
     add_subdirectory(testing)
