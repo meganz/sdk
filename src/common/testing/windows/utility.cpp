@@ -1,8 +1,8 @@
 #include <mega/common/platform/date_time.h>
+#include <mega/common/platform/handle.h>
 #include <mega/common/platform/windows.h>
 #include <mega/common/testing/path.h>
 #include <mega/common/testing/utility.h>
-#include <mega/fuse/platform/handle.h>
 
 namespace mega
 {
@@ -10,6 +10,8 @@ namespace common
 {
 namespace testing
 {
+
+using platform::Handle;
 
 DateTime lastWriteTime(const Path& path, std::error_code& result)
 {
@@ -25,8 +27,6 @@ DateTime lastWriteTime(const Path& path, std::error_code& result)
 
 void lastWriteTime(const Path path, const DateTime& modified, std::error_code& result)
 {
-    using fuse::platform::Handle;
-
     FILETIME modified_ = modified;
 
     Handle<> handle(CreateFileW(path.path().c_str(),

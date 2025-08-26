@@ -18,6 +18,7 @@ namespace testing
 {
 
 using namespace common::testing;
+using namespace common::platform;
 using namespace platform;
 
 constexpr auto BUFFER_LENGTH = 32768;

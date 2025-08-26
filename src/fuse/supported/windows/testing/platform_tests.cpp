@@ -1,6 +1,7 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
 #include <mega/common/platform/date_time.h>
+#include <mega/common/platform/handle.h>
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/directory.h>
 #include <mega/common/testing/path.h>
@@ -8,7 +9,6 @@
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/model.h>
 #include <mega/fuse/common/testing/utility.h>
-#include <mega/fuse/platform/handle.h>
 #include <mega/fuse/platform/security_descriptor.h>
 #include <mega/fuse/platform/security_identifier.h>
 #include <mega/fuse/platform/testing/directory_monitor.h>
@@ -25,12 +25,12 @@ namespace testing
 {
 
 using common::DateTime;
+using common::platform::Handle;
 using common::testing::Directory;
 using common::testing::randomBytes;
 using common::testing::randomName;
 using common::testing::waitFor;
 using platform::fromWideString;
-using platform::Handle;
 using platform::readOnlySecurityDescriptor;
 using platform::readWriteSecurityDescriptor;
 using platform::SecurityDescriptor;

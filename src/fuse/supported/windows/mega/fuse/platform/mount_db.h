@@ -4,7 +4,6 @@
 #include <mega/fuse/common/mount_db.h>
 #include <mega/fuse/common/service_context_forward.h>
 #include <mega/fuse/platform/file_explorer_setter.h>
-#include <mega/fuse/platform/handle.h>
 #include <mega/fuse/platform/security_descriptor.h>
 
 namespace mega

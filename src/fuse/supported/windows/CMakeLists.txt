@@ -21,8 +21,6 @@ target_sources(${SDK_TARGET} PRIVATE
                              ${FUSE_WINDOWS_INC}/dispatcher.h
                              ${FUSE_WINDOWS_INC}/dispatcher_forward.h
                              ${FUSE_WINDOWS_INC}/file_explorer_setter.h
-                             ${FUSE_WINDOWS_INC}/handle.h
-                             ${FUSE_WINDOWS_INC}/handle_forward.h
                              ${FUSE_WINDOWS_INC}/library.h
                              ${FUSE_WINDOWS_INC}/local_pointer.h
                              ${FUSE_WINDOWS_INC}/mount.h

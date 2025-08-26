@@ -1,12 +1,12 @@
 #pragma once
 
 #include <mega/common/node_info_forward.h>
+#include <mega/common/platform/handle_forward.h>
 #include <mega/common/platform/windows.h>
 #include <mega/common/testing/path_forward.h>
 #include <mega/common/type_traits.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/testing/utility.h>
-#include <mega/fuse/platform/handle_forward.h>
 #include <mega/fuse/platform/security_descriptor_forward.h>
 #include <mega/fuse/platform/utility.h>
 
@@ -103,7 +103,7 @@ struct VolumeInfo
     std::string mFilesystemName;
 }; // VolumeInfo
 
-using FindHandle = platform::Handle<FindHandleDeleter>;
+using FindHandle = common::platform::Handle<FindHandleDeleter>;
 
 bool operator==(const FileTimes& lhs, const FileTimes& rhs);
 
@@ -111,13 +111,13 @@ bool operator!=(const FileTimes& lhs, const FileTimes& rhs);
 
 BOOL CreateDirectoryP(const common::testing::Path& path, LPSECURITY_ATTRIBUTES securityAttributes);
 
-platform::Handle<> CreateFileP(const common::testing::Path& path,
-                               DWORD desiredAccess,
-                               DWORD shareMode,
-                               LPSECURITY_ATTRIBUTES securityAttributes,
-                               DWORD creationDisposition,
-                               DWORD flagsAndAttributes,
-                               const platform::Handle<>& templateFile);
+common::platform::Handle<> CreateFileP(const common::testing::Path& path,
+                                       DWORD desiredAccess,
+                                       DWORD shareMode,
+                                       LPSECURITY_ATTRIBUTES securityAttributes,
+                                       DWORD creationDisposition,
+                                       DWORD flagsAndAttributes,
+                                       const common::platform::Handle<>& templateFile);
 
 BOOL DeleteFileP(const common::testing::Path& path);
 

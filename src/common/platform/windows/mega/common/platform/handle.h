@@ -1,13 +1,13 @@
 #pragma once
 
+#include <mega/common/platform/handle_forward.h>
 #include <mega/common/platform/windows.h>
-#include <mega/fuse/platform/handle_forward.h>
 
 #include <utility>
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace platform
 {
@@ -27,20 +27,18 @@ class Handle
     HANDLE mHandle;
 
 public:
-    Handle(const Deleter& deleter = Deleter())
-      : Handle(INVALID_HANDLE_VALUE, deleter)
-    {
-    }
+    Handle(const Deleter& deleter = Deleter()):
+        Handle(INVALID_HANDLE_VALUE, deleter)
+    {}
 
-    explicit Handle(HANDLE handle, const Deleter& deleter = Deleter())
-      : mDeleter(deleter)
-      , mHandle(handle)
-    {
-    }
+    explicit Handle(HANDLE handle, const Deleter& deleter = Deleter()):
+        mDeleter(deleter),
+        mHandle(handle)
+    {}
 
-    Handle(Handle&& other)
-      : mDeleter(std::move(other.mDeleter))
-      , mHandle(std::move(other.mHandle))
+    Handle(Handle&& other):
+        mDeleter(std::move(other.mDeleter)),
+        mHandle(std::move(other.mHandle))
     {
         other.mDeleter = Deleter();
         other.mHandle = INVALID_HANDLE_VALUE;
@@ -122,6 +120,5 @@ void swap(Handle<Deleter>& lhs, Handle<Deleter>& rhs)
 }
 
 } // platform
-} // fuse
+} // common
 } // mega
-

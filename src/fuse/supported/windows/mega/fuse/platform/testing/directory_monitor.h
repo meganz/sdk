@@ -1,7 +1,7 @@
 #pragma once
 
+#include <mega/common/platform/handle.h>
 #include <mega/common/testing/path_forward.h>
-#include <mega/fuse/platform/handle.h>
 
 #include <atomic>
 #include <chrono>
@@ -42,10 +42,10 @@ class DirectoryMonitor
 
     std::unique_ptr<Buffer> mBuffer;
     std::condition_variable mCV;
-    platform::Handle<> mDirectory;
+    common::platform::Handle<> mDirectory;
     std::list<DirectoryEvent> mExpectations;
     std::mutex mLock;
-    platform::Handle<> mPort;
+    common::platform::Handle<> mPort;
     std::thread mWorker;
 
 public:

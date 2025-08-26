@@ -2,7 +2,7 @@
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace platform
 {
@@ -13,6 +13,5 @@ template<typename Deleter = DefaultHandleDeleter>
 class Handle;
 
 } // platform
-} // fuse
+} // common
 } // mega
-

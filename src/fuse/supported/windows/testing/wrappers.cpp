@@ -1,8 +1,8 @@
 #include <mega/common/node_info.h>
 #include <mega/common/platform/date_time.h>
+#include <mega/common/platform/handle.h>
 #include <mega/common/testing/path.h>
 #include <mega/fuse/common/inode_info.h>
-#include <mega/fuse/platform/handle.h>
 #include <mega/fuse/platform/local_pointer.h>
 #include <mega/fuse/platform/security_descriptor.h>
 #include <mega/fuse/platform/testing/wrappers.h>
@@ -53,6 +53,7 @@ namespace fuse
 {
 
 using namespace common;
+using namespace common::platform;
 using namespace platform;
 
 template<typename T>
