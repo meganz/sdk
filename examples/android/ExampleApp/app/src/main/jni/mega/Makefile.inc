@@ -234,7 +234,6 @@ HEADERS += \
     sdk/include/mega/common/scoped_query_forward.h \
     sdk/include/mega/common/serialization_traits.h \
     sdk/include/mega/common/serialization_traits_forward.h \
-    sdk/include/mega/common/scoped_query_forward.h \
     sdk/include/mega/common/shared_mutex.h \
     sdk/include/mega/common/shared_mutex_forward.h \
     sdk/include/mega/common/subsystem_logger.h \
@@ -252,7 +251,10 @@ HEADERS += \
     sdk/include/mega/common/upload.h \
     sdk/include/mega/common/upload_callbacks.h \
     sdk/include/mega/common/upload_forward.h \
-    sdk/include/mega/common/utility.h
+    sdk/include/mega/common/utility.h \
+    sdk/src/common/platform/posix/mega/common/platform/date_time.h
+
+CPPFLAGS += -I sdk/src/common/platform/posix
 
 # Common sources
 CPP_SOURCES += \
@@ -261,6 +263,7 @@ CPP_SOURCES += \
     sdk/src/common/client_adapter.cpp \
     sdk/src/common/database.cpp \
     sdk/src/common/database_builder.cpp \
+    sdk/src/common/date_time.cpp \
     sdk/src/common/directory.cpp \
     sdk/src/common/logger.cpp \
     sdk/src/common/node_event_type.cpp \
@@ -374,8 +377,6 @@ HEADERS += \
     sdk/include/mega/fuse/common/fuse/common/any_lock_set.h \
     sdk/include/mega/fuse/common/fuse/common/any_lock_set_forward.h \
     sdk/include/mega/fuse/common/fuse/common/client.h \
-    sdk/include/mega/fuse/common/fuse/common/date_time.h \
-    sdk/include/mega/fuse/common/fuse/common/date_time_forward.h \
     sdk/include/mega/fuse/common/fuse/common/file_move_flag.h \
     sdk/include/mega/fuse/common/fuse/common/file_move_flag_forward.h \
     sdk/include/mega/fuse/common/fuse/common/file_open_flag.h \
@@ -412,7 +413,6 @@ HEADERS += \
 CPP_SOURCES += \
     sdk/src/fuse/common/any_lock_set.cpp \
     sdk/src/fuse/common/client.cpp \
-    sdk/src/fuse/common/date_time.cpp \
     sdk/src/fuse/common/inode_id.cpp \
     sdk/src/fuse/common/inode_info.cpp \
     sdk/src/fuse/common/logger.cpp \
