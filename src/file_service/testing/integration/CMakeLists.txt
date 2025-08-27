@@ -1,4 +1,4 @@
-if (NOT TARGET test_integration OR NOT WITH_FUSE)
+if (NOT TARGET test_integration)
     return()
 endif()
 
