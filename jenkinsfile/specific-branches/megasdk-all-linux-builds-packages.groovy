@@ -115,6 +115,7 @@ pipeline {
                                     'Debian_11','Debian_12','Debian_13','Debian_testing',
                                     'DEB_Arch_Extra',
                                     'Fedora_42',
+                                    'AlmaLinux_9','CentOS_Stream_9',
                                     'openSUSE_Leap_15.6', 'openSUSE_Tumbleweed'
                         }
                     }
@@ -135,7 +136,7 @@ pipeline {
                         } 
                         axis { 
                             name 'DISTRO'; 
-                            values  'DEB_Arch_Extra','Debian_11','xUbuntu_24.04','Fedora_42',
+                            values  'DEB_Arch_Extra','Debian_11','xUbuntu_24.04','Fedora_42','CentOS_Stream_9',
                                     'Raspbian_12','openSUSE_Tumbleweed'
                         }
                     }
