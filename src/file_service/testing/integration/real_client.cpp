@@ -1,19 +1,15 @@
-#include <mega/fuse/common/mount_event.h>
-#include <mega/fuse/common/testing/real_client.h>
+#include <mega/common/testing/path.h>
+#include <mega/file_service/file_service.h>
+#include <mega/file_service/testing/integration/real_client.h>
 
 namespace mega
 {
-namespace fuse
+namespace file_service
 {
 namespace testing
 {
 
 using common::testing::Path;
-
-void RealClient::onFuseEvent(const MountEvent& event)
-{
-    mountEvent(event);
-}
 
 RealClient::RealClient(const std::string& clientName,
                        const Path& databasePath,
@@ -21,18 +17,15 @@ RealClient::RealClient(const std::string& clientName,
     common::testing::Client(clientName, databasePath, storagePath),
     Client(clientName, databasePath, storagePath),
     common::testing::RealClient(clientName, databasePath, storagePath)
-{
-    // Make sure FUSE logs *everything*.
-    mClient->mFuseService.logLevel(logDebug);
-}
+{}
 
 RealClient::~RealClient() {}
 
-Service& RealClient::fuseService() const
+FileService& RealClient::fileService() const
 {
-    return mClient->mFuseService;
+    return mClient->mFileService;
 }
 
 } // testing
-} // fuse
+} // file_service
 } // mega

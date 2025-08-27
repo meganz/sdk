@@ -2,24 +2,20 @@
 
 #include <mega/common/testing/path_forward.h>
 #include <mega/common/testing/real_client.h>
-#include <mega/fuse/common/mount_event_forward.h>
-#include <mega/fuse/common/service_forward.h>
-#include <mega/fuse/common/testing/client.h>
+#include <mega/file_service/file_service_forward.h>
+#include <mega/file_service/testing/integration/client.h>
 
 #include <string>
 
 namespace mega
 {
-namespace fuse
+namespace file_service
 {
 namespace testing
 {
 
 class RealClient: public Client, public common::testing::RealClient
 {
-    // Called when the client emits a mount event.
-    void onFuseEvent(const MountEvent& event) override;
-
 public:
     RealClient(const std::string& clientName,
                const common::testing::Path& databasePath,
@@ -27,11 +23,10 @@ public:
 
     ~RealClient();
 
-    // Get our hands on the client's FUSE interface.
-    Service& fuseService() const override;
+    // Get our hands on the client's File Service interface.
+    FileService& fileService() const override;
 }; // RealClient
 
 } // testing
-} // fuse
+} // file_service
 } // mega
-

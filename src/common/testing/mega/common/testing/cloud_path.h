@@ -1,8 +1,8 @@
 #pragma once
 
 #include <mega/common/error_or_forward.h>
+#include <mega/common/testing/client_forward.h>
 #include <mega/common/testing/cloud_path_forward.h>
-#include <mega/fuse/common/testing/client_forward.h>
 #include <mega/types.h>
 
 namespace mega
@@ -36,7 +36,7 @@ public:
 
     CloudPath& operator=(CloudPath&& rhs) = default;
 
-    ErrorOr<NodeHandle> resolve(const fuse::testing::Client& client) const;
+    ErrorOr<NodeHandle> resolve(const Client& client) const;
 }; // CloudPath
 
 } // testing

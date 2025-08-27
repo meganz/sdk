@@ -2,10 +2,10 @@
 
 #include <mega/common/node_info_forward.h>
 #include <mega/common/platform/date_time.h>
+#include <mega/common/testing/client_forward.h>
 #include <mega/common/testing/cloud_path_forward.h>
 #include <mega/common/testing/model_forward.h>
 #include <mega/common/testing/path_forward.h>
-#include <mega/fuse/common/testing/client_forward.h>
 #include <tests/stdfs.h>
 
 #include <chrono>
@@ -99,7 +99,7 @@ public:
         auto directory() -> DirectoryNode* override;
 
         // Create a directory based on the content of the cloud.
-        static auto from(const fuse::testing::Client& client, NodeInfo info) -> NodePtr;
+        static auto from(const Client& client, NodeInfo info) -> NodePtr;
 
         // Create a directory based on the content of path.
         static auto from(const fs::path& path) -> NodePtr;
@@ -135,7 +135,7 @@ public:
         auto file() -> FileNode* override;
 
         // Create a file based on the content of the cloud.
-        static auto from(const fuse::testing::Client& client, NodeInfo info) -> NodePtr;
+        static auto from(const Client& client, NodeInfo info) -> NodePtr;
 
         // Create a file based on the content of path.
         static auto from(const fs::path& path) -> NodePtr;
@@ -175,7 +175,7 @@ public:
     static auto file(const std::string& name) -> FileNodePtr;
 
     // Build a model based on the contents of the cloud.
-    static Model from(const fuse::testing::Client& client, CloudPath path);
+    static Model from(const Client& client, CloudPath path);
 
     // Build a model based on the contents of path.
     static Model from(const Path& path);

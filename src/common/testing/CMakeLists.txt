@@ -5,12 +5,14 @@ target_include_directories(test_integration PRIVATE
 add_subdirectory(mega)
 
 target_sources(test_integration PRIVATE
+                                client.cpp
                                 cloud_path.cpp
                                 directory.cpp
                                 file.cpp
                                 model.cpp
                                 path.cpp
                                 printers.cpp
+                                real_client.cpp
                                 utility.cpp
 )
 

@@ -1,11 +1,12 @@
 #pragma once
 
 #include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include <mega/common/testing/model.h>
 #include <mega/common/testing/path.h>
+#include <mega/common/testing/test.h>
 #include <mega/fuse/common/testing/client_forward.h>
 #include <mega/fuse/common/testing/parameters_forward.h>
+#include <mega/fuse/common/testing/real_client.h>
 #include <mega/fuse/common/testing/watchdog.h>
 
 #include <chrono>
@@ -17,8 +18,15 @@ namespace fuse
 namespace testing
 {
 
-class Test
-  : public ::testing::Test
+struct TestTraits
+{
+    using AbstractClient = Client;
+    using ConcreteClient = RealClient;
+
+    static constexpr const char* mName = "fuse";
+}; // TestTraits
+
+class Test: public common::testing::Test<TestTraits>
 {
     // For clarity.
     enum ClientType : std::size_t {
@@ -64,9 +72,6 @@ class Test
     // What clients should we use for testing?
     static ClientPtrArray mClients;
 
-    // Where will our clients put their databases?
-    static common::testing::Path mDatabasePath;
-
     // Expected contents of the cloud.
     static common::testing::Model mModel;
 
@@ -75,9 +80,6 @@ class Test
 
     // Where are our sentinels?
     static PathArray mSentinelPaths;
-
-    // Where will out clients put their local state?
-    static common::testing::Path mStoragePath;
 
     // Makes sure our tests don't run forever.
     static Watchdog mWatchdog;
@@ -104,9 +106,6 @@ public:
 
     // Remove macro from scope.
     #undef DEFINE_CLIENT_ACCESSOR
-
-    // Create a client.
-    static ClientPtr CreateClient(const std::string& name);
 
     // Defines a path accesor method.
 #define DEFINE_PATH_ACCESSOR(name, scope, slot) \
@@ -145,12 +144,6 @@ public:
 
     // Perform fixture-wide teardown.
     static void TearDownTestSuite();
-
-    // How long should we wait for something to happen?
-    static const std::chrono::seconds mDefaultTimeout;
-
-    // Where should we store temporary state?
-    static common::testing::Path mScratchPath;
 }; // Test
 
 } // testing

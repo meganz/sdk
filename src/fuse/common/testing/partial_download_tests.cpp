@@ -138,7 +138,7 @@ TEST_F(FUSEPartialDownloadTests, DISABLED_measure_average_fetch_times)
                 return Abort();
 
             // Convenience.
-            using mega::common::deciseconds;
+            using ::mega::common::deciseconds;
 
             // Retry after 200ms.
             return Retry(deciseconds(2));

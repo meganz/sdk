@@ -116,21 +116,13 @@ Error Test::regenerate(Client& client,
     return API_OK;
 }
 
-Path Test::mDatabasePath;
-
 Model Test::mModel;
-
-Path Test::mStoragePath;
 
 Watchdog Test::mWatchdog;
 
 Test::ClientPtrArray Test::mClients;
 
-const std::chrono::seconds Test::mDefaultTimeout(8);
-
 Test::PathArray Test::mMountPaths;
-
-Path Test::mScratchPath;
 
 Test::PathArray Test::mSentinelPaths;
 
@@ -260,33 +252,6 @@ bool Test::DoTearDown()
     return result;
 }
 
-ClientPtr Test::CreateClient(const std::string& name)
-{
-    // Where should this client store its databases?
-    auto databasePath = mDatabasePath.path() / name;
-
-    // Where should this client store its local state?
-    auto storagePath = mStoragePath.path() / name;
-
-    // So we know whether the directories were created.
-    std::error_code error;
-
-    fs::create_directories(databasePath, error);
-
-    // Couldn't create database path.
-    if (error)
-        return nullptr;
-
-    fs::create_directories(storagePath, error);
-
-    // Couldn't create storage path.
-    if (error)
-        return nullptr;
-
-    // Return client to caller.
-    return std::make_unique<RealClient>(name, databasePath, storagePath);
-}
-
 void Test::SetUp()
 {
     ASSERT_TRUE(DoSetUp(STANDARD_VERSIONED));
@@ -294,37 +259,10 @@ void Test::SetUp()
 
 void Test::SetUpTestSuite()
 {
+    common::testing::Test<TestTraits>::SetUpTestSuite();
+
     // Arm the watchdog.
     ScopedWatch watch(mWatchdog, MaxTestSetupTime);
-
-    // Compute paths
-    {
-        auto rootPath = makeNewTestRoot() / fs::u8path("fuse");
-
-        // Where should our clients store their databases?
-        mDatabasePath = rootPath / "db";
-
-        // Where should we store temporary state?
-        mScratchPath = rootPath / "scratch";
-
-        // Where should our clients store their state?
-        mStoragePath = rootPath / "storage";
-
-        std::error_code error;
-
-        // Make sure the database path exists.
-        fs::create_directories(mDatabasePath, error);
-        ASSERT_FALSE(error);
-
-        // Make sure the scratch path exists.
-        fs::create_directories(mScratchPath, error);
-        ASSERT_FALSE(error);
-
-        // Make sure the storage path exists.
-        fs::create_directory(mStoragePath, error);
-        ASSERT_FALSE(error);
-
-    }
 
     ClientPtrArray clients;
 

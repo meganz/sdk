@@ -1,6 +1,6 @@
 #include <mega/common/error_or.h>
+#include <mega/common/testing/client.h>
 #include <mega/common/testing/cloud_path.h>
-#include <mega/fuse/common/testing/client.h>
 
 namespace mega
 {
@@ -8,8 +8,6 @@ namespace common
 {
 namespace testing
 {
-
-using fuse::testing::Client;
 
 CloudPath::CloudPath(const std::string& path):
     mHandle(),

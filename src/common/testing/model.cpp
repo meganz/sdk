@@ -1,11 +1,11 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
 #include <mega/common/platform/date_time.h>
+#include <mega/common/testing/client.h>
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/model.h>
 #include <mega/common/testing/path.h>
-#include <mega/fuse/common/testing/client.h>
-#include <mega/fuse/common/testing/utility.h>
+#include <mega/common/testing/utility.h>
 #include <mega/logging.h>
 
 #include <cassert>
@@ -20,8 +20,6 @@ namespace common
 {
 namespace testing
 {
-
-using fuse::testing::Client;
 
 static Model::DirectoryNodePtr generate(const std::string& prefix,
                                         std::size_t height,

@@ -14,23 +14,18 @@
 
 template<typename T>
 using IsNativeInfoLike =
-  mega::common::IsOneOf<T,
-                        BY_HANDLE_FILE_INFORMATION,
-                        WIN32_FILE_ATTRIBUTE_DATA>;
+    ::mega::common::IsOneOf<T, BY_HANDLE_FILE_INFORMATION, WIN32_FILE_ATTRIBUTE_DATA>;
 
 template<typename T>
-using IsAnyInfoLike =
-  std::integral_constant<bool,
-                         mega::fuse::testing::IsInfoLike<T>::value
-                         || IsNativeInfoLike<T>::value>;
+using IsAnyInfoLike = std::integral_constant<bool,
+                                             ::mega::fuse::testing::IsInfoLike<T>::value ||
+                                                 IsNativeInfoLike<T>::value>;
 
 template<typename T, typename... Ts>
-using AreAnyInfoLike =
-  mega::common::AllOf<IsAnyInfoLike, T, Ts...>;
+using AreAnyInfoLike = ::mega::common::AllOf<IsAnyInfoLike, T, Ts...>;
 
 template<typename T, typename... Ts>
-using AreNativeInfoLike =
-  mega::common::AllOf<IsNativeInfoLike, T, Ts...>;
+using AreNativeInfoLike = ::mega::common::AllOf<IsNativeInfoLike, T, Ts...>;
 
 bool operator==(const BY_HANDLE_FILE_INFORMATION& lhs,
                 const BY_HANDLE_FILE_INFORMATION& rhs);
@@ -42,10 +37,8 @@ bool operator==(const WIN32_FILE_ATTRIBUTE_DATA& lhs,
                 const BY_HANDLE_FILE_INFORMATION& rhs);
 
 template<typename T, typename U>
-auto operator==(const T& lhs, const U& rhs)
-  -> typename std::enable_if<IsNativeInfoLike<T>::value
-                             && mega::fuse::testing::IsInfoLike<U>::value,
-                             bool>::type
+auto operator==(const T& lhs, const U& rhs) -> typename std::
+    enable_if<IsNativeInfoLike<T>::value&& ::mega::fuse::testing::IsInfoLike<U>::value, bool>::type
 {
     return rhs == lhs;
 }

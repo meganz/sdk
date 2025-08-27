@@ -6,6 +6,7 @@
 #include <mega/common/testing/directory.h>
 #include <mega/common/testing/model.h>
 #include <mega/common/testing/path.h>
+#include <mega/common/testing/utility.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/utility.h>

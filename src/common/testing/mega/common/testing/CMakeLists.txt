@@ -1,4 +1,6 @@
 target_sources(test_integration PRIVATE
+                                client.h
+                                client_forward.h
                                 cloud_path.h
                                 cloud_path_forward.h
                                 directory.h
@@ -8,5 +10,7 @@ target_sources(test_integration PRIVATE
                                 path.h
                                 path_forward.h
                                 printers.h
+                                real_client.h
+                                test.h
                                 utility.h
 )
