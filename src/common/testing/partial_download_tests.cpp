@@ -1,13 +1,15 @@
+#include <gmock/gmock.h>
 #include <mega/common/error_or.h>
 #include <mega/common/partial_download.h>
 #include <mega/common/partial_download_callback.h>
+#include <mega/common/testing/client.h>
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/file.h>
 #include <mega/common/testing/path.h>
+#include <mega/common/testing/real_client.h>
+#include <mega/common/testing/single_client_test.h>
+#include <mega/common/testing/utility.h>
 #include <mega/common/utility.h>
-#include <mega/fuse/common/testing/client.h>
-#include <mega/fuse/common/testing/test.h>
-#include <mega/fuse/common/testing/utility.h>
 #include <mega/logging.h>
 
 #include <array>
@@ -15,14 +17,23 @@
 #include <cstring>
 #include <future>
 
-namespace mega::fuse::testing
+namespace mega
+{
+namespace common
+{
+namespace testing
 {
 
-struct FUSEPartialDownloadTests: Test
+struct PartialDownloadTestTraits
 {
-    // Perform instance-specific setup.
-    void SetUp() override;
+    using AbstractClient = Client;
+    using ConcreteClient = RealClient;
 
+    static constexpr const char* mName = "partial_download";
+}; // PartialDownloadTestTraits
+
+struct PartialDownloadTests: public SingleClientTest<PartialDownloadTestTraits>
+{
     // Perform fixture-wide setup.
     static void SetUpTestSuite();
 
@@ -31,7 +42,7 @@ struct FUSEPartialDownloadTests: Test
 
     // The handle of the file we want to partially download.
     static NodeHandle mFileHandle;
-}; // FUSEPartialDownloadTests
+}; // PartialDownloadTests
 
 class PartialDownloadCallback: public common::PartialDownloadCallback
 {
@@ -101,15 +112,15 @@ public:
 static std::uint64_t operator""_KiB(unsigned long long value);
 static std::uint64_t operator""_MiB(unsigned long long value);
 
-std::string FUSEPartialDownloadTests::mFileContent;
+std::string PartialDownloadTests::mFileContent;
 
-NodeHandle FUSEPartialDownloadTests::mFileHandle;
+NodeHandle PartialDownloadTests::mFileHandle;
 
 using common::testing::File;
 using common::testing::randomBytes;
 using common::testing::randomName;
 
-TEST_F(FUSEPartialDownloadTests, DISABLED_measure_average_fetch_times)
+TEST_F(PartialDownloadTests, DISABLED_measure_average_fetch_times)
 {
     // Lets us fetch a file without actually storing its data anywhere.
     class FetchCallback: public PartialDownloadCallback
@@ -141,7 +152,7 @@ TEST_F(FUSEPartialDownloadTests, DISABLED_measure_average_fetch_times)
             using ::mega::common::deciseconds;
 
             // Retry after 200ms.
-            return Retry(deciseconds(2));
+            return Retry(deciseconds(20));
         }
 
     public:
@@ -172,7 +183,7 @@ TEST_F(FUSEPartialDownloadTests, DISABLED_measure_average_fetch_times)
     std::array<std::uint64_t, numReadSizes> measurements{};
 
     // Try and create a file for us to test against.
-    auto handle = ClientW()->upload(randomBytes((1 << maximumReadSize) + 4096), randomName(), "/y");
+    auto handle = mClient->upload(randomBytes((1 << maximumReadSize) + 4096), randomName(), "/y");
 
     // Make sure we could create our test file.
     ASSERT_EQ(handle.errorOr(API_OK), API_OK);
@@ -204,7 +215,7 @@ TEST_F(FUSEPartialDownloadTests, DISABLED_measure_average_fetch_times)
             FetchCallback callback(std::move(notifier));
 
             // Try and create a partial download for our test file.
-            auto download = ClientW()->partialDownload(callback, *handle, 0, size);
+            auto download = mClient->partialDownload(callback, *handle, 0, size);
 
             // Make sure we could create a partial download.
             ASSERT_EQ(download.errorOr(API_OK), API_OK);
@@ -243,12 +254,12 @@ TEST_F(FUSEPartialDownloadTests, DISABLED_measure_average_fetch_times)
     }
 }
 
-TEST_F(FUSEPartialDownloadTests, cancel_completed_fails)
+TEST_F(PartialDownloadTests, cancel_completed_fails)
 {
     PartialDownloadCallback callback;
 
     // Create a download.
-    auto download = ClientW()->partialDownload(callback, mFileHandle, 0, 1_KiB);
+    auto download = mClient->partialDownload(callback, mFileHandle, 0, 1_KiB);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
     // Begin the download.
@@ -261,12 +272,12 @@ TEST_F(FUSEPartialDownloadTests, cancel_completed_fails)
     EXPECT_FALSE((*download)->cancel());
 }
 
-TEST_F(FUSEPartialDownloadTests, cancel_on_download_destruction_succeeds)
+TEST_F(PartialDownloadTests, cancel_on_download_destruction_succeeds)
 {
     PartialDownloadCallback callback;
 
     // Create a download.
-    auto download = ClientW()->partialDownload(callback, mFileHandle, 0, 1_MiB);
+    auto download = mClient->partialDownload(callback, mFileHandle, 0, 1_MiB);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
     // Try and download the entire file.
@@ -279,12 +290,12 @@ TEST_F(FUSEPartialDownloadTests, cancel_on_download_destruction_succeeds)
     EXPECT_EQ(callback.result(), API_EINCOMPLETE);
 }
 
-TEST_F(FUSEPartialDownloadTests, cancel_during_data_succeeds)
+TEST_F(PartialDownloadTests, cancel_during_data_succeeds)
 {
     PartialDownloadCallback callback;
 
     // Create a download.
-    auto download = ClientW()->partialDownload(callback, mFileHandle, 0, 1_MiB);
+    auto download = mClient->partialDownload(callback, mFileHandle, 0, 1_MiB);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
     // Specify which download our callback is associated with.
@@ -297,14 +308,14 @@ TEST_F(FUSEPartialDownloadTests, cancel_during_data_succeeds)
     EXPECT_EQ(callback.result(), API_EINCOMPLETE);
 }
 
-TEST_F(FUSEPartialDownloadTests, cancel_on_logout_succeeds)
+TEST_F(PartialDownloadTests, cancel_on_logout_succeeds)
 {
     // Create a client that we can destroy.
     auto client = CreateClient("partial_" + randomName());
     ASSERT_TRUE(client);
 
     // Log the client in.
-    ASSERT_EQ(client->login(1), API_OK);
+    ASSERT_EQ(client->login(0), API_OK);
 
     PartialDownloadCallback callback;
 
@@ -328,12 +339,12 @@ TEST_F(FUSEPartialDownloadTests, cancel_on_logout_succeeds)
     EXPECT_TRUE((*download)->completed());
 }
 
-TEST_F(FUSEPartialDownloadTests, cancel_succeeds)
+TEST_F(PartialDownloadTests, cancel_succeeds)
 {
     PartialDownloadCallback callback;
 
     // Try and create a download for us to cancel.
-    auto download = ClientW()->partialDownload(callback, mFileHandle, 0, 1_MiB);
+    auto download = mClient->partialDownload(callback, mFileHandle, 0, 1_MiB);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
     // Downloads are cancellable until they've been completed.
@@ -355,16 +366,16 @@ TEST_F(FUSEPartialDownloadTests, cancel_succeeds)
     EXPECT_TRUE((*download)->completed());
 }
 
-TEST_F(FUSEPartialDownloadTests, download_directory_fails)
+TEST_F(PartialDownloadTests, download_directory_fails)
 {
     PartialDownloadCallback callback;
 
     // You shouldn't be able to download a directory.
-    auto download = ClientW()->partialDownload(callback, "/y", 0, 1_MiB);
+    auto download = mClient->partialDownload(callback, "/y", 0, 1_MiB);
     ASSERT_EQ(download.errorOr(API_OK), API_FUSE_EISDIR);
 }
 
-TEST_F(FUSEPartialDownloadTests, download_succeeds)
+TEST_F(PartialDownloadTests, download_succeeds)
 {
     // Download some content from our test file.
     auto download = [](std::uint64_t begin, std::uint64_t end, std::uint64_t length)
@@ -375,7 +386,7 @@ TEST_F(FUSEPartialDownloadTests, download_succeeds)
         PartialDownloadCallback callback;
 
         // Try and create a new partial download.
-        auto download = ClientW()->partialDownload(callback, mFileHandle, begin, end - begin);
+        auto download = mClient->partialDownload(callback, mFileHandle, begin, end - begin);
         ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
         // Try and download some content from our test file.
@@ -416,25 +427,19 @@ TEST_F(FUSEPartialDownloadTests, download_succeeds)
     EXPECT_NO_FATAL_FAILURE(download(1_MiB, 2_MiB, 0));
 }
 
-void FUSEPartialDownloadTests::SetUp()
-{
-    // Make sure our clients are still sane.
-    Test::SetUp();
-}
-
-void FUSEPartialDownloadTests::SetUpTestSuite()
+void PartialDownloadTests::SetUpTestSuite()
 {
     // Convenience.
     using ::testing::AnyOf;
 
     // Make sure our clients are set up.
-    Test::SetUpTestSuite();
+    SingleClientTest::SetUpTestSuite();
 
     // Make sure the test root is clean.
-    ASSERT_THAT(ClientW()->remove("/y"), AnyOf(API_FUSE_ENOTFOUND, API_OK));
+    ASSERT_THAT(mClient->remove("/y"), AnyOf(API_FUSE_ENOTFOUND, API_OK));
 
     // Recreate the test root.
-    auto rootHandle = ClientW()->makeDirectory("y", "/");
+    auto rootHandle = mClient->makeDirectory("y", "/");
     ASSERT_EQ(rootHandle.errorOr(API_OK), API_OK);
 
     // Generate content for our test file.
@@ -444,7 +449,7 @@ void FUSEPartialDownloadTests::SetUpTestSuite()
     File file(mFileContent, randomName(), mScratchPath);
 
     // Upload the file to the cloud.
-    auto fileHandle = ClientW()->upload(*rootHandle, file.path());
+    auto fileHandle = mClient->upload(*rootHandle, file.path());
     ASSERT_EQ(fileHandle.errorOr(API_OK), API_OK);
 
     // Latch the file's handle for later use.
@@ -461,4 +466,6 @@ std::uint64_t operator""_MiB(unsigned long long value)
     return value * 1024_KiB;
 }
 
-} // mega::fuse::testing
+} // testing
+} // common
+} // mega

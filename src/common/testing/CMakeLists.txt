@@ -10,6 +10,7 @@ target_sources(test_integration PRIVATE
                                 directory.cpp
                                 file.cpp
                                 model.cpp
+                                partial_download_tests.cpp
                                 path.cpp
                                 printers.cpp
                                 real_client.cpp
