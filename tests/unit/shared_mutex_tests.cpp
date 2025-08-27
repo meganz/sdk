@@ -20,8 +20,7 @@ using Clock = std::chrono::steady_clock;
 using Milliseconds = std::chrono::milliseconds;
 using TimePoint = Clock::time_point;
 
-class FUSESharedMutexTests
-  : public ::testing::Test
+class SharedMutexTests: public ::testing::Test
 {
     // Signaled when a function has completed execution.
     std::condition_variable mCV;
@@ -33,15 +32,15 @@ class FUSESharedMutexTests
     std::uint64_t mNumFunctions;
 
 public:
-    FUSESharedMutexTests()
-      : Test()
-      , mCV()
-      , mLock()
-      , mNumFunctions(0)
+    SharedMutexTests():
+        Test(),
+        mCV(),
+        mLock(),
+        mNumFunctions(0)
     {
     }
 
-    ~FUSESharedMutexTests()
+    ~SharedMutexTests()
     {
         std::unique_lock<std::mutex> lock(mLock);
 
@@ -92,11 +91,11 @@ public:
         // Return the future to the caller.
         return future;
     }
-}; // FUSESharedMutexTests
+}; // SharedMutexTests
 
 using namespace common;
 
-TEST_F(FUSESharedMutexTests, lock_fails)
+TEST_F(SharedMutexTests, lock_fails)
 {
     SharedMutex mutex;
 
@@ -127,7 +126,7 @@ TEST_F(FUSESharedMutexTests, lock_fails)
     ASSERT_TRUE(result.get());
 }
 
-TEST_F(FUSESharedMutexTests, lock_succeeds)
+TEST_F(SharedMutexTests, lock_succeeds)
 {
     SharedMutex mutex;
 
@@ -153,7 +152,7 @@ TEST_F(FUSESharedMutexTests, lock_succeeds)
     ASSERT_GT(acquired, released);
 }
 
-TEST_F(FUSESharedMutexTests, shared_lock_fails)
+TEST_F(SharedMutexTests, shared_lock_fails)
 {
     SharedMutex mutex;
 
@@ -169,7 +168,7 @@ TEST_F(FUSESharedMutexTests, shared_lock_fails)
     ASSERT_FALSE(SharedLock<SharedMutex>(mutex, std::try_to_lock));
 }
 
-TEST_F(FUSESharedMutexTests, shared_lock_recursive_succeeds)
+TEST_F(SharedMutexTests, shared_lock_recursive_succeeds)
 {
     SharedMutex mutex;
 
@@ -180,7 +179,7 @@ TEST_F(FUSESharedMutexTests, shared_lock_recursive_succeeds)
     ASSERT_TRUE(lock1);
 }
 
-TEST_F(FUSESharedMutexTests, shared_lock_succeeds)
+TEST_F(SharedMutexTests, shared_lock_succeeds)
 {
     SharedMutex mutex;
 
@@ -203,7 +202,7 @@ TEST_F(FUSESharedMutexTests, shared_lock_succeeds)
     ASSERT_LE(acquired, Clock::now());
 }
 
-TEST_F(FUSESharedMutexTests, to_shared_lock_succeeds)
+TEST_F(SharedMutexTests, to_shared_lock_succeeds)
 {
     SharedMutex mutex;
 
