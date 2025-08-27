@@ -4,7 +4,7 @@
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/file.h>
 #include <mega/common/testing/path.h>
-#include <mega/common/testing/test.h>
+#include <mega/common/testing/single_client_test.h>
 #include <mega/common/testing/utility.h>
 #include <mega/common/utility.h>
 #include <mega/file_service/file.h>
@@ -111,6 +111,7 @@ using common::unexpected;
 using common::testing::Path;
 using common::testing::randomBytes;
 using common::testing::randomName;
+using common::testing::SingleClientTest;
 using common::testing::waitFor;
 using ::testing::AnyOf;
 using ::testing::ElementsAre;
@@ -224,7 +225,7 @@ struct FileServiceTestTraits
     static constexpr const char* mName = "file_service";
 }; // FileServiceTestTraits
 
-class FileServiceTests: public common::testing::Test<FileServiceTestTraits>
+class FileServiceTests: public SingleClientTest<FileServiceTestTraits>
 {
 public:
     // Perform instance-specific setup.
@@ -232,12 +233,6 @@ public:
 
     // Perform fixture-wide setup.
     static void SetUpTestSuite();
-
-    // Perform fixture-wide teardown.
-    static void TearDownTestSuite();
-
-    // The client we're using to interact with the cloud.
-    static ClientPtr mClient;
 
     // The content of the file we want to read.
     static std::string mFileContent;
@@ -309,8 +304,6 @@ static auto truncate(File file, std::uint64_t newSize) -> std::future<FileResult
 // Write some content to the specified file.
 static auto write(const void* buffer, File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResult>;
-
-ClientPtr FileServiceTests::mClient;
 
 std::string FileServiceTests::mFileContent;
 
@@ -2956,8 +2949,7 @@ TEST_F(FileServiceTests, write_succeeds)
 
 void FileServiceTests::SetUp()
 {
-    // Make sure our client's still sane.
-    ASSERT_TRUE(mClient);
+    SingleClientTest::SetUp();
 
     // Make sure the service's options are in a known state.
     mClient->fileService().options(DefaultOptions);
@@ -2975,14 +2967,7 @@ void FileServiceTests::SetUp()
 
 void FileServiceTests::SetUpTestSuite()
 {
-    Test::SetUpTestSuite();
-
-    // Create our test client.
-    mClient = CreateClient("read-write");
-    ASSERT_TRUE(mClient);
-
-    // Log in the client.
-    ASSERT_EQ(mClient->login(0), API_OK);
+    SingleClientTest::SetUpTestSuite();
 
     // Make sure the test root is clean.
     ASSERT_THAT(mClient->remove("/z"), AnyOf(API_FUSE_ENOTFOUND, API_OK));
@@ -3006,12 +2991,6 @@ void FileServiceTests::SetUpTestSuite()
 
     // Latch the root handle for later use.
     mRootHandle = *rootHandle;
-}
-
-void FileServiceTests::TearDownTestSuite()
-{
-    // Clean up our client.
-    mClient.reset();
 }
 
 auto append(const void* buffer, File file, std::uint64_t length) -> std::future<FileResult>

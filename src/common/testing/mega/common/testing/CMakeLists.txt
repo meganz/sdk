@@ -11,6 +11,7 @@ target_sources(test_integration PRIVATE
                                 path_forward.h
                                 printers.h
                                 real_client.h
+                                single_client_test.h
                                 test.h
                                 utility.h
 )
