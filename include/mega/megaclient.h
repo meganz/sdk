@@ -508,6 +508,46 @@ struct DynamicMessageNotification
     std::map<std::string, std::map<std::string, std::string>> renderModes;
 };
 
+using FiltersType = std::map<std::string, std::function<bool(JSON *)>>;
+
+class MEGA_API ProcSc
+{
+private:
+    MegaClient* client;
+    JSONSplitter jsonSplitter;
+    FiltersType filters;
+    bool stop;
+    bool last;
+
+public:
+    nameid actionName;
+    std::unique_lock<recursive_mutex> nodeTreeIsChanging;
+    bool originalAC;
+    std::unique_ptr<CodeCounter::ScopeTimer> ccst;
+    std::shared_ptr<Node> lastAPDeletedNode;
+
+    bool firstNode;
+    handle originatingUser;
+    Node* priorActionpacketDeletedNode;
+    bool firstHandleMatchesDelete;
+    NodeManager::MissingParentNodes missingParentNodes;
+#ifdef ENABLE_SYNC
+    set<NodeHandle> allParents;
+#endif
+
+    ProcSc(MegaClient* client);
+
+    std::pair<FiltersType::iterator, bool> addFilter(std::string key, std::function<bool(JSON *)> filter);
+    void removeFilter(std::string key);
+    m_off_t process(const char *data);
+    bool isInProgress();
+    bool isStop();
+    void setStop();
+    bool isLastReceived();
+    void setLastReceived();
+    void clear();
+};
+
 class MEGA_API MegaClient
 {
 public:
@@ -1738,6 +1778,8 @@ private:
     std::unique_ptr<HttpReq> pendingsc;
     std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
+    bool startProcSc;
+    ProcSc procSc;
 
     int mPendingCatchUps = 0;
     bool mReceivingCatchUp = false;
@@ -1840,27 +1882,27 @@ public:
 
     // server-client command processing
     bool sc_checkSequenceTag(const string& tag);
-    bool sc_checkActionPacket(Node* lastAPDeletedNode);
+    bool sc_checkActionPacket(JSON& j, Node* lastAPDeletedNode);
 
-    void sc_updatenode();
-    std::shared_ptr<Node> sc_deltree();
-    handle sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete);
-    void sc_contacts();
-    void sc_fileattr();
-    void sc_userattr();
-    bool sc_shares();
-    bool sc_upgrade(nameid paymentType);
-    void sc_paymentreminder();
-    void sc_opc();
-    void sc_ipc();
-    void sc_upc(bool incoming);
-    void sc_ph();
-    void sc_se();
+    void sc_updatenode(JSON& j);
+    std::shared_ptr<Node> sc_deltree(JSON& j);
+    handle sc_newnodes(JSON& j, Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete);
+    void sc_contacts(JSON& j);
+    void sc_fileattr(JSON& j);
+    void sc_userattr(JSON& j);
+    bool sc_shares(JSON& j);
+    bool sc_upgrade(JSON& j, nameid paymentType);
+    void sc_paymentreminder(JSON& j);
+    void sc_opc(JSON& j);
+    void sc_ipc(JSON& j);
+    void sc_upc(JSON& j, bool incoming);
+    void sc_ph(JSON& j);
+    void sc_se(JSON& j);
 #ifdef ENABLE_CHAT
-    void sc_chatupdate(bool readingPublicChat);
-    void sc_chatnode();
-    void sc_chatflags();
-    void sc_scheduledmeetings();
+    void sc_chatupdate(JSON& j, bool readingPublicChat);
+    void sc_chatnode(JSON& j);
+    void sc_chatflags(JSON& j);
+    void sc_scheduledmeetings(JSON& j);
     void sc_delscheduledmeeting();
     void createNewSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId, m_time_t startDateTime);
     void createDeletedSMAlert(const handle&, handle chatid, handle schedId);
@@ -1869,11 +1911,11 @@ public:
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
     void clearSchedOccurrences(TextChat& chat);
 #endif
-    void sc_uac();
-    void sc_uec();
-    void sc_la();
-    void sc_ub();
-    void sc_sqac();
+    void sc_uac(JSON& j);
+    void sc_uec(JSON& j);
+    void sc_la(JSON& j);
+    void sc_ub(JSON& j);
+    void sc_sqac(JSON& j);
     void sc_pk();
     void sc_cce();
 
@@ -2070,7 +2112,6 @@ public:
 
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
-    bool insca;
     bool insca_notlast;
 
     // no two interrelated client instances should ever have the same sessionid
@@ -2440,7 +2481,11 @@ public:
 
     void handleauth(handle, byte*);
 
-    bool procsc();
+    void initProcSc();
+    void buildAPFilters();
+    void addTFilters();
+    void removeTFilters();
+
     size_t procreqstat();
 
     // API warnings
@@ -2977,11 +3022,11 @@ private:
     bool decryptAttrs(const string& attrs, const string& decrKey, string_map& output);
     string encryptAttrs(const string_map& attrs, const string& encryptionKey);
 
-    void sc_asp(); // AP after new or updated Set
-    void sc_asr(); // AP after removed Set
-    void sc_aep(); // AP after new or updated Set Element
-    void sc_aer(); // AP after removed Set Element
-    void sc_ass(); // AP after exported set update
+    void sc_asp(JSON& j); // AP after new or updated Set
+    void sc_asr(JSON& j); // AP after removed Set
+    void sc_aep(JSON& j); // AP after new or updated Set Element
+    void sc_aer(JSON& j); // AP after removed Set Element
+    void sc_ass(JSON& j); // AP after exported set update
 
     bool initscsets();
     bool fetchscset(string* data, uint32_t id);
