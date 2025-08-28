@@ -34,6 +34,9 @@ struct PartialDownloadTestTraits
 
 struct PartialDownloadTests: public SingleClientTest<PartialDownloadTestTraits>
 {
+    // Perform instance-specific setup.
+    void SetUp() override;
+
     // Perform fixture-wide setup.
     static void SetUpTestSuite();
 
@@ -280,6 +283,9 @@ TEST_F(PartialDownloadTests, cancel_on_download_destruction_succeeds)
     auto download = mClient->partialDownload(callback, mFileHandle, 0, 1_MiB);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
+    // Make sure the download isn't completed before we can cancel it.
+    mClient->setDownloadSpeed(4096);
+
     // Try and download the entire file.
     (*download)->begin();
 
@@ -323,6 +329,9 @@ TEST_F(PartialDownloadTests, cancel_on_logout_succeeds)
     auto download = client->partialDownload(callback, mFileHandle, 0, 1_MiB);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
+    // Make sure the download isn't completed before we can cancel it.
+    client->setDownloadSpeed(4096);
+
     // Try and download the entire file.
     (*download)->begin();
 
@@ -349,6 +358,9 @@ TEST_F(PartialDownloadTests, cancel_succeeds)
 
     // Downloads are cancellable until they've been completed.
     EXPECT_TRUE((*download)->cancellable());
+
+    // Make sure the download isn't completed before we can cancel it.
+    mClient->setDownloadSpeed(4096);
 
     // Try and download the entire file.
     (*download)->begin();
@@ -425,6 +437,14 @@ TEST_F(PartialDownloadTests, download_succeeds)
     EXPECT_NO_FATAL_FAILURE(download(0, 0, 0));
     EXPECT_NO_FATAL_FAILURE(download(1_MiB, 1_MiB, 0));
     EXPECT_NO_FATAL_FAILURE(download(1_MiB, 2_MiB, 0));
+}
+
+void PartialDownloadTests::SetUp()
+{
+    SingleClientTest::SetUp();
+
+    // Make sure downloads proceed at full speed.
+    mClient->setDownloadSpeed(0);
 }
 
 void PartialDownloadTests::SetUpTestSuite()
