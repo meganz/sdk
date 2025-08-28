@@ -3,6 +3,11 @@ add_subdirectory(
     ${CMAKE_CURRENT_BINARY_DIR}/../../mega/common
 )
 
+# Apple and 32bit UNIX systems have a time_t distinct time m_time_t.
+if (APPLE OR CMAKE_SIZEOF_VOID_P EQUAL 4)
+    target_compile_definitions(SDKlib PUBLIC HAS_DISTINCT_TIME_T)
+endif()
+
 target_sources(SDKlib PRIVATE
                       activity_monitor.cpp
                       client.cpp

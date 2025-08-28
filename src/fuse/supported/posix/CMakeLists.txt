@@ -66,11 +66,6 @@ target_include_directories(${SDK_TARGET} PRIVATE
                                          ${FUSE_POSIX_SRC}
 )
 
-# Apple and 32bit UNIX systems have a time_t distinct time m_time_t.
-if (APPLE OR CMAKE_SIZEOF_VOID_P EQUAL 4)
-    target_compile_definitions(${SDK_TARGET} PUBLIC HAS_DISTINCT_TIME_T)
-endif()
-
 # Make sure dependent applications support 64bit inodes.
 target_compile_definitions(${SDK_TARGET} PUBLIC _FILE_OFFSET_BITS=64)
 

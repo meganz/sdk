@@ -740,7 +740,7 @@ TEST_F(FileServiceTests, create_flush_succeeds)
     ASSERT_EQ(execute(write, expected.data(), *file, 0, 128_KiB), FILE_SUCCESS);
 
     // Try and flush the file to the cloud.
-    auto handle = [file = std::move(file), this]() mutable -> FileResultOr<NodeHandle>
+    auto handle = [file = std::move(file)]() mutable -> FileResultOr<NodeHandle>
     {
         // What events do we expect to receive?
         FileEventVector wanted;
