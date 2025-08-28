@@ -203,6 +203,29 @@ std::vector<std::unique_ptr<MegaSyncStall>> getStalls(MegaApi* megaApi)
 
 #endif
 
+std::pair<std::optional<std::vector<std::string>>, std::unique_ptr<MegaNodeList>>
+
+    getCloudFirstChildren(MegaApi* megaApi, const MegaHandle nodeHandle)
+{
+    if (!megaApi || nodeHandle == UNDEF)
+        return {std::nullopt, nullptr};
+    std::unique_ptr<MegaNode> rootNode{megaApi->getNodeByHandle(nodeHandle)};
+    if (!rootNode)
+        return {std::nullopt, nullptr};
+    std::unique_ptr<MegaNodeList> childrenNodeList{megaApi->getChildren(rootNode.get())};
+    if (!childrenNodeList)
+        return {std::nullopt, nullptr};
+
+    auto namesVector = toNamesVector(*childrenNodeList);
+    if (namesVector.size() != static_cast<size_t>(childrenNodeList->size()))
+    {
+        assert(false && "getCloudFirstChildren: invalid names vector size ");
+        return {std::nullopt, nullptr};
+    }
+
+    return {namesVector, std::move(childrenNodeList)};
+}
+
 std::optional<std::vector<std::string>> getCloudFirstChildrenNames(MegaApi* megaApi,
                                                                    const MegaHandle nodeHandle)
 {

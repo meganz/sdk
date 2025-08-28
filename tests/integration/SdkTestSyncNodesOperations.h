@@ -119,6 +119,14 @@ public:
      */
     void waitForSyncToMatchCloudAndLocal();
 
+    /**
+     * @brief Waits until all levels of the sync tree match between cloud and local.
+     *
+     * This is an exhaustive check that recursively verifies synchronization at every level.
+     * Asserts false if a timeout is exceeded.
+     */
+    void waitForSyncToMatchCloudAndLocalExhaustive();
+
     void checkCurrentLocalMatchesOriginal(const std::string_view cloudDirName);
 
     /**
@@ -137,11 +145,23 @@ public:
 
     /**
      * @brief Returns a vector with the names of the first successor files/directories inside the
-     * local root.
+     * specified local directory.
      *
-     * Hidden files (starting with . are excludoed)
+     * Hidden files (starting with . are excluded)
+     * @param subPath Optional subdirectory path relative to the local sync root. If not provided,
+     * uses the root.
      */
-    std::vector<std::string> getLocalFirstChildrenNames() const;
+    std::vector<std::string>
+        getLocalFirstChildrenNames(std::optional<std::string> subPath = std::nullopt) const;
+
+    /**
+     * @brief Recursively checks if cloud and local sync match at all levels.
+     *
+     * @param parentHandle The cloud parent node handle to check
+     * @param localPath The local path to check (empty string for root)
+     * @return true if all levels match, false otherwise
+     */
+    bool checkSyncRecursively(MegaHandle parentHandle, const std::string& localPath);
 
 protected:
     /**

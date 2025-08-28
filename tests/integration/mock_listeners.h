@@ -282,6 +282,16 @@ private:
 class MockSyncListener: public ::mega::MegaListener
 {
 public:
+    MockSyncListener(::mega::MegaApi* megaApi = nullptr):
+        mMegaApi{megaApi}
+    {}
+
+    ~MockSyncListener()
+    {
+        if (mMegaApi)
+            mMegaApi->removeListener(this);
+    }
+
     MOCK_METHOD(
         void,
         onSyncFileStateChanged,
@@ -306,6 +316,9 @@ public:
                 onRequestFinish,
                 (::mega::MegaApi*, ::mega::MegaRequest*, ::mega::MegaError*),
                 (override));
+
+private:
+    ::mega::MegaApi* mMegaApi{nullptr};
 };
 #endif // ENABLE_SYNC
 

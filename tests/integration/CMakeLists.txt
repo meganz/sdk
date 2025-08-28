@@ -37,6 +37,7 @@ target_sources(test_integration
     sdk_test_node_tags.cpp
     sdk_test_node_tags.h
     sdk_test_network.cpp
+    sdk_test_sync_upload_operations_test.cpp
     SdkTestDeviceCenter_test.cpp
     SdkTestSyncLocalOperations_test.cpp
     SdkTestSyncNodeAttribute_test.cpp

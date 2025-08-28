@@ -10,6 +10,7 @@
 #include "mega/megaclient.h"
 #include "mega/sync.h"
 #include "mega/syncinternals/syncinternals_logging.h"
+#include "mega/utils.h"
 
 #include <memory>
 
@@ -174,7 +175,7 @@ std::pair<bool, LocalNode*> findLocalNodeByFsid(const fsid_localnode_map& fsidLo
  * @brief Predicate for identifying a suitable node candidate to be cloned.
  *
  * This struct encapsulates the logic required to determine if a Node in the cloud
- * matches the content and extension of a local file being uploaded. It is used in
+ * matches the Fingerprint and Meta Mac of a local file being uploaded. It is used in
  * conjunction with std::find_if to search for clone candidates in a collection of
  * nodes.
  *
@@ -193,19 +194,6 @@ struct FindCloneNodeCandidatePredicate
     const SyncUpload_inClient& mUpload;
 
     /**
-     * @brief The file extension of the local file being uploaded.
-     */
-    const std::string& mLocalExtension;
-
-    /**
-     * @brief Function for extracting the file extension from a Node.
-     *
-     * This function is used to retrieve the extension of cloud nodes being evaluated
-     * as potential clone candidates.
-     */
-    std::function<std::string(const Node& node)> mExtractExtensionFromNode;
-
-    /**
      * @brief Flag indicating if a candidate node with a zero key was found.
      *
      * If true, the predicate encountered a candidate node that matches the local file
@@ -218,24 +206,16 @@ struct FindCloneNodeCandidatePredicate
      *
      * @param client Reference to the MegaClient managing synchronization.
      * @param upload Const ref to the shared pointer to the upload task being processed.
-     * @param localExtension File extension of the local file being uploaded.
-     * @param extractExtensionFromNode Function to extract the file extension from a `Node`.
      */
-    FindCloneNodeCandidatePredicate(
-        MegaClient& client,
-        const SyncUpload_inClient& upload,
-        const std::string& localExtension,
-        std::function<std::string(const Node& node)>&& extractExtensionFromNode):
+    FindCloneNodeCandidatePredicate(MegaClient& client, const SyncUpload_inClient& upload):
         mClient(client),
-        mUpload(upload),
-        mLocalExtension(localExtension),
-        mExtractExtensionFromNode(std::move(extractExtensionFromNode))
+        mUpload(upload)
     {}
 
     /**
      * @brief Evaluates if the provided Node is a suitable clone candidate.
      *
-     * Checks if the node matches the local file in terms of content and extension.
+     * Checks if the node matches the local file in terms of Fingerprint and Meta Mac.
      * If a match is found but the node has a zero key, it returns true but it logs a warning
      * and updates the mFoundCandidateHasZeroKey flag accordingly.
      *
@@ -244,8 +224,12 @@ struct FindCloneNodeCandidatePredicate
      */
     bool operator()(const Node& node)
     {
-        const std::string cloudExtension = mExtractExtensionFromNode(node);
-        if (mClient.treatAsIfFileDataEqual(node, mLocalExtension, mUpload, cloudExtension))
+        if (const auto [compRes, _] = CompareLocalFileWithNodeFpAndMac(mClient,
+                                                                       mUpload.getLocalname(),
+                                                                       mUpload,
+                                                                       &node,
+                                                                       false /*debugMode*/);
+            compRes == NODE_COMP_EQUAL)
         {
             // Found a candidate that matches content
             if (node.hasZeroKey())
@@ -272,27 +256,10 @@ struct FindCloneNodeCandidatePredicate
 
 Node* findCloneNodeCandidate(MegaClient& mc, const SyncUpload_inClient& upload)
 {
-    // Prepare the local extension.
-    const auto extLocal = [](const LocalPath& localPath) -> std::string
-    {
-        std::string extension;
-        FileSystemAccess::getextension(localPath, extension);
-        return removeDot(std::move(extension));
-    }(upload.getLocalname());
-
-    // Helper for node-based extension.
-    auto extractExtensionFromNode = [](const Node& node) -> std::string
-    {
-        std::string extension;
-        node.getExtension(extension, node.displayname());
-        return removeDot(std::move(extension));
+    FindCloneNodeCandidatePredicate predicate{
+        mc,
+        upload,
     };
-
-    FindCloneNodeCandidatePredicate predicate{mc,
-                                              upload,
-                                              extLocal,
-                                              std::move(extractExtensionFromNode)};
-
     const auto candidates{mc.mNodeManager.getNodesByFingerprint(upload)};
 
     if (const auto it = std::find_if(begin(candidates), end(candidates), predicate);
