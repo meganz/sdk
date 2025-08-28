@@ -7,7 +7,7 @@ pipeline {
     parameters {
         booleanParam(
             name: 'REBUILD_IMAGE',
-            defaultValue: false,
+            defaultValue: true,
             description: 'Rebuild docker image? If the report script has changed, the image should be rebuilt.'
         )
     }
