@@ -94,6 +94,9 @@ class MountDB
     virtual MountResult check(const common::Client& client,
                               const MountInfo& info) const = 0;
 
+    // Checks whether a mount's name is valid.
+    virtual MountResult checkName(const std::string& name) const = 0;
+
     // Perform platform-specific deinitialization.
     virtual void doDeinitialize();
 

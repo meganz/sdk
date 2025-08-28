@@ -24,6 +24,8 @@ class MountDB final
     MountResult check(const common::Client& client,
                       const MountInfo& info) const override;
 
+    MountResult checkName(const std::string& name) const override;
+
     void dispatch();
 
     void doDeinitialize() override;
