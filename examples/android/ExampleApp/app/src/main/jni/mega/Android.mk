@@ -7,6 +7,7 @@ local_c_includes := \
         $(LOCAL_PATH)/sdk/include \
 	$(LOCAL_PATH)/sdk/include/mega/android \
         $(LOCAL_PATH)/sdk/include/mega/posix \
+        $(LOCAL_PATH)/sdk/src/common/platform/posix \
 	$(LOCAL_PATH)/sdk/src/file_service \
         $(LOCAL_PATH)/sdk/src/fuse/common \
         $(LOCAL_PATH)/sdk/src/fuse/unsupported \

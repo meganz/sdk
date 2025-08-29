@@ -279,6 +279,10 @@ CPP_SOURCES += \
     sdk/src/common/upload.cpp \
     sdk/src/common/utility.cpp
 
+ifneq ($(filter $(TARGET_ARCH), arm x86),)
+CPPFLAGS += -DHAS_DISTINCT_TIME_T
+endif
+
 # when enable sync
 CPP_SOURCES += \
     sdk/src/common/client_adapter_with_sync.cpp
