@@ -98,6 +98,18 @@ MountResult MountDB::check(const Client& client, const MountInfo& info) const
     return MOUNT_SUCCESS;
 }
 
+MountResult MountDB::checkName(const std::string& name) const
+{
+    if (name.empty())
+    {
+        FUSEError1("No name specified");
+
+        return MOUNT_NO_NAME;
+    }
+
+    return MOUNT_SUCCESS;
+}
+
 void MountDB::dispatch()
 {
     DescriptorSet descriptors;

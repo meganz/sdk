@@ -23,6 +23,9 @@ class MountDB
     MountResult check(const common::Client& client,
                       const MountInfo& info) const override;
 
+    // Checks whether a mount's name is valid.
+    MountResult checkName(const std::string& name) const override;
+
 public:
     MountDB(ServiceContext& context);
 
