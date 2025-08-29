@@ -9,6 +9,7 @@ Source0:	megasdk_%{version}.tar.gz
 Vendor:		MEGA Limited
 Packager:	MEGA Linux Team <linux@mega.co.nz>
 
+%global __requires_exclude ^lib(avcodec|avformat|avutil|swresample|swscale)\\.so\\.
 
 BuildRequires: autoconf, autoconf-archive, automake, libtool, gcc-c++
 BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
@@ -34,7 +35,6 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
     BuildRequires: pkgconf-pkg-config
 %endif
 
-
 #OpenSUSE
 %if 0%{?suse_version} || 0%{?sle_version}
     # disabling post-build-checks that ocassionally prevent opensuse rpms from being generated
@@ -58,6 +58,21 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
         BuildRequires: qt5-qtbase-devel qt5-qttools-devel, qt5-qtsvg-devel, qt5-qtx11extras-devel, qt5-qtdeclarative-devel
         Requires: qt5-qtbase >= 5.6, qt5-qtsvg, qt5-qtdeclarative, qqc2-desktop-style, qt5-qtquickcontrols, qt5-qtquickcontrols2
     %endif
+%endif
+
+# RHEL/CentOS/Alma/Rocky/Oracle >= 9: allow $ORIGIN
+%if (0%{?rhel} >= 9) || (0%{?rhel_version} >= 900) || (0%{?centos_version} >= 900)
+    %define __brp_check_rpaths QA_RPATHS=$(( 0x0002|0x0008 )) /usr/lib/rpm/check-rpaths
+%endif
+
+#CentOS/RedHat/AlmaLinux
+%if 0%{?centos_version} || 0%{?rhel_version}
+    BuildRequires: openssl-devel, sqlite-devel, c-ares-devel, bzip2-devel
+    BuildRequires: desktop-file-utils
+    BuildRequires: systemd-devel
+    BuildRequires: bzip2-devel
+    BuildRequires: qt5-qtbase-devel qt5-qttools-devel, qt5-linguist, qt5-qtsvg-devel, qt5-qtx11extras-devel, qt5-qtdeclarative-devel
+    Requires: qt5-qtbase qt5-qtquickcontrols qt5-qtquickcontrols2 qt5-qtdeclarative
 %endif
 
 %description

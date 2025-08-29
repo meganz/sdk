@@ -935,15 +935,15 @@ using namespace mega;
     }
 }
 
-- (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password {
+- (void)confirmAccountWithLink:(NSString *)link {
     if (self.megaApi) {
-        self.megaApi->confirmAccount(link.UTF8String, password.UTF8String);
+        self.megaApi->confirmAccount(link.UTF8String);
     }
 }
 
-- (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
+- (void)confirmAccountWithLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->confirmAccount(link.UTF8String, password.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->confirmAccount(link.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 

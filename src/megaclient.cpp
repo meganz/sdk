@@ -76,13 +76,17 @@ const string MegaClient::SUPPORT_USER_HANDLE = "pGTOqu7_Fek";
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
 
-// root URL for request status monitoring
+// root URLs for request status monitoring
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::REQSTATURL = "https://reqstat.api.mega.co.nz";
 
-// root URL for Website
-// MegaClient statics must be const or we get threading problems
-const string MegaClient::MEGAURL = "https://mega.nz";
+// root URLs for Website
+const string MegaClient::MEGAURL_NZ = "https://mega.nz";
+const string MegaClient::MEGAURL_APP = "https://mega.app";
+
+// Non-const MegaClient static protected with a shared_mutex
+string MegaClient::MEGAURL = MegaClient::MEGAURL_NZ;
+std::shared_mutex MegaClient::megaUrlMutex;
 
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
@@ -824,6 +828,16 @@ bool MegaClient::setlang(string *code)
     lang.clear();
     LOG_err << "Invalid language code: " << (code ? *code : "(null)");
     return false;
+}
+
+void MegaClient::enableSearchDBIndexes(bool enable)
+{
+    mEnableSearchDBIndexes = enable;
+}
+
+void MegaClient::dropSearchDBIndexes()
+{
+    mNodeManager.dropSearchDBIndexes();
 }
 
 // -- MegaClient JourneyID methods --
@@ -2115,7 +2129,7 @@ TypeOfLink MegaClient::validTypeForPublicURL(nodetype_t type)
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, TypeOfLink type, handle ph, const char *key)
 {
-    string strlink = MegaClient::MEGAURL + "/";
+    string strlink = MegaClient::getMegaURL() + "/";
     string nodeType;
     if (newLinkFormat)
     {
@@ -5086,7 +5100,8 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     mMyAccount = MyAccountData{};
     mKeyManager.reset();
 
-    mLastErrorDetected = REASON_ERROR_NO_ERROR;
+    mLastFatalErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+    mLastDBErrorDetected = DBError::DB_ERROR_UNKNOWN;
 
     mReqHashcashEasiness = 0;
     mReqHashcashToken.clear();
@@ -11075,12 +11090,23 @@ error MegaClient::readmiscflags(JSON *json)
             }
             break;
         case EOO:
-            if (!journeyIdFound && trackJourneyId()) // If there is no value or tracking flag is false, do nothing
             {
-                LOG_verbose << "[MegaClient::readmiscflags] No JourneyId found -> set tracking to false";
-                mJourneyId->setValue("");
+                if (!journeyIdFound &&
+                    trackJourneyId()) // If there is no value or tracking flag is false, do nothing
+                {
+                    LOG_verbose << "[MegaClient::readmiscflags] No JourneyId found -> set tracking "
+                                   "to false";
+                    mJourneyId->setValue("");
+                }
+                auto flagValue = mFeatureFlags.get("site");
+                const auto& targetURL = (flagValue && *flagValue == 1) ? MegaClient::MEGAURL_APP :
+                                                                         MegaClient::MEGAURL_NZ;
+                if (getMegaURL() != targetURL)
+                {
+                    setMegaURL(targetURL);
+                }
+                return API_OK;
             }
-            return API_OK;
         default:
             if (fieldName.rfind("ab_", 0) == 0) // Starting with "ab_"
             {
@@ -12054,6 +12080,10 @@ void MegaClient::opensctable()
                 DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
                 assert(nodeTable);
                 mNodeManager.setTable(nodeTable);
+                if (!mEnableSearchDBIndexes)
+                {
+                    mNodeManager.dropSearchDBIndexes();
+                }
 
                 // DB connection always has a transaction started (applies to both tables, statecache and nodes)
                 // We only commit once we have an up to date SCSN and the table state matches it.
@@ -14415,7 +14445,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         Base64::btoa(encLinkBytes, encLink);
 
         encryptedLink->clear();
-        encryptedLink->append(MegaClient::MEGAURL);
+        encryptedLink->append(MegaClient::getMegaURL());
         encryptedLink->append("/#P!");
         encryptedLink->append(encLink);
 
@@ -15237,6 +15267,15 @@ string MegaClient::getTransferDBName()
 
 void MegaClient::handleDbError(DBError error)
 {
+    // Return early for repeated errors
+    if (mLastDBErrorDetected == error)
+    {
+        return;
+    }
+
+    // Remember the new error
+    mLastDBErrorDetected = error;
+
     std::string reason;
     switch (error)
     {
@@ -15368,13 +15407,13 @@ void MegaClient::handleDbError(DBError error)
 void MegaClient::fatalError(ErrorReason errorReason)
 {
     // Return early for repeated errorReason
-    if (mLastErrorDetected == errorReason)
+    if (mLastFatalErrorDetected == errorReason)
     {
         return;
     }
 
     // Remember the new errorReason
-    mLastErrorDetected = errorReason;
+    mLastFatalErrorDetected = errorReason;
 
     // Disable sync.
     // Sync is not enabled in case of ErrorReason::REASON_ERROR_NO_JSCD or
@@ -15437,7 +15476,7 @@ void MegaClient::fatalError(ErrorReason errorReason)
 
 bool MegaClient::accountShouldBeReloadedOrRestarted() const
 {
-    return mLastErrorDetected != REASON_ERROR_NO_ERROR;
+    return mLastFatalErrorDetected != REASON_ERROR_NO_ERROR;
 }
 
 void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServers)
@@ -24271,11 +24310,11 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     {
         return callback({}, result);
     }
-    else if (mLastErrorDetected == ErrorReason::REASON_ERROR_REGENERATE_JSCD)
+    else if (mLastFatalErrorDetected == ErrorReason::REASON_ERROR_REGENERATE_JSCD)
     {
         LOG_debug << "JSON SYNC configuration has been correctly regenerated.";
         // Cleanup error to allow syncs to be configured
-        mLastErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+        mLastFatalErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
     }
 
     JSCData data;
@@ -24379,6 +24418,18 @@ void MegaClient::processHashcashSendevent()
         .append(std::to_string(retryGencash->mGencashTime.count()));
 
     sendevent(eventId, eventMsg.c_str());
+}
+
+std::string MegaClient::getMegaURL()
+{
+    std::shared_lock lock(megaUrlMutex);
+    return MEGAURL;
+}
+
+void MegaClient::setMegaURL(const std::string& url)
+{
+    std::unique_lock lock(megaUrlMutex);
+    MEGAURL = url;
 }
 
 } // namespace

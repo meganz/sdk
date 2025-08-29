@@ -255,6 +255,34 @@ FSP_FSCTL_DIR_INFO* translate(FSP_FSCTL_DIR_INFO& destination,
     return &destination;
 }
 
+FolderLocker::FolderLocker(const std::wstring& path)
+{
+    mHandle = CreateFile(path.c_str(), // folder path
+                         GENERIC_READ, // desired access (must request at least read)
+                         0, // share mode = 0 (deny all sharing)
+                         NULL, // security attributes
+                         OPEN_EXISTING, // must exist
+                         FILE_FLAG_BACKUP_SEMANTICS, // required for opening directories
+                         NULL);
+
+    if (mHandle == INVALID_HANDLE_VALUE)
+        FUSEInfoF("Exclusive open folder failed %d", GetLastError());
+    else
+        FUSEInfoF("Exclusive open folder OK");
+}
+
+FolderLocker& FolderLocker::operator=(FolderLocker&& other)
+{
+    using std::swap;
+    swap(mHandle, other.mHandle);
+    return *this;
+}
+
+FolderLocker::~FolderLocker()
+{
+    if (mHandle != INVALID_HANDLE_VALUE)
+        CloseHandle(mHandle);
+}
 } // platform
 } // fuse
 } // mega

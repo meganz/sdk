@@ -8036,7 +8036,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
+    auto importHandle =
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
     MegaHandle imported_file_handle = importHandle;
 
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(imported_file_handle));
@@ -8230,7 +8231,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
+    auto importHandle =
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -8302,8 +8304,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    std::string url100MB = "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; //https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url100MB, rootnode.get());
+    // https://mega.app/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
+    std::string url100MB = "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA";
+    auto importHandle = importPublicLink(0, MegaClient::getMegaURL() + url100MB, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -8359,7 +8362,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
+    auto importHandle =
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -8425,7 +8429,7 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
 
     LOG_debug << logPre << "Get CloudRAID file from public link";
     const auto importRaidHandle =
-        importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
 
     unique_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -8719,8 +8723,10 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL,
-                                         std::unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get());
+    auto importHandle =
+        importPublicLink(0,
+                         MegaClient::getMegaURL() + PUBLIC_IMAGE_URL,
+                         std::unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get());
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(importHandle));
 
     // set up to simulate 509 error
@@ -8914,7 +8920,10 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 #endif
 
     // ensure we have our standard raid test file
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
+    auto importHandle =
+        importPublicLink(0,
+                         MegaClient::getMegaURL() + PUBLIC_IMAGE_URL,
+                         std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
     MegaNode *nimported = megaApi[0]->getNodeByHandle(importHandle);
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
@@ -9182,7 +9191,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
     auto importRaidHandle =
-        importPublicLink(0, MegaClient::MEGAURL + PUBLIC_IMAGE_URL, rootnode.get());
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
     std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
     ASSERT_NE(rootnode.get(), nullptr) << "Cannot get CloudRaidNode node from public link";
 
@@ -9339,9 +9348,11 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferBestCase)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode.get(), nullptr) << "Cannot retrieve RootNode";
+    // https://mega.app/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
     std::string url100MB =
-        "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; // https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
-    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL + url100MB, rootnode.get());
+        "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA";
+    auto importRaidHandle =
+        importPublicLink(0, MegaClient::getMegaURL() + url100MB, rootnode.get());
     std::shared_ptr<MegaNode> cloudRaidNode{megaApi[0]->getNodeByHandle(importRaidHandle)};
     ASSERT_NE(rootnode.get(), nullptr) << "Cannot get CloudRaidNode node from public link";
 
@@ -9365,6 +9376,111 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferBestCase)
 
     LOG_info << "___TEST Streaming Raided Transfer Best Case. Tests cases completed___";
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+}
+
+/**
+ * @brief SdkTestStreaming
+ *
+ * Verifies on-demand file streaming:
+ * - Create a 50MB local file with random content
+ * - Read three 1MB slices (head/middle/tail) from disk
+ * - Upload the file
+ * - Stream the same slices from the backend and assert byte-for-byte equality
+ */
+TEST_F(SdkTest, SdkTestStreaming)
+{
+    LOG_info << "___TEST SdkTestStreaming___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    static const size_t kFileSize = 50ull * 1024 * 1024; // 50 MB
+    static const size_t kChunkSize = 1ull * 1024 * 1024; // 1 MB
+    static const size_t kMidOffset = 20ull * 1024 * 1024; // 20 MB
+    static const size_t kTailOffset = kFileSize - kChunkSize; // last 1MB safely within file
+
+    // Create local random file
+    fs::path filePath = fs::current_path() / PUBLICFILE;
+    sdk_test::LocalTempFile localFile(filePath, kFileSize);
+    auto fsAccess = std::make_unique<FSACCESS_CLASS>();
+    LocalPath localPath = fspathToLocal(filePath);
+
+    // Read three slices from disk
+    std::unique_ptr<FileAccess> fa(fsAccess->newfileaccess(false));
+    ASSERT_TRUE(fa->fopen(localPath, true, false, FSLogging::logOnError))
+        << "Failed to open local file";
+
+    std::string bufHead;
+    bufHead.reserve(kChunkSize);
+    std::string bufMid;
+    bufMid.reserve(kChunkSize);
+    std::string bufTail;
+    bufTail.reserve(kChunkSize);
+
+    ASSERT_TRUE(fa->fread(&bufHead, kChunkSize, 0, 0, FSLogging::logOnError))
+        << "Read head slice failed";
+    ASSERT_TRUE(fa->fread(&bufMid, kChunkSize, 0, kMidOffset, FSLogging::logOnError))
+        << "Read middle slice failed";
+    ASSERT_TRUE(fa->fread(&bufTail, kChunkSize, 0, kTailOffset, FSLogging::logOnError))
+        << "Read tail slice failed";
+
+    // Upload File
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    MegaHandle uploadedNode{UNDEF};
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &uploadedNode,
+                            filePath.u8string().c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(uploadedNode));
+    ASSERT_TRUE(!!node) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
+
+    auto streamNode = [&node, this](const std::string& expected, int64_t start, int64_t size)
+    {
+        int err{API_OK};
+        std::string receivedBuffer;
+        receivedBuffer.reserve(kChunkSize);
+        testing::NiceMock<MockMegaTransferListener> mtl{megaApi[0].get()};
+        EXPECT_CALL(mtl, onTransferData)
+            .WillRepeatedly(
+                [&receivedBuffer](MegaApi*, MegaTransfer*, char* buffer, size_t size)
+                {
+                    receivedBuffer.append(buffer, size);
+                    return true;
+                });
+        EXPECT_CALL(mtl, onTransferFinish)
+            .WillOnce(
+                [&mtl, &err](MegaApi*, MegaTransfer*, MegaError* error)
+                {
+                    err = error ? error->getErrorCode() : API_EINTERNAL;
+                    mtl.markAsFinished();
+                });
+        megaApi[0]->startStreaming(node.get(), start, size, &mtl);
+
+        if (!mtl.waitForFinishOrTimeout(180s /*timeout*/))
+        {
+            LOG_err << "TimeOut streaming slice";
+            return false;
+        }
+
+        EXPECT_EQ(receivedBuffer.size(), expected.size());
+        bool equalContain = receivedBuffer == expected;
+        EXPECT_TRUE(equalContain) << "Initial Position: " << start;
+
+        return err == API_OK && equalContain;
+    };
+
+    ASSERT_TRUE(streamNode(bufHead, 0, static_cast<int64_t>(kChunkSize)));
+    ASSERT_TRUE(
+        streamNode(bufMid, static_cast<int64_t>(kMidOffset), static_cast<int64_t>(kChunkSize)));
+    ASSERT_TRUE(
+        streamNode(bufTail, static_cast<int64_t>(kTailOffset), static_cast<int64_t>(kChunkSize)));
 }
 
 #if !USE_FREEIMAGE
@@ -12694,7 +12810,10 @@ TEST_F(SdkTest, SyncOQTransitions)
     handle backupId = sync->getBackupId();
 
     LOG_verbose << "SyncOQTransitions :  Filling up storage space";
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg", remoteFillNode.get());
+    auto importHandle = importPublicLink(
+        0,
+        MegaClient::getMegaURL() + "/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg",
+        remoteFillNode.get());
     std::unique_ptr<MegaNode> remote1GBFile(megaApi[0]->getNodeByHandle(importHandle));
 
     ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Get account size.

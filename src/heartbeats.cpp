@@ -355,7 +355,9 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         reportCounts -= hbs->mResolvedTransferCounts;
 
         auto progress = reportCounts.progress(inflightProgress);
-        DEBUG_TEST_HOOK_ON_TRANSFER_REPORT_PROGRESS(progress, inflightProgress);
+        DEBUG_TEST_HOOK_ON_TRANSFER_REPORT_PROGRESS(progress,
+                                                    inflightProgress,
+                                                    reportCounts.pendingTransferBytes());
         if (progress > 1.0)
         {
             const std::string errMsg =

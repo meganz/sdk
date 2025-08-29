@@ -145,10 +145,10 @@ public:
                                const std::string& /*nodeCounterBlob*/) override
     {}
 
-    void createIndexes() override
-    {
+    void createIndexes(bool /*enableIndexesForSearching*/) override {}
 
-    }
+    void dropSearchDBIndexes() override {}
+
     bool put(uint32_t, char*, unsigned) override
     {
         return false;

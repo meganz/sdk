@@ -239,6 +239,47 @@ long GetLastError()
     return static_cast<long>(::GetLastError());
 }
 
+std::optional<VolumeInfo> GetVolumeInformationByPath(const Path& path)
+{
+    // Add trailing separator as necessary.
+    auto path_ = toWideString(path.string());
+
+    if (!path_.empty() && path_.back() != L'\\')
+        path_.push_back(L'\\');
+
+    // Preallocate maximum necessary space for names.
+    WCHAR filesystemName[MAX_PATH + 1];
+    WCHAR volumeName[MAX_PATH + 1];
+
+    // So we know how long the names actually are.
+    DWORD filesystemNameLength = 0u;
+    DWORD volumeNameLength = 0u;
+
+    // Couldn't get information about the specified volume.
+    if (!GetVolumeInformationW(path_.c_str(),
+                               volumeName,
+                               std::size(volumeName),
+                               nullptr,
+                               nullptr,
+                               nullptr,
+                               filesystemName,
+                               std::size(filesystemName)))
+        return std::nullopt;
+
+    // Make sure the names are null terminated.
+    filesystemName[MAX_PATH] = L'\0';
+    volumeName[MAX_PATH] = L'\0';
+
+    VolumeInfo info;
+
+    // Populate info instance.
+    info.mFilesystemName = fromWideString(filesystemName);
+    info.mVolumeName = fromWideString(volumeName);
+
+    // Return volume info to our caller.
+    return info;
+}
+
 BOOL MoveFileExP(const Path& source, const Path& target, DWORD flags)
 {
     return MoveFileExW(source.path().c_str(),

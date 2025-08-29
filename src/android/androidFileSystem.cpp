@@ -8,6 +8,7 @@ jclass applicationClass = nullptr;
 jmethodID deviceListMID = nullptr;
 jclass fileWrapper = nullptr;
 jclass integerClass = nullptr;
+jclass arrayListClass = nullptr;
 jobject surfaceTextureHelper = nullptr;
 
 namespace mega
@@ -15,8 +16,10 @@ namespace mega
 
 AndroidPlatformURIHelper AndroidPlatformURIHelper::mPlatformHelper;
 
-LRUCache<std::string, AndroidFileWrapper::URIData> AndroidFileWrapper::URIDataCache(300);
+LRUCache<std::string, AndroidFileWrapper::URIData> AndroidFileWrapper::URIDataCache(LRUCacheSize);
+LRUCache<std::string, std::string> AndroidFileWrapper::localPathURICache(LRUCacheSize);
 std::mutex AndroidFileWrapper::URIDataCacheLock;
+std::mutex AndroidFileWrapper::localPathURICacheLock;
 
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mURI(path)
@@ -24,17 +27,6 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     if (fileWrapper == nullptr)
     {
         LOG_err << "Error: AndroidFileWrapper::AndroidFileWrapper class not found";
-        return;
-    }
-
-    auto data = getURIData(mURI);
-    if (!data.has_value())
-    {
-        data = URIData();
-    }
-    else if (data->mJavaObject.get())
-    {
-        mJavaObject = data->mJavaObject;
         return;
     }
 
@@ -60,9 +52,7 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     if (temporalObject != nullptr)
     {
         mJavaObject = std::make_shared<JavaObject>(env->NewGlobalRef(temporalObject));
-        data->mJavaObject = mJavaObject;
         env->DeleteLocalRef(temporalObject);
-        setUriData(data.value());
     }
 }
 
@@ -207,6 +197,10 @@ std::string AndroidFileWrapper::getName()
     jstring name = static_cast<jstring>(env->CallObjectMethod(mJavaObject->mObj, methodID));
 
     const char* nameStr = env->GetStringUTFChars(name, nullptr);
+    if (!nameStr)
+    {
+        return {};
+    }
     data->mName = nameStr;
     setUriData(data.value());
     env->ReleaseStringUTFChars(name, nameStr);
@@ -243,6 +237,10 @@ std::vector<std::shared_ptr<AndroidFileWrapper>> AndroidFileWrapper::getChildren
     {
         jstring element = (jstring)env->CallObjectMethod(childrenUris, getMethod, i);
         const char* elementStr = env->GetStringUTFChars(element, nullptr);
+        if (!elementStr)
+        {
+            return {};
+        }
         children.push_back(AndroidFileWrapper::getAndroidFileWrapper(elementStr));
         env->ReleaseStringUTFChars(element, elementStr);
         env->DeleteLocalRef(element);
@@ -269,31 +267,69 @@ std::shared_ptr<AndroidFileWrapper>
     return child;
 }
 
-std::shared_ptr<AndroidFileWrapper>
-    AndroidFileWrapper::returnOrCreateByPath(const std::vector<std::string>& subPaths,
-                                             bool lastIsFolder)
+jobject AndroidFileWrapper::vectorToJavaList(JNIEnv* env, const std::vector<std::string>& vec)
 {
-    const auto moveParentForward =
-        [this, lastIsFolder, nElements = subPaths.size(), nVisited = 0u](
-            std::shared_ptr<AndroidFileWrapper> parent,
-            const std::string& childName) mutable -> std::shared_ptr<AndroidFileWrapper>
-    {
-        ++nVisited;
-        std::shared_ptr<AndroidFileWrapper> child =
-            parent ? parent->getChildByName(childName) : getChildByName(childName);
-        if (!child)
-        {
-            const bool isFolder = nVisited != nElements || lastIsFolder;
-            child = parent ? parent->createChild(childName, isFolder) :
-                             createChild(childName, isFolder);
-        }
-        return child;
-    };
+    jmethodID init = env->GetMethodID(arrayListClass, "<init>", "()V");
+    jmethodID add = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
 
-    return std::accumulate(begin(subPaths),
-                           end(subPaths),
-                           std::shared_ptr<AndroidFileWrapper>{},
-                           moveParentForward);
+    jobject list = env->NewObject(arrayListClass, init);
+
+    for (const std::string& str: vec)
+    {
+        jstring jstr = env->NewStringUTF(str.c_str());
+        env->CallBooleanMethod(list, add, jstr);
+        env->DeleteLocalRef(jstr);
+    }
+
+    return list;
+}
+
+std::optional<std::string> AndroidFileWrapper::createOrReturnElement(const std::string& element,
+                                                                     bool create,
+                                                                     bool isFolder)
+{
+    if (!exists())
+    {
+        return std::nullopt;
+    }
+
+    JNIEnv* env{nullptr};
+    MEGAjvm->AttachCurrentThread(&env, NULL);
+    jmethodID methodID =
+        env->GetMethodID(fileWrapper, CREATE_NESTED_PATH, "(Ljava/util/List;ZZ)Ljava/lang/String;");
+
+    if (methodID == nullptr)
+    {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        LOG_err << "Error: AndroidFileWrapper::createOrReturnElement";
+        return std::nullopt;
+    }
+
+    std::vector<std::string> subPaths;
+    subPaths.push_back(element);
+
+    jobject list = vectorToJavaList(env, subPaths);
+
+    jstring uriString = static_cast<jstring>(
+        env->CallObjectMethod(mJavaObject->mObj, methodID, list, create, isFolder));
+
+    env->DeleteLocalRef(list);
+    if (uriString != nullptr)
+    {
+        const char* elementStr = env->GetStringUTFChars(uriString, nullptr);
+        if (!elementStr)
+        {
+            return std::nullopt;
+        }
+
+        std::string uri{elementStr};
+        env->ReleaseStringUTFChars(uriString, elementStr);
+        env->DeleteLocalRef(uriString);
+        return uri;
+    }
+
+    return std::nullopt;
 }
 
 std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::string& childName,
@@ -367,6 +403,11 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getChildByName(const std
     }
 
     const char* elementStr = env->GetStringUTFChars(uriString, nullptr);
+    if (!elementStr)
+    {
+        return {};
+    }
+
     auto aux = AndroidFileWrapper::getAndroidFileWrapper(elementStr);
     env->ReleaseStringUTFChars(uriString, elementStr);
     env->DeleteLocalRef(uriString);
@@ -547,56 +588,130 @@ std::shared_ptr<AndroidFileWrapper>
 {
     if (localPath.isURI())
     {
-        std::vector<std::string> children;
-        LocalPath auxPath{localPath};
-        while (!auxPath.isRootPath()) // for URIs, this method returns true just if PathURI doesn't
-                                      // contains any leaf
+        return getAndroidFileWrapperFromURI(localPath, create, lastIsFolder);
+    }
+
+    return getAndroidFileWrapperFromPath(localPath, create, lastIsFolder);
+}
+
+void AndroidFileWrapper::setLocalPathURI(const std::string& path, const std::string& uri)
+{
+    std::unique_lock<std::mutex> lock(localPathURICacheLock);
+    localPathURICache.put(path, uri);
+}
+
+std::optional<std::string> AndroidFileWrapper::getLocalPathURI(const std::string& path)
+{
+    std::unique_lock<std::mutex> lock(localPathURICacheLock);
+    return localPathURICache.get(path);
+}
+
+std::shared_ptr<AndroidFileWrapper>
+    AndroidFileWrapper::getAndroidFileWrapperFromURI(const LocalPath& localPath,
+                                                     bool create,
+                                                     bool lastIsFolder)
+{
+    // Attempt to resolve from URI cache
+    if (auto cachedURI = getLocalPathURI(localPath.toPath(false)); cachedURI.has_value())
+    {
+        auto fileWrapper = AndroidFileWrapper::getAndroidFileWrapper(cachedURI.value());
+
+        // Check if cached reference is still valid
+        if (fileWrapper->exists())
         {
-            children.insert(children.begin(), auxPath.leafOrParentName());
-            auxPath = auxPath.parentPath();
+            return fileWrapper;
+        }
+    }
+
+    // Decompose URI path into segments
+    std::vector<std::string> pathSegments;
+    LocalPath pathCursor = localPath;
+    while (!pathCursor.isRootPath())
+    {
+        auto name{pathCursor.leafOrParentName()};
+        if (name.empty())
+        {
+            return {};
         }
 
-        std::shared_ptr<AndroidFileWrapper> uriFileWrapper =
-            AndroidFileWrapper::getAndroidFileWrapper(auxPath.toPath(false));
+        pathSegments.insert(pathSegments.begin(), name);
+        pathCursor = pathCursor.parentPath();
+    }
 
-        if (!uriFileWrapper->exists())
+    std::shared_ptr<AndroidFileWrapper> currentWrapper =
+        AndroidFileWrapper::getAndroidFileWrapper(pathCursor.toPath(false));
+
+    if (!currentWrapper->exists())
+    {
+        return nullptr;
+    }
+
+    if (pathSegments.empty())
+    {
+        return currentWrapper;
+    }
+
+    std::optional<std::string> currentURI;
+    for (const auto& segment: pathSegments)
+    {
+        LocalPath compositePath = pathCursor;
+        compositePath.appendWithSeparator(LocalPath::fromRelativePath(segment), true);
+
+        std::shared_ptr<AndroidFileWrapper> nextWrapper;
+
+        if (auto cachedChildURI = getLocalPathURI(compositePath.toPath(false));
+            cachedChildURI.has_value())
+        {
+            currentURI = cachedChildURI.value();
+            pathCursor = LocalPath::fromURIPath(currentURI.value());
+            nextWrapper = AndroidFileWrapper::getAndroidFileWrapper(pathCursor.toPath(false));
+        }
+
+        // Create intermediate path if necessary
+        if (!nextWrapper || !nextWrapper->exists())
+        {
+            currentURI = currentWrapper->createOrReturnElement(segment, create, lastIsFolder);
+
+            if (!currentURI.has_value())
+            {
+                return nullptr;
+            }
+
+            pathCursor = LocalPath::fromURIPath(currentURI.value());
+            setLocalPathURI(compositePath.toPath(false), currentURI.value());
+            nextWrapper = AndroidFileWrapper::getAndroidFileWrapper(pathCursor.toPath(false));
+        }
+
+        if (!nextWrapper->exists())
         {
             return nullptr;
         }
 
-        if (children.size())
-        {
-            if (auto auxFileWrapper = uriFileWrapper->pathExists(children);
-                auxFileWrapper || !create)
-            {
-                return auxFileWrapper;
-            }
+        currentWrapper = nextWrapper;
+    }
 
-            uriFileWrapper = uriFileWrapper->returnOrCreateByPath(children, lastIsFolder);
-            return uriFileWrapper;
-        }
-        else
+    setLocalPathURI(localPath.toPath(false), currentURI.value());
+    return currentWrapper;
+}
+
+std::shared_ptr<AndroidFileWrapper>
+    AndroidFileWrapper::getAndroidFileWrapperFromPath(const LocalPath& localPath,
+                                                      bool create,
+                                                      bool lastIsFolder)
+{
+    if (create)
+    {
+        LocalPath parentPath = localPath.parentPath();
+        auto parentFileWrapper =
+            AndroidFileWrapper::getAndroidFileWrapper(parentPath.toPath(false));
+        if (parentFileWrapper->exists())
         {
-            return uriFileWrapper;
+            return parentFileWrapper->createChild(localPath.leafName().toPath(false), lastIsFolder);
         }
     }
     else
     {
-        if (create)
-        {
-            LocalPath parentPath = localPath.parentPath();
-            auto parentFileWrapper =
-                AndroidFileWrapper::getAndroidFileWrapper(parentPath.toPath(false));
-            if (parentFileWrapper->exists())
-            {
-                return parentFileWrapper->createChild(localPath.leafName().toPath(false),
-                                                      lastIsFolder);
-            }
-        }
-        else
-        {
-            return AndroidFileWrapper::getAndroidFileWrapper(localPath.toPath(false));
-        }
+        return AndroidFileWrapper::getAndroidFileWrapper(localPath.toPath(false));
     }
 
     return nullptr;
@@ -1169,7 +1284,7 @@ bool AndroidFileSystemAccess::copylocal(const LocalPath& oldname,
             return false;
         }
 
-        // Note: at Android is not possible set mtime
+        setmtimelocal(newname, time);
         return true;
     }
 

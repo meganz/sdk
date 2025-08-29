@@ -7867,11 +7867,10 @@ void MegaApiImpl::resendSignupLink(const char *email, const char *name, MegaRequ
     waiter->notify();
 }
 
-void MegaApiImpl::confirmAccount(const char* link, const char *password, MegaRequestListener *listener)
+void MegaApiImpl::confirmAccount(const char* link, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
     request->setLink(link);
-    request->setPassword(password);
 
     request->performRequest = [this, request]()
     {
@@ -12750,6 +12749,18 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
     return client->setlang(&code);
 }
 
+int MegaApiImpl::enableSearchDBIndexes(bool enable)
+{
+    if (client->loggedin() != sessiontype_t::NOTLOGGEDIN)
+    {
+        LOG_warn << "This method should be called before login";
+        return API_EACCESS;
+    }
+
+    client->enableSearchDBIndexes(enable);
+    return API_OK;
+}
+
 string MegaApiImpl::generateViewId()
 {
     return MegaClient::generateViewId(client->rng);
@@ -15365,7 +15376,7 @@ void MegaApiImpl::copysession_result(string *session, error e)
     {
         const char *path = request->getText();
         string data = client->sessiontransferdata(path, session);
-        data.insert(0, MegaClient::MEGAURL+"/#sitetransfer!");
+        data.insert(0, MegaClient::getMegaURL() + "/#sitetransfer!");
 
         request->setLink(data.c_str());
     }
@@ -17917,8 +17928,11 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
     transfer->setTransferredBytes(tr->size);
     transfer->setPriority(tr->priority);
     transfer->setDeltaSize(deltaSize);
-    transfer->setSpeed(tr->slot ? tr->slot->speed : 0);
-    transfer->setMeanSpeed(tr->slot ? tr->slot->meanSpeed : 0);
+    if (tr->slot)
+    {
+        transfer->setSpeed(tr->slot->speed);
+        transfer->setMeanSpeed(tr->slot->meanSpeed);
+    }
 
     if (tr->type == GET)
     {
@@ -22520,7 +22534,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
             const char* ptr = link;
             const char* tptr;
 
-            // is it a link to confirm the account? ie. https://mega.nz/#confirm<code_in_B64>
+            // is it a link to confirm the account? ie. https://mega.app/#confirm<code_in_B64>
             tptr = strstr(ptr, MegaClient::confirmLinkPrefix());
             if (tptr)
             {
@@ -22554,7 +22568,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
                     }
                 }
             }
-            // is it a new singup link? ie. https://mega.nz/#newsignup<code_in_B64>
+            // is it a new singup link? ie. https://mega.app/#newsignup<code_in_B64>
             else if ((tptr = strstr(ptr, MegaClient::newsignupLinkPrefix())) != nullptr)
             {
                 ptr = tptr + strlen(MegaClient::newsignupLinkPrefix());
@@ -22601,9 +22615,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
 error MegaApiImpl::performRequest_confirmAccount(MegaRequestPrivate* request)
 {
             const char* link = request->getLink();
-            const char* password = request->getPassword();
-
-            if (!link || !password)
+            if (!link)
             {
                 return API_EARGS;
             }
@@ -24262,7 +24274,7 @@ void MegaApiImpl::getSessionTransferURL(const char* path, MegaRequestListener* l
 
             if (e == API_ENOENT)    // no session to copy because not logged in
             {
-                string url = MegaClient::MEGAURL + "/#";
+                string url = MegaClient::getMegaURL() + "/#";
                 auto path = request->getText();
                 if (path) url.append(path);
                 request->setLink(url.c_str());
@@ -34609,7 +34621,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         LOG_debug << httpctx->getLogName() << "Favicon requested";
         response << "HTTP/1.1 301 Moved Permanently\r\n"
                     "Location: ";
-        response << MegaClient::MEGAURL;
+        response << MegaClient::getMegaURL();
         response << "/favicon.ico\r\n"
                     "Connection: close\r\n"
                     "\r\n";

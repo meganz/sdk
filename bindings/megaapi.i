@@ -29,6 +29,7 @@ extern jmethodID deviceListMID;
 extern jobject surfaceTextureHelper;
 extern jclass fileWrapper;
 extern jclass integerClass;
+extern jclass arrayListClass;
 
 
 extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
@@ -127,6 +128,16 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
     integerClass = (jclass)jenv->NewGlobalRef(localIntegerClass);
     jenv->DeleteLocalRef(localIntegerClass);
+
+    jclass localArrayListClass = jenv->FindClass("java/util/ArrayList");
+    if (!localArrayListClass)
+    {
+        jenv->ExceptionDescribe();
+        jenv->ExceptionClear();
+    }
+
+    arrayListClass = (jclass)jenv->NewGlobalRef(localArrayListClass);
+    jenv->DeleteLocalRef(localArrayListClass);
 
     return JNI_VERSION_1_6;
 }

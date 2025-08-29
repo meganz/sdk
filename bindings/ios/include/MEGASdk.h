@@ -816,9 +816,15 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 * is MEGAErrorTypeApiOk:
 * - [MEGARequest link] - URL to open the desired page with the same account
 *
-* @param url URL inside https://mega.nz/# that we want to open with the current session
+* If the client is logged in, but the account is not fully confirmed (ie. singup not
+* completed yet), this method will return API_EACCESS.
 *
-* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+* If the client is not logged in, there won't be any session to transfer, but this method
+* will still return the MEGA's host (ie. https://mega.app) followed by /#<path>.
+*
+* @param url URL inside the MEGA's host that we want to open with the current session
+*
+* For example, if you want to open https://mega.app/#pro, the parameter of this function should be "pro".
 *
 * @param delegate MEGARequestDelegate to track this request
 */
@@ -832,9 +838,15 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 * is MEGAErrorTypeApiOk:
 * - [MEGARequest link] - URL to open the desired page with the same account
 *
-* @param url URL inside https://mega.nz/# that we want to open with the current session
+* If the client is logged in, but the account is not fully confirmed (ie. singup not
+* completed yet), this method will return API_EACCESS.
 *
-* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+* If the client is not logged in, there won't be any session to transfer, but this method
+* will still return the MEGA's host (ie. https://mega.app) followed by /#<path>.
+*
+* @param url URL inside the MEGA's host that we want to open with the current session
+*
+* For example, if you want to open https://mega.app/#pro, the parameter of this function should be "pro".
 */
 - (void)getSessionTransferURL:(NSString *)path;
 
@@ -1785,10 +1797,9 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
- * @param password Password for the account.
  * @param delegate Delegate to track this request.
  */
-- (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+- (void)confirmAccountWithLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Confirm a MEGA account using a confirmation link and the user password.
@@ -1816,9 +1827,8 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
- * @param password Password for the account.
  */
-- (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password;
+- (void)confirmAccountWithLink:(NSString *)link;
 
 /**
  * @brief Initialize the reset of the existing password, with and without the Master Key.

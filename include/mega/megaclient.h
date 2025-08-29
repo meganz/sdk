@@ -1675,8 +1675,9 @@ public:
     // root URL for reqstat requests
     static const string REQSTATURL;
 
-    // root URL for Website
-    static const string MEGAURL;
+    // root URL getter and setter
+    static std::string getMegaURL();
+    static void setMegaURL(const std::string& url);
 
     // newsignup link URL prefix
     static const char* newsignupLinkPrefix();
@@ -1724,6 +1725,14 @@ public:
     bool driveMonitorEnabled();
 
 private:
+    // root URL for Website
+    static string MEGAURL;
+    static std::shared_mutex megaUrlMutex;
+
+    // possible root URLs
+    static const std::string MEGAURL_NZ;
+    static const std::string MEGAURL_APP;
+
 #ifdef USE_DRIVE_NOTIFICATIONS
     DriveInfoCollector mDriveInfoCollector;
 #endif
@@ -1766,6 +1775,8 @@ public:
 
     // lang URI component for API requests
     string lang;
+
+    std::atomic<bool> mEnableSearchDBIndexes{true};
 
     struct FolderLink {
         // public handle of the folder link ('&n=' param in the POST)
@@ -1983,8 +1994,13 @@ public:
     // None actions has been taken yet (reload, restart app, ...)
     bool accountShouldBeReloadedOrRestarted() const;
 
-    // This flag keeps the last error detected. It's overwritten by new errors and reset upon logout.It's cleaned after reload or other error is generated
-    ErrorReason mLastErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+    // This flag keeps the last fatal error detected. It's overwritten by new errors and reset upon
+    // logout. It's cleaned after reload or other error is generated
+    ErrorReason mLastFatalErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+
+    // This flag keeps the last DB error detected. It's overwritten by new errors and reset upon
+    // logout. It's cleaned after reload or other error is generated
+    DBError mLastDBErrorDetected = DBError::DB_ERROR_UNKNOWN;
 
     // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.
     // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
@@ -2559,6 +2575,13 @@ public:
     string getAuthURI(bool supressSID = false, bool supressAuthKey = false);
 
     bool setlang(string *code);
+
+    // Enable create DB indexes for queries used in search functionality
+    // By default is true (reset to default value at locallogout)
+    void enableSearchDBIndexes(bool enable);
+    // Drop DB indexes for queries used in search functionality
+    // It should be call just after open the DB
+    void dropSearchDBIndexes();
 
     // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
     error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);

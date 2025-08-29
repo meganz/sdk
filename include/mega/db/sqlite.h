@@ -47,6 +47,9 @@ protected:
     // handler for DB errors ('interrupt' is true if caller can be interrupted by CancelToken)
     void errorHandler(int sqliteError, const std::string& operation, bool interrupt);
 
+    // whether an unmatched begin() has been issued
+    bool inTransaction() const;
+
 public:
     void rewind() override;
     bool next(uint32_t*, string*) override;
@@ -61,10 +64,6 @@ public:
 
     SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);
     ~SqliteDbTable() override;
-
-private:
-    // whether an unmatched begin() has been issued
-    bool inTransaction() const;
 };
 
 /**
@@ -132,7 +131,8 @@ public:
 
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
     void updateCounterAndFlags(NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) override;
-    void createIndexes() override;
+    void createIndexes(bool enableIndexesForSearching) override;
+    void dropSearchDBIndexes() override;
 
     void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);

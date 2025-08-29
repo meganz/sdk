@@ -994,6 +994,7 @@ struct SyncTransferCounts
 
     // returns progress 0.0 to 1.0
     double progress(m_off_t inflightProgress) const;
+    m_off_t pendingTransferBytes() const;
     void clearPendingValues();
 
     SyncTransferCount mDownloads;

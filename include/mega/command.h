@@ -1971,7 +1971,7 @@ public:
     }
 
 private:
-    std::string mHost; // "nz.vpn.mega.nz"
+    std::string mHost;
     std::vector<std::string> mDns; // {"8.8.8.8", "8.8.4.4", ...}
     std::vector<std::string> mAdBlockingDns;
 };

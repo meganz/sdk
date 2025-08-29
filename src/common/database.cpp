@@ -48,41 +48,44 @@ Database::Database(Logger& logger, const LocalPath& path)
   , mLogger(&logger)
   , mPath(path.toPath(false))
 {
+    // Log a suitable error message and return an exception.
+    auto failed = [this](const std::string& message)
+    {
+        // Ensure the database has been closed.
+        sqlite3_close(mDB);
+
+        // Log the failure and return a suitable exception.
+        return LogErrorF(*mLogger,
+                         "Unable to open database: %s: %s",
+                         mPath.c_str(),
+                         message.c_str());
+    }; // failed
+
+    // Keeps the open call itself simple.
     constexpr auto flags = SQLITE_OPEN_CREATE
                            | SQLITE_OPEN_FULLMUTEX
                            | SQLITE_OPEN_READWRITE;
 
-    std::string message;
+    // Try and open the database.
+    auto result = sqlite3_open_v2(mPath.c_str(), &mDB, flags, nullptr);
 
-    auto result = sqlite3_open_v2(mPath.c_str(),
-                                  &mDB,
-                                  flags,
-                                  nullptr);
+    // Couldn't open the database.
+    if (result != SQLITE_OK)
+        throw failed(sqlite3_errstr(result));
 
-    if (result == SQLITE_OK)
-        message = execute("pragma journal_mode = WAL");
+    // Try and enable journalling.
+    auto message = execute("pragma journal_mode = WAL");
 
+    // Try and enable foreign keys.
     if (message.empty())
         message = execute("pragma foreign_keys = ON");
 
-    if (message.empty())
-    {
-        LogDebugF(*mLogger, "Database opened: %s", mPath.c_str());
-        return;
-    }
+    // Couldn't enable journalling or foreign key support.
+    if (!message.empty())
+        throw failed(sqlite3_errmsg(mDB));
 
-    if (message.empty() && mDB)
-        message = sqlite3_errmsg(mDB);
-
-    if (message.empty())
-        message = sqlite3_errstr(result);
-
-    sqlite3_close(mDB);
-
-    throw LogErrorF(*mLogger,
-                    "Unable to open database: %s: %s",
-                    mPath.c_str(),
-                    message.c_str());
+    // Database has been opened successfully.
+    LogDebugF(*mLogger, "Database opened: %s", mPath.c_str());
 }
 
 Database::Database(Database&& other)
