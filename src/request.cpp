@@ -248,9 +248,9 @@ void Request::process(MegaClient* client)
             // Some commands need to return seqtag and also some JSON,
             // in which case they are in an array with `st` first, and the JSON second
             // Some commands might or might not produce `st`.  And might return a string.
-            // So in the case of success with a string return, but no `st`, the array is [0, "returnValue"]
+            // So in the case of success with a string return, but no `st`,
+            // the array is [0, "returnValue"]
             // If the command failed, there is no array, just the error code
-            assert(cmd->mV3);
             assert(*processingJson.pos == '0' || *processingJson.pos == '\"');
             if (*processingJson.pos == '0' && *(processingJson.pos+1) == ',')
             {
@@ -270,7 +270,7 @@ void Request::process(MegaClient* client)
                 parsedOk = false;
             }
         }
-        else if (mV3 && *processingJson.pos == '"')
+        else if (*processingJson.pos == '"')
         {
             // For v3 commands, a string result is a string which is a seqtag.
             if (!processSeqTag(cmd, false, parsedOk, false, processingJson))
@@ -370,7 +370,6 @@ void Request::swap(Request& r)
 {
     // we use swap to move between queues, but process only after it gets into the completedreqs
     cmds.swap(r.cmds);
-    std::swap(mV3, r.mV3);
 
     std::swap(cachedJSON, r.cachedJSON);
     std::swap(cachedIdempotenceId, r.cachedIdempotenceId);
@@ -425,16 +424,6 @@ void RequestDispatcher::add(Command *c)
         nextreqs.push_back(Request());
     }
 
-    if (!nextreqs.back().empty() && nextreqs.back().mV3 != c->mV3)
-    {
-        LOG_debug << "Starting an additional Request for v3 transition " << c->mV3;
-        nextreqs.push_back(Request());
-    }
-    if (nextreqs.back().empty())
-    {
-        nextreqs.back().mV3 = c->mV3;
-    }
-
     nextreqs.back().add(c);
     if (c->batchSeparately)
     {
@@ -467,7 +456,9 @@ Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
     return currSeqtagSeen ? inflightreq.getCurrentCommand() : nullptr;
 }
 
-string RequestDispatcher::serverrequest(bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId)
+string RequestDispatcher::serverrequest(bool& includesFetchingNodes,
+                                        MegaClient* client,
+                                        string& idempotenceId)
 {
     if (!inflightreq.empty() && inflightFailReason != RETRY_NONE)
     {
@@ -487,7 +478,6 @@ string RequestDispatcher::serverrequest(bool &includesFetchingNodes, bool& v3, M
     }
     string requestJSON = inflightreq.get(client, reqid, idempotenceId);
     includesFetchingNodes = inflightreq.isFetchNodes();
-    v3 = inflightreq.mV3;
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
