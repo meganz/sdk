@@ -360,6 +360,11 @@ struct MEGA_API HttpReq
     // if the out payload includes a fetch nodes command
     bool includesFetchingNodes = false;
 
+    // Streaming data callback for incremental processing
+    using StreamingCallback = std::function<bool(const char*, size_t)>;
+    StreamingCallback mStreamingCallback;
+    bool mStreamingEnabled = false;
+
     byte* buf;
     m_off_t buflen, bufpos, notifiedbufpos;
 
@@ -408,6 +413,12 @@ struct MEGA_API HttpReq
 
     // store chunk of incoming data with optional purging
     void put(void*, unsigned, bool = false);
+
+    // Set streaming callback for incremental data processing
+    void setStreamingCallback(StreamingCallback callback);
+    
+    // Enable/disable streaming mode
+    void enableStreaming(bool enable = true);
 
     // start and size of unpurged data block - must be called with !buf and httpio locked
     char* data();

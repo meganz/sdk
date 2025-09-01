@@ -31,6 +31,7 @@
 #include "mega/transfer.h"
 #include "mega/user_attribute.h"
 #include "mega/utils.h"
+#include "mega/actionpacketparser.h"
 
 #include <cryptopp/hkdf.h> // required for derive key of master key
 #include <mega/common/normalized_path.h>
@@ -2910,6 +2911,16 @@ void MegaClient::exec()
                     string idempotenceId;
                     *pendingcs->out = reqs.serverrequest(pendingcs->includesFetchingNodes, v3, this, idempotenceId);
 
+                    // Enable streaming for actionpacket processing if configured
+                    if (streamingActionPacketsEnabled() && pendingcs->out->find("\"a\":\"sc\"") != string::npos)
+                    {
+                        LOG_debug << "Enabling streaming actionpacket processing for sc request";
+                        pendingcs->setStreamingCallback([this](const char* data, size_t length) -> size_t {
+                            return procsc_streaming(data, length);
+                        });
+                        pendingcs->enableStreaming(true);
+                    }
+
                     pendingcs->posturl = httpio->APIURL;
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(idempotenceId);
@@ -5727,6 +5738,59 @@ bool MegaClient::procsc()
                 insca = false;
             }
         }
+    }
+}
+
+size_t MegaClient::procsc_streaming(const char* data, size_t length)
+{
+    if (!mActionPacketParser)
+    {
+        LOG_warn << "Streaming called but ActionPacketParser not initialized";
+        return 0;
+    }
+    
+    return mActionPacketParser->processChunk(data, length);
+}
+
+void MegaClient::enableStreamingActionPackets(bool enable)
+{
+    mStreamingActionPacketsEnabled = enable;
+    
+    if (enable && !mActionPacketParser)
+    {
+        mActionPacketParser = std::make_unique<ActionPacketParser>(*this);
+        LOG_debug << "ActionPacketParser initialized for streaming";
+    }
+    else if (!enable && mActionPacketParser)
+    {
+        mActionPacketParser.reset();
+        LOG_debug << "ActionPacketParser disabled";
+    }
+}
+
+bool MegaClient::streamingActionPacketsEnabled() const
+{
+    return mStreamingActionPacketsEnabled;
+}
+
+ActionPacketParser* MegaClient::getActionPacketParser() const
+{
+    return mActionPacketParser.get();
+}
+
+void MegaClient::setActionPacketHandler(std::function<void(const std::string&)> handler)
+{
+    if (mActionPacketParser)
+    {
+        mActionPacketParser->setPacketHandler(handler);
+    }
+}
+
+void MegaClient::setActionPacketErrorHandler(std::function<void(const std::string&, bool)> handler)
+{
+    if (mActionPacketParser)
+    {
+        mActionPacketParser->setErrorHandler(handler);
     }
 }
 

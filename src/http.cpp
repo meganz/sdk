@@ -420,10 +420,31 @@ void HttpReq::put(void* data, unsigned len, bool purge)
             inpurge = 0;
         }
 
+        // Call streaming callback if enabled before buffering data
+        if (mStreamingEnabled && mStreamingCallback)
+        {
+            if (!mStreamingCallback(static_cast<const char*>(data), len))
+            {
+                LOG_err << "Streaming callback failed, falling back to buffering";
+                mStreamingEnabled = false;
+            }
+        }
+
+        // Always buffer data for compatibility, even in streaming mode
         in.append((char*)data, len);
     }
 
     bufpos += len;
+}
+
+void HttpReq::setStreamingCallback(StreamingCallback callback)
+{
+    mStreamingCallback = callback;
+}
+
+void HttpReq::enableStreaming(bool enable)
+{
+    mStreamingEnabled = enable;
 }
 
 

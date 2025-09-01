@@ -51,10 +51,12 @@
 #include <mega/common/client_adapter.h>
 #include <mega/fuse/common/service.h>
 
+#include <functional>
 #include <optional>
 
 namespace mega {
 
+class ActionPacketParser;
 class Logger;
 struct NetworkConnectivityTestResults;
 
@@ -407,7 +409,7 @@ private:
     // enable / disable logs related to the contents of ^!keys
     static const bool mDebugContents = false;
 
-    // true when the account is being created -> don't show warning to user "updading security",
+    // true when the account is being created -> don't show warning to user "updating security",
     // false when the account is being upgraded to ^!keys -> show the warning
     bool mPostRegistration = false;
 
@@ -1891,6 +1893,8 @@ public:
     // converts UTF-8 to 32-bit word array
     static char* utf8_to_a32forjs(const char*, int*);
 
+   
+
     // was the app notified of a retrying CS request?
     bool csretrying;
 
@@ -2054,6 +2058,10 @@ public:
 
     // flag to pause / resume the processing of action packets
     bool scpaused;
+
+    // Streaming actionpacket parser for memory-efficient processing
+    std::unique_ptr<ActionPacketParser> mActionPacketParser;
+    bool mStreamingActionPacketsEnabled = false;
 
     // actionpacket sequence tags (current refers to the one expected by the Requests)
     string mCurrentSeqtag;
@@ -2441,7 +2449,15 @@ public:
     void handleauth(handle, byte*);
 
     bool procsc();
+    size_t procsc_streaming(const char* data, size_t length);
     size_t procreqstat();
+    
+    // Streaming ActionPacket methods
+    void enableStreamingActionPackets(bool enable);
+    bool streamingActionPacketsEnabled() const;
+    ActionPacketParser* getActionPacketParser() const;
+    void setActionPacketHandler(std::function<void(const std::string&)> handler);
+    void setActionPacketErrorHandler(std::function<void(const std::string&, bool)> handler);
 
     // API warnings
     void warn(const char*);
@@ -2822,7 +2838,7 @@ public:
     string getValue() const;
     // Check if the tracking flag is set, i.e.: the JourneyID must be tracked (used in cs API reqs)
     bool isTrackingOn() const;
-    // Load the JourneyID and the tracking flag stored in the cache file.
+    // Load the JourneyID values from the local cache.
     bool loadValuesFromCache();
     // Remove local cache file and reset the JourneyID so a new one can be set from the next "ug"/"gmf" command.
     bool resetCacheAndValues();
