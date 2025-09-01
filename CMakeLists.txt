@@ -182,6 +182,6 @@ add_subdirectory(src/common)
 add_subdirectory(src/file_service)
 
 ## Load FUSE support.
-include(src/fuse/CMakeLists.txt)
+add_subdirectory(src/fuse)
 
 add_subdirectory(third_party)
