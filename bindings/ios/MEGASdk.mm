@@ -3131,6 +3131,12 @@ using namespace mega;
     return (MEGAShareType) self.megaApi->getAccess([node getCPtr]);
 }
 
+- (MEGAShareType)accessLevelForNodeHande:(uint64_t)nodeHandle {
+    if (self.megaApi == nil) return MEGAShareTypeAccessUnknown;
+    
+    return (MEGAShareType) self.megaApi->getAccess(nodeHandle);
+}
+
 - (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level {
     if (self.megaApi == nil) return nil;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccessErrorExtended(node.getCPtr, (int)level) cMemoryOwn:YES];

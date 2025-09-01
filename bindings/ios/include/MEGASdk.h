@@ -7868,6 +7868,19 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  */
 - (MEGAShareType)accessLevelForNode:(MEGANode *)node;
 
+/**
+ * @brief Get the access level of a nodeHandle.
+ * @param nodeHandle Node handle to check.
+ * @return Access level of the node.
+ * Valid values are:
+ * - MEGAShareTypeAccessOwner
+ * - MEGAShareTypeAccessFull
+ * - MEGAShareTypeAccessReadWrite
+ * - MEGAShareTypeAccessRead
+ * - MEGAShareTypeAccessUnknown
+ */
+- (MEGAShareType)accessLevelForNodeHande:(uint64_t)nodeHandle;
+
 
 /**
  * @brief Check if a node has an access level
