@@ -39,6 +39,4 @@ endif()
 
 add_subdirectory(platform)
 
-if(TARGET test_integration)
-    add_subdirectory(testing)
-endif()
+add_subdirectory(testing)
