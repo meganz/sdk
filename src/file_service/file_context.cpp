@@ -146,21 +146,6 @@ public:
     void queue(FileReclaimCallback callback);
 }; // ReclaimContext
 
-// Check if a request can be executed.
-bool executable(FileReadWriteState& readWriteState, const FileRequest& request);
-
-// Check if a particular class of request can be executed.
-//
-// The check works by trying to acquire the kind of lock that the request
-// requires. For instance, a read request will try and acquire a read-lock
-// on the context. If it succeeds, we know the request can execute.
-bool executable(FileReadWriteState& readWriteState, FileReadRequestTag tag);
-bool executable(FileReadWriteState& readWriteState, FileWriteRequestTag tag);
-
-// Called when a request of a particular class has executed.
-void executed(FileReadWriteState& readWriteState, FileReadRequestTag tag);
-void executed(FileReadWriteState& readWriteState, FileWriteRequestTag tag);
-
 // Retrieve an instance of a request's type tag.
 template<typename Request>
 auto tag(const Request& request)
@@ -483,7 +468,7 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
             return;
 
         // Let the context know the request has completed.
-        executed(context->mReadWriteState, tag);
+        executed(tag);
 
         // See if we can't execute any queued requests.
         context->execute();
@@ -1229,7 +1214,7 @@ void FileContext::execute()
             return;
 
         // Request isn't executable.
-        if (!executable(mReadWriteState, mRequests.front()))
+        if (!executable(mRequests.front()))
             return;
 
         // Pop the request off the queue.
@@ -1256,7 +1241,7 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
         return completed(std::move(request), FILE_CANCELLED);
 
     // Request isn't executable so queue it for later execution.
-    if (!executable(mReadWriteState, request))
+    if (!executable(request))
         return queue(std::forward<Request>(request));
 
     // Otherwise execute the request.
@@ -1909,34 +1894,34 @@ void FileContext::ReclaimContext::queue(FileReclaimCallback callback)
     mCallbacks.emplace_back(swallow(std::move(callback), "reclaim"));
 }
 
-bool executable(FileReadWriteState& readWriteState, const FileRequest& request)
+bool FileContext::executable(const FileRequest& request)
 {
     return std::visit(
-        [&readWriteState](auto&& request)
+        [this](auto&& request)
         {
-            return executable(readWriteState, tag(request));
+            return executable(tag(request));
         },
         request);
 }
 
-bool executable(FileReadWriteState& readWriteState, FileReadRequestTag)
+bool FileContext::executable(FileReadRequestTag)
 {
-    return readWriteState.read();
+    return mReadWriteState.read();
 }
 
-bool executable(FileReadWriteState& readWriteState, FileWriteRequestTag)
+bool FileContext::executable(FileWriteRequestTag)
 {
-    return readWriteState.write();
+    return mReadWriteState.write();
 }
 
-void executed(FileReadWriteState& readWriteState, FileReadRequestTag)
+void FileContext::executed(FileReadRequestTag)
 {
-    readWriteState.readCompleted();
+    mReadWriteState.readCompleted();
 }
 
-void executed(FileReadWriteState& readWriteState, FileWriteRequestTag)
+void FileContext::executed(FileWriteRequestTag)
 {
-    readWriteState.writeCompleted();
+    mReadWriteState.writeCompleted();
 }
 
 template<typename Callback>

@@ -89,6 +89,17 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Called when a file write request has been completed.
     void completed(FileWriteRequest&& request);
 
+    // Check if a request can be executed.
+    bool executable(const FileRequest& request);
+
+    // Check if a particular class of request can be executed.
+    //
+    // The check works by trying to acquire the kind of lock that the request
+    // requires. For instance, a read request will try and acquire a read-lock
+    // on the context. If it succeeds, we know the request can execute.
+    bool executable(FileReadRequestTag tag);
+    bool executable(FileWriteRequestTag tag);
+
     // Called to execute an arbitrary function on the service's thread pool.
     void execute(std::function<void()> function) override;
 
@@ -128,6 +139,10 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Execute a request if possible otherwise queue it for later execution.
     template<typename Request>
     auto executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>;
+
+    // Called when a request of a particular class has executed.
+    void executed(FileReadRequestTag tag);
+    void executed(FileWriteRequestTag tag);
 
     // Called when a file read request has failed.
     void failed(FileReadRequest&& request, FileResult result) override;
