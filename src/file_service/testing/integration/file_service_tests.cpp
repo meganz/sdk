@@ -286,6 +286,10 @@ static auto purge(File file) -> std::future<FileResult>;
 static auto read(File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResultOr<std::string>>;
 
+// As above but a partial read is allowed.
+static auto readOnce(File file, std::uint64_t offset, std::uint64_t length)
+    -> std::future<FileResultOr<std::string>>;
+
 // Reclaim a file's storage.
 static auto reclaim(File file) -> std::future<FileResultOr<std::uint64_t>>;
 
@@ -1813,33 +1817,17 @@ TEST_F(FileServiceTests, read_cancel_on_file_destruction_succeeds)
     auto file = mClient->fileOpen(mFileHandle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
-    // So our callback can tell us when the read's been cancelled.
-    auto notifier = makeSharedPromise<FileResult>();
-
-    // So we can wait until the read's been cancelled.
-    auto waiter = notifier->get_future();
-
     // Make sure the read doesn't complete before the file's destroyed.
     mClient->setDownloadSpeed(4096);
 
-    // Called when our read's been cancelled.
-    auto callback = [=](FileResultOr<FileReadResult> result)
-    {
-        // Let the waiter know whether the read's been cancelled.
-        notifier->set_value(result.errorOr(FILE_SUCCESS));
-    }; // callback
-
     // Begin the read, taking care to drop our file reference.
-    [&callback](File file)
-    {
-        file.read(std::move(callback), 768_KiB, 256_KiB);
-    }(std::move(*file));
+    auto waiter = readOnce(std::move(*file), 768_KiB, 256_KiB);
 
     // Wait for the read to complete.
     ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
 
     // Make sure the read was cancelled.
-    EXPECT_EQ(waiter.get(), FILE_CANCELLED);
+    EXPECT_EQ(waiter.get().errorOr(FILE_SUCCESS), FILE_CANCELLED);
 }
 
 TEST_F(FileServiceTests, read_extension_succeeds)
@@ -2070,35 +2058,57 @@ TEST_F(FileServiceTests, read_write_sequence)
 {
     // Try and open our test file.
     auto file = mClient->fileOpen(mFileHandle);
-
-    // Make sure the file was opened.
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Generate some data for us to write to the file.
-    auto data = randomBytes(512_KiB);
+    auto expected = randomBytes(512_KiB);
 
-    // The events we expect to be emitted for our file.
-    FileEventVector expected;
+    // Disable readahead.
+    mClient->fileService().options(DisableReadahead);
 
-    // So we can store the events emitted for our file.
-    auto fileObserver = observe(*file);
-    auto serviceObserver = observe(mClient->fileService());
+    // Make sure our initial read doesn't complete too quickly.
+    mClient->setDownloadSpeed(4096);
 
-    // Initiate a read of the file's data.
-    file->read([](auto) {}, 0, file->info().size());
+    // Initiate a requset to read all of the file's data.
+    auto read0 = readOnce(*file, 0, 1_MiB);
 
-    // Write our data to the file.
-    ASSERT_EQ(execute(write, data.data(), *file, 256_KiB, 512_KiB), FILE_SUCCESS);
+    // Initiate a request to overwrite all of the file's data.
+    auto write = testing::write(expected.data(), *file, 0, expected.size());
 
-    expected.emplace_back(FileWriteEvent{FileRange(256_KiB, 768_KiB), file->info().id()});
+    // Initiate a request to read some of the file's new data.
+    auto read1 = read(*file, 0, expected.size());
 
-    // Curiosity.
-    for (const auto& range: file->ranges())
-        FSDebugF("Range: %s", toString(range).c_str());
+    // Allow our reads to complete quickly.
+    mClient->setDownloadSpeed(0);
 
-    // Make sure we received the events we expected.
-    ASSERT_EQ(expected, fileObserver.events());
-    ASSERT_EQ(expected, serviceObserver.events());
+    // Wait for our requests to complete.
+    EXPECT_NE(read0.wait_for(mDefaultTimeout), timeout);
+    EXPECT_NE(write.wait_for(mDefaultTimeout), timeout);
+    EXPECT_NE(read1.wait_for(mDefaultTimeout), timeout);
+
+    // One or more requests timed out.
+    if (HasFailure())
+        return;
+
+    // Make sure all of our requests succeeded.
+    auto readResult0 = read0.get();
+    auto readResult1 = read1.get();
+    auto writeResult = write.get();
+
+    EXPECT_EQ(readResult0.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    EXPECT_EQ(readResult1.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    EXPECT_EQ(writeResult, FILE_SUCCESS);
+
+    // One or more requests failed.
+    if (HasFailure())
+        return;
+
+    // The first read should return the file's original data.
+    EXPECT_FALSE(mFileContent.compare(0, readResult0->size(), *readResult0));
+
+    // The second read should return the file's updated data.
+    EXPECT_EQ(expected.size(), readResult1->size());
+    EXPECT_FALSE(expected.compare(*readResult1));
 }
 
 TEST_F(FileServiceTests, reclaim_all_succeeds)
@@ -3194,6 +3204,45 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
         length);
 
     // Return waiter to our caller.
+    return waiter;
+}
+
+auto readOnce(File file, std::uint64_t offset, std::uint64_t length)
+    -> std::future<FileResultOr<std::string>>
+{
+    // So we can signal when the read has completed.
+    auto notifier = makeSharedPromise<FileResultOr<std::string>>();
+
+    // So our caller can wait until the read has completed.
+    auto waiter = notifier->get_future();
+
+    // Try and perform the read.
+    file.read(
+        [notifier](auto&& result)
+        {
+            // Couldn't read any data.
+            if (!result)
+                return notifier->set_value(unexpected(result.error()));
+
+            std::string buffer;
+
+            // Preallocate necessary buffer space.
+            buffer.resize(result->mLength);
+
+            // Try and copy data into our buffer.
+            auto [count, _] = result->mSource.read(buffer.data(), 0, result->mLength);
+
+            // Couldn't copy all of the data into our buffer.
+            if (count < result->mLength)
+                return notifier->set_value(unexpected(FILE_FAILED));
+
+            // Transmit buffer to our waiter.
+            notifier->set_value(std::move(buffer));
+        },
+        offset,
+        length);
+
+    // Return the waiter to our caller.
     return waiter;
 }
 
