@@ -245,11 +245,12 @@ void Request::process(MegaClient* client)
 
         if (cmd->mSeqtagArray && processingJson.enterarray())
         {
-            // Some commands need to return seqtag and also some JSON,
-            // in which case they are in an array with `st` first, and the JSON second
-            // Some commands might or might not produce `st`.  And might return a string.
-            // So in the case of success with a string return, but no `st`,
-            // the array is [0, "returnValue"]
+            // Responses parsed here:
+            //      -> ["<st>", <json>] : Sequence Tag + a json
+            //      -> [0, "string"] : API_OK + a no-json-string
+            // Commands should be marked as mSeqtagArray=true to be differentiated from a json array
+            // like ["ES","FR","IE","GB"] If a command returning a string fails, there is no array,
+            // just the error code
             // If the command failed, there is no array, just the error code
             assert(*processingJson.pos == '0' || *processingJson.pos == '\"');
             if (*processingJson.pos == '0' && *(processingJson.pos+1) == ',')
@@ -272,7 +273,8 @@ void Request::process(MegaClient* client)
         }
         else if (*processingJson.pos == '"')
         {
-            // For v3 commands, a string result is a string which is a seqtag.
+            // Responses parsed here:
+            //      -> "<st>" : Only a Sequence Tag.
             if (!processSeqTag(cmd, false, parsedOk, false, processingJson))
             {
                 // we need to wait for sc processing to catch up with the seqtag we just read
@@ -282,7 +284,9 @@ void Request::process(MegaClient* client)
         }
         else
         {
-            // straightforward case - plain JSON response, no seqtag
+            // Responses parsed here:
+            //      -> 0 or -N : Error codes, plain numeric values.
+            //      -> {..} or [..,..,] : Json response, could be an object or an array.
             parsedOk = processCmdJSON(cmd, true, processingJson);
         }
 
