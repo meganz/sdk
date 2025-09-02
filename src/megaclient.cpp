@@ -2920,17 +2920,16 @@ void MegaClient::exec()
                     pendingcs_serverBusySent = false;
                     pendingcs->mCancelSnapshot = mLoginCancelSnapshot;
 
-                    bool v3;
                     string idempotenceId;
-                    *pendingcs->out = reqs.serverrequest(pendingcs->includesFetchingNodes, v3, this, idempotenceId);
+                    *pendingcs->out =
+                        reqs.serverrequest(pendingcs->includesFetchingNodes, this, idempotenceId);
 
                     pendingcs->posturl = httpio->APIURL;
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(idempotenceId);
                     pendingcs->posturl.append(getAuthURI());
                     pendingcs->posturl.append(appkey);
-
-                    pendingcs->posturl.append(v3 ? "&v=3" : "&v=2");
+                    pendingcs->posturl.append("&v=3");
 
                     if (lang.size())
                     {

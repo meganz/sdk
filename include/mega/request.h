@@ -66,8 +66,6 @@ public:
     void swap(Request&);
     bool stopProcessing = false;
 
-    bool mV3 = true;
-
     // if contains only one command and that command is FetchNodes
     bool isFetchNodes() const;
 
@@ -112,7 +110,7 @@ public:
      * @brief get the set of commands to be sent to the server (could be a retry)
      * @param includesFetchingNodes set to whether the commands include fetch nodes
      */
-    string serverrequest(bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId);
+    string serverrequest(bool& includesFetchingNodes, MegaClient* client, string& idempotenceId);
 
     // Once we get a successful reply from the server, call this to complete everything
     // Since we need to support idempotence, we cannot add anything more to the in-progress request
