@@ -492,6 +492,26 @@ void FileContext::completed(FileWriteRequest&& request)
     completed(std::move(request), FileWriteResult{begin, end - begin});
 }
 
+bool FileContext::executable(const FileRequest& request)
+{
+    return std::visit(
+        [this](auto&& request)
+        {
+            return executable(tag(request));
+        },
+        request);
+}
+
+bool FileContext::executable(FileReadRequestTag)
+{
+    return mReadWriteState.read();
+}
+
+bool FileContext::executable(FileWriteRequestTag)
+{
+    return mReadWriteState.write();
+}
+
 void FileContext::execute(std::function<void()> function)
 {
     // Sanity.
@@ -1248,6 +1268,16 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
     execute(request);
 }
 
+void FileContext::executed(FileReadRequestTag)
+{
+    mReadWriteState.readCompleted();
+}
+
+void FileContext::executed(FileWriteRequestTag)
+{
+    mReadWriteState.writeCompleted();
+}
+
 void FileContext::failed(FileReadRequest&& request, FileResult result)
 {
     // Delegate to template function.
@@ -1892,36 +1922,6 @@ void FileContext::ReclaimContext::queue(FileReclaimCallback callback)
 {
     // Queue the callback for later execution.
     mCallbacks.emplace_back(swallow(std::move(callback), "reclaim"));
-}
-
-bool FileContext::executable(const FileRequest& request)
-{
-    return std::visit(
-        [this](auto&& request)
-        {
-            return executable(tag(request));
-        },
-        request);
-}
-
-bool FileContext::executable(FileReadRequestTag)
-{
-    return mReadWriteState.read();
-}
-
-bool FileContext::executable(FileWriteRequestTag)
-{
-    return mReadWriteState.write();
-}
-
-void FileContext::executed(FileReadRequestTag)
-{
-    mReadWriteState.readCompleted();
-}
-
-void FileContext::executed(FileWriteRequestTag)
-{
-    mReadWriteState.writeCompleted();
 }
 
 template<typename Callback>
