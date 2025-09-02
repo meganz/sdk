@@ -2053,11 +2053,24 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
 {
     HttpReq *req = (HttpReq*)target;
     size_t len = size * nmemb;
-    if (len > 2)
+    // HEADER can end in \r\n (protocol specs) or \n (also accepted)
+    unsigned endChars = std::invoke(
+        [&ptr, &len]() -> unsigned
+        {
+            if (Utils::endswith(ptr, len, "\r\n", 2))
+                return 2;
+            if (Utils::endswith(ptr, len, "\n", 1))
+                return 1;
+            return 0;
+        });
+
+    if (len > endChars)
     {
-        NET_verbose << req->getLogName() << "Header: " << string(ptr, len - 2);
+        NET_verbose << req->getLogName() << "Header: " << std::string(ptr, len - endChars);
     }
-    assert(Utils::endswith(ptr, len, "\r\n", 2));
+
+    // 2 -> "\r\n" 1 -> "\n"
+    assert(endChars == 2u || endChars == 1u);
     const char* val = nullptr;
     if (Utils::startswith(ptr, "HTTP/"))
     {
