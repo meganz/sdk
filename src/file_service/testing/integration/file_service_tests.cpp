@@ -2808,6 +2808,40 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     ASSERT_EQ(expected, serviceObserver.events());
 }
 
+TEST_F(FileServiceTests, write_cancels_orphan_reads)
+{
+    // Open our test file.
+    auto file = mClient->fileOpen(mFileHandle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Disable readahead.
+    mClient->fileService().options(DisableReadahead);
+
+    // Generate some data to write to our file.
+    auto expected = randomBytes(512_KiB);
+
+    // Initiate a read of the file's data.
+    //
+    // We're not using the read(...) helper function in this case because we
+    // don't really care if we get all of the data we've asked for.
+    auto read = readOnce(*file, 0, 1_MiB);
+
+    // Write our generated data to the file.
+    //
+    // This should cancel an orphan read that resulted when our read above
+    // completed with only a subset of the requested data.
+    ASSERT_EQ(execute(write, expected.data(), *file, 0, expected.size()), FILE_SUCCESS);
+
+    // Make sure our read completed.
+    ASSERT_NE(read.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the data we read was valid.
+    auto computed = read.get();
+
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    EXPECT_FALSE(mFileContent.compare(0, computed->size(), *computed));
+}
+
 TEST_F(FileServiceTests, write_succeeds)
 {
     // Disable readahead.
