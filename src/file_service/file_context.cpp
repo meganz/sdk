@@ -1192,20 +1192,13 @@ void FileContext::execute(FileWriteRequest& request)
 
 void FileContext::execute(FileRequest& request)
 {
-    // Is this context still alive?
-    auto alive = !weak_from_this().expired();
-
     // Executes a user's request.
-    auto execute = [alive, this](auto& request)
+    auto execute = [this](auto& request)
     {
         try
         {
             // Try and execute the request.
-            if (alive)
-                return this->execute(request);
-
-            // Context's being destructed so cancel the request.
-            completed(std::move(request), FILE_CANCELLED);
+            this->execute(request);
         }
         catch (std::exception& exception)
         {
@@ -1255,10 +1248,6 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
 {
     // Make sure the request's been passed by rvalue reference.
     static_assert(std::is_rvalue_reference_v<decltype(request)>);
-
-    // Context's being destroyed so cancel the request.
-    if (weak_from_this().expired())
-        return completed(std::move(request), FILE_CANCELLED);
 
     // Request isn't executable so queue it for later execution.
     if (!executable(request))
