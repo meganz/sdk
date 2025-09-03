@@ -89,16 +89,27 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Called when a file write request has been completed.
     void completed(FileWriteRequest&& request);
 
+    // Called when a request of a particular class is dequeued.
+    template<typename Lock>
+    void dequeued(Lock&& lock, FileReadRequestTag tag);
+
+    template<typename Lock>
+    void dequeued(Lock&& lock, FileWriteRequestTag tag);
+
+    // Called when a request has been dequeued.
+    template<typename Lock>
+    void dequeued(Lock&& lock, const FileRequest& request);
+
     // Check if a request can be executed.
-    bool executable(const FileRequest& request);
+    template<typename Lock>
+    bool executable(Lock&& lock, bool queuing, const FileRequest& request);
 
     // Check if a particular class of request can be executed.
-    //
-    // The check works by trying to acquire the kind of lock that the request
-    // requires. For instance, a read request will try and acquire a read-lock
-    // on the context. If it succeeds, we know the request can execute.
-    bool executable(FileReadRequestTag tag);
-    bool executable(FileWriteRequestTag tag);
+    template<typename Lock>
+    bool executable(Lock&& lock, bool queuing, FileReadRequestTag tag);
+
+    template<typename Lock>
+    bool executable(Lock&& lock, bool queuing, FileWriteRequestTag tag);
 
     // Called to execute an arbitrary function on the service's thread pool.
     void execute(std::function<void()> function) override;
@@ -161,8 +172,15 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     FileServiceOptions options() const override;
 
     // Queue a request for later execution.
-    template<typename Request>
-    auto queue(Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>;
+    template<typename Lock, typename Request>
+    auto queue(Lock&& lock, Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>;
+
+    // Called when a request of a particular class has been queued.
+    template<typename Lock>
+    void queued(Lock&& lock, FileReadRequestTag tag);
+
+    template<typename Lock>
+    void queued(Lock&& lock, FileWriteRequestTag tag);
 
     // Remove zero or more ranges from the database.
     void removeRanges(const FileRange& range, common::Transaction& transaction);
@@ -205,6 +223,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Serializes access to mFlushContext.
     std::recursive_mutex mFlushContextLock;
+
+    // How many write requests are pending?
+    std::size_t mNumPendingWriteRequests;
 
     // What ranges of the file do we have?
     FileRangeContextPtrMap mRanges;

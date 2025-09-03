@@ -492,23 +492,71 @@ void FileContext::completed(FileWriteRequest&& request)
     completed(std::move(request), FileWriteResult{begin, end - begin});
 }
 
-bool FileContext::executable(const FileRequest& request)
+template<typename Lock>
+void FileContext::dequeued([[maybe_unused]] Lock&& lock, FileReadRequestTag)
 {
-    return std::visit(
-        [this](auto&& request)
+    assert(lock.mutex() == &mRequestsLock);
+    assert(lock.owns_lock());
+}
+
+template<typename Lock>
+void FileContext::dequeued([[maybe_unused]] Lock&& lock, FileWriteRequestTag)
+{
+    assert(lock.mutex() == &mRequestsLock);
+    assert(lock.owns_lock());
+
+    // Sanity.
+    assert(mNumPendingWriteRequests);
+
+    --mNumPendingWriteRequests;
+}
+
+template<typename Lock>
+void FileContext::dequeued(Lock&& lock, const FileRequest& request)
+{
+    assert(lock.mutex() == &mRequestsLock);
+    assert(lock.owns_lock());
+
+    std::visit(
+        [&lock, this](auto&& request)
         {
-            return executable(tag(request));
+            this->dequeued(std::forward<Lock>(lock), tag(request));
         },
         request);
 }
 
-bool FileContext::executable(FileReadRequestTag)
+template<typename Lock>
+bool FileContext::executable(Lock&& lock, bool queuing, const FileRequest& request)
 {
+    assert(lock.mutex() == &mRequestsLock);
+    assert(lock.owns_lock());
+
+    return std::visit(
+        [&lock, queuing, this](auto&& request)
+        {
+            return this->executable(std::forward<Lock>(lock), queuing, tag(request));
+        },
+        request);
+}
+
+template<typename Lock>
+bool FileContext::executable([[maybe_unused]] Lock&& lock, bool queuing, FileReadRequestTag)
+{
+    assert(lock.mutex() == &mRequestsLock);
+    assert(lock.owns_lock());
+
+    if (queuing && mNumPendingWriteRequests)
+        return false;
+
     return mReadWriteState.read();
 }
 
-bool FileContext::executable(FileWriteRequestTag)
+template<typename Lock>
+bool FileContext::executable([[maybe_unused]] Lock&& lock, bool, FileWriteRequestTag)
 {
+    assert(lock.mutex() == &mRequestsLock);
+    assert(lock.owns_lock());
+
     return mReadWriteState.write();
 }
 
@@ -1227,7 +1275,7 @@ void FileContext::execute()
             return;
 
         // Request isn't executable.
-        if (!executable(mRequests.front()))
+        if (!executable(lock, false, mRequests.front()))
             return;
 
         // Pop the request off the queue.
@@ -1235,8 +1283,8 @@ void FileContext::execute()
 
         mRequests.pop_front();
 
-        // Let other threads queue requests while this one executes.
-        lock.unlock();
+        // Perform post dequeue actions.
+        dequeued(std::move(lock), request);
 
         // Execute the request.
         execute(request);
@@ -1250,8 +1298,8 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
     static_assert(std::is_rvalue_reference_v<decltype(request)>);
 
     // Request isn't executable so queue it for later execution.
-    if (!executable(request))
-        return queue(std::forward<Request>(request));
+    if (std::unique_lock lock(mRequestsLock); !executable(lock, true, request))
+        return queue(std::move(lock), std::forward<Request>(request));
 
     // Otherwise execute the request.
     execute(request);
@@ -1332,11 +1380,12 @@ FileServiceOptions FileContext::options() const
     return mService.options();
 }
 
-template<typename Request>
-auto FileContext::queue(Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>
+template<typename Lock, typename Request>
+auto FileContext::queue([[maybe_unused]] Lock&& lock, Request&& request)
+    -> std::enable_if_t<IsFileRequestV<Request>>
 {
-    // Make sure we're the only one changing the queue.
-    std::lock_guard guard(mRequestsLock);
+    assert(lock.mutex() == &mRequestsLock);
+    assert(lock.owns_lock());
 
     // Convenience.
     using Type = std::remove_reference_t<Request>;
@@ -1347,6 +1396,25 @@ auto FileContext::queue(Request&& request) -> std::enable_if_t<IsFileRequestV<Re
         mRequests.emplace_front(Tag(), std::forward<Request>(request));
     else
         mRequests.emplace_back(Tag(), std::forward<Request>(request));
+
+    // Perform post-queue actions.
+    queued(std::forward<Lock>(lock), tag(request));
+}
+
+template<typename Lock>
+void FileContext::queued([[maybe_unused]] Lock&& lock, FileReadRequestTag)
+{
+    assert(lock.mutex() == &mRequestsLock);
+    assert(lock.owns_lock());
+}
+
+template<typename Lock>
+void FileContext::queued([[maybe_unused]] Lock&& lock, FileWriteRequestTag)
+{
+    assert(lock.mutex() == &mRequestsLock);
+    assert(lock.owns_lock());
+
+    ++mNumPendingWriteRequests;
 }
 
 void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
@@ -1493,6 +1561,7 @@ FileContext::FileContext(Activity activity,
     mFile(std::move(file)),
     mFlushContext(),
     mFlushContextLock(),
+    mNumPendingWriteRequests(0u),
     mRanges(),
     mRangesLock(),
     mReadWriteState(),
@@ -1904,7 +1973,8 @@ void FileContext::ReclaimContext::flushed(ReclaimContextPtr& context, FileResult
         std::bind(&ReclaimContext::completed, this, std::move(context), std::placeholders::_1);
 
     // Queue the reclaim request for execution.
-    mContext.queue(FileReclaimRequest{mAllocatedSize, std::move(callback)});
+    mContext.queue(std::unique_lock(mContext.mRequestsLock),
+                   FileReclaimRequest{mAllocatedSize, std::move(callback)});
 }
 
 void FileContext::ReclaimContext::queue(FileReclaimCallback callback)
