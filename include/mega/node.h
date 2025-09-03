@@ -562,7 +562,9 @@ public:
     std::string getTags();
     handle getHandle();
 
-    std::unique_ptr<Node> createNode(MegaClient& client, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
+    std::shared_ptr<Node> createNode(MegaClient& client,
+                                     bool fromOldCache,
+                                     std::list<std::unique_ptr<NewShare>>& ownNewshares);
 
     enum
     {

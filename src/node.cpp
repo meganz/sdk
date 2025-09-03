@@ -95,12 +95,12 @@ Node::~Node()
 {
     if (keyApplied())
     {
-        client->mAppliedKeyNodeCount--;
-        assert(client->mAppliedKeyNodeCount >= 0);
+        client->mNodeManager.decreaseNumNodesAppliedKey();
+        assert(client->mNodeManager.getNumNodesKeyApplied() >= 0);
         // if the assert above fails, the reason could be that the client is
         // already logged-out, but the Node survived because the app kept a
         // shared pointer, so the object is destroyed after the logout and
-        // the MegaClient::mAppliedKeyNodeCount is already reset to 0, which
+        // the MegaClient::NodeManager::mAppliedKeyNodeCount is already reset to 0, which
         // results on a negative (-1) count.
         // If that is the case, the app should reset the shared pointer before
         // the logout.
@@ -529,10 +529,13 @@ void Node::setkey(const byte* newkey)
 // set the node key (encrypted or decrypted)
 void Node::setKey(const string& key)
 {
-    if (keyApplied()) --client->mAppliedKeyNodeCount;
+    if (keyApplied())
+        client->mNodeManager.decreaseNumNodesAppliedKey();
+
     nodekeydata = key;
-    if (keyApplied()) ++client->mAppliedKeyNodeCount;
-    assert(client->mAppliedKeyNodeCount >= 0);
+    if (keyApplied())
+        client->mNodeManager.increaseNumNodesAppliedKey();
+    assert(client->mNodeManager.getNumNodesKeyApplied() >= 0);
 }
 
 std::shared_ptr<Node> Node::unserialize(MegaClient& client, const std::string* d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
@@ -1243,7 +1246,7 @@ bool Node::applykey()
     if (client->decryptkey(k, key, static_cast<int>(keylength), sc, 0, nodehandle))
     {
         std::string undecryptedKey = nodekeydata;
-        client->mAppliedKeyNodeCount++;
+        client->mNodeManager.increaseNumNodesAppliedKey();
         nodekeydata.assign((const char*)key, keylength);
         setattr();
         if (attrstring)
@@ -1253,7 +1256,7 @@ bool Node::applykey()
                 // Decryption with a foreign share key failed.
                 // Restoring the undecrypted node key because an updated
                 // share key can be received later.
-                client->mAppliedKeyNodeCount--;
+                client->mNodeManager.decreaseNumNodesAppliedKey();
                 nodekeydata = undecryptedKey;
             }
             LOG_warn << "Failed to decrypt attributes for node: " << toNodeHandle(nodehandle);
@@ -1826,7 +1829,9 @@ handle NodeData::getHandle()
     return mHandle;
 }
 
-std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
+std::shared_ptr<Node> NodeData::createNode(MegaClient& client,
+                                           bool fromOldCache,
+                                           std::list<std::unique_ptr<NewShare>>& ownNewshares)
 {
     assert(mComp == COMPONENT_ALL);
     if (readFailed())
@@ -1834,8 +1839,14 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
         return nullptr;
     }
 
-    unique_ptr<Node> n = std::make_unique<Node>(client, NodeHandle().set6byte(mHandle), NodeHandle().set6byte(mParentHandle),
-                                                 mType, mSize, mUserHandle, mFileAttributes.c_str(), mCtime);
+    std::shared_ptr<Node> n = std::make_shared<Node>(client,
+                                                     NodeHandle().set6byte(mHandle),
+                                                     NodeHandle().set6byte(mParentHandle),
+                                                     mType,
+                                                     mSize,
+                                                     mUserHandle,
+                                                     mFileAttributes.c_str(),
+                                                     mCtime);
 
     // read inshare, outshares, or pending shares
     for (const auto& s : mShares)
@@ -1889,6 +1900,11 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
     }
 
     n->setKey(mNodeKey); // it can be decrypted or encrypted
+
+    if (!n->keyApplied())
+    {
+        client.mNodeManager.addNodePendingApplykey(n);
+    }
 
     if (!mIsEncrypted)
     {
