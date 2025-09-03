@@ -4541,7 +4541,13 @@ void MegaClient::dispatchTransfers()
                     // WS engine handles starts; we only give it a nudge for later FA/back-pressure
                     // logic
                     if (wsEngine())
+                    {
+                        LOG_debug << "[Megaclient::dispatchTransfers] kick WS engine for "
+                                  << nexttransfer->localfilename << " [isUploading="
+                                  << (wsEngine()->isUploading(*nexttransfer) ? "true" : "false")
+                                  << "]";
                         wsEngine()->kick();
+                    }
                     continue; // do not create TransferSlot/HttpReq for WS PUT
 
                     // ToDo: connect / add fa / thumbnail generation etcc
