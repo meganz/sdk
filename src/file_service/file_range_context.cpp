@@ -120,9 +120,6 @@ auto FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t len
 
 void FileRangeContext::dispatch(const std::uint64_t begin, std::uint64_t minimumLength)
 {
-    // Necessary as some requests may have displaced reads.
-    auto buffer = displace(mBuffer, 0);
-
     // What requests might we be able to satisfy?
     auto i = mRequests.begin();
     auto j = mRequests.upper_bound(mEnd);
@@ -146,11 +143,14 @@ void FileRangeContext::dispatch(const std::uint64_t begin, std::uint64_t minimum
         // Tweak the request.
         range.mEnd = std::min(mEnd, range.mEnd);
 
-        // Set the buffer's displacement for this request.
-        buffer->displacement(range.mBegin - begin);
+        // Create a suitably displaced buffer.
+        auto buffer = mBuffer;
+
+        if (auto displacement = range.mBegin - begin)
+            buffer = displace(std::move(buffer), displacement);
 
         // Dispatch the request.
-        mManager.completed(buffer, std::move(request));
+        mManager.completed(std::move(buffer), std::move(request));
 
         // Remove the request from our set.
         mRequests.erase(k);
