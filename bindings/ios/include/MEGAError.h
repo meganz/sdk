@@ -75,6 +75,7 @@ typedef NS_ENUM(NSInteger, MEGAErrorContext) {
 typedef NS_ENUM(NSInteger, MEGAUserErrorCode) {
     MEGAUserErrorCodeETDUnknown = -1,   ///< Unknown state
     MEGAUserErrorCodeCopyrightSuspension = 4,  /// Account suspended by copyright
+    MEGAUserErrorCodeSuspendedAdminFullDisable = 5,
     MEGAUserErrorCodeETDSuspension = 7  ///< Account suspend by an ETD/ToS 'severe'
 };
 
