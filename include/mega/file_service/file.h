@@ -58,6 +58,14 @@ public:
     FileRangeVector ranges() const;
 
     // Read data from this file.
+    //
+    // Be aware that this function does not guarantee that all data
+    // requested will be provided in a single chunk.
+    //
+    // If you request 1MiB of data, you may get the entire 1MiB or you might
+    // get much less. The information passed to the callback will specify
+    // how much data you've received and it's your responsibility to request
+    // the rest, if necessary.
     void read(FileReadCallback callback, std::uint64_t offset, std::uint64_t length);
 
     void read(FileReadCallback callback, const FileRange& range);
