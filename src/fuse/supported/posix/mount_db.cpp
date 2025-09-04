@@ -61,7 +61,12 @@ public:
 MountResult MountDB::check(const Client& client, const MountInfo& info) const
 {
     // Convenience.
+    auto& name = info.name();
     auto& path = info.mPath;
+
+    // Check the mount's name.
+    if (const auto ret = checkName(name); ret != MOUNT_SUCCESS)
+        return ret;
 
     // User's specified a bogus path.
     if (path.empty())
