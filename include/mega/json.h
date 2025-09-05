@@ -226,7 +226,10 @@ public:
     // call, which is at "data" + consumed_bytes (the return value of the previous call).
     // It is allowed to pass a different buffer for the next call, but it must
     // start with the same data that was not consumed during the previous call.
-    m_off_t processChunk(std::map<std::string, std::function<bool(JSON *)>> *filters, const char* data);
+    m_off_t processChunk(
+        std::map<std::string, std::function<bool(JSON *)>> *filters,
+        const char* data,
+        std::map<std::string, std::function<bool(JSON *)>> *preFilters = nullptr);
 
     // Check if the parsing has finished
     bool hasFinished();
@@ -283,6 +286,8 @@ protected:
     // the parsing has failed
     bool mFailed = false;
 
+    // the parsing is suspended
+    bool mSuspended = false;
 }; // JSONSplitter
 
 // If true, logs the contents of all JSON requests and responses in full.

@@ -1101,53 +1101,63 @@ void JSONSplitter::clear()
     mFailed = false;
 }
 
-m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)> > *filters, const char *data)
+m_off_t JSONSplitter::processChunk(
+    std::map<string, std::function<bool (JSON *)> > *filters,
+    const char *data,
+    std::map<string, std::function<bool (JSON *)> > *preFilters)
 {
     if (hasFailed() || hasFinished())
     {
         return 0;
     }
 
-    if (filters)
-    {
-        auto filterit = filters->find("<");
-        if (filterit != filters->end())
-        {
-            JSON jsonData("");
-            auto& callback = filterit->second;
-            if (!callback(&jsonData))
-            {
-                LOG_err << "Error starting the processing of a chunk";
-            }
-        }
-    }
-
-    mPos = data;
-    mLastPos = data;
-
-    // Skip the data that was already processed during the previous call
-    mPos += mProcessedBytes;
-    mProcessedBytes = 0;
-
-    if (mStarting)
+    if (!mSuspended)
     {
         if (filters)
         {
-            auto filterit = filters->find("");
+            auto filterit = filters->find("<");
             if (filterit != filters->end())
             {
                 JSON jsonData("");
                 auto& callback = filterit->second;
                 if (!callback(&jsonData))
                 {
-                    LOG_err << "Parsing error processing first streaming filter"
-                            << " Data: " << data;
-                    parseError(filters);
-                    return 0;
+                    LOG_err << "Error starting the processing of a chunk";
                 }
             }
         }
-        mStarting = false;
+
+        mPos = data;
+        mLastPos = data;
+
+        // Skip the data that was already processed during the previous call
+        mPos += mProcessedBytes;
+        mProcessedBytes = 0;
+
+        if (mStarting)
+        {
+            if (filters)
+            {
+                auto filterit = filters->find("");
+                if (filterit != filters->end())
+                {
+                    JSON jsonData("");
+                    auto& callback = filterit->second;
+                    if (!callback(&jsonData))
+                    {
+                        LOG_err << "Parsing error processing first streaming filter"
+                                << " Data: " << data;
+                        parseError(filters);
+                        return 0;
+                    }
+                }
+            }
+            mStarting = false;
+        }
+    }
+    else
+    {
+        mSuspended = false;
     }
 
     JSON_verbose << "JSON starting processChunk at path " << mCurrentPath
@@ -1198,6 +1208,9 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                 return 0;
             }
 
+            // Backup for suspend
+            std::string lastName = mLastName;
+
             mLastName.clear();
             mPos++;
 
@@ -1220,6 +1233,27 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                 auto filterit = filters->find(filter);
                 if (filterit != filters->end() && filterit->second)
                 {
+                    // PreFilter is used to decide whether to run filter or suspend the process
+                    if (preFilters)
+                    {
+                        auto preFilterit = preFilters->find(filter);
+                        if (preFilterit != preFilters->end() && preFilterit->second)
+                        {
+                            JSON preJsonData(mLastPos);
+                            auto& preCallback = preFilterit->second;
+                            if (!preCallback(&preJsonData))
+                            {
+                                // Restore data for resume
+                                mPos--;
+                                mLastName = lastName;
+
+                                mSuspended = true;
+
+                                return -1;
+                            }
+                        }
+                    }
+
                     JSON_verbose << "JSON object/array callback for path: " << filter << " Data: "
                                  << std::string(mLastPos, static_cast<size_t>(mPos - mLastPos));
 
@@ -1297,6 +1331,22 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                     auto filterit = filters->find(filter);
                     if (filterit != filters->end() && filterit->second)
                     {
+                        // PreFilter is used to decide whether to run filter or suspend the process
+                        if (preFilters)
+                        {
+                            auto preFilterit = preFilters->find(filter);
+                            if (preFilterit != preFilters->end() && preFilterit->second)
+                            {
+                                JSON preJsonData(mPos);
+                                auto& preCallback = preFilterit->second;
+                                if (!preCallback(&preJsonData))
+                                {
+                                    mSuspended = true;
+                                    return -1;
+                                }
+                            }
+                        }
+
                         JSON_verbose << "JSON string value callback for: " << filter
                                      << " Data: " << std::string(mPos, static_cast<size_t>(t));
 

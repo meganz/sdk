@@ -3259,6 +3259,11 @@ void MegaClient::exec()
 
                 if (procSc.isLastReceived())
                 {
+                    if (!procSc.isFinished() && !procSc.isFailed())
+                    {
+                        LOG_err << "Incomplete SC request.";
+                    }
+
                     // complete whole sc request - initiate next SC request
                     procSc.clear();
                     pendingsc.reset();
@@ -5297,34 +5302,16 @@ void MegaClient::initProcSc()
     });
 
     procSc.addFilter("{\"w", [this](JSON* json) {
-        if (procSc.isStop())
-        {
-            // Stop processing Action Packets
-            return true;
-        }
-
         return json->storeobject(&scnotifyurl);
     });
 
     procSc.addFilter("{\"ir", [this](JSON* json) {
-        if (procSc.isStop())
-        {
-            // Stop processing Action Packets
-            return true;
-        }
-
         // when spoonfeeding is in action, there may still be more actionpackets to be delivered.
         insca_notlast = json->getint() == 1;
         return true;
     });
 
     procSc.addFilter("{\"sn", [this](JSON* json) {
-        if (procSc.isStop())
-        {
-            // Stop processing Action Packets
-            return true;
-        }
-
         scsn.setScsn(json);
         // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
         // when action package is processed and the seq tag matches with mCurrentSeqtag
@@ -5349,23 +5336,27 @@ void MegaClient::initProcSc()
         return true;
     });
 
-    procSc.addFilter("{[a{\"a", [this](JSON* json) {
+    procSc.addPreFilter("{[a{\"a", [this](JSON* json) {
         // the "a" attribute is guaranteed to be the first in the object
 
         procSc.actionName = json->getnameidvalue();
 
-        auto actionpacketStart = json->pos;
         // Check if it is ok to process the current action packet.
         if (!sc_checkActionPacket(*json, procSc.lastAPDeletedNode.get()))
         {
             // We can't continue actionpackets until we know the next mCurrentSeqtag to match against, wait for the CS request to deliver it.
             assert(reqs.cmdsInflight());
-            json->pos = actionpacketStart;
             // Stop processing Action Packets, wait for cs response.
-            procSc.setStop();
-            return true;
+            return false;
         }
-        json->pos = actionpacketStart;
+
+        return true;
+    });
+
+    procSc.addFilter("{[a{\"a", [this](JSON* json) {
+        // the "a" attribute is guaranteed to be the first in the object
+
+        procSc.actionName = json->getnameidvalue();
 
         if (!statecurrent)
         {
@@ -5383,17 +5374,6 @@ void MegaClient::initProcSc()
 
     // Action packets (one by one)
     procSc.addFilter("{[a{", [this](JSON* json) {
-        if (procSc.isStop())
-        {
-            // Stop processing Action Packets
-            while (json->getnameid() != EOO)
-            {
-                json->storeobject();
-            }
-
-            return json->leaveobject();
-        }
-
         nameid name = 0;
 
         if (!statecurrent)
@@ -5569,20 +5549,11 @@ void MegaClient::initProcSc()
             procSc.lastAPDeletedNode = nullptr;
         }
 
-        json->leaveobject();
-
-        return true;
+        return json->leaveobject();
     });
 
     // End of action packets
     procSc.addFilter("{[a", [this](JSON* json) {
-        if (procSc.isStop())
-        {
-            // Stop processing Action Packets
-            json->enterarray();
-            return json->leavearray();
-        }
-
         // No more Actions Packets. Force it to advance and process all the remaining
         // command responses until a new "st" is found, if any.
         // It will also process the latest command response associated (by the Sequence Tag)
@@ -5600,12 +5571,6 @@ void MegaClient::initProcSc()
 
     // Parsing finished
     procSc.addFilter("{", [&, this](JSON*) {
-        if (procSc.isStop())
-        {
-            // Stop processing Action Packets
-            return true;
-        }
-
         if (!useralerts.isDeletedSharedNodesStashEmpty())
         {
             useralerts.purgeNodeVersionsFromStash();
@@ -24407,6 +24372,16 @@ ProcSc::ProcSc(MegaClient* client)
     clear();
 }
 
+std::pair<FiltersType::iterator, bool> ProcSc::addPreFilter(std::string key, std::function<bool(JSON *)> filter)
+{
+    return preFilters.emplace(std::move(key), std::move(filter));
+}
+
+void ProcSc::removePreFilter(std::string key)
+{
+    preFilters.erase(key);
+}
+
 std::pair<FiltersType::iterator, bool> ProcSc::addFilter(std::string key, std::function<bool(JSON *)> filter)
 {
     return filters.emplace(std::move(key), std::move(filter));
@@ -24419,11 +24394,7 @@ void ProcSc::removeFilter(std::string key)
 
 m_off_t ProcSc::process(const char *data)
 {
-    stop = false;
-
-    m_off_t consumedBytes = jsonSplitter.processChunk(&filters, data);
-
-    return stop ? -1 : consumedBytes;
+    return jsonSplitter.processChunk(&filters, data, &preFilters);
 }
 
 bool ProcSc::isInProgress()
@@ -24431,14 +24402,14 @@ bool ProcSc::isInProgress()
     return !jsonSplitter.isStarting();
 }
 
-bool ProcSc::isStop()
+bool ProcSc::isFinished()
 {
-    return stop;
+    return jsonSplitter.hasFinished();
 }
 
-void ProcSc::setStop()
+bool ProcSc::isFailed()
 {
-    stop = true;
+    return jsonSplitter.hasFailed();
 }
 
 bool ProcSc::isLastReceived()

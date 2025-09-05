@@ -516,7 +516,7 @@ private:
     MegaClient* client;
     JSONSplitter jsonSplitter;
     FiltersType filters;
-    bool stop;
+    FiltersType preFilters;
     bool last;
 
 public:
@@ -537,12 +537,14 @@ public:
 
     ProcSc(MegaClient* client);
 
+    std::pair<FiltersType::iterator, bool> addPreFilter(std::string key, std::function<bool(JSON *)> filter);
+    void removePreFilter(std::string key);
     std::pair<FiltersType::iterator, bool> addFilter(std::string key, std::function<bool(JSON *)> filter);
     void removeFilter(std::string key);
     m_off_t process(const char *data);
     bool isInProgress();
-    bool isStop();
-    void setStop();
+    bool isFinished();
+    bool isFailed();
     bool isLastReceived();
     void setLastReceived();
     void clear();
