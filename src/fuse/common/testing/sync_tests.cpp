@@ -3,12 +3,12 @@
 #include <mega/fuse/common/mount_event.h>
 #include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
-#include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/testing/client.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/directory.h>
 #include <mega/fuse/common/testing/mount_event_observer.h>
 #include <mega/fuse/common/testing/path.h>
+#include <mega/fuse/common/testing/sync_tests.h>
 #include <mega/fuse/common/testing/test.h>
 #include <mega/fuse/platform/platform.h>
 
@@ -18,52 +18,6 @@ namespace fuse
 {
 namespace testing
 {
-
-struct FUSESyncTests
-  : Test
-{
-}; // FUSESyncTests
-
-class ScopedMount
-{
-    Client& mClient;
-    std::string mName;
-    MountResult mResult;
-
-public:
-    ScopedMount(ClientPtr& client,
-                Path sourcePath,
-                CloudPath targetPath);
-
-    ScopedMount(const ScopedMount& other) = delete;
-
-    ~ScopedMount();
-
-    ScopedMount& operator=(const ScopedMount& rhs) = delete;
-
-    MountResult result() const;
-}; // ScopedMount
-
-class ScopedSync
-{
-    Client& mClient;
-    std::tuple<handle, Error, SyncError> mContext;
-
-public:
-    ScopedSync(ClientPtr& client,
-               Path sourcePath,
-               CloudPath targetPath);
-
-    ScopedSync(const ScopedSync& other) = delete;
-
-    ~ScopedSync();
-
-    ScopedSync& operator=(const ScopedSync& rhs) = delete;
-
-    Error error() const;
-
-    SyncError syncError() const;
-}; // ScopedSync
 
 TEST_F(FUSESyncTests, cant_mount_above_sync)
 {
@@ -137,11 +91,12 @@ TEST_F(FUSESyncTests, cant_sync_below_mount)
 }
 
 ScopedMount::ScopedMount(ClientPtr& client,
+                         const std::string& name,
                          Path sourcePath,
-                         CloudPath targetPath)
-  : mClient(*client)
-  , mName(sourcePath.localPath().leafName().toPath(false))
-  , mResult()
+                         CloudPath targetPath):
+    mClient(*client),
+    mName(name),
+    mResult()
 {
     MountInfo info;
 
@@ -177,6 +132,13 @@ ScopedMount::ScopedMount(ClientPtr& client,
     if (!observer->wait(Test::mDefaultTimeout))
         mResult = MOUNT_UNEXPECTED;
 }
+
+ScopedMount::ScopedMount(ClientPtr& client, Path sourcePath, CloudPath targetPath):
+    ScopedMount(client,
+                sourcePath.localPath().leafName().toPath(false),
+                sourcePath.localPath(),
+                targetPath)
+{}
 
 ScopedMount::~ScopedMount()
 {

@@ -132,8 +132,9 @@ MountResult MountDB::check(const MountInfo& info)
         return MOUNT_REMOTE_FILE;
     }
 
-    // Make sure the target path isn't claimed by a sync.
-    if (!client().mountable(info.mPath))
+    // Empty target path on Windows is allowed and mean the system to allocate the path.
+    // Make sure the non empty target path isn't claimed by a sync.
+    if (!info.mPath.empty() && !client().mountable(info.mPath))
     {
         FUSEErrorF("Local path is being synchronized: %s",
                    info.mPath.toPath(false).c_str());
