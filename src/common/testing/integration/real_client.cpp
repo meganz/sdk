@@ -253,11 +253,11 @@ void RealClient::loop()
 {
     LOG_verbose << "Client thread started";
 
+    // Acquire lock.
+    std::unique_lock<std::mutex> lock(mClientLock);
+
     while (!mClientTerminate)
     {
-        // Acquire lock.
-        std::unique_lock<std::mutex> lock(mClientLock);
-
         // Check whether the client needs any attention.
         auto result = mClient->preparewait();
 
