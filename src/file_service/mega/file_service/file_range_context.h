@@ -38,7 +38,7 @@ class FileRangeContext: private common::PartialDownloadCallback
         -> std::variant<Abort, Continue> override;
 
     // Dispatch zero or more read requests.
-    void dispatch(std::uint64_t begin, std::uint64_t minimumLength);
+    void dispatch(BufferPtr buffer, std::uint64_t begin, std::uint64_t minimumLength);
 
     // Check if a request can be dispatched.
     bool dispatchable(const FileReadRequest& request, std::uint64_t minimumLength) const;
@@ -81,7 +81,7 @@ public:
     void cancel();
 
     // Create a download this range.
-    auto download(common::Client& client, FileAccess& file, NodeHandle handle)
+    auto download(common::Client& client, BufferPtr buffer, NodeHandle handle)
         -> common::PartialDownloadPtr;
 
     // Queue a callback for execution when this range has downloaded.

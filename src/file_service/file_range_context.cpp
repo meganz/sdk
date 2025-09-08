@@ -41,7 +41,7 @@ void FileRangeContext::completed([[maybe_unused]] Lock&& lock, Error result)
     mManager.completed(*mBuffer, mIterator, range);
 
     // Complete as many requests as we can.
-    dispatch(range.mBegin, 1);
+    dispatch(std::move(mBuffer), range.mBegin, 1);
 
     // Translate SDK result.
     auto result_ = fileResultFromError(result);
@@ -114,13 +114,15 @@ auto FileRangeContext::data(const void* buffer, std::uint64_t, std::uint64_t len
         return Continue();
 
     // Dispatch what requests we can.
-    dispatch(mIterator->first.mBegin, MinimumLength);
+    dispatch(mBuffer, mIterator->first.mBegin, MinimumLength);
 
     // Let the caller know the download should continue.
     return Continue();
 }
 
-void FileRangeContext::dispatch(const std::uint64_t begin, std::uint64_t minimumLength)
+void FileRangeContext::dispatch(BufferPtr buffer,
+                                const std::uint64_t begin,
+                                std::uint64_t minimumLength)
 {
     // What requests might we be able to satisfy?
     auto i = mRequests.begin();
@@ -145,14 +147,16 @@ void FileRangeContext::dispatch(const std::uint64_t begin, std::uint64_t minimum
         // Tweak the request.
         range.mEnd = std::min(mEnd, range.mEnd);
 
-        // Create a suitably displaced buffer.
-        auto buffer = mBuffer;
-
-        if (auto displacement = range.mBegin - begin)
-            buffer = displace(std::move(buffer), displacement);
-
         // Dispatch the request.
-        mManager.completed(std::move(buffer), std::move(request));
+        mManager.completed(
+            [&]() -> BufferPtr
+            {
+                if (auto displacement = range.mBegin - begin)
+                    return displace(buffer, displacement);
+
+                return buffer;
+            }(),
+            std::move(request));
 
         // Remove the request from our set.
         mRequests.erase(k);
@@ -215,10 +219,11 @@ void FileRangeContext::cancel()
         download->cancel();
 }
 
-auto FileRangeContext::download(Client& client, FileAccess& file, NodeHandle handle)
+auto FileRangeContext::download(Client& client, BufferPtr buffer, NodeHandle handle)
     -> PartialDownloadPtr
 {
     // Sanity.
+    assert(buffer);
     assert(!mBuffer);
     assert(!mDownload);
 
@@ -226,26 +231,16 @@ auto FileRangeContext::download(Client& client, FileAccess& file, NodeHandle han
     auto offset = mIterator->first.mBegin;
     auto length = mIterator->first.mEnd - offset;
 
+    // How much data can we store directly in memory?
+    constexpr std::uint64_t memoryThreshold = 1u << 22;
+
     // Create a suitable buffer for this range's data.
-    mBuffer = [&]() -> BufferPtr
-    {
-        // How large can a buffer be before we write directly to file?
-        constexpr std::uint64_t maximum = 1u << 22;
-
-        // Buffer's small enough that we can hold it in memory.
-        if (length <= maximum)
-            return std::make_shared<MemoryBuffer>(length);
-
-        // Buffer's too large to fit into memory so write to file.
-        auto buffer = std::make_shared<FileBuffer>(file);
-
-        // Buffer doesn't need to be displaced.
-        if (!offset)
-            return buffer;
-
-        // Return a displaced buffer to our caller.
-        return std::make_shared<DisplacedBuffer>(std::move(buffer), offset);
-    }();
+    if (length <= memoryThreshold)
+        mBuffer = std::make_shared<MemoryBuffer>(length);
+    else if (offset)
+        mBuffer = std::make_shared<DisplacedBuffer>(std::move(buffer), offset);
+    else
+        mBuffer = std::move(buffer);
 
     // Try and create a partial download.
     auto download = client.partialDownload(*this, handle, offset, length);
