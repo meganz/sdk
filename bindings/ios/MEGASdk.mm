@@ -3185,15 +3185,45 @@ using namespace mega;
                         page:(nullable MEGASearchPage *)page
                  cancelToken:(MEGACancelToken *)cancelToken {
     if (self.megaApi == nil) return nil;
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr, [self generateSearchPageFrom:page]) cMemoryOwn:YES];
+
+    // Manage raw C++ pointers with unique_ptr to ensure automatic deletion
+    std::unique_ptr<MegaSearchFilter> cppFilter([self generateSearchFilterFrom:filter]);
+    std::unique_ptr<MegaSearchPage>   cppPage([self generateSearchPageFrom:page]);
+
+    // Pass raw pointers to the API (no ownership transfer)
+    MegaNodeList *nodeList = self.megaApi->search(
+        cppFilter.get(),
+        static_cast<int>(orderType),
+        cancelToken.getCPtr,
+        cppPage.get()
+    );
+
+    // MEGANodeList takes ownership of nodeList (cMemoryOwn:YES),
+    // while cppFilter/cppPage are automatically destroyed here
+    return [MEGANodeList.alloc initWithNodeList:nodeList cMemoryOwn:YES];
 }
+
 - (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter
                                  orderType:(MEGASortOrderType)orderType
                                       page:(nullable MEGASearchPage *)page
                                cancelToken:(MEGACancelToken *)cancelToken {
-
     if (self.megaApi == nil) return nil;
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->getChildren([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr, [self generateSearchPageFrom:page]) cMemoryOwn:YES];
+
+    // Manage raw C++ pointers with unique_ptr to ensure automatic deletion
+    std::unique_ptr<MegaSearchFilter> cppFilter([self generateSearchFilterFrom:filter]);
+    std::unique_ptr<MegaSearchPage>   cppPage([self generateSearchPageFrom:page]);
+
+    // Pass raw pointers to the API (no ownership transfer)
+    MegaNodeList *nodeList = self.megaApi->getChildren(
+        cppFilter.get(),
+        static_cast<int>(orderType),
+        cancelToken.getCPtr,
+        cppPage.get()
+    );
+
+    // MEGANodeList takes ownership of nodeList (cMemoryOwn:YES),
+    // while cppFilter/cppPage are automatically destroyed here
+    return [MEGANodeList.alloc initWithNodeList:nodeList cMemoryOwn:YES];
 }
 
 - (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes excludeSensitives:(BOOL)excludeSensitives delegate:(id<MEGARequestDelegate>)delegate {
