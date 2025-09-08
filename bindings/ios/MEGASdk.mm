@@ -239,15 +239,15 @@ using namespace mega;
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent basePath:(NSString *)basePath clientType:(MEGAClientType)clientType {
     self.megaApi = new MegaApi(appKey.UTF8String, basePath.UTF8String, userAgent.UTF8String, 1, (int)clientType);
-
+    
     if (pthread_mutex_init(&listenerMutex, NULL)) {
         return nil;
     }
-
+    
     return self;
 }
 
-- (void)deleteMegaApi {    
+- (void)deleteMegaApi {
     delete _megaApi;
     _megaApi = nil;
     pthread_mutex_destroy(&listenerMutex);
@@ -1191,7 +1191,7 @@ using namespace mega;
 
 - (nullable MEGAIntegerList *)getEnabledNotifications {
     if (self.megaApi == nil) return nil;
-
+    
     MegaIntegerList* enabledNotifications = self.megaApi->getEnabledNotifications();
     
     return enabledNotifications != nil ? [[MEGAIntegerList alloc] initWithMegaIntegerList:enabledNotifications cMemoryOwn:YES] : nil;
@@ -2028,7 +2028,7 @@ using namespace mega;
         const char *base64Value = MegaApi::binaryToBase64((const char *)value.UTF8String, value.length);
         MegaStringMap *stringMap = MegaStringMap::createInstance();
         stringMap->set(key.UTF8String, base64Value);
-
+        
         self.megaApi->setUserAttribute((int)type, stringMap);
     }
 }
@@ -2038,7 +2038,7 @@ using namespace mega;
         const char *base64Value = MegaApi::binaryToBase64((const char *)value.UTF8String, value.length);
         MegaStringMap *stringMap = MegaStringMap::createInstance();
         stringMap->set(key.UTF8String, base64Value);
-
+        
         self.megaApi->setUserAttribute((int)type, stringMap, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
@@ -3186,11 +3186,9 @@ using namespace mega;
                  cancelToken:(MEGACancelToken *)cancelToken {
     if (self.megaApi == nil) return nil;
 
-    // Manage raw C++ pointers with unique_ptr to ensure automatic deletion
-    std::unique_ptr<MegaSearchFilter> cppFilter([self generateSearchFilterFrom:filter]);
-    std::unique_ptr<MegaSearchPage>   cppPage([self generateSearchPageFrom:page]);
+    auto cppFilter = [self generateSearchFilterFrom:filter];
+    auto cppPage   = [self generateSearchPageFrom:page];
 
-    // Pass raw pointers to the API (no ownership transfer)
     MegaNodeList *nodeList = self.megaApi->search(
         cppFilter.get(),
         static_cast<int>(orderType),
@@ -3198,8 +3196,6 @@ using namespace mega;
         cppPage.get()
     );
 
-    // MEGANodeList takes ownership of nodeList (cMemoryOwn:YES),
-    // while cppFilter/cppPage are automatically destroyed here
     return [MEGANodeList.alloc initWithNodeList:nodeList cMemoryOwn:YES];
 }
 
@@ -3209,11 +3205,9 @@ using namespace mega;
                                cancelToken:(MEGACancelToken *)cancelToken {
     if (self.megaApi == nil) return nil;
 
-    // Manage raw C++ pointers with unique_ptr to ensure automatic deletion
-    std::unique_ptr<MegaSearchFilter> cppFilter([self generateSearchFilterFrom:filter]);
-    std::unique_ptr<MegaSearchPage>   cppPage([self generateSearchPageFrom:page]);
+    auto cppFilter = [self generateSearchFilterFrom:filter];
+    auto cppPage   = [self generateSearchPageFrom:page];
 
-    // Pass raw pointers to the API (no ownership transfer)
     MegaNodeList *nodeList = self.megaApi->getChildren(
         cppFilter.get(),
         static_cast<int>(orderType),
@@ -3221,8 +3215,6 @@ using namespace mega;
         cppPage.get()
     );
 
-    // MEGANodeList takes ownership of nodeList (cMemoryOwn:YES),
-    // while cppFilter/cppPage are automatically destroyed here
     return [MEGANodeList.alloc initWithNodeList:nodeList cMemoryOwn:YES];
 }
 
@@ -3887,9 +3879,10 @@ using namespace mega;
     delete delegate;
 }
 
-- (MegaSearchFilter *)generateSearchFilterFrom:(MEGASearchFilter *)filter {
-    MegaSearchFilter *megaFilter = MegaSearchFilter::createInstance();
-
+- (std::unique_ptr<MegaSearchFilter>)generateSearchFilterFrom:(MEGASearchFilter *)filter {
+    // createInstance() returns a raw pointer -> wrap in unique_ptr immediately
+    std::unique_ptr<MegaSearchFilter> megaFilter(MegaSearchFilter::createInstance());
+    
     megaFilter->byName(filter.term.UTF8String);
     megaFilter->byDescription(filter.searchDescription.UTF8String);
     megaFilter->byNodeType((int)filter.nodeType);
@@ -3898,29 +3891,36 @@ using namespace mega;
     megaFilter->byFavourite((int)filter.favouriteFilter);
     megaFilter->byTag(filter.searchTag.UTF8String);
     megaFilter->useAndForTextQuery(filter.useAndForTextQuery);
-
+    
     if (filter.didSetLocationType) {
         megaFilter->byLocation(filter.locationType);
     }
-
+    
     if (filter.didSetParentNodeHandle) {
         megaFilter->byLocationHandle(filter.parentNodeHandle);
     }
-
+    
     if (filter.creationTimeFrame != nil) {
-        megaFilter->byCreationTime(filter.creationTimeFrame.lowerLimit, filter.creationTimeFrame.upperLimit);
+        megaFilter->byCreationTime(filter.creationTimeFrame.lowerLimit,
+                                   filter.creationTimeFrame.upperLimit);
     }
     
     if (filter.modificationTimeFrame != nil) {
-        megaFilter->byModificationTime(filter.modificationTimeFrame.lowerLimit, filter.modificationTimeFrame.upperLimit);
+        megaFilter->byModificationTime(filter.modificationTimeFrame.lowerLimit,
+                                       filter.modificationTimeFrame.upperLimit);
     }
-
+    
+    // return by value → move semantics applies, caller takes ownership
     return megaFilter;
 }
 
--(nullable MegaSearchPage *)generateSearchPageFrom:(nullable MEGASearchPage *)page {
-    if(page == nil) return nil;
-    return MegaSearchPage::createInstance(page.startingOffset, page.pageSize);
+- (std::unique_ptr<MegaSearchPage>)generateSearchPageFrom:(nullable MEGASearchPage *)page {
+    if (page == nil) {
+        return nullptr; // unique_ptr can be empty
+    }
+    return std::unique_ptr<MegaSearchPage>(
+                                           MegaSearchPage::createInstance(page.startingOffset, page.pageSize)
+                                           );
 }
 
 #pragma mark - Cookie Dialog
@@ -4056,7 +4056,7 @@ using namespace mega;
 
 - (BOOL)isPasswordManagerNodeFolderWithHandle:(MEGAHandle)node {
     if (self.megaApi == nil) return NO;
-
+    
     return self.megaApi->isPasswordManagerNodeFolder(node);
 }
 
@@ -4102,7 +4102,7 @@ using namespace mega;
 
 - (nullable MEGATotpTokenGenResult *)generateTotpTokenFromNode:(MEGAHandle)handle {
     if (self.megaApi == nil) return nil;
-
+    
     MegaTotpTokenGenResult tokenGenResult = self.megaApi->generateTotpTokenFromNode(handle);
     MegaTotpTokenLifetime tokenLifetime = tokenGenResult.result;
     NSString *token = [NSString stringWithUTF8String:tokenLifetime.token.c_str()];
