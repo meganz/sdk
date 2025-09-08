@@ -3,12 +3,14 @@
 #include <mega/common/partial_download.h>
 #include <mega/file_service/buffer.h>
 #include <mega/file_service/displaced_buffer.h>
+#include <mega/file_service/file_buffer.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_range_context.h>
 #include <mega/file_service/file_range_context_manager.h>
 #include <mega/file_service/file_read_request.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_service_options.h>
+#include <mega/file_service/memory_buffer.h>
 #include <mega/types.h>
 
 #include <cassert>
@@ -224,8 +226,26 @@ auto FileRangeContext::download(Client& client, FileAccess& file, NodeHandle han
     auto offset = mIterator->first.mBegin;
     auto length = mIterator->first.mEnd - offset;
 
-    // Create a buffer for this range's data.
-    mBuffer = Buffer::create(file, offset, length);
+    // Create a suitable buffer for this range's data.
+    mBuffer = [&]() -> BufferPtr
+    {
+        // How large can a buffer be before we write directly to file?
+        constexpr std::uint64_t maximum = 1u << 22;
+
+        // Buffer's small enough that we can hold it in memory.
+        if (length <= maximum)
+            return std::make_shared<MemoryBuffer>(length);
+
+        // Buffer's too large to fit into memory so write to file.
+        auto buffer = std::make_shared<FileBuffer>(file);
+
+        // Buffer doesn't need to be displaced.
+        if (!offset)
+            return buffer;
+
+        // Return a displaced buffer to our caller.
+        return std::make_shared<DisplacedBuffer>(std::move(buffer), offset);
+    }();
 
     // Try and create a partial download.
     auto download = client.partialDownload(*this, handle, offset, length);

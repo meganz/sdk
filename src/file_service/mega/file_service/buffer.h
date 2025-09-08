@@ -20,9 +20,6 @@ protected:
 public:
     virtual ~Buffer() = default;
 
-    // Create a buffer.
-    static BufferPtr create(FileAccess& file, std::uint64_t offset, std::uint64_t length);
-
     // Copy data from this buffer to another.
     virtual auto copy(Buffer& target,
                       std::uint64_t sourceOffset,
