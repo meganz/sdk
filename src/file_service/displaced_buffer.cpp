@@ -16,11 +16,6 @@ DisplacedBuffer::DisplacedBuffer(BufferPtr buffer, std::uint64_t displacement):
     assert(mBuffer);
 }
 
-BufferPtr DisplacedBuffer::buffer() const
-{
-    return mBuffer;
-}
-
 auto DisplacedBuffer::copy(Buffer& target,
                            std::uint64_t sourceOffset,
                            std::uint64_t targetOffset,

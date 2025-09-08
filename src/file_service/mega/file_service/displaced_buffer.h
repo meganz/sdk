@@ -20,9 +20,6 @@ class DisplacedBuffer: public Buffer
 public:
     DisplacedBuffer(BufferPtr buffer, std::uint64_t displacement);
 
-    // What buffer are we dispacing?
-    BufferPtr buffer() const;
-
     // Copy data from this buffer to another.
     auto copy(Buffer& target,
               std::uint64_t sourceOffset,
