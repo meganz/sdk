@@ -36,6 +36,11 @@ void ClientAdapter::desynchronize(mega::handle id)
 
 bool ClientAdapter::mountable(const NormalizedPath& path) const
 {
+    // Empty target path on Windows is allowed and mean the system to allocate the path. It is
+    // mountable
+    if (path.empty())
+        return true;
+
     // Check if the sync described by us is related to path.
     auto isRelated = [&path](const UnifiedSync& us) {
         return path.related(us.mConfig.mLocalPath);
