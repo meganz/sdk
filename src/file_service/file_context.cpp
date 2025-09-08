@@ -311,22 +311,24 @@ void FileContext::completed(Buffer& buffer,
                             FileRange range)
 try
 {
-    // How much data did we download?
-    auto size = range.mEnd - range.mBegin;
+    // Convenience.
+    auto offset = range.mBegin;
+    auto length = range.mEnd - offset;
 
     // No data for this range was downloaded.
-    if (!size)
+    if (!length)
         return mRanges.remove(iterator), void();
 
-    // Try and flush this range's data to storage.
-    std::tie(size, std::ignore) = buffer.copy(*mBuffer, 0, range.mBegin, size);
+    // Flush this range's data to storage if necessary.
+    if (buffer.isMemoryBuffer())
+        std::tie(length, std::ignore) = buffer.copy(*mBuffer, 0, offset, length);
 
     // Couldn't flush any of this range's data to storage.
-    if (!size)
+    if (!length)
         return mRanges.remove(iterator), void();
 
     // Compute the range's actual end point.
-    range.mEnd = range.mBegin + size;
+    range.mEnd = range.mBegin + length;
 
     // Figure out what ranges we can coalesce with.
     auto begin = [&]()
