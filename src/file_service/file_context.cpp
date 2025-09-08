@@ -73,11 +73,11 @@ public:
 class FileContext::FlushContext
 {
     // Called when the file's content has been uploaded.
-    void bound(ErrorOr<NodeHandle> result);
+    void bound(FlushContextPtr& context, ErrorOr<NodeHandle> result);
 
     // Called when the flush has been completed.
     template<typename Lock>
-    void completed(Lock&& lock, FileResult result);
+    void completed(FlushContextPtr context, Lock&& lock, FileResult result);
 
     // Called to check that our upload target is valid.
     //
@@ -113,7 +113,7 @@ public:
 
     // Cancel the flush.
     template<typename Lock>
-    void cancel(Lock&& lock);
+    void cancel(FlushContextPtr context, Lock&& lock);
 
     // Queue a flush request for execution.
     void queue(FileFlushRequest request);
@@ -272,8 +272,8 @@ void FileContext::cancel()
     {
         std::unique_lock lock(mFlushContextLock);
 
-        if (auto context = std::exchange(mFlushContext, nullptr))
-            context->cancel(std::move(lock));
+        if (mFlushContext)
+            mFlushContext->cancel(mFlushContext, std::move(lock));
     }
 
     // Latch the request queue.
@@ -1698,17 +1698,20 @@ void FileContext::write(FileWriteRequest request)
 
 void FileContext::FetchContext::completed(FileResult result)
 {
-    // Let the file know the fetch has completed.
-    {
-        // Acquire fetch context lock.
-        std::lock_guard guard(mContext.mFetchContextLock);
+    // Acquire fetch context lock.
+    std::unique_lock lock(mContext.mFetchContextLock);
 
-        // Clear fetch context.
-        mContext.mFetchContext = nullptr;
-    }
+    // Clear fetch context.
+    mContext.mFetchContext = nullptr;
+
+    // Steal queued requests.
+    auto requests = std::exchange(mRequests, decltype(mRequests)());
+
+    // Release fetch context lock.
+    lock.unlock();
 
     // Execute queued requests.
-    for (auto& request: mRequests)
+    for (auto& request: requests)
         mContext.completed(std::move(request), result);
 }
 
@@ -1751,14 +1754,14 @@ void FileContext::FetchContext::queue(FileFetchRequest request)
     mRequests.emplace_back(std::move(request));
 }
 
-void FileContext::FlushContext::bound(ErrorOr<NodeHandle> result)
+void FileContext::FlushContext::bound(FlushContextPtr& context, ErrorOr<NodeHandle> result)
 {
     // Acquire flush context lock.
     std::unique_lock lock(mContext.mFlushContextLock);
 
     // Couldn't flush the file's content.
     if (!result)
-        return completed(std::move(lock), fileResultFromError(result.error()));
+        return completed(std::move(context), std::move(lock), fileResultFromError(result.error()));
 
     // Try and update the file's handle.
     try
@@ -1787,7 +1790,7 @@ void FileContext::FlushContext::bound(ErrorOr<NodeHandle> result)
         info.flushed(*result);
 
         // File's flushed.
-        completed(std::move(lock), FILE_SUCCESS);
+        completed(std::move(context), std::move(lock), FILE_SUCCESS);
     }
     catch (std::exception& exception)
     {
@@ -1797,25 +1800,32 @@ void FileContext::FlushContext::bound(ErrorOr<NodeHandle> result)
                  exception.what());
 
         // Couldn't flush the file's content.
-        completed(std::move(lock), FILE_FAILED);
+        completed(std::move(context), std::move(lock), FILE_FAILED);
     }
 }
 
 template<typename Lock>
-void FileContext::FlushContext::completed(Lock&& lock, FileResult result)
+void FileContext::FlushContext::completed(FlushContextPtr context, Lock&& lock, FileResult result)
 {
     // Sanity.
     assert(lock.mutex() == &mContext.mFlushContextLock);
     assert(lock.owns_lock());
 
-    // Let our file know the flush has been completed.
-    mContext.mFetchContext = nullptr;
+    // Make sure we're still the file's current flush context.
+    if (mContext.mFlushContext == context)
+    {
+        // We are. Let our file know this flush has completed.
+        mContext.mFlushContext = nullptr;
+    }
+
+    // Steal queued requests.
+    auto requests = std::exchange(mRequests, decltype(mRequests)());
 
     // Release lock.
     lock.unlock();
 
     // Execute queued requests.
-    for (auto& request: mRequests)
+    for (auto& request: requests)
         mContext.completed(std::move(request), result);
 }
 
@@ -1847,11 +1857,11 @@ void FileContext::FlushContext::uploaded(FlushContextPtr& context, ErrorOr<Uploa
 
     // Couldn't upload the file's data.
     if (!result)
-        return completed(std::move(lock), fileResultFromError(result.error()));
+        return completed(std::move(context), std::move(lock), fileResultFromError(result.error()));
 
     // The file's been removed.
     if (mContext.mInfo->removed())
-        return completed(std::move(lock), FILE_REMOVED);
+        return completed(std::move(context), std::move(lock), FILE_REMOVED);
 
     // Upload's been cancelled.
     if (mRequests.empty())
@@ -1862,7 +1872,7 @@ void FileContext::FlushContext::uploaded(FlushContextPtr& context, ErrorOr<Uploa
 
     // So we can use our bound method as a callback.
     BoundCallback bound =
-        std::bind(&FlushContext::bound, std::move(context), std::placeholders::_1);
+        std::bind(&FlushContext::bound, this, std::move(context), std::placeholders::_1);
 
     // Bind a name to our file's uploaded data.
     (*result)(std::move(bound), mHandle);
@@ -1886,7 +1896,7 @@ void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult 
 
     // Couldn't retrieve this file's content.
     if (result != FILE_SUCCESS)
-        return completed(std::unique_lock(mutex), result);
+        return completed(std::move(context), std::unique_lock(mutex), result);
 
     // Convenience.
     auto& service = mContext.mService;
@@ -1901,7 +1911,7 @@ void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult 
 
     // File or its intended parent no longer exists.
     if (result != FILE_SUCCESS)
-        return completed(std::move(lock), result);
+        return completed(std::move(context), std::move(lock), result);
 
     // No requests? Flush must have been cancelled.
     if (mRequests.empty())
@@ -1925,8 +1935,9 @@ void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult 
 }
 
 template<typename Lock>
-void FileContext::FlushContext::cancel(Lock&& lock)
+void FileContext::FlushContext::cancel(FlushContextPtr context, Lock&& lock)
 {
+    assert(context);
     assert(lock.mutex() == &mContext.mFlushContextLock);
     assert(lock.owns_lock());
 
@@ -1934,7 +1945,7 @@ void FileContext::FlushContext::cancel(Lock&& lock)
 
     // No upload's in progress.
     if (!upload)
-        return completed(std::move(lock), FILE_CANCELLED);
+        return completed(std::move(context), std::move(lock), FILE_CANCELLED);
 
     // Release the lock.
     lock.unlock();
@@ -1954,14 +1965,20 @@ void FileContext::FlushContext::queue(FileFlushRequest request)
 
 void FileContext::ReclaimContext::completed(ReclaimContextPtr&, FileResultOr<std::uint64_t> result)
 {
-    // Unlink this context from our file.
-    {
-        std::lock_guard guard(mContext.mReclaimContextLock);
-        mContext.mReclaimContext = nullptr;
-    }
+    // Acquire reclaim context lock.
+    std::unique_lock lock(mContext.mReclaimContextLock);
 
-    // Execute our callbacks.
-    for (auto& callback: mCallbacks)
+    // Unlink reclaim context.
+    mContext.mReclaimContext = nullptr;
+
+    // Steal queued callbacks.
+    auto callbacks = std::exchange(mCallbacks, decltype(mCallbacks)());
+
+    // Release reclaim context lock.
+    lock.unlock();
+
+    // Execute queued callbacks.
+    for (auto& callback: callbacks)
         callback(result);
 }
 

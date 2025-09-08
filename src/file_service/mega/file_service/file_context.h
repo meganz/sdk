@@ -59,6 +59,7 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Convenience.
     using FetchContextPtr = std::shared_ptr<FetchContext>;
     using FlushContextPtr = std::shared_ptr<FlushContext>;
+    using FlushContextWeakPtr = std::weak_ptr<FlushContext>;
     using ReclaimContextPtr = std::shared_ptr<ReclaimContext>;
 
     // Add a range to the database.
