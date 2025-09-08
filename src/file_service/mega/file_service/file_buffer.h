@@ -27,6 +27,9 @@ public:
               std::uint64_t targetOffset,
               std::uint64_t length) const -> std::pair<std::uint64_t, bool> override;
 
+    // Check if this buffer is a file buffer.
+    bool isFileBuffer() const override;
+
     // Read data from the buffer.
     auto read(void* buffer, std::uint64_t offset, std::uint64_t length) const
         -> std::pair<std::uint64_t, bool> override;

@@ -37,6 +37,11 @@ auto MemoryBuffer::copy(Buffer& target,
     return target.write(mBuffer.get() + sourceOffset, targetOffset, length);
 }
 
+bool MemoryBuffer::isFileBuffer() const
+{
+    return false;
+}
+
 auto MemoryBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
     -> std::pair<std::uint64_t, bool>
 {

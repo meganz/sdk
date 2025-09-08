@@ -95,6 +95,11 @@ auto FileBuffer::copy(Buffer& target,
     return std::make_pair(count + copied, success);
 }
 
+bool FileBuffer::isFileBuffer() const
+{
+    return true;
+}
+
 auto FileBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
     -> std::pair<std::uint64_t, bool>
 {

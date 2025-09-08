@@ -28,6 +28,12 @@ public:
                       std::uint64_t sourceOffset,
                       std::uint64_t targetOffset,
                       std::uint64_t length) const -> std::pair<std::uint64_t, bool> = 0;
+
+    // Check if this buffer is a file buffer.
+    virtual bool isFileBuffer() const = 0;
+
+    // Check if this buffer is a memory buffer.
+    bool isMemoryBuffer() const;
 }; // Buffer
 
 } // file_service

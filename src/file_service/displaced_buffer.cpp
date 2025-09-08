@@ -46,6 +46,13 @@ std::uint64_t DisplacedBuffer::displacement() const
     return mDisplacement;
 }
 
+bool DisplacedBuffer::isFileBuffer() const
+{
+    assert(mBuffer);
+
+    return mBuffer->isFileBuffer();
+}
+
 auto DisplacedBuffer::read(void* buffer, std::uint64_t offset, std::uint64_t length) const
     -> std::pair<std::uint64_t, bool>
 {

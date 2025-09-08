@@ -28,5 +28,10 @@ BufferPtr Buffer::create(FileAccess& file, std::uint64_t offset, std::uint64_t l
     return std::make_shared<DisplacedBuffer>(std::move(buffer), offset);
 }
 
+bool Buffer::isMemoryBuffer() const
+{
+    return !isFileBuffer();
+}
+
 } // file_service
 } // mega
