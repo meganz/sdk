@@ -1913,8 +1913,11 @@ void ClientUpload::terminated(mega::error result)
     // Signal that the upload has completed.
     mStatus |= SF_COMPLETED;
 
+    // Latch callback.
+    auto callback = std::move(mCallback);
+
     // Let the user know the upload failed.
-    mCallback(unexpected(mResult));
+    callback(unexpected(mResult));
 
     // Let ourselves be destroyed.
     mSelf.reset();
