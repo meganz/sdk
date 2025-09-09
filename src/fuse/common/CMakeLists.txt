@@ -155,6 +155,7 @@ target_sources(test_integration PRIVATE
                                 ${FUSE_COMMON_TESTING_INC}/path_forward.h
                                 ${FUSE_COMMON_TESTING_INC}/printers.h
                                 ${FUSE_COMMON_TESTING_INC}/real_client.h
+                                ${FUSE_COMMON_TESTING_INC}/sync_tests.h
                                 ${FUSE_COMMON_TESTING_INC}/test.h
                                 ${FUSE_COMMON_TESTING_INC}/test_base.h
                                 ${FUSE_COMMON_TESTING_INC}/utility.h
