@@ -5225,6 +5225,7 @@ char *MegaApi::getMimeType(const char *extension)
         {"tif", "image/tiff"},
         {"tiff", "image/tiff"},
         {"torrent", "application/x-bittorrent"},
+        {"ts", "video/mp2t"},
         {"tsv", "text/tab-separated-values"},
         {"ttf", "application/octet-stream"},
         {"ttl", "text/turtle"},
@@ -5359,8 +5360,7 @@ char *MegaApi::getMimeType(const char *extension)
         {"jxss", "image/jxss"},
         {"naplps", "image/naplps"},
         {"pti", "image/prs.pti"},
-        {"t38", "image/t38"}
-    };
+        {"t38", "image/t38"}};
 
     string key = extension;
     tolower_string(key);
