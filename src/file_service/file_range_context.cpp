@@ -219,7 +219,7 @@ void FileRangeContext::cancel()
         download->cancel();
 }
 
-auto FileRangeContext::download(Client& client, BufferPtr buffer, NodeHandle handle)
+auto FileRangeContext::download(Client& client, FileBufferPtr buffer, NodeHandle handle)
     -> PartialDownloadPtr
 {
     // Sanity.
@@ -231,16 +231,23 @@ auto FileRangeContext::download(Client& client, BufferPtr buffer, NodeHandle han
     auto offset = mIterator->first.mBegin;
     auto length = mIterator->first.mEnd - offset;
 
-    // How much data can we store directly in memory?
-    constexpr std::uint64_t memoryThreshold = 1u << 22;
+    // Create a suitable buffer for this range.
+    mBuffer = [&]() -> BufferPtr
+    {
+        // How much data can we store directly in memory?
+        constexpr std::uint64_t memoryThreshold = 1u << 22;
 
-    // Create a suitable buffer for this range's data.
-    if (length <= memoryThreshold)
-        mBuffer = std::make_shared<MemoryBuffer>(length);
-    else if (offset)
-        mBuffer = std::make_shared<DisplacedBuffer>(std::move(buffer), offset);
-    else
-        mBuffer = std::move(buffer);
+        // Range is small enough that it can fit entirely in memory.
+        if (length <= memoryThreshold)
+            return std::make_shared<MemoryBuffer>(length);
+
+        // Range is displaced.
+        if (offset)
+            return std::make_shared<DisplacedBuffer>(std::move(buffer), offset);
+
+        // Range isn't displaced.
+        return std::move(buffer);
+    }();
 
     // Try and create a partial download.
     auto download = client.partialDownload(*this, handle, offset, length);
