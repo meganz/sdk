@@ -160,10 +160,6 @@ FileCache::FileCache(platform::ServiceContext& context)
     FUSEDebug1("File Cache constructed");
 
     ensureCachePathExists(client(), mCachePath);
-
-    // Prevent others, especially file explorer, from opening files under the folder, generating
-    // thumbnail while we're running. We have seen we're blocked to open files forever due to this.
-    WINDOWS_ONLY(mFolderLocker = platform::FolderLocker{mCachePath.asPlatformEncoded(true)});
 }
 
 FileCache::~FileCache()
@@ -300,6 +296,9 @@ ErrorOr<FileInfoRef> FileCache::create(const FileExtension& extension,
 
 void FileCache::current()
 {
+    // Preventive
+    WINDOWS_ONLY(mFolderLocker.release());
+
     // Convenience.
     auto& fsAccess = client().fsAccess();
 
@@ -338,6 +337,13 @@ void FileCache::current()
         if (!fsAccess.unlinklocal(newPath))
             FUSEWarningF("Couldn't remove stale cache file: %s", newPath.toPath(false).c_str());
     }
+
+    // Release the directory accessing
+    dirAccess.reset();
+
+    // Prevent others, especially file explorer, from opening files under the folder, generating
+    // thumbnail while we're running. We have seen we're blocked to open files forever due to this.
+    WINDOWS_ONLY(mFolderLocker = platform::FolderLocker{mCachePath.asPlatformEncoded(true)});
 }
 
 TaskExecutor& FileCache::executor() const

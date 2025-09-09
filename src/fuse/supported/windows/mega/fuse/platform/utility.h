@@ -55,6 +55,8 @@ public:
     FolderLocker& operator=(FolderLocker&& other);
 
     ~FolderLocker();
+
+    void release();
 };
 
 } // platform
