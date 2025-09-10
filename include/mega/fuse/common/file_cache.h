@@ -61,6 +61,9 @@ class FileCache
                      const FileAccess& fileAccess,
                      InodeID id);
 
+    // Purge unreferenced files from the cache.
+    void purge();
+
     // Remove context from the index.
     void remove(const FileIOContext& context, FileCacheLock lock);
 
