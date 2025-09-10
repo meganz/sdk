@@ -1650,16 +1650,16 @@ void ClientPartialDownload::begin()
     mClient.execute(
         [=](const Task& task) mutable
         {
-            // Client's being torn down.
-            if (task.cancelled())
-                return;
-
             // Check whether this download is still alive.
             auto download = cookie.lock();
 
             // Download's been destroyed.
             if (!download)
                 return;
+
+            // Client's being torn down.
+            if (task.cancelled())
+                return completed(API_EINCOMPLETE);
 
             // Download's been cancelled.
             if (cancelled())
