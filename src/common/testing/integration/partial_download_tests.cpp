@@ -335,8 +335,8 @@ TEST_F(PartialDownloadTests, cancel_on_logout_succeeds)
     // Try and download the entire file.
     (*download)->begin();
 
-    // Destroy the client.
-    client.reset();
+    // Logout the client.
+    EXPECT_EQ(client->logout(true), API_OK);
 
     // Wait for the download to complete.
     ASSERT_EQ(callback.result(), API_EINCOMPLETE);

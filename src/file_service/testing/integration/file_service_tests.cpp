@@ -993,7 +993,7 @@ TEST_F(FileServiceTests, flush_cancel_on_client_logout_succeeds)
     auto waiter = flush(std::move(*file));
 
     // Log out the client.
-    client.reset();
+    EXPECT_EQ(client->logout(true), API_OK);
 
     // Wait for the flush to complete.
     ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
@@ -1805,7 +1805,7 @@ TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
     auto waiter = read(std::move(*file), 512_KiB, 256_KiB);
 
     // Log out the client.
-    client.reset();
+    EXPECT_EQ(client->logout(true), API_OK);
 
     // Wait for the read to complete.
     ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
