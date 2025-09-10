@@ -1009,10 +1009,16 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
             if (it != httpio->dnscache.end())
             {
+                std::string addrs = it->second.ipv4; // must be non-empty
+                if (!it->second.ipv6.empty())
+                {
+                    addrs += ",[" + it->second.ipv6 + "]";
+                }
+
                 httpio->addDnsResolution(curl,
                                          httpctx->mCurlDnsList,
                                          httpctx->hostname,
-                                         it->second.ipv4 + ",[" + it->second.ipv6 + "]",
+                                         addrs,
                                          httpctx->port);
             }
         }
