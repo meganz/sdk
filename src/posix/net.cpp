@@ -1641,6 +1641,9 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
             }
 
             statechange = true;
+
+            // signal if the request has failed due to a DNS error (httpstatus = 0)
+            req->mDnsFailure = (req->status == REQ_FAILURE && !req->httpstatus);
         }
         else
         {
