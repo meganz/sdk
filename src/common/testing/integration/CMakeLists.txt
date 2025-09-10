@@ -19,6 +19,7 @@ target_sources(test_integration PRIVATE
                                 printers.cpp
                                 real_client.cpp
                                 utility.cpp
+                                watchdog.cpp
 )
 
 if (UNIX)

@@ -12,5 +12,4 @@ target_sources(test_integration PRIVATE
                                 test.h
                                 test_base.h
                                 utility.h
-                                watchdog.h
 )

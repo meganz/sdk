@@ -1,23 +1,25 @@
 #pragma once
 
+#include <mega/common/logger_forward.h>
 #include <mega/common/task_executor.h>
 
 #include <chrono>
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
 
 class Watchdog
 {
-    common::TaskExecutor mExecutor;
-    common::Task mTask;
+    Logger& mLogger;
+    TaskExecutor mExecutor;
+    Task mTask;
 
 public:
-    Watchdog();
+    Watchdog(Logger& logger);
 
     // Arm the watchdog to expire at some point in time.
     void arm(std::chrono::steady_clock::time_point when);
@@ -66,5 +68,5 @@ public:
 }; // ScopedWatch
 
 } // testing
-} // fuse
+} // common
 } // mega

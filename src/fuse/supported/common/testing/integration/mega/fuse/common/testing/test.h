@@ -4,10 +4,10 @@
 #include <mega/common/testing/model.h>
 #include <mega/common/testing/path.h>
 #include <mega/common/testing/test.h>
+#include <mega/common/testing/watchdog.h>
 #include <mega/fuse/common/testing/client_forward.h>
 #include <mega/fuse/common/testing/parameters_forward.h>
 #include <mega/fuse/common/testing/real_client.h>
-#include <mega/fuse/common/testing/watchdog.h>
 
 #include <chrono>
 
@@ -83,7 +83,7 @@ class Test: public common::testing::Test<TestTraits>
     static PathArray mSentinelPaths;
 
     // Makes sure our tests don't run forever.
-    static Watchdog mWatchdog;
+    static common::testing::Watchdog mWatchdog;
 
 protected:
     // Perform fixture-specific setup.

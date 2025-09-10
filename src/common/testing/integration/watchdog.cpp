@@ -1,19 +1,17 @@
-#include <mega/fuse/common/logging.h>
-#include <mega/fuse/common/testing/watchdog.h>
+#include <mega/common/logging.h>
+#include <mega/common/testing/watchdog.h>
 
 #include <cstdlib>
 
 namespace mega
 {
-namespace fuse
+namespace common
 {
 namespace testing
 {
 
-using common::Task;
-using common::TaskExecutorFlags;
-
-Watchdog::Watchdog():
+Watchdog::Watchdog(Logger& logger):
+    mLogger(logger),
     mExecutor(
         []()
         {
@@ -21,7 +19,8 @@ Watchdog::Watchdog():
             flags.mMaxWorkers = 1;
             return flags;
         }(),
-        logger())
+        mLogger),
+    mTask()
 {}
 
 void Watchdog::arm(std::chrono::steady_clock::time_point when)
@@ -31,14 +30,14 @@ void Watchdog::arm(std::chrono::steady_clock::time_point when)
 
     // Re-arm the watchdog.
     mTask = mExecutor.execute(
-        [](const Task& task)
+        [this](const Task& task)
         {
             // Watchdog's being torn down.
             if (task.cancelled())
                 return;
 
             // Log a friendly message.
-            FUSEError1("Watchdog timed out");
+            Log1(mLogger, "Watchdog timed out", logError);
 
             // Kill the program.
             std::abort();
@@ -55,5 +54,5 @@ void Watchdog::disarm()
 }
 
 } // testing
-} // fuse
+} // common
 } // mega

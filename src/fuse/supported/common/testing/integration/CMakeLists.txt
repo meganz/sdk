@@ -18,7 +18,6 @@ target_sources(test_integration PRIVATE
                                 test.cpp
                                 test_base.cpp
                                 utility.cpp
-                                watchdog.cpp
 )
 
 if(ENABLE_SYNC)

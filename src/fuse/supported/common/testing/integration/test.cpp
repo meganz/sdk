@@ -121,7 +121,7 @@ Error Test::regenerate(Client& client,
 
 Model Test::mModel;
 
-Watchdog Test::mWatchdog;
+Watchdog Test::mWatchdog(logger());
 
 Test::ClientPtrArray Test::mClients;
 
