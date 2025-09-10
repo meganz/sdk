@@ -103,6 +103,48 @@ FileInfoRef FileCache::info(const FileExtension& extension,
     return FileInfoRef(i->second.get());
 }
 
+void FileCache::purge()
+{
+    // Convenience.
+    auto& fsAccess = client().fsAccess();
+
+    auto dirAccess = fsAccess.newdiraccess();
+    auto path = mCachePath;
+
+    // Try and open the cache directory for iteration.
+    if (!dirAccess->dopen(&path, nullptr, false))
+        return;
+
+    LocalPath name;
+    nodetype_t type;
+
+    // Iterate over each file the cache.
+    while (dirAccess->dnext(path, name, false, &type))
+    {
+        // Entry isn't a file.
+        if (type != FILENODE)
+            continue;
+
+        // Convert file name to inode ID.
+        auto id = InodeID::fromFileName(name.toPath(false));
+
+        // Invalid ID.
+        if (!id)
+            continue;
+
+        // Inode's still present in the database.
+        if (mContext.mInodeDB.exists(id))
+            continue;
+
+        LocalPath newPath{path};
+        newPath.appendWithSeparator(name, true);
+
+        // Try and remove the file.
+        if (!fsAccess.unlinklocal(newPath))
+            FUSEWarningF("Couldn't remove stale cache file: %s", newPath.toPath(false).c_str());
+    }
+}
+
 void FileCache::remove(const FileIOContext& context,
                        FileCacheLock lock)
 {
@@ -160,10 +202,6 @@ FileCache::FileCache(platform::ServiceContext& context)
     FUSEDebug1("File Cache constructed");
 
     ensureCachePathExists(client(), mCachePath);
-
-    // Prevent others, especially file explorer, from opening files under the folder, generating
-    // thumbnail while we're running. We have seen we're blocked to open files forever due to this.
-    WINDOWS_ONLY(mFolderLocker = platform::FolderLocker{mCachePath.asPlatformEncoded(true)});
 }
 
 FileCache::~FileCache()
@@ -300,44 +338,15 @@ ErrorOr<FileInfoRef> FileCache::create(const FileExtension& extension,
 
 void FileCache::current()
 {
-    // Convenience.
-    auto& fsAccess = client().fsAccess();
+    // Preventive
+    WINDOWS_ONLY(mFolderLocker.release());
 
-    auto dirAccess = fsAccess.newdiraccess();
-    auto path = mCachePath;
+    // Purge any unreferenced files in the cache.
+    purge();
 
-    // Try and open the cache directory for iteration.
-    if (!dirAccess->dopen(&path, nullptr, false))
-        return;
-
-    LocalPath name;
-    nodetype_t type;
-
-    // Iterate over each file the cache.
-    while (dirAccess->dnext(path, name, false, &type))
-    {
-        // Entry isn't a file.
-        if (type != FILENODE)
-            continue;
-        
-        // Convert file name to inode ID.
-        auto id = InodeID::fromFileName(name.toPath(false));
-
-        // Invalid ID.
-        if (!id)
-            continue;
-
-        // Inode's still present in the database.
-        if (mContext.mInodeDB.exists(id))
-            continue;
-
-        LocalPath newPath{path};
-        newPath.appendWithSeparator(name, true);
-
-        // Try and remove the file.
-        if (!fsAccess.unlinklocal(newPath))
-            FUSEWarningF("Couldn't remove stale cache file: %s", newPath.toPath(false).c_str());
-    }
+    // Prevent others, especially file explorer, from opening files under the folder, generating
+    // thumbnail while we're running. We have seen we're blocked to open files forever due to this.
+    WINDOWS_ONLY(mFolderLocker = platform::FolderLocker{mCachePath.asPlatformEncoded(true)});
 }
 
 TaskExecutor& FileCache::executor() const
