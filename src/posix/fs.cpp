@@ -1234,7 +1234,11 @@ bool PosixFileSystemAccess::unlinklocal(const LocalPath& name)
         return true;
     }
 
-    transient_error = isTransient(errno);
+    auto error = errno;
+
+    transient_error = isTransient(error);
+
+    LOG_debug << "Couldn't unlink file: " << name.toPath(false) << ": " << strerror(error);
 
     return false;
 }
