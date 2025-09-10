@@ -228,7 +228,8 @@ void MountDB::invalidate()
             continue;
 
         // Mark inode as removed if necessary.
-        ref->removed(!client().exists(handle));
+        if (auto exists = client().exists(handle))
+            ref->removed(!*exists);
     }
 
     // Try and disable each mount associated with a removed node.

@@ -81,7 +81,7 @@ public:
     virtual Task execute(std::function<void(const Task&)> function) = 0;
 
     // Query whether a node exists in the cloud.
-    virtual bool exists(NodeHandle handle) const = 0;
+    virtual ErrorOr<bool> exists(NodeHandle handle) const = 0;
 
     // Request access the local filesystem.
     virtual FileSystemAccess& fsAccess() const = 0;
@@ -149,7 +149,7 @@ public:
                NodeHandle target);
 
     // Query who a node's parent is.
-    virtual NodeHandle parentHandle(NodeHandle handle) const = 0;
+    virtual ErrorOr<NodeHandle> parentHandle(NodeHandle handle) const = 0;
 
     // Download part of a file from the cloud.
     virtual auto partialDownload(PartialDownloadCallback& callback,
@@ -158,7 +158,7 @@ public:
                                  std::uint64_t length) -> ErrorOr<PartialDownloadPtr> = 0;
 
     // What permissions are applicable to a node?
-    virtual accesslevel_t permissions(NodeHandle handle) const = 0;
+    virtual ErrorOr<accesslevel_t> permissions(NodeHandle handle) const = 0;
 
     // Remove a node.
     virtual void remove(RemoveCallback callback,

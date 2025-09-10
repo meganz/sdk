@@ -85,7 +85,7 @@ public:
     Task execute(std::function<void(const Task&)> function) override;
 
     // Query whether a node exists in the cloud.
-    bool exists(NodeHandle handle) const override;
+    ErrorOr<bool> exists(NodeHandle handle) const override;
 
     // Request access the local filesystem.
     FileSystemAccess& fsAccess() const override;
@@ -126,7 +126,7 @@ public:
     bool isClientThread() const;
 
     // Query who a node's parent is.
-    NodeHandle parentHandle(NodeHandle handle) const override;
+    ErrorOr<NodeHandle> parentHandle(NodeHandle handle) const override;
 
     // Download part of a file from the cloud.
     auto partialDownload(PartialDownloadCallback& callback,
@@ -135,7 +135,7 @@ public:
                          std::uint64_t length) -> ErrorOr<PartialDownloadPtr> override;
 
     // What permissions are applicable to a node?
-    accesslevel_t permissions(NodeHandle handle) const override;
+    ErrorOr<accesslevel_t> permissions(NodeHandle handle) const override;
 
     // Remove a node.
     void remove(RemoveCallback callback, NodeHandle handle) override;

@@ -746,9 +746,16 @@ InodeRef InodeDB::get(FileCache& fileCache,
             // Is the file still present in the cloud?
             auto info_ = client.get(info.mHandle);
 
-            // File's no longer present in the cloud.
+            // Couldn't get info about the file.
             if (!info_)
-                break;
+            {
+                // Because the file's been removed from the cloud.
+                if (info_.error() == API_ENOENT)
+                    break;
+
+                // Because the client's been logged out.
+                return InodeRef();
+            }
 
             // Latch current name and parent.
             info = std::move(*info_);
@@ -757,9 +764,19 @@ InodeRef InodeDB::get(FileCache& fileCache,
         // File was never present in the cloud.
         if (info.mHandle.isUndef())
         {
-            // And its parent no longer exists.
-            if (!client.exists(info.mParentHandle))
-                break;
+            // Check if the node's parent exists.
+            auto exists = client.exists(info.mParentHandle);
+
+            // Couldn't get info about the parent.
+            if (!exists)
+            {
+                // Because the parent's been removed.
+                if (exists.error() == API_ENOENT)
+                    break;
+
+                // Because the client's been logged out.
+                return InodeRef();
+            }
         }
 
         // Reacquire lock.
@@ -1774,7 +1791,7 @@ FileInodeRefVector InodeDB::modified(NodeHandle parent) const
             ancestors.emplace(handle);
 
             // Climb up into our parent.
-            handle = client.parentHandle(handle);
+            handle = client.parentHandle(handle).valueOr(NodeHandle());
         }
     }
 

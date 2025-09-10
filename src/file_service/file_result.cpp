@@ -18,6 +18,8 @@ FileResult fileResultFromError(Error result)
             return FILE_REMOVED;
         case API_OK:
             return FILE_SUCCESS;
+        case LOCAL_LOGGED_OUT:
+            return FILE_CANCELLED;
         default:
             return FILE_FAILED;
     }

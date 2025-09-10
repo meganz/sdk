@@ -341,7 +341,7 @@ ErrorOr<std::set<std::string>> ClientAdapter::childNames(NodeHandle parent) cons
 
     // Client's being torn down.
     if (mDeinitialized)
-        return std::set<std::string>();
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -614,14 +614,14 @@ Task ClientAdapter::execute(std::function<void(const Task&)> function)
     return task;
 }
 
-bool ClientAdapter::exists(NodeHandle handle) const
+ErrorOr<bool> ClientAdapter::exists(NodeHandle handle) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
 
     // Client's being torn down.
     if (mDeinitialized)
-        return false;
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -642,7 +642,7 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle handle) const
 
     // Client's being torn down.
     if (mDeinitialized)
-        return unexpected(API_ENOENT);
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -666,7 +666,7 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle parent,
 
     // Client's being torn down.
     if (mDeinitialized)
-        return unexpected(API_ENOENT);
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -689,7 +689,7 @@ ErrorOr<NodeHandle> ClientAdapter::handle(NodeHandle parent, const std::string& 
 
     // Client's being torn down.
     if (mDeinitialized)
-        return NodeHandle();
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -712,7 +712,7 @@ ErrorOr<bool> ClientAdapter::hasChildren(NodeHandle parent) const
 
     // Client's being torn down.
     if (mDeinitialized)
-        return API_ENOENT;
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -741,7 +741,7 @@ ErrorOr<bool> ClientAdapter::isFile(NodeHandle handle) const
 
     // Client's being torn down.
     if (mDeinitialized)
-        return unexpected(API_ENOENT);
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -872,14 +872,14 @@ bool ClientAdapter::isClientThread() const
     return std::this_thread::get_id() == mThreadID;
 }
 
-NodeHandle ClientAdapter::parentHandle(NodeHandle handle) const
+ErrorOr<NodeHandle> ClientAdapter::parentHandle(NodeHandle handle) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
 
     // Client's being torn down.
     if (mDeinitialized)
-        return NodeHandle();
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -892,7 +892,7 @@ NodeHandle ClientAdapter::parentHandle(NodeHandle handle) const
         return node->parentHandle();
 
     // Node doesn't exist.
-    return NodeHandle();
+    return unexpected(API_ENOENT);
 }
 
 auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
@@ -918,14 +918,14 @@ auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
     return unexpected(isFile.error());
 }
 
-accesslevel_t ClientAdapter::permissions(NodeHandle handle) const
+ErrorOr<accesslevel_t> ClientAdapter::permissions(NodeHandle handle) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
 
     // Client's being torn down.
     if (mDeinitialized)
-        return RDONLY;
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -935,7 +935,7 @@ accesslevel_t ClientAdapter::permissions(NodeHandle handle) const
 
     // Node doesn't exist.
     if (!node)
-        return ACCESS_UNKNOWN;
+        return unexpected(API_ENOENT);
 
     // Do we have full access to this node?
     if (mClient.checkaccess(node.get(), FULL))

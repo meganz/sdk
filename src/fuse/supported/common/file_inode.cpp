@@ -188,8 +188,9 @@ InodeInfo FileInode::info() const
                 if (fileInfo)
                     fileInfo->get(info.mModified, info.mSize);
 
-                // Mark ourselves as removed.
-                removed(true);
+                // Mark ourselves as removed if necessary.
+                if (info_.error() == API_ENOENT)
+                    removed(true);
 
                 // Return our description to the caller.
                 return InodeInfo(mID, std::move(info));
@@ -215,7 +216,7 @@ InodeInfo FileInode::info() const
         lock.unlock();
 
         // Try and retrieve our parent's permissions.
-        auto permissions = client.permissions(info.mParentHandle);
+        auto permissions = client.permissions(info.mParentHandle).valueOr(ACCESS_UNKNOWN);
 
         // Reacquire lock.
         lock.lock();
