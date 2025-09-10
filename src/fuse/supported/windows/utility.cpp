@@ -280,9 +280,18 @@ FolderLocker& FolderLocker::operator=(FolderLocker&& other)
 
 FolderLocker::~FolderLocker()
 {
-    if (mHandle != INVALID_HANDLE_VALUE)
-        CloseHandle(mHandle);
+    release();
 }
+
+void FolderLocker::release()
+{
+    if (mHandle == INVALID_HANDLE_VALUE)
+        return;
+
+    CloseHandle(mHandle);
+    mHandle = INVALID_HANDLE_VALUE;
+}
+
 } // platform
 } // fuse
 } // mega
