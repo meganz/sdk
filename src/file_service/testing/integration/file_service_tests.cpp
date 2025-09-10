@@ -6,6 +6,7 @@
 #include <mega/common/testing/path.h>
 #include <mega/common/testing/single_client_test.h>
 #include <mega/common/testing/utility.h>
+#include <mega/common/testing/watchdog.h>
 #include <mega/common/utility.h>
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_event.h>
@@ -111,8 +112,10 @@ using common::unexpected;
 using common::testing::Path;
 using common::testing::randomBytes;
 using common::testing::randomName;
+using common::testing::ScopedWatch;
 using common::testing::SingleClientTest;
 using common::testing::waitFor;
+using common::testing::Watchdog;
 using ::testing::AnyOf;
 using ::testing::ElementsAre;
 using testing::observe;
@@ -234,6 +237,9 @@ public:
     // Perform fixture-wide setup.
     static void SetUpTestSuite();
 
+    // Perform instance-specific teardown.
+    void TearDown() override;
+
     // The content of the file we want to read.
     static std::string mFileContent;
 
@@ -245,6 +251,9 @@ public:
 
     // The handle of our test root directory.
     static NodeHandle mRootHandle;
+
+    // Terminates the program if we encounter a deadlock.
+    static Watchdog mWatchdog;
 }; // FUSEPartialDownloadTests
 
 // For clarity.
@@ -317,6 +326,8 @@ std::string FileServiceTests::mFileName;
 
 NodeHandle FileServiceTests::mRootHandle;
 
+Watchdog FileServiceTests::mWatchdog(logger());
+
 static const FileServiceOptions DefaultOptions;
 
 static const FileServiceOptions DisableReadahead = {
@@ -329,6 +340,9 @@ static const FileServiceOptions DisableReadahead = {
     DefaultOptions.mReclaimDelay,
     DefaultOptions.mReclaimPeriod,
     DefaultOptions.mReclaimSizeThreshold}; // DisableReadahead
+
+static constexpr auto MaxTestRunTime = std::chrono::minutes(15);
+static constexpr auto MaxTestSetupTime = std::chrono::minutes(15);
 
 TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
 {
@@ -2999,6 +3013,8 @@ TEST_F(FileServiceTests, write_succeeds)
 
 void FileServiceTests::SetUp()
 {
+    ScopedWatch watch(mWatchdog, MaxTestRunTime);
+
     SingleClientTest::SetUp();
 
     // Make sure the service's options are in a known state.
@@ -3013,10 +3029,15 @@ void FileServiceTests::SetUp()
 
     // Make sure the client uses versioning unless disabled explicitly.
     mClient->useVersioning(true);
+
+    // Don't disarm the watchdog.
+    watch.release();
 }
 
 void FileServiceTests::SetUpTestSuite()
 {
+    ScopedWatch watch(mWatchdog, MaxTestSetupTime);
+
     SingleClientTest::SetUpTestSuite();
 
     // Make sure the test root is clean.
@@ -3041,6 +3062,12 @@ void FileServiceTests::SetUpTestSuite()
 
     // Latch the root handle for later use.
     mRootHandle = *rootHandle;
+}
+
+void FileServiceTests::TearDown()
+{
+    // Disarm the watchdog.
+    mWatchdog.disarm();
 }
 
 auto append(const void* buffer, File file, std::uint64_t length) -> std::future<FileResult>
