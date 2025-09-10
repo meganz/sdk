@@ -1286,7 +1286,7 @@ void FileContext::execute()
         mRequests.pop_front();
 
         // Perform post dequeue actions.
-        dequeued(std::move(lock), request);
+        dequeued(std::unique_lock(std::move(lock)), request);
 
         // Execute the request.
         execute(request);
@@ -1301,7 +1301,7 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
 
     // Request isn't executable so queue it for later execution.
     if (std::unique_lock lock(mRequestsLock); !executable(lock, true, request))
-        return queue(std::move(lock), std::forward<Request>(request));
+        return queue(lock, std::forward<Request>(request));
 
     // Otherwise execute the request.
     execute(request);

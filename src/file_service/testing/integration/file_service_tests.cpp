@@ -1012,11 +1012,17 @@ TEST_F(FileServiceTests, flush_cancel_on_file_destruction_succeeds)
     auto file = mClient->fileOpen(*handle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
-    // Truncate the file so it's considered modified.
-    ASSERT_EQ(execute(truncate, *file, 256_KiB), FILE_SUCCESS);
+    // Initiate truncate and fetch requests.
+    auto truncated = truncate(*file, 256_KiB);
+    auto fetched = fetch(*file);
 
-    // Retrieve the file's remaining content.
-    ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+    // Make sure our truncate request completed succesfully.
+    ASSERT_NE(truncated.wait_for(mDefaultTimeout), timeout);
+    ASSERT_EQ(truncated.get(), FILE_SUCCESS);
+
+    // Make sure our fetch request completed successfully.
+    ASSERT_NE(fetched.wait_for(mDefaultTimeout), timeout);
+    ASSERT_EQ(fetched.get(), FILE_SUCCESS);
 
     // Make sure the upload doesn't complete before we can the file.
     mClient->setUploadSpeed(4096);
