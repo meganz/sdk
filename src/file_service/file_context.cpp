@@ -438,6 +438,9 @@ template<typename Request, typename Result, typename... Captures>
 auto FileContext::completed(Request&& request, Result result, Captures&&... captures)
     -> std::enable_if_t<IsFileRequestV<Request>>
 {
+    // Sanity.
+    assert(request.mCallback);
+
     // Make sure request has been passed by rvalue reference.
     static_assert(std::is_rvalue_reference_v<decltype(request)>);
 
@@ -1247,6 +1250,9 @@ void FileContext::execute(FileRequest& request)
     {
         try
         {
+            // Sanity.
+            assert(request.mCallback);
+
             // Try and execute the request.
             this->execute(request);
         }
@@ -1296,6 +1302,9 @@ void FileContext::execute()
 template<typename Request>
 auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>
 {
+    // Sanity.
+    assert(request.mCallback);
+
     // Make sure the request's been passed by rvalue reference.
     static_assert(std::is_rvalue_reference_v<decltype(request)>);
 
@@ -1981,6 +1990,9 @@ void FileContext::ReclaimContext::flushed(ReclaimContextPtr& context, FileResult
 
 void FileContext::ReclaimContext::queue(FileReclaimCallback callback)
 {
+    // Sanity.
+    assert(callback);
+
     // Queue the callback for later execution.
     mCallbacks.emplace_back(swallow(std::move(callback), "reclaim"));
 }
@@ -1993,7 +2005,7 @@ Callback swallow(Callback callback, const char* name)
         try
         {
             // Try and execute the user's callback.
-            callback(std::forward<decltype(arguments)>(arguments)...);
+            std::invoke(callback, std::forward<decltype(arguments)>(arguments)...);
         }
         catch (std::exception& exception)
         {

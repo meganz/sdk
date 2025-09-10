@@ -44,76 +44,110 @@ File& File::operator=(File&& rhs)
 
 FileEventObserverID File::addObserver(FileEventObserver observer)
 {
+    assert(mContext);
+
     return mContext->addObserver(std::move(observer));
 }
 
 void File::append(const void* buffer, FileAppendCallback callback, std::uint64_t length)
 {
+    assert(buffer || !length);
+    assert(callback);
+    assert(mContext);
+
     return mContext->append(FileAppendRequest{buffer, std::move(callback), length});
 }
 
 void File::fetch(FileFetchCallback callback)
 {
-    // Queue a fetch request.
+    assert(callback);
+    assert(mContext);
+
     mContext->fetch(FileFetchRequest{std::move(callback)});
 }
 
 void File::flush(FileFlushCallback callback)
 {
-    // Ask the context to flush the file's data to the cloud.
+    assert(callback);
+    assert(mContext);
+
     return mContext->flush(FileFlushRequest{std::move(callback)});
 }
 
 FileInfo File::info() const
 {
+    assert(mContext);
+
     return mContext->info();
 }
 
 void File::purge(FilePurgeCallback callback)
 {
+    assert(callback);
+    assert(mContext);
+
     return mContext->remove(FileRemoveRequest{std::move(callback), false, true});
 }
 
 FileRangeVector File::ranges() const
 {
+    assert(mContext);
+
     return mContext->ranges();
 }
 
 void File::read(FileReadCallback callback, std::uint64_t offset, std::uint64_t length)
 {
-    // Delegate.
+    assert(callback);
+    assert(mContext);
+
     read(std::move(callback), FileRange(offset, offset + length));
 }
 
 void File::read(FileReadCallback callback, const FileRange& range)
 {
-    // Ask the context to perform the read.
+    assert(callback);
+    assert(mContext);
+
     mContext->read(FileReadRequest{std::move(callback), range});
 }
 
 void File::reclaim(FileReclaimCallback callback)
 {
-    // Ask the context to reclaim this file's space.
+    assert(callback);
+    assert(mContext);
+
     mContext->reclaim(std::move(callback));
 }
 
 void File::remove(FileRemoveCallback callback, bool replaced)
 {
+    assert(callback);
+    assert(mContext);
+
     mContext->remove(FileRemoveRequest{std::move(callback), replaced, false});
 }
 
 void File::removeObserver(FileEventObserverID id)
 {
+    assert(mContext);
+
     mContext->removeObserver(id);
 }
 
 void File::touch(FileTouchCallback callback, std::int64_t modified)
 {
+    assert(callback);
+    assert(mContext);
+
     mContext->touch(FileTouchRequest{std::move(callback), modified});
 }
 
 void File::truncate(FileTruncateCallback callback, std::uint64_t newSize)
 {
+    assert(callback);
+    assert(mContext);
+
     mContext->truncate(FileTruncateRequest{std::move(callback), newSize});
 }
 
@@ -122,13 +156,15 @@ void File::write(const void* buffer,
                  std::uint64_t offset,
                  std::uint64_t length)
 {
-    // Delegate.
     write(buffer, std::move(callback), FileRange(offset, offset + length));
 }
 
 void File::write(const void* buffer, FileWriteCallback callback, const FileRange& range)
 {
-    // Ask the context to perform the write.
+    assert(buffer || range.mEnd - range.mBegin == 0);
+    assert(callback);
+    assert(mContext);
+
     mContext->write(FileWriteRequest{buffer, std::move(callback), range});
 }
 
