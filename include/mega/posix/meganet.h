@@ -89,7 +89,7 @@ protected:
 
     CURLSH* curlsh;
     string proxyurl;
-    string proxyscheme;
+    string proxyschema;
     string proxyhost;
     int proxyport;
     int proxytype;
@@ -97,10 +97,6 @@ protected:
     string proxyusername;
     string proxypassword;
     int proxyinflight;
-    dstime ipv6deactivationtime;
-    dstime lastdnspurge;
-    bool ipv6proxyenabled;
-    bool ipv6requestsenabled;
     std::queue<CurlHttpContext *> pendingrequests;
     std::map<string, CurlDNSEntry> dnscache;
     int pkpErrors;
@@ -146,14 +142,12 @@ protected:
     static struct curl_slist* clone_curl_slist(struct curl_slist*);
     static bool crackurl(const string*, string*, string*, int*);
     static int debug_callback(CURL*, curl_infotype, char*, size_t, void*);
-    bool ipv6available();
     const char* pubkeyForUrl(const char* url) const;
 
     const char* pubkeyForUrl(const std::string& url) const
     {
         return pubkeyForUrl(url.c_str());
     }
-    bool curlipv6;
     bool reset;
     bool statechange;
     bool dnsok;
@@ -210,9 +204,10 @@ public:
     m_off_t getmaxuploadspeed() override;
 
     bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips) override;
-    void addDnsResolution(std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)>& dnsList,
+    void addDnsResolution(CURL* curl,
+                          std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)>& dnsList,
                           const string& host,
-                          const string& ip,
+                          const string& ips,
                           const int port);
 
     CurlHttpIO();
@@ -239,14 +234,12 @@ struct MEGA_API CurlHttpContext
     HttpReq* req;
     CurlHttpIO* httpio;
 
-    struct curl_slist *headers;
-    bool isIPv6;
-    bool isCachedIp;
+    struct curl_slist* headers;
     string hostname;
-    string scheme;
+    string schema;
+    string hostip;
     int port;
     string hostheader;
-    string hostip;
     string posturl;
     unsigned len;
     const char* data;
@@ -256,16 +249,8 @@ struct MEGA_API CurlHttpContext
 
 struct MEGA_API CurlDNSEntry
 {
-    CurlDNSEntry();
-    bool isIPv4Expired();
-    bool isIPv6Expired();
-
     string ipv4;
-    dstime ipv4timestamp;
     string ipv6;
-    dstime ipv6timestamp;
-
-    bool mNeedsResolvingAgain = false;
 };
 
 } // namespace
