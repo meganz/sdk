@@ -293,26 +293,22 @@ const std::set<std::string>& longAudioExtension()
 
 const std::set<nameid>& videoExtensions()
 {
-    static const std::set<nameid> vids {makeNameid("3g2"), makeNameid("3gp"), makeNameid("asf"),
-                                        makeNameid("asx"), makeNameid("avi"), makeNameid("dvb"),
-                                        makeNameid("f4v"), makeNameid("fli"), makeNameid("flv"),
-                                        makeNameid("fvt"), makeNameid("h261"), makeNameid("h263"),
-                                        makeNameid("h264"), makeNameid("jpgm"), makeNameid("jpgv"),
-                                        makeNameid("jpm"), makeNameid("m1v"), makeNameid("m2v"),
-                                        makeNameid("m4u"), makeNameid("m4v"), makeNameid("mj2"),
-                                        makeNameid("mjp2"), makeNameid("mk3d"), makeNameid("mks"),
-                                        makeNameid("mkv"), makeNameid("mng"), makeNameid("mov"),
-                                        makeNameid("movie"), makeNameid("mp4"), makeNameid("mp4v"),
-                                        makeNameid("mpe"), makeNameid("mpeg"), makeNameid("mpg"),
-                                        makeNameid("mpg4"), makeNameid("mxu"), makeNameid("ogv"),
-                                        makeNameid("pyv"), makeNameid("qt"), makeNameid("smv"),
-                                        makeNameid("uvh"), makeNameid("uvm"), makeNameid("uvp"),
-                                        makeNameid("uvs"), makeNameid("uvu"), makeNameid("uvv"),
-                                        makeNameid("uvvh"), makeNameid("uvvm"), makeNameid("uvvp"),
-                                        makeNameid("uvvs"), makeNameid("uvvu"), makeNameid("uvvv"),
-                                        makeNameid("viv"), makeNameid("vob"), makeNameid("webm"),
-                                        makeNameid("wm"), makeNameid("wmv"), makeNameid("wmx"),
-                                        makeNameid("wvx")};
+    static const std::set<nameid> vids{
+        makeNameid("3g2"),  makeNameid("3gp"),  makeNameid("asf"),  makeNameid("asx"),
+        makeNameid("avi"),  makeNameid("dvb"),  makeNameid("f4v"),  makeNameid("fli"),
+        makeNameid("flv"),  makeNameid("fvt"),  makeNameid("h261"), makeNameid("h263"),
+        makeNameid("h264"), makeNameid("jpgm"), makeNameid("jpgv"), makeNameid("jpm"),
+        makeNameid("m1v"),  makeNameid("m2v"),  makeNameid("m4u"),  makeNameid("m4v"),
+        makeNameid("mj2"),  makeNameid("mjp2"), makeNameid("mk3d"), makeNameid("mks"),
+        makeNameid("mkv"),  makeNameid("mng"),  makeNameid("mov"),  makeNameid("movie"),
+        makeNameid("mp4"),  makeNameid("mp4v"), makeNameid("mpe"),  makeNameid("mpeg"),
+        makeNameid("mpg"),  makeNameid("mpg4"), makeNameid("mxu"),  makeNameid("ogv"),
+        makeNameid("pyv"),  makeNameid("qt"),   makeNameid("smv"),  makeNameid("ts"),
+        makeNameid("uvh"),  makeNameid("uvm"),  makeNameid("uvp"),  makeNameid("uvs"),
+        makeNameid("uvu"),  makeNameid("uvv"),  makeNameid("uvvh"), makeNameid("uvvm"),
+        makeNameid("uvvp"), makeNameid("uvvs"), makeNameid("uvvu"), makeNameid("uvvv"),
+        makeNameid("viv"),  makeNameid("vob"),  makeNameid("webm"), makeNameid("wm"),
+        makeNameid("wmv"),  makeNameid("wmx"),  makeNameid("wvx")};
     return vids;
 }
 
