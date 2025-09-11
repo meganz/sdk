@@ -58,16 +58,6 @@ auto Client::fileOpen(CloudPath path) const -> FileServiceResultOr<File>
     return fileOpen(FileID::from(path.resolve(*this).valueOr(NodeHandle())));
 }
 
-auto Client::fileRanges(FileID id) const -> FileServiceResultOr<FileRangeVector>
-{
-    return fileService().ranges(id);
-}
-
-auto Client::fileRanges(CloudPath path) const -> FileServiceResultOr<FileRangeVector>
-{
-    return fileRanges(FileID::from(path.resolve(*this).valueOr(NodeHandle())));
-}
-
 } // testing
 } // common
 } // mega

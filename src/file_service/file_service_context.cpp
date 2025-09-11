@@ -503,15 +503,35 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
     if (!maybeFile || *maybeFile)
         return maybeFile;
 
-    // What ranges of the file have we already downloaded?
-    auto maybeRanges = rangesFromDatabase(id, lock);
+    // Make sure we're using the file's canonical ID.
+    id = info->id();
 
-    // Shouldn't be possible but handle it just for safety.
-    if (!maybeRanges)
-        return unexpected(maybeRanges.error());
+    // Retrieve this file's ranges from the database.
+    auto ranges = [id, this]()
+    {
+        // Acquire database lock.
+        UniqueLock lockDatabase(mDatabase);
 
-    // Convenience.
-    auto ranges = std::move(*maybeRanges).value_or(FileRangeVector());
+        // So we can safely access the database.
+        auto transaction = mDatabase.transaction();
+
+        // Retrieve this file's ranges from the database.
+        auto ranges = FileRangeVector();
+        auto query = transaction.query(mQueries.mGetFileRanges);
+
+        query.param(":id").set(id);
+
+        for (query.execute(); query; ++query)
+        {
+            auto begin = query.field("begin").get<std::uint64_t>();
+            auto end = query.field("end").get<std::uint64_t>();
+
+            ranges.emplace_back(begin, end);
+        }
+
+        // Return this file's ranges to our caller.
+        return ranges;
+    }();
 
     // Instantiate a new file context.
     auto context = std::make_shared<FileContext>(mActivities.begin(),
@@ -544,82 +564,6 @@ auto FileServiceContext::openFromIndex(FileID id, Lock&& lock)
 
     // Return file to caller.
     return file;
-}
-
-template<typename Lock>
-auto FileServiceContext::rangesFromDatabase(FileID id, Lock&& lock) -> RangesResult
-{
-    // Acquire database lock.
-    UniqueLock lockDatabase(mDatabase);
-
-    // Check if another thread opened the file.
-    auto maybeRanges = rangesFromIndex(id, lock);
-
-    // Another thread opened (or removed) the file.
-    if (!maybeRanges || *maybeRanges)
-        return maybeRanges;
-
-    // Check if the file's present in the database.
-    auto transaction = mDatabase.transaction();
-    auto query = transaction.query(mQueries.mGetFile);
-
-    query.param(":handle").set(nullptr);
-    query.param(":id").set(id);
-
-    if (!synthetic(id))
-        query.param(":handle").set(id.toHandle());
-
-    query.execute();
-
-    // File's not in the database.
-    if (!query)
-        return unexpected(FILE_SERVICE_UNKNOWN_FILE);
-
-    // File's been removed.
-    if (query.field("removed").get<bool>())
-        return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
-
-    // Latch ID as it may be distinct from what we were passed.
-    id = query.field("id").get<FileID>();
-
-    // Read the ranges from the database.
-    query = transaction.query(mQueries.mGetFileRanges);
-
-    query.param(":id").set(id);
-    query.execute();
-
-    FileRangeVector ranges;
-
-    for (; query; ++query)
-    {
-        // Convenience.
-        auto begin = query.field("begin").get<std::uint64_t>();
-        auto end = query.field("end").get<std::uint64_t>();
-
-        // Add the range to our vector.
-        ranges.emplace_back(begin, end);
-    }
-
-    // Return ranges to our caller.
-    return ranges;
-}
-
-template<typename Lock>
-auto FileServiceContext::rangesFromIndex(FileID id, Lock&& lock) -> RangesResult
-{
-    // Check if the file's in memory.
-    auto maybeFile = openFromIndex(id, lock);
-
-    // File's in memory and has been marked as removed.
-    if (!maybeFile)
-        return unexpected(maybeFile.error());
-
-    // File's not in memory.
-    if (!*maybeFile)
-        return std::nullopt;
-
-    // File's in memory so return its ranges directory.
-    return (*maybeFile)->ranges();
 }
 
 void FileServiceContext::reclaimTaskCallback(Activity& activity,
@@ -1350,30 +1294,6 @@ catch (std::runtime_error& exception)
 
     // Let the caller know we couldn't purge files from storage.
     return FILE_SERVICE_UNEXPECTED;
-}
-
-auto FileServiceContext::ranges(FileID id) -> FileServiceResultOr<FileRangeVector>
-try
-{
-    // Try and get the ranges from the index.
-    auto maybeRanges = rangesFromIndex(id, SharedLock(mLock));
-
-    // File isn't in memory.
-    if (maybeRanges && !*maybeRanges)
-        maybeRanges = rangesFromDatabase(id, UniqueLock(mLock));
-
-    // File exists and hasn't been removed.
-    if (maybeRanges)
-        return maybeRanges->value_or(FileRangeVector());
-
-    // File doesn't exist or has been removed.
-    return unexpected(maybeRanges.error());
-}
-catch (std::runtime_error& exception)
-{
-    FSErrorF("Unable to retrieve file ranges: %s: %s", toString(id).c_str(), exception.what());
-
-    return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
 void FileServiceContext::reclaim(ReclaimCallback callback)

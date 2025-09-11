@@ -5,7 +5,6 @@
 #include <mega/common/testing/path_forward.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_forward.h>
-#include <mega/file_service/file_range_vector.h>
 #include <mega/file_service/file_service_forward.h>
 #include <mega/file_service/file_service_result_or_forward.h>
 #include <mega/file_service/testing/integration/client_forward.h>
@@ -47,11 +46,6 @@ public:
         -> FileServiceResultOr<File>;
 
     auto fileOpen(common::testing::CloudPath path) const -> FileServiceResultOr<File>;
-
-    // Determine what ranges of a file we have in storage.
-    auto fileRanges(FileID id) const -> FileServiceResultOr<FileRangeVector>;
-
-    auto fileRanges(common::testing::CloudPath path) const -> FileServiceResultOr<FileRangeVector>;
 
     // Get our hands on the client's File Service interface.
     virtual FileService& fileService() const = 0;

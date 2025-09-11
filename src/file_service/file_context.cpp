@@ -1583,7 +1583,6 @@ FileContext::FileContext(Activity activity,
     mService(service),
     mActivities()
 {
-    // Remember what ranges we've already downloaded.
     for (auto& range: ranges)
         mRanges.add(range, nullptr);
 }

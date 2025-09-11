@@ -2,7 +2,6 @@
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
-#include <mega/file_service/file_range.h>
 #include <mega/file_service/file_service.h>
 #include <mega/file_service/file_service_context.h>
 #include <mega/file_service/file_service_options.h>
@@ -150,19 +149,6 @@ auto FileService::purge() -> FileServiceResult
         return FILE_SERVICE_UNINITIALIZED;
 
     return mContext->purge();
-}
-
-auto FileService::ranges(FileID id) -> FileServiceResultOr<FileRangeVector>
-{
-    SharedLock guard(mContextLock);
-
-    if (!mContext)
-        return unexpected(FILE_SERVICE_UNINITIALIZED);
-
-    if (!id)
-        return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
-
-    return mContext->ranges(id);
 }
 
 void FileService::reclaim(ReclaimCallback callback)

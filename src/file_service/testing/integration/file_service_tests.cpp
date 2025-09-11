@@ -1736,66 +1736,6 @@ TEST_F(FileServiceTests, open_unknown_fails)
               FILE_SERVICE_FILE_DOESNT_EXIST);
 }
 
-TEST_F(FileServiceTests, ranges_fails_when_removed)
-{
-    // Create a test file.
-    auto file = mClient->fileCreate(mRootHandle, randomName());
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // Mark the file as removed.
-    ASSERT_EQ(execute(remove, *file), FILE_SUCCESS);
-
-    // Make sure the file's been marked as removed.
-    ASSERT_TRUE(file->info().removed());
-
-    // Convenience.
-    auto id = file->info().id();
-
-    // Make sure we can't get ranges from a removed file.
-    ASSERT_EQ(mClient->fileRanges(id).errorOr(FILE_SERVICE_SUCCESS),
-              FILE_SERVICE_FILE_DOESNT_EXIST);
-}
-
-TEST_F(FileServiceTests, ranges_fails_when_unknown)
-{
-    // Can't get ranges for a file that doesn't exist.
-    EXPECT_EQ(mClient->fileRanges("/bogus").errorOr(FILE_SERVICE_SUCCESS),
-              FILE_SERVICE_FILE_DOESNT_EXIST);
-
-    EXPECT_EQ(mClient->fileRanges(mFileHandle).errorOr(FILE_SERVICE_SUCCESS),
-              FILE_SERVICE_UNKNOWN_FILE);
-}
-
-TEST_F(FileServiceTests, ranges_succeeds)
-{
-    // Ranges we expect to be present.
-    static const FileRangeVector expected = {FileRange(0, 256_KiB)}; // expected
-
-    // Disable readahead so we get only what we ask for.
-    mClient->fileService().options(DisableReadahead);
-
-    // Test that we can get ranges when the file is in memory.
-    {
-        // Open the file.
-        auto file = mClient->fileOpen(mFileHandle);
-        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-        // Read some data.
-        auto data = execute(read, *file, 0, 256_KiB);
-        ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
-
-        // Try and get ranges.
-        auto ranges = mClient->fileRanges(mFileHandle);
-        ASSERT_EQ(ranges.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-        ASSERT_EQ(expected, *ranges);
-    }
-
-    // Get the file's ranges from the database.
-    auto ranges = mClient->fileRanges(mFileHandle);
-    ASSERT_EQ(ranges.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-    ASSERT_EQ(expected, *ranges);
-}
-
 TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
 {
     // Create a client that we can safely logout.

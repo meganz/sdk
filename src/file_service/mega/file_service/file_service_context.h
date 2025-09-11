@@ -83,12 +83,6 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     template<typename Lock>
     auto openFromIndex(FileID id, Lock&& lock) -> FileContextResult;
 
-    template<typename Lock>
-    auto rangesFromDatabase(FileID id, Lock&& lock) -> RangesResult;
-
-    template<typename Lock>
-    auto rangesFromIndex(FileID id, Lock&& lock) -> RangesResult;
-
     void reclaimTaskCallback(common::Activity& activity,
                              std::chrono::steady_clock::time_point when,
                              const common::Task& task);
@@ -210,9 +204,6 @@ public:
 
     // Purge all files from storage.
     auto purge() -> FileServiceResult;
-
-    // Determine what ranges of a file are currently in storage.
-    auto ranges(FileID id) -> FileServiceResultOr<FileRangeVector>;
 
     // Reclaim storage space.
     void reclaim(ReclaimCallback callback);
