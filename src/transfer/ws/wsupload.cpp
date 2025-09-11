@@ -150,6 +150,7 @@ public:
 
     void setPool(WsPool& p); // defined after WsPool
     void unsetPool(); // defined after WsPool
+    bool hasPool() const;
 
     bool ensureOpen(std::mutex& engineMutex)
     {
@@ -379,8 +380,8 @@ public:
         const auto dsElapsed = SteadyTime::difference(mUploadCompletionTime, mUploadStartTime);
         const auto kbps = dsElapsed ? (mBytesConfirmed / dsElapsed * 10 / 1024) : 0;
         LOG_info << "[WsUploadFile::uploadCompleted] upload completed (server payload len=" << len
-                 << ") Progress: " << (mBytesConfirmed / 1048576) << " MB of " << (mSize / 1048576)
-                 << " MB @ ~" << kbps << " KB/s [this = " << this << "]";
+                 << ") Progress: " << mBytesConfirmed << " of " << mSize << " bytes @ ~" << kbps
+                 << " KB/s [this = " << this << "]";
         (void)response; // Phase 5: use payload (e.g. MAC/fingerprint)
     }
 
@@ -396,8 +397,8 @@ public:
 
         const auto dsElapsed = SteadyTime::difference(now, mUploadStartTime);
         const auto kbps = dsElapsed ? (mBytesConfirmed / dsElapsed * 10 / 1024) : 0;
-        LOG_debug << "[WsUploadFile::maybeReportThroughput] " << (mBytesConfirmed / 1048576)
-                  << " MB of " << (mSize / 1048576) << " MB @ ~" << kbps << " KB/s [this = " << this
+        LOG_debug << "[WsUploadFile::maybeReportThroughput] " << mBytesConfirmed
+                  << " of " << mSize << " bytes @ ~" << kbps << " KB/s [this = " << this
                   << "]";
     }
 
@@ -746,6 +747,11 @@ inline void WsUploadFile::setPool(WsPool& p)
     mPool->increaseNumPoolFiles();
 }
 
+inline bool WsUploadFile::hasPool() const
+{
+    return mPool != nullptr;
+}
+
 // ---------- Curl response proc (USC) ----------
 class CurlResponseProc
 {
@@ -1018,6 +1024,9 @@ public:
     {
         LOG_debug << "[UploadEngine::Impl::nextEligible] BEGIN [fileList.size=" << fileList.size()
                   << "] [this = " << this << "]";
+
+        cycleNextIt();
+
         bool consecutive = true;
         for (auto it = nextIt; it != fileList.end(); ++it)
         {
@@ -1029,47 +1038,43 @@ public:
                 continue;
             }
 
-            if (f->continuingUpload(currentTime) && !f->paused())
+            if (!f->hasPool() && !f->paused() && f->continuingUpload(currentTime))
             {
-                LOG_debug << "[UploadEngine::Impl::nextEligible] f->continuingUpload && "
-                             "!f->paused() -> process file"
+                LOG_debug << "[UploadEngine::Impl::nextEligible] !f->hasPool() && "
+                             "!f->paused() && f->continuingUpload -> process file"
                           << " [this = " << this << "]";
                 if (f->size() >= min && (!max || f->size() < max))
                 {
                     LOG_debug << "[UploadEngine::Impl::nextEligible] f->size(=" << f->size()
                               << ") >= min(=" << min << ") && (!max(=" << max
                               << ") || f->size(=" << f->size() << ") < max(=" << max
-                              << ")) -> process file"
+                              << ")) -> process file: setUploadStart(currentTime) and return file "
+                                 "[consecutive="
+                              << consecutive << "]"
                               << " [this = " << this << "]";
                     if (consecutive)
                     {
                         LOG_debug << "[UploadEngine::Impl::nextEligible] consecutive=true -> "
-                                     "nextIt = std::next(it) && f->setUploadStart(currentTime) && "
-                                     "return f [this = "
+                                     "advanceNextItFrom(it) before setting upload start [this = "
                                   << this << "]";
-                        nextIt = std::next(it);
-                        f->setUploadStart(currentTime);
-                        return f;
+                        advanceNextItFrom(it);
                     }
-                    LOG_debug << "[UploadEngine::Impl::nextEligible] consecutive=false -> continue "
-                                 "[this = "
-                              << this << "]";
+                    f->setUploadStart(currentTime);
+                    return f;
                 }
-                else
-                {
-                    LOG_debug
-                        << "[UploadEngine::Impl::nextEligible] !f->size(=" << f->size()
-                        << ") >= min(=" << min << ") && (!max(=" << max
-                        << ") || f->size(=" << f->size() << ") < max(=" << max
-                        << ")) -> no process file, set consecutive=false and continue [this = "
-                        << this << "]";
-                }
+                LOG_debug << "[UploadEngine::Impl::nextEligible] !f->size(=" << f->size()
+                          << ") >= min(=" << min << ") && (!max(=" << max
+                          << ") || f->size(=" << f->size() << ") < max(=" << max
+                          << ")) -> no process file, set consecutive=false and continue [this = "
+                          << this << "]";
+
                 consecutive = false;
             }
             else
             {
-                LOG_debug << "[UploadEngine::Impl::nextEligible] !f->continuingUpload || "
-                             "f->paused() -> continue [this = "
+                LOG_debug << "[UploadEngine::Impl::nextEligible] f->hasPool() || "
+                             "f->paused() || "
+                             "!f->continuingUpload -> continue [this = "
                           << this << "]";
             }
         }
@@ -1104,12 +1109,13 @@ public:
     // --- state ---
     MegaClient& client;
 
-    std::list<WsUploadFile*> fileList;
+    using ListWsUploadFile = std::list<WsUploadFile*>;
+    ListWsUploadFile fileList;
     std::unordered_map<Transfer*, std::unique_ptr<WsUploadFile>> files;
     std::unordered_set<WsUploadFile*> inQueue;
     std::unordered_map<std::uint32_t, WsUploadFile*> fileByNo;
 
-    std::list<WsUploadFile*>::iterator nextIt = fileList.begin();
+    ListWsUploadFile::iterator nextIt = fileList.begin();
     std::uint32_t queueVersion{0};
 
     WsPoolMgr poolMgr;
@@ -1122,14 +1128,30 @@ public:
     std::atomic<std::uint32_t> nextFileNo{1};
     bool paused{false};
 
+private:
     template<class F>
     void withFile(Transfer& t, F&& fn)
     {
+        LOG_debug << "[UploadEngine::Impl::withFile] BEGIN [t=" << t.localfilename
+                  << "] [this = " << this << "]";
         std::lock_guard<std::mutex> g(uploadMutex);
         auto it = files.find(&t);
         if (it == files.end() || !it->second)
             return;
         fn(*it->second);
+        LOG_debug << "[UploadEngine::Impl::withFile] END [this = " << this << "]";
+    }
+
+    void cycleNextIt() noexcept
+    {
+        if (!fileList.empty() && nextIt == fileList.end())
+            nextIt = fileList.begin();
+    }
+
+    void advanceNextItFrom(ListWsUploadFile::iterator it) noexcept
+    {
+        nextIt = std::next(it);
+        cycleNextIt();
     }
 };
 
@@ -1377,15 +1399,21 @@ void WsConn::onmessage(const char* msg, const int len)
     switch (response->event)
     {
         case 1: // chunk ingested (non-final)
-            LOG_debug << "[WsConn::onmessage] response->event == 1 chunk ingested (non-final) -> "
-                         "chunk.len="
-                      << chunk.len << " [this = " << this << "]";
+            LOG_debug
+                << "[WsConn::onmessage] response->event == 1 chunk ingested (non-final) [chunk.len="
+                << chunk.len << "] [this = " << this << "]";
             if (chunk.len)
             {
                 uf->onServerConfirmedBytes(chunk.len);
                 if (uf->bytesConfirmed() >= uf->size())
                 {
                     // server confirmed last chunk (or more) rather than completing upload:
+                    LOG_debug
+                        << "[WsConn::onmessage] uf->bytesConfirmed(=" << uf->bytesConfirmed()
+                        << ") >= uf->size(=" << uf->size()
+                        << ") -> server confirmed last chunk (or more) rather than completing "
+                           "upload -> uf->uploadFailed(FailReason::StateLost) [this = "
+                        << this << "]";
                     uf->uploadFailed(FailReason::StateLost);
                     break;
                 }
@@ -1394,10 +1422,20 @@ void WsConn::onmessage(const char* msg, const int len)
             break;
 
         case 7: // final data ingested (server knows file is complete)
-            LOG_debug
-                << "[WsConn::onmessage] response->event == 7 final data ingested (server knows "
-                   "file is complete) -> mPool->mImpl->poolMgr.mActiveFiles.insert(uf) [this = "
-                << this << "]";
+            LOG_debug << "[WsConn::onmessage] response->event == 7 final data ingested (server "
+                         "knows file is complete) [chunk.len="
+                      << chunk.len << "] [this = " << this << "]";
+            if (chunk.len)
+            {
+                uf->onServerConfirmedBytes(chunk.len);
+                if (uf->bytesConfirmed() > uf->size())
+                {
+                    // Something happened here, let's just debug it meanwile
+                    LOG_debug << "[WsConn::onmessage] uf->bytesConfirmed(=" << uf->bytesConfirmed()
+                              << ") > uf->size(=" << uf->size()
+                              << ") -> something happened here !? [this = " << this << "]";
+                }
+            }
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
 
@@ -1561,8 +1599,8 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
 
     if (auto* f = impl.nextEligible(mMinFileSize, mMaxFileSize))
     {
-        LOG_debug << "[WsPool::getWsUploadFile] auto* f = impl.nextEligible(mMinFileSize, "
-                     "mMaxFileSize) -> mUploadingFile = f [this = "
+        LOG_debug << "[WsPool::getWsUploadFile] auto* f = impl.nextEligible(mMinFileSize(="
+                  << mMinFileSize << "), mMaxFileSize(=" << mMaxFileSize << ")) -> mUploadingFile = f [this = "
                   << this << "]";
         mUploadingFile = f;
         mUFTQversion = impl.queueVersion;
@@ -1637,7 +1675,7 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl)
                 }
 
                 chunk.len = static_cast<int>(newHead - chunk.pos);
-                mUploadingFile->advanceHead(advance);
+                mUploadingFile->advanceHead(chunk.len);
             }
 
             mLastActive = impl.currentTime;

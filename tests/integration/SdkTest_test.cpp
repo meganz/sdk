@@ -17944,6 +17944,132 @@ TEST_F(SdkTest, SdkTestUploads)
         std::for_each(maxConnectionsVector.begin(), maxConnectionsVector.end(), uploadFile));
 }
 
+TEST_F(SdkTest, SdkTestMultipleUploads)
+{
+    LOG_info << "___TEST Multiple Uploads___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto accountRestorer = elevateToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+
+    // Helper function to create a file with specific size
+    const auto createFileWithSize = [&](const std::string& filename, const size_t fileSize)
+    {
+        deleteFile(filename);
+        std::ofstream file(fs::u8path(filename), ios::out);
+        ASSERT_TRUE(file) << "Couldn't create " << filename;
+        
+        const std::string lineStr = "Test data for " + filename + " ";
+        const size_t lineSize = lineStr.size();
+        const size_t numLines = fileSize / lineSize;
+        
+        for (size_t l = 0; l < numLines; ++l)
+        {
+            file << lineStr;
+        }
+        
+        // Add remaining bytes if needed
+        const size_t remaining = fileSize % lineSize;
+        if (remaining > 0)
+        {
+            file << lineStr.substr(0, remaining);
+        }
+        
+        file.close();
+        
+        // Verify file size
+        const auto actualSize = getFilesize(filename);
+        ASSERT_EQ(actualSize, static_cast<int64_t>(fileSize)) << "Wrong size for " << filename;
+    };
+
+    // Create two files with different sizes
+    const std::string file1 = "parallel_upload_1.txt";
+    const std::string file2 = "parallel_upload_2.txt";
+    //const size_t size1 = 8000000;  // 8MB
+    //const size_t size2 = 12000000; // 12MB
+    const size_t size1 = 16000000;  // 16MB
+    const size_t size2 = 900000; // 900 KB
+
+    ASSERT_NO_FATAL_FAILURE(createFileWithSize(file1, size1));
+    ASSERT_NO_FATAL_FAILURE(createFileWithSize(file2, size2));
+
+    // Set up transfer tracking for both uploads
+    TransferTracker ut1(megaApi[0].get());
+    TransferTracker ut2(megaApi[0].get());
+
+    // Start both uploads in parallel
+    LOG_debug << "[SdkTestMultipleUploads] Starting parallel uploads";
+    const auto& uploadStartTime = std::chrono::system_clock::now();
+
+    // Reset transfer flags
+    mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
+    onTransferUpdate_progress = 0;
+    onTransferUpdate_filesize = 0;
+
+    // Start first upload
+    megaApi[0]->startUpload(file1.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/,
+                            &ut1 /*listener*/);
+
+    // Start second upload
+    megaApi[0]->startUpload(file2.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/,
+                            &ut2 /*listener*/);
+
+    // Wait for both uploads to complete
+    unsigned int transfer_timeout_in_seconds = 300; // 5 minutes for parallel uploads
+    ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD],
+                                transfer_timeout_in_seconds))
+        << "Transfer upload time out (" << transfer_timeout_in_seconds << " seconds)";
+
+    // Wait for individual transfer trackers
+    ASSERT_EQ(API_OK, ut1.waitForResult()) << "First upload failed (error: " << ut1.result << ")";
+    ASSERT_EQ(API_OK, ut2.waitForResult()) << "Second upload failed (error: " << ut2.result << ")";
+
+    const auto& uploadEndTime = std::chrono::system_clock::now();
+    auto uploadTime = std::chrono::duration_cast<std::chrono::milliseconds>(uploadEndTime - uploadStartTime).count();
+
+    LOG_debug << "[SdkTestMultipleUploads] Parallel uploads completed in " << uploadTime << " ms";
+    LOG_debug << "[SdkTestMultipleUploads] File 1: " << size1 << " bytes, File 2: " << size2 << " bytes";
+    LOG_debug << "[SdkTestMultipleUploads] Total size: " << (size1 + size2) << " bytes";
+    LOG_debug << "[SdkTestMultipleUploads] Average speed: " << ((((size1 + size2) / uploadTime) * 1000) / 1024) << " KB/s";
+
+    // Verify both uploads completed successfully
+    ASSERT_EQ(API_OK, mApi[0].lastError) << "Upload error: " << mApi[0].lastError;
+    ASSERT_NE(ut1.resultNodeHandle, ::mega::INVALID_HANDLE) << "First upload didn't return valid node handle";
+    ASSERT_NE(ut2.resultNodeHandle, ::mega::INVALID_HANDLE) << "Second upload didn't return valid node handle";
+
+    // Verify the uploaded files exist in the cloud
+    std::unique_ptr<MegaNode> uploadedNode1(megaApi[0]->getNodeByHandle(ut1.resultNodeHandle));
+    std::unique_ptr<MegaNode> uploadedNode2(megaApi[0]->getNodeByHandle(ut2.resultNodeHandle));
+
+    ASSERT_NE(uploadedNode1, nullptr) << "Cannot find first uploaded file in cloud";
+    ASSERT_NE(uploadedNode2, nullptr) << "Cannot find second uploaded file in cloud";
+    ASSERT_STREQ(file1.c_str(), uploadedNode1->getName()) << "First uploaded file has wrong name";
+    ASSERT_STREQ(file2.c_str(), uploadedNode2->getName()) << "Second uploaded file has wrong name";
+    ASSERT_EQ(uploadedNode1->getSize(), static_cast<int64_t>(size1)) << "First uploaded file has wrong size";
+    ASSERT_EQ(uploadedNode2->getSize(), static_cast<int64_t>(size2)) << "Second uploaded file has wrong size";
+
+    // Clean up local files
+    deleteFile(file1);
+    deleteFile(file2);
+}
+
 /**
  * @brief TEST_F SdkResumableTrasfers
  *
