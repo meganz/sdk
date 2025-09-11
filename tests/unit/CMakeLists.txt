@@ -65,7 +65,10 @@ target_sources_conditional(test_unit
 )
 
 # Link with SDKlib
-target_link_libraries(test_unit PRIVATE MEGA::SDKlib)
+target_link_libraries(test_unit PRIVATE
+                                MEGA::CommonHeaderPaths
+                                MEGA::SDKlib
+)
 
 # Link with the common interface library for the tests.
 target_link_libraries(test_unit PRIVATE MEGA::test_tools MEGA::test_common)
