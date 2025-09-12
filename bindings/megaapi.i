@@ -380,6 +380,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getChildNode;
 %newobject mega::MegaApi::getParentNode;
 %newobject mega::MegaApi::getNodePath;
+%newobject mega::MegaApi::getNodePathByNodeHandle;
 %newobject mega::MegaApi::getNodeByPath;
 %newobject mega::MegaApi::getNodeByHandle;
 %newobject mega::MegaApi::getContactRequestByHandle;

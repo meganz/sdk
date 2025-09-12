@@ -8183,6 +8183,23 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the path of a Node given its MegaHandle
+     * <p>
+     * If the node doesn't exist, this function returns NULL.
+     * You can recover the node later using MegaApi::getNodeByPath
+     * except if the path contains names with '/', '\' or ':' characters.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param handle MegaNode handle for which the path will be returned
+     * @return The path of the node
+     */
+    @Nullable
+    public String getNodePathByHandle(Long handle) {
+        return megaApi.getNodePathByNodeHandle(handle);
+    }
+
+    /**
      * Get the MegaNode in a specific path in the MEGA account
      * <p>
      * The path separator character is '/'
