@@ -175,9 +175,6 @@ if(ENABLE_SDKLIB_TESTS)
     add_subdirectory(tests)
 endif()
 
-## Load File Service support.
-add_subdirectory(src/file_service)
-
 ## Load FUSE support.
 add_subdirectory(src/fuse)
 
