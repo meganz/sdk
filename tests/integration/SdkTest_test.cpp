@@ -12812,7 +12812,7 @@ TEST_F(SdkTest, SyncOQTransitions)
     LOG_verbose << "SyncOQTransitions :  Filling up storage space";
     auto importHandle = importPublicLink(
         0,
-        MegaClient::getMegaURL() + "/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg",
+        MegaClient::getMegaURL() + "/file/gzlQ3DIY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg",
         remoteFillNode.get());
     std::unique_ptr<MegaNode> remote1GBFile(megaApi[0]->getNodeByHandle(importHandle));
 
