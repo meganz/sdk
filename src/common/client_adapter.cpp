@@ -1981,7 +1981,7 @@ void ClientUpload::begin(UploadCallback callback)
 
         // We've been cancelled.
         if (cancelled())
-            return;
+            return terminated(API_EINCOMPLETE);
 
         // Convenience.
         auto& client = mClient.client();
