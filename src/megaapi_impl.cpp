@@ -21037,7 +21037,7 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                 return API_EARGS;
             }
 
-            client->reqs.add(new CommandGetFile(
+            client->mReqsLockless.add(new CommandGetFile(
                 client,
                 (const byte*)node->nodekey().data(),
                 node->nodekey().size(),
