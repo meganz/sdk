@@ -57,6 +57,11 @@ void Command::removeFromNodePendingCommands(NodeHandle h)
     }
 }
 
+bool Command::isLockless() const
+{
+    return mLockless;
+}
+
 // returns completed command JSON string
 const char* Command::getJSON(MegaClient*)
 {
