@@ -2413,8 +2413,7 @@ TEST_F(FileServiceTests, remove_local_succeeds)
         EXPECT_EQ(expected, serviceObserver.events());
 
         // Make sure we can't get a new reference to a removed file.
-        ASSERT_EQ(mClient->fileInfo(id).errorOr(FILE_SERVICE_SUCCESS),
-                  FILE_SERVICE_FILE_DOESNT_EXIST);
+        ASSERT_EQ(mClient->fileInfo(id).errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_UNKNOWN_FILE);
 
         ASSERT_EQ(mClient->fileOpen(id).errorOr(FILE_SERVICE_SUCCESS),
                   FILE_SERVICE_FILE_DOESNT_EXIST);
@@ -2501,8 +2500,7 @@ TEST_F(FileServiceTests, remove_cloud_succeeds)
         EXPECT_TRUE(file0->info().removed());
 
         // Make sure we can't get a new reference to a removed file.
-        ASSERT_EQ(mClient->fileInfo(id).errorOr(FILE_SERVICE_SUCCESS),
-                  FILE_SERVICE_FILE_DOESNT_EXIST);
+        ASSERT_EQ(mClient->fileInfo(id).errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_UNKNOWN_FILE);
 
         ASSERT_EQ(mClient->fileOpen(id).errorOr(FILE_SERVICE_SUCCESS),
                   FILE_SERVICE_FILE_DOESNT_EXIST);

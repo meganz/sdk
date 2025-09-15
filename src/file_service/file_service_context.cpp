@@ -1039,9 +1039,16 @@ try
     // Try and get our hands on this file's info.
     auto maybeInfo = info(id, false);
 
-    // File's been removed.
+    // Couldn't get information.
     if (!maybeInfo)
+    {
+        // Because the file's been removed.
+        if (maybeInfo.error() == FILE_SERVICE_FILE_DOESNT_EXIST)
+            return unexpected(FILE_SERVICE_UNKNOWN_FILE);
+
+        // Because we encountered some kind of failure.
         return unexpected(maybeInfo.error());
+    }
 
     // Clarity.
     auto& [info, _] = *maybeInfo;
