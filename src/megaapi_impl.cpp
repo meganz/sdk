@@ -9555,24 +9555,29 @@ void MegaApiImpl::abortPendingActions(error preverror)
     }
 }
 
-bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const
+bool MegaApiImpl::hasToForceUpload(const Node& node, const MegaTransferPrivate& transfer) const
 {
-    bool hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
-    bool hasThumbnail = (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
-    string name = node.displayname();
-    LocalPath lp = LocalPath::fromRelativePath(name);
-    bool isMedia = gfxAccess && (gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp));
-    bool canForceUpload = transfer.isForceNewUpload();
-    bool isPdf = name.find(".pdf") != string::npos;
+    const string name = node.displayname();
+    const auto lp = LocalPath::fromRelativePath(name);
+    const auto hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
+    const auto hasThumbnail =
+        (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
+    const auto isMedia = gfxAccess && (gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp));
+    const auto canForceUpload = transfer.isForceNewUpload();
+    const auto isPdf = name.find(".pdf") != string::npos;
 
     if (canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail))
     {
+        LOG_debug << "[MegaApiImpl::hasToForceUpload] Force to upload a local file (Media type or "
+                     "Pdf) if previous node in cloud doesn't have but thumbnail or preview..."
+                  << " [handle = " << node.nodeHandle() << "]";
         return true;
     }
     if (node.hasZeroKey())
     {
         // If the node has a zerokey, we need to discard it, regardless other conditions.
-        LOG_warn << "[MegaApiImpl::hasToForceUpload] Node has a zerokey, forcing a new upload..." << " [handle = " << node.nodeHandle() << "]";
+        LOG_warn << "[MegaApiImpl::hasToForceUpload] Node has a zerokey, forcing a new upload..."
+                 << " [handle = " << node.nodeHandle() << "]";
         client->sendevent(99486, "Node has a zerokey");
         return true;
     }
@@ -18882,7 +18887,8 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
         return false;
     }
 
-    return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType());
+    return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType())
+        .first;
 }
 
 CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option)
@@ -19138,56 +19144,128 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         fp_forCloud.mtime = mtime;
                     }
 
-                    std::shared_ptr<Node> previousNode = client->childnodebyname(parent.get(), fileName, false);
-
-                    bool forceToUpload = false;
-                    if (previousNode)
+                    auto finishTransferSameNodeNameFoundInTarget =
+                        [transfer, nextTag, this](const handle h)
                     {
-                        if (previousNode->type == FOLDERNODE)
+                        LOG_debug << "Previous node exists with same name in target node, and the "
+                                     "upload is not forced: "
+                                  << Base64Str<MegaClient::NODEHANDLE>(h);
+                        transfer->setState(MegaTransfer::STATE_QUEUED);
+                        transferMap[nextTag] = transfer;
+                        transfer->setTag(nextTag);
+                        transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
+                        transfer->setTransferredBytes(0);
+                        transfer->setStartTime(Waiter::ds);
+                        transfer->setUpdateTime(Waiter::ds);
+                        fireOnTransferStart(transfer);
+                        transfer->setNodeHandle(h);
+                        transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
+                        transfer->setSpeed(0);
+                        transfer->setMeanSpeed(0);
+                        transfer->setState(MegaTransfer::STATE_COMPLETED);
+                        fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_OK));
+                    };
+
+                    auto forceToUpload{false};
+                    const auto skipSearchBySameName =
+                        client->getNumberOfChildren(parent->nodeHandle()) >
+                        MAX_CHILDREN_FOR_SAME_NAME_SEARCH;
+                    const auto prevNodeSameName =
+                        !skipSearchBySameName ?
+                            client->childnodebyname(parent.get(), fileName, false) :
+                            nullptr;
+
+                    if (prevNodeSameName)
+                    {
+                        if (prevNodeSameName->type == FOLDERNODE)
                         {
-                            if (!recursiveTransfer) // file upload, but not sub-file inside a folder
+                            if (!recursiveTransfer)
                             {
                                 e = API_EARGS;
                                 break;
                             }
-                            /* else => in case we found a folder (in cloud drive) with a duplicate name for any subfile of the folder we are trying to upload
-                             * SDK core will resolve the name conflict
+                            /* In case we found a folder (in cloud drive) with a duplicate name for
+                             * any subfile of the folder we are trying to upload SDK core will
+                             * resolve the name conflict
                              *   - If versioning is enabled, it creates a new version.
-                             *   - If versioning is disabled, it overwrites the file (old one is deleted permanently).
+                             *   - If versioning is disabled, it overwrites the file (old one is
+                             * deleted permanently).
                              */
                         }
-                        else if (fp_forCloud.isvalid && previousNode->isvalid && fp_forCloud == *((FileFingerprint *)previousNode.get()))
+                        else if (forceToUpload =
+                                     hasToForceUpload(*prevNodeSameName.get(), *transfer);
+                                 !forceToUpload &&
+                                 CompareLocalFileWithNodeFpAndMac(*client,
+                                                                  wLocalPath,
+                                                                  fp_forCloud,
+                                                                  prevNodeSameName.get())
+                                         .first == NODE_COMP_EQUAL)
                         {
-                            forceToUpload= hasToForceUpload(*previousNode.get(), *transfer);
-                            if (!forceToUpload)
-                            {
-                                LOG_debug << "Previous node exists and the upload is not forced: "
-                                             "copy node handle";
-                                transfer->setState(MegaTransfer::STATE_QUEUED);
-                                transferMap[nextTag] = transfer;
-                                transfer->setTag(nextTag);
-                                transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
-                                transfer->setTransferredBytes(0);
-                                transfer->setStartTime(Waiter::ds);
-                                transfer->setUpdateTime(Waiter::ds);
-                                fireOnTransferStart(transfer);
-                                transfer->setNodeHandle(previousNode->nodehandle);
-                                transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
-                                transfer->setSpeed(0);
-                                transfer->setMeanSpeed(0);
-                                transfer->setState(MegaTransfer::STATE_COMPLETED);
-                                fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_OK));
-                                break;
-                            }
+                            LOG_debug
+                                << "Another node ("
+                                << Base64Str<MegaClient::NODEHANDLE>(prevNodeSameName->nodehandle)
+                                << ") with same name, FP and MAC exists in target "
+                                   "node.";
+                            finishTransferSameNodeNameFoundInTarget(prevNodeSameName->nodehandle);
+                            break;
                         }
+                        // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
+                        // is not NODE_COMP_EQUAL, just continue with transfer
                     }
 
-                    // If has been found by name and it's necessary force upload, it isn't necessary look for it again
+                    // If has been found by name and it's necessary force upload, it isn't necessary
+                    // look for it again
                     if (!forceToUpload)
                     {
-                        std::shared_ptr<Node> samenode = client->mNodeManager.getNodeByFingerprint(fp_forCloud);
-                        if (samenode && samenode->nodekey().size() && !hasToForceUpload(*samenode, *transfer))
+                        std::shared_ptr<Node> sameNodeFpFound;
+                        sharedNode_vector nodes =
+                            client->mNodeManager.getNodesByFingerprint(fp_forCloud);
+
+                        const auto alreadyCheckedSameNodeNameInTarget = !skipSearchBySameName;
+                        bool sameNodeSameNameInTarget{false};
+                        for (auto& n: nodes)
                         {
+                            if (!hasToForceUpload(*n.get(), *transfer) &&
+                                CompareLocalFileWithNodeFpAndMac(*client,
+                                                                 wLocalPath,
+                                                                 fp_forCloud,
+                                                                 n.get())
+                                        .first == NODE_COMP_EQUAL)
+                            {
+                                sameNodeFpFound = n;
+                                sameNodeSameNameInTarget =
+                                    (fileName == sameNodeFpFound->displayname()) &&
+                                    (sameNodeFpFound->parent->nodeHandle() == parent->nodeHandle());
+                                if (alreadyCheckedSameNodeNameInTarget || sameNodeSameNameInTarget)
+                                {
+                                    break;
+                                }
+                            }
+                            // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
+                            // is not NODE_COMP_EQUAL, just continue with transfer
+                        }
+
+                        if (sameNodeFpFound)
+                        {
+                            if (sameNodeSameNameInTarget)
+                            {
+                                LOG_debug << "Another node ("
+                                          << Base64Str<MegaClient::NODEHANDLE>(
+                                                 sameNodeFpFound->nodehandle)
+                                          << ") with same name, FP and MAC exists in target "
+                                             "node.";
+
+                                finishTransferSameNodeNameFoundInTarget(
+                                    sameNodeFpFound->nodehandle);
+                                break;
+                            }
+
+                            LOG_debug
+                                << "Another node ("
+                                << Base64Str<MegaClient::NODEHANDLE>(sameNodeFpFound->nodehandle)
+                                << ") with same FP and MAC exists in target node. Perform remote "
+                                   "copy";
+
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
@@ -19197,19 +19275,19 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             fireOnTransferStart(transfer);
 
                             TreeProcCopy tc;
-                            client->proctree(samenode, &tc, false, true);
+                            client->proctree(sameNodeFpFound, &tc, false, true);
                             tc.allocnodes();
-                            client->proctree(samenode, &tc, false, true);
+                            client->proctree(sameNodeFpFound, &tc, false, true);
                             tc.nn[0].parenthandle = UNDEF;
 
                             SymmCipher key;
                             AttrMap attrs;
                             string attrstring;
-                            key.setkey((const byte*)tc.nn[0].nodekey.data(), samenode->type);
+                            key.setkey((const byte*)tc.nn[0].nodekey.data(), sameNodeFpFound->type);
                             string sname = fileName;
                             LocalPath::utf8_normalize(&sname);
                             attrs.map['n'] = sname;
-                            attrs.map['c'] = samenode->attrs.map['c'];
+                            attrs.map['c'] = sameNodeFpFound->attrs.map['c'];
                             attrs.getjson(&attrstring);
                             client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                             if (tc.nn[0].type == FILENODE)
@@ -19241,9 +19319,15 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     currentTransfer = transfer;
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName,
-                            NodeHandle().set6byte(transfer->getParentHandle()),
-                            uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
+                    MegaFilePut* f =
+                        new MegaFilePut(client,
+                                        std::move(wLocalPath),
+                                        &wFileName,
+                                        NodeHandle().set6byte(transfer->getParentHandle()),
+                                        uploadToInbox ? inboxTarget : "",
+                                        mtime,
+                                        isSourceTemporary,
+                                        prevNodeSameName);
                     *static_cast<FileFingerprint*>(f) = transfer->fingerprint_onDisk;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
 
                     f->setTransfer(transfer); // sets internal `megaTransfer`, different from internal `transfer`!

@@ -5318,6 +5318,8 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
+    p->Add(exec_compare_file_and_node,
+           sequence(text("compfilewithnode"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
     p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
@@ -11492,6 +11494,73 @@ void exec_metamac(autocomplete::ACState& s)
 
         cout.flags(flags);
     }
+}
+
+void exec_compare_file_and_node(autocomplete::ACState& s)
+{
+    const std::string nodePath{s.words[2].s};
+
+    std::shared_ptr<Node> node = nodebypath(nodePath.c_str());
+    if (!node || node->type != FILENODE)
+    {
+        cerr << nodePath << (node ? ": No such file or directory" : ": Not a file") << endl;
+        return;
+    }
+    const char* iva = &(node->nodekey())[SymmCipher::KEYLENGTH];
+    const int64_t nodeMetaMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+
+    const std::string filePath{s.words[1].s};
+    auto fa = client->fsaccess->newfileaccess();
+    auto localPath = localPathArg(filePath.c_str());
+    if (!fa->fopen(localPath, 1, 0, FSLogging::logOnError))
+    {
+        cerr << "Failed to open: " << filePath.c_str() << endl;
+        return;
+    }
+
+    FileFingerprint localFileFp;
+    if (localFileFp.genfingerprint(fa.get()); localFileFp.size < 0)
+    {
+        cerr << "Failed to generate fingerprint for file: " << filePath.c_str() << endl;
+        return;
+    }
+
+    const auto [compRes, localFileMac] = CompareLocalFileWithNodeFpAndMac(*client,
+                                                                          localPath,
+                                                                          localFileFp,
+                                                                          node.get(),
+                                                                          true /*debugMode*/);
+
+    std::string errMsg{"Node and file content comparisson: "};
+    switch (compRes)
+    {
+        case NODE_COMP_INVALID_NODE_TYPE:
+            errMsg += "Invalid node type";
+            break;
+        case NODE_COMP_EREAD:
+            errMsg += "Local file read error";
+            break;
+        case NODE_COMP_EARGS:
+            errMsg += "Arguments error";
+            break;
+        case NODE_COMP_DIFFERS_FP:
+            errMsg += "Local file and Node fingerprints mismatch";
+            break;
+        case NODE_COMP_DIFFERS_MAC:
+            errMsg += "Local file and Node MetaMacs mismatch";
+            break;
+        case NODE_COMP_EQUAL:
+            errMsg += "Both items are completly equal";
+            break;
+    }
+    cout << errMsg << endl
+         << "\t LocalFile Path: " << filePath << endl
+         << "\t Node Path: " << nodePath << endl
+         << "\t LocalFile Fingerprint: " << localFileFp.fingerprintDebugString() << endl
+         << "\t Node Fingerprint: "
+         << static_cast<const FileFingerprint&>(*node).fingerprintDebugString() << endl
+         << "\t LocalFile MetaMac: " << localFileMac << endl
+         << "\t NodeMetaMac: " << nodeMetaMac << endl;
 }
 
 void exec_resetverifiedphonenumber(autocomplete::ACState&)
