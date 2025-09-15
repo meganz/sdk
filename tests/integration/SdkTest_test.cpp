@@ -3086,15 +3086,17 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
     ASSERT_NO_FATAL_FAILURE(copyFile(localPath, localPathAux))
         << "Couldn't copy " << localPath << "into" << localPathAux;
     sdk_test::appendToFile(fs::path(localPathAux), 20000);
+    MegaHandle previousHandle = UNDEF;
 
-    auto uploadFile = [this, &logPre, idx](MegaNode* parent,
-                                           const string& localPath,
-                                           const string& fileName,
-                                           const string& msg,
-                                           const int expErr,
-                                           const int expParentChildren,
-                                           const int expNversions,
-                                           const bool expFullUpload)
+    auto uploadFile = [this, &logPre, &previousHandle, idx](MegaNode* parent,
+                                                            const string& localPath,
+                                                            const string& fileName,
+                                                            const string& msg,
+                                                            const int expErr,
+                                                            const int expParentChildren,
+                                                            const int expNversions,
+                                                            const bool expFullUpload,
+                                                            const bool expSameNodeFound)
     {
         LOG_debug << logPre << msg;
         MegaHandle h = UNDEF;
@@ -3114,6 +3116,15 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
                                    << MegaError::getErrorString(errCode) << ")";
         ASSERT_EQ(megaApi[idx]->getNumChildren(parent), expParentChildren)
             << "unexpected number of children";
+
+        ASSERT_TRUE(previousHandle != h || expSameNodeFound)
+            << "Unexpected upload node handle for "
+            << (expFullUpload ? "expected full upload. " : "expected clone node. ")
+            << "Upload handle: (" << string{Base64Str<MegaClient::CHATHANDLE>(h)} + "), "
+            << "Expected handle: ("
+            << string{Base64Str<MegaClient::CHATHANDLE>(previousHandle)} + ")";
+        previousHandle = h;
+
         std::unique_ptr<MegaNode> nn(megaApi[idx]->getNodeByHandle(h));
         ASSERT_TRUE(nn) << "Cannot retrieve node";
         ASSERT_EQ(megaApi[idx]->getNumVersions(nn.get()), expNversions);
@@ -3144,7 +3155,8 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
                                        API_OK,
                                        2 /*expParentChildren*/,
                                        1 /*expNversions*/,
-                                       true /*expFullUpload*/));
+                                       true /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
 
     msg = "#### TEST2: upload localPath again to Folder1 => No remote action "
           "required ####";
@@ -3155,7 +3167,8 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
                                        API_OK,
                                        2 /*expParentChildren*/,
                                        1 /*expNversions*/,
-                                       false /*expFullUpload*/));
+                                       false /*expFullUpload*/,
+                                       true /*expSameNodeFound*/));
 
     msg = "#### TEST3: upload localPathAux with filename `testfile to Folder1 => "
           "NodeVersion_2 added to Node1 ####";
@@ -3166,7 +3179,8 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
                                        API_OK,
                                        2 /*expParentChildren*/,
                                        2 /*expNversions*/,
-                                       true /*expFullUpload*/));
+                                       true /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
 
     msg = "#### TEST4: upload localPath with filename `testfile` to Folder1 => NodeVersion_3 added "
           "to Node1 ####";
@@ -3177,7 +3191,8 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
                                        API_OK,
                                        2 /*expParentChildren*/,
                                        3 /*expNversions*/,
-                                       false /*expFullUpload*/));
+                                       false /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
 
     msg = "#### TEST5: upload localPath again to Folder1 => No remote action "
           "required ####";
@@ -3188,7 +3203,8 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
                                        API_OK,
                                        2 /*expParentChildren*/,
                                        3 /*expNversions*/,
-                                       false /*expFullUpload*/));
+                                       false /*expFullUpload*/,
+                                       true /*expSameNodeFound*/));
 
     msg = "#### TEST6: upload localPath with filename `testfile_copy to Folder1 => "
           "Perform remote copy, Node2 created with NodeVersion_1 ####";
@@ -3199,7 +3215,8 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
                                        API_OK,
                                        3 /*expParentChildren*/,
                                        1 /*expNversions*/,
-                                       false /*expFullUpload*/));
+                                       false /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
 
     msg = "#### TEST7: upload localPathAux to Folder2 => Perform remote copy, Node3 created with "
           "NodeVersion_1"
@@ -3214,7 +3231,8 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
                                        API_OK,
                                        1 /*expParentChildren*/,
                                        1 /*expNversions*/,
-                                       false /*expFullUpload*/));
+                                       false /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
 
     msg = "#### TEST8: upload localPathAux with filename `testfile_copy_2` to Folder2 => Perform "
           "remote copy, Node4 created with NodeVersion_1 ####";
@@ -3228,7 +3246,8 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
                                        API_OK,
                                        2 /*expParentChildren*/,
                                        1 /*expNversions*/,
-                                       false /*expFullUpload*/));
+                                       false /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
 }
 
 /**
