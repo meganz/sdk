@@ -3614,6 +3614,12 @@ class MegaApiImpl : public MegaApp
 
         static MegaApiImpl* ImplOf(MegaApi*);
 
+        /**
+         * @brief Max children count to allow name-based search for nodes with same name than local
+         * file to be uploaded, otherwise search nodes by fingerprint (to avoid penalization).
+         */
+        static constexpr size_t MAX_CHILDREN_FOR_SAME_NAME_SEARCH{100};
+
         //Multiple listener management.
         void addListener(MegaListener* listener);
         void addRequestListener(MegaRequestListener* listener);
