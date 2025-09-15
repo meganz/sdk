@@ -2210,6 +2210,60 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     ASSERT_EQ(*usedAfter, *usedBefore);
 }
 
+TEST_F(FileServiceTests, reclaim_concurrent_succeeds)
+{
+    // Disable readahead and reclamation.
+    mClient->fileService().options(
+        []()
+        {
+            auto options = DisableReadahead;
+            options.mReclaimSizeThreshold = 0;
+            return options;
+        }());
+
+    // Open our test file.
+    auto file = mClient->fileOpen(mFileHandle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure all of the file's content is present on disk.
+    ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+    // Make sure the file's actually taking space on disk.
+    auto usedBefore = mClient->fileService().storageUsed();
+    ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(*usedBefore, mFileContent.size());
+
+    // Initiate several concurrent reclaim requests.
+    using ReclaimResult = decltype(reclaim(std::declval<File>()));
+    using ReclaimResultVector = std::vector<ReclaimResult>;
+
+    ReclaimResultVector reclamations;
+
+    for (auto i = 0; i < 8; ++i)
+        reclamations.emplace_back(reclaim(*file));
+
+    // Wait for all reclamations to complete.
+    while (!reclamations.empty())
+    {
+        ASSERT_NE(reclamations.back().wait_for(mDefaultTimeout), timeout);
+        ASSERT_EQ(reclamations.back().get().errorOr(FILE_SUCCESS), FILE_SUCCESS);
+        reclamations.pop_back();
+    }
+
+    // Make sure disk space has actually been reclaimed.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return mClient->fileService().storageUsed().valueOr(UINT64_MAX) == 0;
+        },
+        mDefaultTimeout));
+
+    auto usedAfter = mClient->fileService().storageUsed();
+    ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_LT(*usedAfter, *usedBefore);
+    ASSERT_EQ(*usedAfter, 0ul);
+}
+
 TEST_F(FileServiceTests, reclaim_periodic_succeeds)
 {
     // Convenience.
