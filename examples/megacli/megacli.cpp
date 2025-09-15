@@ -4926,7 +4926,7 @@ void exec_proxyset(autocomplete::ACState& state)
     Proxy settings = client->httpio->getproxy().value_or(Proxy());
 
     // Update settings.
-    settings.setCredentials(state.extractflagparam("-username").value_or(settings.getUsername()),
+    settings.setCredentials(state.extractflagparam("-user").value_or(settings.getUsername()),
                             state.extractflagparam("-password").value_or(settings.getPassword()));
 
     settings.setProxyURL(state.extractflagparam("-uri").value_or(settings.getProxyURL()));
