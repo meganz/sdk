@@ -105,11 +105,21 @@ void FileInfoContext::flushed(NodeHandle handle)
     // Sanity.
     assert(!handle.isUndef());
 
-    // Update the file's node handle.
-    set(&FileInfoContext::mHandle, handle);
-
     // Let observers know the file's been flushed.
-    notify(FileFlushEvent{handle, mID});
+    notify(
+        [=]()
+        {
+            // Make sure no one else is changing our information.
+            std::lock_guard guard(mLock);
+
+            // Flushed files are never dirty.
+            mDirty = false;
+
+            // Update the file's node handle.
+            mHandle = handle;
+
+            return FileFlushEvent{handle, mID};
+        }());
 }
 
 NodeHandle FileInfoContext::handle() const

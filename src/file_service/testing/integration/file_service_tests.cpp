@@ -1112,6 +1112,9 @@ TEST_F(FileServiceTests, flush_succeeds)
     ASSERT_EQ(execute(write, content.data(), *oldFile, 128_KiB, 128_KiB), FILE_SUCCESS);
     ASSERT_EQ(execute(write, content.data(), *oldFile, 384_KiB, 128_KiB), FILE_SUCCESS);
 
+    // Make sure the file's been marked as dirty.
+    ASSERT_TRUE(oldFile->info().dirty());
+
     // Keep track of the file's expected content.
     auto expected = initial;
 
@@ -1135,6 +1138,9 @@ TEST_F(FileServiceTests, flush_succeeds)
 
         // Make sure the file's ID hasn't changed.
         ASSERT_EQ(oldFile->info().id(), id);
+
+        // Make sure the file's no longer marked as dirty.
+        ASSERT_FALSE(oldFile->info().dirty());
 
         // Make sure we received a flush event.
         wanted.emplace_back(FileFlushEvent{oldFile->info().handle(), id});
