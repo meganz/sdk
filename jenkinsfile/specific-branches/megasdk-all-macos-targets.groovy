@@ -39,7 +39,7 @@ pipeline {
                 VCPKGPATH = "${env.HOME}/jenkins/vcpkg"
                 BUILD_DIR = "build_dir"
                 BUILD_DIR_X64 = "build_dir_x64"
-                QTPATH = "${env.HOME}/Qt-build/5.15.13/5.15.13"
+                QTPATH = "${env.HOME}/Qt-build/5.15.16/5.15.16"
                 COMMON_CMAKE_OPTIONS = "-DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_LOG_PERFORMANCE=ON -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DUSE_LIBUV=ON -DENABLE_MEDIA_FILE_METADATA=ON -DVCPKG_ROOT=${VCPKGPATH}"
                 VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
                 AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
