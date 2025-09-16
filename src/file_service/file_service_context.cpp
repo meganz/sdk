@@ -1389,7 +1389,14 @@ catch (std::runtime_error& exception)
 auto FileServiceContext::storageUsed() -> FileServiceResultOr<std::uint64_t>
 try
 {
-    return storageUsed(UniqueLock(mDatabase), mDatabase.transaction());
+    // Make sure no one else is changing the database.
+    UniqueLock lock(mDatabase);
+
+    // So we can safely access the database.
+    auto transaction = mDatabase.transaction();
+
+    // Let the caller know how much storage space we're using.
+    return storageUsed(lock, transaction);
 }
 catch (std::runtime_error& exception)
 {
