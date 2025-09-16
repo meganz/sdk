@@ -3,6 +3,7 @@
  * @brief Class for internal operations of the sync engine.
  */
 
+#include "mega/base64.h"
 #ifdef ENABLE_SYNC
 
 #include "mega/syncinternals/syncinternals.h"
@@ -288,7 +289,8 @@ void clientUpload(MegaClient& mc,
     {
         const auto displayPath = cloneNode->displaypath();
         LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for "
-                  << upload->sourceLocalname;
+                  << upload->sourceLocalname << " (ovHandleIfShortcut: "
+                  << Base64Str<MegaClient::NODEHANDLE>(ovHandleIfShortcut.as8byte()) << ")";
 
         // completion function is supplied to putNodes command
         upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNode);
