@@ -1,8 +1,9 @@
 #pragma once
 
+#include "stdfs.h"
+
 #include <mega/common/testing/path_forward.h>
 #include <mega/filesystem.h>
-#include <tests/stdfs.h>
 
 #include <iosfwd>
 

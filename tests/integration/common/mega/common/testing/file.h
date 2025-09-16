@@ -1,7 +1,8 @@
 #pragma once
 
+#include "stdfs.h"
+
 #include <mega/common/testing/path.h>
-#include <tests/stdfs.h>
 
 namespace mega
 {

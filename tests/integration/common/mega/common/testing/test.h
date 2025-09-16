@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tests/integration/test.h"
+#include "integration/test.h"
 
 #include <gtest/gtest.h>
 #include <mega/common/testing/path.h>

@@ -1,3 +1,5 @@
+#include "integration/test.h"
+
 #include <mega/common/error_or.h>
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/real_client.h>
@@ -5,7 +7,6 @@
 #include <mega/db/sqlite.h>
 #include <mega/log_level.h>
 #include <mega/logging.h>
-#include <tests/integration/test.h>
 
 // clang-format off
 #include "megawaiter.h"

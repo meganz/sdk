@@ -1,3 +1,6 @@
+#include "integration/env_var_accounts.h"
+#include "integration/test.h"
+
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
 #include <mega/common/normalized_path.h>
@@ -6,8 +9,6 @@
 #include <mega/common/testing/file.h>
 #include <mega/common/upload.h>
 #include <mega/common/utility.h>
-#include <tests/integration/env_var_accounts.h>
-#include <tests/integration/test.h>
 
 #include <atomic>
 #include <future>

@@ -1,4 +1,4 @@
-#include "tests/integration/test.h"
+#include "integration/test.h"
 
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
