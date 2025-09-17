@@ -6477,10 +6477,18 @@ class MegaTransfer
         };
 
         enum
-        {                                               // Indicates how to save same files
-            COLLISION_RESOLUTION_OVERWRITE          = 1, // Overwrite the existing one
-            COLLISION_RESOLUTION_NEW_WITH_N         = 2, // Rename the new one with suffix (1), (2), and etc.
-            COLLISION_RESOLUTION_EXISTING_TO_OLDN   = 3, // Rename the existing one with suffix .old1, old2, and etc.
+        {
+            // Defines how to handle name collisions when saving files.
+            // For folders, the default behavior is to merge (i.e., do nothing)
+            // unless the filesystem is case-insensitive and the collision is caused
+            // by the same name with different capitalization.
+            // In that case, we apply the selected collision resolution strategy.
+            // Note: Overwrite always applies merge behavior for folders.
+            COLLISION_RESOLUTION_OVERWRITE = 1, // Overwrite the existing one for files
+            COLLISION_RESOLUTION_NEW_WITH_N =
+                2, // Rename the new one with suffix (1), (2), and etc.
+            COLLISION_RESOLUTION_EXISTING_TO_OLDN =
+                3, // Rename the existing one with suffix .old1, old2, and etc.
         };
 
         virtual ~MegaTransfer();
@@ -19871,6 +19879,28 @@ class MegaApi
         bool setLanguage(const char* languageCode);
 
         /**
+         * @brief Enables or disables database indexes used for search functionality.
+         *
+         * To optimize performance for applications that do not require search operations,
+         * it is possible to disable specific database indexes that are only used for search
+         * queries. This can reduce database overhead in apps where search is not used (S4).
+         *
+         * @note By default, this option is enabled (`true`).
+         *
+         * @note This method must be called before login and fetchnodes and its value is not reset
+         * upon logout. If indexes already exist, they will be removed when the database is opened.
+         * If indexes has been removed or never created, they won't be created
+         *
+         * @param enable Set to `true` to enable indexes for search functionality, or `false` to
+         * disable them.
+         * @return
+         * - `API_OK`      - Operation completed successfully.
+         * - `API_EACCESS` - The operation could not be performed because the user is already logged
+         * in.
+         */
+        int enableSearchDBIndexes(bool enable);
+
+        /**
          * @brief Generate an unique ViewID
          *
          * The caller gets the ownership of the object. Use delete[] to release the memory.
@@ -26454,6 +26484,8 @@ public:
         NAME_TAKEN,
         // The specified name is too long.
         NAME_TOO_LONG,
+        // The specified name contains invalid character(s).
+        NAME_INVALID_CHAR,
         // No name has been specified for a mount.
         NO_NAME,
         // Mount source doesn't describe a directory.

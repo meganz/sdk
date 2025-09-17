@@ -30,6 +30,13 @@ class Expected
     template<typename F, typename U>
     friend class Expected;
 
+    template<typename U, typename V>
+    static constexpr auto IsConstructibleV =
+        std::is_constructible_v<U, V> || std::is_convertible_v<V, U>;
+
+    template<typename U>
+    static constexpr auto IsCompatibleValueV = !IsExpectedV<U> && IsConstructibleV<T, U>;
+
     std::variant<E, T> mValue;
 
 public:
@@ -67,18 +74,9 @@ public:
         mValue(std::in_place_type_t<E>(), other.value())
     {}
 
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsCompatibleValueV<U>>* = nullptr>
     Expected(U&& other):
-        mValue(std::in_place_type_t<T>(), std::move(other))
-    {}
-
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
-    Expected(const U& other):
-        mValue(std::in_place_type_t<T>(), other)
+        mValue(std::in_place_type_t<T>(), std::forward<U>(other))
     {}
 
     operator bool() const
@@ -106,24 +104,10 @@ public:
         return *this;
     }
 
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsCompatibleValueV<U>>* = nullptr>
     Expected& operator=(U&& rhs)
     {
-        Expected temp(std::move(rhs));
-
-        swap(temp);
-
-        return *this;
-    }
-
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
-    Expected& operator=(const U& rhs)
-    {
-        Expected temp(rhs);
+        Expected temp(std::forward<U>(rhs));
 
         swap(temp);
 
@@ -175,9 +159,7 @@ public:
         return hasError() && error() == rhs.value();
     }
 
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsCompatibleValueV<U>>* = nullptr>
     bool operator==(const U& rhs) const
     {
         return hasValue() && value() == rhs;
@@ -200,9 +182,7 @@ public:
         return !(*this == rhs);
     }
 
-    template<typename U,
-             std::enable_if_t<!IsExpectedV<U>>* = nullptr,
-             std::enable_if_t<!IsUnexpectedV<U>>* = nullptr>
+    template<typename U, std::enable_if_t<IsCompatibleValueV<U>>* = nullptr>
     bool operator!=(const U& rhs) const
     {
         return !(*this == rhs);
@@ -246,20 +226,22 @@ public:
         return std::get<E>(std::move(mValue));
     }
 
-    E errorOr(E&& defaultValue) &&
+    template<typename U>
+    auto errorOr(U&& defaultValue) && -> std::enable_if_t<std::is_convertible_v<U, E>, E>
     {
         if (hasError())
             return std::get<E>(std::move(mValue));
 
-        return std::move(defaultValue);
+        return std::forward<U>(defaultValue);
     }
 
-    E errorOr(E&& defaultValue) const&
+    template<typename U>
+    auto errorOr(U&& defaultValue) const& -> std::enable_if_t<std::is_convertible_v<U, E>, E>
     {
         if (hasError())
             return std::get<E>(mValue);
 
-        return std::move(defaultValue);
+        return std::forward<U>(defaultValue);
     }
 
     void swap(Expected& other)

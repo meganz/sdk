@@ -7998,15 +7998,64 @@ bool MegaApiImpl::createLocalFolder(const char *path)
     return client->fsaccess->mkdirlocal(localpath, false, true);
 }
 
-Error MegaApiImpl::createLocalFolder_unlocked(LocalPath & localPath,  FileSystemAccess& fsaccess)
+Error MegaApiImpl::createLocalFolder_unlocked(LocalPath& localPath,
+                                              FileSystemAccess& fsaccess,
+                                              const CollisionResolution& collisionResolution)
 {
     auto da = fsaccess.newfileaccess();
-    if (!da->fopen(localPath, true, false, FSLogging::logOnError))
+    LocalPath currentLeafName;
+    // Try to open the target path in case-sensitive mode
+    // (unless collision resolution is Overwrite, in which case open insensitive case (merge
+    // folders))
+    bool opened = da->fopen(localPath,
+                            true,
+                            false,
+                            FSLogging::logOnError,
+                            nullptr,
+                            false,
+                            (collisionResolution == CollisionResolution::Overwrite) ? true : false,
+                            &currentLeafName);
+    if (!opened)
     {
-        if (!fsaccess.mkdirlocal(localPath, false, false))
+        // Target folder doesn't exist, try to create it
+        bool mkdirSucceeded = fsaccess.mkdirlocal(localPath, false, false);
+        if (!mkdirSucceeded)
         {
-            LOG_err << "Unable to create folder: " << localPath;
-            return API_EWRITE;
+            // If the folder still doesn't exist, report an error
+            if (!fsaccess.target_exists)
+            {
+                LOG_err << "Unable to create folder: " << localPath;
+                return API_EWRITE;
+            }
+
+            // Target already exists — apply collision resolution strategy
+            switch (collisionResolution)
+            {
+                case CollisionResolution::RenameExistingToOldN:
+                {
+                    auto newPath = FileNameGenerator::suffixWithOldN(da.get(), localPath);
+                    fsaccess.renamelocal(localPath, newPath, true);
+                    break;
+                }
+                case CollisionResolution::RenameNewWithN:
+                    localPath = FileNameGenerator::suffixWithN(da.get(), localPath);
+                    break;
+                case CollisionResolution::Overwrite:
+                    LOG_err << "Unexpected error for Overwrite CollisionResolution " << localPath;
+                    return API_EINTERNAL;
+                    break;
+                default:
+                    LOG_err << "Invalid folder resolution strategy " << localPath;
+                    return API_EARGS;
+                    break;
+            }
+
+            // Retry folder creation with the new (renamed) path
+            if (!fsaccess.mkdirlocal(localPath, false, false))
+            {
+                LOG_err << "Unable to create folder: " << localPath;
+                return API_EWRITE;
+            }
         }
     }
     else if (da->type == FILENODE)
@@ -12701,6 +12750,18 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
     return client->setlang(&code);
 }
 
+int MegaApiImpl::enableSearchDBIndexes(bool enable)
+{
+    if (client->loggedin() != sessiontype_t::NOTLOGGEDIN)
+    {
+        LOG_warn << "This method should be called before login";
+        return API_EACCESS;
+    }
+
+    client->enableSearchDBIndexes(enable);
+    return API_OK;
+}
+
 string MegaApiImpl::generateViewId()
 {
     return MegaClient::generateViewId(client->rng);
@@ -15316,7 +15377,7 @@ void MegaApiImpl::copysession_result(string *session, error e)
     {
         const char *path = request->getText();
         string data = client->sessiontransferdata(path, session);
-        data.insert(0, MegaClient::MEGAURL+"/#sitetransfer!");
+        data.insert(0, MegaClient::getMegaURL() + "/#sitetransfer!");
 
         request->setLink(data.c_str());
     }
@@ -24213,7 +24274,7 @@ void MegaApiImpl::getSessionTransferURL(const char* path, MegaRequestListener* l
 
             if (e == API_ENOENT)    // no session to copy because not logged in
             {
-                string url = MegaClient::MEGAURL + "/#";
+                string url = MegaClient::getMegaURL() + "/#";
                 auto path = request->getText();
                 if (path) url.append(path);
                 request->setLink(url.c_str());
@@ -32264,8 +32325,9 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
 
         LocalPath &localpath = it->localPath;
 
+        auto collistionResolution = transfer->getCollisionResolution();
         // try to create the folder
-        e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
+        e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess, collistionResolution);
 
         // errors besides the folder already exists is an error
         if (e && e != API_EEXIST)
@@ -34559,7 +34621,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         LOG_debug << httpctx->getLogName() << "Favicon requested";
         response << "HTTP/1.1 301 Moved Permanently\r\n"
                     "Location: ";
-        response << MegaClient::MEGAURL;
+        response << MegaClient::getMegaURL();
         response << "/favicon.ico\r\n"
                     "Connection: close\r\n"
                     "\r\n";

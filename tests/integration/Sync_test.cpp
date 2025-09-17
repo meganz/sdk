@@ -6841,15 +6841,18 @@ TEST_F(SyncTest, TransferCountProgress)
     std::atomic<bool> transferReportFlag{false};
     std::atomic<bool> transferReportProgressFlag{false};
     m_off_t transferReportInflightProgress{0};
+    m_off_t transferReportPendingBytes{0};
     double transferReportProgress{0};
     double targetProgressAux{0};
     unsigned transferFinished{0};
     unsigned targetTransferFinishedCount{3};
 
-    globalMegaTestHooks.onTransferReportProgress = [&](double p, m_off_t fp)
+    globalMegaTestHooks.onTransferReportProgress =
+        [&](const double p, const m_off_t fp, const m_off_t pb)
     {
         transferReportProgress = p;
         transferReportInflightProgress = fp;
+        transferReportPendingBytes = pb;
         transferReportProgressFlag = true;
     };
 
@@ -6918,12 +6921,21 @@ TEST_F(SyncTest, TransferCountProgress)
                 return transferReportProgressFlag.load();
             },
             std::chrono::seconds(6));
-        auto pending = MB_IN_BYTES * numPendingTransfers;
-        auto completed =
-            (KB_IN_BYTES * transferFinished) + static_cast<size_t>(transferReportInflightProgress);
-        auto auxProgress =
-            static_cast<double>(completed) / static_cast<double>(completed + pending);
-        ASSERT_EQ(transferReportProgress, auxProgress)
+        const auto initialPending = static_cast<m_off_t>(MB_IN_BYTES * numPendingTransfers);
+        ASSERT_GE(initialPending, transferReportPendingBytes);
+
+        const auto initialCompleted = static_cast<m_off_t>(KB_IN_BYTES * transferFinished);
+        const auto newCompleted = initialPending - transferReportPendingBytes;
+        const auto completed = initialCompleted + newCompleted;
+
+        const auto pending = initialPending - newCompleted;
+        ASSERT_EQ(pending, transferReportPendingBytes);
+        ASSERT_EQ((completed + pending), (initialPending + initialCompleted));
+
+        const auto currentProgress =
+            static_cast<double>(completed + transferReportInflightProgress) /
+            static_cast<double>(completed + pending);
+        ASSERT_EQ(transferReportProgress, currentProgress)
             << ". Unexpected value for reportCounts progress";
 
         LOG_debug << logPre + "#### Set max upload speed unlimited ####";

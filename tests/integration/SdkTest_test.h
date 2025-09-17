@@ -52,6 +52,7 @@ static const unsigned int maxTimeout    = 600;      // Maximum time (seconds) to
 static const unsigned int defaultTimeout = 60;      // Normal time for most operations (seconds) to wait for response from server
 static const unsigned int defaultTimeoutMs = defaultTimeout * 1000;
 static const unsigned int waitForSyncsMs = 4000;    // Time to wait after a sync has been created and before adding new files to it
+constexpr unsigned int cleanupCatchupTimeoutSecs = 15;
 
 #ifdef ENABLE_SYNC
 /**
@@ -478,8 +479,13 @@ Error result(const Expected<T>& expected)
 template<typename T, typename = std::enable_if_t<IsExpectedV<RemoveCVRefT<T>>>>
 decltype(auto) value(T&& expected)
 {
-    assert(result(expected) == API_OK);
-
+#ifndef NDEBUG
+    if (auto res = result(expected); res != API_OK)
+    {
+        LOG_err << "value: unexpected result: " << res;
+        assert(res == API_OK && "value: unexpected result");
+    }
+#endif
     return std::get<1>(std::forward<T>(expected));
 }
 
@@ -651,6 +657,15 @@ public:
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
+    bool mCleanupSuccess{true};
+
+    void updateCleanupStatus(const bool stageSucceeded)
+    {
+        if (!mCleanupSuccess || stageSucceeded)
+            return;
+
+        mCleanupSuccess = stageSucceeded;
+    }
 
     struct SdkTestTransferStats
     {
@@ -688,8 +703,13 @@ protected:
     void testResumableTrasfers(const std::string& data, const size_t timeoutInSecs);
     void testHashcash(const bool logoutDuringLogin);
 
+    void printCleanupErrMsg(const string& prefix,
+                            const string& errDetails,
+                            const unsigned accountIdx,
+                            const int errCode,
+                            const bool localCleanupSuccess) const;
 #ifdef ENABLE_CHAT
-    void cancelSchedMeetings();
+    void cleanupSchedMeetings(const unsigned nApi);
 #endif
 
     void syncTestEnsureMyBackupsRemoteFolderExists(unsigned apiIdx);
@@ -725,14 +745,19 @@ protected:
     void onSyncRemoteRootChanged(MegaApi*, MegaSync*) override {}
 
     void onGlobalSyncStateChanged(MegaApi*) override {}
+
+    void cleanupSyncs(const unsigned int nApi);
     void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 #endif
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
+    void cleanupChatLinks(const unsigned int nApi, std::set<MegaHandle>& skipChats);
+    void cleanupChatrooms(const unsigned int nApi);
 #endif
     void onEvent(MegaApi* api, MegaEvent *event) override;
 
     void resetOnNodeUpdateCompletionCBs();
+    void cleanupCatchupWithApi(const unsigned int apiIndex, const unsigned int timeoutSecs);
 
     onNodesUpdateCompletion_t createOnNodesUpdateLambda(const MegaHandle&, int, bool& flag);
 public:
@@ -745,6 +770,12 @@ public:
     void resumeSession(const char *session, unsigned apiIndex = 0);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
+    void cleanupContacts(const unsigned int nApi);
+    void cleanupShares(const unsigned int nApi);
+    void cleanupNodeLinks(const unsigned int nApi);
+    void cleanupNodes(const unsigned int nApi);
+    void cleanupContactRequests(const unsigned int nApi);
+    void cleanupLocalFiles();
 
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
@@ -753,20 +784,50 @@ public:
     static bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs);
 
     bool synchronousRequest(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
+    bool synchronousRequestIgnoreErr(unsigned apiIndex,
+                                     int type,
+                                     std::function<void()> f,
+                                     unsigned int timeout = maxTimeout);
     bool synchronousTransfer(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
 
     // *** WARNING *** THESE FUNCTIONS RETURN VALUE ARE SUBJECT TO RACE CONDITIONS
     // convenience functions - template args just make it easy to code, no need to copy all the exact argument types with listener defaults etc. To add a new one, just copy a line and change the flag and the function called.
     // WARNING: any sort of race can result in the lastError being set from some other command - better to use the listener based ones in the next list below
     template<typename... Args>
-    int synchronousCatchup(unsigned apiIndex, Args... args)
+    int synchronousCatchup(unsigned apiIndex, unsigned int timeoutSecs, Args... args)
     {
-        synchronousRequest(apiIndex,
-                           MegaRequest::TYPE_CATCHUP,
-                           [this, apiIndex, args...]()
-                           {
-                               megaApi[apiIndex]->catchup(args...);
-                           });
+        if (megaApi[apiIndex]->isEphemeralPlusPlus())
+        {
+            return API_OK;
+        }
+
+        synchronousRequest(
+            apiIndex,
+            MegaRequest::TYPE_CATCHUP,
+            [this, apiIndex, args...]()
+            {
+                megaApi[apiIndex]->catchup(args...);
+            },
+            timeoutSecs);
+        return mApi[apiIndex].lastError;
+    }
+
+    template<typename... Args>
+    int synchronousCatchupIgnoreErr(unsigned apiIndex, unsigned int timeoutSecs, Args... args)
+    {
+        if (megaApi[apiIndex]->isEphemeralPlusPlus())
+        {
+            return API_OK;
+        }
+
+        synchronousRequestIgnoreErr(
+            apiIndex,
+            MegaRequest::TYPE_CATCHUP,
+            [this, apiIndex, args...]()
+            {
+                megaApi[apiIndex]->catchup(args...);
+            },
+            timeoutSecs);
         return mApi[apiIndex].lastError;
     }
 
@@ -1177,9 +1238,10 @@ public:
     void deleteFile(string filename);
     void deleteFolder(string foldername);
 
-    void fetchNodesForAccounts(const unsigned howMany);
-    void getAccountsForTest(unsigned howMany = 1,
-                            bool fetchNodes = true,
+    // peform fetchnodes for all test involved accounts sequentially to avoid API locks
+    void fetchNodesForAccountsSequentially(const unsigned howMany);
+    void getAccountsForTest(const unsigned howMany = 1,
+                            const bool fetchNodes = true,
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void configureTestInstance(unsigned index,
                                const std::string& email,

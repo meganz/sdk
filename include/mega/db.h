@@ -215,7 +215,9 @@ public:
 
     virtual void updateCounterAndFlags(NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) = 0;
 
-    virtual void createIndexes() = 0;
+    virtual void createIndexes(bool enableIndexesForSearching) = 0;
+
+    virtual void dropSearchDBIndexes() = 0;
 };
 
 class MEGA_API DBTableTransactionCommitter

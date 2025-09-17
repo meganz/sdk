@@ -595,7 +595,7 @@ bool PosixFileAccess::fopen(const LocalPath& f,
                             DirAccess* iteratingDir,
                             bool,
                             [[maybe_unused]] bool skipcasecheck,
-                            LocalPath* /*actualLeafNameIfDifferent*/)
+                            [[maybe_unused]] LocalPath* actualLeafNameIfDifferent)
 {
     struct stat statbuf;
 
@@ -644,11 +644,20 @@ bool PosixFileAccess::fopen(const LocalPath& f,
             }
             rnamesize = strlen(rname) + 1;
 
+            bool equalNameAndCapitalization =
+                (rnamesize == fnamesize && !memcmp(fname, rname, fnamesize));
+
+            if (actualLeafNameIfDifferent && !equalNameAndCapitalization)
+            {
+                *actualLeafNameIfDifferent = LocalPath::fromRelativePath(std::string(rname));
+            }
+
             if (!skipcasecheck)
             {
                 if (rnamesize == fnamesize && memcmp(fname, rname, fnamesize))
                 {
-                    LOG_warn << "fopen failed due to invalid case: " << fstr;
+                    LOG_warn << "fopen failed due to invalid case: " << fstr
+                             << "   File system real name: " << rname;
                     return false;
                 }
             }
@@ -1040,6 +1049,22 @@ bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPat
 {
     AdjustBasePathResult oldnamestr = adjustBasePath(oldname);
     AdjustBasePathResult newnamestr = adjustBasePath(newname);
+
+#ifdef __MACH__
+    // On case-insensitive file systems, renaming a file to a name that differs
+    // only by case (e.g., "B" → "A" when "a" already exists) does not actually change the case of
+    // the target filename. Instead, the existing "a" is overwritten in content but its original
+    // casing is preserved.
+    //
+    // To ensure that the renamed file takes the exact desired casing ("A" in this case), we
+    // explicitly remove the existing target using unlink() before calling rename(). This guarantees
+    // that the resulting file name matches the requested casing exactly, regardless of file system
+    // case sensitivity.
+    if (override)
+    {
+        unlinklocal(newname);
+    }
+#endif
 
     bool existingandcare = !override && (0 == access(newnamestr.c_str(), F_OK));
     if (!existingandcare && !rename(oldnamestr.c_str(), newnamestr.c_str()))

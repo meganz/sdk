@@ -334,6 +334,7 @@ struct MEGA_API HttpReq
     m_off_t pos;
 
     int httpstatus;
+    unsigned mErrCode{0};
 
     httpmethod_t method;
     contenttype_t type;

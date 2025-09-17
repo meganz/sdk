@@ -1519,7 +1519,7 @@ size_t UnusedConn::getNum() const
 
 bool UnusedConn::CanBeReused() const
 {
-    return mReason == UN_NOT_ERR;
+    return mReason == UN_NOT_ERR || mReason == UN_TEMPORARY_ERR;
 }
 
 bool UnusedConn::setUnused(const size_t num, const UnusedReason reason)
@@ -1666,7 +1666,9 @@ m_off_t DirectReadSlot::calcThroughput(m_off_t numBytes, m_off_t timeCount) cons
     return throughput;
 }
 
-void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstatus)
+void DirectReadSlot::retryOnError(const size_t connectionNum,
+                                  const int httpstatus,
+                                  const unsigned errCode)
 {
     if (!isRaidedTransfer())
     {
@@ -1703,10 +1705,10 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
         return;
     }
 
-    const auto reason = UnusedConn::getReasonFromHttpStatus(httpstatus);
-    if (reason != UnusedConn::UN_DEFINITIVE_ERR)
+    const auto recvReason = UnusedConn::getReasonFromHttpStatus(httpstatus, errCode);
+    if (recvReason != UnusedConn::UN_DEFINITIVE_ERR && recvReason != UnusedConn::UN_TEMPORARY_ERR)
     {
-        LOG_err << logPre << "unexpected reason: " << reason << " httpstatus: " << httpstatus;
+        LOG_err << logPre << "unexpected reason: " << recvReason << " httpstatus: " << httpstatus;
         assert(false && "DirectReadSlot::retryOnError: unexpected Httpstatus");
         retryEntireTransfer(API_EREAD);
         return;
@@ -1714,13 +1716,17 @@ void DirectReadSlot::retryOnError(const size_t connectionNum, const int httpstat
 
     if (!unusedConnectionCanBeReused())
     {
-        LOG_debug << logPre
-                  << "we cannot replace failed part by unused one, as it's also failed. Retrying "
-                     "entire transfer";
+        LOG_debug
+            << logPre
+            << "we cannot replace failed part by unused one, as it's definitely failed. Retrying "
+               "entire transfer";
         retryEntireTransfer(API_EREAD);
         return;
     }
-    replaceConnectionByUnusedInflight(connectionNum, UnusedConn::ON_RAIDED_ERROR, reason);
+    const auto replamecementReason = recvReason == UnusedConn::UN_DEFINITIVE_ERR ?
+                                         UnusedConn::ON_RAIDED_ERROR :
+                                         UnusedConn::ON_RECOVERABLE_RAIDED_ERROR;
+    replaceConnectionByUnusedInflight(connectionNum, replamecementReason, recvReason);
 }
 
 bool DirectReadSlot::isRaidedTransfer() const
@@ -2161,6 +2167,7 @@ void DirectReadSlot::resetConnSwitchesCounters(const std::chrono::steady_clock::
 {
     mNumConnSwitchesSlowestPart = 0;
     mNumConnSwitchesBelowSpeedThreshold = 0;
+    mNumConnSwitchesRecoverableError = 0;
     mNumConnDetectedBelowSpeedThreshold.clear();
     mConnectionSwitchesLimitLastReset = now;
 }
@@ -2474,8 +2481,10 @@ bool DirectReadSlot::doio()
             LOG_warn << "DirectReadSlot [conn " << connectionNum
                      << "] Request status is FAILURE [Request status = " << req->status.load()
                      << ", HTTP status = " << req->httpstatus << "]"
+                     << ", ErrCode = " << req->mErrCode << "]"
                      << " [this = " << this << "]";
-            onFailure(req, static_cast<size_t>(connectionNum));
+
+            onFailure(req, static_cast<size_t>(connectionNum), req->mErrCode);
             return true;
         }
 
@@ -2489,7 +2498,9 @@ bool DirectReadSlot::doio()
     return false;
 }
 
-void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t connectionNum)
+void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req,
+                               const size_t connectionNum,
+                               const unsigned errCode)
 {
     if (!mDr->hasValidCallback())
     {
@@ -2511,7 +2522,7 @@ void DirectReadSlot::onFailure(std::unique_ptr<HttpReq>& req, const size_t conne
         }
         else
         {
-            retryOnError(connectionNum, req->httpstatus);
+            retryOnError(connectionNum, req->httpstatus, errCode);
         }
     }
 }
@@ -2693,6 +2704,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 
     mNumConnDetectedBelowSpeedThreshold.clear();
     mNumConnSwitchesSlowestPart = 0;
+    mNumConnSwitchesRecoverableError = 0;
     mNumConnSwitchesBelowSpeedThreshold = 0;
     mNumReqsInflight = 0;
     mWaitForParts = false;

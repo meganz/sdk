@@ -3740,7 +3740,9 @@ class MegaApiImpl : public MegaApp
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
-        static Error createLocalFolder_unlocked(LocalPath & localPath, FileSystemAccess& fsaccess);
+        static Error createLocalFolder_unlocked(LocalPath& localPath,
+                                                FileSystemAccess& fsaccess,
+                                                const CollisionResolution& collisionResolution);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, const char *newName, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
@@ -4312,6 +4314,7 @@ public:
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
+        int enableSearchDBIndexes(bool enable);
         string generateViewId();
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);

@@ -53,6 +53,16 @@ MountResult MountDB::check(const Client& client,
         return MOUNT_NAME_TOO_LONG;
     }
 
+    // Make sure the mount's name contains no invalid characters
+    // Refer https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+    constexpr const char* invalidChars = "<>:\"/\\|?*";
+    if (name.find_first_of(invalidChars) != std::string::npos)
+    {
+        FUSEErrorF("Name contains invalid character(s): %s", name.c_str());
+
+        return MOUNT_NAME_INVALID_CHAR;
+    }
+
     // An unspecified path signals we should assign a drive letter.
     if (path.empty())
         return MOUNT_SUCCESS;

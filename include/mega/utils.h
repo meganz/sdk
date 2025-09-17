@@ -994,6 +994,7 @@ struct SyncTransferCounts
 
     // returns progress 0.0 to 1.0
     double progress(m_off_t inflightProgress) const;
+    m_off_t pendingTransferBytes() const;
     void clearPendingValues();
 
     SyncTransferCount mDownloads;
@@ -1708,6 +1709,14 @@ inline bool isAllDigits(const std::string_view s)
 }
 
 storagestatus_t getStorageStatusFromString(const std::string& storageStateStr);
+
+/**
+ * @brief Returns if path is in file system case insensitive
+ *
+ * The directory must not be empty in order to validate whether case-insensitive access (uppercase
+ * or lowercase naming) is supported. If it can't be checked, it returns std::nullopt
+ */
+std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* fsaccess);
 
 } // namespace mega
 
