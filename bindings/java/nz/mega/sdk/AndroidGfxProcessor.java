@@ -119,7 +119,8 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         try {
             Uri uri = Uri.parse(path);
             String scheme = uri == null ? null : uri.getScheme();
-            if (scheme != null && scheme.equals("content")) {
+
+            if (scheme != null) {
                 return context.getContentResolver().openInputStream(uri);
             } else {
                 return new FileInputStream(path);
@@ -133,7 +134,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                                                             String path) {
         Uri uri = Uri.parse(path);
         String scheme = uri == null ? null : uri.getScheme();
-        if (scheme != null && scheme.equals("content")) {
+        if (scheme != null) {
             retriever.setDataSource(context, uri);
         } else {
             retriever.setDataSource(path);
