@@ -25,6 +25,7 @@
 #include "mega/logging.h"
 #include "mega/scoped_helpers.h"
 
+#include <cmath>
 #include <optional>
 
 #ifdef USE_FREEIMAGE
@@ -697,7 +698,16 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
         }
 
         // Retrieve the video's rotation.
-        return (int)av_display_rotation_get((int32_t*)matrix);
+        const auto rotationValue = av_display_rotation_get((int32_t*)matrix);
+
+        // is NaN? No rotation
+        if (isnan(rotationValue))
+        {
+            return 0;
+        }
+
+        // Round to nearest integer and return
+        return (int)rotationValue;
     }();
 
     int scalingResult;
