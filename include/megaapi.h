@@ -5348,7 +5348,6 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::login - Returns the password of the account
          * - MegaApi::loginToFolder - Returns the authentication key to write in public folder
-         * - MegaApi::confirmAccount - Returns the password for the account
          * - MegaApi::changePassword - Returns the old password of the account (first parameter)
          *
          * This value is valid for these request in onRequestFinish when the
@@ -11088,23 +11087,24 @@ class MegaApi
         /**
          * @brief Get an URL to transfer the current session to the webclient
          *
-         * This function creates a new session for the link so logging out in the web client won't log out
-         * the current session.
+         * This function creates a new session for the link so logging out in the web client won't
+         * log out the current session.
          *
-         * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+         * The associated request type is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getLink - URL to open the desired page with the same account
          *
-         * If the client is logged in, but the account is not fully confirmed (ie. singup not completed yet),
-         * this method will return API_EACCESS.
+         * If the client is logged in, but the account is not fully confirmed (ie. singup not
+         * completed yet), this method will return API_EACCESS.
          *
-         * If the client is not logged in, there won't be any session to transfer, but this method will still
-         * return the https://mega.nz/#<path>.
+         * If the client is not logged in, there won't be any session to transfer, but this method
+         * will still return the MEGA's host (ie. https://mega.app) followed by /#<path>.
          *
-         * @param path Path inside https://mega.nz/# that we want to open with the current session
+         * @param path Path inside the MEGA's host that we want to open with the current session
          *
-         * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+         * For example, if you want to open https://mega.app/#pro, the parameter of this function
+         * should be "pro".
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -12198,7 +12198,6 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CONFIRM_ACCOUNT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getLink - Returns the confirmation link
-         * - MegaRequest::getPassword - Returns the password
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -12210,17 +12209,22 @@ class MegaApi
          * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
          * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
          *
-         * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
-         * in onRequestFinish.
-         * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
-         * will get the error code MegaError::API_EEXPIRED in onRequestFinish.
-         * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
-         * to confirm, and the MegaRequest::getName will return the name.
+         * If already logged-in into a different account, you will get the error code
+         * MegaError::API_EACCESS in onRequestFinish. If logged-in into the account that is
+         * attempted to confirm and the account is already confirmed, you will get the error code
+         * MegaError::API_EEXPIRED in onRequestFinish. In both cases, the MegaRequest::getEmail will
+         * return the email of the account that was attempted to confirm, and the
+         * MegaRequest::getName will return the name.
          *
          * @param link Confirmation link
-         * @param password Password of the account
          * @param listener MegaRequestListener to track this request
          */
+        void confirmAccount(const char* link, MegaRequestListener* listener = NULL);
+
+        /**
+         * @deprecated Use the signature without the \c password parameter
+         */
+        MEGA_DEPRECATED
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
 
         /**
@@ -15409,7 +15413,6 @@ class MegaApi
          *
          * With the master key, it's possible to start the recovery of an account when the
          * password is lost:
-         * - https://mega.nz/#recovery
          * - MegaApi::resetPassword()
          *
          * You take ownership of the returned value. Use delete[] to release the memory.

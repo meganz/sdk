@@ -73,6 +73,8 @@ Path::operator std::string() const
 
 LocalPath Path::localPath() const
 {
+    if (mPath.empty())
+        return LocalPath();
     return LocalPath::fromAbsolutePath(mPath.u8string());
 }
 

@@ -1,11 +1,10 @@
 #pragma once
 
-#include <condition_variable>
-
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
 #include <mega/common/lockable.h>
 #include <mega/common/task_executor_forward.h>
+#include <mega/filesystem.h>
 #include <mega/fuse/common/file_cache_forward.h>
 #include <mega/fuse/common/file_extension_db_forward.h>
 #include <mega/fuse/common/file_info_forward.h>
@@ -13,9 +12,11 @@
 #include <mega/fuse/common/file_io_context_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
 #include <mega/fuse/common/mount_forward.h>
+#include <mega/fuse/platform/platform.h>
 #include <mega/fuse/platform/service_context_forward.h>
+#include <mega/fuse/platform/utility.h>
 
-#include <mega/filesystem.h>
+#include <condition_variable>
 
 namespace mega
 {
@@ -60,6 +61,9 @@ class FileCache
                      const FileAccess& fileAccess,
                      InodeID id);
 
+    // Purge unreferenced files from the cache.
+    void purge();
+
     // Remove context from the index.
     void remove(const FileIOContext& context, FileCacheLock lock);
 
@@ -74,6 +78,8 @@ class FileCache
 
     // Signalled when a context or info instance is removed.
     std::condition_variable_any mRemoved;
+
+    WINDOWS_ONLY(platform::FolderLocker mFolderLocker);
 
 public:
     explicit FileCache(platform::ServiceContext& context);

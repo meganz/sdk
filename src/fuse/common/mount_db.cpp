@@ -101,7 +101,6 @@ MountResult MountDB::check(const MountInfo& info)
 {
     // Convenience.
     auto& handle = info.mHandle;
-    auto& name = info.name();
 
     // User's specified a bogus node handle.
     if (handle.isUndef())
@@ -110,14 +109,6 @@ MountResult MountDB::check(const MountInfo& info)
                    toNodeHandle(handle).c_str());
 
         return MOUNT_REMOTE_UNKNOWN;
-    }
-
-    // User's specified a bogus name.
-    if (name.empty())
-    {
-        FUSEError1("No name specified");
-
-        return MOUNT_NO_NAME;
     }
 
     // Check that the specified cloud node exists.
@@ -841,12 +832,8 @@ try
     auto guard = lockAll(mContext.mDatabase, *this);
 
     // User's specified an invalid name.
-    if (flags.mName.empty())
-    {
-        FUSEError1("No name specified");
-
-        return MOUNT_NO_NAME;
-    }
+    if (const auto ret = checkName(flags.mName); ret != MOUNT_SUCCESS)
+        return ret;
 
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetMountByName);

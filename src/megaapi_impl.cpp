@@ -7867,11 +7867,10 @@ void MegaApiImpl::resendSignupLink(const char *email, const char *name, MegaRequ
     waiter->notify();
 }
 
-void MegaApiImpl::confirmAccount(const char* link, const char *password, MegaRequestListener *listener)
+void MegaApiImpl::confirmAccount(const char* link, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
     request->setLink(link);
-    request->setPassword(password);
 
     request->performRequest = [this, request]()
     {
@@ -17929,8 +17928,11 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
     transfer->setTransferredBytes(tr->size);
     transfer->setPriority(tr->priority);
     transfer->setDeltaSize(deltaSize);
-    transfer->setSpeed(tr->slot ? tr->slot->speed : 0);
-    transfer->setMeanSpeed(tr->slot ? tr->slot->meanSpeed : 0);
+    if (tr->slot)
+    {
+        transfer->setSpeed(tr->slot->speed);
+        transfer->setMeanSpeed(tr->slot->meanSpeed);
+    }
 
     if (tr->type == GET)
     {
@@ -22532,7 +22534,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
             const char* ptr = link;
             const char* tptr;
 
-            // is it a link to confirm the account? ie. https://mega.nz/#confirm<code_in_B64>
+            // is it a link to confirm the account? ie. https://mega.app/#confirm<code_in_B64>
             tptr = strstr(ptr, MegaClient::confirmLinkPrefix());
             if (tptr)
             {
@@ -22566,7 +22568,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
                     }
                 }
             }
-            // is it a new singup link? ie. https://mega.nz/#newsignup<code_in_B64>
+            // is it a new singup link? ie. https://mega.app/#newsignup<code_in_B64>
             else if ((tptr = strstr(ptr, MegaClient::newsignupLinkPrefix())) != nullptr)
             {
                 ptr = tptr + strlen(MegaClient::newsignupLinkPrefix());
@@ -22613,9 +22615,7 @@ void MegaApiImpl::querySignupLink(const char* link, MegaRequestListener* listene
 error MegaApiImpl::performRequest_confirmAccount(MegaRequestPrivate* request)
 {
             const char* link = request->getLink();
-            const char* password = request->getPassword();
-
-            if (!link || !password)
+            if (!link)
             {
                 return API_EARGS;
             }

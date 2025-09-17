@@ -248,8 +248,9 @@ TEST_F(SdkTestTransferStats, SdkTestTransferStats)
 
     // 3.1 Download a CloudRAID file.
     {
+        // https://mega.app/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
         std::string url100MB =
-            "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; // https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
+            "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA";
         const auto importHandle =
             importPublicLink(0, MegaClient::getMegaURL() + url100MB, rootNode.get());
         std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};

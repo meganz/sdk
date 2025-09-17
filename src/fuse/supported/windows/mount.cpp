@@ -384,16 +384,21 @@ NTSTATUS Mount::getVolumeInfo(FSP_FSCTL_VOLUME_INFO& info)
     if (!storageInfo)
         return STATUS_UNSUCCESSFUL;
 
+    // How long can a mount's name be?
+    constexpr auto maxLength = sizeof(info.VolumeLabel) / sizeof(WCHAR);
+
     // Get our hands on the mount's name.
     auto name = toWideString(this->name());
+
+    // Truncate the name as necessary.
+    name.resize(std::min(maxLength, name.size()));
 
     // Populate usage statistics.
     info.FreeSize = static_cast<UINT64>(storageInfo->mAvailable);
     info.TotalSize = static_cast<UINT64>(storageInfo->mCapacity);
 
     // Populate volume label.
-    info.VolumeLabelLength =
-      static_cast<UINT16>(name.size() * sizeof(wchar_t));
+    info.VolumeLabelLength = static_cast<UINT16>(name.size());
 
     std::memcpy(info.VolumeLabel, name.c_str(), info.VolumeLabelLength);
 

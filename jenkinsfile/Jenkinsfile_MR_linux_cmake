@@ -298,6 +298,10 @@ pipeline {
             }
             post{
                 always {
+                    dir("${env.WORKSPACE}/src/fuse/supported/posix/scripts") {
+                        echo "Final cleanup of any stale MEGA-FS mounts"
+                        sh "./cleanup.sh '${env.WORKSPACE}'"
+                    }
                     archiveArtifacts artifacts: '*test_integration*, core.tar.gz', fingerprint: true
                     deleteDir()
                 }

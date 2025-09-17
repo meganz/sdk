@@ -1,6 +1,6 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: sdk
-Upstream-Contact: <support@mega.nz>
+Upstream-Contact: <support@mega.io>
 Source: https://github.com/meganz/sdk
 Files: *
 Copyright: 2013, Mega Limited
