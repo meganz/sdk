@@ -3229,6 +3229,13 @@ void MegaClient::exec()
                 jsonsc.pos = nullptr;
                 pendingsc.reset();
                 btsc.reset();
+
+                // upon reception of action packets, if the cs request is waiting for a retry
+                // and it failed due to -3 or -4 error from API, we can abort the backoff
+                if (reqs.retryReasonIsApi())
+                {
+                    btcs.reset();
+                }
             }
         }
 

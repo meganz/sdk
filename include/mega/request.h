@@ -104,6 +104,10 @@ public:
     // and stays true even through network errors, retries, etc until we get that response
     bool cmdsInflight() const;
 
+    // True if there is a request that has failed and needs retry because the API returned
+    // an error: -3 or -4
+    bool retryReasonIsApi() const;
+
     Command* getCurrentCommand(bool currSeqtagSeen);
 
     /**

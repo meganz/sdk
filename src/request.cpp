@@ -457,6 +457,12 @@ bool RequestDispatcher::cmdsInflight() const
            inflightFailReason != RETRY_RATE_LIMIT;
 }
 
+bool RequestDispatcher::retryReasonIsApi() const
+{
+    return !inflightreq.empty() &&
+           (inflightFailReason == RETRY_API_LOCK || inflightFailReason == RETRY_RATE_LIMIT);
+}
+
 Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
 {
     return currSeqtagSeen ? inflightreq.getCurrentCommand() : nullptr;
