@@ -101,7 +101,7 @@ public:
     bool readyToSend() const;
 
     // True if we started sending a Request and haven't received a server response yet,
-    // and stays true even through network errors, -3, retries, etc until we get that response
+    // and stays true even through network errors, retries, etc until we get that response
     bool cmdsInflight() const;
 
     Command* getCurrentCommand(bool currSeqtagSeen);

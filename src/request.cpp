@@ -451,8 +451,10 @@ bool RequestDispatcher::readyToSend() const
 
 bool RequestDispatcher::cmdsInflight() const
 {
-    // stays true even through network errors, -3, retries, etc until we get that response
-    return !inflightreq.empty();
+    // stays true even through network errors, retries, etc until we get that response
+    // but not when the API has notified that commands were not applied
+    return !inflightreq.empty() && inflightFailReason != RETRY_API_LOCK &&
+           inflightFailReason != RETRY_RATE_LIMIT;
 }
 
 Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
