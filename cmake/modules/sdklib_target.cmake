@@ -121,6 +121,7 @@ set(SDKLIB_HEADERS
     include/mega/scoped_timer.h
     include/mega/canceller.h
     include/mega/command.h
+    include/mega/actionpacket.h
     include/mega/thread.h
     include/mega/json.h
     include/mega/base64.h
@@ -216,6 +217,7 @@ set(SDKLIB_SOURCES
     src/megaapi.cpp
     src/megaapi_impl.cpp
     src/megaapi_impl_sync.cpp
+    src/actionpacket.cpp
     src/arguments.cpp
     src/attrmap.cpp
     src/autocomplete.cpp

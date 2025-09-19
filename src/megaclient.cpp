@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include "mega/actionpacket.h"
 #include "mega/hashcash.h"
 #include "mega/heartbeats.h"
 #include "mega/mediafileattribute.h"
@@ -3054,13 +3055,16 @@ void MegaClient::exec()
 
                 if (*pendingsc->in.c_str() == '{')
                 {
+                    // for test
+                    pendingsc->mChunked = true;
+
                     insca = false;
                     insca_notlast = false;
                     jsonsc.begin(pendingsc->in.c_str());
                     jsonsc.enterobject();
                     app->notify_network_activity(NetworkActivityChannel::SC,
-                                                 NetworkActivityType::REQUEST_RECEIVED,
-                                                 API_OK);
+                                                NetworkActivityType::REQUEST_RECEIVED,
+                                                API_OK);
                     break;
                 }
                 else
@@ -3203,6 +3207,11 @@ void MegaClient::exec()
                     pendingscTimedOut = true;
                     pendingsc.reset();
                     btsc.reset();
+                }
+
+                // if sc is set to chunked, process what we have so far
+                if (pendingsc->mChunked && pendingsc->bufpos > pendingsc->notifiedbufpos) {
+                    jsonsc.begin(pendingsc->in.c_str());
                 }
                 break;
             default:
@@ -5495,6 +5504,38 @@ bool MegaClient::procsc()
                 }
             }
             jsonsc.pos = actionpacketStart;
+            
+            
+            if (pendingsc->mChunked) {
+                if (activeap == nullptr)
+                {
+                    auto testpos = jsonsc.pos;
+                    jsonsc.enterobject();
+                    if (jsonsc.getnameid() == makeNameid("a"))
+                    {
+                        auto testname = jsonsc.getnameidvalue();
+                        if (testname == makeNameid("t")) { // node addition
+                            activeap = new ActionpacketNewNodes(this);
+                        }
+                    }
+                    jsonsc.pos = testpos; //rewind
+                }
+
+                if (activeap) {
+                    size_t consumed = activeap->processChunk(jsonsc.pos);
+                    if (activeap->finishedChunk()) {
+                        jsonsc.pos += consumed;
+                        delete activeap;
+                        activeap = nullptr;
+                        if (jsonsc.pos) continue;
+                        else return true;
+                    } else {
+                        // need more data
+                        jsonsc.pos = nullptr;
+                        return true;
+                    }
+                }
+            }
 
             if (jsonsc.enterobject())
             {

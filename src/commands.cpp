@@ -6796,6 +6796,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                                      bool loadSyncs,
                                      const NodeHandle partialFetchRoot)
 {
+    LOG_debug << "Construct of CommandFetchNodes";
     assert(client);
 
     cmd("f");
@@ -6888,6 +6889,8 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     // Node objects (one by one)
     auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
     {
+            static int i = 0;
+        LOG_debug << "1by1 reading node:" << i++;
         if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true,
                              mMissingParentNodes, mPreviousHandleForAlert,
                              nullptr, // allParents disabled because Syncs::triggerSync
@@ -6905,6 +6908,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     // End of node array
     f = mFilters.emplace("{[f", [this, client](JSON *json)
     {
+        LOG_debug << "Array reading node" << json->pos;
         client->mergenewshares(0);
         client->mNodeManager.checkOrphanNodes(mMissingParentNodes);
 
@@ -7101,6 +7105,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
 
 CommandFetchNodes::~CommandFetchNodes()
 {
+    LOG_debug << "Destruction of CommandFetchNodes";
     assert(!mNodeTreeIsChanging.owns_lock());
 }
 

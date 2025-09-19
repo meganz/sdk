@@ -46,6 +46,7 @@
 #include "treeproc.h"
 #include "user.h"
 #include "useralerts.h"
+#include "actionpacket.h"
 
 // FUSE support.
 #include <mega/common/client_adapter.h>
@@ -2072,6 +2073,8 @@ public:
     JSON jsonsc;
     bool insca;
     bool insca_notlast;
+
+    Actionpacket* activeap = nullptr;
 
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
