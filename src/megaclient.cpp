@@ -3210,7 +3210,8 @@ void MegaClient::exec()
                 }
 
                 // if sc is set to chunked, process what we have so far
-                if (pendingsc->mChunked && pendingsc->bufpos > pendingsc->notifiedbufpos) {
+                 if (pendingsc != nullptr && pendingsc->mChunked &&
+                     pendingsc->bufpos > pendingsc->notifiedbufpos) {
                     jsonsc.begin(pendingsc->in.c_str());
                 }
                 break;

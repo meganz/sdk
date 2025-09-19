@@ -72,7 +72,7 @@ public:
     ActionpacketNewNodes(MegaClient*);
     ~ActionpacketNewNodes() override;
 
-    size_t processChunk(const char*);
+    virtual size_t processChunk(const char*) override;
 protected:
     bool mFirstChunkProcessed = false;
 };
