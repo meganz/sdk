@@ -12,6 +12,7 @@ target_sources(test_unit
     utils.h
 
     main.cpp
+    ActionPacketOTFParsing_test.cpp
     Arguments_test.cpp
     AttrMap_test.cpp
     CacheLRU_test.cpp
@@ -19,6 +20,7 @@ target_sources(test_unit
     ChunkMacMap_test.cpp
     Commands_test.cpp
     Crypto_test.cpp
+    FileUploadVerification_test.cpp
     FileFingerprint_test.cpp
     File_test.cpp
     FsNode.cpp
