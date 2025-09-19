@@ -6709,8 +6709,16 @@ void MegaFilePut::completed(Transfer* t, putsource_t source)
     assert(t->type == PUT);
 
     // allow for putnodes with a different mtime to the actual file
-    sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
-        nullptr, customMtime == MegaApi::INVALID_CUSTOM_MOD_TIME ? nullptr : &customMtime, false);
+    sendPutnodesOfUpload(t->client,
+                         t->uploadhandle,
+                         "",
+                         *t->ultoken,
+                         t->filekey,
+                         source,
+                         NodeHandle(),
+                         nullptr,
+                         customMtime == MegaApi::INVALID_CUSTOM_MOD_TIME ? nullptr : &customMtime,
+                         false);
 
     delete this;
 }

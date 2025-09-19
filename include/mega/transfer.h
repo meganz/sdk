@@ -216,9 +216,6 @@ struct MEGA_API Transfer : public FileFingerprint
     // whether it is a Transfer for support (i.e., an upload for the Support team)
     bool isForSupport() const;
 
-    // whether the transfer is a Sync upload transfer
-    bool mIsSyncUpload = false;
-
     // Add stats for this transfer to the MEGAclient. The client must be valid at this point.
     bool addTransferStats();
 

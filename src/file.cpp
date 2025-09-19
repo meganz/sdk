@@ -370,12 +370,22 @@ void File::completed(Transfer* t, putsource_t source)
 
     if (t->type == PUT)
     {
-        sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, false);
+        sendPutnodesOfUpload(t->client,
+                             t->uploadhandle,
+                             "",
+                             *t->ultoken,
+                             t->filekey,
+                             source,
+                             NodeHandle(),
+                             nullptr,
+                             nullptr,
+                             false);
     }
 }
 
 void File::sendPutnodesOfUpload(MegaClient* client,
                                 UploadHandle fileAttrMatchHandle,
+                                std::string&& fileAttr,
                                 const UploadToken& ultoken,
                                 const FileNodeKey& newFileKey,
                                 putsource_t source,
@@ -392,7 +402,9 @@ void File::sendPutnodesOfUpload(MegaClient* client,
     newnode->canChangeVault = canChangeVault;
 
     // upload handle required to retrieve/include pending file attributes
+    // or file attribute value if it is not empty
     newnode->uploadhandle = fileAttrMatchHandle;
+    newnode->fileattributes.reset(new std::string(std::move(fileAttr)));
 
     // reference to uploaded file
     newnode->uploadtoken = ultoken;
@@ -628,6 +640,8 @@ void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
     uploadHandle = t->uploadhandle;
     uploadToken = *t->ultoken;
     fileNodeKey = t->filekey;
+    if (auto c = t->client)
+        c->pendingattrstring(uploadHandle, &fileAttr);
 
     SyncTransfer_inClient::completed(t, source);
 }
@@ -652,6 +666,7 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
     File::sendPutnodesOfUpload(
         client,
         uploadHandle,
+        std::move(fileAttr),
         uploadToken,
         fileNodeKey,
         PUTNODES_SYNC,
@@ -812,12 +827,6 @@ SyncUpload_inClient::~SyncUpload_inClient()
     else
     {
         syncThreadSafeState->transferFailed(PUT, size);
-    }
-
-    if (!uploadHandle.isUndef())
-    {
-        // Remove file attributes if they weren't removed upon ~Transfer destructor
-        syncThreadSafeState->client()->fileAttributesUploading.erase(uploadHandle);
     }
 
     if (putnodesStarted)
