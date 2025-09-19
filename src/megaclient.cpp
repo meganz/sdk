@@ -3151,13 +3151,6 @@ void MegaClient::exec()
                         }
                     }
 
-                    if (pendingsc->httpstatus == 500 && !scnotifyurl.empty())
-                    {
-                        sendevent(99482, "500 received on wsc url");
-                        LOG_err << "500 error on wsc URL. Clearing it";
-                        scnotifyurl.clear();
-                    }
-
                     if (pendingsc->sslcheckfailed)
                     {
                         sendevent(99453, "Invalid public key");
