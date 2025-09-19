@@ -60,6 +60,7 @@ namespace mega {
         std::function<void(int&, unsigned)> onHookNumberOfConnections;
         std::function<void(bool&)> onHookDownloadRequestSingleUrl;
         std::function<void(m_time_t&)> onHookResetTransferLastAccessTime;
+        std::function<void(std::unique_ptr<HttpReq>&)> interceptLocklessCSRequest;
     };
 
     extern MegaTestHooks globalMegaTestHooks;
@@ -129,6 +130,12 @@ namespace mega {
             globalMegaTestHooks.onHookResetTransferLastAccessTime(lastAccessTime); \
     }
 
+#define DEBUG_TEST_HOOK_INTERCEPT_LOCKLESS_CS_REQUEST(pendingLocklessCS) \
+    { \
+        if (globalMegaTestHooks.interceptLocklessCSRequest) \
+            globalMegaTestHooks.interceptLocklessCSRequest(pendingLocklessCS); \
+    }
+
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -142,8 +149,9 @@ namespace mega {
 #define DEBUG_TEST_HOOK_ON_TRANSFER_REPORT_PROGRESS(p, fp, pb)
 #define DEBUG_TEST_HOOK_DOWNLOAD_REQUEST_SINGLEURL(singleUrlFlag)
 #define DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastAccessTime)
-#endif
+#define DEBUG_TEST_HOOK_INTERCEPT_LOCKLESS_CS_REQUEST(pendingLocklessCS)
 
+#endif
 
 } // namespace
 

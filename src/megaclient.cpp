@@ -2983,6 +2983,8 @@ void MegaClient::exec()
                 // handle retry reason for requests
                 retryreason_t reason = RETRY_NONE;
 
+                DEBUG_TEST_HOOK_INTERCEPT_LOCKLESS_CS_REQUEST(mPendingLocklessCS);
+
                 switch (mPendingLocklessCS->status)
                 {
                     case REQ_READY:
