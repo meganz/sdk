@@ -24432,4 +24432,43 @@ void MegaClient::setMegaURL(const std::string& url)
     MEGAURL = url;
 }
 
+std::shared_ptr<Node> MegaClient::checkFileExistsRemotely(const std::string& fileName, const LocalPath& localPath)
+{
+    if (fileName.empty() || localPath.empty())
+    {
+        return nullptr;
+    }
+
+    auto fa = fsaccess->newfileaccess();
+    if (fa->fopen(localPath, true, false, FSLogging::logOnError))
+    {
+        FileFingerprint fp;
+        fp.genfingerprint(fa.get());
+        sharedNode_vector remoteNodes = mNodeManager.getNodesByFingerprint(fp);
+        if (remoteNodes.empty())
+        {
+            return nullptr;
+        }
+
+        for(auto remoteNode : remoteNodes) {
+            if (remoteNode->displayname() == fileName)
+            {
+                std::string remoteKey = remoteNode->nodekey();
+                const char *iva = &remoteKey[SymmCipher::KEYLENGTH];
+
+                SymmCipher cipher;
+                cipher.setkey((byte*)&remoteKey[0], remoteNode->type);
+
+                int64_t remoteIv = MemAccess::get<int64_t>(iva);
+                int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+
+                auto result = generateMetaMac(cipher, *fa, remoteIv);
+                if (result.first && result.second == remoteMac)
+                    return remoteNode;
+            }
+        }
+    }
+    return nullptr;
+}
+
 } // namespace

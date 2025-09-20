@@ -6556,6 +6556,54 @@ void exec_more(autocomplete::ACState& s)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions);
 
+
+void cloneNode(const std::string& name, std::shared_ptr<Node> nodeToClone, Node* parent)
+{
+    vector<NewNode> newnodes(1);
+    NewNode* newnode = &newnodes[0];
+
+    // build new node
+    newnode->source = NEW_NODE;
+    newnode->canChangeVault = false;
+    newnode->nodehandle = nodeToClone->nodehandle;
+
+    // file's crypto key
+    newnode->nodekey = nodeToClone->nodekey();
+    assert(newnode->nodekey.size() == FILENODEKEYLENGTH);
+
+    // copy attrs
+    AttrMap attrs;
+    attrs.map = nodeToClone->attrs.map;
+    attr_map::iterator it = attrs.map.find(AttrMap::string2nameid("rr"));
+    if (it != attrs.map.end())
+    {
+        LOG_debug << "Removing rr attribute for clone";
+        attrs.map.erase(it);
+    }
+    newnode->type = FILENODE;
+    newnode->parenthandle = UNDEF;
+
+    // store filename
+    attrs.map['n'] = name;
+
+    string tattrstring;
+    attrs.getjson(&tattrstring);
+
+    newnode->attrstring.reset(new string);
+    MegaClient::makeattr(
+        client->getRecycledTemporaryTransferCipher((byte*)newnode->nodekey.data(), FILENODE),
+        newnode->attrstring,
+        tattrstring.c_str());
+
+    client->putnodes(parent->nodeHandle(),
+                     UseLocalVersioningFlag,
+                     std::move(newnodes),
+                     nullptr,
+                     gNextClientTag++,
+                     false);
+}
+
+
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions)
@@ -6565,30 +6613,32 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
 
     if (type == FILENODE)
     {
-        auto fa = client->fsaccess->newfileaccess();
-        if (fa->fopen(localname, true, false, FSLogging::logOnError))
+        if (previousNode && previousNode->type != FILENODE)
         {
-            FileFingerprint fp;
-            fp.genfingerprint(fa.get());
+            cout << "Can't upload file over the top of a folder with the same name: " << name << endl;
+            return;
+        }
 
-            if (previousNode)
-            {
-                if (previousNode->type == FILENODE)
-                {
-                    if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode.get()))
-                    {
-                        cout << "Identical file already exist. Skipping transfer of " << name << endl;
+        auto fa = client->fsaccess->newfileaccess();
+        if (!fa->fopen(localname, true, false, FSLogging::logOnError))
+        {
+            cout << "Can't open file: " << name << endl;
+            return;
+        }
+        FileFingerprint fp;
+        fp.genfingerprint(fa.get());
+        fa.reset();
+
+        auto node = client->checkFileExistsRemotely(name, localname);
+        if (node) {
+            if (node->parent.get() == parent) {
+                cout << "Identical file already exist. Skipping transfer of " << name << endl;
                         return;
-                    }
-                }
-                else
-                {
-                    cout << "Can't upload file over the top of a folder with the same name: " << name << endl;
-                    return;
-                }
+            } else {
+                cout << "A file with the same content but different parent folder already exists. Make a copy node." << name << endl;
+                cloneNode(name, node, parent);
             }
-            fa.reset();
-
+        } else {
             AppFilePut* f = new AppFilePut(localname, parent ? parent->nodeHandle() : NodeHandle(), targetuser.c_str());
             f->noRetries = noRetries;
 
@@ -6596,11 +6646,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             *static_cast<FileFingerprint*>(f) = fp;
             f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
             client->startxfer(PUT, f, committer, false, false, false, vo, nullptr, client->nextreqtag());
-            total++;
-        }
-        else
-        {
-            cout << "Can't open file: " << name << endl;
+            total++;            
         }
     }
     else if (type == FOLDERNODE && recursive)
