@@ -1191,8 +1191,11 @@ bool ClientTransfer::isFuseTransfer() const
 
 void ClientDownload::completed(Transfer*, putsource_t)
 {
+    // Latch the callback.
+    auto callback = std::move(mCallback);
+
     // Tell waiter that we've completed.
-    mCallback(API_OK);
+    callback(API_OK);
 
     // Delete ourselves.
     delete this;
@@ -1204,8 +1207,11 @@ void ClientDownload::terminated(mega::error result)
     if (result == API_OK)
         result = API_EINCOMPLETE;
 
+    // Latch the callback.
+    auto callback = std::move(mCallback);
+
     // Tell waiter that we encountered an error.
-    mCallback(result);
+    callback(result);
 
     // Delete ourselves.
     delete this;
@@ -1255,8 +1261,11 @@ bool ClientDownload::begin(MegaClient& client)
     if (result == API_OK)
         return client.waiter->notify(), true;
 
+    // Latch callback.
+    auto callback = std::move(mCallback);
+
     // Couldn't start the transfer.
-    mCallback(result);
+    callback(result);
 
     return false;
 }
