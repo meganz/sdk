@@ -527,8 +527,9 @@ void FileContext::dequeued(std::unique_lock<std::mutex> lock, const FileRequest&
         request);
 }
 
-template<typename Lock>
-bool FileContext::executable(Lock&& lock, bool queuing, const FileRequest& request)
+bool FileContext::executable(std::unique_lock<std::mutex>& lock,
+                             bool queuing,
+                             const FileRequest& request)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());
@@ -536,13 +537,14 @@ bool FileContext::executable(Lock&& lock, bool queuing, const FileRequest& reque
     return std::visit(
         [&lock, queuing, this](auto&& request)
         {
-            return this->executable(std::forward<Lock>(lock), queuing, tag(request));
+            return this->executable(lock, queuing, tag(request));
         },
         request);
 }
 
-template<typename Lock>
-bool FileContext::executable([[maybe_unused]] Lock&& lock, bool queuing, FileReadRequestTag)
+bool FileContext::executable([[maybe_unused]] std::unique_lock<std::mutex>& lock,
+                             bool queuing,
+                             FileReadRequestTag)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());
@@ -553,8 +555,9 @@ bool FileContext::executable([[maybe_unused]] Lock&& lock, bool queuing, FileRea
     return mReadWriteState.read();
 }
 
-template<typename Lock>
-bool FileContext::executable([[maybe_unused]] Lock&& lock, bool, FileWriteRequestTag)
+bool FileContext::executable([[maybe_unused]] std::unique_lock<std::mutex>& lock,
+                             bool,
+                             FileWriteRequestTag)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());
@@ -1307,7 +1310,7 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
 
     // Request isn't executable so queue it for later execution.
     if (std::unique_lock lock(mRequestsLock); !executable(lock, true, request))
-        return queue(lock, std::forward<Request>(request));
+        return queue(std::move(lock), std::forward<Request>(request));
 
     // Otherwise execute the request.
     execute(request);
@@ -1388,8 +1391,8 @@ FileServiceOptions FileContext::options() const
     return mService.options();
 }
 
-template<typename Lock, typename Request>
-auto FileContext::queue([[maybe_unused]] Lock&& lock, Request&& request)
+template<typename Request>
+auto FileContext::queue(std::unique_lock<std::mutex> lock, Request&& request)
     -> std::enable_if_t<IsFileRequestV<Request>>
 {
     assert(lock.mutex() == &mRequestsLock);
@@ -1406,18 +1409,16 @@ auto FileContext::queue([[maybe_unused]] Lock&& lock, Request&& request)
         mRequests.emplace_back(Tag(), std::forward<Request>(request));
 
     // Perform post-queue actions.
-    queued(std::forward<Lock>(lock), tag(request));
+    queued(std::move(lock), tag(request));
 }
 
-template<typename Lock>
-void FileContext::queued([[maybe_unused]] Lock&& lock, FileReadRequestTag)
+void FileContext::queued([[maybe_unused]] std::unique_lock<std::mutex> lock, FileReadRequestTag)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());
 }
 
-template<typename Lock>
-void FileContext::queued([[maybe_unused]] Lock&& lock, FileWriteRequestTag)
+void FileContext::queued([[maybe_unused]] std::unique_lock<std::mutex> lock, FileWriteRequestTag)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());

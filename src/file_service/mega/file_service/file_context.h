@@ -98,15 +98,11 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     void dequeued(std::unique_lock<std::mutex> lock, const FileRequest& request);
 
     // Check if a request can be executed.
-    template<typename Lock>
-    bool executable(Lock&& lock, bool queuing, const FileRequest& request);
+    bool executable(std::unique_lock<std::mutex>& lock, bool queuing, const FileRequest& request);
 
     // Check if a particular class of request can be executed.
-    template<typename Lock>
-    bool executable(Lock&& lock, bool queuing, FileReadRequestTag tag);
-
-    template<typename Lock>
-    bool executable(Lock&& lock, bool queuing, FileWriteRequestTag tag);
+    bool executable(std::unique_lock<std::mutex>& lock, bool queuing, FileReadRequestTag tag);
+    bool executable(std::unique_lock<std::mutex>& lock, bool queuing, FileWriteRequestTag tag);
 
     // Called to execute an arbitrary function on the service's thread pool.
     void execute(std::function<void()> function) override;
@@ -169,15 +165,13 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     FileServiceOptions options() const override;
 
     // Queue a request for later execution.
-    template<typename Lock, typename Request>
-    auto queue(Lock&& lock, Request&& request) -> std::enable_if_t<IsFileRequestV<Request>>;
+    template<typename Request>
+    auto queue(std::unique_lock<std::mutex> lock, Request&& request)
+        -> std::enable_if_t<IsFileRequestV<Request>>;
 
     // Called when a request of a particular class has been queued.
-    template<typename Lock>
-    void queued(Lock&& lock, FileReadRequestTag tag);
-
-    template<typename Lock>
-    void queued(Lock&& lock, FileWriteRequestTag tag);
+    void queued(std::unique_lock<std::mutex> lock, FileReadRequestTag tag);
+    void queued(std::unique_lock<std::mutex> lock, FileWriteRequestTag tag);
 
     // Remove zero or more ranges from the database.
     void removeRanges(const FileRange& range, common::Transaction& transaction);
