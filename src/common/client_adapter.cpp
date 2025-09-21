@@ -1899,6 +1899,14 @@ void ClientUpload::completed(Transfer* upload, putsource_t)
                                   *upload->ultoken);
 
     // Latch callback.
+    //
+    // The reason we're moving the callback into a local here is to ensure
+    // that the callback's closure is destroyed when this function returns.
+    //
+    // This is necessary to prevent reference cycles.
+    //
+    // That is, the callback might reference this upload which itself
+    // references the callback.
     auto callback = std::move(mCallback);
 
     // Let the user know they can bind a name to their data.
@@ -1914,6 +1922,8 @@ void ClientUpload::terminated(mega::error result)
     mStatus |= SF_COMPLETED;
 
     // Latch callback.
+    //
+    // See completed(...) as to why this is necessary.
     auto callback = std::move(mCallback);
 
     // Let the user know the upload failed.
