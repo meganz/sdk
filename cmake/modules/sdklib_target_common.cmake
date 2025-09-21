@@ -8,10 +8,6 @@ target_include_directories(CommonHeaderPaths INTERFACE
 
 target_link_libraries(SDKlib PRIVATE CommonHeaderPaths)
 
-target_compile_definitions(SDKlib PUBLIC
-    $<$<OR:$<BOOL:${APPLE}>,$<EQUAL:${CMAKE_SIZEOF_VOID_P},4>>:HAS_DISTINCT_TIME_T>
-)
-
 target_sources(SDKlib PRIVATE
                       include/mega/common/activity_monitor.h
                       include/mega/common/activity_monitor_forward.h

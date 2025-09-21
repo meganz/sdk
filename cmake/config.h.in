@@ -57,6 +57,9 @@
 #cmakedefine HAVE_PDFIUM 1
 #endif
 
+/* Defined if std::int64_t and time_t are distinct. */
+#cmakedefine HAVE_DISTINCT_TIME_T 1
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #cmakedefine HAVE_INTTYPES_H 1
 

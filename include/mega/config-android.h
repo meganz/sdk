@@ -31,6 +31,9 @@
 /* Define to 1 if you have the `inotify_init' function. */
 #define HAVE_INOTIFY_INIT 1
 
+/* Defined if std::int64_t and time_t are distinct. */
+/* #undef HAVE_DISTINCT_TIME_T */
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
 
