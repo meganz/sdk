@@ -497,15 +497,13 @@ void FileContext::completed(FileWriteRequest&& request)
     completed(std::move(request), FileWriteResult{begin, end - begin});
 }
 
-template<typename Lock>
-void FileContext::dequeued([[maybe_unused]] Lock&& lock, FileReadRequestTag)
+void FileContext::dequeued([[maybe_unused]] std::unique_lock<std::mutex> lock, FileReadRequestTag)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());
 }
 
-template<typename Lock>
-void FileContext::dequeued([[maybe_unused]] Lock&& lock, FileWriteRequestTag)
+void FileContext::dequeued([[maybe_unused]] std::unique_lock<std::mutex> lock, FileWriteRequestTag)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());
@@ -516,8 +514,7 @@ void FileContext::dequeued([[maybe_unused]] Lock&& lock, FileWriteRequestTag)
     --mNumPendingWriteRequests;
 }
 
-template<typename Lock>
-void FileContext::dequeued(Lock&& lock, const FileRequest& request)
+void FileContext::dequeued(std::unique_lock<std::mutex> lock, const FileRequest& request)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());
@@ -525,7 +522,7 @@ void FileContext::dequeued(Lock&& lock, const FileRequest& request)
     std::visit(
         [&lock, this](auto&& request)
         {
-            this->dequeued(std::forward<Lock>(lock), tag(request));
+            this->dequeued(std::move(lock), tag(request));
         },
         request);
 }

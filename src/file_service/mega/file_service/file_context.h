@@ -91,15 +91,11 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     void completed(FileWriteRequest&& request);
 
     // Called when a request of a particular class is dequeued.
-    template<typename Lock>
-    void dequeued(Lock&& lock, FileReadRequestTag tag);
-
-    template<typename Lock>
-    void dequeued(Lock&& lock, FileWriteRequestTag tag);
+    void dequeued(std::unique_lock<std::mutex> lock, FileReadRequestTag tag);
+    void dequeued(std::unique_lock<std::mutex> lock, FileWriteRequestTag tag);
 
     // Called when a request has been dequeued.
-    template<typename Lock>
-    void dequeued(Lock&& lock, const FileRequest& request);
+    void dequeued(std::unique_lock<std::mutex> lock, const FileRequest& request);
 
     // Check if a request can be executed.
     template<typename Lock>
