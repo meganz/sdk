@@ -121,7 +121,7 @@ pipeline {
                             script {
                                 setCommitStatus('build_failure', ':warning: Checkout failed')
                             }
-                            error("Checkout stage failed")
+                            echo 'Error: Checkout stage failed'
                         }
                     }
                 }
@@ -166,7 +166,7 @@ pipeline {
                             script {
                                 setCommitStatus('build_failure', ':warning: Build failed. Tests won`t run')
                             }
-                            error("Build stage failed. Tests won't run.")
+                            echo "Error: Build stage failed. Tests won't run."
                         }
                     }
                 }
@@ -232,7 +232,7 @@ pipeline {
                             script {
                                 setCommitStatus('tests_failure', ':warning: Build succeed. Tests failed')
                             }
-                            error("Test stage failed")
+                            echo 'Error: Test stage failed'
                         }
                     }
                 }
