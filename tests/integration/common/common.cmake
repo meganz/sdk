@@ -43,7 +43,6 @@ target_sources(test_integration PRIVATE
 target_include_directories(test_integration PRIVATE
     $<$<BOOL:UNIX>:${CMAKE_CURRENT_SOURCE_DIR}/common/posix>
     $<$<BOOL:WIN32>:${CMAKE_CURRENT_SOURCE_DIR}/common/windows>
-    ${CMAKE_CURRENT_LIST_DIR}/../..
 )
 
 target_sources_conditional(test_integration FLAG UNIX PRIVATE

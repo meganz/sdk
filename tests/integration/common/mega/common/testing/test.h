@@ -1,13 +1,12 @@
 #pragma once
 
-#include "integration/test.h"
-
 #include <gtest/gtest.h>
 #include <mega/common/testing/path.h>
 
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <test.h>
 
 namespace mega
 {

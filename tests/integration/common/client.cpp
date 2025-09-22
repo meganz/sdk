@@ -1,6 +1,3 @@
-#include "integration/env_var_accounts.h"
-#include "integration/test.h"
-
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
 #include <mega/common/normalized_path.h>
@@ -11,8 +8,10 @@
 #include <mega/common/utility.h>
 
 #include <atomic>
+#include <env_var_accounts.h>
 #include <future>
 #include <mutex>
+#include <test.h>
 
 namespace mega
 {

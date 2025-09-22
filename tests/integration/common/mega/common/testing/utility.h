@@ -1,7 +1,5 @@
 #pragma once
 
-#include "stdfs.h"
-
 #include <mega/common/date_time_forward.h>
 #include <mega/common/error_or_forward.h>
 #include <mega/common/testing/path_forward.h>
@@ -10,6 +8,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <stdfs.h>
 #include <string>
 #include <thread>
 
