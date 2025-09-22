@@ -290,7 +290,9 @@ void clientUpload(MegaClient& mc,
         const auto displayPath = cloneNode->displaypath();
         LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for "
                   << upload->sourceLocalname << " (ovHandleIfShortcut: "
-                  << Base64Str<MegaClient::NODEHANDLE>(ovHandleIfShortcut.as8byte()) << ")";
+                  << Base64Str<MegaClient::NODEHANDLE>(ovHandleIfShortcut.as8byte()) << ")"
+                  << " found cloneNode (handle): "
+                  << Base64Str<MegaClient::NODEHANDLE>(cloneNode->nodeHandle().as8byte()) << ")";
 
         // completion function is supplied to putNodes command
         upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNode);
