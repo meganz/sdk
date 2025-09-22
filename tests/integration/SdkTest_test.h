@@ -502,7 +502,6 @@ using MegaApiTestPointer = std::unique_ptr<MegaApiTest, MegaApiTestDeleter>;
 // Fixture class with common code for most of tests
 class SdkTest:
     public SdkTestBase,
-    public SdkTestDataProvider,
     public MegaListener,
     public MegaRequestListener,
     MegaTransferListener,

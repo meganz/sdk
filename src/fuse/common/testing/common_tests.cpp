@@ -1,4 +1,5 @@
-#include <fstream>
+#include "megafs.h"
+#include "sdk_test_data_provider.h"
 
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
@@ -14,8 +15,10 @@
 #include <mega/fuse/common/testing/test_base.h>
 #include <mega/fuse/common/testing/utility.h>
 #include <mega/fuse/platform/platform.h>
+#include <mega/fuse/platform/testing/wrappers.h>
 
-#include "megafs.h"
+#include <filesystem>
+#include <fstream>
 
 namespace mega
 {
@@ -624,6 +627,41 @@ TEST_F(FUSECommonTests, supports_entities_with_international_names)
         return ClientW()->handle("x/s/sd0/sd0f0") == sd0f0
                && ClientW()->handle("x/s/sd0") == sd0;
     }, mDefaultTimeout));
+}
+
+TEST_F(FUSECommonTests, supports_gfx)
+{
+    constexpr fatype THUMBNAIL = 0;
+    constexpr fatype PREVIEW = 1;
+    static constexpr const char* imageName = "logo.png";
+    static constexpr const char* imagePath = "/x/s/logo.png";
+
+    // Download a test image from artifactory.
+    auto mountPath = MountPathW() / imageName;
+    ASSERT_TRUE(getFileFromArtifactory(std::string{"test-data/"} + imageName, mountPath));
+
+    // Make sure the file is flushed to the cloud.
+    ASSERT_TRUE(flushFile(mountPath));
+
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            auto info = ClientW()->get(imagePath);
+
+            // File isn't in the cloud.
+            if (!info)
+                return false;
+
+            // File doesn't have expected attributes.
+            if (!ClientW()->hasFileAttribute(info->mHandle, THUMBNAIL))
+                return false;
+
+            if (!ClientW()->hasFileAttribute(info->mHandle, PREVIEW))
+                return false;
+
+            return true;
+        },
+        mDefaultTimeout));
 }
 
 handle fsidOf(const Path& path)

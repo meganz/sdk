@@ -111,6 +111,8 @@ class RealClient
     // How the client waits for activity to occur.
     std::shared_ptr<Waiter> mWaiter;
 
+    std::unique_ptr<GfxProc> mGfxProc;
+
 public:
     RealClient(const std::string& clientName, const Path& databasePath, const Path& storagePath);
 
@@ -118,6 +120,9 @@ public:
 
     // Is the specified user a contact?
     auto contact(const std::string& email) const -> ContactPtr override;
+
+    // Query whether a node has file attributes.
+    bool hasFileAttribute(NodeHandle handle, fatype type) const override;
 
     // Send a friendship invite to the specified user.
     auto invite(const std::string& email) -> common::ErrorOr<InvitePtr> override;

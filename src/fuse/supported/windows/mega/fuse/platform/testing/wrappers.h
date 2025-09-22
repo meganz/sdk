@@ -148,6 +148,8 @@ BOOL SetFileAttributesP(const Path& path, DWORD attributes);
 BOOL SetFileSecurityP(const Path& path,
                       const platform::SecurityDescriptor& descriptor);
 
+bool flushFile(const Path& path);
+
 } // testing
 } // fuse
 } // mega
