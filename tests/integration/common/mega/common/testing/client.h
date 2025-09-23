@@ -230,8 +230,8 @@ public:
     // Download part of a file from the cloud.
     auto partialDownload(common::PartialDownloadCallback& callback,
                          common::testing::CloudPath path,
-                         std::uint64_t offset,
-                         std::uint64_t length) -> common::ErrorOr<common::PartialDownloadPtr>;
+                         std::uint64_t length,
+                         std::uint64_t offset) -> common::ErrorOr<common::PartialDownloadPtr>;
 
     // Reload the cloud tree.
     virtual Error reload() = 0;

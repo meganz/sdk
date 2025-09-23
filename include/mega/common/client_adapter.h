@@ -131,8 +131,15 @@ public:
     // Download part of a file from the cloud.
     auto partialDownload(PartialDownloadCallback& callback,
                          NodeHandle handle,
-                         std::uint64_t offset,
-                         std::uint64_t length) -> ErrorOr<PartialDownloadPtr> override;
+                         std::uint64_t length,
+                         std::uint64_t offset) -> ErrorOr<PartialDownloadPtr> override;
+
+    // Download part of a foreign file from the cloud.
+    auto partialDownload(PartialDownloadCallback& callback,
+                         NodeHandle handle,
+                         const NodeKeyData& keyData,
+                         std::uint64_t length,
+                         std::uint64_t offset) -> ErrorOr<PartialDownloadPtr> override;
 
     // What permissions are applicable to a node?
     ErrorOr<accesslevel_t> permissions(NodeHandle handle) const override;

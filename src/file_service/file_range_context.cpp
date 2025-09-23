@@ -250,7 +250,7 @@ auto FileRangeContext::download(Client& client, FileBufferPtr buffer, NodeHandle
     }();
 
     // Try and create a partial download.
-    auto download = client.partialDownload(*this, handle, offset, length);
+    auto download = client.partialDownload(*this, handle, length, offset);
 
     // Couldn't create the download.
     if (!download)

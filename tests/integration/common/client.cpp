@@ -323,13 +323,13 @@ Error Client::move(const std::string& name, CloudPath source, CloudPath target)
 
 auto Client::partialDownload(PartialDownloadCallback& callback,
                              CloudPath path,
-                             std::uint64_t offset,
-                             std::uint64_t length) -> ErrorOr<PartialDownloadPtr>
+                             std::uint64_t length,
+                             std::uint64_t offset) -> ErrorOr<PartialDownloadPtr>
 {
     auto handle = path.resolve(*this);
 
     if (handle)
-        return client().partialDownload(callback, *handle, offset, length);
+        return client().partialDownload(callback, *handle, length, offset);
 
     return unexpected(handle.error());
 }
