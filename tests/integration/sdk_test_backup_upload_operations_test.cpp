@@ -96,10 +96,38 @@ public:
 protected:
     void SetUp() override;
     void TearDown() override;
-    void setupDestinationDirectory();
-    std::vector<std::string> getLocalFirstChildrenNames() const;
-    MegaHandle getDestinationFolderHandle() const;
+
+    /**
+     * @brief Creates the `archive` destination directory in the cloud used to store deconfigured
+     * backup nodes.
+     */
+    void createArchiveDestinationFolder();
+
+    /**
+     * @brief Returns the names of the first-level children in the local backup folder.
+     * @note Hidden files and DEBRISFOLDER are ignored
+     * @return Vector with the names of local files and directories.
+     */
+    std::vector<std::string> getLocalFirstLevelChildrenNames() const;
+
+    /**
+     * @brief Gets the handle of the `archive` destination folder in the cloud.
+     * @return Handle of the `archive` destination folder.
+     */
+    MegaHandle getArchiveDestinationFolderHandle() const;
+
+    /**
+     * @brief Gets the handle of the backup root folder in the cloud.
+     * @return Handle of the backup root folder.
+     */
     MegaHandle getBackupRootHandle() const;
+
+    /**
+     * @brief Recursively checks that the local and cloud models match.
+     * @param parentHandle handle of the cloud parent node.
+     * @param localPath Local relative path corresponding to the parent node.
+     * @return True if both models match, false otherwise.
+     */
     bool checkSyncRecursively(const MegaHandle parentHandle, const std::string& localPath) const;
     shared_ptr<sdk_test::LocalTempFile>
         createLocalFile(const fs::path& filePath,
@@ -150,7 +178,7 @@ void SdkTestBackupUploadsOperations::moveDeconfiguredBackupNodesToCloud()
     NiceMock<MockRequestListener> reqListener{megaApi[0].get()};
     reqListener.setErrorExpectations(API_OK);
     megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(getBackupRootHandle(),
-                                                    getDestinationFolderHandle(),
+                                                    getArchiveDestinationFolderHandle(),
                                                     &reqListener);
     ASSERT_TRUE(reqListener.waitForFinishOrTimeout(MAX_TIMEOUT)) << "";
 }
@@ -181,7 +209,7 @@ void SdkTestBackupUploadsOperations::SetUp()
 {
     SdkTestBackup::SetUp();
     ASSERT_NO_FATAL_FAILURE(createBackupSync());
-    ASSERT_NO_FATAL_FAILURE(setupDestinationDirectory());
+    ASSERT_NO_FATAL_FAILURE(createArchiveDestinationFolder());
     const std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByBackupId(getBackupId())};
     ASSERT_TRUE(sync);
     mBackupRootHandle = sync->getMegaHandle();
@@ -220,7 +248,7 @@ void SdkTestBackupUploadsOperations::TearDown()
     SdkTestBackup::TearDown();
 }
 
-void SdkTestBackupUploadsOperations::setupDestinationDirectory()
+void SdkTestBackupUploadsOperations::createArchiveDestinationFolder()
 {
     unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode) << "setupDestinationDirectory: Account root node not available.";
@@ -230,7 +258,7 @@ void SdkTestBackupUploadsOperations::setupDestinationDirectory()
         << "setupDestinationDirectory: Invalid destination folder handle";
 }
 
-std::vector<std::string> SdkTestBackupUploadsOperations::getLocalFirstChildrenNames() const
+std::vector<std::string> SdkTestBackupUploadsOperations::getLocalFirstLevelChildrenNames() const
 {
     fs::path localFolderPath = getLocalFolderPath();
     return sdk_test::getLocalFirstChildrenNames_if(localFolderPath,
@@ -241,7 +269,7 @@ std::vector<std::string> SdkTestBackupUploadsOperations::getLocalFirstChildrenNa
                                                    });
 }
 
-MegaHandle SdkTestBackupUploadsOperations::getDestinationFolderHandle() const
+MegaHandle SdkTestBackupUploadsOperations::getArchiveDestinationFolderHandle() const
 {
     return mCloudArchiveBackupFolderHandle;
 }
@@ -261,7 +289,7 @@ bool SdkTestBackupUploadsOperations::checkSyncRecursively(const MegaHandle paren
         return false;
     }
 
-    const auto localChildrenNames = getLocalFirstChildrenNames();
+    const auto localChildrenNames = getLocalFirstLevelChildrenNames();
     if (!Value(localChildrenNames, UnorderedElementsAreArray(childrenCloudNames.value())))
     {
         return false;
