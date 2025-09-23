@@ -30,8 +30,7 @@ public:
      *          auto cleanup = setCleanupFunction();
      *  - example2 (custom cleanupFunction):
      *          auto cleanup = setCleanupFunction([this](){
-     *              mMtl.reset();
-     *              mMsl.reset();
+     *              // custom cleanup function code
      *          });
      *
      * @note: is mandatory calling this method at the beginning of each test of this file, otherwise
@@ -54,8 +53,17 @@ public:
             return std::make_unique<MrProper>(
                 [this]()
                 {
-                    mMtl.reset();
-                    mMsl.reset();
+                    if (mMtl)
+                    {
+                        megaApi[0]->removeListener(mMtl.get());
+                        mMtl.reset();
+                    }
+
+                    if (mMsl)
+                    {
+                        megaApi[0]->removeListener(mMsl.get());
+                        mMsl.reset();
+                    }
                 });
         }
     }
@@ -152,9 +160,9 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
 {
     std::shared_ptr<std::promise<int>> fileUploadPms = std::make_shared<std::promise<int>>();
     std::unique_ptr<std::future<int>> fut(new std::future<int>(fileUploadPms->get_future()));
-    NiceMock<MockSyncListener> msl{megaApi[0].get()};
+    NiceMock<MockSyncListener> mslTemp{megaApi[0].get()};
     const auto hasExpectedId = Pointee(Property(&MegaSync::getBackupId, getBackupId()));
-    EXPECT_CALL(msl, onSyncFileStateChanged(_, hasExpectedId, _, _))
+    EXPECT_CALL(mslTemp, onSyncFileStateChanged(_, hasExpectedId, _, _))
         .WillRepeatedly(
             [&fileUploadPms, localFilePathStr = localFilePathAbs.string()](MegaApi*,
                                                                            MegaSync*,
@@ -167,10 +175,11 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
                     fileUploadPms->set_value(newState);
                 }
             });
-    megaApi[0]->addListener(&msl);
-
-    auto localFile2 = createLocalFile(localFilePathAbs, contents, customMtime);
-    return {fut->wait_for(COMMON_TIMEOUT) == std::future_status::ready, localFile2};
+    megaApi[0]->addListener(&mslTemp);
+    auto localFile = createLocalFile(localFilePathAbs, contents, customMtime);
+    const auto succeeded = fut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
+    megaApi[0]->removeListener(&mslTemp);
+    return {succeeded, localFile};
 }
 
 void SdkTestBackupUploadsOperations::moveDeconfiguredBackupNodesToCloud()
@@ -379,7 +388,7 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
                                                               fs::file_time_type::clock::now());
 
         ASSERT_TRUE(res) << "Cannot create local file `" << filename << "`";
-        localFiles.push_back(std::move(localFile));
+        localFiles.push_back(localFile);
     }
 
     LOG_debug << logPre << "#### TC4 suspending sync ####";
