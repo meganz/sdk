@@ -35,7 +35,6 @@ let package = Package(
                 "examples",
                 "src/android",
                 "src/common/client_adapter_with_sync.cpp",
-                "src/common/testing",
                 "src/file_service/documentation",
                 "src/file_service/testing",
                 "src/fuse/supported",
@@ -53,7 +52,6 @@ let package = Package(
                 .headerSearchPath("src/fuse/unsupported"),
                 .headerSearchPath("third_party/ccronexpr"),
                 .define("ENABLE_CHAT"),
-                .define("HAS_DISTINCT_TIME_T"),
                 .define("HAVE_LIBUV"),
                 .define("NDEBUG", .when(configuration: .release))
             ],
