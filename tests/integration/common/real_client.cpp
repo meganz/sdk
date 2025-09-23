@@ -292,6 +292,35 @@ void RealClient::nodes_current()
     nodesCurrent(true);
 }
 
+auto RealClient::parsePublicLink(const PublicLink& link)
+    -> ErrorOr<std::pair<NodeHandle, std::string>>
+{
+    // Will store the file's public handle.
+    ::mega::handle handle;
+
+    // Will store the file's decryption key.
+    std::string key(FILENODEKEYLENGTH, '\0');
+
+    // For simplicity, let's assume the link denotes a file.
+    constexpr auto linkType = TypeOfLink::FILE;
+
+    // Make sure no one else is messing with the client.
+    std::lock_guard guard(mClientLock);
+
+    // Try and destructure the link.
+    auto result = mClient->parsepubliclink(link.get().data(),
+                                           handle,
+                                           reinterpret_cast<byte*>(key.data()),
+                                           linkType);
+
+    // Couldn't destructure the link.
+    if (result != API_OK)
+        return unexpected(result);
+
+    // Return the file's handle and key to our caller.
+    return std::make_pair(NodeHandle().set6byte(handle), std::move(key));
+}
+
 Error RealClient::openShareDialog(NodeHandle handle)
 {
     std::unique_lock<std::mutex> lock(mClientLock);

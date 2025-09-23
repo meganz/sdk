@@ -64,6 +64,10 @@ class RealClient: public virtual Client, protected MegaApp
     // Called when the client emits a "nodes current" event.
     void nodes_current() override;
 
+    // Extract the public node handle and decryption key from a public link.
+    auto parsePublicLink(const PublicLink& link)
+        -> common::ErrorOr<std::pair<NodeHandle, std::string>> override;
+
     // Prepare the specified node for sharing.
     Error openShareDialog(NodeHandle handle);
 
