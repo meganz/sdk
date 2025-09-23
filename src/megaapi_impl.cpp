@@ -25673,27 +25673,30 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                 return API_EARGS;
             }
 
-            std::function<error(string *)> addFileAttrsFunc;
+            std::function<error(string&)> addFileAttrsFunc;
             std::function<error(AttrMap& attrs)> addNodeAttrsFunc;
 
             if (bgMediaUpload)
             {
-                addFileAttrsFunc = [bgMediaUpload](string *fileattributes)
+                addFileAttrsFunc = [bgMediaUpload](string& fileattributes)
                 {
-                    appendFileAttribute(*fileattributes, GfxProc::THUMBNAIL, bgMediaUpload->thumbnailFA);
-                    appendFileAttribute(*fileattributes, GfxProc::PREVIEW, bgMediaUpload->previewFA);
+                    appendFileAttribute(fileattributes,
+                                        GfxProc::THUMBNAIL,
+                                        bgMediaUpload->thumbnailFA);
+                    appendFileAttribute(fileattributes, GfxProc::PREVIEW, bgMediaUpload->previewFA);
 
-    #ifdef USE_MEDIAINFO
+#ifdef USE_MEDIAINFO
                     if (bgMediaUpload->mediaproperties.isPopulated())
                     {
-                        if (!fileattributes->empty())
+                        if (!fileattributes.empty())
                         {
-                            fileattributes->append("/");
+                            fileattributes.append("/");
                         }
-                        fileattributes->append(MediaProperties::encodeMediaPropertiesAttributes(bgMediaUpload->mediaproperties,
-                                                                (uint32_t*)(bgMediaUpload->filekey + FILENODEKEYLENGTH / 2)));
+                        fileattributes.append(MediaProperties::encodeMediaPropertiesAttributes(
+                            bgMediaUpload->mediaproperties,
+                            (uint32_t*)(bgMediaUpload->filekey + FILENODEKEYLENGTH / 2)));
                     }
-    #endif
+#endif
                     return API_OK;
                 };
 
@@ -28139,7 +28142,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                 newNode.type = completeUploadData ? FILENODE : FOLDERNODE;
                 newNode.nodehandle = tmpNodeHandle++;
                 newNode.parenthandle = tmpParentNodeHandle;
-                newNode.fileattributes.reset(new string);
+                newNode.fileattributes.clear();
                 tmpParentNodeHandle = newNode.nodehandle;
 
                 // Normalize name

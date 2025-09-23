@@ -1181,11 +1181,10 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
                 // include pending file attributes for this upload
                 string s;
 
-                if (nni->fileattributes)
+                if (!nni->fileattributes.empty())
                 {
                     // if attributes are set on the newnode then the app is not using the pendingattr mechanism
-                    s.swap(*nni->fileattributes);
-                    nni->fileattributes.reset();
+                    s = std::move(nni->fileattributes);
                 }
                 else
                 {

@@ -404,8 +404,7 @@ void File::sendPutnodesOfUpload(MegaClient* client,
     // upload handle required to retrieve/include pending file attributes
     // or file attribute value if it is not empty
     newnode->uploadhandle = fileAttrMatchHandle;
-    if (!fileAttr.empty())
-        newnode->fileattributes.reset(new std::string(std::move(fileAttr)));
+    newnode->fileattributes = std::move(fileAttr);
 
     // reference to uploaded file
     newnode->uploadtoken = ultoken;
