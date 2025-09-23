@@ -17,6 +17,7 @@
 #include <condition_variable>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 
 namespace mega
@@ -66,6 +67,17 @@ protected:
     Client(const std::string& clientName,
            const common::testing::Path& databasePath,
            const common::testing::Path& storagePath);
+
+    // Retrieve information about a foreign node.
+    using GetCallback = std::function<void(ErrorOr<NodeInfo>)>;
+
+    virtual void get(GetCallback callback,
+                     NodeHandle handle,
+                     bool isPrivate,
+                     const void* key,
+                     std::size_t keyLength,
+                     const char* privateAuth,
+                     const char* publicAuth) = 0;
 
     // Get (or create) a public link for the specified node.
     using GetPublicLinkCallback = std::function<void(ErrorOr<PublicLink>)>;
@@ -180,6 +192,14 @@ public:
 
     // Retrieve information about a node.
     common::ErrorOr<common::NodeInfo> get(common::testing::CloudPath path) const;
+
+    // Retrieve information about a foreign node.
+    common::ErrorOr<common::NodeInfo> get(NodeHandle handle,
+                                          bool isPrivate,
+                                          const void* key,
+                                          std::size_t keyLength,
+                                          const char* privateAuth,
+                                          const char* publicAuth);
 
     // Get (or create) a public lionk for the specified node.
     auto getPublicLink(common::testing::CloudPath path) -> ErrorOr<PublicLink>;

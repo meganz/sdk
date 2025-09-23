@@ -1,4 +1,5 @@
 #include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/real_client.h>
 #include <mega/common/utility.h>
@@ -443,6 +444,81 @@ bool RealClient::shared(const std::string& email,
     // Have we shared our node with the specified user?
     return (node->outshares && scan(*node->outshares)) ||
            (node->pendingshares && scan(*node->pendingshares));
+}
+
+void RealClient::get(GetCallback callback,
+                     NodeHandle handle,
+                     bool isPrivate,
+                     const void* key,
+                     std::size_t keyLength,
+                     const char* privateAuth,
+                     const char* publicAuth)
+{
+    // Sanity.
+    assert(callback);
+    assert(key);
+    assert(keyLength);
+
+    // Acquire client lock.
+    std::lock_guard guard(mClientLock);
+
+    // Called when we've retrieved the node's information.
+    auto retrieved = [](GetCallback& callback,
+                        NodeHandle handle,
+                        std::string* name,
+                        const Error& result,
+                        std::int64_t size)
+    {
+        // Couldn't retrieve file information.
+        if (result != API_OK)
+            return callback(unexpected(result)), true;
+
+        // Couldn't retrieve the file's name.
+        if (!name)
+            return callback(unexpected(API_EFAILED)), true;
+
+        // Build a minimal description for the node.
+        NodeInfo info;
+
+        info.mHandle = handle;
+        info.mIsDirectory = false;
+        info.mName = *name;
+        info.mPermissions = RDONLY;
+        info.mSize = size;
+
+        // Pass description to our waiter.
+        callback(std::move(info));
+
+        // Let our caller know that we've handled the response.
+        return true;
+    }; // retrieved
+
+    // Instantiate a request for this file's information.
+    auto request = std::make_unique<CommandGetFile>(mClient.get(),
+                                                    static_cast<const byte*>(key),
+                                                    keyLength,
+                                                    false,
+                                                    handle.as8byte(),
+                                                    isPrivate,
+                                                    privateAuth,
+                                                    publicAuth,
+                                                    nullptr,
+                                                    false,
+                                                    std::bind(std::move(retrieved),
+                                                              std::move(callback),
+                                                              handle,
+                                                              std::placeholders::_4,
+                                                              std::placeholders::_1,
+                                                              std::placeholders::_2));
+
+    // Ask the client to execute this request.
+    mClient->reqs.add(request.get());
+
+    // Client now owns the request.
+    request.release();
+
+    // Let the client know it has work to do.
+    mClient->waiter->notify();
 }
 
 void RealClient::getPublicLink(GetPublicLinkCallback callback, NodeHandle handle)

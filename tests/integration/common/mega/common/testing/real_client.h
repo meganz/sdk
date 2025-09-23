@@ -82,6 +82,15 @@ class RealClient: public virtual Client, protected MegaApp
     bool shared(const std::string& email, NodeHandle handle, accesslevel_t permissions) const;
 
 protected:
+    // Retrieve information about a foreign node.
+    void get(GetCallback callback,
+             NodeHandle handle,
+             bool isPrivate,
+             const void* key,
+             std::size_t keyLength,
+             const char* privateAuth,
+             const char* publicAuth) override;
+
     // Get (or create) a public link for the specified node.
     void getPublicLink(GetPublicLinkCallback callback, NodeHandle handle) override;
 

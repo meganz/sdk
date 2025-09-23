@@ -217,6 +217,29 @@ ErrorOr<NodeInfo> Client::get(CloudPath path) const
     return unexpected(handle.error());
 }
 
+ErrorOr<NodeInfo> Client::get(NodeHandle handle,
+                              bool isPrivate,
+                              const void* key,
+                              std::size_t keyLength,
+                              const char* privateAuth,
+                              const char* publicAuth)
+{
+    // So we can signal when we've retrieved the file's information.
+    auto notifier = makeSharedPromise<ErrorOr<NodeInfo>>();
+
+    // Called when we've retrieved the file's information.
+    auto retrieved = [notifier](ErrorOr<NodeInfo> result)
+    {
+        notifier->set_value(std::move(result));
+    }; // retrieved
+
+    // Try and retrieve the file's information.
+    get(std::move(retrieved), handle, isPrivate, key, keyLength, privateAuth, publicAuth);
+
+    // Return the file's information to our caller.
+    return waitFor(notifier->get_future());
+}
+
 auto Client::getPublicLink(CloudPath path) -> ErrorOr<PublicLink>
 {
     // Try and resolve the path to a node handle.
