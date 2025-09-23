@@ -3092,6 +3092,10 @@ void FileServiceTests::SetUpTestSuite()
 
     // Latch the root handle for later use.
     mRootHandle = *rootHandle;
+
+    // Generate link.
+    auto link = mClient->getPublicLink(*rootHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
 }
 
 void FileServiceTests::TearDown()

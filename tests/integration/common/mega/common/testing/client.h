@@ -28,6 +28,10 @@ namespace testing
 
 class Client
 {
+public:
+    class PublicLink;
+
+private:
     // Responsible for uploading directory trees.
     class Uploader;
 
@@ -62,6 +66,11 @@ protected:
     Client(const std::string& clientName,
            const common::testing::Path& databasePath,
            const common::testing::Path& storagePath);
+
+    // Get (or create) a public link for the specified node.
+    using GetPublicLinkCallback = std::function<void(ErrorOr<PublicLink>)>;
+
+    virtual void getPublicLink(GetPublicLinkCallback callback, NodeHandle handle) = 0;
 
     // Specify whether our view of the cloud is current.
     void nodesCurrent(bool nodesCurrent);
@@ -171,6 +180,9 @@ public:
 
     // Retrieve information about a node.
     common::ErrorOr<common::NodeInfo> get(common::testing::CloudPath path) const;
+
+    // Get (or create) a public lionk for the specified node.
+    auto getPublicLink(common::testing::CloudPath path) -> ErrorOr<PublicLink>;
 
     // Query what a child's node handle is.
     common::ErrorOr<NodeHandle> handle(common::testing::CloudPath parentPath,

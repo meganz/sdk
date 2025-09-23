@@ -217,6 +217,31 @@ ErrorOr<NodeInfo> Client::get(CloudPath path) const
     return unexpected(handle.error());
 }
 
+auto Client::getPublicLink(CloudPath path) -> ErrorOr<PublicLink>
+{
+    // Try and resolve the path to a node handle.
+    auto handle = path.resolve(*this);
+
+    // Couldn't resolve the path to a node handle.
+    if (!handle)
+        return unexpected(handle.error());
+
+    // So we can signal when the link has been retrieved.
+    auto notifier = makeSharedPromise<ErrorOr<PublicLink>>();
+
+    // Called when the link has been retrieved.
+    auto linked = [notifier](ErrorOr<PublicLink> result)
+    {
+        notifier->set_value(std::move(result));
+    }; // linked
+
+    // Ask the client to get (or create) this node's public link.
+    getPublicLink(std::move(linked), *handle);
+
+    // Return the link to our caller.
+    return waitFor(notifier->get_future());
+}
+
 ErrorOr<NodeHandle> Client::handle(CloudPath parentPath, const std::string& name) const
 {
     // Resolve the parent's handle.

@@ -445,6 +445,80 @@ bool RealClient::shared(const std::string& email,
            (node->pendingshares && scan(*node->pendingshares));
 }
 
+void RealClient::getPublicLink(GetPublicLinkCallback callback, NodeHandle handle)
+{
+    // Sanity.
+    assert(callback);
+
+    // Make sure nothing else is messing with the client.
+    std::lock_guard<std::mutex> guard(mClientLock);
+
+    // Try and get our hands on the node's description.
+    auto node = mClient->nodeByHandle(handle);
+
+    // Couldn't get the node's description.
+    if (!node)
+        return callback(unexpected(API_ENOENT));
+
+    // Called when the node's public link has been retrieved.
+    auto linked =
+        [this](GetPublicLinkCallback& callback, auto linkHandle, auto nodeHandle, auto result)
+    {
+        // Couldn't retrieve the node's public link.
+        if (result != API_OK)
+            return callback(unexpected(result));
+
+        // Try and get our hands on the node.
+        auto node = mClient->nodeByHandle(nodeHandle);
+
+        // Node's no longer present.
+        if (!node)
+            return callback(unexpected(API_ENOENT));
+
+        // Convenience.
+        auto linkFormat = mClient->mNewLinkFormat;
+        auto linkType = mClient->validTypeForPublicURL(node->type);
+
+        // Node's a directory.
+        if (node->type != FILENODE)
+        {
+            // Which doesn't have a share key.
+            if (!node->sharekey)
+                return callback(unexpected(API_EKEY));
+
+            // Generate public link URI.
+            auto key = Base64Str<FOLDERNODEKEYLENGTH>(node->sharekey->key);
+            auto link = mClient->publicLinkURL(linkFormat, linkType, linkHandle, key);
+
+            // Pass public link to waiter.
+            return callback(PublicLink(link));
+        }
+
+        // Generate public link URI.
+        auto key = Base64Str<FILENODEKEYLENGTH>(node->nodekey().data());
+        auto link = mClient->publicLinkURL(linkFormat, linkType, linkHandle, key);
+
+        // Pass public link to waiter.
+        return callback(PublicLink(link));
+    }; // linked
+
+    // Ask the client to get (or create) this node's public link.
+    mClient->exportnode(std::move(node),
+                        false,
+                        0,
+                        false,
+                        false,
+                        0,
+                        std::bind(std::move(linked),
+                                  std::move(callback),
+                                  std::placeholders::_3,
+                                  handle,
+                                  std::placeholders::_1));
+
+    // Let the client know it has work to do.
+    mClient->waiter->notify();
+}
+
 RealClient::RealClient(const std::string& clientName,
                        const Path& databasePath,
                        const Path& storagePath):
