@@ -603,7 +603,7 @@ Error RealClient::login(const std::string& email, const std::string& password)
     return waitForNodesCurrent(seconds(8));
 }
 
-Error RealClient::login(const std::string& sessionToken)
+Error RealClient::login(const SessionToken& sessionToken)
 {
     auto notifier = makeSharedPromise<Error>();
 
@@ -618,7 +618,7 @@ Error RealClient::login(const std::string& sessionToken)
         }; // result
 
         // Try and log in the user.
-        mClient->login(sessionToken, std::move(completion));
+        mClient->login(sessionToken.get(), std::move(completion));
 
         // Let the client know it has work to do.
         mClient->waiter->notify();
@@ -695,15 +695,16 @@ NodeHandle RealClient::rootHandle() const
     return mClient->mNodeManager.getRootNodeFiles();
 }
 
-std::string RealClient::sessionToken() const
+auto RealClient::sessionToken() const -> ErrorOr<SessionToken>
 {
     std::lock_guard<std::mutex> guard(mClientLock);
 
-    std::string sessionToken;
+    std::string token;
 
-    mClient->dumpsession(sessionToken);
+    if (mClient->dumpsession(token))
+        return SessionToken(token);
 
-    return sessionToken;
+    return unexpected(API_EFAILED);
 }
 
 m_off_t RealClient::setDownloadSpeed(m_off_t speed)

@@ -622,6 +622,15 @@ const std::string& Client::PublicLink::get() const
     return mLink;
 }
 
+Client::SessionToken::SessionToken(const std::string& value):
+    mValue(value)
+{}
+
+const std::string& Client::SessionToken::get() const
+{
+    return mValue;
+}
+
 } // testing
 } // common
 } // mega

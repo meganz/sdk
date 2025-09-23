@@ -131,7 +131,7 @@ public:
     Error login(const std::string& email, const std::string& password) override;
 
     // Try and log the user into an existing session.
-    Error login(const std::string& sessionToken) override;
+    Error login(const SessionToken& sessionToken) override;
 
     // Check if the user is logged in.
     sessiontype_t loggedIn() const override;
@@ -146,7 +146,7 @@ public:
     NodeHandle rootHandle() const override;
 
     // Retrieve this user's session token.
-    std::string sessionToken() const override;
+    auto sessionToken() const -> ErrorOr<SessionToken> override;
 
     // Set the client's maximum download speed.
     m_off_t setDownloadSpeed(m_off_t speed) override;

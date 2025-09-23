@@ -124,6 +124,19 @@ public:
         const std::string& get() const;
     }; // PublicLink
 
+    // Represents a session token.
+    class SessionToken
+    {
+        // The session token's actual value.
+        std::string mValue;
+
+    public:
+        explicit SessionToken(const std::string& value);
+
+        // Retrieve this session token's actual value.
+        const std::string& get() const;
+    }; // SessionToken
+
     // Convenience.
     using Clock = std::chrono::steady_clock;
     using ContactPtr = std::unique_ptr<Contact>;
@@ -182,7 +195,7 @@ public:
     Error login(std::size_t accountIndex);
 
     // Try and log the user into an existing session.
-    virtual Error login(const std::string& sessionToken) = 0;
+    virtual Error login(const SessionToken& sessionToken) = 0;
 
     // Check if the user is logged in.
     virtual sessiontype_t loggedIn() const = 0;
@@ -221,7 +234,7 @@ public:
     virtual NodeHandle rootHandle() const = 0;
 
     // Retrieve this user's session token.
-    virtual std::string sessionToken() const = 0;
+    virtual auto sessionToken() const -> ErrorOr<SessionToken> = 0;
 
     // Set the client's maximum download speed.
     virtual m_off_t setDownloadSpeed(m_off_t speed) = 0;
