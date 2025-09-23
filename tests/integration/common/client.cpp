@@ -613,6 +613,15 @@ ErrorOr<NodeHandle> Client::Uploader::operator()(const std::string& name,
     return handle;
 }
 
+Client::PublicLink::PublicLink(const std::string& link):
+    mLink(link)
+{}
+
+const std::string& Client::PublicLink::get() const
+{
+    return mLink;
+}
+
 } // testing
 } // common
 } // mega

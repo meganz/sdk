@@ -17,6 +17,7 @@
 #include <condition_variable>
 #include <functional>
 #include <mutex>
+#include <string>
 
 namespace mega
 {
@@ -109,6 +110,19 @@ public:
         // Decline the invitation.
         virtual Error decline() = 0;
     }; // Invite
+
+    // Represents a public link.
+    class PublicLink
+    {
+        // The link's actual URI.
+        std::string mLink;
+
+    public:
+        explicit PublicLink(const std::string& link);
+
+        // Retrieve the link's actual URI.
+        const std::string& get() const;
+    }; // PublicLink
 
     // Convenience.
     using Clock = std::chrono::steady_clock;
