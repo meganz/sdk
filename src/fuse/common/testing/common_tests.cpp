@@ -629,7 +629,7 @@ TEST_F(FUSECommonTests, supports_entities_with_international_names)
     }, mDefaultTimeout));
 }
 
-TEST_F(FUSECommonTests, supports_gfx)
+TEST_F(FUSECommonTests, adds_thumbnails_to_images)
 {
     constexpr fatype THUMBNAIL = 0;
     constexpr fatype PREVIEW = 1;
@@ -646,17 +646,17 @@ TEST_F(FUSECommonTests, supports_gfx)
     EXPECT_TRUE(waitFor(
         [&]()
         {
-            auto info = ClientW()->get(imagePath);
+            const auto h = ClientW()->handle(imagePath);
 
             // File isn't in the cloud.
-            if (!info)
+            if (h.isUndef())
                 return false;
 
             // File doesn't have expected attributes.
-            if (!ClientW()->hasFileAttribute(info->mHandle, THUMBNAIL))
+            if (!ClientW()->hasFileAttribute(h, THUMBNAIL))
                 return false;
 
-            if (!ClientW()->hasFileAttribute(info->mHandle, PREVIEW))
+            if (!ClientW()->hasFileAttribute(h, PREVIEW))
                 return false;
 
             return true;

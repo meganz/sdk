@@ -25,7 +25,7 @@ namespace testing
 
 using namespace common;
 
-static std::unique_ptr<GfxProc> newGfx()
+static std::unique_ptr<GfxProc> createGfxProc()
 {
     auto provider = IGfxProvider::createInternalGfxProvider();
     if (!provider)
@@ -450,7 +450,7 @@ RealClient::RealClient(const std::string& clientName,
     mHTTPIO(new CurlHttpIO()),
     mPendingRequests(),
     mWaiter(std::make_shared<WAIT_CLASS>()),
-    mGfxProc(newGfx())
+    mGfxProc(createGfxProc())
 {
     // Sanity.
     assert(!clientName.empty());
