@@ -203,6 +203,7 @@ HEADERS += \
     sdk/include/mega/common/database_builder.h \
     sdk/include/mega/common/database_forward.h \
     sdk/include/mega/common/database_utilities.h \
+    sdk/include/mega/common/date_time.h \
     sdk/include/mega/common/directory.h \
     sdk/include/mega/common/error_or.h \
     sdk/include/mega/common/error_or_forward.h \
@@ -278,10 +279,6 @@ CPP_SOURCES += \
     sdk/src/common/transaction.cpp \
     sdk/src/common/upload.cpp \
     sdk/src/common/utility.cpp
-
-ifneq ($(filter $(TARGET_ARCH), arm x86),)
-CPPFLAGS += -DHAS_DISTINCT_TIME_T
-endif
 
 # when enable sync
 CPP_SOURCES += \

@@ -34,6 +34,13 @@
 /* Defined if std::int64_t and time_t are distinct. */
 /* #undef HAVE_DISTINCT_TIME_T */
 
+/* Defined if std::int64_t and time_t are distinct. */
+#ifdef __ANDROID__
+#if defined(__arm__) || defined(__i386__)
+#define HAVE_DISTINCT_TIME_T 1
+#endif // __arm__ || __i386__
+#endif // __ANDROID__
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
 
