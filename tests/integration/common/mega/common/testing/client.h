@@ -206,6 +206,9 @@ public:
     // Try and log into a user specified in the environment.
     Error login(std::size_t accountIndex);
 
+    // Try and log into a directory via public link.
+    virtual Error login(const PublicLink& link) = 0;
+
     // Try and log the user into an existing session.
     virtual Error login(const SessionToken& sessionToken) = 0;
 

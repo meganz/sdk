@@ -133,6 +133,9 @@ public:
     // Try and log the specified user in.
     Error login(const std::string& email, const std::string& password) override;
 
+    // Try and log into a directory via public link.
+    Error login(const PublicLink& link) override;
+
     // Try and log the user into an existing session.
     Error login(const SessionToken& sessionToken) override;
 

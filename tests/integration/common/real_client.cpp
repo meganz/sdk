@@ -677,6 +677,29 @@ Error RealClient::login(const std::string& email, const std::string& password)
     return waitForNodesCurrent(seconds(8));
 }
 
+Error RealClient::login(const PublicLink& link)
+{
+    // Make sure the public link is valid.
+    {
+        // Make sure no one else is messing with the client.
+        std::lock_guard guard(mClientLock);
+
+        // Make sure the public link is valid.
+        auto result = mClient->folderaccess(link.get().data(), nullptr, false);
+
+        // Public link isn't valid.
+        if (result != API_OK)
+            return result;
+    }
+
+    // Couldn't get a description of the directory's content.
+    if (auto result = fetch(true); result != API_OK)
+        return result;
+
+    // Wait for our view of the directory to be up to date.
+    return waitForNodesCurrent(std::chrono::seconds(8));
+}
+
 Error RealClient::login(const SessionToken& sessionToken)
 {
     auto notifier = makeSharedPromise<Error>();
