@@ -251,9 +251,15 @@ public:
                common::testing::CloudPath source,
                common::testing::CloudPath target);
 
-    // Download part of a file from the cloud.
+    // Download part of a local file from the cloud.
     auto partialDownload(common::PartialDownloadCallback& callback,
                          common::testing::CloudPath path,
+                         std::uint64_t length,
+                         std::uint64_t offset) -> common::ErrorOr<common::PartialDownloadPtr>;
+
+    // Download part of a foreign file from the cloud.
+    auto partialDownload(common::PartialDownloadCallback& callback,
+                         PublicLink link,
                          std::uint64_t length,
                          std::uint64_t offset) -> common::ErrorOr<common::PartialDownloadPtr>;
 

@@ -1,11 +1,14 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/normalized_path.h>
 #include <mega/common/testing/client.h>
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/file.h>
 #include <mega/common/upload.h>
 #include <mega/common/utility.h>
+#include <mega/crypto/cryptopp.h>
+#include <mega/utils.h>
 
 #include <atomic>
 #include <env_var_accounts.h>
@@ -355,6 +358,45 @@ auto Client::partialDownload(PartialDownloadCallback& callback,
         return client().partialDownload(callback, *handle, length, offset);
 
     return unexpected(handle.error());
+}
+
+auto Client::partialDownload(PartialDownloadCallback& callback,
+                             PublicLink link,
+                             std::uint64_t length,
+                             std::uint64_t offset) -> ErrorOr<PartialDownloadPtr>
+{
+    // Try and extract the file's handle and key from the link.
+    auto keyAndHandle = parsePublicLink(link);
+
+    // Couldn't parse the link.
+    if (!keyAndHandle)
+        return unexpected(keyAndHandle.error());
+
+    // Convenience.
+    auto& [handle, key] = *keyAndHandle;
+
+    // Try and get information about the file.
+    auto info = get(handle, false, key.data(), key.size(), {}, {});
+
+    // Couldn't get information about the file.
+    if (!info)
+        return unexpected(info.error());
+
+    // Convenience.
+    auto size = static_cast<std::uint64_t>(info->mSize);
+
+    // Sanitize offset and length.
+    offset = std::min(offset, size);
+    length = std::min(length, size - offset);
+
+    // Instantiate and populate node key data.
+    NodeKeyData keyData;
+
+    keyData.mKeyAndIV = key;
+    keyData.mIsPrivate = false;
+
+    // Return partial download to our caller.
+    return client().partialDownload(callback, handle, keyData, length, offset);
 }
 
 Error Client::remove(CloudPath path)
