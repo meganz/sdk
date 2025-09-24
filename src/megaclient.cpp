@@ -2164,9 +2164,54 @@ MegaClient::MegaClient(MegaApp* a,
 #ifdef MEGA_USE_WSUPLOAD
     m_wsEngine.reset(new ws::UploadEngine(*this));
     if (ws::wsEnabled(*this))
+    {
         m_wsEngine->start();
+        installWsEngineCallbacks();
+    }
 #endif
 }
+
+#ifdef MEGA_USE_WSUPLOAD
+void MegaClient::installWsEngineCallbacks()
+{
+    if (!m_wsEngine)
+        return;
+    ws::UploadEngine::Callbacks cb;
+
+    // Phase 2: minimal mutation + app notification
+    cb.onStart = [this](Transfer& t)
+    {
+        t.state = TRANSFERSTATE_ACTIVE;
+        app->transfer_update(&t);
+    };
+
+    cb.onProgress = [this](Transfer& t, const m_off_t confirmed)
+    {
+        t.setProgresscompleted(confirmed);
+        app->transfer_update(&t);
+    };
+
+    cb.onFail = [this](Transfer& t, int /*reason*/)
+    {
+        t.state = TRANSFERSTATE_RETRYING;
+        app->transfer_update(&t);
+    };
+
+    cb.onComplete = [this](Transfer& t, const char* /*payload*/, const int /*len*/)
+    {
+        // Phase 2: no putnodes yet; just surface a final tick
+        app->transfer_update(&t);
+    };
+
+    cb.canStartAnotherFile = [this]() -> bool
+    {
+        // Defer new WS starts if FA pipeline is saturated (conservative)
+        return queuedfa.size() < MAXQUEUEDFA;
+    };
+
+    m_wsEngine->setCallbacks(std::move(cb));
+}
+#endif
 
 MegaClient::~MegaClient()
 {

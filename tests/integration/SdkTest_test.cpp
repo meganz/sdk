@@ -17950,7 +17950,7 @@ TEST_F(SdkTest, SdkTestMultipleUploads)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
     const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};

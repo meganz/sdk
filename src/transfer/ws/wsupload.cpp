@@ -5,7 +5,9 @@
 #include <chrono>
 #include <cstddef> // offsetof
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <list>
 #include <map>
 #include <memory>
@@ -136,6 +138,16 @@ public:
     }
 
     ~WsUploadFile() = default;
+
+    Transfer& transfer() const noexcept
+    {
+        return mTransfer;
+    }
+
+    bool inPool() const noexcept
+    {
+        return mPool != nullptr;
+    }
 
     // queue/pool bookkeeping
     bool continuingUpload(const dstime now) const
@@ -397,9 +409,8 @@ public:
 
         const auto dsElapsed = SteadyTime::difference(now, mUploadStartTime);
         const auto kbps = dsElapsed ? (mBytesConfirmed / dsElapsed * 10 / 1024) : 0;
-        LOG_debug << "[WsUploadFile::maybeReportThroughput] " << mBytesConfirmed
-                  << " of " << mSize << " bytes @ ~" << kbps << " KB/s [this = " << this
-                  << "]";
+        LOG_debug << "[WsUploadFile::maybeReportThroughput] " << mBytesConfirmed << " of " << mSize
+                  << " bytes @ ~" << kbps << " KB/s [this = " << this << "]";
     }
 
     bool isUploading() const noexcept
@@ -742,9 +753,11 @@ inline void WsUploadFile::unsetPool()
 inline void WsUploadFile::setPool(WsPool& p)
 {
     LOG_debug << "[WsUploadFile::setPool] p=" << (void*)&p << " [this = " << this << "]";
+    assert(!mPool);
     mPool = &p;
     assert(mPool);
     mPool->increaseNumPoolFiles();
+    LOG_debug << "[WsUploadFile::setPool] END [this = " << this << "]";
 }
 
 inline bool WsUploadFile::hasPool() const
@@ -987,6 +1000,16 @@ public:
         return false;
     }
 
+    bool isUploading(const Transfer& t) const
+    {
+        std::lock_guard<std::mutex> g(uploadMutex);
+        auto it = files.find(const_cast<Transfer*>(&t));
+        if (it == files.end() || !it->second)
+            return false;
+        const WsUploadFile* f = it->second.get();
+        return f->inPool();
+    }
+
     void start()
     {
         std::lock_guard<std::mutex> g(uploadMutex);
@@ -1117,6 +1140,7 @@ public:
 
     ListWsUploadFile::iterator nextIt = fileList.begin();
     std::uint32_t queueVersion{0};
+    UploadEngine::Callbacks mCb{};
 
     WsPoolMgr poolMgr;
 
@@ -1405,6 +1429,8 @@ void WsConn::onmessage(const char* msg, const int len)
             if (chunk.len)
             {
                 uf->onServerConfirmedBytes(chunk.len);
+                if (mPool->mImpl->mCb.onProgress)
+                    mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
                 if (uf->bytesConfirmed() >= uf->size())
                 {
                     // server confirmed last chunk (or more) rather than completing upload:
@@ -1462,6 +1488,11 @@ void WsConn::onmessage(const char* msg, const int len)
 
             const int payLen = static_cast<unsigned char>(msg[13]); // payload length
             uf->uploadCompleted(msg + 14, payLen);
+            if (mPool->mImpl->mCb.onComplete)
+            {
+                const char* payload = (payLen > 0) ? (msg + 14) : nullptr;
+                mPool->mImpl->mCb.onComplete(uf->transfer(), payload, payLen);
+            }
             break;
         }
 
@@ -1487,6 +1518,11 @@ void WsConn::onmessage(const char* msg, const int len)
                       << " -> unknown server opcode=" << static_cast<int>(response->event)
                       << " -> break [this = " << this << "]";
             break;
+    }
+    if (response->event < 0)
+    {
+        if (mPool->mImpl->mCb.onFail)
+            mPool->mImpl->mCb.onFail(uf->transfer(), static_cast<int>(response->event));
     }
     LOG_debug << "[WsConn::onmessage] END [this = " << this << "]";
 }
@@ -1599,12 +1635,37 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
 
     if (auto* f = impl.nextEligible(mMinFileSize, mMaxFileSize))
     {
-        LOG_debug << "[WsPool::getWsUploadFile] auto* f = impl.nextEligible(mMinFileSize(="
-                  << mMinFileSize << "), mMaxFileSize(=" << mMaxFileSize << ")) -> mUploadingFile = f [this = "
-                  << this << "]";
-        mUploadingFile = f;
-        mUFTQversion = impl.queueVersion;
-        mUploadingFile->setPool(*this);
+        LOG_debug << "[WsPool::getWsUploadFile] BEGIN -> auto* f = impl.nextEligible(mMinFileSize(="
+                  << mMinFileSize << "), mMaxFileSize(=" << mMaxFileSize << "))  [this = " << this
+                  << "]";
+        // Back‑pressure gate: defer starting a new file while FA pipeline is saturated
+        if (impl.mCb.canStartAnotherFile && !impl.mCb.canStartAnotherFile())
+        {
+            LOG_debug << "[WsPool::getWsUploadFile] impl.mCb.canStartAnotherFile=true && "
+                         "!impl.mCb.canStartAnotherFile() -> return false [this = "
+                      << this << "]";
+            return false;
+        }
+
+        if (mUploadingFile != f)
+        {
+            LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
+                      << ") != f(=" << (void*)f << ") -> picking file fileno=" << f->fileno()
+                      << " for [" << mMinFileSize << "," << mMaxFileSize
+                      << ") pool and set mUFTQversion(=" << impl.queueVersion
+                      << ") = impl.queueVersion(=" << impl.queueVersion << ") [this = " << this
+                      << "]";
+            mUploadingFile = f;
+            mUFTQversion = impl.queueVersion;
+            mUploadingFile->setPool(*this);
+            if (impl.mCb.onStart)
+                impl.mCb.onStart(mUploadingFile->transfer());
+        }
+        else
+        {
+            LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
+                      << ") == f(=" << (void*)f << ") -> return true [this = " << this << "]";
+        }
         return true;
     }
     LOG_debug << "[WsPool::getWsUploadFile] !f -> return false [this = " << this << "]";
@@ -1890,7 +1951,7 @@ void WsPoolMgr::curlIO(UploadEngine::Impl& impl)
             kv.second->curlIO();
 
     CURLMsg* msg;
-    while ((msg = curl_multi_info_read(curlm, &msgs_left)))
+    while ((msg = curl_multi_info_read(curlm, &msgs_left)) != nullptr)
     {
         if (msg->msg == CURLMSG_DONE)
         {
@@ -2007,21 +2068,25 @@ bool WsPoolMgr::refreshPoolsResponse(std::string& response)
         for (;;)
         {
             p += 4;
-            if ((q = std::strchr(p, '"')))
+            if (q = std::strchr(p, '"'); q)
             {
                 url = "wss://";
                 url.append(p, static_cast<size_t>(q - p));
                 url.append("/");
 
                 p = q + 3;
-                if ((q = std::strchr(p, '"')))
+                if (q = std::strchr(p, '"'); q)
+                {
                     url.append(p, static_cast<size_t>(q - p));
+                }
 
                 if (q[1] == ',')
                 {
-                    apiSizeClasses.emplace_back(url, static_cast<m_off_t>(std::atoll(q + 2)));
-                    if ((p = std::strchr(q, ']')) && !std::memcmp(p, "],[\"", 4))
+                    apiSizeClasses.emplace_back(url, static_cast<m_off_t>(atoll(q + 2)));
+                    if (p = std::strchr(q, ']'); p && !std::memcmp(p, "],[\"", 4))
+                    {
                         continue;
+                    }
                 }
                 else
                 {
@@ -2110,6 +2175,11 @@ void UploadEngine::remove(Transfer& t)
 bool UploadEngine::isUploading(Transfer& t) const
 {
     return pImpl->isUploading(t);
+}
+
+void UploadEngine::setCallbacks(UploadEngine::Callbacks cb)
+{
+    pImpl->mCb = std::move(cb);
 }
 
 void UploadEngine::kick()

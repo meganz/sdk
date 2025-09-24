@@ -18303,8 +18303,14 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
 
 void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
+<<<<<<< HEAD
     assert(threadId == std::this_thread::get_id());
     transfer->setNotificationNumber(++notificationNumber);
+=======
+    //assert(threadId == std::this_thread::get_id());
+    notificationNumber++;
+    transfer->setNotificationNumber(notificationNumber);
+>>>>>>> 83d745a1be (WIP - Phase 2 prep)
 
     transfer->setNumRetry(transfer->getNumRetry() + 1);
 
@@ -18332,8 +18338,14 @@ MegaClient *MegaApiImpl::getMegaClient()
 
 void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 {
+<<<<<<< HEAD
     assert(threadId == std::this_thread::get_id());
     transfer->setNotificationNumber(++notificationNumber);
+=======
+    //assert(threadId == std::this_thread::get_id());
+    notificationNumber++;
+    transfer->setNotificationNumber(notificationNumber);
+>>>>>>> 83d745a1be (WIP - Phase 2 prep)
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
