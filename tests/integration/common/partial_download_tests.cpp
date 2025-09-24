@@ -387,6 +387,36 @@ TEST_F(PartialDownloadTests, download_directory_fails)
     ASSERT_EQ(download.errorOr(API_OK), API_FUSE_EISDIR);
 }
 
+TEST_F(PartialDownloadTests, download_public_file_succeeds)
+{
+    // Try and get a public link for our file.
+    auto link = mClient->getPublicLink(mFileHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // Create a new client with which to download the file.
+    auto client = CreateClient("partial_" + randomName());
+
+    // Try and log the client in.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Processes download events.
+    PartialDownloadCallback callback;
+
+    // Try and create a new partial download.
+    auto download = client->partialDownload(callback, *link, mFileContent.size(), 0);
+    ASSERT_EQ(download.errorOr(API_OK), API_OK);
+
+    // Try and download the file's content.
+    (*download)->begin();
+
+    // Wait for the download to complete.
+    ASSERT_EQ(callback.result(), API_OK);
+
+    // Make sure the content is what we expect it to be.
+    ASSERT_EQ(mFileContent.size(), callback.content().size());
+    ASSERT_FALSE(mFileContent.compare(callback.content()));
+}
+
 TEST_F(PartialDownloadTests, download_succeeds)
 {
     // Download some content from our test file.
