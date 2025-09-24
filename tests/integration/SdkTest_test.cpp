@@ -2811,7 +2811,7 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
     return makeUniqueFrom(directory);
 }
 
-auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>
+auto scopedToPro(MegaApi& client) -> Expected<ScopedDestructor>
 {
     // Make sure client's plan alterations are temporary.
     auto restorer = accountLevelRestorer(client);
@@ -3821,7 +3821,7 @@ TEST_F(SdkTest, SdkTestTransfers)
     LOG_info << cwd();
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
     // --- Upload an empty folder ---
@@ -4107,7 +4107,7 @@ TEST_F(SdkTest, SdkTestUndelete)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     LOG_info << "# Set " << megaApi[0]->getMyEmail() << " account to Pro I plan";
-    auto restorer = elevateToPro(*megaApi[0]);
+    auto restorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer), API_OK);
 
     LOG_info << cwd();
@@ -8451,7 +8451,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     LOG_info << "___TEST Cloudraid transfers with connection failures___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -8524,9 +8524,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
-    auto restorer1 = elevateToPro(*megaApi[1]);
+    auto restorer1 = scopedToPro(*megaApi[1]);
     ASSERT_EQ(result(restorer1), API_OK);
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
@@ -8582,7 +8582,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
     LOG_info << "___TEST Cloudraid transfers with single channel timeouts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -8647,7 +8647,7 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     LOG_debug << logPre << "Promote account to PRO plan";
-    const auto restorer0 = elevateToPro(*megaApi[0]);
+    const auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -8945,7 +8945,7 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -9139,7 +9139,7 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -9412,7 +9412,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
@@ -9570,7 +9570,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferBestCase)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
@@ -11727,7 +11727,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     // this one used to cause a double-delete
@@ -17394,7 +17394,7 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -17645,7 +17645,7 @@ TEST_F(SdkTest, SdkTestUploads)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
     const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};

@@ -1710,7 +1710,7 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
  * An account level restorer on success.
  * An error on failure.
  */
-auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>;
+auto scopedToPro(MegaApi& client) -> Expected<ScopedDestructor>;
 
 /**
  * @brief
