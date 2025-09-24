@@ -697,7 +697,7 @@ protected:
     void TearDown() override;
 
     void Cleanup();
-    void setTestAccountsToFree();
+    void setTestAccountsToFree(unsigned int nApi);
 
     int getApiIndex(MegaApi* api);
     bool getApiIndex(MegaApi* api, size_t& apindex);

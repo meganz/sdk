@@ -377,7 +377,6 @@ void MegaApiTestDeleter::operator()(MegaApiTest* p) const
 void SdkTest::SetUp()
 {
     SdkTestBase::SetUp();
-    ASSERT_NO_FATAL_FAILURE(setTestAccountsToFree());
 }
 
 void SdkTest::TearDown()
@@ -463,49 +462,36 @@ void SdkTest::Cleanup()
     EXPECT_TRUE(mCleanupSuccess) << "[SdkTest::Cleanup]: Mark test as failed";
 }
 
-void SdkTest::setTestAccountsToFree()
+void SdkTest::setTestAccountsToFree(unsigned int nApi)
 {
-    const string prefix{"# SdkTest::setTestAccountsToFree"};
-    LOG_info << prefix;
-    auto totalAccounts = static_cast<unsigned int>(getEnvVarAccounts().size());
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(totalAccounts));
+    const auto prefix = getLogPrefix();
 
-    auto accountsIdx = Range(0u, totalAccounts);
-    for (const auto& idx: accountsIdx)
+    LOG_info << prefix << "Account " << nApi;
+
+    auto& client = *megaApi[nApi];
+    const auto accLevelRes = getAccountLevel(client);
+    ASSERT_EQ(result(accLevelRes), API_OK)
+        << prefix << "getAccountLevel error (" << result(accLevelRes) << ")";
+
+    const auto level = value(accLevelRes);
+    if (level.plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
     {
-        auto& client = megaApi[idx];
-        auto accLevelRes = getAccountLevel(*client);
-
-        if (auto result = ::result(accLevelRes); result != API_OK)
-        {
-            // Couldn't retrieve account level.
-            ASSERT_EQ(result, API_OK) << prefix << ". ## Account (" << idx
-                                      << ") getAccountLevel error (" << result << ")";
-        }
-
-        auto level = std::get<AccountLevel>(accLevelRes);
-        if (level.plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
-        {
-            LOG_info << prefix << ". ## Account (" << idx << ") is free already";
-            releaseMegaApi(idx);
-            return;
-        }
-
-        if (!gFreeAccounts)
-        {
-            mAccountsRestorer.push_back(accountLevelRestorer(megaApi, idx));
-        }
-
-        LOG_info << prefix << ". ## Force account (" << idx
-                 << ") to free status. Originally at plan: " << level.plan
-                 << " months: " << level.months;
-        auto result =
-            setAccountLevel(*client, MegaAccountDetails::ACCOUNT_TYPE_FREE, level.months, nullptr);
-        EXPECT_EQ(result, API_OK) << prefix << ". ## Account (" << idx
-                                  << ") couldn't be reset to free: " << result;
-
-        releaseMegaApi(idx);
+        return;
     }
+
+    if (!gFreeAccounts)
+    {
+        mAccountsRestorer.push_back(accountLevelRestorer(megaApi, nApi));
+    }
+
+    LOG_info << prefix << "Force account to free.";
+    const auto ret = setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr);
+    ASSERT_EQ(ret, API_OK) << prefix << "Account couldn't be reset to free: " << ret;
+
+    // Need to refresh SDK's account status and let SDK knows the change
+    const auto accountDetails = getAccountDetails(client);
+    ASSERT_EQ(result(accountDetails), API_OK)
+        << prefix << "getAccountDetails error (" << result(accountDetails) << ")";
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
@@ -2057,6 +2043,7 @@ void SdkTest::getAccountsForTest(const unsigned howMany,
             out() << "Please, DevOps, park this account";
             ASSERT_FALSE(true);
         }
+        setTestAccountsToFree(index);
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
