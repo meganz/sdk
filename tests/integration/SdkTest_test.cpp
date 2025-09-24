@@ -2830,6 +2830,11 @@ auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>
     return restorer;
 }
 
+auto demoteToFree(MegaApi& client) -> Error
+{
+    return setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr);
+}
+
 auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_t> expirationDate)
     -> Expected<std::string>
 {

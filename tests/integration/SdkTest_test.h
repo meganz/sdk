@@ -1714,6 +1714,18 @@ auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>;
 
 /**
  * @brief
+ * Demote client to a free plan.
+ *
+ * @param client
+ * The client who we want to demote to a free plan.
+ *
+ * @return
+ * An error on failure or succuss.
+ */
+auto demoteToFree(MegaApi& client) -> Error;
+
+/**
+ * @brief
  * Export the specified node.
  *
  * @param client
