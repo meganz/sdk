@@ -469,12 +469,13 @@ void SdkTest::setTestAccountsToFree(unsigned int nApi)
     LOG_info << prefix << "Account " << nApi;
 
     auto& client = *megaApi[nApi];
-    const auto accLevelRes = getAccountLevel(client);
-    ASSERT_EQ(result(accLevelRes), API_OK)
-        << prefix << "getAccountLevel error (" << result(accLevelRes) << ")";
 
-    const auto level = value(accLevelRes);
-    if (level.plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+    // Check account level
+    const auto accLevelRes = getAccountLevel(client);
+    ASSERT_EQ(result(accLevelRes), API_OK) << prefix << "getAccountLevel error";
+
+    // Already free
+    if (value(accLevelRes).plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
     {
         return;
     }
@@ -484,14 +485,10 @@ void SdkTest::setTestAccountsToFree(unsigned int nApi)
         mAccountsRestorer.push_back(accountLevelRestorer(megaApi, nApi));
     }
 
-    LOG_info << prefix << "Force account to free.";
-    const auto ret = setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr);
-    ASSERT_EQ(ret, API_OK) << prefix << "Account couldn't be reset to free: " << ret;
+    ASSERT_EQ(demoteToFree(client), API_OK) << prefix << "Account couldn't be reset to free";
 
     // Need to refresh SDK's account status and let SDK knows the change
-    const auto accountDetails = getAccountDetails(client);
-    ASSERT_EQ(result(accountDetails), API_OK)
-        << prefix << "getAccountDetails error (" << result(accountDetails) << ")";
+    ASSERT_EQ(result(getAccountDetails(client)), API_OK) << prefix << "getAccountDetails error";
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
@@ -21629,7 +21626,7 @@ TEST_F(SdkTest, ExportNodeWithExpiryDate)
     auto restorer = accountLevelRestorer(client);
 
     // Make sure the backend thinks we have a free account.
-    EXPECT_EQ(setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr), API_OK);
+    EXPECT_EQ(demoteToFree(client), API_OK);
 
     // Get our hands on this account's root node.
     auto root = makeUniqueFrom(client.getRootNode());
