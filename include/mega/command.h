@@ -56,6 +56,10 @@ protected:
     bool loadIpsFromJson(std::vector<string>& ips, JSON& json);
     bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips);
 
+    // True if the command can be sent to the API lockless CS channel
+    // Updated internally by each command.
+    bool mLockless = false;
+
 public:
     MegaClient* client; // non-owning
 
@@ -64,6 +68,9 @@ public:
 
     // some commands can only succeed if they are in their own batch.  eg. smss, when the account is blocked pending validation
     bool batchSeparately;
+
+    // Returns true if the command can use the lockless CS channel
+    bool isLockless() const;
 
     // true if the command returns strings, arrays or objects, but a seqtag is (optionally) also required. In example: ["seqtag"/error, <JSON from before v3>]
     bool mSeqtagArray = false;

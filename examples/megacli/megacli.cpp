@@ -6385,7 +6385,7 @@ void exec_get(autocomplete::ACState& s)
         {
             cout << "Checking link..." << endl;
 
-            client->reqs.add(new CommandGetFile(
+            client->mReqsLockless.add(new CommandGetFile(
                 client,
                 key,
                 FILENODEKEYLENGTH,

@@ -1888,6 +1888,7 @@ void MegaClient::init()
     pendingcs_serverBusySent = false;
 
     btcs.reset();
+    mBackoffTimerLocklessCS.reset();
     btsc.reset();
     btpfa.reset();
     btbadhost.reset();
@@ -1937,6 +1938,7 @@ MegaClient::MegaClient(MegaApp* a,
     useralerts(*this),
     btugexpiration(rng),
     btcs(rng),
+    mBackoffTimerLocklessCS(rng),
     btbadhost(rng),
     btworkinglock(rng),
     btreqstat(rng),
@@ -1949,6 +1951,7 @@ MegaClient::MegaClient(MegaApp* a,
     syncs(*this),
 #endif
     reqs(rng),
+    mReqsLockless(rng),
     mKeyManager(*this),
     mClientType(clientType),
     mJourneyId(),
@@ -2971,6 +2974,183 @@ void MegaClient::exec()
             break;
         }
 
+        // handle API lockless client-server requests
+        for (;;)
+        {
+            // do we have an API lockless request outstanding?
+            if (mPendingLocklessCS)
+            {
+                // handle retry reason for requests
+                retryreason_t reason = RETRY_NONE;
+
+                DEBUG_TEST_HOOK_INTERCEPT_LOCKLESS_CS_REQUEST(mPendingLocklessCS);
+
+                switch (mPendingLocklessCS->status)
+                {
+                    case REQ_READY:
+                        break;
+                    case REQ_INFLIGHT:
+                        if (Waiter::ds >= mPendingLocklessCS->lastdata + HttpIO::REQUESTTIMEOUT)
+                        {
+                            LOG_warn << clientname << "Lockless CS request timeout. Retry.";
+                            mPendingLocklessCS.reset();
+                            mBackoffTimerLocklessCS.reset(); // Already waited for REQUESTTIMEOUT
+                            mReqsLockless.inflightFailure(RETRY_CONNECTIVITY);
+                        }
+                        break;
+                    case REQ_SUCCESS:
+                        if (mPendingLocklessCS->in != "-3" && mPendingLocklessCS->in != "-4")
+                        {
+                            if (*mPendingLocklessCS->in.c_str() == '[')
+                            {
+                                // request succeeded, process result array
+                                mReqsLockless.serverresponse(std::move(mPendingLocklessCS->in),
+                                                             this);
+                                mPendingLocklessCS.reset();
+                            }
+                            else
+                            {
+                                // request failed
+                                JSON json;
+                                json.pos = mPendingLocklessCS->in.c_str();
+                                error e;
+                                std::string requestError;
+
+                                bool valid = json.storeobject(&requestError);
+                                if (valid)
+                                {
+                                    if (strncmp(requestError.c_str(), "{\"err\":", 7) == 0)
+                                    {
+                                        e = (error)atoi(requestError.c_str() + 7);
+                                    }
+                                    else
+                                    {
+                                        e = (error)atoi(requestError.c_str());
+                                    }
+                                }
+                                else
+                                {
+                                    e = API_EINTERNAL;
+                                    requestError = std::to_string(e);
+                                }
+
+                                if (!e)
+                                {
+                                    e = API_EINTERNAL;
+                                    requestError = std::to_string(e);
+                                }
+
+                                mPendingLocklessCS.reset();
+                                mReqsLockless.servererror(requestError, this);
+                                break;
+                            }
+                            mBackoffTimerLocklessCS.reset();
+                            break;
+                        }
+                        else
+                        {
+                            if (mPendingLocklessCS->in == "-3")
+                            {
+                                reason = RETRY_API_LOCK;
+                            }
+                            else
+                            {
+                                reason = RETRY_RATE_LIMIT;
+                            }
+                        }
+                        [[fallthrough]];
+                    case REQ_FAILURE:
+                        if (!reason && mPendingLocklessCS->httpstatus != 200)
+                        {
+                            if (mPendingLocklessCS->httpstatus == 500)
+                            {
+                                reason = RETRY_SERVERS_BUSY;
+                            }
+                            else if (mPendingLocklessCS->httpstatus == 0)
+                            {
+                                reason = RETRY_CONNECTIVITY;
+                            }
+                        }
+
+                        if (mPendingLocklessCS->sslcheckfailed)
+                        {
+                            if (!retryessl)
+                            {
+                                mPendingLocklessCS.reset();
+                                mReqsLockless.servererror(std::to_string(API_ESSL), this);
+                                break;
+                            }
+                        }
+
+                        // failure, repeat with capped exponential backoff
+                        mPendingLocklessCS.reset();
+
+                        if (!reason)
+                            reason = RETRY_UNKNOWN;
+
+                        mBackoffTimerLocklessCS.backoff();
+                        LOG_warn << clientname << "Retrying lockless cs request in "
+                                 << mBackoffTimerLocklessCS.retryin() << " ds";
+
+                        // the in-progress request will be resent, unchanged (for idempotence), when
+                        // we are ready again.
+                        mReqsLockless.inflightFailure(reason);
+                        break;
+
+                    default:
+                        break;
+                }
+
+                if (mPendingLocklessCS)
+                {
+                    break;
+                }
+            }
+
+            if (mBackoffTimerLocklessCS.armed())
+            {
+                if (mReqsLockless.readyToSend())
+                {
+                    mPendingLocklessCS = std::make_unique<HttpReq>();
+                    mPendingLocklessCS->protect = true;
+                    mPendingLocklessCS->setLogName(clientname + "llcs ");
+
+                    string idempotenceId;
+                    *mPendingLocklessCS->out =
+                        mReqsLockless.serverrequest(mPendingLocklessCS->includesFetchingNodes,
+                                                    this,
+                                                    idempotenceId);
+
+                    mPendingLocklessCS->posturl = httpio->APIURL;
+                    mPendingLocklessCS->posturl.append("cs?id=");
+                    mPendingLocklessCS->posturl.append(idempotenceId);
+                    mPendingLocklessCS->posturl.append(getAuthURI());
+                    mPendingLocklessCS->posturl.append(appkey);
+                    mPendingLocklessCS->posturl.append("&v=3");
+
+                    if (lang.size())
+                    {
+                        mPendingLocklessCS->posturl.append("&");
+                        mPendingLocklessCS->posturl.append(lang);
+                    }
+                    if (trackJourneyId())
+                    {
+                        mPendingLocklessCS->posturl.append("&j=");
+                        mPendingLocklessCS->posturl.append(mJourneyId->getValue());
+                    }
+                    mPendingLocklessCS->type = REQ_JSON;
+
+                    mPendingLocklessCS->post(this);
+                    continue;
+                }
+                else
+                {
+                    mBackoffTimerLocklessCS.reset();
+                }
+            }
+            break;
+        }
+
         // handle the request for the last 50 UserAlerts
         if (pendingscUserAlerts)
         {
@@ -3684,6 +3864,11 @@ int MegaClient::preparewait()
             btcs.update(&nds);
         }
 
+        if (!mPendingLocklessCS)
+        {
+            mBackoffTimerLocklessCS.update(&nds);
+        }
+
         // retry failed server-client requests
         if (!pendingsc && !pendingscUserAlerts && scsn.ready() && !mBlocked)
         {
@@ -3806,6 +3991,19 @@ int MegaClient::preparewait()
             }
         }
 
+        if (mPendingLocklessCS && EVER(mPendingLocklessCS->lastdata) &&
+            mPendingLocklessCS->status == REQ_INFLIGHT)
+        {
+            dstime timeout = mPendingLocklessCS->lastdata + HttpIO::REQUESTTIMEOUT;
+            if (timeout > Waiter::ds && timeout < nds)
+            {
+                nds = timeout;
+            }
+            else if (timeout <= Waiter::ds)
+            {
+                nds = 0;
+            }
+        }
 
         if (badhostcs && EVER(badhostcs->lastdata)
                 && badhostcs->status == REQ_INFLIGHT)
@@ -3956,6 +4154,11 @@ bool MegaClient::abortbackoff(bool includexfers)
     }
 
     if (btcs.arm())
+    {
+        r = true;
+    }
+
+    if (mBackoffTimerLocklessCS.arm())
     {
         r = true;
     }
@@ -4513,105 +4716,110 @@ void MegaClient::dispatchTransfers()
                     }
                     else
                     {
-                        reqs.add((
-                            ts->pendingcmd =
-                                (nexttransfer->type == PUT) ?
-                                    (Command*)new CommandPutFile(this, ts) :
-                                    new CommandGetFile(
-                                        this,
-                                        ts->transfer->transferkey.data(),
-                                        SymmCipher::KEYLENGTH,
-                                        (!ts->transfer->files.empty() &&
-                                         ts->transfer->files.front()->undelete()),
-                                        h.as8byte(),
-                                        hprivate,
-                                        privauth,
-                                        pubauth,
-                                        chatauth,
-                                        false,
-                                        [this, ts, hprivate, h](
-                                            const Error& e,
-                                            m_off_t s,
-                                            dstime tl /*timeleft*/,
-                                            std::string* filename,
-                                            std::string* /*fingerprint*/,
-                                            std::string* /*fileattrstring*/,
-                                            const std::vector<std::string>& tempurls,
-                                            const std::vector<std::string>& /*ips*/,
-                                            const std::string& /*fileHandle*/)
+                        ts->pendingcmd =
+                            (nexttransfer->type == PUT) ?
+                                (Command*)new CommandPutFile(this, ts) :
+                                new CommandGetFile(
+                                    this,
+                                    ts->transfer->transferkey.data(),
+                                    SymmCipher::KEYLENGTH,
+                                    (!ts->transfer->files.empty() &&
+                                     ts->transfer->files.front()->undelete()),
+                                    h.as8byte(),
+                                    hprivate,
+                                    privauth,
+                                    pubauth,
+                                    chatauth,
+                                    false,
+                                    [this, ts, hprivate, h](
+                                        const Error& e,
+                                        m_off_t s,
+                                        dstime tl /*timeleft*/,
+                                        std::string* filename,
+                                        std::string* /*fingerprint*/,
+                                        std::string* /*fileattrstring*/,
+                                        const std::vector<std::string>& tempurls,
+                                        const std::vector<std::string>& /*ips*/,
+                                        const std::string& /*fileHandle*/)
+                                    {
+                                        auto tslot = ts;
+                                        auto priv = hprivate;
+
+                                        tslot->pendingcmd = nullptr;
+
+                                        if (!filename) // failed! (Notice: calls not coming from
+                                                       // !callFailedCompletion) will allways
+                                                       // have that != nullptr
                                         {
-                                            auto tslot = ts;
-                                            auto priv = hprivate;
-
-                                            tslot->pendingcmd = nullptr;
-
-                                            if (!filename) // failed! (Notice: calls not coming from
-                                                           // !callFailedCompletion) will allways
-                                                           // have that != nullptr
-                                            {
-                                                assert(s == -1 &&
-                                                       "failing a transfer too soon: coming from a "
-                                                       "successful mCompletion call");
-                                                tslot->transfer->failed(e,
-                                                                        *mTctableRequestCommitter);
-                                                return true;
-                                            }
-
-                                            if (s >= 0 && s != tslot->transfer->size)
-                                            {
-                                                tslot->transfer->size = s;
-                                                for (file_list::iterator it =
-                                                         tslot->transfer->files.begin();
-                                                     it != tslot->transfer->files.end();
-                                                     it++)
-                                                {
-                                                    (*it)->size = s;
-                                                }
-
-                                                if (priv)
-                                                {
-                                                    std::shared_ptr<Node> n =
-                                                        mNodeManager.getNodeByHandle(h);
-                                                    if (n)
-                                                    {
-                                                        n->size = s;
-                                                        mNodeManager.notifyNode(n);
-                                                    }
-                                                }
-
-                                                sendevent(99411, "Node size mismatch", 0);
-                                            }
-
-                                            tslot->starttime = tslot->lastdata = waiter->ds;
-
-                                            if ((tempurls.size() == 1 ||
-                                                 tempurls.size() == RAIDPARTS) &&
-                                                s >= 0)
-                                            {
-                                                tslot->transfer->tempurls = tempurls;
-                                                tslot->transfer
-                                                    ->adjustNonRaidedProgressIfNowIsRaided();
-                                                tslot->transfer->downloadFileHandle = h;
-                                                tslot->transferbuf.setIsRaid(tslot->transfer,
-                                                                             tempurls,
-                                                                             tslot->transfer->pos,
-                                                                             tslot->maxRequestSize);
-                                                tslot->progress();
-                                                return true;
-                                            }
-
-                                            if (e == API_EOVERQUOTA && tl <= 0)
-                                            {
-                                                // default retry interval
-                                                tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
-                                            }
-
-                                            tslot->transfer->failed(e,
-                                                                    *mTctableRequestCommitter,
-                                                                    e == API_EOVERQUOTA ? tl * 10 :
-                                                                                          0);
+                                            assert(s == -1 &&
+                                                   "failing a transfer too soon: coming from a "
+                                                   "successful mCompletion call");
+                                            tslot->transfer->failed(e, *mTctableRequestCommitter);
                                             return true;
-                                        })));
+                                        }
+
+                                        if (s >= 0 && s != tslot->transfer->size)
+                                        {
+                                            tslot->transfer->size = s;
+                                            for (file_list::iterator it =
+                                                     tslot->transfer->files.begin();
+                                                 it != tslot->transfer->files.end();
+                                                 it++)
+                                            {
+                                                (*it)->size = s;
+                                            }
+
+                                            if (priv)
+                                            {
+                                                std::shared_ptr<Node> n =
+                                                    mNodeManager.getNodeByHandle(h);
+                                                if (n)
+                                                {
+                                                    n->size = s;
+                                                    mNodeManager.notifyNode(n);
+                                                }
+                                            }
+
+                                            sendevent(99411, "Node size mismatch", 0);
+                                        }
+
+                                        tslot->starttime = tslot->lastdata = waiter->ds;
+
+                                        if ((tempurls.size() == 1 ||
+                                             tempurls.size() == RAIDPARTS) &&
+                                            s >= 0)
+                                        {
+                                            tslot->transfer->tempurls = tempurls;
+                                            tslot->transfer->adjustNonRaidedProgressIfNowIsRaided();
+                                            tslot->transfer->downloadFileHandle = h;
+                                            tslot->transferbuf.setIsRaid(tslot->transfer,
+                                                                         tempurls,
+                                                                         tslot->transfer->pos,
+                                                                         tslot->maxRequestSize);
+                                            tslot->progress();
+                                            return true;
+                                        }
+
+                                        if (e == API_EOVERQUOTA && tl <= 0)
+                                        {
+                                            // default retry interval
+                                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                                        }
+
+                                        tslot->transfer->failed(e,
+                                                                *mTctableRequestCommitter,
+                                                                e == API_EOVERQUOTA ? tl * 10 : 0);
+                                        return true;
+                                    });
+
+                        if (ts->pendingcmd->isLockless())
+                        {
+                            mReqsLockless.add(ts->pendingcmd);
+                        }
+                        else
+                        {
+                            reqs.add(ts->pendingcmd);
+                        }
                     }
 
                     LOG_debug << "Activating transfer";
@@ -4747,6 +4955,11 @@ void MegaClient::disconnect()
     {
         app->request_response_progress(-1, -1);
         pendingcs->disconnect();
+    }
+
+    if (mPendingLocklessCS)
+    {
+        mPendingLocklessCS->disconnect();
     }
 
     if (pendingsc)
@@ -5014,9 +5227,11 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     mNodeManager.reset();
 
     reqs.clear();
+    mReqsLockless.clear();
 
     delete pendingcs;
     pendingcs = NULL;
+    mPendingLocklessCS.reset();
     scsn.clear();
     mBlocked = false;
     mBlockedSet = false;

@@ -1737,6 +1737,7 @@ private:
     DriveInfoCollector mDriveInfoCollector;
 #endif
     BackoffTimer btcs;
+    BackoffTimer mBackoffTimerLocklessCS;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
     BackoffTimer btreqstat;
@@ -2031,6 +2032,8 @@ public:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
+    // API lockless request
+    std::unique_ptr<HttpReq> mPendingLocklessCS;
 
     // When triggering an API Hashcash challenge, the HTTP response will contain
     // X-Hashcash header, with relevant data to be saved and used for the next retry.
@@ -2397,6 +2400,9 @@ public:
 
     // client-server request double-buffering
     RequestDispatcher reqs;
+
+    // Lockless client-server request double-buffering
+    RequestDispatcher mReqsLockless;
 
     // returns if the current pendingcs includes a fetch nodes command
     bool isFetchingNodesPendingCS();
