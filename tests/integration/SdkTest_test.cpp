@@ -9517,16 +9517,16 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 
         compareDecryptedData[0] = ::mega::byte(nonraid ? nonraidchar : raidchar);
 
-        m_off_t start = 0, end = 0;
+        m_off_t start = RAIDLINE, end = RAIDLINE;
 
         if (testtype < 3)  // front of file
         {
-            start = std::max<int>(0, rand() % 5 * 10240 - 1024);
+            start = std::max<int>(RAIDLINE, rand() % 5 * 10240 - 1024);
             end = start + rand() % 5 * 10240;
         }
         else if (testtype == 3)  // within 1, 2, or 3 raidlines
         {
-            start = std::max<int>(0, rand() % 5 * 10240 - 1024);
+            start = std::max<int>(RAIDLINE, rand() % 5 * 10240 - 1024);
             end = start + rand() % (3 * RAIDLINE);
         }
         else if (testtype < 8) // end of file
@@ -9542,7 +9542,7 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
         else // decent piece of the file
         {
             int pieceSize = 50000; //gRunningInCI ? 50000 : 5000000;
-            start = rand() % pieceSize;
+            start = std::max<int>(RAIDLINE, rand() % pieceSize);
             int n = pieceSize / (smallpieces ? 100 : 1);
             end = start + n + rand() % n;
         }
@@ -9550,7 +9550,8 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
         // seems 0 size not allowed now - make sure we get at least 1 byte
         if (start == end)
         {
-            if (start > 0) start -= 1;
+            if (start > RAIDLINE)
+                start -= 1;
             else end += 1;
         }
         randomRunsBytes += end - start;
@@ -9747,7 +9748,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
         DebugTestHook::countdownTo200WithErrCode = cd200Err;
         std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
             StreamRaidFilePart(megaApi[0].get(),
-                               0,
+                               RAIDLINE,
                                cloudRaidNode->getSize(),
                                true /*raid*/,
                                false,
