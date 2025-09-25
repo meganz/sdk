@@ -36,7 +36,6 @@ let package = Package(
                 "src/android",
                 "src/common/client_adapter_with_sync.cpp",
                 "src/file_service/documentation",
-                "src/file_service/testing",
                 "src/fuse/supported",
                 "src/mega_utf8proc_data.c",
                 "src/win32",
