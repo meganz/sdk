@@ -181,6 +181,7 @@ pipeline {
                         MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                         MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
                         MEGA_REAL_PWD=credentials('MEGA_REAL_PWD_TEST')
+                        SYMBOL_PATH = "srv*C:\\symcache*;http://msdl.microsoft.com/download/symbols;${WORKSPACE}\\build_dir;${WORKSPACE}\\build_dir_x86;${WORKSPACE}\\build_dir\\tests\\integration\\Debug"
                     }
                     steps{
                         script {
@@ -209,48 +210,9 @@ pipeline {
                                         rm gfxworker_test_integration.log
                                     )
                                     if %ERRORLEVEL% NEQ 0 exit 1
-                                    tests\\\\integration\\\\Debug\\\\test_integration.exe --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL}
-                                    if %ERRORLEVEL% NEQ 0 (
-                                        set ERROR_VAL=1
-                                        if "${TESTS_PARALLEL}"=="" (
-                                            for /D %%d in (${windows_sources_workspace}\\\\pid_*) do (
-                                                copy "%%d\\\\test_integration.log" .
-                                            )
-                                        )
-                                    )
-                                    gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz
-                                    rm test_integration.log
-                                    exit %ERROR_VAL%
                                     """
-                                    powershell """
-                                        \$dumpDir = "dumps"
-                                        if (-not (Test-Path \$dumpDir)) {
-                                          New-Item -ItemType Directory -Path \$dumpDir
-                                        }
-                                        
-                                        # Monitor test PIDs to dump cores if necessary
-                                        Start-job -ScriptBlock {                                       
-                                          # Get the testing processes PIDs and run procdump on them 
-                                          \$testPIDs = @{}
-                                          while (\$true) {
-                                            \$processes =  Get-Process -name test_integration_${BUILD_ID} -ErrorAction SilentlyContinue
-                                            foreach (\$proc in \$processes) {
-                                              # If the process is not in the array, run procdump on it and add it to the array 
-                                              if (-not \$testPIDs.ContainsKey(\$proc.Id)) {
-                                                Start-Process procdump -ArgumentList "-accepteula -ma -e 1 \$(proc.Id) \$dumpDir"
-                                                \$testPIDs[\$proc.Id] = \$true
-                                              }
-                                            }
-                                            Start-Sleep -Seconds 1 # Get new test PIDs every second
-                                          }
-                                        }
 
-                                        # Start the tests with a unique name, based on BUILD_ID, so we can monitor their PIDs
-                                        cp test\\unit\\Debug\\test_integration.exe test\\unit\\Debug\\test_integration_${BUILD_ID}.exe
-                                        tests\\integration\\Debug\\test_integration_${BUILD_ID}.exe --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL}
-                                        \$testResult = \$LastExitCode
-                                        
-                                    """
+                                    powershell returnStatus: true, script: 'jenkinsfile\\windows-integration-tests.ps1'
                                }
                             }
                         }
@@ -268,6 +230,9 @@ pipeline {
             post{
                 always {
                     archiveArtifacts artifacts: 'build_dir/*test_integration*log.gz', fingerprint: true
+                    archiveArtifacts artifacts: 'dumps/', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: "build_dir/Debug/*.pdb", allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: "build_dir/tests/integration/Debug/*.pbd", allowEmptyArchive: true, fingerprint: true
                     deleteDir()
                 }
             }
