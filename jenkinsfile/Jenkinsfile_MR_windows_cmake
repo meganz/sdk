@@ -182,6 +182,11 @@ pipeline {
                         MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
                         MEGA_REAL_PWD=credentials('MEGA_REAL_PWD_TEST')
                         SYMBOL_PATH = "srv*C:\\symcache*;http://msdl.microsoft.com/download/symbols;${WORKSPACE}\\build_dir;${WORKSPACE}\\build_dir_x86;${WORKSPACE}\\build_dir\\tests\\integration\\Debug"
+                        USER_AGENT_TESTS_SDK = "${USER_AGENT_TESTS_SDK}"
+                        APIURL_TO_TEST = "${APIURL_TO_TEST}"
+                        GTEST_FILTER = "${GTEST_FILTER}"
+                        GTEST_REPEAT = "${GTEST_REPEAT}"
+                        TESTS_PARALLEL = "${TESTS_PARALLEL}"
                     }
                     steps{
                         script {

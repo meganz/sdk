@@ -45,7 +45,7 @@ $testResult = $testProcess.ExitCode
 Stop-job -Name "childrenMonitor"
 
 # Compress the logs
-If ( "${TESTS_PARALLEL}" -ne $null ) {
+If ( "$Env:TESTS_PARALLEL}" -ne $null ) {
   $pidDirs = Get-ChildItem -Path "." -Recurse -Filter "pid_*"
   foreach ($dir in $pidDirs) {
     gzip -c $dir\test_integration.log > test_integration_${BUILD_ID}_${dir}.log.gz
