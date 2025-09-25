@@ -331,6 +331,13 @@ shared_ptr<sdk_test::LocalTempFile>
     return std::make_shared<sdk_test::LocalTempFile>(filePath, contents, customMtime);
 }
 
+/**
+ * @test SdkTestBackupUploadsOperations.BasicTest
+ *
+ * 1. Create multiple local file in the backup directory and ensure it's synced.
+ * 2. Suspend the backup sync and move backup nodes to the cloud.
+ * 3. Confirm that local and remote models match.
+ */
 TEST_F(SdkTestBackupUploadsOperations, BasicTest)
 {
     static const auto logPre{getLogPrefix()};
@@ -362,6 +369,15 @@ TEST_F(SdkTestBackupUploadsOperations, BasicTest)
     LOG_verbose << logPre << "#### Test finished ####";
 }
 
+/**
+ * @test SdkTestBackupUploadsOperations.NodesRemoteCopyUponResumingBackup
+ *
+ * 1. Create multiple local files in the backup directory and ensure they are synced.
+ * 2. Suspend the backup sync and move backup nodes to the cloud.
+ * 3. Remove the suspended sync, then set up the backup sync again.
+ * 4. Resume backup sync and ensure files are synced (remote copy must be done)
+ * 5. Confirm that local and remote models match.
+ */
 TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
 {
     static const auto logPre{getLogPrefix()};
