@@ -2799,6 +2799,8 @@ using namespace mega;
     if (self.megaApi) {
         const char *base64Token = MegaApi::binaryToBase64((const char *)token.bytes, token.length);
         self.megaApi->backgroundMediaUploadComplete(mediaUpload.getCPtr, fileName.UTF8String, parentNode.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, base64Token, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+        
+        delete[] base64Token;
     }
 }
 
