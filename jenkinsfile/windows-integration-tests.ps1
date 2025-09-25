@@ -1,6 +1,8 @@
 # This script runs Windows integration tests
 # And monitor tests PIDs with procdump to core dump when an exception happens
 
+Set-PSDebug -Trace 1
+
 # We'll use BUILD_ID and APIURL_TO_TEST variables for CI
 # Other CI env vars are optional
 If (-Not ((Test-Path Env:BUILD_ID) -Or (Test-Path Env:APIURL_TO_TEST))) {
