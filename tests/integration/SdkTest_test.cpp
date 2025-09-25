@@ -377,7 +377,6 @@ void MegaApiTestDeleter::operator()(MegaApiTest* p) const
 void SdkTest::SetUp()
 {
     SdkTestBase::SetUp();
-    ASSERT_NO_FATAL_FAILURE(setTestAccountsToFree());
 }
 
 void SdkTest::TearDown()
@@ -463,49 +462,33 @@ void SdkTest::Cleanup()
     EXPECT_TRUE(mCleanupSuccess) << "[SdkTest::Cleanup]: Mark test as failed";
 }
 
-void SdkTest::setTestAccountsToFree()
+void SdkTest::setTestAccountsToFree(unsigned int nApi)
 {
-    const string prefix{"# SdkTest::setTestAccountsToFree"};
-    LOG_info << prefix;
-    auto totalAccounts = static_cast<unsigned int>(getEnvVarAccounts().size());
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(totalAccounts));
+    const auto prefix = getLogPrefix();
 
-    auto accountsIdx = Range(0u, totalAccounts);
-    for (const auto& idx: accountsIdx)
+    LOG_info << prefix << "Account " << nApi;
+
+    auto& client = *megaApi[nApi];
+
+    // Check account level
+    const auto accLevelRes = getAccountLevel(client);
+    ASSERT_EQ(result(accLevelRes), API_OK) << prefix << "getAccountLevel error";
+
+    // Already free
+    if (value(accLevelRes).plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
     {
-        auto& client = megaApi[idx];
-        auto accLevelRes = getAccountLevel(*client);
-
-        if (auto result = ::result(accLevelRes); result != API_OK)
-        {
-            // Couldn't retrieve account level.
-            ASSERT_EQ(result, API_OK) << prefix << ". ## Account (" << idx
-                                      << ") getAccountLevel error (" << result << ")";
-        }
-
-        auto level = std::get<AccountLevel>(accLevelRes);
-        if (level.plan == MegaAccountDetails::ACCOUNT_TYPE_FREE)
-        {
-            LOG_info << prefix << ". ## Account (" << idx << ") is free already";
-            releaseMegaApi(idx);
-            return;
-        }
-
-        if (!gFreeAccounts)
-        {
-            mAccountsRestorer.push_back(accountLevelRestorer(megaApi, idx));
-        }
-
-        LOG_info << prefix << ". ## Force account (" << idx
-                 << ") to free status. Originally at plan: " << level.plan
-                 << " months: " << level.months;
-        auto result =
-            setAccountLevel(*client, MegaAccountDetails::ACCOUNT_TYPE_FREE, level.months, nullptr);
-        EXPECT_EQ(result, API_OK) << prefix << ". ## Account (" << idx
-                                  << ") couldn't be reset to free: " << result;
-
-        releaseMegaApi(idx);
+        return;
     }
+
+    if (!gFreeAccounts)
+    {
+        mAccountsRestorer.push_back(accountLevelRestorer(megaApi, nApi));
+    }
+
+    ASSERT_EQ(demoteToFree(client), API_OK) << prefix << "Account couldn't be reset to free";
+
+    // Need to refresh SDK's account status and let SDK knows the change
+    ASSERT_EQ(result(getAccountDetails(client)), API_OK) << prefix << "getAccountDetails error";
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
@@ -2057,6 +2040,7 @@ void SdkTest::getAccountsForTest(const unsigned howMany,
             out() << "Please, DevOps, park this account";
             ASSERT_FALSE(true);
         }
+        setTestAccountsToFree(index);
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
@@ -2827,7 +2811,7 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
     return makeUniqueFrom(directory);
 }
 
-auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>
+auto scopedToPro(MegaApi& client) -> Expected<ScopedDestructor>
 {
     // Make sure client's plan alterations are temporary.
     auto restorer = accountLevelRestorer(client);
@@ -2841,6 +2825,11 @@ auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>
 
     // Return restorer to caller.
     return restorer;
+}
+
+auto demoteToFree(MegaApi& client) -> Error
+{
+    return setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr);
 }
 
 auto exportNode(MegaApi& client, const MegaNode& node, std::optional<std::int64_t> expirationDate)
@@ -3832,7 +3821,7 @@ TEST_F(SdkTest, SdkTestTransfers)
     LOG_info << cwd();
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
     // --- Upload an empty folder ---
@@ -4118,7 +4107,7 @@ TEST_F(SdkTest, SdkTestUndelete)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     LOG_info << "# Set " << megaApi[0]->getMyEmail() << " account to Pro I plan";
-    auto restorer = elevateToPro(*megaApi[0]);
+    auto restorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer), API_OK);
 
     LOG_info << cwd();
@@ -8462,7 +8451,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     LOG_info << "___TEST Cloudraid transfers with connection failures___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -8535,9 +8524,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
-    auto restorer1 = elevateToPro(*megaApi[1]);
+    auto restorer1 = scopedToPro(*megaApi[1]);
     ASSERT_EQ(result(restorer1), API_OK);
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
@@ -8593,7 +8582,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
     LOG_info << "___TEST Cloudraid transfers with single channel timeouts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -8658,7 +8647,7 @@ void SdkTest::testCloudRaidTransferResume(const bool fromNonRaid, const std::str
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     LOG_debug << logPre << "Promote account to PRO plan";
-    const auto restorer0 = elevateToPro(*megaApi[0]);
+    const auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -8956,7 +8945,7 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -9150,7 +9139,7 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -9423,7 +9412,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
@@ -9581,7 +9570,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferBestCase)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
@@ -11738,7 +11727,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto restorer0 = elevateToPro(*megaApi[0]);
+    auto restorer0 = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(restorer0), API_OK);
 
     // this one used to cause a double-delete
@@ -17405,7 +17394,7 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -17656,7 +17645,7 @@ TEST_F(SdkTest, SdkTestUploads)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Make sure our clients are working with pro plans.
-    auto accountRestorer = elevateToPro(*megaApi[0]);
+    auto accountRestorer = scopedToPro(*megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
 
     const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
@@ -21637,7 +21626,7 @@ TEST_F(SdkTest, ExportNodeWithExpiryDate)
     auto restorer = accountLevelRestorer(client);
 
     // Make sure the backend thinks we have a free account.
-    EXPECT_EQ(setAccountLevel(client, MegaAccountDetails::ACCOUNT_TYPE_FREE, 0, nullptr), API_OK);
+    EXPECT_EQ(demoteToFree(client), API_OK);
 
     // Get our hands on this account's root node.
     auto root = makeUniqueFrom(client.getRootNode());
