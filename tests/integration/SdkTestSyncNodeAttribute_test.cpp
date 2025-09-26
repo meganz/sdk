@@ -84,7 +84,8 @@ TEST_F(SdkTestSyncNodeAttributes, VerifyAttributeAfterSync)
     LOG_verbose << logPre << "Waiting for sync remote and local nodes to have the same size";
     ASSERT_NO_FATAL_FAILURE(waitForFileToSync("test.txt"));
 
-    const auto afterSync = megaApi[0]->getNodeByPath(remoteFilePath, nullptr);
+    auto afterSync = megaApi[0]->getNodeByPath(remoteFilePath, nullptr);
+    afterSync = NULL;
     const auto asDescription =
         afterSync->getDescription() == nullptr ? "" : afterSync->getDescription();
     const auto asLable = afterSync->getLabel();
