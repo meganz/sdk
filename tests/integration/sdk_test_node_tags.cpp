@@ -535,7 +535,7 @@ auto SdkTestNodeTagsCommon::createFile(MegaApi& client,
 {
     using sdk_test::LocalTempFile;
 
-    auto filePath = fs::u8path(name);
+    auto filePath = u8path_compat(name);
     LocalTempFile file(filePath, 0);
 
     return uploadFile(client, parent, filePath);
@@ -549,7 +549,7 @@ auto SdkTestNodeTagsCommon::createFileWithContent(MegaApi& client,
 {
     using sdk_test::LocalTempFile;
 
-    auto filePath = fs::u8path(name);
+    auto filePath = u8path_compat(name);
     LocalTempFile file(filePath, content);
 
     return uploadFile(client, parent, filePath);
@@ -781,9 +781,9 @@ auto SdkTestNodeTagsCommon::uploadFile(MegaApi& client,
 {
     TransferTracker tracker(&client);
 
-    client.startUpload(path.u8string().c_str(),
+    client.startUpload(path_u8string(path).c_str(),
                        const_cast<MegaNode*>(&parent),
-                       path.filename().u8string().c_str(),
+                       path_u8string(path.filename()).c_str(),
                        MegaApi::INVALID_CUSTOM_MOD_TIME,
                        nullptr,
                        false,

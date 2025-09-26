@@ -366,7 +366,7 @@ std::optional<int> downloadNode(MegaApi* megaApi,
                 err = error ? error->getErrorCode() : API_EINTERNAL;
                 mtl.markAsFinished();
             });
-    std::string downLoadPath{fsPath.u8string()};
+    std::string downLoadPath{path_u8string(fsPath)};
     if (pathIsFolder && downLoadPath.back() != std::filesystem::path::preferred_separator)
     {
         downLoadPath.push_back(std::filesystem::path::preferred_separator);
@@ -405,7 +405,7 @@ std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
                 nodeHandle = transfer->getNodeHandle();
                 mtl.markAsFinished(error->getErrorCode() == API_OK);
             });
-    megaApi->startUpload(localPath.u8string().c_str(),
+    megaApi->startUpload(path_u8string(localPath).c_str(),
                          parentNode ? parentNode :
                                       std::unique_ptr<MegaNode>{megaApi->getRootNode()}.get(),
                          fileName /*fileName*/,

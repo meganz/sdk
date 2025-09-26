@@ -174,8 +174,8 @@ protected:
 
         if (expectedMtimeAfterMove.has_value())
         {
-            auto [getMtimeOk, movedFileMtime] =
-                mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(targetPathInSync.u8string()));
+            auto [getMtimeOk, movedFileMtime] = mFsAccess->getmtimelocal(
+                LocalPath::fromAbsolutePath(path_u8string(targetPathInSync)));
             ASSERT_TRUE(getMtimeOk)
                 << logPre << "Failed to get mtime of moved file: " << targetPathInSync;
             ASSERT_EQ(movedFileMtime, expectedMtimeAfterMove.value())
@@ -216,7 +216,7 @@ protected:
         ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 
         auto [getMtimeOk, originalMtime] =
-            mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(testFilePath.u8string()));
+            mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(path_u8string(testFilePath)));
         ASSERT_TRUE(getMtimeOk) << "Failed to get original mtime";
 
         LOG_debug << logPre << "2. Removing sync (simulating logout without file deletion)";
@@ -226,8 +226,9 @@ protected:
         const m_time_t newMtime = direction == CxfMtimeDirection::Increase ?
                                       originalMtime + MIN_ALLOW_MTIME_DIFFERENCE :
                                       originalMtime - MIN_ALLOW_MTIME_DIFFERENCE;
-        ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(testFilePath.u8string()),
-                                             newMtime));
+        ASSERT_TRUE(
+            mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(testFilePath)),
+                                     newMtime));
 
         LOG_debug << logPre << "4. Re-adding sync (SRT_CXF case - no LocalNodes exist)";
         ASSERT_NO_FATAL_FAILURE(
@@ -258,7 +259,7 @@ protected:
         else
         {
             auto [getMtimeLocalOk, localMtime] =
-                mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(testFilePath.u8string()));
+                mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(path_u8string(testFilePath)));
             ASSERT_TRUE(getMtimeLocalOk) << "Failed to get local mtime after CXF resync";
             ASSERT_GT(cloudNodeMtime, newMtime) << "Cloud node mtime should be newer than the last "
                                                    "local changed mtime after CXF sync";
@@ -332,12 +333,15 @@ protected:
         }
 
         LOG_debug << logPre << "3. Updating mtimes for all 3 files";
-        ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(smallFile1Path.u8string()),
-                                             newMtime));
-        ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(smallFile2Path.u8string()),
-                                             newMtime));
-        ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(largeFilePath.u8string()),
-                                             newMtime));
+        ASSERT_TRUE(
+            mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(smallFile1Path)),
+                                     newMtime));
+        ASSERT_TRUE(
+            mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(smallFile2Path)),
+                                     newMtime));
+        ASSERT_TRUE(
+            mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(largeFilePath)),
+                                     newMtime));
 
         if (startFromCxf)
         {
@@ -748,7 +752,7 @@ public:
     LocalPath getTestFileAbsolutePath(const std::string& folderName, const std::string& fileName)
     {
         return LocalPath::fromAbsolutePath(
-            fs::absolute(getLocalTmpDir() / folderName / fileName).u8string());
+            path_u8string(fs::absolute(getLocalTmpDir() / folderName / fileName)));
     }
 };
 
@@ -1030,7 +1034,7 @@ TEST_F(SdkTestSyncUploadsOperations, CloneNodeWithDifferentMtime)
     const fs::path outsideLocalPath = outsideLocalDir / originalFileName;
 
     LOG_debug << logPre
-              << "1b. Creating random file outside sync at: " << outsideLocalPath.u8string();
+              << "1b. Creating random file outside sync at: " << path_u8string(outsideLocalPath);
     createRandomFile(outsideLocalPath, fileSize);
 
     LOG_debug << logPre << "2. Creating unique remote folder to manually upload the file: "
@@ -1058,8 +1062,9 @@ TEST_F(SdkTestSyncUploadsOperations, CloneNodeWithDifferentMtime)
 
     const m_time_t newMtimeTimeT = m_time(nullptr) + MIN_ALLOW_MTIME_DIFFERENCE;
     LOG_debug << logPre << "3. Changing local file mtime to: " << newMtimeTimeT << " seconds";
-    ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(outsideLocalPath.u8string()),
-                                         newMtimeTimeT))
+    ASSERT_TRUE(
+        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(outsideLocalPath)),
+                                 newMtimeTimeT))
         << "Failed to set mtime on file outside sync";
 
     const fs::path insideSyncPath = fs::absolute(getLocalTmpDir() / clonedFileName);
@@ -1081,7 +1086,7 @@ TEST_F(SdkTestSyncUploadsOperations, CloneNodeWithDifferentMtime)
     LOG_debug << logPre << "6. Verifying mtime of local file";
     {
         auto [getMtimeSucceeded, currentLocalMtimeTimeT] =
-            mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(insideSyncPath.u8string()));
+            mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(path_u8string(insideSyncPath)));
         ASSERT_TRUE(getMtimeSucceeded) << "Failed to get local file mtime";
         ASSERT_EQ(currentLocalMtimeTimeT, newMtimeTimeT)
             << "Local file mtime should still be the updated value";
@@ -1192,8 +1197,8 @@ TEST_F(SdkTestSyncUploadsOperations, MacComputationObsolescenceOnDelete)
 
     LOG_debug << logPre << "2. Updating mtime to trigger MAC computation";
     const m_time_t newMtime = m_time(nullptr) + MIN_ALLOW_MTIME_DIFFERENCE;
-    ASSERT_TRUE(
-        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(largeFilePath.u8string()), newMtime));
+    ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(largeFilePath)),
+                                         newMtime));
 
     // Brief delay to let sync start processing
     std::this_thread::sleep_for(std::chrono::seconds(3));
@@ -1251,8 +1256,8 @@ TEST_F(SdkTestSyncUploadsOperations, MacComputationObsolescenceOnMove)
 
     LOG_debug << logPre << "2. Updating mtime to trigger MAC computation";
     const m_time_t newMtime = m_time(nullptr) + MIN_ALLOW_MTIME_DIFFERENCE;
-    ASSERT_TRUE(
-        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(largeFilePath.u8string()), newMtime));
+    ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(largeFilePath)),
+                                         newMtime));
 
     // Brief delay to let sync start processing
     std::this_thread::sleep_for(std::chrono::seconds(3));
@@ -1372,7 +1377,7 @@ TEST_F(SdkTestSyncUploadsOperations, PreComputedMacForCloneCandidatesNonBlocking
     auto uploadToCloud = [&](const fs::path& filePath, const int timeoutSeconds = 60)
     {
         TransferTracker uploadTracker(megaApi[0].get());
-        megaApi[0]->startUpload(filePath.u8string().c_str(),
+        megaApi[0]->startUpload(path_u8string(filePath).c_str(),
                                 candidatesFolder.get(),
                                 nullptr, // fileName
                                 m_time(nullptr) - 86400, // mtime (1 day ago - different from local)
@@ -1554,7 +1559,7 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnLocalDelete)
     // Upload to cloud with old mtime
     {
         TransferTracker uploadTracker(megaApi[0].get());
-        megaApi[0]->startUpload(tempFile->getPath().u8string().c_str(),
+        megaApi[0]->startUpload(path_u8string(tempFile->getPath()).c_str(),
                                 candidatesFolder.get(),
                                 nullptr,
                                 m_time(nullptr) - 86400,
@@ -1641,7 +1646,7 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnCloudDelete)
     // Upload to cloud with old mtime
     {
         TransferTracker uploadTracker(megaApi[0].get());
-        megaApi[0]->startUpload(tempFile->getPath().u8string().c_str(),
+        megaApi[0]->startUpload(path_u8string(tempFile->getPath()).c_str(),
                                 candidatesFolder.get(),
                                 nullptr,
                                 m_time(nullptr) - 86400,

@@ -18,11 +18,11 @@ Path::Path(const fs::path& path):
 {}
 
 Path::Path(const std::string& path):
-    Path(fs::u8path(path))
+    Path(u8path_compat(path))
 {}
 
 Path::Path(const char* path):
-    Path(fs::u8path(path))
+    Path(u8path_compat(path))
 {}
 
 Path& Path::operator/=(const Path& rhs)
@@ -71,7 +71,7 @@ LocalPath Path::localPath() const
 {
     if (mPath.empty())
         return LocalPath();
-    return LocalPath::fromAbsolutePath(mPath.u8string());
+    return LocalPath::fromAbsolutePath(path_u8string(mPath));
 }
 
 fs::path Path::path() const
@@ -81,7 +81,7 @@ fs::path Path::path() const
 
 std::string Path::string() const
 {
-    return mPath.u8string();
+    return path_u8string(mPath);
 }
 
 std::ostream& operator<<(std::ostream& ostream, const Path& path)

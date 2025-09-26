@@ -67,7 +67,7 @@ public:
     static void SetUpTestSuite()
     {
         // Compute paths.
-        auto rootPath = makeNewTestRoot() / fs::u8path(Traits::mName);
+        auto rootPath = makeNewTestRoot() / u8path_compat(Traits::mName);
 
         // Where should our clients store their databases?
         mDatabasePath = rootPath / "db";

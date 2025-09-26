@@ -1741,10 +1741,10 @@ inline Range range(const T end)
     {
         if (end <= 0)
         {
-            return range(0u);
+            return Range(0u, 0u);
         }
     }
-    return range(0u, static_cast<unsigned>(end));
+    return Range(0u, static_cast<unsigned>(end));
 }
 
 /**

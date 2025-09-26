@@ -106,10 +106,10 @@ TEST(LocalPathTest, AbsoluteLocalPathFromFileNameStr)
 {
 #ifdef WIN32
     std::string input{"Jose\xC3\x8C\xC2\x81.txt"};
-    std::string expected{(fs::current_path() / "Jos\x65\xCC\x81.txt").u8string()};
+    std::string expected{path_u8string((fs::current_path() / "Jos\x65\xCC\x81.txt"))};
 #else
     std::string input{"Jos\x65\xCC\x81.txt"};
-    std::string expected{(fs::current_path() / "Jos\x65\xCC\x81.txt").u8string()};
+    std::string expected{path_u8string((fs::current_path() / "Jos\x65\xCC\x81.txt"))};
 #endif
 
     auto auxLocalPath = LocalPath::fromAbsolutePath(expected);

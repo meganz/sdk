@@ -109,8 +109,8 @@ TEST_F(SdkTest, PitagCapturedForRegularUpload)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     const auto localFilePath = fs::current_path() / (getFilePrefix() + "pitag_regular.bin");
-    const std::string remoteName = localFilePath.filename().u8string();
-    const std::string localPathUtf8 = localFilePath.u8string();
+    const std::string remoteName = path_u8string(localFilePath.filename());
+    const std::string localPathUtf8 = path_u8string(localFilePath);
     const sdk_test::LocalTempFile localFile(localFilePath, "pitag-regular-upload");
 
     std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
@@ -199,7 +199,7 @@ TEST_F(SdkTest, PitagCapturedForIncomingShareUpload)
     ASSERT_TRUE(incomingNode) << "Sharee cannot access incoming share node";
 
     const auto localFilePath = fs::current_path() / (getFilePrefix() + "pitag_inshare.bin");
-    const std::string localPathUtf8 = localFilePath.u8string();
+    const std::string localPathUtf8 = path_u8string(localFilePath);
     const sdk_test::LocalTempFile localFile(localFilePath, "pitag-inshare-upload");
 
     PitagCommandObserver observer;

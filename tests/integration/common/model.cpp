@@ -162,7 +162,7 @@ auto Model::DirectoryNode::from(const Client& client, NodeInfo info) -> NodePtr
 auto Model::DirectoryNode::from(const fs::path& path) -> NodePtr
 {
     // What's the name of this directory?
-    auto name = path.filename().u8string();
+    auto name = path_u8string(path.filename());
 
     // Instantiate a new directory.
     auto directory = std::make_unique<DirectoryNode>(std::move(name));
@@ -267,7 +267,7 @@ bool Model::DirectoryNode::match(const std::string& path, const Node& rhs) const
 void Model::DirectoryNode::populate(fs::path path) const
 {
     // Add our name to the path.
-    path /= fs::u8path(mName);
+    path /= u8path_compat(mName);
 
     // Make sure we exist on disk.
     fs::create_directories(path);
@@ -342,7 +342,7 @@ auto Model::FileNode::from(const Client&, NodeInfo info) -> NodePtr
 auto Model::FileNode::from(const fs::path& path) -> NodePtr
 {
     // What is our name?
-    auto name = path.filename().u8string();
+    auto name = path_u8string(path.filename());
 
     // Instantiate file.
     auto file = std::make_unique<FileNode>(std::move(name));
@@ -358,7 +358,7 @@ auto Model::FileNode::from(const fs::path& path) -> NodePtr
         return file;
 
     // Try and open file for reading.
-    std::ifstream istream(path.u8string(), std::ios::binary);
+    std::ifstream istream(path_u8string(path), std::ios::binary);
 
     // Expand buffer.
     file->mContent.resize(static_cast<std::size_t>(file->mSize));
@@ -413,7 +413,7 @@ bool Model::FileNode::match(const std::string& path, const Node& rhs) const
 void Model::FileNode::populate(fs::path path) const
 {
     // Compute our path.
-    path /= fs::u8path(mName);
+    path /= u8path_compat(mName);
 
     // Convenience.
     constexpr auto flags = std::ios::binary | std::ios::trunc;
@@ -426,7 +426,7 @@ void Model::FileNode::populate(fs::path path) const
     ostream.exceptions(mask);
 
     // Try and open the file.
-    ostream.open(path.u8string(), flags);
+    ostream.open(path_u8string(path), flags);
 
     // Try and write our content to disk.
     ostream.write(mContent.data(), static_cast<std::streamsize>(mContent.size()));

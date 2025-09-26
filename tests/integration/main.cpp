@@ -517,7 +517,7 @@ class ScopedAbortMounts
         using namespace ::mega::fuse;
 
         // Where would our mounts be mounted?
-        auto workspace = TestFS::GetBaseFolder().u8string();
+        auto workspace = path_u8string(TestFS::GetBaseFolder());
 
         // Nuke everything.
         auto result = Service::abort([&](const std::string& path) {
@@ -590,7 +590,8 @@ int main (int argc, char *argv[])
         // If it did not get an email template, it'll use a single subprocess with the existing env
         // vars.
         GTestParallelRunner pr(std::move(argVals));
-        string testBase = (TestFS::GetBaseFolder() / "pid_").u8string(); // see TestFS::GetProcessFolder()
+        string testBase =
+            path_u8string((TestFS::GetBaseFolder() / "pid_")); // see TestFS::GetProcessFolder()
         pr.useWorkerOutputPathForPid(std::move(testBase));
         return pr.run();
     }
@@ -806,7 +807,9 @@ void moveToTrash(const fs::path& p)
     {
         if (!fs::exists(p)) break;
 
-        newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
+        const std::string newname = path_u8string(p.filename().stem()) + "_" + std::to_string(i) +
+                                    path_u8string(p.extension());
+        newpath = trashpath / fs::path(newname);
 
         if (!fs::exists(newpath))
         {
@@ -814,7 +817,8 @@ void moveToTrash(const fs::path& p)
             fs::rename(p, newpath, e);
             if (e)
             {
-                LOG_err << "Failed to trash-rename " << p.u8string() << " to " << newpath.u8string() << ": " << e.message();
+                LOG_err << "Failed to trash-rename " << path_u8string(p) << " to "
+                        << path_u8string(newpath) << ": " << e.message();
                 WaitMillisec(500);
                 errcount += 1;
             }
@@ -834,7 +838,11 @@ fs::path makeNewTestRoot()
 
     std::error_code e;
     bool b = fs::create_directories(p, e);
-    if (!b) { out() << "Failed to create base directory for test at: " << p.u8string() << ", error: " << e.message(); }
+    if (!b)
+    {
+        out() << "Failed to create base directory for test at: " << path_u8string(p)
+              << ", error: " << e.message();
+    }
     assert(b);
     return p;
 }
@@ -881,6 +889,6 @@ bool isFileHidden(const LocalPath& path)
 
 bool isFileHidden(const fs::path& path)
 {
-    return isFileHidden(LocalPath::fromAbsolutePath(path.u8string()));
+    return isFileHidden(LocalPath::fromAbsolutePath(path_u8string(path)));
 }
 

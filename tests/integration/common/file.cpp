@@ -11,7 +11,7 @@ namespace testing
 {
 
 File::File(const std::string& content, const std::string& name, const Path& parentPath):
-    mPath(parentPath.path() / fs::u8path(name))
+    mPath(parentPath.path() / u8path_compat(name))
 {
     std::ofstream ostream;
 

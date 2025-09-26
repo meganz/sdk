@@ -724,7 +724,7 @@ auto RealClient::invite(const std::string& email) -> ErrorOr<InvitePtr>
     auto notifier = makeSharedPromise<ErrorOr<InvitePtr>>();
 
     // Called when the invitation has been sent.
-    auto invited = [=](Handle id, Error result, opcactions_t)
+    auto invited = [=, this](Handle id, Error result, opcactions_t)
     {
         // Invitation was sent.
         if (result == API_OK)

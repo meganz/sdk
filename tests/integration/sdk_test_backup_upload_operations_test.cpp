@@ -423,7 +423,7 @@ void SdkTestBackupUploadsOperations::createArchiveDestinationFolder()
     unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode) << "setupDestinationDirectory: Account root node not available.";
     mCloudArchiveBackupFolderHandle =
-        createFolder(0, mCloudArchiveBackupFolderName.u8string().c_str(), rootnode.get());
+        createFolder(0, path_u8string(mCloudArchiveBackupFolderName).c_str(), rootnode.get());
     ASSERT_NE(mCloudArchiveBackupFolderHandle, INVALID_HANDLE)
         << "setupDestinationDirectory: Invalid destination folder handle";
 }
@@ -667,7 +667,7 @@ TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
 
     LOG_debug << logPre << "#### TC3 Update mtime to local file ####";
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath((localBasePath / "file1").u8string()),
+    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(localBasePath / "file1")),
                              m_time(nullptr));
     ASSERT_TRUE(waitForResponse(&mTimeChangeRecv))
         << "No mtime change received after " << maxTimeout << " seconds";
@@ -787,7 +787,7 @@ TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
         << logPre
         << "#### TC3 update localNode (idx_0) mtime (with mtime of idx_2) and wait for sync ####";
     auto h = nodes.at(0)->getHandle();
-    auto path = LocalPath::fromAbsolutePath(localFiles.at(0).first->getPath().u8string());
+    auto path = LocalPath::fromAbsolutePath(path_u8string(localFiles.at(0).first->getPath()));
     auto oldMtime = nodes.at(0)->getModificationTime();
     auto newMtime = nodes.at(2)->getModificationTime();
     updateNodeMtime(h, path, oldMtime, newMtime);
@@ -796,7 +796,7 @@ TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
         << logPre
         << "#### TC4 update localNode (idx_1) mtime (with mtime of idx_2) and wait for sync ####";
     h = nodes.at(1)->getHandle();
-    path = LocalPath::fromAbsolutePath(localFiles.at(1).first->getPath().u8string());
+    path = LocalPath::fromAbsolutePath(path_u8string(localFiles.at(1).first->getPath()));
     oldMtime = nodes.at(1)->getModificationTime();
     newMtime = nodes.at(2)->getModificationTime();
     updateNodeMtime(h, path, oldMtime, newMtime);

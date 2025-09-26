@@ -31,7 +31,7 @@ public:
         SdkTestNodesSetUp::SetUp();
 
         mBackupId = syncFolder(megaApi[0].get(),
-                               getLocalTmpDir().u8string(),
+                               path_u8string(getLocalTmpDir()),
                                getNodeByPath("dir1/")->getHandle());
         ASSERT_NE(mBackupId, UNDEF) << "API Error adding a new sync";
         ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
@@ -172,7 +172,7 @@ public:
     {
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_OK);
-        const auto rootPath = newRootPath.u8string();
+        const auto rootPath = path_u8string(newRootPath);
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
         ASSERT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
@@ -279,7 +279,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
 
     const std::filesystem::path newRootPath{"./newLocaRootPathForTests/"};
     const LocalTempDir newRootDir(newRootPath);
-    const auto newRootAbsPath = std::filesystem::absolute(newRootPath).u8string();
+    const auto newRootAbsPath = path_u8string(std::filesystem::absolute(newRootPath));
 
     {
         LOG_verbose << logPre << "Giving undef backupId and good new root path";
@@ -303,7 +303,8 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
         LOG_verbose << logPre << "Giving good backupId and a path to a file";
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EACCESS, INVALID_LOCAL_TYPE);
-        const auto filePath = std::filesystem::absolute(getLocalTmpDir() / "testFile").u8string();
+        const auto filePath =
+            path_u8string(std::filesystem::absolute(getLocalTmpDir() / "testFile"));
         megaApi[0]->changeSyncLocalRoot(getBackupId(), filePath.c_str(), &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
@@ -312,7 +313,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
         LOG_verbose << logPre << "Giving good backupId and a path to non existent dir";
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_ENOENT, LOCAL_PATH_UNAVAILABLE);
-        const auto nonExsitsPath = std::filesystem::absolute("./NoExistsDir/").u8string();
+        const auto nonExsitsPath = path_u8string(std::filesystem::absolute("./NoExistsDir/"));
         megaApi[0]->changeSyncLocalRoot(getBackupId(), nonExsitsPath.c_str(), &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
@@ -321,7 +322,7 @@ TEST_F(SdkTestSyncLocalRootChange, ArgumentErrors)
         LOG_verbose << logPre << "Giving good backupId and path to the already synced root";
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
-        const auto rootPath = std::filesystem::absolute(getLocalTmpDir()).u8string();
+        const auto rootPath = path_u8string(std::filesystem::absolute(getLocalTmpDir()));
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
@@ -342,7 +343,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncs)
     const LocalTempDir tmpDir{"./auxTmpDirForNewSync/"};
     const LocalTempDir tmpSubDir{"./auxTmpDirForNewSync/subdir"};
     const auto dir2BackupId = syncFolder(megaApi[0].get(),
-                                         tmpDir.getPath().u8string(),
+                                         path_u8string(tmpDir.getPath()),
                                          getNodeByPath("dir2/")->getHandle());
     ASSERT_NE(dir2BackupId, UNDEF) << "API Error adding a new sync";
 
@@ -350,7 +351,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncs)
         LOG_verbose << logPre << "Moving local root to another sync root";
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
-        const auto rootPath = tmpDir.getPath().u8string();
+        const auto rootPath = path_u8string(tmpDir.getPath());
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
@@ -359,7 +360,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncs)
         LOG_verbose << logPre << "Moving local root to a subdir inside another sync";
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
-        const auto rootPath = tmpSubDir.getPath().u8string();
+        const auto rootPath = path_u8string(tmpSubDir.getPath());
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
     }
@@ -379,7 +380,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
                 << "Creating a new sync between auxTmpDirErrorNestedSyncSymLink/ and dir2/";
     const LocalTempDir tmpDir{"./auxTmpDirErrorNestedSyncSymLink/"};
     const auto dir2BackupId = syncFolder(megaApi[0].get(),
-                                         tmpDir.getPath().u8string(),
+                                         path_u8string(tmpDir.getPath()),
                                          getNodeByPath("dir2/")->getHandle());
     ASSERT_NE(dir2BackupId, UNDEF) << "API Error adding a new sync";
 
@@ -389,7 +390,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
         std::filesystem::create_directory_symlink(getLocalTmpDir(), linkName);
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
-        const auto rootPath = linkName.u8string();
+        const auto rootPath = path_u8string(linkName);
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
         std::filesystem::remove(linkName);
@@ -402,7 +403,7 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
         std::filesystem::create_directory_symlink(tmpDir.getPath(), linkName);
         NiceMock<MockRequestListener> mockListener{megaApi[0].get()};
         mockListener.setErrorExpectations(API_EARGS, LOCAL_PATH_SYNC_COLLISION);
-        const auto rootPath = linkName.u8string();
+        const auto rootPath = path_u8string(linkName);
         megaApi[0]->changeSyncLocalRoot(getBackupId(), rootPath.c_str(), &mockListener);
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
         std::filesystem::remove(linkName);
@@ -658,7 +659,7 @@ TEST_F(SdkTestSyncLocalRootChange, SymLinkAsRootChangeWhereItPointsTo)
 
     LOG_verbose << logPre << "Creating a new sync with the symlink as root";
     mBackupId =
-        syncFolder(megaApi[0].get(), linkName.u8string(), getNodeByPath("dir1/")->getHandle());
+        syncFolder(megaApi[0].get(), path_u8string(linkName), getNodeByPath("dir1/")->getHandle());
     ASSERT_NE(mBackupId, UNDEF) << "API Error adding a new sync";
 
     LOG_verbose << logPre << "Waiting for cloud/local content to match and local nodes are created";
@@ -805,7 +806,7 @@ public:
     {
         SdkTestNodesSetUp::SetUp();
         createAuxFiles();
-        mBackupId = backupFolder(megaApi[0].get(), getLocalTmpDir().u8string(), "myBackup");
+        mBackupId = backupFolder(megaApi[0].get(), path_u8string(getLocalTmpDir()), "myBackup");
         ASSERT_NE(mBackupId, UNDEF) << "API Error adding a new backup sync";
         ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
     }

@@ -24,7 +24,7 @@ public:
         removeLocalTree();
         // Expand to a more complex structure when needed
         fs::create_directories(localFolderPath);
-        ASSERT_TRUE(createFile((localFolderPath / localFileName).u8string(), false));
+        ASSERT_TRUE(createFile(path_u8string(localFolderPath / localFileName), false));
     }
 
     void removeLocalTree()

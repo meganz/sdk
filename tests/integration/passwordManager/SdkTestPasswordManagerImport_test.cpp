@@ -56,7 +56,7 @@ public:
                     rl.markAsFinished();
                 });
 
-        megaApi[0]->importPasswordsFromFile(filePath.u8string().c_str(),
+        megaApi[0]->importPasswordsFromFile(path_u8string(filePath).c_str(),
                                             MegaApi::IMPORT_PASSWORD_SOURCE_GOOGLE,
                                             getBaseHandle(),
                                             &rl);

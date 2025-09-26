@@ -634,7 +634,7 @@ void Client::Uploader::make(const Path& path, NodeHandle parentHandle)
 
     // Try and make the directory.
     mClient.makeDirectory(std::bind(&Uploader::made, this, path, std::placeholders::_1),
-                          path.path().filename().u8string(),
+                          path_u8string(path.path().filename()),
                           parentHandle);
 }
 
@@ -644,8 +644,10 @@ void Client::Uploader::upload(Path path, NodeHandle parentHandle)
     std::unique_lock<std::mutex> lock(mLock);
 
     // Create the upload.
-    auto upload =
-        mClient.client().upload(LocalPath(), path.path().filename().u8string(), parentHandle, path);
+    auto upload = mClient.client().upload(LocalPath(),
+                                          path_u8string(path.path().filename()),
+                                          parentHandle,
+                                          path);
 
     // Record that a file is being uploaded.
     auto i = mPendingFiles.emplace(path, upload);
