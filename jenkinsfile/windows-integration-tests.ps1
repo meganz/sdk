@@ -28,17 +28,17 @@ Start-job -Name "childrenMonitor" -ScriptBlock {
     foreach ($proc in $processes) {
       # If the process is not in the array, run procdump on it and add it to the array 
       if (-not $testPIDs.ContainsKey($proc.Id)) {
-        Start-Process $procdump -ArgumentList "-accepteula -ma -e 1 $(proc.Id) $dumpDir"
+        Start-Process $procdump -NoNewWindow -ArgumentList "-accepteula -ma -e 1 $($proc.Id) $dumpDir"
         $testPIDs[$proc.Id] = $true
       }
     }
-    Start-Sleep -Seconds 1 # Get new test PIDs every second
+    Start-Sleep -Milliseconds 100 # Get new test PIDs 10 times per second
   }
 }
 
 # Start the tests with a unique name, based on BUILD_ID, so we can monitor their PIDs
 cp build_dir\tests\integration\Debug\test_integration.exe build_dir\tests\integration\Debug\test_integration_$Env:BUILD_ID.exe
-$testProcess = Start-Process "build_dir\tests\integration\Debug\test_integration_$Env:BUILD_ID.exe" -NoNewWindow -Wait -ArgumentList "--FREEACCOUNTS --CI --USERAGENT:$Env:USER_AGENT_TESTS_SDK --APIURL:$Env:APIURL_TO_TEST $Env:GTEST_FILTER $Env:GTEST_REPEAT $Env:TESTS_PARALLEL"
+$testProcess = Start-Process "build_dir\tests\integration\Debug\test_integration_$Env:BUILD_ID.exe" -PassThru -NoNewWindow -Wait -ArgumentList "--FREEACCOUNTS --CI --USERAGENT:$Env:USER_AGENT_TESTS_SDK --APIURL:$Env:APIURL_TO_TEST $Env:GTEST_FILTER $Env:GTEST_REPEAT $Env:TESTS_PARALLEL"
 $testResult = $testProcess.ExitCode
 
 # Stop monitoring child processes
@@ -48,7 +48,7 @@ Stop-job -Name "childrenMonitor"
 If ( "$Env:TESTS_PARALLEL}" -ne $null ) {
   $pidDirs = Get-ChildItem -Path "." -Recurse -Filter "pid_*"
   foreach ($dir in $pidDirs) {
-    gzip -c $dir\test_integration.log > test_integration_${BUILD_ID}_${dir}.log.gz
+    gzip -c $dir/test_integration*.log > test_integration_${BUILD_ID}_${dir}.log.gz
   }
 }
 gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz
@@ -59,5 +59,6 @@ foreach ($dumpFile in Get-ChildItem -Path $dumpDir -Filter "*.dmp") {
   & $cdb -z $dumpDir\$dumpFile -c ".lines -e;kv;!analyze -v;q"
 }
 
+echo "Integration tests exit code: $testResult"
 exit $testResult
 
