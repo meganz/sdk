@@ -234,8 +234,11 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'build_dir/*test_integration*log.gz', fingerprint: true
+                    archiveArtifacts artifacts: '*log.gz', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: '*.log', allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: 'dumps/*', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: "build_dir/*.log", allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: "build_dir/*.log.gz", allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: "build_dir/Debug/*.pdb", allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: "build_dir/tests/integration/Debug/*.pdb", allowEmptyArchive: true, fingerprint: true
                     deleteDir()
