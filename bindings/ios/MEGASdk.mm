@@ -2789,6 +2789,21 @@ using namespace mega;
     return self.megaApi->areTransfersPaused((int)direction);
 }
 
+- (BOOL)areThereAnyTransferWithAppData:(NSString *)appData {
+    if (self.megaApi == nil) return NO;
+    MegaTransferList *transferList = self.megaApi->getTransfers();
+    for (int i = 0; i < transferList->size(); i++) {
+        MegaTransfer *transfer = transferList->get(i);
+        const char *transferAppData = transfer->getAppData();
+        if (transferAppData != NULL && [appData isEqualToString:[NSString stringWithUTF8String:transferAppData]]) {
+            delete transferList;
+            return YES;
+        }
+    }
+    delete transferList;
+    return NO;
+}
+
 - (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)mediaUpload delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, mediaUpload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);

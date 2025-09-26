@@ -7240,6 +7240,20 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 - (BOOL)areTransferPausedForDirection:(NSInteger)direction;
 
 /**
+ * @brief Checks if there are any active transfers with the specified app data.
+ *
+ * This method searches through all current transfers (both uploads and downloads) to determine
+ * if any transfer has app data that matches the provided string. App data is custom metadata
+ * that can be associated with transfers for identification or categorization purposes.
+ *
+ * @param appData The app data string to search for. Must not be nil.
+ *
+ * @return YES if at least one transfer with matching app data is found, NO otherwise.
+ *         Also returns NO if megaApi is nil or if no transfers exist.
+ */
+- (BOOL)areThereAnyTransferWithAppData:(NSString *)appData;
+
+/**
  * @brief Request the URL suitable for uploading a media file.
  *
  * This function requests the URL needed for uploading the file. The URL will need the urlSuffix
