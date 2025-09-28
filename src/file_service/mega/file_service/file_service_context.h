@@ -50,9 +50,6 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     // Returned from openFrom(Cloud|Database|Index).
     using FileContextResult = FileServiceResultOr<FileContextPtr>;
 
-    // Returned from rangesFrom(Database|Index).
-    using RangesResult = FileServiceResultOr<std::optional<FileRangeVector>>;
-
     // Tracks state necessary for reclaim.
     class ReclaimContext;
 
@@ -82,6 +79,9 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
 
     template<typename Lock>
     auto openFromIndex(FileID id, Lock&& lock) -> FileContextResult;
+
+    template<typename Transaction>
+    auto ranges(FileID id, Transaction&& transaction) -> FileRangeVector;
 
     void reclaimTaskCallback(common::Activity& activity,
                              std::chrono::steady_clock::time_point when,

@@ -508,30 +508,13 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
     id = info->id();
 
     // Retrieve this file's ranges from the database.
-    auto ranges = [id, this]()
+    auto ranges = [&]()
     {
         // Acquire database lock.
         UniqueLock lockDatabase(mDatabase);
 
-        // So we can safely access the database.
-        auto transaction = mDatabase.transaction();
-
-        // Retrieve this file's ranges from the database.
-        auto ranges = FileRangeVector();
-        auto query = transaction.query(mQueries.mGetFileRanges);
-
-        query.param(":id").set(id);
-
-        for (query.execute(); query; ++query)
-        {
-            auto begin = query.field("begin").get<std::uint64_t>();
-            auto end = query.field("end").get<std::uint64_t>();
-
-            ranges.emplace_back(begin, end);
-        }
-
         // Return this file's ranges to our caller.
-        return ranges;
+        return this->ranges(id, mDatabase.transaction());
     }();
 
     // Instantiate a new file context.
@@ -566,6 +549,27 @@ auto FileServiceContext::openFromIndex(FileID id, Lock&& lock)
 
     // Return file to caller.
     return file;
+}
+
+template<typename Transaction>
+auto FileServiceContext::ranges(FileID id, Transaction&& transaction) -> FileRangeVector
+{
+    assert(transaction.inProgress());
+
+    auto query = transaction.query(mQueries.mGetFileRanges);
+    auto ranges = FileRangeVector();
+
+    query.param(":id").set(id);
+
+    for (query.execute(); query; ++query)
+    {
+        auto begin = query.field("begin").template get<std::uint64_t>();
+        auto end = query.field("end").template get<std::uint64_t>();
+
+        ranges.emplace_back(begin, end);
+    }
+
+    return ranges;
 }
 
 void FileServiceContext::reclaimTaskCallback(Activity& activity,
