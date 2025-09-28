@@ -3,6 +3,7 @@
 #include <mega/common/activity_monitor.h>
 #include <mega/common/database_forward.h>
 #include <mega/common/lock_forward.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/transaction_forward.h>
 #include <mega/file_service/buffer_pointer.h>
 #include <mega/file_service/file_append_request_forward.h>
@@ -215,6 +216,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     // Serializes access to mFlushContext.
     std::recursive_mutex mFlushContextLock;
 
+    // The file's decryption key, IV and authentication tokens.
+    const std::optional<common::NodeKeyData> mKeyData;
+
     // How many write requests are pending?
     std::size_t mNumPendingWriteRequests;
 
@@ -249,6 +253,7 @@ public:
     FileContext(common::Activity activity,
                 FileAccessPtr file,
                 FileInfoContextPtr info,
+                std::optional<common::NodeKeyData> keyData,
                 const FileRangeVector& ranges,
                 FileServiceContext& service);
 

@@ -463,6 +463,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     auto context = std::make_shared<FileContext>(mActivities.begin(),
                                                  std::move(file),
                                                  std::move(info),
+                                                 std::nullopt,
                                                  FileRangeVector(),
                                                  *this);
 
@@ -537,6 +538,7 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
     auto context = std::make_shared<FileContext>(mActivities.begin(),
                                                  std::move(file),
                                                  std::move(info),
+                                                 std::nullopt,
                                                  ranges,
                                                  *this);
 
@@ -1002,6 +1004,7 @@ try
     auto file = std::make_shared<FileContext>(mActivities.begin(),
                                               mStorage.addFile(id),
                                               info,
+                                              std::nullopt,
                                               FileRangeVector(),
                                               *this);
 
