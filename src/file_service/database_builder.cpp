@@ -79,6 +79,29 @@ void upgrade01(Query& query)
 
     query.execute();
 
+    query = "create table file_key_data ( "
+            "  chat_auth text, "
+            "  id integer "
+            "  constraint nn_file_key_data_id "
+            "             not null, "
+            "  is_private integer "
+            "  constraint nn_file_key_data_is_private "
+            "             not null, "
+            "  key_and_iv text "
+            "  constraint nn_file_key_data_key_and_iv "
+            "             not null, "
+            "  public_auth text, "
+            "  private_auth text, "
+            "  constraint fk_file_key_data_files "
+            "             foreign key (id) "
+            "             references files (id) "
+            "             on delete cascade, "
+            "  constraint pk_file_key_data "
+            "            primary key (id) "
+            ")";
+
+    query.execute();
+
     query = "create table file_ranges ( "
             "  begin integer "
             "  constraint nn_file_ranges_begin "
