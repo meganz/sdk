@@ -532,21 +532,29 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
     // Make sure we're using the file's canonical ID.
     id = info->id();
 
-    // Retrieve this file's ranges from the database.
-    auto ranges = [&]()
+    // Retrieve this file's key data and ranges from the database.
+    std::optional<NodeKeyData> keyData;
+    FileRangeVector ranges;
+
     {
         // Acquire database lock.
         UniqueLock lockDatabase(mDatabase);
 
-        // Return this file's ranges to our caller.
-        return this->ranges(id, mDatabase.transaction());
-    }();
+        // So we can safely access the database.
+        auto transaction = mDatabase.transaction();
+
+        // Retrieve the file's key data from the database.
+        keyData = this->keyData(id, transaction);
+
+        // Retrieve the file's ranges from the database.
+        ranges = this->ranges(id, transaction);
+    }
 
     // Instantiate a new file context.
     auto context = std::make_shared<FileContext>(mActivities.begin(),
                                                  std::move(file),
                                                  std::move(info),
-                                                 std::nullopt,
+                                                 std::move(keyData),
                                                  ranges,
                                                  *this);
 
