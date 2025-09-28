@@ -2,6 +2,7 @@
 
 #include <mega/common/activity_monitor.h>
 #include <mega/common/client_forward.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/partial_download_callback.h>
 #include <mega/common/partial_download_forward.h>
 #include <mega/file_service/buffer_pointer.h>
@@ -82,8 +83,10 @@ public:
     void cancel();
 
     // Create a download this range.
-    auto download(common::Client& client, FileBufferPtr buffer, NodeHandle handle)
-        -> common::PartialDownloadPtr;
+    auto download(common::Client& client,
+                  FileBufferPtr buffer,
+                  NodeHandle handle,
+                  const std::optional<common::NodeKeyData>& keyData) -> common::PartialDownloadPtr;
 
     // Queue a callback for execution when this range has downloaded.
     void queue(FileFetchCallback callback);

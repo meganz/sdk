@@ -978,7 +978,7 @@ void FileContext::execute(FileReadRequest& request)
     // Try and create downloads for our ranges.
     for (auto* range_: ranges)
     {
-        if (auto download = range_->download(client, mBuffer, handle))
+        if (auto download = range_->download(client, mBuffer, handle, mKeyData))
             downloads.emplace_back(std::move(download));
     }
 
