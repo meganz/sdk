@@ -4,6 +4,7 @@
 #include <mega/common/client_forward.h>
 #include <mega/common/database.h>
 #include <mega/common/node_event_observer.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/shared_mutex.h>
 #include <mega/common/task_executor.h>
 #include <mega/common/task_queue.h>
@@ -72,6 +73,9 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     auto infoFromIndex(FileID id, Lock&& lock, bool open) -> InfoContextResult;
 
     auto info(FileID id, bool open) -> InfoContextResult;
+
+    template<typename Transaction>
+    auto keyData(FileID id, Transaction&& transaction) -> std::optional<common::NodeKeyData>;
 
     auto openFromCloud(FileID id) -> FileContextResult;
 

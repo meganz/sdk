@@ -370,6 +370,31 @@ auto FileServiceContext::info(FileID id, bool open) -> InfoContextResult
     return infoFromDatabase(id, open);
 }
 
+template<typename Transaction>
+auto FileServiceContext::keyData(FileID id, Transaction&& transaction) -> std::optional<NodeKeyData>
+{
+    assert(transaction.inProgress());
+
+    auto query = transaction.query(mQueries.mGetFileKeyData);
+
+    query.param(":id").set(id);
+
+    if (!query.execute())
+        return std::nullopt;
+
+    using MaybeString = std::optional<std::string>;
+
+    NodeKeyData keyData;
+
+    keyData.mChatAuth = query.field("chat_auth").template get<MaybeString>();
+    keyData.mIsPrivate = query.field("is_private").template get<bool>();
+    keyData.mKeyAndIV = query.field("key_and_iv").template get<std::string>();
+    keyData.mPrivateAuth = query.field("private_auth").template get<MaybeString>();
+    keyData.mPublicAuth = query.field("public_auth").template get<MaybeString>();
+
+    return keyData;
+}
+
 auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileContextPtr>
 {
     // Synthetic IDs are never a valid node handle.
