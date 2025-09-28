@@ -49,10 +49,6 @@ private:
                        const std::string& name,
                        NodeHandle parentHandle);
 
-    // Extract the public node handle and decryption key from a public link.
-    virtual auto parsePublicLink(const PublicLink& link)
-        -> common::ErrorOr<std::pair<NodeHandle, std::string>> = 0;
-
     // Upload a file to the cloud.
     common::ErrorOr<NodeHandle> uploadFile(const std::string& name,
                                            NodeHandle parentHandle,
@@ -90,6 +86,10 @@ protected:
 
     // Specify whether our view of the cloud is current.
     void nodesCurrent(bool nodesCurrent);
+
+    // Extract the public node handle and decryption key from a public link.
+    virtual auto parsePublicLink(const PublicLink& link)
+        -> common::ErrorOr<std::pair<NodeHandle, std::string>> = 0;
 
     // Where should we create our databases?
     const common::testing::Path mDatabasePath;
