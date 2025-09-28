@@ -942,6 +942,82 @@ FileServiceContext::~FileServiceContext()
     mClient.removeEventObserver(*this);
 }
 
+auto FileServiceContext::add(NodeHandle handle, const NodeKeyData& keyData, std::size_t size)
+    -> FileServiceResultOr<FileID>
+try
+{
+    // Caller's given us a bogus key.
+    if (keyData.mKeyAndIV.size() != FILENODEKEYLENGTH)
+        return unexpected(FILE_SERVICE_INVALID_FILE_KEY);
+
+    // Acquire context lock.
+    std::lock_guard lockContexts(mLock);
+
+    // Acquire database lock.
+    std::lock_guard lockDatabase(mDatabase);
+
+    // So we can safely access the database.
+    auto transaction = mDatabase.transaction();
+
+    // Check if this file's already in the database.
+    auto query = transaction.query(mQueries.mGetFile);
+
+    query.param(":id").set(handle);
+
+    // File's already in the database.
+    if (query.execute())
+        return unexpected(FILE_SERVICE_FILE_ALREADY_EXISTS);
+
+    // Convenience.
+    auto accessed = now();
+    auto id = FileID::from(handle);
+
+    // Add the file to the database.
+    query = transaction.query(mQueries.mAddFile);
+
+    query.param(":accessed").set(accessed);
+    query.param(":allocated_size").set(0u);
+    query.param(":dirty").set(false);
+    query.param(":handle").set(handle);
+    query.param(":id").set(id);
+    query.param(":modified").set(accessed);
+    query.param(":name").set(nullptr);
+    query.param(":parent_handle").set(nullptr);
+    query.param(":removed").set(false);
+    query.param(":reported_size").set(0u);
+    query.param(":size").set(size);
+
+    query.execute();
+
+    // Add the file's key data to the database.
+    query = transaction.query(mQueries.mAddFileKeyData);
+
+    query.param(":chat_auth").set(keyData.mChatAuth);
+    query.param(":id").set(id);
+    query.param(":is_private").set(keyData.mIsPrivate);
+    query.param(":key_and_iv").set(keyData.mKeyAndIV);
+    query.param(":private_auth").set(keyData.mPrivateAuth);
+    query.param(":public_auth").set(keyData.mPublicAuth);
+
+    query.execute();
+
+    // Add the file to storage.
+    mStorage.addFile(id);
+
+    // Persist database changes.
+    transaction.commit();
+
+    // Let the caller know the foreign file was added successfully.
+    return id;
+}
+
+catch (std::runtime_error& exception)
+{
+    FSErrorF("Unable to add foreign file to service: %s", exception.what());
+
+    return unexpected(FILE_SERVICE_UNEXPECTED);
+}
+
 Client& FileServiceContext::client()
 {
     return mClient;

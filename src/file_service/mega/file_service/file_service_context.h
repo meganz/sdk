@@ -175,6 +175,10 @@ public:
 
     ~FileServiceContext();
 
+    // Add a foreign file to the service.
+    auto add(NodeHandle handle, const common::NodeKeyData& keyData, std::size_t size)
+        -> FileServiceResultOr<FileID>;
+
     // Retrieve a reference to this service's client.
     common::Client& client();
 

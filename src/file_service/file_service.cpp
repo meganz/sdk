@@ -25,6 +25,17 @@ FileService::FileService():
 
 FileService::~FileService() = default;
 
+auto FileService::add(NodeHandle handle, const NodeKeyData& keyData, std::size_t size)
+    -> FileServiceResultOr<FileID>
+{
+    SharedLock guard(mContextLock);
+
+    if (mContext)
+        return mContext->add(handle, keyData, size);
+
+    return unexpected(FILE_SERVICE_UNINITIALIZED);
+}
+
 auto FileService::addObserver(FileEventObserver observer)
     -> FileServiceResultOr<FileEventObserverID>
 {
