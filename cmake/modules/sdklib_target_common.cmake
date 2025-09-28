@@ -46,6 +46,8 @@ target_sources(SDKlib PRIVATE
                       include/mega/common/node_event_type_forward.h
                       include/mega/common/node_info.h
                       include/mega/common/node_info_forward.h
+                      include/mega/common/node_key_data.h
+                      include/mega/common/node_key_data_forward.h
                       include/mega/common/normalized_path.h
                       include/mega/common/normalized_path_forward.h
                       include/mega/common/partial_download.h
