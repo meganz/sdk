@@ -164,6 +164,22 @@ FindHandle FindFirstFileP(const Path& path, LPWIN32_FIND_DATAW info)
     return FindHandle(FindFirstFileW(path.path().c_str(), info));
 }
 
+bool flushFile(const Path& path)
+{
+    auto handle = CreateFileP(path,
+                              GENERIC_WRITE,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE,
+                              nullptr,
+                              OPEN_EXISTING,
+                              0,
+                              Handle<>());
+
+    if (!handle)
+        return false;
+
+    return FlushFileBuffers(handle.get());
+}
+
 DWORD GetFileAttributesP(const Path& path)
 {
     return GetFileAttributesW(path.path().c_str());

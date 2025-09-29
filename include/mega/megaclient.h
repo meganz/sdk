@@ -907,10 +907,15 @@ public:
     unsigned char connections[2];
 
     // helpfer function for preparing a putnodes call for new node
-    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                  const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
+    error putnodes_prepareOneFile(NewNode* newnode,
+                                  Node* parentNode,
+                                  const char* utf8Name,
+                                  const UploadToken& binaryUploadToken,
+                                  const byte* theFileKey,
+                                  const char* megafingerprint,
+                                  const char* fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
-                                  std::function<error(std::string *)> addFileAttrsFunc = nullptr);
+                                  std::function<error(std::string&)> addFileAttrsFunc = nullptr);
 
     // helper function for preparing a putnodes call for new folders
     void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, bool canChangeVault, std::function<void (AttrMap&)> addAttrs = nullptr);

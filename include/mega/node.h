@@ -90,7 +90,7 @@ struct MEGA_API NewNode : public NodeCore
     UploadHandle uploadhandle;
     UploadToken uploadtoken;
 
-    std::unique_ptr<string> fileattributes;
+    string fileattributes;
 
     // versioning used for this new node, forced at server's side regardless the account's value
     VersioningOption mVersioningOption = NoVersioning;

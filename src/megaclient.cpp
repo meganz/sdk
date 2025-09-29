@@ -9739,9 +9739,15 @@ error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSe
     return API_OK;
 }
 
-error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                          const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
-                                          std::function<error(AttrMap&)> addNodeAttrsFunc, std::function<error(std::string *)> addFileAttrsFunc)
+error MegaClient::putnodes_prepareOneFile(NewNode* newnode,
+                                          Node* parentNode,
+                                          const char* utf8Name,
+                                          const UploadToken& binaryUploadToken,
+                                          const byte* theFileKey,
+                                          const char* megafingerprint,
+                                          const char* fingerprintOriginal,
+                                          std::function<error(AttrMap&)> addNodeAttrsFunc,
+                                          std::function<error(std::string&)> addFileAttrsFunc)
 {
     error e = API_OK;
 
@@ -9752,12 +9758,12 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     newnode->parenthandle = UNDEF;
     newnode->uploadhandle = mUploadHandle.next();
     newnode->attrstring.reset(new string);
-    newnode->fileattributes.reset(new string);
+    newnode->fileattributes.clear();
 
     // add custom file attributes
     if (addFileAttrsFunc)
     {
-        e = addFileAttrsFunc(newnode->fileattributes.get());
+        e = addFileAttrsFunc(newnode->fileattributes);
         if (e != API_OK)
         {
             return e;
