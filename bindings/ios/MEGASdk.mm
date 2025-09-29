@@ -2789,13 +2789,13 @@ using namespace mega;
     return self.megaApi->areTransfersPaused((int)direction);
 }
 
-- (BOOL)areThereAnyTransferWithAppData:(NSString *)appData {
+- (BOOL)areThereAnyTransferWithAppDataMatching:(BOOL (^)(NSString *appData))filter {
     if (self.megaApi == nil) return NO;
     MegaTransferList *transferList = self.megaApi->getTransfers();
     for (int i = 0; i < transferList->size(); i++) {
         MegaTransfer *transfer = transferList->get(i);
         const char *transferAppData = transfer->getAppData();
-        if (transferAppData != NULL && [appData isEqualToString:[NSString stringWithUTF8String:transferAppData]]) {
+        if (transferAppData != NULL && filter([[NSString alloc] initWithUTF8String:transferAppData])) {
             delete transferList;
             return YES;
         }
