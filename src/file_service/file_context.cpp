@@ -1895,7 +1895,7 @@ FileContext::FlushContext::FlushContext(FileContext& context, FileFlushRequest r
     mActivity(context.mActivities.begin()),
     mContext(context),
     mHandle(context.mInfo->handle()),
-    mLocation(context.mInfo->location()),
+    mLocation(context.mInfo->location().value()),
     mRequests(),
     mUpload()
 {

@@ -47,7 +47,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
                                  bool dirty,
                                  NodeHandle handle,
                                  FileID id,
-                                 const FileLocation& location,
+                                 std::optional<FileLocation> location,
                                  std::int64_t modified,
                                  std::uint64_t reportedSize,
                                  FileServiceContext& service,
@@ -59,7 +59,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
     mDirty(dirty),
     mHandle(handle),
     mID(id),
-    mLocation(location),
+    mLocation(std::move(location)),
     mLock(),
     mModified(modified),
     mRemoved(false),
@@ -140,8 +140,11 @@ void FileInfoContext::location(const FileLocation& to)
             // Make sure no one else is modifying the location.
             std::lock_guard guard(mLock);
 
+            // Sanity.
+            assert(mLocation);
+
             // Latch the file's current location.
-            auto from = std::move(mLocation);
+            auto from = std::move(*mLocation);
 
             // Update the file's current location.
             mLocation = to;
@@ -151,7 +154,7 @@ void FileInfoContext::location(const FileLocation& to)
         }());
 }
 
-FileLocation FileInfoContext::location() const
+std::optional<FileLocation> FileInfoContext::location() const
 {
     return get(&FileInfoContext::mLocation);
 }

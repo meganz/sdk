@@ -299,8 +299,8 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open) -> InfoContextRe
     auto dirty = query.field("dirty").get<bool>();
     auto handle = NodeHandle();
     auto modified = query.field("modified").get<std::int64_t>();
-    auto name = query.field("name").get<std::string>();
-    auto parent = query.field("parent_handle").get<NodeHandle>();
+    auto name = query.field("name").get<std::optional<std::string>>();
+    auto parent = query.field("parent_handle").get<std::optional<NodeHandle>>();
     auto reportedSize = query.field("reported_size").get<std::uint64_t>();
     auto size = query.field("size").get<std::uint64_t>();
 
@@ -309,8 +309,11 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open) -> InfoContextRe
 
     id = query.field("id").get<FileID>();
 
-    // Convenience.
-    FileLocation location{std::move(name), parent};
+    std::optional<FileLocation> location;
+
+    // File only has a location if its name and parent are set.
+    if (name && parent)
+        location = FileLocation{std::move(*name), *parent};
 
     // Instantiate a context to represent this file's information.
     auto info = std::make_shared<FileInfoContext>(accessed,
@@ -319,7 +322,7 @@ auto FileServiceContext::infoFromDatabase(FileID id, bool open) -> InfoContextRe
                                                   dirty,
                                                   handle,
                                                   id,
-                                                  location,
+                                                  std::move(location),
                                                   modified,
                                                   reportedSize,
                                                   *this,

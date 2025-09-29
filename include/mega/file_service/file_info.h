@@ -10,6 +10,7 @@
 #include <mega/file_service/file_service_context_badge_forward.h>
 
 #include <cstdint>
+#include <optional>
 
 namespace mega
 {
@@ -61,7 +62,7 @@ public:
     FileID id() const;
 
     // Where is this file located in the cloud?
-    FileLocation location() const;
+    std::optional<FileLocation> location() const;
 
     // When was this file last modified?
     std::int64_t modified() const;

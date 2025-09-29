@@ -49,7 +49,7 @@ FileID FileInfo::id() const
     return mContext->id();
 }
 
-FileLocation FileInfo::location() const
+std::optional<FileLocation> FileInfo::location() const
 {
     return mContext->location();
 }

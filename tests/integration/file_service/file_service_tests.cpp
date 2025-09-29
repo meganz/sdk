@@ -1291,9 +1291,10 @@ TEST_F(FileServiceTests, inactive_file_moved)
 
     // Make sure the file's location has been updated.
     auto location = file->info().location();
+    ASSERT_TRUE(location);
 
-    EXPECT_EQ(location.mName, name1);
-    EXPECT_EQ(location.mParentHandle, mRootHandle);
+    EXPECT_EQ(location->mName, name1);
+    EXPECT_EQ(location->mParentHandle, mRootHandle);
 
     // And that we received a move event.
     FileEventVector expected;
@@ -1635,9 +1636,10 @@ TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
 
     // Make sure the file's location is correct.
     auto location = file->info().location();
+    ASSERT_TRUE(location);
 
-    EXPECT_EQ(location.mName, name);
-    ASSERT_EQ(location.mParentHandle, mRootHandle);
+    EXPECT_EQ(location->mName, name);
+    ASSERT_EQ(location->mParentHandle, mRootHandle);
 
     // Expected new location.
     FileLocation newLocation{randomName(), mRootHandle};
@@ -1663,7 +1665,7 @@ TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
     FileEventVector expected;
 
     expected.emplace_back(
-        FileMoveEvent{std::move(location), std::move(newLocation), file->info().id()});
+        FileMoveEvent{std::move(*location), std::move(newLocation), file->info().id()});
 
     EXPECT_EQ(expected, fileObserver.events());
     EXPECT_EQ(expected, serviceObserver.events());

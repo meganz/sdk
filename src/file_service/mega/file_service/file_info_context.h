@@ -55,7 +55,7 @@ class FileInfoContext: FileEventEmitter, public FileSizeInfo
     const FileID mID;
 
     // Where is this file located in the cloud?
-    FileLocation mLocation;
+    std::optional<FileLocation> mLocation;
 
     // Serializes access to our members.
     mutable common::SharedMutex mLock;
@@ -82,7 +82,7 @@ public:
                     bool dirty,
                     NodeHandle handle,
                     FileID id,
-                    const FileLocation& location,
+                    std::optional<FileLocation> location,
                     std::int64_t modified,
                     std::uint64_t reportedSize,
                     FileServiceContext& service,
@@ -121,7 +121,7 @@ public:
     void location(const FileLocation& location);
 
     // Where is this file located in the cloud?
-    FileLocation location() const;
+    std::optional<FileLocation> location() const;
 
     // Update the file's access and modification time.
     void modified(std::int64_t accessed, std::int64_t modified);
