@@ -174,6 +174,10 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     void queued(std::unique_lock<std::mutex> lock, FileReadRequestTag tag);
     void queued(std::unique_lock<std::mutex> lock, FileWriteRequestTag tag);
 
+    // Return an error if this request should be rejected.
+    template<typename Request>
+    auto reject(const Request& request) -> std::enable_if_t<IsFileRequestV<Request>, FileResult>;
+
     // Remove zero or more ranges from the database.
     void removeRanges(const FileRange& range, common::Transaction& transaction);
 

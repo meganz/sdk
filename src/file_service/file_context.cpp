@@ -1266,6 +1266,10 @@ void FileContext::execute(FileRequest& request)
             // Sanity.
             assert(request.mCallback);
 
+            // Immediately reject the request if necessary.
+            if (auto result = reject(request); result != FILE_SUCCESS)
+                return completed(std::move(request), result);
+
             // Try and execute the request.
             this->execute(request);
         }
@@ -1324,6 +1328,10 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
     // Request isn't executable so queue it for later execution.
     if (std::unique_lock lock(mRequestsLock); !executable(lock, true, request))
         return queue(std::move(lock), std::forward<Request>(request));
+
+    // Immediately reject the request if necessary.
+    if (auto result = reject(request); result != FILE_SUCCESS)
+        return completed(std::forward<Request>(request), result);
 
     // Otherwise execute the request.
     execute(request);
@@ -1437,6 +1445,25 @@ void FileContext::queued([[maybe_unused]] std::unique_lock<std::mutex> lock, Fil
     assert(lock.owns_lock());
 
     ++mNumPendingWriteRequests;
+}
+
+template<typename Request>
+auto FileContext::reject([[maybe_unused]] const Request& request)
+    -> std::enable_if_t<IsFileRequestV<Request>, FileResult>
+{
+    if constexpr (!IsFileReclaimRequestV<Request> && IsFileWriteRequestV<Request>)
+    {
+        if constexpr (IsFileRemoveRequestV<Request>)
+        {
+            if (request.mServiceOnly)
+                return FILE_SUCCESS;
+        }
+
+        if (mKeyData)
+            return FILE_READONLY;
+    }
+
+    return FILE_SUCCESS;
 }
 
 void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
