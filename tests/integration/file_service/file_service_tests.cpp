@@ -426,6 +426,28 @@ TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
     FSDebugF("Average linear range read time: %" PRIu64 " millisecond(s)", averageRangeReadTime);
 }
 
+TEST_F(FileServiceTests, add_foreign_succeeds)
+{
+    // Create a new client.
+    auto client = CreateClient("file_service_" + randomName());
+    ASSERT_TRUE(client);
+
+    // Log the client in.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Retrieve public link for our test file.
+    auto link = mClient->getPublicLink(mFileHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // We should be able to add mClient's test file to client.
+    auto id = client->fileAdd(*link);
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // We should get a useful error if we add the same file multiple times.
+    id = client->fileAdd(*link);
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_FILE_ALREADY_EXISTS);
+}
+
 TEST_F(FileServiceTests, append_succeeds)
 {
     // Disable readahead.
@@ -1251,6 +1273,64 @@ TEST_F(FileServiceTests, flush_succeeds)
     ASSERT_FALSE(newFile->info().removed());
 }
 
+TEST_F(FileServiceTests, foreign_files_are_read_only)
+{
+    // Create a foreign client.
+    auto client = CreateClient("file_service_" + randomName());
+    ASSERT_TRUE(client);
+
+    // Log the client in.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Get the public link for mClient's test file.
+    auto link = mClient->getPublicLink(mFileHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // Add mClient's test file to client.
+    auto id = client->fileAdd(*link);
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Open the added file.
+    auto file = client->fileOpen(*id);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Generate some data for us to write to the file.
+    auto data = randomBytes(512);
+
+    // Convenience.
+    auto info = [info = file->info()]()
+    {
+        return std::make_tuple(info.dirty(), info.modified(), info.size());
+    }; // info
+
+    // Latch the file's modification time and size.
+    auto before = info();
+
+    // You shouldn't be able to append data to a foreign file.
+    EXPECT_EQ(execute(append, data.data(), *file, data.size()), FILE_READONLY);
+
+    // Make sure the file's information hasn't changed.
+    EXPECT_EQ(before, info());
+
+    // You shouldn't be able to write data to a foreign file.
+    EXPECT_EQ(execute(write, data.data(), *file, 0, data.size()), FILE_READONLY);
+
+    // Make sure the file's information hasn't changed.
+    EXPECT_EQ(before, info());
+
+    // You shouldn't be able to touch a foreign file.
+    EXPECT_EQ(execute(touch, *file, 0l), FILE_READONLY);
+
+    // Make sure the file's information hasn't changed.
+    EXPECT_EQ(before, info());
+
+    // You shouldn't be able to truncate a foreign file.
+    EXPECT_EQ(execute(truncate, *file, 0ul), FILE_READONLY);
+
+    // Make sure the file's information hasn't changed.
+    EXPECT_EQ(before, info());
+}
+
 TEST_F(FileServiceTests, inactive_file_moved)
 {
     // For later reference.
@@ -1744,6 +1824,40 @@ TEST_F(FileServiceTests, open_unknown_fails)
               FILE_SERVICE_FILE_DOESNT_EXIST);
 }
 
+TEST_F(FileServiceTests, purge_foreign_file_succeeds)
+{
+    // Create a foreign client.
+    auto client = CreateClient("file_service_" + randomName());
+    ASSERT_TRUE(client);
+
+    // Log in the client.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Get a link to mClient's test file.
+    auto link = mClient->getPublicLink(mFileHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // Add mClient's test file to our foreign client.
+    auto id = client->fileAdd(*link);
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Open the test file, fetch its content and purge it from the service.
+    {
+        // Open the test file.
+        auto file = client->fileOpen(*id);
+        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Retrieve the file's data.
+        ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+        // Mark the file as removed.
+        ASSERT_EQ(execute(purge, *file), FILE_SUCCESS);
+    }
+
+    // Make sure the file's been purged from the service.
+    ASSERT_EQ(client->fileOpen(*id).errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_FILE_DOESNT_EXIST);
+}
+
 TEST_F(FileServiceTests, read_cancel_on_client_logout_succeeds)
 {
     // Create a client that we can safely logout.
@@ -1864,6 +1978,35 @@ TEST_F(FileServiceTests, read_extension_succeeds)
 
     // We should now have a single range.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 704_KiB)));
+}
+
+TEST_F(FileServiceTests, read_foreign_succeeds)
+{
+    // Create a new client.
+    auto client = CreateClient("file_service_" + randomName());
+    ASSERT_TRUE(client);
+
+    // Log the client in.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Get our test file's public link.
+    auto link = mClient->getPublicLink(mFileHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // Add mClient's test file to client.
+    auto id = client->fileAdd(*link);
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Open the file.
+    auto file = client->fileOpen(*id);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Try and read the file's content.
+    auto computed = execute(read, *file, 0, mFileContent.size());
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Make sure we've read what we expected.
+    ASSERT_TRUE(compare(*computed, mFileContent, 0, mFileContent.size()));
 }
 
 TEST_F(FileServiceTests, read_removed_file_succeeds)
@@ -2296,6 +2439,45 @@ TEST_F(FileServiceTests, reclaim_concurrent_succeeds)
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
     ASSERT_LT(*usedAfter, *usedBefore);
     ASSERT_EQ(*usedAfter, 0ul);
+}
+
+TEST_F(FileServiceTests, reclaim_foreign_file_succeeds)
+{
+    // Create a foreign client.
+    auto client = CreateClient("file_service_" + randomName());
+    ASSERT_TRUE(client);
+
+    // Log in the client.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Get a link to mClient's test file.
+    auto link = mClient->getPublicLink(mFileHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // Add mClient's test file to our foreign client.
+    auto id = client->fileAdd(*link);
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Open the test file.
+    auto file = client->fileOpen(*id);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Retrieve the file's data.
+    ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+    // Figure out how much space our file is using on disk.
+    auto allocated = file->info().allocatedSize();
+
+    // Make sure the file's footprint is what we expect it is.
+    ASSERT_EQ(allocated, mFileContent.size());
+
+    // Reclaim the file's storage.
+    auto reclaimed = execute(reclaim, *file);
+    ASSERT_EQ(reclaimed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(*reclaimed, mFileContent.size());
+
+    // Make sure the file's storage footprint has decreased.
+    EXPECT_EQ(file->info().allocatedSize(), 0u);
 }
 
 TEST_F(FileServiceTests, reclaim_periodic_succeeds)
