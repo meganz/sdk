@@ -59,13 +59,15 @@ gzip -c test_integration.log > test_integration_${Env:BUILD_ID}.log.gz
 rm test_integration.log
 
 # Analyse the dumps, if there's any
-foreach ($dumpFile in Get-ChildItem -Path $dumpDir -Filter "*.dmp") {
-  echo ""
-  echo ""
-  echo "Core dump analizys of $dumpDir\$dumpFile"
-  echo ""
-  echo ""
-  & $cdb -z $dumpDir\$dumpFile -c ".lines -e;kv;!analyze -v;q"
+If ($testResult) {
+  foreach ($dumpFile in Get-ChildItem -Path $dumpDir -Filter "*.dmp") {
+    echo ""
+    echo ""
+    echo "Core dump analizys of $dumpDir\$dumpFile"
+    echo ""
+    echo ""
+    & $cdb -z $dumpDir\$dumpFile -c ".lines -e;kv;!analyze -v;q"
+  }
 }
 
 echo ""

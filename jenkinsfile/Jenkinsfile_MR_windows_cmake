@@ -216,8 +216,14 @@ pipeline {
                                     )
                                     if %ERRORLEVEL% NEQ 0 exit 1
                                     """
-
-                                    powershell script: 'jenkinsfile\\windows-integration-tests.ps1', returnStatus: false
+                                    def integration_tests_error = powershell script: 'jenkinsfile\\windows-integration-tests.ps1', returnStatus: true
+                                    if (integration_tests_error) {
+                                        sh """
+                                            tar czf dumps.tgz dumps/* procdump*.log
+                                            tar czf pdbs.tgz build_dir/Debug/*.pdb build_dir/tests/integration/Debug/*.pdb
+                                            exit ${integration_tests_error}
+                                        """
+                                    }
                                }
                             }
                         }
@@ -234,13 +240,11 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: '*log.gz', allowEmptyArchive: true, fingerprint: true
-                    archiveArtifacts artifacts: '*.log', allowEmptyArchive: true, fingerprint: true
-                    archiveArtifacts artifacts: 'dumps/*', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'test_integration_*log.gz', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'dumps.tgz', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'pdbs.tgz', allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: "build_dir/*.log", allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: "build_dir/*.log.gz", allowEmptyArchive: true, fingerprint: true
-                    archiveArtifacts artifacts: "build_dir/Debug/*.pdb", allowEmptyArchive: true, fingerprint: true
-                    archiveArtifacts artifacts: "build_dir/tests/integration/Debug/*.pdb", allowEmptyArchive: true, fingerprint: true
                     deleteDir()
                 }
             }
