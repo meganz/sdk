@@ -8,6 +8,7 @@
 #include <mega/file_service/buffer_pointer.h>
 #include <mega/file_service/file_append_request_forward.h>
 #include <mega/file_service/file_buffer_pointer.h>
+#include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_event_observer.h>
@@ -271,6 +272,9 @@ public:
 
     // Fetch all of this file's data from the cloud.
     void fetch(FileFetchRequest request);
+
+    // Wait until all fetches in progress have completed.
+    void fetchBarrier(FileFetchBarrierCallback callback);
 
     // Flush this file's local modifications to the cloud.
     void flush(FileFlushRequest request);

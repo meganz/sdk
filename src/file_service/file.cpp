@@ -66,6 +66,14 @@ void File::fetch(FileFetchCallback callback)
     mContext->fetch(FileFetchRequest{std::move(callback)});
 }
 
+void File::fetchBarrier(FileFetchBarrierCallback callback)
+{
+    assert(callback);
+    assert(mContext);
+
+    mContext->fetchBarrier(std::move(callback));
+}
+
 void File::flush(FileFlushCallback callback)
 {
     assert(callback);

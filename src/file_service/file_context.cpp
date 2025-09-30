@@ -1651,6 +1651,64 @@ void FileContext::fetch(FileFetchRequest request)
     executeOrQueue(std::move(request));
 }
 
+void FileContext::fetchBarrier(FileFetchBarrierCallback callback)
+{
+    // Sanity.
+    assert(callback);
+
+    // Acquire range lock.
+    std::unique_lock lock(mRangesLock);
+
+    // True if a download is in progress.
+    auto fetching = [](const auto& entry)
+    {
+        return entry.second != nullptr;
+    }; // fetching
+
+    // How many fetches are in progress?
+    auto count = std::count_if(mRanges.begin(), mRanges.end(), fetching);
+
+    // No fetches are in progress.
+    if (!count)
+    {
+        // Release range lock.
+        lock.unlock();
+
+        // Invoke user callback.
+        return callback();
+    }
+
+    // To avoid copying state needlessly.
+    struct BarrierContext
+    {
+        BarrierContext(FileFetchBarrierCallback callback, std::size_t count):
+            mCallback(std::move(callback)),
+            mCount{count}
+        {}
+
+        FileFetchBarrierCallback mCallback;
+        std::atomic<std::size_t> mCount;
+    }; // BarrierContext
+
+    // Instantiate barrier context.
+    auto context = std::make_shared<BarrierContext>(std::move(callback), count);
+
+    // Called when a fetch has completed.
+    auto fetched = [context](FileResult)
+    {
+        // Invoke the user's callback when all fetches have completed.
+        if (context->mCount.fetch_sub(1) == 1)
+            context->mCallback();
+    }; // fetched
+
+    // Make sure fetched is called when each fetch has completed.
+    for (auto& entry: mRanges)
+    {
+        if (entry.second)
+            entry.second->queue(fetched);
+    }
+}
+
 void FileContext::flush(FileFlushRequest request)
 {
     executeOrQueue(std::move(request));

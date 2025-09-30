@@ -285,6 +285,9 @@ auto execute(Function&& function, Parameters&&... arguments)
 // Fetch all of a file's content from the cloud.
 static auto fetch(File file) -> std::future<FileResult>;
 
+// Wait until all fetches have been completed.
+static auto fetchBarrier(File file) -> std::future<FileResult>;
+
 // Flush a file's modified content to the cloud.
 static auto flush(File file) -> std::future<FileResult>;
 
@@ -3362,6 +3365,25 @@ auto fetch(File file) -> std::future<FileResult>
         [=](auto result)
         {
             notifier->set_value(result);
+        });
+
+    // Return waiter to our caller.
+    return waiter;
+}
+
+auto fetchBarrier(File file) -> std::future<FileResult>
+{
+    // So we can signal when all fetches have completed.
+    auto notifier = makeSharedPromise<FileResult>();
+
+    // So our caller can wait until all fetches have completed.
+    auto waiter = notifier->get_future();
+
+    // Execute the fetch request.
+    file.fetchBarrier(
+        [=]()
+        {
+            notifier->set_value(FILE_SUCCESS);
         });
 
     // Return waiter to our caller.

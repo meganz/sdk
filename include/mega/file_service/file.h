@@ -45,6 +45,9 @@ public:
     // Fetch all of this file's data from the cloud.
     void fetch(FileFetchCallback callback);
 
+    // Wait until all fetches in progress have completed.
+    void fetchBarrier(FileFetchBarrierCallback callback);
+
     // Flush this file's local modifications to the cloud.
     void flush(FileFlushCallback callback);
 
