@@ -65,9 +65,6 @@ public:
     // some commands can only succeed if they are in their own batch.  eg. smss, when the account is blocked pending validation
     bool batchSeparately;
 
-    // true if the command processing has been updated to use the URI v3 system, where successful state updates arrive via actionpackets.
-    bool mV3 = true;
-
     // true if the command returns strings, arrays or objects, but a seqtag is (optionally) also required. In example: ["seqtag"/error, <JSON from before v3>]
     bool mSeqtagArray = false;
 

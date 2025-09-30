@@ -223,6 +223,8 @@ struct TransferTracker : public ::mega::MegaTransferListener
 
     bool mTempFileRemoved{false};
     MegaHandle resultNodeHandle = UNDEF;
+    m_off_t mTransferSpeed{-1};
+    m_off_t mTransferMeanSpeed{-1};
 
     TransferTracker(MegaApi *api): mApi(api), futureResult(promiseResult.get_future())
     {
@@ -238,9 +240,11 @@ struct TransferTracker : public ::mega::MegaTransferListener
         }
     }
 
-    void onTransferStart(MegaApi*, MegaTransfer*) override
+    void onTransferStart(MegaApi*, MegaTransfer* transfer) override
     {
         // called back on a different thread
+        LOG_debug << "TransferTracker::onTransferStart callback received -> set started true for "
+                  << (transfer && transfer->getFileName() ? transfer->getFileName() : "<null>");
         started = true;
     }
 
@@ -251,6 +255,10 @@ struct TransferTracker : public ::mega::MegaTransferListener
 
         // called back on a different thread
         resultNodeHandle = transfer->getNodeHandle();
+        mTransferSpeed = transfer->getSpeed();
+        mTransferMeanSpeed = transfer->getMeanSpeed();
+        LOG_debug << "TransferTracker::onTransferFinish - tSpeed = " << mTransferSpeed
+                  << ", tMeanSpeed = " << mTransferMeanSpeed;
         result = static_cast<ErrorCodes>(error->getErrorCode());
         finished = true;
 
@@ -1093,7 +1101,29 @@ public:
         return rt.waitForResult();
     }
 
-    template<typename ... requestArgs> int doStartUpload(unsigned apiIndex, MegaHandle* newNodeHandleResult, requestArgs... args) { TransferTracker tt(megaApi[apiIndex].get()); megaApi[apiIndex]->startUpload(args..., &tt); auto e = tt.waitForResult(); if (newNodeHandleResult) *newNodeHandleResult = tt.resultNodeHandle; return e;}
+    template<typename... requestArgs>
+    int doStartUpload(unsigned apiIndex, MegaHandle* newNodeHandleResult, requestArgs... args)
+    {
+        TransferTracker tt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->startUpload(args..., &tt);
+        auto e = tt.waitForResult();
+        if (newNodeHandleResult)
+            *newNodeHandleResult = tt.resultNodeHandle;
+        return e;
+    }
+
+    template<typename... requestArgs>
+    std::tuple<int, m_off_t, m_off_t> doStartUploadWithSpeed(unsigned apiIndex,
+                                                             MegaHandle* newNodeHandleResult,
+                                                             requestArgs... args)
+    {
+        TransferTracker tt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->startUpload(args..., &tt);
+        auto e = tt.waitForResult();
+        if (newNodeHandleResult)
+            *newNodeHandleResult = tt.resultNodeHandle;
+        return {e, tt.mTransferSpeed, tt.mTransferMeanSpeed};
+    }
     template<typename ... requestArgs> int doStartDownload(unsigned apiIndex, requestArgs... args) { TransferTracker tt(megaApi[apiIndex].get()); megaApi[apiIndex]->startDownload(args..., &tt); auto e = tt.waitForResult(); return e;}
     template<typename ... requestArgs> int doSetFileVersionsOption(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setFileVersionsOption(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doRemoveVersion(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeVersion(args..., &rt); return rt.waitForResult(); }
@@ -1273,6 +1303,10 @@ public:
 
     void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
 
+    std::pair<int, MegaHandle> createRemoteFolder(const unsigned int apiIndex,
+                                                  const char* name,
+                                                  MegaNode* parent,
+                                                  const int timeout = maxTimeout);
     MegaHandle createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int timeout = maxTimeout);
 
     // SMS verification was deprecated. This function should be removed in the future,

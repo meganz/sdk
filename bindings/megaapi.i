@@ -389,6 +389,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getChildNode;
 %newobject mega::MegaApi::getParentNode;
 %newobject mega::MegaApi::getNodePath;
+%newobject mega::MegaApi::getNodePathByNodeHandle;
 %newobject mega::MegaApi::getNodeByPath;
 %newobject mega::MegaApi::getNodeByHandle;
 %newobject mega::MegaApi::getContactRequestByHandle;
@@ -426,6 +427,16 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getMimeType;
 %newobject mega::MegaApi::isNodeSyncableWithError;
 %newobject mega::MegaApi::getVersions;
+
+%newobject mega::MegaApi::getAutoProxySettings;
+%newobject mega::MegaApi::getOverquotaWarningsTs;
+%newobject mega::MegaApi::getMyCredentials;
+%newobject mega::MegaApi::getUserAvatarColor;
+%newobject mega::MegaApi::getUserAvatarSecondaryColor;
+%newobject mega::MegaApi::getDeviceId;
+%newobject mega::MegaApi::getFirstTransfer;
+%newobject mega::MegaApi::getTransferByUniqueId;
+%newobject mega::MegaApi::getAllNodeTags;
 
 %newobject mega::MegaRequest::getPublicMegaNode;
 %newobject mega::MegaRequest::getMegaTimeZoneDetails;

@@ -1870,7 +1870,6 @@ void MegaClient::init()
     statecurrent = false;
     actionpacketsCurrent = false;
     totalNodes.store(0);
-    mAppliedKeyNodeCount = 0;
     faretrying = false;
 
 #ifdef ENABLE_SYNC
@@ -1994,8 +1993,6 @@ MegaClient::MegaClient(MegaApp* a,
     minstreamingrate = -1;
     ephemeralSession = false;
     ephemeralSessionPlusPlus = false;
-
-    mAppliedKeyNodeCount = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -2920,17 +2917,16 @@ void MegaClient::exec()
                     pendingcs_serverBusySent = false;
                     pendingcs->mCancelSnapshot = mLoginCancelSnapshot;
 
-                    bool v3;
                     string idempotenceId;
-                    *pendingcs->out = reqs.serverrequest(pendingcs->includesFetchingNodes, v3, this, idempotenceId);
+                    *pendingcs->out =
+                        reqs.serverrequest(pendingcs->includesFetchingNodes, this, idempotenceId);
 
                     pendingcs->posturl = httpio->APIURL;
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(idempotenceId);
                     pendingcs->posturl.append(getAuthURI());
                     pendingcs->posturl.append(appkey);
-
-                    pendingcs->posturl.append(v3 ? "&v=3" : "&v=2");
+                    pendingcs->posturl.append("&v=3");
 
                     if (lang.size())
                     {
@@ -10642,6 +10638,11 @@ int MegaClient::readnode(JSON* j,
                 n->applykey();
             }
 
+            if (!n->keyApplied())
+            {
+                mNodeManager.addNodePendingApplykey(n);
+            }
+
             if (notify)
             {
                 // node is save in DB at notifypurge
@@ -11245,12 +11246,7 @@ int MegaClient::procphelement(JSON *j)
 void MegaClient::applykeys()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
-
-    int noKeyExpected = (mNodeManager.getRootNodeFiles().isUndef() ? 0 : 1)
-                      + (mNodeManager.getRootNodeVault().isUndef() ? 0 : 1)
-                      + (mNodeManager.getRootNodeRubbish().isUndef() ? 0 : 1);
-
-    mNodeManager.applyKeys(uint32_t(mAppliedKeyNodeCount + noKeyExpected));
+    mNodeManager.applyKeys();
 
     if (!nodekeyrewrite.empty())
     {

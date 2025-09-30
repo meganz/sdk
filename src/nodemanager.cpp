@@ -294,7 +294,7 @@ bool NodeManager::addNode_internal(std::shared_ptr<Node> node, bool notify, bool
     // 'notify' is false when loading nodes from API or DB. True when node is received from
     // actionpackets and/or from response of CommandPutnodes
 
-    bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == VAULTNODE;
+    bool rootNode = isFromRootNodeType(*node.get());
 
     // getRootNodeFiles() is always set for folder links before adding any node (upon login)
     bool isFolderLink = rootnodes.files == node->nodeHandle();
@@ -1345,12 +1345,27 @@ void NodeManager::removeChanges_internal()
 {
     assert(mMutex.owns_lock());
 
-    for (auto& it : mNodes)
+    if (mNodesInRam <= mCacheLRU.size() + rootnodes.mRootNodes.size())
     {
-        std::shared_ptr<Node> node = it.second.getNodeInRam(false);
-        if (node)
+        for (auto& node: mCacheLRU)
         {
             memset(&(node->changed), 0, sizeof node->changed);
+        }
+
+        for (auto& [_, node]: rootnodes.mRootNodes)
+        {
+            memset(&(node->changed), 0, sizeof node->changed);
+        }
+    }
+    else
+    {
+        for (auto& [_, nodeManagerNode]: mNodes)
+        {
+            std::shared_ptr<Node> node = nodeManagerNode.getNodeInRam(false);
+            if (node)
+            {
+                memset(&(node->changed), 0, sizeof node->changed);
+            }
         }
     }
 }
@@ -1368,15 +1383,18 @@ void NodeManager::cleanNodes_internal()
     mFingerPrints.clear();
     mNodes.clear();
     mCacheLRU.clear();
-    mNodesInRam = 0;
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
+    mNodePendingApplyKeys.clear();
 
     rootnodes.clear();
 
     if (mTable) mTable->removeNodes();
 
     mInitialized = false;
+
+    mAppliedKeyNodeCount = 0;
+    mNodesInRam = 0;
 }
 
 std::shared_ptr<Node> NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
@@ -1427,30 +1445,55 @@ shared_ptr<Node> NodeManager::unserializeNode(const std::string *d, bool fromOld
     return nullptr;
 }
 
-void NodeManager::applyKeys(uint32_t appliedKeys)
+void NodeManager::applyKeys()
 {
     LockGuard g(mMutex);
-    applyKeys_internal(appliedKeys);
+    applyKeys_internal();
 }
 
-void NodeManager::applyKeys_internal(uint32_t appliedKeys)
+void NodeManager::addNodePendingApplykey(std::shared_ptr<Node> node)
+{
+    LockGuard g(mMutex);
+    if (isFromRootNodeType(*node.get()))
+    {
+        return;
+    }
+
+    mNodePendingApplyKeys.push_back(node);
+}
+
+void NodeManager::applyKeys_internal()
 {
     assert(mMutex.owns_lock());
 
-    if (mNodes.size() > appliedKeys)
+    for (auto it = mNodePendingApplyKeys.begin(); it != mNodePendingApplyKeys.end();)
     {
-        for (auto& it : mNodes)
+        if (it->get()->applykey() || it->get()->keyApplied())
         {
-            if (shared_ptr<Node> node = it.second.getNodeInRam(false))
-            {
-               node->applykey();
-            }
+            it = mNodePendingApplyKeys.erase(it);
+        }
+        else
+        {
+            it++;
         }
     }
+
+#ifdef DEBUG
+    // In case of folder links, root node is not from type rootnode and it is decryptable
+    unsigned rootNodeUndecrypted =
+        (!getRootNodeFiles().isUndef() && rootnodes.mRootNodes[ROOTNODE]->type == ROOTNODE) ? 1 : 0;
+    unsigned noKeyExpected = rootNodeUndecrypted + (getRootNodeVault().isUndef() ? 0 : 1) +
+                             (getRootNodeRubbish().isUndef() ? 0 : 1);
+
+    assert(mNodesInRam - (static_cast<uint64_t>(mAppliedKeyNodeCount) + noKeyExpected) ==
+           mNodePendingApplyKeys.size());
+#endif
 }
 
 void NodeManager::notifyPurge()
 {
+    mClient.applykeys();
+
     // only lock to get the nodes to report
     sharedNode_vector nodesToReport;
     {
@@ -1462,8 +1505,6 @@ void NodeManager::notifyPurge()
 
     if (!nodesToReport.empty())
     {
-        mClient.applykeys();
-
         if (!mClient.fetchingnodes)
         {
             assert(!mMutex.owns_lock());
@@ -1783,12 +1824,22 @@ void NodeManager::insertNodeCacheLRU(std::shared_ptr<Node> node)
 
 void NodeManager::increaseNumNodesInRam()
 {
-    mNodesInRam++;
+    ++mNodesInRam;
 }
 
 void NodeManager::decreaseNumNodesInRam()
 {
-    mNodesInRam--;
+    --mNodesInRam;
+}
+
+void NodeManager::increaseNumNodesAppliedKey()
+{
+    ++mAppliedKeyNodeCount;
+}
+
+void NodeManager::decreaseNumNodesAppliedKey()
+{
+    --mAppliedKeyNodeCount;
 }
 
 uint64_t NodeManager::getCacheLRUMaxSize() const
@@ -1840,6 +1891,11 @@ void NodeManager::initCompleted_internal()
 bool NodeManager::ready()
 {
     return mInitialized;
+}
+
+bool NodeManager::isFromRootNodeType(const Node& node) const
+{
+    return node.type == ROOTNODE || node.type == RUBBISHNODE || node.type == VAULTNODE;
 }
 
 void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
@@ -2057,7 +2113,6 @@ void NodeManager::saveNodeInDb_internal(Node *node)
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
         assert(mNodeToWriteInDb.get() == node);
-        assert(mNodeToWriteInDb.use_count() == 2);
         mNodeToWriteInDb.reset();
     }
 }
@@ -2066,6 +2121,12 @@ uint64_t NodeManager::getNumberNodesInRam() const
 {
     LockGuard g(mMutex);
     return mNodesInRam;
+}
+
+long long NodeManager::getNumNodesKeyApplied() const
+{
+    LockGuard g(mMutex);
+    return mAppliedKeyNodeCount;
 }
 
 void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)

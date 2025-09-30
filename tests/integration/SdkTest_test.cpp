@@ -113,6 +113,12 @@ void copyFile(std::string& from, std::string& to)
     fileSystemAccess->copylocal(f, t, m_time());
 }
 
+bool removeFile(std::string& filename)
+{
+    LocalPath f = LocalPath::fromAbsolutePath(filename);
+    return fileSystemAccess->unlinklocal(f);
+}
+
 std::string megaApiCacheFolder(int index)
 {
     std::string p(cwd());
@@ -2495,6 +2501,16 @@ void SdkTest::getContactRequest(unsigned int apiIndex, bool outgoing, int expect
     mApi[apiIndex].cr.reset(crl->get(0)->copy());
 }
 
+std::pair<int, MegaHandle> SdkTest::createRemoteFolder(const unsigned int apiIndex,
+                                                       const char* name,
+                                                       MegaNode* parent,
+                                                       const int timeout)
+{
+    RequestTracker tracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createFolder(name, parent, &tracker);
+    return {tracker.waitForResult(timeout), tracker.request->getNodeHandle()};
+}
+
 MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int timeout)
 {
     RequestTracker tracker(megaApi[apiIndex].get());
@@ -3010,6 +3026,228 @@ TEST_F(SdkTest, SdkTestKillSession)
     // Log out the primary account.
     logout(0, false, maxTimeout);
     gSessionIDs[0] = "invalid";
+}
+
+/**
+ * @brief Test that verifies behavior when uploading duplicated files.
+ *
+ * - TEST1: upload localPath with filename `testfile to Folder1 => Node1 created with NodeVersion_1
+ * - TEST2: upload localPath again to Folder1 => No remote action required
+ * - TEST3: upload localPathAux with filename `testfile to Folder1 => NodeVersion_2 added to Node1
+ * - TEST4: upload localPath with filename `testfile` to Folder1 => NodeVersion_3 added to Node1
+ * - TEST5: upload localPath again to Folder1 => No remote action required
+ * - TEST6: upload localPath with filename `testfile_copy to Folder1 => Perform remote copy, Node2
+ * created with NodeVersion_1
+ * - TEST7: upload localPathAux to Folder2 => Perform remote copy, Node3 created with NodeVersion_1
+ * - TEST8: upload localPathAux with filename `testfile_copy_2` to Folder2 => Perform remote copy,
+ * Node4 created with NodeVersion_1
+ */
+TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
+{
+    const std::string logPre{"TEST SdkTestUploadDuplicatedFiles: "};
+    LOG_info << logPre << "#### Test preconditions. get accounts ####";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    LOG_info << logPre << "#### Test preconditions. create required local folders/files ####";
+    unsigned idx = 0;
+    std::unique_ptr<MegaNode> rootnode{megaApi[idx]->getRootNode()};
+    ASSERT_TRUE(rootnode) << logPre << "Cannot get root node for account: " << idx;
+
+    const std::string rootFolderName{"testfolder1"};
+    auto [errCode, fh] = createRemoteFolder(0, rootFolderName.c_str(), rootnode.get());
+    ASSERT_TRUE(errCode == API_OK && fh != INVALID_HANDLE) << "Cannot create " << rootFolderName;
+
+    auto [errCode1, fh1] = createRemoteFolder(0, rootFolderName.c_str(), rootnode.get());
+    ASSERT_EQ(errCode1, API_EEXIST)
+        << "Unexpected ErrCode upon creating same folder again: " << rootFolderName;
+
+    std::unique_ptr<MegaNode> folderNode1(megaApi[0]->getNodeByHandle(fh1));
+    ASSERT_TRUE(folderNode1) << "Cannot retrieve folderNode1";
+
+    std::unique_ptr<MegaNode> rootFolderNode{megaApi[idx]->getNodeByHandle(fh)};
+    ASSERT_TRUE(rootFolderNode) << logPre << "Cannot get " << rootFolderName
+                                << " node for account: " << idx;
+    ASSERT_EQ(megaApi[idx]->getNumChildren(rootFolderNode.get()), 0);
+
+    auto [errCode2, fh2] = createRemoteFolder(0, rootFolderName.c_str(), folderNode1.get());
+    ASSERT_EQ(errCode2, API_OK)
+        << "Unexpected ErrCode upon creating same folder name inside previous one: "
+        << rootFolderName << "/" << rootFolderName;
+
+    rootFolderNode.reset(megaApi[idx]->getNodeByHandle(fh));
+    ASSERT_TRUE(rootFolderNode) << logPre << "Cannot get " << rootFolderName
+                                << " node for account: " << idx;
+    ASSERT_EQ(megaApi[idx]->getNumChildren(rootFolderNode.get()), 1)
+        << "Unexpected number of children";
+
+    string localPath = "testfile";
+    string localPathAux = "testfile_copy";
+    ASSERT_TRUE(createFile(localPath, false)) << "Couldn't create " << localPath;
+    ASSERT_NO_FATAL_FAILURE(copyFile(localPath, localPathAux))
+        << "Couldn't copy " << localPath << "into" << localPathAux;
+    sdk_test::appendToFile(fs::path(localPathAux), 20000);
+    MegaHandle previousHandle = UNDEF;
+
+    auto uploadFile = [this, &logPre, &previousHandle, idx](MegaNode* parent,
+                                                            const string& localPath,
+                                                            const string& fileName,
+                                                            const string& msg,
+                                                            const int expErr,
+                                                            const int expParentChildren,
+                                                            const int expNversions,
+                                                            const bool expFullUpload,
+                                                            const bool expSameNodeFound)
+    {
+        LOG_debug << logPre << msg;
+        MegaHandle h = UNDEF;
+        const auto [errCode, transferSpeed, transferMeanSpeed] =
+            doStartUploadWithSpeed(idx,
+                                   &h,
+                                   localPath.c_str(),
+                                   parent,
+                                   fileName.c_str(),
+                                   ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                   nullptr /*appData*/,
+                                   false /*isSourceTemporary*/,
+                                   false /*startFirst*/,
+                                   nullptr /*cancelToken*/);
+
+        ASSERT_EQ(errCode, expErr) << msg << " unexpected error: " << errCode << "("
+                                   << MegaError::getErrorString(errCode) << ")";
+        ASSERT_EQ(megaApi[idx]->getNumChildren(parent), expParentChildren)
+            << "unexpected number of children";
+
+        ASSERT_TRUE(previousHandle != h || expSameNodeFound)
+            << "Unexpected upload node handle for "
+            << (expFullUpload ? "expected full upload. " : "expected clone node. ")
+            << "Upload handle: (" << string{Base64Str<MegaClient::CHATHANDLE>(h)} + "), "
+            << "Expected handle: ("
+            << string{Base64Str<MegaClient::CHATHANDLE>(previousHandle)} + ")";
+        previousHandle = h;
+
+        std::unique_ptr<MegaNode> nn(megaApi[idx]->getNodeByHandle(h));
+        ASSERT_TRUE(nn) << "Cannot retrieve node";
+        ASSERT_EQ(megaApi[idx]->getNumVersions(nn.get()), expNversions);
+
+        if (expFullUpload)
+        {
+            ASSERT_GT(transferSpeed, 0)
+                << msg << " full file upload expected, but transferspeed is Zero";
+            ASSERT_GT(transferMeanSpeed, 0)
+                << msg << " full file upload expected, but transferMeanSpeed is Zero";
+        }
+        else
+        {
+            ASSERT_LE(transferSpeed, 0)
+                << msg << " unexpected full file upload, but transferSpeed is greater than Zero";
+            ASSERT_LE(transferMeanSpeed, 0)
+                << msg
+                << " unexpected full file upload, but transferMeanSpeed is greater than Zero";
+        }
+    };
+
+    std::string msg = "#### TEST1: upload localPath with filename `testfile to Folder1 => Node1 "
+                      "created with NodeVersion_1 ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       localPath,
+                                       "testfile",
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       1 /*expNversions*/,
+                                       true /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
+
+    msg = "#### TEST2: upload localPath again to Folder1 => No remote action "
+          "required ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       localPath,
+                                       "testfile",
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       1 /*expNversions*/,
+                                       false /*expFullUpload*/,
+                                       true /*expSameNodeFound*/));
+
+    msg = "#### TEST3: upload localPathAux with filename `testfile to Folder1 => "
+          "NodeVersion_2 added to Node1 ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       localPathAux,
+                                       "testfile",
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       2 /*expNversions*/,
+                                       true /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
+
+    msg = "#### TEST4: upload localPath with filename `testfile` to Folder1 => NodeVersion_3 added "
+          "to Node1 ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       localPath,
+                                       "testfile",
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       3 /*expNversions*/,
+                                       false /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
+
+    msg = "#### TEST5: upload localPath again to Folder1 => No remote action "
+          "required ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       localPath,
+                                       "testfile",
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       3 /*expNversions*/,
+                                       false /*expFullUpload*/,
+                                       true /*expSameNodeFound*/));
+
+    msg = "#### TEST6: upload localPath with filename `testfile_copy to Folder1 => "
+          "Perform remote copy, Node2 created with NodeVersion_1 ####";
+    ASSERT_NO_FATAL_FAILURE(uploadFile(rootFolderNode.get(),
+                                       localPath,
+                                       "testfile_copy",
+                                       msg,
+                                       API_OK,
+                                       3 /*expParentChildren*/,
+                                       1 /*expNversions*/,
+                                       false /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
+
+    msg = "#### TEST7: upload localPathAux to Folder2 => Perform remote copy, Node3 created with "
+          "NodeVersion_1"
+          "####";
+    folderNode1.reset(megaApi[0]->getNodeByHandle(fh2));
+    ASSERT_TRUE(folderNode1) << logPre << "Cannot get " << rootFolderName << "/" << rootFolderName
+                             << " node for account: " << idx;
+    ASSERT_NO_FATAL_FAILURE(uploadFile(folderNode1.get(),
+                                       localPathAux,
+                                       "testfile_copy",
+                                       msg,
+                                       API_OK,
+                                       1 /*expParentChildren*/,
+                                       1 /*expNversions*/,
+                                       false /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
+
+    msg = "#### TEST8: upload localPathAux with filename `testfile_copy_2` to Folder2 => Perform "
+          "remote copy, Node4 created with NodeVersion_1 ####";
+    folderNode1.reset(megaApi[0]->getNodeByHandle(fh2));
+    ASSERT_TRUE(folderNode1) << logPre << "Cannot get " << rootFolderName << "/" << rootFolderName
+                             << " node for account: " << idx;
+    ASSERT_NO_FATAL_FAILURE(uploadFile(folderNode1.get(),
+                                       localPathAux,
+                                       "testfile_copy_2",
+                                       msg,
+                                       API_OK,
+                                       2 /*expParentChildren*/,
+                                       1 /*expNversions*/,
+                                       false /*expFullUpload*/,
+                                       false /*expSameNodeFound*/));
 }
 
 /**
@@ -12812,7 +13050,7 @@ TEST_F(SdkTest, SyncOQTransitions)
     LOG_verbose << "SyncOQTransitions :  Filling up storage space";
     auto importHandle = importPublicLink(
         0,
-        MegaClient::getMegaURL() + "/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg",
+        MegaClient::getMegaURL() + "/file/gzlQ3DIY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg",
         remoteFillNode.get());
     std::unique_ptr<MegaNode> remote1GBFile(megaApi[0]->getNodeByHandle(importHandle));
 

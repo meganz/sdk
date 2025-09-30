@@ -28,9 +28,6 @@
 #include <openssl/err.h>
 #endif
 
-#define IPV6_RETRY_INTERVAL_DS 72000
-#define DNS_CACHE_TIMEOUT_DS 18000
-#define DNS_CACHE_EXPIRES 0
 #define MAX_SPEED_CONTROL_TIMEOUT_MS 500
 
 namespace mega {
@@ -268,9 +265,6 @@ CurlHttpIO::CurlHttpIO()
         LOG_debug << "c-ares version: " << major << "." << minor << "." << patch;
     }
 
-    curlipv6 = data->features & CURL_VERSION_IPV6;
-    LOG_debug << "IPv6 enabled: " << curlipv6;
-
     dnsok = false;
     reset = false;
     statechange = false;
@@ -280,7 +274,6 @@ CurlHttpIO::CurlHttpIO()
     pkpErrors = 0;
 
     WAIT_CLASS::bumpds();
-    lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
 
     curlMutex.lock();
 
@@ -366,40 +359,9 @@ CurlHttpIO::CurlHttpIO()
     contenttypebinary = curl_slist_append(contenttypebinary, "Expect:");
 
     proxyinflight = 0;
-    ipv6requestsenabled = false;
-    ipv6proxyenabled = ipv6requestsenabled;
-    ipv6deactivationtime = Waiter::ds;
     waiter = NULL;
     proxyport = 0;
     proxytype = Proxy::NONE;
-}
-
-bool CurlHttpIO::ipv6available()
-{
-    static int ipv6_works = -1;
-
-    if (ipv6_works != -1)
-    {
-        return ipv6_works != 0;
-    }
-
-    curl_socket_t s = socket(PF_INET6, SOCK_DGRAM, 0);
-
-    if (s == -1)
-    {
-        ipv6_works = 0;
-    }
-    else
-    {
-        ipv6_works = curlipv6;
-#ifdef _WIN32
-        closesocket(s);
-#else
-        close(s);
-#endif
-    }
-
-    return ipv6_works != 0;
 }
 
 void CurlHttpIO::addcurlevents(Waiter* eventWaiter, direction_t d)
@@ -588,12 +550,6 @@ bool CurlHttpIO::setdnsservers(const char* servers)
 
     if (servers)
     {
-        lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
-        if (DNS_CACHE_EXPIRES)
-        {
-            dnscache.clear();
-        }
-
         dnsservers = servers;
         LOG_debug << "Setting custom DNS servers: " << dnsservers;
     }
@@ -621,19 +577,6 @@ void CurlHttpIO::disconnect()
     closecurlevents(API);
     closecurlevents(GET);
     closecurlevents(PUT);
-
-    lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
-    if (DNS_CACHE_EXPIRES)
-    {
-        dnscache.clear();
-    }
-    else
-    {
-        for (auto &dnsPair: dnscache)
-        {
-            dnsPair.second.mNeedsResolvingAgain= true;
-        }
-    }
 
     curlm[API] = curl_multi_init();
     curlm[GET] = curl_multi_init();
@@ -712,18 +655,15 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
     {
         // get host name from each URL
         string host, dummyscheme;
-        int dummyport;
+        int dummyPort;
         const string& url = urls[i]; // this is "free" and helps with debugging
 
-        crackurl(&url, &dummyscheme, &host, &dummyport);
+        crackurl(&url, &dummyscheme, &host, &dummyPort);
 
         // add resolved host name to cache, or replace the previous one
         CurlDNSEntry& dnsEntry = dnscache[host];
         dnsEntry.ipv4 = std::move(ips[2 * i]);
-        dnsEntry.ipv4timestamp = Waiter::ds;
         dnsEntry.ipv6 = std::move(ips[2 * i + 1]);
-        dnsEntry.ipv6timestamp = Waiter::ds;
-        dnsEntry.mNeedsResolvingAgain = false;
     }
 
     return true;
@@ -1019,12 +959,12 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
         if (httpio->proxyip.size())
         {
-            if(!httpio->proxyscheme.size() || !httpio->proxyscheme.compare(0, 4, "http"))
+            if (!httpio->proxyschema.size() || !httpio->proxyschema.compare(0, 4, "http"))
             {
                 LOG_debug << "Using HTTP proxy";
                 curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
             }
-            else if(!httpio->proxyscheme.compare(0, 5, "socks"))
+            else if (!httpio->proxyschema.compare(0, 5, "socks"))
             {
                 LOG_debug << "Using SOCKS proxy";
                 curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5_HOSTNAME);
@@ -1063,6 +1003,26 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             curl_easy_setopt(curl, CURLOPT_DNS_SERVERS, httpio->dnsservers.c_str());
         }
 
+        if (!httpio->proxyip.size())
+        {
+            auto it = httpio->dnscache.find(httpctx->hostname);
+
+            if (it != httpio->dnscache.end())
+            {
+                std::string addrs = it->second.ipv4; // must be non-empty
+                if (!it->second.ipv6.empty())
+                {
+                    addrs += ",[" + it->second.ipv6 + "]";
+                }
+
+                httpio->addDnsResolution(curl,
+                                         httpctx->mCurlDnsList,
+                                         httpctx->hostname,
+                                         addrs,
+                                         httpctx->port);
+            }
+        }
+
         httpio->numconnections[httpctx->d]++;
         curl_multi_add_handle(httpio->curlm[httpctx->d], curl);
         httpctx->curl = curl;
@@ -1091,15 +1051,15 @@ void CurlHttpIO::request_proxy_ip()
     }
 }
 
-bool CurlHttpIO::crackurl(const string* url, string* scheme, string* hostname, int* port)
+bool CurlHttpIO::crackurl(const string* url, string* schema, string* hostname, int* port)
 {
-    if (!url || !url->size() || !scheme || !hostname || !port)
+    if (!url || !url->size() || !schema || !hostname || !port)
     {
         return false;
     }
 
     *port = 0;
-    scheme->clear();
+    schema->clear();
     hostname->clear();
 
     size_t starthost, endhost = 0, startport, endport;
@@ -1108,7 +1068,7 @@ bool CurlHttpIO::crackurl(const string* url, string* scheme, string* hostname, i
 
     if (starthost != string::npos)
     {
-        *scheme = url->substr(0, starthost);
+        *schema = url->substr(0, starthost);
         starthost += 3;
     }
     else
@@ -1194,15 +1154,15 @@ bool CurlHttpIO::crackurl(const string* url, string* scheme, string* hostname, i
 
     if (!*port)
     {
-        if (!scheme->compare("https"))
+        if (!schema->compare("https"))
         {
             *port = 443;
         }
-        else if (!scheme->compare("http"))
+        else if (!schema->compare("http"))
         {
             *port = 80;
         }
-        else if (!scheme->compare(0, 5, "socks"))
+        else if (!schema->compare(0, 5, "socks"))
         {
             *port = 1080;
         }
@@ -1217,7 +1177,7 @@ bool CurlHttpIO::crackurl(const string* url, string* scheme, string* hostname, i
     if (*port <= 0 || starthost == string::npos || starthost >= endhost)
     {
         *port = 0;
-        scheme->clear();
+        schema->clear();
         hostname->clear();
         return false;
     }
@@ -1265,15 +1225,13 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->len = len;
     httpctx->data = data;
     httpctx->headers = NULL;
-    httpctx->isIPv6 = false;
-    httpctx->isCachedIp = false;
     httpctx->d = (req->type == REQ_JSON || req->method == METHOD_NONE) ? API : ((data ? len : req->out->size()) ? PUT : GET);
     req->httpiohandle = (void*)httpctx;
 
     bool validrequest = true;
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
         || (validrequest =
-                crackurl(&req->posturl, &httpctx->scheme, &httpctx->hostname, &httpctx->port)) !=
+                crackurl(&req->posturl, &httpctx->schema, &httpctx->hostname, &httpctx->port)) !=
                true) // invalid request
     {
         if (validrequest)
@@ -1290,46 +1248,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         req->status = REQ_FAILURE;
         statechange = true;
         return;
-    }
-
-    if (!ipv6requestsenabled && ipv6available() && Waiter::ds - ipv6deactivationtime > IPV6_RETRY_INTERVAL_DS)
-    {
-        ipv6requestsenabled = true;
-    }
-
-    // purge DNS cache if needed
-    if (DNS_CACHE_EXPIRES && (Waiter::ds - lastdnspurge) > DNS_CACHE_TIMEOUT_DS)
-    {
-        std::map<string, CurlDNSEntry>::iterator it = dnscache.begin();
-
-        while (it != dnscache.end())
-        {
-            CurlDNSEntry& entry = it->second;
-
-            if (entry.ipv6.size() && entry.isIPv6Expired())
-            {
-                entry.ipv6timestamp = 0;
-                entry.ipv6.clear();
-            }
-
-            if (entry.ipv4.size() && entry.isIPv4Expired())
-            {
-                entry.ipv4timestamp = 0;
-                entry.ipv4.clear();
-            }
-
-            if (!entry.ipv6.size() && !entry.ipv4.size())
-            {
-                LOG_debug << "DNS cache record expired for " << it->first;
-                dnscache.erase(it++);
-            }
-            else
-            {
-                it++;
-            }
-        }
-
-        lastdnspurge = Waiter::ds;
     }
 
     req->in.clear();
@@ -1355,37 +1273,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->hostheader = "Host: ";
     httpctx->hostheader.append(httpctx->hostname);
 
-    CurlDNSEntry* dnsEntry = NULL;
-    map<string, CurlDNSEntry>::iterator it = dnscache.find(httpctx->hostname);
-    if (it != dnscache.end())
-    {
-        dnsEntry = &it->second;
-    }
-
-    if (ipv6requestsenabled)
-    {
-        if (dnsEntry && dnsEntry->ipv6.size() && !dnsEntry->isIPv6Expired())
-        {
-            NET_debug << "DNS cache hit for " << httpctx->hostname << " (IPv6) " << dnsEntry->ipv6;
-            std::ostringstream oss;
-            httpctx->isIPv6 = true;
-            httpctx->isCachedIp = true;
-            oss << "[" << dnsEntry->ipv6 << "]";
-            httpctx->hostip = oss.str();
-            send_request(httpctx);
-            return;
-        }
-    }
-
-    if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
-    {
-        NET_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
-        httpctx->isIPv6 = false;
-        httpctx->isCachedIp = true;
-        httpctx->hostip = dnsEntry->ipv4;
-        send_request(httpctx);
-        return;
-    }
     send_request(httpctx);
 }
 
@@ -1415,7 +1302,7 @@ void CurlHttpIO::setproxy(const Proxy& proxy)
     {
         LOG_debug << "CurlHttpIO::setproxy: Invalid arguments. type: " << proxy.getProxyType()
                   << " url: " << proxy.getProxyURL() << " Invalidating inflight proxy changes";
-        proxyscheme.clear();
+        proxyschema.clear();
         proxyhost.clear();
         proxyport = 0;
         proxyusername.clear();
@@ -1435,7 +1322,7 @@ void CurlHttpIO::setproxy(const Proxy& proxy)
 
     LOG_debug << "Setting proxy: " << proxyurl;
 
-    if (!crackurl(&proxyurl, &proxyscheme, &proxyhost, &proxyport))
+    if (!crackurl(&proxyurl, &proxyschema, &proxyhost, &proxyport))
     {
         LOG_err << "Malformed proxy string: " << proxyurl;
 
@@ -1443,15 +1330,13 @@ void CurlHttpIO::setproxy(const Proxy& proxy)
 
         // mark the proxy as invalid (proxyurl set but proxyhost not set)
         proxyhost.clear();
-        proxyscheme.clear();
+        proxyschema.clear();
 
         // drop all pending requests
         drop_pending_requests();
         return;
     }
 
-    ipv6requestsenabled = false;
-    ipv6proxyenabled = ipv6requestsenabled;
     request_proxy_ip();
 }
 
@@ -1757,73 +1642,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
             statechange = true;
 
-            if (req->status == REQ_FAILURE && !req->httpstatus)
-            {
-                CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-                if (httpctx)
-                {
-                    // remove the IP from the DNS cache
-                    CurlDNSEntry &dnsEntry = dnscache[httpctx->hostname];
-
-                    if (httpctx->isIPv6)
-                    {
-                        dnsEntry.ipv6.clear();
-                        dnsEntry.ipv6timestamp = 0;
-                    }
-                    else
-                    {
-                        dnsEntry.ipv4.clear();
-                        dnsEntry.ipv4timestamp = 0;
-                    }
-
-                    req->mDnsFailure = true;
-                    ipv6requestsenabled = !httpctx->isIPv6 && ipv6available();
-
-                    if (ipv6requestsenabled)
-                    {
-                        // change the protocol of the proxy after fails contacting
-                        // MEGA servers with both protocols (IPv4 and IPv6)
-                        ipv6proxyenabled = !ipv6proxyenabled && ipv6available();
-                        request_proxy_ip();
-                    }
-                    else if (httpctx->isIPv6)
-                    {
-                        ipv6deactivationtime = Waiter::ds;
-
-                        // for IPv6 errors, try IPv4 before sending an error to the engine
-                        if ((dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired()) ||
-                            (!httpctx->isCachedIp))
-                        {
-                            numconnections[httpctx->d]--;
-                            pausedrequests[httpctx->d].erase(msg->easy_handle);
-                            curl_multi_remove_handle(curlmhandle, msg->easy_handle);
-                            curl_easy_cleanup(msg->easy_handle);
-                            curl_slist_free_all(httpctx->headers);
-                            httpctx->isCachedIp = false;
-                            httpctx->headers = NULL;
-                            httpctx->curl = NULL;
-                            req->httpio = this;
-                            req->in.clear();
-                            req->status = REQ_INFLIGHT;
-
-                            if (dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired())
-                            {
-                                LOG_debug << req->getLogName() << "Retrying using IPv4 from cache";
-                                httpctx->isIPv6 = false;
-                                httpctx->hostip = dnsEntry.ipv4;
-                                send_request(httpctx);
-                            }
-                            else
-                            {
-                                httpctx->hostip.clear();
-                                LOG_debug << req->getLogName()
-                                          << "Retrying with the pending DNS response";
-                            }
-                            return true;
-                        }
-                    }
-                }
-            }
+            // signal if the request has failed due to a DNS error (httpstatus = 0)
+            req->mDnsFailure = (req->status == REQ_FAILURE && !req->httpstatus);
         }
         else
         {
@@ -2035,11 +1855,24 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
 {
     HttpReq *req = (HttpReq*)target;
     size_t len = size * nmemb;
-    if (len > 2)
+    // HEADER can end in \r\n (protocol specs) or \n (also accepted)
+    unsigned endChars = std::invoke(
+        [&ptr, &len]() -> unsigned
+        {
+            if (Utils::endswith(ptr, len, "\r\n", 2))
+                return 2;
+            if (Utils::endswith(ptr, len, "\n", 1))
+                return 1;
+            return 0;
+        });
+
+    if (len > endChars)
     {
-        NET_verbose << req->getLogName() << "Header: " << string(ptr, len - 2);
+        NET_verbose << req->getLogName() << "Header: " << std::string(ptr, len - endChars);
     }
-    assert(Utils::endswith(ptr, len, "\r\n", 2));
+
+    // 2 -> "\r\n" 1 -> "\n"
+    assert(endChars == 2u || endChars == 1u);
     const char* val = nullptr;
     if (Utils::startswith(ptr, "HTTP/"))
     {
@@ -2439,20 +2272,17 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 }
 #endif
 
-CurlDNSEntry::CurlDNSEntry()
+void CurlHttpIO::addDnsResolution(
+    CURL* curl,
+    std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)>& dnsList,
+    const string& host,
+    const string& ips,
+    const int port)
 {
-    ipv4timestamp = 0;
-    ipv6timestamp = 0;
-}
+    string curlListEntry = host + ":" + std::to_string(port) + ":" + ips;
+    dnsList.reset(curl_slist_append(dnsList.release(), curlListEntry.c_str()));
 
-bool CurlDNSEntry::isIPv4Expired()
-{
-    return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv4timestamp) >= DNS_CACHE_TIMEOUT_DS);
-}
-
-bool CurlDNSEntry::isIPv6Expired()
-{
-    return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
+    curl_easy_setopt(curl, CURLOPT_RESOLVE, dnsList.get());
 }
 
 } // namespace

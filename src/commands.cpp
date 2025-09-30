@@ -3567,8 +3567,6 @@ CommandGetUA::CommandGetUA(MegaClient* /*client*/,
                            CompletionBytes completionBytes,
                            CompletionTLV completionTLV)
 {
-    mV3 = true;
-
     this->uid = uid;
     this->at = at;
     this->ph = ph ? string(ph) : "";
@@ -12354,7 +12352,7 @@ CommandCreatePasswordManagerBase::CommandCreatePasswordManagerBase(MegaClient* c
 
 bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
 {
-    // APs will update user data (in v3: wait for APs before returning)
+    // APs will update user data (wait for APs before returning)
 
     if (r.wasErrorOrOK())
     {

@@ -376,7 +376,9 @@ public:
     std::shared_ptr<Node> getNodeFromBlob(const string* nodeSerialized);
 
     // attempt to apply received keys to decrypt node's keys
-    void applyKeys(uint32_t appliedKeys);
+    void applyKeys();
+
+    void addNodePendingApplykey(std::shared_ptr<Node> node);
 
     // add node to the notification queue
     void notifyNode(std::shared_ptr<Node> node, sharedNode_vector* nodesToReport = nullptr);
@@ -428,6 +430,9 @@ public:
     // This method only can be used in Megacli for testing purposes
     uint64_t getNumberNodesInRam() const;
 
+    // Return number of nodes have had a successful applykey()
+    long long getNumNodesKeyApplied() const;
+
     // Add new relationship between parent and child
     void addChild(NodeHandle parent, NodeHandle child, Node *node);
     // remove relationship between parent and child
@@ -460,6 +465,9 @@ public:
     void increaseNumNodesInRam();
     void decreaseNumNodesInRam();
 
+    void increaseNumNodesAppliedKey();
+    void decreaseNumNodesAppliedKey();
+
     uint64_t getCacheLRUMaxSize() const;
     void setCacheLRUMaxSize(uint64_t cacheLRUMaxSize);
 
@@ -468,6 +476,8 @@ public:
     // true when the filesystem has been initialized
     // i.e., when nodes have been fully loaded from a fetchnodes or from cache
     bool ready();
+
+    bool isFromRootNodeType(const Node& node) const;
 
 private:
     class NoKeyLogger
@@ -539,6 +549,12 @@ private:
 
     // nodes that have changed and are pending to notify to app and dump to DB
     sharedNode_vector mNodeNotify;
+
+    // Stores nodes pending key application
+    std::list<std::shared_ptr<Node>> mNodePendingApplyKeys;
+
+    // tracks how many nodes have had a successful applykey()
+    std::atomic<long long> mAppliedKeyNodeCount{0};
 
     shared_ptr<Node> getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode, MissingParentNodes& missingParentNodes);    // takes ownership
@@ -635,7 +651,7 @@ private:
     void removeChanges_internal();
     void cleanNodes_internal();
     std::shared_ptr<Node> getNodeFromBlob_internal(const string* nodeSerialized);
-    void applyKeys_internal(uint32_t appliedKeys);
+    void applyKeys_internal();
     void notifyNode_internal(std::shared_ptr<Node> node, sharedNode_vector* nodesToReport);
     bool loadNodes_internal();
     uint64_t getNodeCount_internal();
