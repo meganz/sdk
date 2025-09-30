@@ -43,7 +43,10 @@ FileStorage::FileStorage(const Client& client):
     mStorageDirectory(*mFilesystem, logger(), "file-service", client.dbRootPath()),
     mUserStorageDirectory(*mFilesystem, logger(), client.sessionID(), mStorageDirectory),
     mUserCacheDirectory(*mFilesystem, logger(), "cache", mUserStorageDirectory)
-{}
+{
+    mFolderLocker =
+        common::platform::FolderLocker{mUserStorageDirectory.path().asPlatformEncoded(true)};
+}
 
 FileStorage::~FileStorage() = default;
 

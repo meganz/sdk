@@ -3,6 +3,9 @@
 #include <mega/common/client_forward.h>
 #include <mega/common/directory.h>
 #include <mega/common/node_info_forward.h>
+#include <mega/common/platform/folder_locker.h>
+#include <mega/fuse/platform/platform.h>
+#include <mega/fuse/platform/utility.h>
 #include <mega/types.h>
 
 #include <optional>
@@ -35,6 +38,8 @@ class FileStorage
 
     // Where the service is storing this user's cached files
     common::Directory mUserCacheDirectory;
+
+    common::platform::FolderLocker mFolderLocker;
 
 public:
     explicit FileStorage(const common::Client& client);
