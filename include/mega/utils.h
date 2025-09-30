@@ -643,6 +643,7 @@ std::pair<node_comparison_result, int64_t>
                                      const LocalPath& path,
                                      const FileFingerprint& fp,
                                      const Node* node,
+                                     const bool excludeMtime = false,
                                      bool debugMode = false);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.

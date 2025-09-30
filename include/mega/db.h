@@ -191,6 +191,9 @@ public:
                                 std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node, NodeHandle& handle) = 0;
+    virtual bool getNodesByFingerprintExcludingMtime(
+        const std::string& fingerprint,
+        std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
 
     virtual bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>&, ShareType_t shareType) = 0;

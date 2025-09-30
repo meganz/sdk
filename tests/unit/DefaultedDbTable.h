@@ -77,6 +77,13 @@ public:
         return false;
     }
 
+    bool getNodesByFingerprintExcludingMtime(
+        const std::string&,
+        std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
+    {
+        return false;
+    }
+
     uint64_t getNumberOfChildren(mega::NodeHandle /*parentHandle*/) override
     {
         return 0;
