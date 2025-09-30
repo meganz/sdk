@@ -48,7 +48,7 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     // Returned from info(From(Database|Index)).
     using InfoContextResult = FileServiceResultOr<std::pair<FileInfoContextPtr, FileAccessPtr>>;
 
-    // Returned from openFrom(Cloud|Database|Index).
+    // Returned from fileContextFrom(Cloud|Database|Index).
     using FileContextResult = FileServiceResultOr<FileContextPtr>;
 
     // Tracks state necessary for reclaim.
@@ -63,6 +63,13 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     template<typename Lock>
     void deallocateID(FileID id, Lock&& lock, common::Transaction& transaction);
 
+    auto fileContextFromCloud(FileID id) -> FileContextResult;
+
+    auto fileContextFromDatabase(FileID id) -> FileContextResult;
+
+    template<typename Lock>
+    auto fileContextFromIndex(FileID id, Lock&& lock) -> FileContextResult;
+
     template<typename Lock, typename T>
     auto getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
         -> std::shared_ptr<T>;
@@ -76,13 +83,6 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
 
     template<typename Transaction>
     auto keyData(FileID id, Transaction&& transaction) -> std::optional<common::NodeKeyData>;
-
-    auto openFromCloud(FileID id) -> FileContextResult;
-
-    auto openFromDatabase(FileID id) -> FileContextResult;
-
-    template<typename Lock>
-    auto openFromIndex(FileID id, Lock&& lock) -> FileContextResult;
 
     template<typename Transaction>
     auto ranges(FileID id, Transaction&& transaction) -> FileRangeVector;
