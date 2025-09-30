@@ -103,9 +103,6 @@ TEST_F(SharedMutexTests, lock_fails)
         UniqueLock<SharedMutex> lock0(mutex, std::try_to_lock);
         ASSERT_TRUE(lock0);
 
-        UniqueLock<SharedMutex> lock1(mutex, std::try_to_lock);
-        ASSERT_FALSE(lock1);
-
         auto result = execute(std::function<bool()>([&]() {
             return !UniqueLock<SharedMutex>(mutex, std::try_to_lock);
         }));
@@ -115,9 +112,6 @@ TEST_F(SharedMutexTests, lock_fails)
 
     SharedLock<SharedMutex> lock0(mutex, std::try_to_lock);
     ASSERT_TRUE(lock0);
-
-    UniqueLock<SharedMutex> lock1(mutex, std::try_to_lock);
-    ASSERT_FALSE(lock1);
 
     auto result = execute(std::function<bool()>([&]() {
         return !UniqueLock<SharedMutex>(mutex, std::try_to_lock);
@@ -130,8 +124,11 @@ TEST_F(SharedMutexTests, lock_succeeds)
 {
     SharedMutex mutex;
 
-    UniqueLock<SharedMutex> lock(mutex, std::try_to_lock);
-    ASSERT_TRUE(lock);
+    UniqueLock<SharedMutex> lock0(mutex, std::try_to_lock);
+    ASSERT_TRUE(lock0);
+
+    UniqueLock<SharedMutex> lock1(mutex, std::try_to_lock);
+    ASSERT_TRUE(lock1);
 
     auto result = execute(std::function<TimePoint()>([&]() {
         UniqueLock<SharedMutex> lock(mutex, std::defer_lock);
@@ -146,7 +143,8 @@ TEST_F(SharedMutexTests, lock_succeeds)
 
     auto released = Clock::now();
 
-    lock.unlock();
+    lock0.unlock();
+    lock1.unlock();
 
     auto acquired = result.get();
     ASSERT_GT(acquired, released);
