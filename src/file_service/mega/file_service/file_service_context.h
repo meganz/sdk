@@ -67,12 +67,12 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     auto getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
         -> std::shared_ptr<T>;
 
-    auto infoFromDatabase(FileID id, bool open) -> InfoContextResult;
+    auto infoContextFromDatabase(FileID id, bool open) -> InfoContextResult;
 
     template<typename Lock>
-    auto infoFromIndex(FileID id, Lock&& lock, bool open) -> InfoContextResult;
+    auto infoContextFromIndex(FileID id, Lock&& lock, bool open) -> InfoContextResult;
 
-    auto info(FileID id, bool open) -> InfoContextResult;
+    auto infoContext(FileID id, bool open) -> InfoContextResult;
 
     template<typename Transaction>
     auto keyData(FileID id, Transaction&& transaction) -> std::optional<common::NodeKeyData>;
