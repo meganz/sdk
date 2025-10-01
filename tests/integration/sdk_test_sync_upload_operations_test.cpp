@@ -81,7 +81,7 @@ public:
         const auto hasExpectedId = Pointee(Property(&MegaSync::getBackupId, mBackupId));
         EXPECT_CALL(msl, onSyncFileStateChanged(_, hasExpectedId, _, _))
             .WillRepeatedly(
-                [&fileUploadPms,
+                [fileUploadPms,
                  localFilePathStr = localFilePathAbs.string()](MegaApi*,
                                                                MegaSync*,
                                                                std::string* localPath,
@@ -128,7 +128,7 @@ TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUpload)
     EXPECT_CALL(mtl, onTransferFinish)
         .Times(1)
         .WillOnce(
-            [&fileUploadPms](::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* e)
+            [fileUploadPms](::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* e)
             {
                 fileUploadPms->set_value(e->getErrorCode());
             });
@@ -175,7 +175,7 @@ TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUploadDifferentMtime)
         EXPECT_CALL(mtl, onTransferFinish)
             .Times(1)
             .WillOnce(
-                [&fileUploadPms](::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* e)
+                [fileUploadPms](::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* e)
                 {
                     fileUploadPms->set_value(e->getErrorCode());
                 });
