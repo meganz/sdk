@@ -50,6 +50,12 @@ std::ostream& operator<<(std::ostream& ostream, const FileLocation& location)
                    << ", parent: " << toNodeHandle(location.mParentHandle) << "}";
 }
 
+// Teach gtest how to print file IDs.
+void PrintTo(const FileID& id, std::ostream* ostream)
+{
+    *ostream << toString(id);
+}
+
 // Teach gtest how to print our file event instances.
 void PrintTo(const FileFlushEvent& event, std::ostream* ostream)
 {
