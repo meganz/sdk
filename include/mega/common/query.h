@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <map>
 #include <optional>
 #include <string>
@@ -69,7 +70,7 @@ class Parameter
 {
     auto null() -> Parameter&;
 
-    auto string(const char* value) -> Parameter&;
+    auto string(const char* data, std::size_t length) -> Parameter&;
 
     auto uint64(const std::uint64_t value) -> Parameter&;
 
@@ -101,14 +102,14 @@ public:
     auto set(const T& value)
       -> std::enable_if_t<std::is_same_v<std::string, T>, Parameter&>
     {
-        return string(value.c_str());
+        return string(value.c_str(), value.size());
     }
 
     template<typename T>
     auto set(const T* value)
       -> std::enable_if_t<std::is_same_v<char, T>, Parameter&>
     {
-        return string(value);
+        return string(value, std::strlen(value));
     }
 
     template<typename T>
