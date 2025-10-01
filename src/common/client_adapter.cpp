@@ -937,10 +937,6 @@ auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
     keyData.mKeyAndIV = node->nodekey();
     keyData.mIsPrivate = true;
 
-    // Sanity.
-    if (keyData.mKeyAndIV.size() != FILENODEKEYLENGTH)
-        return unexpected(API_EKEY);
-
     // Convenience.
     auto size = static_cast<std::uint64_t>(node->size);
 
@@ -961,6 +957,10 @@ auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
     // No handle? No download.
     if (handle.isUndef())
         return unexpected(API_EARGS);
+
+    // Caller's passed us a bogus key.
+    if (keyData.mKeyAndIV.size() != FILENODEKEYLENGTH)
+        return unexpected(API_EKEY);
 
     // Return explicit partial download to caller.
     return std::make_shared<ClientPartialDownload>(callback,
@@ -1735,6 +1735,9 @@ void ClientPartialDownload::begin()
 
             // Convenience.
             auto& keyAndIV = mKeyData.mKeyAndIV;
+
+            // Sanity.
+            assert(keyAndIV.size() == FILENODEKEYLENGTH);
 
             // Populate cipher.
             SymmCipher cipher;

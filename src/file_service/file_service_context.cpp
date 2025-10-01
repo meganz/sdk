@@ -585,6 +585,9 @@ auto FileServiceContext::keyData(FileID id, Transaction&& transaction) -> std::o
     keyData.mPrivateAuth = query.field("private_auth").template get<MaybeString>();
     keyData.mPublicAuth = query.field("public_auth").template get<MaybeString>();
 
+    // Sanity.
+    assert(keyData.mKeyAndIV.size() == FILENODEKEYLENGTH);
+
     return keyData;
 }
 
