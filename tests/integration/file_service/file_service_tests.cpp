@@ -1944,6 +1944,7 @@ TEST_F(FileServiceTests, read_extension_succeeds)
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Make sure our range was expanded to fill the hole.
+    ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 256_KiB)));
 
     // Read another range, just beyond the extension threshold.
@@ -1951,12 +1952,14 @@ TEST_F(FileServiceTests, read_extension_succeeds)
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Make sure the range wasn't extended.
+    ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 256_KiB), FileRange(289_KiB, 353_KiB)));
 
     // Perform a read to make sure we extend to the left.
     data = execute(read, *file, 385_KiB, 64_KiB);
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
+    ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 256_KiB), FileRange(289_KiB, 449_KiB)));
 
     // Perform another read to create another hole.
@@ -1967,6 +1970,7 @@ TEST_F(FileServiceTests, read_extension_succeeds)
     data = execute(read, *file, 576_KiB, 32_KiB);
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
+    ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
     ASSERT_THAT(file->ranges(),
                 ElementsAre(FileRange(0, 256_KiB),
                             FileRange(289_KiB, 449_KiB),
@@ -1980,6 +1984,7 @@ TEST_F(FileServiceTests, read_extension_succeeds)
     ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // We should now have a single range.
+    ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 704_KiB)));
 }
 
