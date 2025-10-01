@@ -2040,6 +2040,8 @@ using namespace mega;
         stringMap->set(key.UTF8String, base64Value);
         
         self.megaApi->setUserAttribute((int)type, stringMap, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        delete stringMap;
+        delete[] base64Value;
     }
 }
 
