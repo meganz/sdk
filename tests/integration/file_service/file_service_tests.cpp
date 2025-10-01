@@ -2210,6 +2210,38 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
     ASSERT_EQ(*usedAfter, *usedBefore);
 }
 
+TEST_F(FileServiceTests, reclaim_cancel_on_file_destruction_succeeds)
+{
+    // Open the test file.
+    auto file = mClient->fileOpen(mFileHandle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Fetch the file's content.
+    ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+    // Reclaim the file's storage.
+    auto waiter = reclaim(std::move(*file));
+
+    // Wait for the reclamation to complete.
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+
+    // Reopen the file.
+    file = mClient->fileOpen(mFileHandle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Fetch the file's content (if necessary.)
+    ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+
+    // Mark the file as modified (to force a flush.)
+    ASSERT_EQ(execute(touch, *file, 0), FILE_SUCCESS);
+
+    // Reclaim the file's storage.
+    waiter = reclaim(std::move(*file));
+
+    // Wait for reclamation to complete.
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+}
+
 TEST_F(FileServiceTests, reclaim_concurrent_succeeds)
 {
     // Disable readahead and reclamation.
