@@ -48,16 +48,6 @@ $testResult = $testProcess.ExitCode
 Receive-Job -Name "childrenMonitor"
 Stop-job -Name "childrenMonitor"
 
-# Compress the logs
-If ( "$Env:TESTS_PARALLEL}" -ne $null ) {
-  $pidDirs = Get-ChildItem -Path "." -Recurse -Filter "pid_*"
-  foreach ($dir in $pidDirs) {
-    gzip -c $dir/test_integration*.log > test_integration_${Env:BUILD_ID}_${dir}.log.gz
-  }
-}
-gzip -c test_integration.log > test_integration_${Env:BUILD_ID}.log.gz
-rm test_integration.log
-
 # Analyse the dumps, if there's any
 If ($testResult) {
   foreach ($dumpFile in Get-ChildItem -Path $dumpDir -Filter "*.dmp") {

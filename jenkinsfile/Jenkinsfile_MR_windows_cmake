@@ -217,9 +217,16 @@ pipeline {
                                     if %ERRORLEVEL% NEQ 0 exit 1
                                     """
                                     def integration_tests_error = powershell script: 'jenkinsfile\\windows-integration-tests.ps1', returnStatus: true
+                                    sh """
+                                        if [ -n "${TESTS_PARALLEL}" ]; then
+                                            tar czf test_integration_logs.tgz pid_*/test_integration*.log || true
+                                        fi
+                                        gzip test_integration.log || true
+                                    """
                                     if (integration_tests_error) {
                                         sh """
-                                            tar czf dumps.tgz dumps/* procdump*.log
+                                            tar czf dumps.tgz dumps || true
+                                            tar czf procdump.tgz procdump*.log || true
                                             tar czf pdbs.tgz build_dir/Debug/*.pdb build_dir/tests/integration/Debug/*.pdb
                                             exit ${integration_tests_error}
                                         """
@@ -240,11 +247,13 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'test_integration_*log.gz', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'test_integration*.log.gz', allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: 'dumps.tgz', allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: 'pdbs.tgz', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'procdump.tgz', allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: "build_dir/*.log", allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: "build_dir/*.log.gz", allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'test_integration_logs.tgz', allowEmptyArchive: true, fingerprint: true
                     deleteDir()
                 }
             }
