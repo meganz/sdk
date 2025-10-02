@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/common/platform/handle.h>
 #include <mega/common/platform/windows.h>
 
 #include <string>
@@ -15,7 +16,7 @@ namespace platform
 // Note: If the folder has been opened by others, the exclusive opening fails.
 class FolderLocker
 {
-    HANDLE mHandle{INVALID_HANDLE_VALUE};
+    Handle<DefaultHandleDeleter> mHandle{};
 
 public:
     FolderLocker() = default;
@@ -27,7 +28,7 @@ public:
 
     ~FolderLocker();
 
-    void release();
+    void reset();
 };
 
 } // platform

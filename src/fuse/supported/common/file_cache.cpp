@@ -338,7 +338,7 @@ ErrorOr<FileInfoRef> FileCache::create(const FileExtension& extension,
 void FileCache::current()
 {
     // Preventive
-    mFolderLocker.release();
+    mFolderLocker.reset();
 
     // Purge any unreferenced files in the cache.
     purge();
