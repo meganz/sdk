@@ -465,6 +465,22 @@ TEST_F(FileServiceTests, add_external_succeeds)
     ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 }
 
+TEST_F(FileServiceTests, add_fails_with_invalid_file_key)
+{
+    NodeKeyData keyData;
+
+    keyData.mIsPublic = false;
+    keyData.mKeyAndIV.resize(FILENODEKEYLENGTH - 1);
+
+    auto id = mClient->fileService().add(mRootHandle, keyData, 0);
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_INVALID_FILE_KEY);
+
+    keyData.mKeyAndIV.resize(FILENODEKEYLENGTH + 1);
+
+    id = mClient->fileService().add(mRootHandle, keyData, 0);
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_INVALID_FILE_KEY);
+}
+
 TEST_F(FileServiceTests, add_public_succeeds)
 {
     // Create a new client.
