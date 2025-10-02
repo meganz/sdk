@@ -2032,6 +2032,9 @@ void FileContext::ReclaimContext::flushed(ReclaimContextPtr& context, FileResult
     if (mCallbacks.empty())
         return;
 
+    // Release reclaim context lock.
+    lock.unlock();
+
     // So we can use this context's completed method as a callback.
     auto callback = [context = std::move(context), this](auto result) mutable
     {
