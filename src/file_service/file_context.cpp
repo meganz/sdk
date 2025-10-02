@@ -113,7 +113,7 @@ public:
 
     // Cancel the flush.
     template<typename Lock>
-    void cancel(FlushContextPtr context, Lock&& lock);
+    static void cancel(FlushContextPtr context, Lock&& lock);
 
     // Queue a flush request for execution.
     void queue(FileFlushRequest request);
@@ -1949,14 +1949,14 @@ template<typename Lock>
 void FileContext::FlushContext::cancel(FlushContextPtr context, Lock&& lock)
 {
     assert(context);
-    assert(lock.mutex() == &mContext.mFlushContextLock);
+    assert(lock.mutex() == &context->mContext.mFlushContextLock);
     assert(lock.owns_lock());
 
-    auto upload = std::exchange(mUpload, nullptr);
+    auto upload = std::exchange(context->mUpload, nullptr);
 
     // No upload's in progress.
     if (!upload)
-        return completed(std::move(context), std::move(lock), FILE_CANCELLED);
+        return context->completed(context, std::move(lock), FILE_CANCELLED);
 
     // Release the lock.
     lock.unlock();
