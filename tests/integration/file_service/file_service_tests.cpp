@@ -1,6 +1,7 @@
 #include <gmock/gmock.h>
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/file.h>
 #include <mega/common/testing/path.h>
@@ -113,6 +114,7 @@ namespace testing
 // Convenience.
 using common::Expected;
 using common::makeSharedPromise;
+using common::NodeKeyData;
 using common::now;
 using common::unexpected;
 using common::testing::Path;
@@ -435,7 +437,35 @@ TEST_F(FileServiceTests, DISABLED_measure_average_linear_read_time)
     FSDebugF("Average linear range read time: %" PRIu64 " millisecond(s)", averageRangeReadTime);
 }
 
-TEST_F(FileServiceTests, add_foreign_succeeds)
+TEST_F(FileServiceTests, add_external_succeeds)
+{
+    // Get a public link for our test directory.
+    auto link = mClient->getPublicLink(mRootHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // Create a client responsible for accessing our test directory.
+    auto client = CreateClient("file_service_" + randomName());
+    ASSERT_TRUE(client);
+
+    // Log the client into our test directory.
+    ASSERT_EQ(client->login(*link), API_OK);
+
+    // Retrieve our file's key data.
+    auto keyData = client->keyData(mFileHandle, true);
+    ASSERT_EQ(keyData.errorOr(API_OK), API_OK);
+
+    // Log out of the test directory.
+    ASSERT_EQ(client->logout(false), API_OK);
+
+    // Log client into a account distinct from mClient.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Try and add the file to the client.
+    auto id = client->fileService().add(mFileHandle, *keyData, mFileContent.size());
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+}
+
+TEST_F(FileServiceTests, add_public_succeeds)
 {
     // Create a new client.
     auto client = CreateClient("file_service_" + randomName());
@@ -1995,6 +2025,45 @@ TEST_F(FileServiceTests, read_extension_succeeds)
     // We should now have a single range.
     ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 704_KiB)));
+}
+
+TEST_F(FileServiceTests, read_external_succeeds)
+{
+    // Get a public link for our test directory.
+    auto link = mClient->getPublicLink(mRootHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // Create a client responsible for accessing our test directory.
+    auto client = CreateClient("file_service_" + randomName());
+    ASSERT_TRUE(client);
+
+    // Log the client into our test directory.
+    ASSERT_EQ(client->login(*link), API_OK);
+
+    // Retrieve our file's key data.
+    auto keyData = client->keyData(mFileHandle, true);
+    ASSERT_EQ(keyData.errorOr(API_OK), API_OK);
+
+    // Log out of the test directory.
+    ASSERT_EQ(client->logout(false), API_OK);
+
+    // Log client into a account distinct from mClient.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Try and add the file to the client.
+    auto id = client->fileService().add(mFileHandle, *keyData, mFileContent.size());
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Try and open the file.
+    auto file = client->fileOpen(*id);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Try and read the file's content.
+    auto computed = execute(read, *file, 0, mFileContent.size());
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Make sure we read what we expected.
+    ASSERT_TRUE(compare(*computed, mFileContent, 0, mFileContent.size()));
 }
 
 TEST_F(FileServiceTests, read_foreign_succeeds)
