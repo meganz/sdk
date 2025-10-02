@@ -21,7 +21,7 @@ bool SharedMutex::try_lock_shared_until(steady_clock::time_point time,
     std::unique_lock<std::mutex> lock(mLock);
 
     // What thread is trying to acquire this mutex?
-    auto id = std::this_thread::get_id();
+    [[maybe_unused]] auto id = std::this_thread::get_id();
 
     // Make sure the thread doesn't already hold a write lock.
     assert(!validate || mWriterID != id);
@@ -94,6 +94,34 @@ bool SharedMutex::try_lock_shared()
 bool SharedMutex::try_lock()
 {
     return try_lock_until(steady_clock::now());
+}
+
+SharedMutex& SharedMutex::unique_to_shared()
+{
+    // Convenience.
+    [[maybe_unused]] auto id = std::this_thread::get_id();
+
+    // Make sure no one else is touching this lock.
+    std::lock_guard<std::mutex> guard(mLock);
+
+    // Make sure this thread currently holds the lock.
+    assert(mWriterID == id);
+
+    // Recursive locks are no longer possible but let's be sure.
+    assert(mCounter == -1);
+
+    // Translate our writer to a reader.
+    mCounter = 1;
+    mWriterID = std::thread::id();
+
+    // Remember how many read locks this thread has.
+    assert(++mReaders[id]);
+
+    // Let any waiting readers know they can acquire the lock.
+    mReaderCV.notify_all();
+
+    // Return a reference to ourselves to our caller.
+    return *this;
 }
 
 void SharedMutex::unlock()

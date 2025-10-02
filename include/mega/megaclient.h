@@ -49,6 +49,7 @@
 
 // FUSE support.
 #include <mega/common/client_adapter.h>
+#include <mega/file_service/file_service.h>
 #include <mega/fuse/common/service.h>
 
 #include <optional>
@@ -1938,6 +1939,9 @@ public:
     // abort queued direct read(s)
     void abortreads(handle, bool, m_off_t, m_off_t);
 
+    // abort all queued direct reads.
+    void abortreads();
+
     static const char PAYMENT_PUBKEY[];
 
     void dodiscarduser(User* u, bool discardnotified);
@@ -3394,8 +3398,11 @@ public:
         unsigned int gatewayId,
         CommandGetSubscriptionCancellationDetails::CompletionCallback&& completion);
 
-    // FUSE client adapter.
-    common::ClientAdapter mFuseClientAdapter;
+    // Client adapter.
+    common::ClientAdapter mClientAdapter;
+
+    // File Service.
+    file_service::FileService mFileService;
 
     // FUSE service.
     fuse::Service mFuseService;

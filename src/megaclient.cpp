@@ -1955,8 +1955,9 @@ MegaClient::MegaClient(MegaApp* a,
     mKeyManager(*this),
     mClientType(clientType),
     mJourneyId(),
-    mFuseClientAdapter(*this),
-    mFuseService(mFuseClientAdapter)
+    mClientAdapter(*this),
+    mFileService(),
+    mFuseService(mClientAdapter)
 {
 #ifdef __ANDROID__
     if (!AndroidFileSystemAccess::isFileWrapperActive(fsaccess.get()))
@@ -3678,8 +3679,8 @@ void MegaClient::exec()
 
 #endif
 
-        // Dispatch FUSE client-side requests.
-        mFuseClientAdapter.dispatch();
+        // Dispatch client-side requests.
+        mClientAdapter.dispatch();
 
         notifypurge();
 
@@ -5104,6 +5105,9 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
         removeCaches();
     }
 
+    // Abort any active direct reads.
+    abortreads();
+
     // Deinitialize the FUSE Client Adapter.
     //
     // Keep in mind that at this point, FUSE mounts may be active and one or
@@ -5134,7 +5138,7 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     //
     // Threads blocked on some request like putnodes will be awoken below
     // when all pending requests are "abandoned."
-    mFuseClientAdapter.deinitialize();
+    mClientAdapter.deinitialize();
 
     // Make sure the application hides any progress bars thay may have been visible.
     if (std::exchange(mRequestProgressNotified, false))
@@ -5216,6 +5220,9 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
 
     freeq(GET);  // freeq after closetc due to optimizations
     freeq(PUT);
+
+    // Deinitialize the File Service.
+    mFileService.deinitialize();
 
     // Deinitialize the FUSE Service.
     mFuseService.deinitialize();
@@ -17006,10 +17013,8 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 
     app->clearing();
 
-    while (!hdrns.empty())
-    {
-        delete hdrns.begin()->second;
-    }
+    // Abort any active direct reads.
+    abortreads();
 
     mNodeManager.cleanNodes();
 
@@ -17297,29 +17302,39 @@ void MegaClient::preadabort(handle ph, m_off_t offset, m_off_t count)
 
 void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
 {
-    handledrn_map::iterator it;
-    DirectReadNode* drn;
-
     encodehandletype(&h, p);
 
-    if ((it = hdrns.find(h)) != hdrns.end())
+    // Try and find the direct read node associated with our handle.
+    auto i = hdrns.find(h);
+
+    // No node assocated with this handle.
+    if (i == hdrns.end())
+        return;
+
+    auto predicate = [=](const DirectRead& read)
     {
-        drn = it->second;
+        return (count < 0 || count == read.count) && (offset < 0 || offset == read.offset);
+    }; // predicate
 
-        for (dr_list::iterator itRead = drn->reads.begin(); itRead != drn->reads.end();)
-        {
-            if ((offset < 0 || offset == (*itRead)->offset) &&
-                (count < 0 || count == (*itRead)->count))
-            {
-                (*itRead)->onFailure(API_EINCOMPLETE, (*itRead)->drn->retries, 0);
+    // Abort all reads matching our predicate.
+    i->second->abort(std::move(predicate));
+}
 
-                delete *(itRead++);
-            }
-            else
-            {
-                itRead++;
-            }
-        }
+void MegaClient::abortreads()
+{
+    auto always = [](const DirectRead&)
+    {
+        return true;
+    };
+
+    // Iterate over any active direct read nodes.
+    for (auto i = hdrns.begin(); i != hdrns.end();)
+    {
+        // Abort pending reads queued on that node.
+        i->second->abort(always);
+
+        // Destroy the node.
+        delete i++->second;
     }
 }
 

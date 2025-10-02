@@ -887,13 +887,23 @@ bool FileAccess::fopen(const LocalPath& name, FSLogging fsl)
 
 bool FileAccess::isfile(const LocalPath& path)
 {
-    return fopen(path, FSLogging::noLogging) && type == FILENODE;
+    auto name = std::move(nonblocking_localname);
+
+    updatelocalname(path, true);
+    sysstat(&mtime, &size, FSLogging::noLogging);
+    updatelocalname(name, true);
+
+    return type == FILENODE;
 }
 
 bool FileAccess::isfolder(const LocalPath& path)
 {
+    auto name = std::move(nonblocking_localname);
+
     updatelocalname(path, true);
     sysstat(&mtime, &size, FSLogging::noLogging);
+    updatelocalname(name, true);
+
     return type == FOLDERNODE;
 }
 
@@ -1141,43 +1151,60 @@ AsyncIOContext *FileAccess::newasynccontext()
     return new AsyncIOContext();
 }
 
-bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos, FSLogging fsl)
+bool FileAccess::fread(string* buffer,
+                       unsigned long length,
+                       unsigned long padding,
+                       m_off_t offset,
+                       FSLogging logging,
+                       bool* cretry)
 {
-    if (!openf(fsl))
-    {
+    // Sanity.
+    assert(buffer);
+
+    // Make sure the file's been opened.
+    if (!openf(logging))
         return false;
-    }
 
-    bool r;
+    // Make sure our buffer is large enough.
+    buffer->resize(length + padding);
 
-    dst->resize(len + pad);
+    // Try and perform the read.
+    auto result = sysread(buffer->data(), length, offset, cretry);
 
-    r = sysread((byte*)dst->data(), len, pos);
-    if (r)
-    {
-        memset((char*)dst->data() + len, 0, pad);
-    }
+    // Read was successful so zero pad bytes.
+    if (result && padding)
+        std::memset(buffer->data() + length, 0, padding);
 
+    // Close the file if necessary.
     closef();
 
-    return r;
+    // Let the caller know if the read was successful.
+    return result;
 }
 
-bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos, bool caller_opened, FSLogging fsl)
+bool FileAccess::frawread(void* buffer,
+                          unsigned long length,
+                          m_off_t offset,
+                          bool alreadyOpened,
+                          FSLogging logging,
+                          bool* cretry)
 {
-    if (!caller_opened && !openf(fsl))
-    {
+    // Sanity.
+    assert(buffer || !length);
+
+    // Couldn't open the file.
+    if (!alreadyOpened && !openf(logging))
         return false;
-    }
 
-    bool r = sysread(dst, len, pos);
+    // Try and perform the read.
+    auto result = sysread(buffer, length, offset, cretry);
 
-    if (!caller_opened)
-    {
+    // Close the file if necessary.
+    if (!alreadyOpened)
         closef();
-    }
 
-    return r;
+    // Let the caller know if the read was successful.
+    return result;
 }
 
 AsyncIOContext::~AsyncIOContext()
@@ -1935,6 +1962,24 @@ bool FSNode::debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, c
         LOG_debug << "failed to get fingerprint for path " << path;
     }
     return false;
+}
+
+auto FileSystemAccess::getFileSize(const LocalPath& path)
+    -> std::optional<std::pair<std::uint64_t, std::uint64_t>>
+{
+    // Create an FA so we can access the file at path.
+    auto fileAccess = newfileaccess(false);
+
+    // Couldn't create an FA.
+    if (!fileAccess)
+        return std::nullopt;
+
+    // Couldn't open the file.
+    if (!fileAccess->fopen(path, true, false, FSLogging::logOnError))
+        return std::nullopt;
+
+    // Return the file's allocated and reported size to our caller.
+    return fileAccess->getFileSize();
 }
 
 } // namespace

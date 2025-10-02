@@ -1,0 +1,19 @@
+target_sources(SDKlib PRIVATE
+                      constants.h
+                      directory_context.h
+                      dispatcher.h
+                      dispatcher_forward.h
+                      file_explorer_setter.h
+                      library.h
+                      local_pointer.h
+                      mount.h
+                      mount_db.h
+                      path_adapter.h
+                      platform.h
+                      security_descriptor.h
+                      security_descriptor_forward.h
+                      security_identifier.h
+                      security_identifier_forward.h
+                      shell.h
+                      utility.h
+)

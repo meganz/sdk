@@ -78,11 +78,11 @@ void ScopedQuery::clear()
     mQuery->clear();
 }
 
-void ScopedQuery::execute()
+bool ScopedQuery::execute()
 {
     assert(mQuery);
 
-    mQuery->execute();
+    return mQuery->execute();
 }
 
 Field ScopedQuery::field(const std::string& name)

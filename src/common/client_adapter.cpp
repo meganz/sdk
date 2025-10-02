@@ -1,9 +1,4 @@
-#include <atomic>
-#include <cassert>
-#include <functional>
-#include <mutex>
-#include <sstream>
-
+#include <mega/base64.h>
 #include <mega/common/client_adapter.h>
 #include <mega/common/error_or.h>
 #include <mega/common/logging.h>
@@ -13,13 +8,23 @@
 #include <mega/common/node_event_type.h>
 #include <mega/common/node_info.h>
 #include <mega/common/normalized_path.h>
+#include <mega/common/partial_download.h>
+#include <mega/common/partial_download_callback.h>
+#include <mega/common/status_flag.h>
 #include <mega/common/upload.h>
 #include <mega/common/utility.h>
-
-#include <mega/megaapp.h>
 #include <mega/file.h>
+#include <mega/megaapp.h>
 #include <mega/megaclient.h>
 #include <mega/node.h>
+#include <mega/scoped_helpers.h>
+
+#include <atomic>
+#include <cassert>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <sstream>
 
 namespace mega
 {
@@ -115,9 +120,84 @@ public:
     // Pop an event from the queue.
     void pop_front() override;
 
+    // Restore any popped events.
+    void restore();
+
     // How many events are in the queue?
     std::size_t size() const override;
 }; // ClientNodeEventQueue
+
+class ClientPartialDownload:
+    public PartialDownload,
+    public std::enable_shared_from_this<ClientPartialDownload>
+{
+    // Convenience.
+    using Abort = PartialDownloadCallback::Abort;
+    using Data = DirectRead::Data;
+    using Event = DirectRead::CallbackParam;
+    using Failure = DirectRead::Failure;
+
+    // Called when the download's been completed.
+    void completed(Error result);
+
+    // Called when the SDK wants to feed us file content.
+    void data(Data& data);
+
+    // Called when the SDK wants to report a download failure.
+    void failure(Failure& failure);
+
+    // Signal that the download is now in progress.
+    //
+    // Returns false if:
+    // - The download has already begun.
+    // - The download has already completed.
+    bool inProgress();
+
+    // Called when the SDK wants to notify us about our download.
+    static void notify(PartialDownloadWeakPtr cookie, Event& event);
+
+    // The callback that will receive file content.
+    PartialDownloadCallback& mCallback;
+
+    // The client that will perform our download.
+    ClientAdapter& mClient;
+
+    // The file that we're downloading.
+    const NodeHandle mHandle;
+
+    // At what location in the file should we start downloading?
+    std::uint64_t mOffset;
+
+    // How many bytes of content do we still have to download?
+    std::uint64_t mRemaining;
+
+    // Tracks the status of the download.
+    std::atomic<StatusFlags> mStatus;
+
+public:
+    ClientPartialDownload(PartialDownloadCallback& callback,
+                          ClientAdapter& client,
+                          NodeHandle handle,
+                          std::uint64_t offset,
+                          std::uint64_t length);
+
+    ~ClientPartialDownload();
+
+    // Begin the partial download.
+    void begin() override;
+
+    // Cancel the partial download.
+    bool cancel() override;
+
+    // Is this download cancellable?
+    bool cancellable() const override;
+
+    // Has the download been cancelled?
+    bool cancelled() const override;
+
+    // Has this download completed?
+    bool completed() const override;
+}; // ClientPartialDownload
 
 class ClientUpload;
 
@@ -128,19 +208,6 @@ using ClientUploadWeakPtr = std::weak_ptr<ClientUpload>;
 class ClientUpload
   : public ClientTransfer
 {
-    enum StatusFlag : unsigned int
-    {
-        // The upload can be cancelled.
-        SF_CANCELLABLE = 0x1,
-        // The upload has been cancelled.
-        SF_CANCELLED = 0x2,
-        // The upload hsa completed.
-        SF_COMPLETED = 0x4
-    }; // StatusFlag
-
-    // A combination of status flags.
-    using StatusFlags = unsigned int;
-
     // Bind our uploaded data to a name.
     void bind(BoundCallback callback,
               FileNodeKey fileKey,
@@ -233,9 +300,8 @@ public:
 }; // ClientUploadAdapter
 
 // Retrieves a reference to a specific child.
-static std::shared_ptr<Node> child(MegaClient& client,
-                                   NodeHandle parent,
-                                   const std::string& name);
+static auto child(MegaClient& client, NodeHandle parent, const std::string& name)
+    -> ErrorOr<std::shared_ptr<Node>>;
 
 // Translates a node into a description.
 static void describe(NodeInfo& destination,
@@ -268,14 +334,14 @@ MegaApp& ClientAdapter::application()
     return *mClient.app;
 }
 
-std::set<std::string> ClientAdapter::childNames(NodeHandle parent) const
+ErrorOr<std::set<std::string>> ClientAdapter::childNames(NodeHandle parent) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
 
     // Client's being torn down.
     if (mDeinitialized)
-        return std::set<std::string>();
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -283,9 +349,13 @@ std::set<std::string> ClientAdapter::childNames(NodeHandle parent) const
     // Try and locate specified parent.
     auto parent_ = mClient.nodeByHandle(parent);
 
-    // Node doesn't exist.
+    // Parent doesn't exist.
     if (!parent_)
-        return std::set<std::string>();
+        return unexpected(API_ENOENT);
+
+    // Parent isn't a directory.
+    if (parent_->type == FILENODE)
+        return unexpected(API_FUSE_ENOTDIR);
 
     // Keeps track of duplicate names.
     std::set<const std::string*> duplicates;
@@ -544,14 +614,14 @@ Task ClientAdapter::execute(std::function<void(const Task&)> function)
     return task;
 }
 
-bool ClientAdapter::exists(NodeHandle handle) const
+ErrorOr<bool> ClientAdapter::exists(NodeHandle handle) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
 
     // Client's being torn down.
     if (mDeinitialized)
-        return false;
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -572,7 +642,7 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle handle) const
 
     // Client's being torn down.
     if (mDeinitialized)
-        return unexpected(API_ENOENT);
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -596,38 +666,43 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle parent,
 
     // Client's being torn down.
     if (mDeinitialized)
-        return unexpected(API_ENOENT);
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
-    // Retrieve the child's description.
-    if (auto node = child(mClient, parent, name))
-        return describe(*node);
+    // Try and retrieve a reference to the named child.
+    auto node = child(mClient, parent, name);
 
-    // Parent or child doesn't exist.
-    return unexpected(API_ENOENT);
+    // Couldn't get a reference to the named child.
+    if (!node)
+        return unexpected(node.error());
+
+    // Return the child's description.
+    return describe(**node);
 }
 
-NodeHandle ClientAdapter::handle(NodeHandle parent,
-                                 const std::string& name) const
+ErrorOr<NodeHandle> ClientAdapter::handle(NodeHandle parent, const std::string& name) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
 
     // Client's being torn down.
     if (mDeinitialized)
-        return NodeHandle();
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
 
-    // Retrieve the child's handle.
-    if (auto node = child(mClient, parent, name))
-        return node->nodeHandle();
+    // Try and retrive a reference to the child.
+    auto node = child(mClient, parent, name);
 
-    // Parent or child doesn't exist.
-    return NodeHandle();
+    // Couldn't retrieve child reference.
+    if (!node)
+        return unexpected(node.error());
+
+    // Return the child's handle.
+    return (*node)->nodeHandle();
 }
 
 ErrorOr<bool> ClientAdapter::hasChildren(NodeHandle parent) const
@@ -637,7 +712,7 @@ ErrorOr<bool> ClientAdapter::hasChildren(NodeHandle parent) const
 
     // Client's being torn down.
     if (mDeinitialized)
-        return API_ENOENT;
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -657,6 +732,29 @@ void ClientAdapter::initialize()
 {
     // Clear deinitialization flag.
     mDeinitialized = false;
+}
+
+ErrorOr<bool> ClientAdapter::isFile(NodeHandle handle) const
+{
+    // Make sure deinitialize(...) waits for this call to complete.
+    auto activity = mActivities.begin();
+
+    // Client's being torn down.
+    if (mDeinitialized)
+        return unexpected(LOCAL_LOGGED_OUT);
+
+    // Acquire RNT lock.
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
+
+    // Try and locate the specified node.
+    auto node = mClient.nodeByHandle(handle);
+
+    // Node doesn't exist.
+    if (!node)
+        return unexpected(API_ENOENT);
+
+    // Let the caller know if the node's a file.
+    return node->type == FILENODE;
 }
 
 void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
@@ -774,14 +872,14 @@ bool ClientAdapter::isClientThread() const
     return std::this_thread::get_id() == mThreadID;
 }
 
-NodeHandle ClientAdapter::parentHandle(NodeHandle handle) const
+ErrorOr<NodeHandle> ClientAdapter::parentHandle(NodeHandle handle) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
 
     // Client's being torn down.
     if (mDeinitialized)
-        return NodeHandle();
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -794,17 +892,40 @@ NodeHandle ClientAdapter::parentHandle(NodeHandle handle) const
         return node->parentHandle();
 
     // Node doesn't exist.
-    return NodeHandle();
+    return unexpected(API_ENOENT);
 }
 
-accesslevel_t ClientAdapter::permissions(NodeHandle handle) const
+auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
+                                    NodeHandle handle,
+                                    std::uint64_t offset,
+                                    std::uint64_t length) -> ErrorOr<PartialDownloadPtr>
+{
+    // Check if the specified node exists and denotes a file.
+    auto isFile = this->isFile(handle);
+
+    // Node exists.
+    if (isFile)
+    {
+        // And it denotes a file.
+        if (*isFile)
+            return std::make_shared<ClientPartialDownload>(callback, *this, handle, offset, length);
+
+        // Node isn't a file.
+        return unexpected(API_FUSE_EISDIR);
+    }
+
+    // Node doesn't exist or isn't accessible.
+    return unexpected(isFile.error());
+}
+
+ErrorOr<accesslevel_t> ClientAdapter::permissions(NodeHandle handle) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
     auto activity = mActivities.begin();
 
     // Client's being torn down.
     if (mDeinitialized)
-        return RDONLY;
+        return unexpected(LOCAL_LOGGED_OUT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -814,7 +935,7 @@ accesslevel_t ClientAdapter::permissions(NodeHandle handle) const
 
     // Node doesn't exist.
     if (!node)
-        return ACCESS_UNKNOWN;
+        return unexpected(API_ENOENT);
 
     // Do we have full access to this node?
     if (mClient.checkaccess(node.get(), FULL))
@@ -912,7 +1033,7 @@ std::string ClientAdapter::sessionID() const
     auto id = mClient.sid.substr(sizeof(mClient.key.key));
 
     // Return ID to caller.
-    return id;
+    return Base64::btoa(id);
 }
 
 void ClientAdapter::storageInfo(StorageInfoCallback callback)
@@ -1015,15 +1136,28 @@ void ClientAdapter::touch(TouchCallback callback,
 
 void ClientAdapter::updated(const sharedNode_vector& nodes)
 {
-    // No observer? Nothing to do!
-    if (!mEventObserver)
+    // Should never happen.
+    if (nodes.empty())
+        return;
+
+    std::lock_guard guard(mEventObserversLock);
+
+    // No observers? Nothing to do!
+    if (mEventObservers.empty())
         return;
 
     // Translate node vector into event queue.
     ClientNodeEventQueue events(nodes);
 
-    // Process node events.
-    mEventObserver->updated(events);
+    // Broadcast events to our observers.
+    for (auto* observer: mEventObservers)
+    {
+        // Let the observer know what's changed.
+        observer->updated(events);
+
+        // Restore any popped events.
+        events.restore();
+    }
 }
 
 UploadPtr ClientAdapter::upload(const LocalPath& logicalPath,
@@ -1057,8 +1191,11 @@ bool ClientTransfer::isFuseTransfer() const
 
 void ClientDownload::completed(Transfer*, putsource_t)
 {
+    // Latch the callback.
+    auto callback = std::move(mCallback);
+
     // Tell waiter that we've completed.
-    mCallback(API_OK);
+    callback(API_OK);
 
     // Delete ourselves.
     delete this;
@@ -1070,8 +1207,11 @@ void ClientDownload::terminated(mega::error result)
     if (result == API_OK)
         result = API_EINCOMPLETE;
 
+    // Latch the callback.
+    auto callback = std::move(mCallback);
+
     // Tell waiter that we encountered an error.
-    mCallback(result);
+    callback(result);
 
     // Delete ourselves.
     delete this;
@@ -1121,22 +1261,28 @@ bool ClientDownload::begin(MegaClient& client)
     if (result == API_OK)
         return client.waiter->notify(), true;
 
+    // Latch callback.
+    auto callback = std::move(mCallback);
+
     // Couldn't start the transfer.
-    mCallback(result);
+    callback(result);
 
     return false;
 }
 
-std::shared_ptr<Node> child(MegaClient& client,
-                            NodeHandle parent,
-                            const std::string& name)
+auto child(MegaClient& client, NodeHandle parent, const std::string& name)
+    -> ErrorOr<std::shared_ptr<Node>>
 {
     // Locate specified parent.
     auto parent_ = client.nodeByHandle(parent);
 
     // Parent doesn't exist.
     if (!parent_)
-        return nullptr;
+        return unexpected(API_ENOENT);
+
+    // Parent isn't a directory.
+    if (parent_->type == FILENODE)
+        return unexpected(API_FUSE_ENOTDIR);
 
     std::shared_ptr<Node> candidate;
 
@@ -1149,11 +1295,15 @@ std::shared_ptr<Node> child(MegaClient& client,
 
         // Already seen an instance of this name.
         if (candidate)
-            return nullptr;
+            return unexpected(API_FUSE_EDUPLICATE);
 
         // Remember that we've seen this name.
         candidate = child;
     }
+
+    // Couldn't find the named child.
+    if (!candidate)
+        return unexpected(API_FUSE_ENOTFOUND);
 
     // Return child (if any) to caller.
     return candidate;
@@ -1277,6 +1427,11 @@ const ClientNodeEvent& ClientNodeEventQueue::front() const
     return mCurrent;
 }
 
+void ClientNodeEventQueue::restore()
+{
+    mCurrent = mEvents.begin();
+}
+
 void ClientNodeEventQueue::pop_front()
 {
     ++mCurrent.mPosition;
@@ -1285,6 +1440,318 @@ void ClientNodeEventQueue::pop_front()
 std::size_t ClientNodeEventQueue::size() const
 {
     return mEvents.size();
+}
+
+void ClientPartialDownload::completed(Error result)
+{
+    // Try and complete the download.
+    while (true)
+    {
+        // Latch the download's current status.
+        auto expected = mStatus.load();
+
+        // The download's already been completed.
+        if (expected & SF_COMPLETED)
+            return;
+
+        // Convenience.
+        auto mask = SF_CANCELLABLE | SF_IN_PROGRESS;
+
+        // Compute the download's updated status.
+        auto desired = (expected & ~mask) | SF_COMPLETED;
+
+        // Download's been effectively cancelled.
+        if (result == API_EINCOMPLETE)
+            desired |= SF_CANCELLED;
+
+        // Another thread's updated the download's status.
+        if (!mStatus.compare_exchange_weak(expected, desired))
+            continue;
+
+        // Let the user know their download's completed.
+        mCallback.completed(result);
+    }
+}
+
+void ClientPartialDownload::data(Data& data)
+{
+    // Assume the download should be terminated.
+    data.ret = false;
+
+    // Download's been cancelled.
+    if (cancelled())
+        return completed(API_EINCOMPLETE);
+
+    // Convenience.
+    auto buffer = reinterpret_cast<const void*>(data.buffer);
+    auto offset = static_cast<std::uint64_t>(data.offset);
+    auto length = static_cast<std::uint64_t>(data.len);
+
+    // Clamp length.
+    length = std::min(length, mRemaining);
+
+    // Pass data to the user callback.
+    auto result = mCallback.data(buffer, offset, length);
+
+    // Figure out how many bytes we still have to download.
+    mRemaining -= length;
+
+    // The user's callback cancelled the download.
+    if (std::holds_alternative<Abort>(result))
+        return completed(API_EINCOMPLETE);
+
+    // Download's been cancelled.
+    if (cancelled())
+        return completed(API_EINCOMPLETE);
+
+    // We've got all the data we asked for.
+    if (!mRemaining)
+        return completed(API_OK);
+
+    // Continue the download.
+    data.ret = true;
+}
+
+void ClientPartialDownload::failure(Failure& failure)
+{
+    // Assume the download will be terminated.
+    failure.ret = NEVER;
+
+    // Client's being torn down or the read's been aborted.
+    if (failure.e == API_EINCOMPLETE)
+        return completed(API_EINCOMPLETE);
+
+    // Dispatch the callback.
+    auto result = mCallback.failed(failure.e, failure.retry);
+
+    // Download's been cancelled.
+    if (cancelled())
+        return completed(API_EINCOMPLETE);
+
+    // Convenience.
+    using Retry = PartialDownloadCallback::Retry;
+
+    // Let the SDK know if it should abort the download or retry.
+    std::visit(overloaded{[&](const Abort&)
+                          {
+                              // Let the user know why the read has completed.
+                              completed(failure.e);
+                          },
+                          [&](const Retry& retry)
+                          {
+                              // Retry in mWhen ds.
+                              failure.ret = retry.mWhen.count();
+                          }},
+               result);
+}
+
+bool ClientPartialDownload::inProgress()
+{
+    // Try and mark the download as in progress.
+    while (true)
+    {
+        // Latch the download's current status.
+        auto expected = mStatus.load();
+
+        // The download's already begun or already completed.
+        if (expected != SF_CANCELLABLE)
+            return false;
+
+        // Compute the download's updated status.
+        auto desired = expected | SF_IN_PROGRESS;
+
+        // Another thread's changed the download's status.
+        if (!mStatus.compare_exchange_weak(expected, desired))
+            continue;
+
+        // Let the caller know the download's in progress.
+        return true;
+    }
+}
+
+void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
+{
+    // Convenience.
+    using Revoke = DirectRead::Revoke;
+    using Valid = DirectRead::IsValid;
+
+    // Try and get a reference to ourselves.
+    auto download = std::static_pointer_cast<ClientPartialDownload>(cookie.lock());
+
+    // Download's been destroyed.
+    if (!download)
+    {
+        // Let the SDK know it can terminate the download.
+        return std::visit(overloaded{[&](Data& data)
+                                     {
+                                         data.ret = false;
+                                     },
+                                     [&](Failure& failure)
+                                     {
+                                         failure.ret = NEVER;
+                                     },
+                                     [&](Revoke& revoke)
+                                     {
+                                         revoke.ret = true;
+                                     },
+                                     [&](Valid& valid)
+                                     {
+                                         valid.ret = false;
+                                     }},
+                          event);
+    }
+
+    // Dispatch the event.
+    std::visit(overloaded{[&](Data& data)
+                          {
+                              // Delegate.
+                              download->data(data);
+                          },
+                          [&](Failure& failure)
+                          {
+                              // Delegate.
+                              download->failure(failure);
+                          },
+                          [&](Revoke& revoke)
+                          {
+                              // Never revoked by intermediate layer.
+                              revoke.ret = false;
+                          },
+                          [&](Valid& valid)
+                          {
+                              // We're valid as the download's still alive.
+                              valid.ret = true;
+                          }},
+               event);
+}
+
+ClientPartialDownload::ClientPartialDownload(PartialDownloadCallback& callback,
+                                             ClientAdapter& client,
+                                             NodeHandle handle,
+                                             std::uint64_t offset,
+                                             std::uint64_t length):
+    PartialDownload(),
+    enable_shared_from_this(),
+    mCallback(callback),
+    mClient(client),
+    mHandle(handle),
+    mOffset(offset),
+    mRemaining(length),
+    mStatus{SF_CANCELLABLE}
+{}
+
+ClientPartialDownload::~ClientPartialDownload()
+{
+    // Let the user know the download's been completed.
+    completed(API_EINCOMPLETE);
+}
+
+void ClientPartialDownload::begin()
+{
+    // Download's already begun or already been completed.
+    if (!inProgress())
+        return;
+
+    // So we can test later whether the user's destroyed this instance.
+    auto cookie = weak_from_this();
+
+    // Try and begin the download.
+    mClient.execute(
+        [=](const Task& task) mutable
+        {
+            // Check whether this download is still alive.
+            auto download = cookie.lock();
+
+            // Download's been destroyed.
+            if (!download)
+                return;
+
+            // Client's being torn down.
+            if (task.cancelled())
+                return completed(API_EINCOMPLETE);
+
+            // Download's been cancelled.
+            if (cancelled())
+                return completed(API_EINCOMPLETE);
+
+            // Get our hands on the node we want to download.
+            auto node = mClient.client().nodeByHandle(mHandle);
+
+            // Node doesn't exist.
+            if (!node)
+                return completed(API_ENOENT);
+
+            // Convenience.
+            auto size = static_cast<std::uint64_t>(node->size);
+
+            // Sanitize the user's offset and length.
+            mOffset = std::min(mOffset, size);
+            mRemaining = std::min(mRemaining, size - mOffset);
+
+            // Sanitized length is zero so complete the download early.
+            if (!mRemaining)
+                return completed(API_OK);
+
+            // Begin the download.
+            mClient.client().pread(node.get(),
+                                   static_cast<m_off_t>(mOffset),
+                                   static_cast<m_off_t>(mRemaining),
+                                   std::bind(&ClientPartialDownload::notify,
+                                             std::move(cookie),
+                                             std::placeholders::_1));
+        });
+}
+
+bool ClientPartialDownload::cancel()
+{
+    // Try and cancel the download.
+    while (true)
+    {
+        // Latch the download's current status.
+        auto expected = mStatus.load();
+
+        // Download's already been cancelled or completed.
+        if (!(expected & SF_CANCELLABLE))
+            return false;
+
+        // Compute download's new status.
+        auto desired = (expected ^ SF_CANCELLABLE) | SF_CANCELLED;
+
+        // Couldn't update the download's status.
+        if (!mStatus.compare_exchange_weak(expected, desired))
+            continue;
+
+        // Download's in progress: Let the client call the user's callback.
+        if (expected & SF_IN_PROGRESS)
+            return true;
+
+        // Download hasn't started so mark it as complete.
+        mStatus |= SF_COMPLETED;
+
+        // And call the user's callback directly.
+        mCallback.completed(API_EINCOMPLETE);
+
+        // Let the caller know the download was cancelled.
+        return true;
+    }
+}
+
+bool ClientPartialDownload::cancellable() const
+{
+    // Check if we can be cancelled.
+    return (mStatus & SF_CANCELLABLE) > 0;
+}
+
+bool ClientPartialDownload::cancelled() const
+{
+    // Check if the download's been cancelled.
+    return (mStatus & SF_CANCELLED) > 0;
+}
+
+bool ClientPartialDownload::completed() const
+{
+    // Check if we've been completed.
+    return (mStatus & SF_COMPLETED) > 0;
 }
 
 void ClientUpload::bind(BoundCallback callback,
@@ -1441,6 +1908,14 @@ void ClientUpload::completed(Transfer* upload, putsource_t)
                                   *upload->ultoken);
 
     // Latch callback.
+    //
+    // The reason we're moving the callback into a local here is to ensure
+    // that the callback's closure is destroyed when this function returns.
+    //
+    // This is necessary to prevent reference cycles.
+    //
+    // That is, the callback might reference this upload which itself
+    // references the callback.
     auto callback = std::move(mCallback);
 
     // Let the user know they can bind a name to their data.
@@ -1455,8 +1930,13 @@ void ClientUpload::terminated(mega::error result)
     // Signal that the upload has completed.
     mStatus |= SF_COMPLETED;
 
+    // Latch callback.
+    //
+    // See completed(...) as to why this is necessary.
+    auto callback = std::move(mCallback);
+
     // Let the user know the upload failed.
-    mCallback(unexpected(mResult));
+    callback(unexpected(mResult));
 
     // Let ourselves be destroyed.
     mSelf.reset();
@@ -1520,7 +2000,7 @@ void ClientUpload::begin(UploadCallback callback)
 
         // We've been cancelled.
         if (cancelled())
-            return;
+            return terminated(API_EINCOMPLETE);
 
         // Convenience.
         auto& client = mClient.client();

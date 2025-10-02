@@ -1512,9 +1512,9 @@ void NodeManager::notifyPurge()
         }
 
         LockGuard g(mMutex);
-		
-        // Let FUSE know that nodes have been updated.
-        mClient.mFuseClientAdapter.updated(nodesToReport);
+
+        // Let the client adapter know that nodes have been updated.
+        mClient.mClientAdapter.updated(nodesToReport);
 
         TransferDbCommitter committer(mClient.tctable);
 

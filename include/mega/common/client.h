@@ -1,10 +1,5 @@
 #pragma once
 
-#include <functional>
-#include <set>
-#include <string>
-#include <tuple>
-
 #include <mega/common/client_callbacks.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
@@ -12,11 +7,18 @@
 #include <mega/common/node_event_observer_forward.h>
 #include <mega/common/node_info_forward.h>
 #include <mega/common/normalized_path_forward.h>
+#include <mega/common/partial_download_callback_forward.h>
+#include <mega/common/partial_download_forward.h>
 #include <mega/common/task_queue_forward.h>
 #include <mega/common/upload_callbacks.h>
 #include <mega/common/upload_forward.h>
-
 #include <mega/types.h>
+
+#include <functional>
+#include <mutex>
+#include <set>
+#include <string>
+#include <tuple>
 
 namespace mega
 {
@@ -33,7 +35,10 @@ protected:
     explicit Client(Logger& logger);
 
     // Who should we notify when something changes in the cloud?
-    NodeEventObserver* mEventObserver;
+    std::set<NodeEventObserver*> mEventObservers;
+
+    // Serializes access to mEventObservers.
+    std::recursive_mutex mEventObserversLock;
 
     // What logger should we use?
     Logger& mLogger;
@@ -41,11 +46,14 @@ protected:
 public:
     virtual ~Client();
 
+    // Notify observer when something changes in the cloud.
+    void addEventObserver(NodeEventObserver& observer);
+
     // What application is our client bound to?
     virtual MegaApp& application() = 0;
 
     // Retrieve the names of a parent's children.
-    virtual std::set<std::string> childNames(NodeHandle parent) const = 0;
+    virtual ErrorOr<std::set<std::string>> childNames(NodeHandle parent) const = 0;
 
     // Compute a suitable path for a database.
     virtual LocalPath dbPath(const std::string& name) const = 0;
@@ -69,14 +77,11 @@ public:
     virtual void each(std::function<void(NodeInfo)> function,
                       NodeHandle handle) const = 0;
 
-    // Specify who we should notify when something changes in the cloud. 
-    void eventObserver(NodeEventObserver* observer);
-
     // Execute some function on the client's thread.
     virtual Task execute(std::function<void(const Task&)> function) = 0;
 
     // Query whether a node exists in the cloud.
-    virtual bool exists(NodeHandle handle) const = 0;
+    virtual ErrorOr<bool> exists(NodeHandle handle) const = 0;
 
     // Request access the local filesystem.
     virtual FileSystemAccess& fsAccess() const = 0;
@@ -89,15 +94,20 @@ public:
                                   const std::string& name) const = 0;
 
     // Query what a child's node handle is.
-    virtual NodeHandle handle(NodeHandle parent,
-                              const std::string& name) const = 0;
+    virtual ErrorOr<NodeHandle> handle(NodeHandle parent, const std::string& name) const = 0;
 
     // Query whether a parent contains any children.
     virtual ErrorOr<bool> hasChildren(NodeHandle parent) const = 0;
 
     // Initialize the client for use.
     virtual void initialize() = 0;
-    
+
+    // Check whether a node is a directory.
+    ErrorOr<bool> isDirectory(NodeHandle handle) const;
+
+    // Check whether a node is a file.
+    virtual ErrorOr<bool> isFile(NodeHandle handle) const = 0;
+
     // What logger is this client using?
     Logger& logger() const;
 
@@ -139,10 +149,16 @@ public:
                NodeHandle target);
 
     // Query who a node's parent is.
-    virtual NodeHandle parentHandle(NodeHandle handle) const = 0;
+    virtual ErrorOr<NodeHandle> parentHandle(NodeHandle handle) const = 0;
+
+    // Download part of a file from the cloud.
+    virtual auto partialDownload(PartialDownloadCallback& callback,
+                                 NodeHandle handle,
+                                 std::uint64_t offset,
+                                 std::uint64_t length) -> ErrorOr<PartialDownloadPtr> = 0;
 
     // What permissions are applicable to a node?
-    virtual accesslevel_t permissions(NodeHandle handle) const = 0;
+    virtual ErrorOr<accesslevel_t> permissions(NodeHandle handle) const = 0;
 
     // Remove a node.
     virtual void remove(RemoveCallback callback,
@@ -152,6 +168,9 @@ public:
 
     // Remove all children of a node.
     Error removeAll(NodeHandle handle);
+
+    // Don't send observer any further change notifications.
+    void removeEventObserver(NodeEventObserver& observer);
 
     // Rename a node.
     virtual void rename(RenameCallback callback,

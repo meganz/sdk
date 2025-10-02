@@ -1272,6 +1272,33 @@ struct MEGA_API DirectReadNode
 
     DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t, const char*, const char*, const char*);
     ~DirectReadNode();
+
+    // Convenience.
+    template<typename Predicate>
+    static constexpr auto IsDirectReadPredicateV =
+        std::is_invocable_r_v<bool, Predicate, const DirectRead&>;
+
+    // Abort all reads satisfying a particular predicate.
+    template<typename Predicate>
+    auto abort(Predicate predicate) -> std::enable_if_t<IsDirectReadPredicateV<Predicate>>
+    {
+        // Iterate over all active reads.
+        for (auto i = reads.begin(); i != reads.end();)
+        {
+            // Get a pointer to the current read.
+            auto* read = *i++;
+
+            // Read doesn't satisfy our predicate.
+            if (!std::invoke(predicate, *read))
+                continue;
+
+            // Abort the read.
+            read->onFailure(API_EINCOMPLETE, retries, 0);
+
+            // And remove it from the list of active reads.
+            delete read;
+        }
+    }
 };
 
 } // namespace mega

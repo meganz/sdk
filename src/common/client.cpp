@@ -18,9 +18,10 @@ namespace mega
 namespace common
 {
 
-Client::Client(Logger& logger)
-  : mEventObserver(nullptr)
-  , mLogger(logger)
+Client::Client(Logger& logger):
+    mEventObservers(),
+    mEventObserversLock(),
+    mLogger(logger)
 {
 }
 
@@ -28,9 +29,24 @@ Client::~Client()
 {
 }
 
-void Client::eventObserver(NodeEventObserver* observer)
+void Client::addEventObserver(NodeEventObserver& observer)
 {
-    mEventObserver = observer;
+    std::lock_guard guard(mEventObserversLock);
+
+    mEventObservers.emplace(&observer);
+}
+
+ErrorOr<bool> Client::isDirectory(NodeHandle handle) const
+{
+    // Check if the node's a file.
+    auto result = isFile(handle);
+
+    // Couldn't get information about the node.
+    if (!result)
+        return result;
+
+    // The node can't be a directory if it's a file.
+    return !*result;
 }
 
 template<typename T>
@@ -268,6 +284,13 @@ Error Client::removeAll(NodeHandle handle)
 
     // Return the result to our caller.
     return context->mResult;
+}
+
+void Client::removeEventObserver(NodeEventObserver& observer)
+{
+    std::lock_guard guard(mEventObserversLock);
+
+    mEventObservers.erase(&observer);
 }
 
 Error Client::rename(const std::string& name,

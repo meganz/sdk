@@ -59,6 +59,12 @@ target_sources_conditional(test_integration
     IsolatedGfx_test.cpp
 )
 
+# Load common test sources.
+include(common/common.cmake)
+
+# Load File Service test sources.
+include(file_service/file_service.cmake)
+
 # Link with SDKlib
 target_link_libraries(test_integration PRIVATE MEGA::SDKlib)
 

@@ -1,0 +1,80 @@
+@startuml
+
+' Use :: as a package separator rather than .
+set separator ::
+
+' As this is a simplified diagram, don't show members.
+hide members
+
+' Define toplevel classes.
+class mega::MegaClient
+
+' Define common classes.
+abstract class mega::common::Client
+class mega::common::ClientAdapter
+
+' Define file service classes.
+class mega::file_service::File
+class mega::file_service::FileInfo
+class mega::file_service::FileService
+
+' ClientAdapter implement Client.
+mega::common::Client <|.. mega::common::ClientAdapter
+
+' By abstracting functionality provided by MegaClient.
+mega::MegaClient <-- mega::common::ClientAdapter
+
+' The FileService manipulates the cloud via the Client interface.
+mega::common::Client <-- mega::file_service::FileService
+
+' The FileService manages zero or more File(Info)? instances.
+mega::file_service::FileService \
+    "1" *-- "*" mega::file_service::File : manages
+mega::file_service::FileService \
+    "1" *-- "*" mega::file_service::FileInfo : manages
+
+' Every File instance references a FileInfo instance.
+mega::file_service::FileInfo o-- mega::file_service::File
+
+' Add some notes to make things a little clearer.
+note top of mega::common::Client : \
+Provides an abstract high-level interface to client functionality.
+
+note right of mega::common::ClientAdapter : \
+Delegate (or wraps) MegaClient functionality.\n\
+\n\
+Ensures that accessing such functionality is thread-safe and that\n\
+callbacks for any asynchronous operations are always executed.
+
+note top of mega::file_service::FileService : \
+Provides high-level access to files contained in the cloud.\n\
+\n\
+It allows a consumer to manipulate files in the cloud without concern\n\
+for how a given file's content is retrieved or uploaded.\n\
+\n\
+It also allows a consumer to retrieve information about a file and to\n\
+be notified when that file's information has changed.
+
+note top of mega::file_service::FileInfo : \
+Instantiated on demand by the FileService.\n\
+\n\
+It allows the consumer to determine what a file's modification time\n\
+and size are along with what node in the cloud that file is related to if \
+any.\n\
+\n\
+Consumers can choose to be notified when any of these attributes change.
+
+note bottom of mega::file_service::File : \
+Instantiated on demand by the FileService.\n\
+\n\
+Allows a consumer to read content from or write content to a file in the cloud.\n\
+\n\
+File content is streamed as necessary to satisfy reads.\n\
+File content is uploaded when requested by the consumer.\n\
+\n\
+Every File instance contains a reference to a matching FileInfo instance so\n\
+that consumers can access current values for attributes such as file's\n\
+modification time or size.
+
+@enduml
+

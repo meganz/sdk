@@ -1,13 +1,13 @@
 #pragma once
 
+#include <mega/common/error_or.h>
+#include <mega/types.h>
+
 #include <chrono>
 #include <cstdarg>
+#include <cstdint>
 #include <future>
 #include <memory>
-
-#include <mega/common/error_or.h>
-
-#include <mega/types.h>
 
 namespace mega
 {
@@ -28,6 +28,8 @@ SharedPromise<T> makeSharedPromise()
 {
     return std::make_shared<std::promise<T>>();
 }
+
+std::int64_t now();
 
 template<typename T>
 auto waitFor(std::future<T> future)
