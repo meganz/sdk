@@ -1338,6 +1338,9 @@ TEST_F(FileServiceTests, foreign_files_are_read_only)
 
     // Make sure the file's information hasn't changed.
     EXPECT_EQ(before, info());
+
+    // You should be able to flush a file but it'll be a no-op.
+    EXPECT_EQ(execute(flush, *file), FILE_SUCCESS);
 }
 
 TEST_F(FileServiceTests, inactive_file_moved)
