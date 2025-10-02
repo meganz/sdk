@@ -17,7 +17,7 @@ struct NodeKeyData
     std::string mKeyAndIV;
     std::optional<std::string> mPrivateAuth;
     std::optional<std::string> mPublicAuth;
-    bool mIsPrivate;
+    bool mIsPublic;
 }; // NodeKeyData
 
 } // common

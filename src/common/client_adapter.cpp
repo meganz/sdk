@@ -935,7 +935,7 @@ auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
     NodeKeyData keyData;
 
     keyData.mKeyAndIV = node->nodekey();
-    keyData.mIsPrivate = true;
+    keyData.mIsPublic = false;
 
     // Convenience.
     auto size = static_cast<std::uint64_t>(node->size);
@@ -1755,7 +1755,7 @@ void ClientPartialDownload::begin()
                 static_cast<std::int64_t>(mOffset),
                 static_cast<std::int64_t>(mRemaining),
                 std::bind(&ClientPartialDownload::notify, std::move(cookie), std::placeholders::_1),
-                mKeyData.mIsPrivate,
+                !mKeyData.mIsPublic,
                 toCharPointer(mKeyData.mPrivateAuth),
                 toCharPointer(mKeyData.mPublicAuth),
                 toCharPointer(mKeyData.mChatAuth));

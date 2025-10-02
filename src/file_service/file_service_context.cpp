@@ -580,7 +580,7 @@ auto FileServiceContext::keyData(FileID id, Transaction&& transaction) -> std::o
     NodeKeyData keyData;
 
     keyData.mChatAuth = query.field("chat_auth").template get<MaybeString>();
-    keyData.mIsPrivate = query.field("is_private").template get<bool>();
+    keyData.mIsPublic = query.field("is_public").template get<bool>();
     keyData.mKeyAndIV = query.field("key_and_iv").template get<std::string>();
     keyData.mPrivateAuth = query.field("private_auth").template get<MaybeString>();
     keyData.mPublicAuth = query.field("public_auth").template get<MaybeString>();
@@ -1001,7 +1001,7 @@ try
 
     query.param(":chat_auth").set(keyData.mChatAuth);
     query.param(":id").set(id);
-    query.param(":is_private").set(keyData.mIsPrivate);
+    query.param(":is_public").set(keyData.mIsPublic);
     query.param(":key_and_iv").set(keyData.mKeyAndIV);
     query.param(":private_auth").set(keyData.mPrivateAuth);
     query.param(":public_auth").set(keyData.mPublicAuth);

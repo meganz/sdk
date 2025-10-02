@@ -392,8 +392,8 @@ auto Client::partialDownload(PartialDownloadCallback& callback,
     // Instantiate and populate node key data.
     NodeKeyData keyData;
 
+    keyData.mIsPublic = true;
     keyData.mKeyAndIV = key;
-    keyData.mIsPrivate = false;
 
     // Return partial download to our caller.
     return client().partialDownload(callback, handle, keyData, length, offset);

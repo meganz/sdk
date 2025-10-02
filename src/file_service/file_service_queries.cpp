@@ -55,7 +55,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileKeyData = "insert into file_key_data values ( "
                       "  :chat_auth, "
                       "  :id, "
-                      "  :is_private, "
+                      "  :is_public, "
                       "  :key_and_iv, "
                       "  :private_auth, "
                       "  :public_auth "
