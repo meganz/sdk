@@ -4,8 +4,6 @@
 #include <mega/common/directory.h>
 #include <mega/common/node_info_forward.h>
 #include <mega/common/platform/folder_locker.h>
-#include <mega/fuse/platform/platform.h>
-#include <mega/fuse/platform/utility.h>
 #include <mega/types.h>
 
 #include <optional>
