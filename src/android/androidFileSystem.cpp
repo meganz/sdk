@@ -652,8 +652,9 @@ std::shared_ptr<AndroidFileWrapper>
     }
 
     std::optional<std::string> currentURI;
-    for (const auto& segment: pathSegments)
+    for (auto it = pathSegments.begin(); it != pathSegments.end(); ++it)
     {
+        const auto& segment = *it;
         LocalPath compositePath = pathCursor;
         compositePath.appendWithSeparator(LocalPath::fromRelativePath(segment), true);
 
@@ -670,7 +671,9 @@ std::shared_ptr<AndroidFileWrapper>
         // Create intermediate path if necessary
         if (!nextWrapper || !nextWrapper->exists())
         {
-            currentURI = currentWrapper->createOrReturnElement(segment, create, lastIsFolder);
+            bool isLast = (std::next(it) == pathSegments.end());
+            currentURI =
+                currentWrapper->createOrReturnElement(segment, create, !isLast || lastIsFolder);
 
             if (!currentURI.has_value())
             {
