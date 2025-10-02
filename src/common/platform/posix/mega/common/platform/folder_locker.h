@@ -19,7 +19,7 @@ public:
 
     FolderLocker& operator=(FolderLocker&&) = default;
 
-    void release();
+    void release(){};
 };
 
 } // platform
