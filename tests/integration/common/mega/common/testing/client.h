@@ -4,6 +4,7 @@
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
 #include <mega/common/node_info_forward.h>
+#include <mega/common/node_key_data_forward.h>
 #include <mega/common/normalized_path_forward.h>
 #include <mega/common/partial_download_callback_forward.h>
 #include <mega/common/partial_download_forward.h>
@@ -223,6 +224,9 @@ public:
 
     // Is a friendship invite associated with the specified user?
     virtual auto invited(const std::string& email) const -> InvitePtr = 0;
+
+    // Retrieve a node's key data.
+    auto keyData(CloudPath path, bool authorize) -> ErrorOr<NodeKeyData> const;
 
     // Try and log the specified user in.
     virtual Error login(const std::string& email, const std::string& password) = 0;

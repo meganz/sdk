@@ -294,6 +294,19 @@ ErrorOr<NodeHandle> Client::handle(const std::string& path) const
     return unexpected(info.error());
 }
 
+auto Client::keyData(CloudPath path, bool authorize) -> ErrorOr<NodeKeyData> const
+{
+    // Try and resolve the path to a node handle.
+    auto handle = path.resolve(*this);
+
+    // Path references a valid node.
+    if (handle)
+        return client().keyData(*handle, authorize);
+
+    // Path doesn't reference a valid node.
+    return unexpected(handle.error());
+}
+
 Error Client::login(std::size_t accountIndex)
 {
     if (accountIndex >= getEnvVarAccounts().size())

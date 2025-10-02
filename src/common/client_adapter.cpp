@@ -763,6 +763,59 @@ ErrorOr<bool> ClientAdapter::isFile(NodeHandle handle) const
     return node->type == FILENODE;
 }
 
+ErrorOr<NodeKeyData> ClientAdapter::keyData(NodeHandle handle, bool authorize) const
+{
+    // Make sure deinitialize(...) waits for this call to complete.
+    auto activity = mActivities.begin();
+
+    // Client's being torn down.
+    if (mDeinitialized)
+        return unexpected(LOCAL_LOGGED_OUT);
+
+    // Acquire RNT lock.
+    std::lock_guard guard(mClient.nodeTreeMutex);
+
+    // Try and locate the specified node.
+    auto node = mClient.nodeByHandle(handle);
+
+    // Couldn't locate the specified node.
+    if (!node)
+        return unexpected(API_ENOENT);
+
+    // Node's decryption key isn't available.
+    if (!node->keyApplied())
+        return unexpected(API_EKEY);
+
+    // Instantiate and populate node key data.
+    NodeKeyData keyData;
+
+    keyData.mKeyAndIV = node->nodekey();
+    keyData.mIsPublic = false;
+
+    // Caller doesn't want to authorize the node.
+    if (!authorize)
+        return keyData;
+
+    // Node's a file.
+    if (node->type == FILENODE)
+    {
+        // Private authentication token is the master key.
+        keyData.mPrivateAuth = Base64::btoa(mClient.sid);
+
+        // Return the node's key data to our caller.
+        return keyData;
+    }
+
+    // Public authentication token is the account's root handle.
+    auto rootHandle = mClient.mNodeManager.getRootNodeFiles();
+
+    // Encoded as Base64.
+    keyData.mPublicAuth = Base64Str(&rootHandle);
+
+    // Return the node's key data to our caller.
+    return keyData;
+}
+
 void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
                                   const std::string& name,
                                   NodeHandle parent)

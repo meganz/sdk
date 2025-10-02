@@ -109,6 +109,9 @@ public:
     // Check whether a node is a file.
     ErrorOr<bool> isFile(NodeHandle handle) const override;
 
+    // Retrieve the specified node's key data.
+    ErrorOr<NodeKeyData> keyData(NodeHandle handle, bool authorize) const override;
+
     // Make a new directory in the cloud.
     void makeDirectory(MakeDirectoryCallback callback,
                        const std::string& name,

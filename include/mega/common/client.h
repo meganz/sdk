@@ -110,6 +110,9 @@ public:
     // Check whether a node is a file.
     virtual ErrorOr<bool> isFile(NodeHandle handle) const = 0;
 
+    // Retrieve the specified node's key data.
+    virtual ErrorOr<NodeKeyData> keyData(NodeHandle handle, bool authorize) const = 0;
+
     // What logger is this client using?
     Logger& logger() const;
 
