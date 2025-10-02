@@ -142,7 +142,7 @@ public:
 
     // Cancel the reclamation.
     template<typename Lock>
-    void cancel(ReclaimContextPtr& context, Lock&& lock);
+    static void cancel(ReclaimContextPtr& context, Lock&& lock);
 
     // Called when the file's data has been flushed to the cloud.
     void flushed(ReclaimContextPtr& context, FileResult result);
@@ -2012,10 +2012,11 @@ template<typename Lock>
 void FileContext::ReclaimContext::cancel(ReclaimContextPtr& context, Lock&& lock)
 {
     // Sanity.
-    assert(lock.mutex() == &mContext.mReclaimContextLock);
+    assert(context);
+    assert(lock.mutex() == &context->mContext.mReclaimContextLock);
     assert(lock.owns_lock());
 
-    completed(std::move(context), std::forward<Lock>(lock), FILE_CANCELLED);
+    context->completed(context, std::forward<Lock>(lock), FILE_CANCELLED);
 }
 
 void FileContext::ReclaimContext::flushed(ReclaimContextPtr& context, FileResult result)
