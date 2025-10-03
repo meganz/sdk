@@ -18,6 +18,9 @@ public:
     static constexpr auto COMMON_TIMEOUT = 3min;
     std::unique_ptr<NiceMock<MockTransferListener>> mMtl;
     std::unique_ptr<NiceMock<MockSyncListener>> mMsl;
+    std::unique_ptr<NiceMock<MockSyncListener>> mMslFiles;
+    std::unique_ptr<std::promise<int>> mFileUploadPms;
+    std::unique_ptr<std::future<int>> mFileUploadFut;
 
     /**
      * @brief Sets the cleanup function to be executed during TearDown.
@@ -64,6 +67,12 @@ public:
                         megaApi[0]->removeListener(mMsl.get());
                         mMsl.reset();
                     }
+
+                    if (mMslFiles)
+                    {
+                        megaApi[0]->removeListener(mMslFiles.get());
+                        mMslFiles.reset();
+                    }
                 });
         }
     }
@@ -89,6 +98,11 @@ public:
      * @brief Resets local variables that tracks when backup sync is up-to-date.
      */
     void resetOnSyncStatsUpdated();
+
+    /**
+     * @brief Resets related variables that tracks when a local file is created
+     */
+    void resetLocalFileEnv();
 
     /**
      * @brief Waits until the backup sync is up-to-date state.
@@ -147,6 +161,7 @@ private:
     MegaHandle mCloudArchiveBackupFolderHandle{INVALID_HANDLE};
     const fs::path mCloudArchiveBackupFolderName{"BackupArchive"};
     std::atomic<bool> mIsUpToDate{false};
+    std::atomic<bool> mCreatedFile{false};
     std::shared_ptr<std::promise<void>> mSyncUpToDatePms;
     std::unique_ptr<std::future<void>> mSyncFut;
     bool mCleanupFunctionSet{false};
@@ -158,27 +173,24 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
         const std::string_view contents,
         std::optional<fs::file_time_type> customMtime)
 {
-    std::shared_ptr<std::promise<int>> fileUploadPms = std::make_shared<std::promise<int>>();
-    std::unique_ptr<std::future<int>> fut(new std::future<int>(fileUploadPms->get_future()));
-    NiceMock<MockSyncListener> mslTemp{megaApi[0].get()};
-    const auto hasExpectedId = Pointee(Property(&MegaSync::getBackupId, getBackupId()));
-    EXPECT_CALL(mslTemp, onSyncFileStateChanged(_, hasExpectedId, _, _))
+    EXPECT_CALL(*mMslFiles.get(), onSyncFileStateChanged(_, _, _, _))
         .WillRepeatedly(
-            [&fileUploadPms, localFilePathStr = localFilePathAbs.string()](MegaApi*,
-                                                                           MegaSync*,
-                                                                           std::string* localPath,
-                                                                           int newState)
+            [this, localFilePathStr = localFilePathAbs.string()](MegaApi*,
+                                                                 MegaSync* sync,
+                                                                 std::string* localPath,
+                                                                 int newState)
             {
-                if (newState == MegaApi::STATE_SYNCED && localPath &&
-                    *localPath == localFilePathStr)
+                if (sync && sync->getBackupId() == getBackupId() &&
+                    newState == MegaApi::STATE_SYNCED && localPath &&
+                    *localPath == localFilePathStr && !mCreatedFile)
                 {
-                    fileUploadPms->set_value(newState);
+                    mCreatedFile = true;
+                    mFileUploadPms->set_value(newState);
                 }
             });
-    megaApi[0]->addListener(&mslTemp);
     auto localFile = createLocalFile(localFilePathAbs, contents, customMtime);
-    const auto succeeded = fut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
-    megaApi[0]->removeListener(&mslTemp);
+    const auto succeeded = mFileUploadFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
+    resetLocalFileEnv();
     return {succeeded, localFile};
 }
 
@@ -194,9 +206,17 @@ void SdkTestBackupUploadsOperations::moveDeconfiguredBackupNodesToCloud()
 
 void SdkTestBackupUploadsOperations::resetOnSyncStatsUpdated()
 {
-    mIsUpToDate = false;
     mSyncUpToDatePms.reset(new std::promise<void>());
     mSyncFut.reset(new std::future<void>(mSyncUpToDatePms->get_future()));
+    mIsUpToDate = false;
+}
+
+void SdkTestBackupUploadsOperations::resetLocalFileEnv()
+{
+    testing::Mock::VerifyAndClearExpectations(mMslFiles.get());
+    mFileUploadPms.reset(new std::promise<int>());
+    mFileUploadFut.reset(new std::future<int>(mFileUploadPms->get_future()));
+    mCreatedFile = false;
 }
 
 bool SdkTestBackupUploadsOperations::waitForBackupSyncUpToDate() const
@@ -241,6 +261,10 @@ void SdkTestBackupUploadsOperations::SetUp()
                 }
             });
     megaApi[0]->addListener(mMsl.get());
+
+    mMslFiles.reset(new NiceMock<MockSyncListener>(megaApi[0].get()));
+    resetLocalFileEnv();
+    megaApi[0]->addListener(mMslFiles.get());
 }
 
 void SdkTestBackupUploadsOperations::TearDown()
