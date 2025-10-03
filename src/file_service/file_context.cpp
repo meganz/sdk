@@ -113,7 +113,7 @@ public:
 
     // Cancel the flush.
     template<typename Lock>
-    void cancel(FlushContextPtr context, Lock&& lock);
+    static void cancel(FlushContextPtr context, Lock&& lock);
 
     // Queue a flush request for execution.
     void queue(FileFlushRequest request);
@@ -122,7 +122,8 @@ public:
 class FileContext::ReclaimContext
 {
     // Called when the reclaim request has completed.
-    void completed(ReclaimContextPtr& context, FileResultOr<std::uint64_t> result);
+    template<typename Lock>
+    void completed(ReclaimContextPtr context, Lock&& lock, FileResultOr<std::uint64_t> result);
 
     // Keep mContext alive as long as we are alive.
     Activity mActivity;
@@ -138,6 +139,10 @@ class FileContext::ReclaimContext
 
 public:
     ReclaimContext(FileContext& context);
+
+    // Cancel the reclamation.
+    template<typename Lock>
+    static void cancel(ReclaimContextPtr& context, Lock&& lock);
 
     // Called when the file's data has been flushed to the cloud.
     void flushed(ReclaimContextPtr& context, FileResult result);
@@ -274,6 +279,14 @@ void FileContext::cancel()
 
         if (mFlushContext)
             mFlushContext->cancel(mFlushContext, std::move(lock));
+    }
+
+    // Cancel reclamation if necessary.
+    {
+        std::unique_lock lock(mReclaimContextLock);
+
+        if (mReclaimContext)
+            mReclaimContext->cancel(mReclaimContext, std::move(lock));
     }
 
     // Latch the request queue.
@@ -1936,14 +1949,14 @@ template<typename Lock>
 void FileContext::FlushContext::cancel(FlushContextPtr context, Lock&& lock)
 {
     assert(context);
-    assert(lock.mutex() == &mContext.mFlushContextLock);
+    assert(lock.mutex() == &context->mContext.mFlushContextLock);
     assert(lock.owns_lock());
 
-    auto upload = std::exchange(mUpload, nullptr);
+    auto upload = std::exchange(context->mUpload, nullptr);
 
     // No upload's in progress.
     if (!upload)
-        return completed(std::move(context), std::move(lock), FILE_CANCELLED);
+        return context->completed(context, std::move(lock), FILE_CANCELLED);
 
     // Release the lock.
     lock.unlock();
@@ -1961,13 +1974,21 @@ void FileContext::FlushContext::queue(FileFlushRequest request)
     mRequests.emplace_back(std::move(request));
 }
 
-void FileContext::ReclaimContext::completed(ReclaimContextPtr&, FileResultOr<std::uint64_t> result)
+template<typename Lock>
+void FileContext::ReclaimContext::completed(ReclaimContextPtr context,
+                                            Lock&& lock,
+                                            FileResultOr<std::uint64_t> result)
 {
-    // Acquire reclaim context lock.
-    std::unique_lock lock(mContext.mReclaimContextLock);
+    // Sanity.
+    assert(lock.mutex() == &mContext.mReclaimContextLock);
+    assert(lock.owns_lock());
 
-    // Unlink reclaim context.
-    mContext.mReclaimContext = nullptr;
+    // Make sure we're still the current reclaim context.
+    if (mContext.mReclaimContext == context)
+    {
+        // We are so let the file know we've completed.
+        mContext.mReclaimContext = nullptr;
+    }
 
     // Steal queued callbacks.
     auto callbacks = std::exchange(mCallbacks, decltype(mCallbacks)());
@@ -1987,15 +2008,38 @@ FileContext::ReclaimContext::ReclaimContext(FileContext& context):
     mContext(context)
 {}
 
+template<typename Lock>
+void FileContext::ReclaimContext::cancel(ReclaimContextPtr& context, Lock&& lock)
+{
+    // Sanity.
+    assert(context);
+    assert(lock.mutex() == &context->mContext.mReclaimContextLock);
+    assert(lock.owns_lock());
+
+    context->completed(context, std::forward<Lock>(lock), FILE_CANCELLED);
+}
+
 void FileContext::ReclaimContext::flushed(ReclaimContextPtr& context, FileResult result)
 {
+    // Acquire reclaim context lock.
+    std::unique_lock lock(mContext.mReclaimContextLock);
+
     // Couldn't flush this file's data to the cloud.
     if (result != FILE_SUCCESS)
-        return completed(context, result);
+        return completed(std::move(context), std::move(lock), result);
+
+    // Reclamation has been cancelled.
+    if (mCallbacks.empty())
+        return;
+
+    // Release reclaim context lock.
+    lock.unlock();
 
     // So we can use this context's completed method as a callback.
-    auto callback =
-        std::bind(&ReclaimContext::completed, this, std::move(context), std::placeholders::_1);
+    auto callback = [context = std::move(context), this](auto result) mutable
+    {
+        completed(std::move(context), std::unique_lock(mContext.mReclaimContextLock), result);
+    }; // callback
 
     // Queue the reclaim request for execution.
     mContext.queue(std::unique_lock(mContext.mRequestsLock),
