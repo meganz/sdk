@@ -11124,7 +11124,7 @@ bool CommandExportSet::procresult(Result r, JSON& json)
         mSet->setChanged(Set::CH_EXPORTED);
         if (!client->updateSet(std::move(*mSet)))
         {
-            LOG_warn << "Sets: comand 'ass' succeeded, but Set was not found";
+            LOG_warn << "Sets: command 'ass' succeeded, but Set was not found";
             e = API_ENOENT;
         }
     }

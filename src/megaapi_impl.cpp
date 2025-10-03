@@ -1272,7 +1272,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
 {
     if (startPos != ChunkedHash::chunkfloor(startPos))
     {
-        LOG_err << "non-chunk start postion supplied";
+        LOG_err << "non-chunk start position supplied";
         return nullptr;
     }
 
@@ -32654,7 +32654,7 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     {
         size_t num = static_cast<size_t>(static_cast<int>(len) - remaining);
         LOG_debug << getLogName()
-                  << "[Streaming] Length exceeds limits of circular buffer. Writting a piece of "
+                  << "[Streaming] Length exceeds limits of circular buffer. Writing a piece of "
                   << num << " bytes to the end and the others " << remaining
                   << " bytes from the beginning"
                   << " [current index = " << currentIndex << ", len = " << len
