@@ -33,6 +33,9 @@ class FileStorage
     // Where the service is storing this user's metadata.
     common::Directory mUserStorageDirectory;
 
+    // Where the service is storing this user's cached files
+    common::Directory mUserCacheDirectory;
+
 public:
     explicit FileStorage(const common::Client& client);
 
@@ -50,14 +53,8 @@ public:
     // Remove a file from our storage area.
     void removeFile(FileID id);
 
-    // Where is the service storing its metadata?
-    const LocalPath& storageDirectory() const;
-
     // Find out where the service is storing a particular file.
     LocalPath userFilePath(FileID id) const;
-
-    // Where is the service storing this user's metadata?
-    const LocalPath& userStorageDirectory() const;
 }; // FileStorage
 
 } // file_service

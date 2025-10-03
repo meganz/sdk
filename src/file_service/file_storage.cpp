@@ -41,7 +41,8 @@ FileAccessPtr FileStorage::openFile(const LocalPath& path, bool mustCreate)
 FileStorage::FileStorage(const Client& client):
     mFilesystem(std::make_unique<FSACCESS_CLASS>()),
     mStorageDirectory(*mFilesystem, logger(), "file-service", client.dbRootPath()),
-    mUserStorageDirectory(*mFilesystem, logger(), client.sessionID(), mStorageDirectory)
+    mUserStorageDirectory(*mFilesystem, logger(), client.sessionID(), mStorageDirectory),
+    mUserCacheDirectory(*mFilesystem, logger(), "cache", mUserStorageDirectory)
 {}
 
 FileStorage::~FileStorage() = default;
@@ -80,24 +81,14 @@ void FileStorage::removeFile(FileID id)
     throw FSErrorF("Couldn't remove file: %s", path.toPath(false).c_str());
 }
 
-const LocalPath& FileStorage::storageDirectory() const
-{
-    return mStorageDirectory;
-}
-
 LocalPath FileStorage::userFilePath(FileID id) const
 {
     auto name = LocalPath::fromRelativePath(toString(id));
-    auto path = userStorageDirectory();
+    auto path = mUserCacheDirectory.path();
 
     path.appendWithSeparator(name, false);
 
     return path;
-}
-
-const LocalPath& FileStorage::userStorageDirectory() const
-{
-    return mUserStorageDirectory;
 }
 
 } // file_service
