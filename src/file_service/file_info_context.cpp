@@ -5,6 +5,7 @@
 #include <mega/file_service/file_info_context_badge.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_service_context.h>
+#include <mega/file_service/logger.h>
 #include <mega/filesystem.h>
 
 #include <utility>
@@ -53,6 +54,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
                                  FileServiceContext& service,
                                  std::uint64_t size):
     FileEventEmitter(),
+    mInstanceLogger("FileInfoContext", *this, logger()),
     mAccessed(accessed),
     mActivity(std::move(activity)),
     mAllocatedSize(allocatedSize),

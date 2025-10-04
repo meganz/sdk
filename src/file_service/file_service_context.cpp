@@ -126,6 +126,9 @@ class FileServiceContext::ReclaimContext
     // Called when a file has been reclaimed.
     void reclaimed(ReclaimContextPtr context, FileResultOr<std::uint64_t> result);
 
+    // Logs instance lifetime.
+    common::InstanceLogger<ReclaimContext> mInstanceLogger;
+
     // Make sure our service stays alive as long as we do.
     Activity mActivity;
 
@@ -892,6 +895,7 @@ void FileServiceContext::updated(NodeEventQueue& events)
 FileServiceContext::FileServiceContext(Client& client, const FileServiceOptions& options):
     NodeEventObserver(),
     FileEventEmitter(),
+    mInstanceLogger("FileServiceContext", *this, logger()),
     mClient(client),
     mStorage(mClient),
     mDatabase(createDatabase(mStorage.databasePath())),
@@ -1885,6 +1889,7 @@ void FileServiceContext::ReclaimContext::reclaimed(ReclaimContextPtr context,
 }
 
 FileServiceContext::ReclaimContext::ReclaimContext(FileServiceContext& service):
+    mInstanceLogger("ReclaimContext", *this, logger()),
     mActivity(service.mActivities.begin()),
     mCallbacks(),
     mIDs(),

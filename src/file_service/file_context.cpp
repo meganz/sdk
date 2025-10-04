@@ -51,6 +51,9 @@ class FileContext::FetchContext
     // Called when the fetch has been completed.
     void completed(FileResult result);
 
+    // Logs instance lifetime.
+    common::InstanceLogger<FetchContext> mInstanceLogger;
+
     // Keep mContext alive as long as we are alive.
     Activity mActivity;
 
@@ -86,6 +89,9 @@ class FileContext::FlushContext
 
     // Called when the file's data has been uploaded.
     void uploaded(FlushContextPtr& context, ErrorOr<UploadResult> result);
+
+    // Logs instance lifetime.
+    common::InstanceLogger<FlushContext> mInstanceLogger;
 
     // Keep mContext alive as long as we are alive.
     Activity mActivity;
@@ -124,6 +130,9 @@ class FileContext::ReclaimContext
     // Called when the reclaim request has completed.
     template<typename Lock>
     void completed(ReclaimContextPtr context, Lock&& lock, FileResultOr<std::uint64_t> result);
+
+    // Logs instance lifetime.
+    common::InstanceLogger<ReclaimContext> mInstanceLogger;
 
     // Keep mContext alive as long as we are alive.
     Activity mActivity;
@@ -1603,6 +1612,7 @@ FileContext::FileContext(Activity activity,
                          FileServiceContext& service):
     FileRangeContextManager(),
     enable_shared_from_this(),
+    mInstanceLogger("FileContext", *this, logger()),
     mActivity(std::move(activity)),
     mBuffer(std::make_shared<SparseFileBuffer>(*file, *info)),
     mInfo(std::move(info)),
@@ -1814,6 +1824,7 @@ void FileContext::FetchContext::completed(FileResult result)
 }
 
 FileContext::FetchContext::FetchContext(FileContext& context, FileFetchRequest request):
+    mInstanceLogger("FetchContext", *this, logger()),
     mActivity(context.mActivities.begin()),
     mContext(context),
     mRequests()
@@ -1977,6 +1988,7 @@ void FileContext::FlushContext::uploaded(FlushContextPtr& context, ErrorOr<Uploa
 }
 
 FileContext::FlushContext::FlushContext(FileContext& context, FileFlushRequest request):
+    mInstanceLogger("FlushContext", *this, logger()),
     mActivity(context.mActivities.begin()),
     mContext(context),
     mHandle(context.mInfo->handle()),
@@ -2089,6 +2101,7 @@ void FileContext::ReclaimContext::completed(ReclaimContextPtr context,
 }
 
 FileContext::ReclaimContext::ReclaimContext(FileContext& context):
+    mInstanceLogger("ReclaimContext", *this, logger()),
     mActivity(context.mActivities.begin()),
     mAllocatedSize(context.mInfo->allocatedSize()),
     mCallbacks(),

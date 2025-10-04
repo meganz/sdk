@@ -3,6 +3,7 @@
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_location.h>
 #include <mega/file_service/file_service_context_badge.h>
+#include <mega/file_service/logger.h>
 
 namespace mega
 {
@@ -10,11 +11,18 @@ namespace file_service
 {
 
 FileInfo::FileInfo(FileContextBadge, FileInfoContextPtr context):
+    mInstanceLogger("FileInfo", *this, logger()),
     mContext(std::move(context))
 {}
 
 FileInfo::FileInfo(FileServiceContextBadge, FileInfoContextPtr context):
+    mInstanceLogger("FileInfo", *this, logger()),
     mContext(std::move(context))
+{}
+
+FileInfo::FileInfo(const FileInfo& other):
+    mInstanceLogger("FileInfo", *this, logger()),
+    mContext(other.mContext)
 {}
 
 FileInfo::~FileInfo() = default;
@@ -22,6 +30,14 @@ FileInfo::~FileInfo() = default;
 FileEventObserverID FileInfo::addObserver(FileEventObserver observer)
 {
     return mContext->addObserver(std::move(observer));
+}
+
+FileInfo& FileInfo::operator=(const FileInfo& rhs)
+{
+    if (this != &rhs)
+        mContext = rhs.mContext;
+
+    return *this;
 }
 
 std::int64_t FileInfo::accessed() const

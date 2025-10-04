@@ -2,6 +2,7 @@
 
 #include <mega/common/activity_monitor.h>
 #include <mega/common/client_forward.h>
+#include <mega/common/instance_logger.h>
 #include <mega/common/node_key_data.h>
 #include <mega/common/partial_download_callback.h>
 #include <mega/common/partial_download_forward.h>
@@ -47,6 +48,9 @@ class FileRangeContext: private common::PartialDownloadCallback
 
     // Called when our download's encountered a failure.
     virtual auto failed(Error result, int retries) -> std::variant<Abort, Retry> override;
+
+    // Logs instance lifetime.
+    common::InstanceLogger<FileRangeContext> mInstanceLogger;
 
     // Keeps our manager alive until we're dead.
     common::Activity mActivity;

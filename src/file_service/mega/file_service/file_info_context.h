@@ -1,4 +1,5 @@
 #include <mega/common/activity_monitor.h>
+#include <mega/common/instance_logger.h>
 #include <mega/common/shared_mutex.h>
 #include <mega/file_service/file_event_emitter.h>
 #include <mega/file_service/file_event_observer.h>
@@ -35,6 +36,9 @@ class FileInfoContext: FileEventEmitter, public FileSizeInfo
 
     // Transmit an event to all registered observers.
     void notify(const FileEvent& event);
+
+    // Logs instance lifetime.
+    common::InstanceLogger<FileInfoContext> mInstanceLogger;
 
     // When was the file last accessed?
     std::int64_t mAccessed;

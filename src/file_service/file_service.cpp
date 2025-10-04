@@ -19,6 +19,7 @@ namespace file_service
 using namespace common;
 
 FileService::FileService():
+    mInstanceLogger("FileService", *this, logger()),
     mContext(),
     mContextLock()
 {}

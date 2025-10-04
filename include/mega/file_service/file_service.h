@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mega/common/client_forward.h>
+#include <mega/common/instance_logger.h>
 #include <mega/common/node_key_data_forward.h>
 #include <mega/common/shared_mutex.h>
 #include <mega/file_service/file_event_observer.h>
@@ -25,7 +26,13 @@ namespace file_service
 
 class FileService
 {
+    // Logs instance lifetime.
+    common::InstanceLogger<FileService> mInstanceLogger;
+
+    // What context does this instance wrap?
     FileServiceContextPtr mContext;
+
+    // Serializes access to mContext;
     common::SharedMutex mContextLock;
 
 public:

@@ -196,6 +196,7 @@ FileRangeContext::FileRangeContext(Activity activity,
                                    FileRangeContextPtrMap::Iterator iterator,
                                    FileRangeContextManager& manager):
     PartialDownloadCallback(),
+    mInstanceLogger("FileRangeContext", *this, logger()),
     mActivity(std::move(activity)),
     mBuffer(),
     mCallbacks(),

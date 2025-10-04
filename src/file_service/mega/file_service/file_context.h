@@ -2,6 +2,7 @@
 
 #include <mega/common/activity_monitor.h>
 #include <mega/common/database_forward.h>
+#include <mega/common/instance_logger.h>
 #include <mega/common/lock_forward.h>
 #include <mega/common/node_key_data.h>
 #include <mega/common/transaction_forward.h>
@@ -196,6 +197,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Update the file's sizes in the database.
     void updateSize(std::uint64_t size, common::Transaction& transaction);
+
+    // Logs instance lifetime.
+    common::InstanceLogger<FileContext> mInstanceLogger;
 
     // Keep our service alive until we're dead.
     common::Activity mActivity;

@@ -3,6 +3,7 @@
 #include <mega/common/activity_monitor.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/database.h>
+#include <mega/common/instance_logger.h>
 #include <mega/common/node_event_observer.h>
 #include <mega/common/node_key_data.h>
 #include <mega/common/shared_mutex.h>
@@ -114,6 +115,9 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     auto storageUsed(Lock&& lock, Transaction&& transaction) -> std::uint64_t;
 
     void updated(common::NodeEventQueue& events) override;
+
+    // Logs instance lifetime.
+    common::InstanceLogger<FileServiceContext> mInstanceLogger;
 
     common::Client& mClient;
 
