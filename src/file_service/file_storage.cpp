@@ -44,8 +44,9 @@ FileStorage::FileStorage(const Client& client):
     mUserStorageDirectory(*mFilesystem, logger(), client.sessionID(), mStorageDirectory),
     mUserCacheDirectory(*mFilesystem, logger(), "cache", mUserStorageDirectory)
 {
-    mFolderLocker =
-        common::platform::FolderLocker{mUserStorageDirectory.path().asPlatformEncoded(true)};
+    // Prevent others, especially file explorer, from opening files under the folder, generating
+    // thumbnail while we're running. We have seen we're blocked to open files forever due to this.
+    mFolderLocker = platform::FolderLocker{mUserCacheDirectory.path().asPlatformEncoded(true)};
 }
 
 FileStorage::~FileStorage() = default;
