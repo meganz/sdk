@@ -344,14 +344,14 @@ auto FileServiceContext::fileContextFromCloud(FileID id) -> FileServiceResultOr<
 auto FileServiceContext::fileContextFromDatabase(FileID id) -> FileServiceResultOr<FileContextPtr>
 {
     // Try and get our hands on the file's information.
-    auto maybeInfo = infoContext(id, true);
+    auto maybeInfo = infoContext(id);
 
     // File's been removed.
     if (!maybeInfo)
         return unexpected(maybeInfo.error());
 
     // Clarity.
-    auto& [info, file] = *maybeInfo;
+    auto& info = *maybeInfo;
 
     // File isn't in storage so open it from the cloud.
     if (!info)
@@ -394,7 +394,7 @@ auto FileServiceContext::fileContextFromDatabase(FileID id) -> FileServiceResult
 
     // Instantiate a new file context.
     auto context = std::make_shared<FileContext>(mActivities.begin(),
-                                                 std::move(file),
+                                                 mStorage.getFile(id),
                                                  std::move(info),
                                                  std::move(keyData),
                                                  ranges,
@@ -452,7 +452,7 @@ auto FileServiceContext::getFromIndex(FileID id,
     return instance;
 }
 
-auto FileServiceContext::infoContextFromDatabase(FileID id, bool open) -> InfoContextResult
+auto FileServiceContext::infoContextFromDatabase(FileID id) -> InfoContextResult
 {
     // Make sure no one is changing our indexes.
     UniqueLock lockContexts(mLock);
@@ -461,10 +461,10 @@ auto FileServiceContext::infoContextFromDatabase(FileID id, bool open) -> InfoCo
     UniqueLock lockDatabase(mDatabase);
 
     // Check if another thread loaded this file's info.
-    auto result = infoContextFromIndex(id, lockContexts, open);
+    auto result = infoContextFromIndex(id, lockContexts);
 
     // Info was loaded (or marked as removed) by another thread.
-    if (!result || result->first)
+    if (!result || *result)
         return result;
 
     // Check if this file exists in the database.
@@ -483,7 +483,7 @@ auto FileServiceContext::infoContextFromDatabase(FileID id, bool open) -> InfoCo
 
     // We know nothing about this file.
     if (!query)
-        return std::make_pair(nullptr, nullptr);
+        return nullptr;
 
     // Latch the file's attributes from the database.
     auto accessed = query.field("accessed").get<std::int64_t>();
@@ -523,47 +523,39 @@ auto FileServiceContext::infoContextFromDatabase(FileID id, bool open) -> InfoCo
     // Add the context to our index.
     mInfoContexts.emplace(id, info);
 
-    // Caller isn't interested in the file itself, only its information.
-    if (!open)
-        return std::make_pair(std::move(info), nullptr);
-
-    // Return the file and its information to our caller.
-    return std::make_pair(std::move(info), mStorage.getFile(id));
+    // Return the file's information to our caller.
+    return info;
 }
 
 template<typename Lock>
-auto FileServiceContext::infoContextFromIndex(FileID id, Lock&& lock, bool open)
-    -> InfoContextResult
+auto FileServiceContext::infoContextFromIndex(FileID id, Lock&& lock) -> InfoContextResult
 {
     // Check if this file's information is in the index.
     auto info = getFromIndex(id, std::forward<Lock>(lock), mInfoContexts);
 
     // File's information isn't in the index.
     if (!info)
-        return std::make_pair(nullptr, nullptr);
+        return nullptr;
 
     // File's been removed.
     if (info->removed())
         return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 
-    // Open the file if requested.
-    auto file = open ? mStorage.getFile(id) : nullptr;
-
-    // Return the file and its information to our caller.
-    return std::make_pair(std::move(info), std::move(file));
+    // Return the file's information to our caller.
+    return info;
 }
 
-auto FileServiceContext::infoContext(FileID id, bool open) -> InfoContextResult
+auto FileServiceContext::infoContext(FileID id) -> InfoContextResult
 {
     // Check if the file's in memory.
-    auto result = infoContextFromIndex(id, SharedLock(mLock), open);
+    auto result = infoContextFromIndex(id, SharedLock(mLock));
 
     // File's in memory or has been removed.
-    if (!result || result->first)
+    if (!result || *result)
         return result;
 
     // Check if the file's in the database.
-    return infoContextFromDatabase(id, open);
+    return infoContextFromDatabase(id);
 }
 
 template<typename Transaction>
@@ -1164,7 +1156,7 @@ auto FileServiceContext::info(FileID id) -> FileServiceResultOr<FileInfo>
 try
 {
     // Try and get our hands on this file's info.
-    auto maybeInfo = infoContext(id, false);
+    auto maybeInfo = infoContext(id);
 
     // Couldn't get information.
     if (!maybeInfo)
@@ -1178,7 +1170,7 @@ try
     }
 
     // Clarity.
-    auto& [info, _] = *maybeInfo;
+    auto& info = *maybeInfo;
 
     // File's in storage.
     if (info)
@@ -1594,15 +1586,7 @@ catch (std::runtime_error& exception)
 
 FileInfoContextPtr FileServiceContext::EventProcessor::info(FileID id)
 {
-    // Check if the file's info is in memory.
-    auto maybeInfo = mService.infoContextFromIndex(id, mServiceLock, false);
-
-    // File's in memory but has been marked as removed.
-    if (!maybeInfo)
-        return nullptr;
-
-    // File may or may not be in memory.
-    return maybeInfo->first;
+    return mService.infoContextFromIndex(id, mServiceLock).valueOr(nullptr);
 }
 
 bool FileServiceContext::EventProcessor::mark(FileID id, bool replaced)

@@ -47,7 +47,7 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     class EventProcessor;
 
     // Returned from info(From(Database|Index)).
-    using InfoContextResult = FileServiceResultOr<std::pair<FileInfoContextPtr, FileAccessPtr>>;
+    using InfoContextResult = FileServiceResultOr<FileInfoContextPtr>;
 
     // Returned from fileContextFrom(Cloud|Database|Index).
     using FileContextResult = FileServiceResultOr<FileContextPtr>;
@@ -75,12 +75,12 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     auto getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
         -> std::shared_ptr<T>;
 
-    auto infoContextFromDatabase(FileID id, bool open) -> InfoContextResult;
+    auto infoContextFromDatabase(FileID id) -> InfoContextResult;
 
     template<typename Lock>
-    auto infoContextFromIndex(FileID id, Lock&& lock, bool open) -> InfoContextResult;
+    auto infoContextFromIndex(FileID id, Lock&& lock) -> InfoContextResult;
 
-    auto infoContext(FileID id, bool open) -> InfoContextResult;
+    auto infoContext(FileID id) -> InfoContextResult;
 
     template<typename Transaction>
     auto keyData(FileID id, Transaction&& transaction) -> std::optional<common::NodeKeyData>;
