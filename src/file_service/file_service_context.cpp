@@ -452,7 +452,7 @@ auto FileServiceContext::getFromIndex(FileID id,
     return instance;
 }
 
-auto FileServiceContext::infoContextFromDatabase(FileID id) -> InfoContextResult
+auto FileServiceContext::infoContextFromDatabase(FileID id) -> FileInfoContextPtr
 {
     // Make sure no one is changing our indexes.
     UniqueLock lockContexts(mLock);
@@ -461,11 +461,11 @@ auto FileServiceContext::infoContextFromDatabase(FileID id) -> InfoContextResult
     UniqueLock lockDatabase(mDatabase);
 
     // Check if another thread loaded this file's info.
-    auto result = infoContextFromIndex(id, lockContexts);
+    auto info = infoContextFromIndex(id, lockContexts);
 
-    // Info was loaded (or marked as removed) by another thread.
-    if (!result || *result)
-        return result;
+    // Info was loaded by another thread.
+    if (info)
+        return info;
 
     // Check if this file exists in the database.
     auto transaction = mDatabase.transaction();
@@ -508,17 +508,17 @@ auto FileServiceContext::infoContextFromDatabase(FileID id) -> InfoContextResult
         location = FileLocation{std::move(*name), *parent};
 
     // Instantiate a context to represent this file's information.
-    auto info = std::make_shared<FileInfoContext>(accessed,
-                                                  mActivities.begin(),
-                                                  allocatedSize,
-                                                  dirty,
-                                                  handle,
-                                                  id,
-                                                  std::move(location),
-                                                  modified,
-                                                  reportedSize,
-                                                  *this,
-                                                  size);
+    info = std::make_shared<FileInfoContext>(accessed,
+                                             mActivities.begin(),
+                                             allocatedSize,
+                                             dirty,
+                                             handle,
+                                             id,
+                                             std::move(location),
+                                             modified,
+                                             reportedSize,
+                                             *this,
+                                             size);
 
     // Add the context to our index.
     mInfoContexts.emplace(id, info);
@@ -528,34 +528,27 @@ auto FileServiceContext::infoContextFromDatabase(FileID id) -> InfoContextResult
 }
 
 template<typename Lock>
-auto FileServiceContext::infoContextFromIndex(FileID id, Lock&& lock) -> InfoContextResult
+auto FileServiceContext::infoContextFromIndex(FileID id, Lock&& lock) -> FileInfoContextPtr
 {
     // Check if this file's information is in the index.
-    auto info = getFromIndex(id, std::forward<Lock>(lock), mInfoContexts);
+    return getFromIndex(id, std::forward<Lock>(lock), mInfoContexts);
+}
 
-    // File's information isn't in the index.
+auto FileServiceContext::infoContext(FileID id) -> FileServiceResultOr<FileInfoContextPtr>
+{
+    // Check if the file's in memory.
+    auto info = infoContextFromIndex(id, SharedLock(mLock));
+
+    // File's not in memory.
     if (!info)
-        return nullptr;
+        return infoContextFromDatabase(id);
 
-    // File's been removed.
+    // File's been marked as removed.
     if (info->removed())
         return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 
     // Return the file's information to our caller.
     return info;
-}
-
-auto FileServiceContext::infoContext(FileID id) -> InfoContextResult
-{
-    // Check if the file's in memory.
-    auto result = infoContextFromIndex(id, SharedLock(mLock));
-
-    // File's in memory or has been removed.
-    if (!result || *result)
-        return result;
-
-    // Check if the file's in the database.
-    return infoContextFromDatabase(id);
 }
 
 template<typename Transaction>
@@ -1586,7 +1579,15 @@ catch (std::runtime_error& exception)
 
 FileInfoContextPtr FileServiceContext::EventProcessor::info(FileID id)
 {
-    return mService.infoContextFromIndex(id, mServiceLock).valueOr(nullptr);
+    // Check if the file's information is in memory.
+    auto info = mService.infoContextFromIndex(id, mServiceLock);
+
+    // File's in memory but has been marked as removed.
+    if (info && info->removed())
+        return info;
+
+    // Return the file's information to our caller.
+    return info;
 }
 
 bool FileServiceContext::EventProcessor::mark(FileID id, bool replaced)
