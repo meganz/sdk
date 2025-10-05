@@ -1335,10 +1335,14 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
     static_assert(std::is_rvalue_reference_v<decltype(request)>);
 
     // Request isn't executable so queue it for later execution.
+    //
+    // If executable(...) returns true, request will have acquired a read (or write) lock.
     if (std::unique_lock lock(mRequestsLock); !executable(lock, true, request))
         return queue(std::move(lock), std::forward<Request>(request));
 
     // Immediately reject the request if necessary.
+    //
+    // completed(...) needs to be called here as it expects a request to hold some lock.
     if (auto result = reject(request); result != FILE_SUCCESS)
         return completed(std::forward<Request>(request), result);
 
