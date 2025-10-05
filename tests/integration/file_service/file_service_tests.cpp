@@ -3444,7 +3444,7 @@ auto execute(Function&& function, Parameters&&... arguments)
     using Result = decltype(waiter.get());
 
     // Request timed out.
-    if (waiter.wait_for(std::chrono::minutes(60)) == timeout)
+    if (waiter.wait_for(std::chrono::minutes(4)) == timeout)
         return Result(GenerateFailure<Result>::value());
 
     // Return result to our caller.
