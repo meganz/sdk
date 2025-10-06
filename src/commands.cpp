@@ -7299,6 +7299,412 @@ bool CommandFetchNodes::parsingFinished()
     return true;
 }
 
+CommandProcessActionPackets::CommandProcessActionPackets(MegaClient* client, int tag, bool loadSyncs)
+{
+    assert(client);
+    cmd("ap");
+    batchSeparately = true;
+    this->tag = tag;
+    mLoadSyncs = loadSyncs;
+
+    // 1. Chunk start: Initialize state + lock (retain original logic)
+    mFilters.emplace("<", [this, client](JSON *)
+    {
+        if (!mFirstChunkProcessed)
+        {
+            mScsn = 0;
+            mSt.clear();
+            mPreviousHandleForAlert = UNDEF;
+            mMissingParentNodes.clear();
+            mCurrentTElemBuffer.clear(); // Initialize T-element buffer
+            mCurrentTElemProcessed = 0;  // Initialize T-element processing progress
+
+            client->statecurrent = false;
+            client->actionpacketsCurrent = false;
+#ifdef ENABLE_SYNC
+            client->syncs.syncRun([]{}, "actionpackets ready");
+#endif
+
+            assert(!mNodeTreeIsChanging.owns_lock());
+            mNodeTreeIsChanging = std::unique_lock<recursive_mutex>(client->nodeTreeMutex);
+
+            mFirstChunkProcessed = true;
+        }
+        else
+        {
+            assert(!mNodeTreeIsChanging.owns_lock());
+            mNodeTreeIsChanging = std::unique_lock<recursive_mutex>(client->nodeTreeMutex);
+        }
+        return true;
+    });
+
+    // 2. Chunk end: Unlock (retain original logic)
+    mFilters.emplace(">", [this](JSON*)
+    {
+        assert(mNodeTreeIsChanging.owns_lock());
+        mNodeTreeIsChanging.unlock();
+        return true;
+    });
+
+    // 3. Streaming parsing: ap object basic fields (apId/timestamp, read-only without caching)
+    mFilters.emplace("{ap{", [this](JSON* json)
+    {
+        nameid fieldId;
+        while ((fieldId = json->getnameid()) != EOO)
+        {
+            string fieldName = json->getnameWithoutAdvance();
+            if (fieldName == "u" || fieldName == "f" || fieldName == "largeTElement")
+            {
+                json->pos -= fieldName.length(); 
+                break; // Rollback to let subsequent filters handle the target array/object
+            }
+            // skip other field
+            json->storeobject();
+        }
+        return true;
+    });
+
+    // 4. Streaming parsing: User change array (ap.u[]) - parse element by element
+    mFilters.emplace("{ap{u[{", [this, client](JSON* json)
+    {
+        // Parse single user object
+        if (client->readuser(json, false) != 1)
+        {
+            LOG_err << "Failed to parse user change element";
+            return false;
+        }
+        return json->leaveobject(); // Exit current user object
+    });
+
+    // 5. Streaming parsing: Node change array (ap.f[]) - parse element by element
+    std::function<bool(JSON*)> mNodeElementParser = [this, client](JSON* json) 
+    {
+        if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true,
+                             mMissingParentNodes, mPreviousHandleForAlert,
+                             nullptr, nullptr, nullptr) != 1)
+        {
+            LOG_err << "Failed to parse node element";
+            return false;
+        }
+        return json->leaveobject();
+    };
+    mFilters.emplace("{ap{f[{", mNodeElementParser);
+    mFilters.emplace("{ap{f2[{", mNodeElementParser);
+
+    // 6. Streaming parsing: Large T-element (ap.largeTElement) - correct path and parsing logic
+    mFilters.emplace("{ap{largeTElement{", [this](JSON* json)
+    {
+        LOG_debug << "Processing large 't' element (ap.largeTElement)";
+        const char* originalPos = json->pos;
+        mCurrentTElemId = -1;
+        mCurrentTElemTotalSize = 0;
+
+        // Parse T-element metadata (t_id/t_total/t)
+        nameid fieldId;
+        while ((fieldId = json->getnameid()) != EOO)
+        {
+            if (fieldId == makeNameid("t_id"))
+            {
+                mCurrentTElemId = json->getuint64();
+            }
+            else if (fieldId == makeNameid("t_total"))
+            {
+                mCurrentTElemTotalSize = static_cast<size_t>(json->getuint64());
+            }
+            else if (fieldId == makeNameid("t"))
+            {
+                break; // Prepare to parse 't' content
+            }
+            else
+            {
+                // Skip non-critical fields
+                json->storeobject();
+            }
+        }
+
+        // Validate metadata
+        if (mCurrentTElemId == -1)
+        {
+            LOG_err << "Large 't' element missing t_id";
+            json->pos = originalPos;
+            return false;
+        }
+        if (mCurrentTElemTotalSize == 0)
+        {
+            LOG_warn << "Large 't' element missing t_total, use default 1MB";
+            mCurrentTElemTotalSize = 1024 * 1024;
+        }
+
+        // Incremental parsing of 't' content
+        bool parseResult = procLargeTElement(*json, mCurrentTElemId, mCurrentTElemTotalSize);
+        json->pos = originalPos;
+        return parseResult;
+    });
+
+    // 7. Parsing complete: State update (retain original logic, add T-element buffer cleanup)
+    mFilters.emplace("{", [this, client](JSON *)
+    {
+        WAIT_CLASS::bumpds();
+        if (mScsn) client->scsn.setScsn(mScsn);
+        if (!mSt.empty())
+        {
+            client->app->sequencetag_update(mSt);
+            client->mScDbStateRecord.seqTag = mSt;
+        }
+
+        // Clean up residual T-element buffer
+        mCurrentTElemBuffer.clear();
+        return parsingFinished();
+    });
+
+    // 8. Error handling (retain original logic)
+    mFilters.emplace("#", [this, client](JSON *json)
+    {
+        WAIT_CLASS::bumpds();
+        Error e;
+        checkError(e, *json);
+
+        client->actionpacketsCurrent = false;
+        client->app->actionpackets_result(e);
+        mCurrentTElemBuffer.clear(); // Clean up buffer on error
+        return true;
+    });
+
+    mFilters.emplace("E", [client](JSON*)
+    {
+        WAIT_CLASS::bumpds();
+        client->purgenodesusersabortsc(true);
+        client->actionpacketsCurrent = false;
+        client->mNodeManager.cleanNodes();
+        client->app->actionpackets_result(API_EINTERNAL);
+        return true;
+    });
+}
+
+CommandProcessActionPackets::~CommandProcessActionPackets()
+{
+    assert(!mNodeTreeIsChanging.owns_lock());
+}
+
+const char* CommandProcessActionPackets::getJSON(MegaClient* clientOfRequest)
+{
+    return Command::getJSON(clientOfRequest);
+}
+
+// Non-chunked parsing: Handle small actionpackets sequences (full JSON response)
+bool CommandProcessActionPackets::procresult(Result r, JSON& json)
+{
+    WAIT_CLASS::bumpds();
+    // 1. Handle API errors (network failures, server-side errors)
+    if (r.wasErrorOrOK())
+    {
+        client->actionpacketsCurrent = false;
+        client->app->actionpackets_result(r.errorOrOK());
+        return true;
+    }
+
+    // 2. Initialize state (pause synchronization, acquire lock, align with chunked logic)
+    client->statecurrent = false;
+    client->actionpacketsCurrent = false;
+#ifdef ENABLE_SYNC
+    client->syncs.syncRun([&](){}, "actionpackets ready"); // Exit current synchronization loop
+#endif
+    std::unique_lock<recursive_mutex> nodeTreeLock(client->nodeTreeMutex); // Protect node tree
+
+    // 3. Traverse top-level JSON to locate and parse "ap" object
+    nameid topFieldId;
+    while ((topFieldId = json.getnameid()) != EOO)
+    {
+        switch (topFieldId)
+        {
+            // -------------------------- Core: Parse "ap" object (new structure) --------------------------
+            case makeNameid("ap"):
+            {
+                // Enter "ap" object (new structure: ap is an object, not an array)
+                if (!json.enterobject())
+                {
+                    LOG_err << "Invalid ActionPackage: 'ap' is not an object";
+                    return handleParseError(); // Unified error handling
+                }
+
+                // Read internal fields of "ap" object and pass to readActionPacket for parsing
+                std::string apContent;
+                if (json.storeobject(&apContent)) // Store complete ap object content
+                {
+                    JSON apJson(apContent.c_str());
+                    // Call readActionPacket to parse internal fields of ap (u/f/largeTElement, etc.)
+                    if (client->readActionPacket(&apJson, mMissingParentNodes) != 1)
+                    {
+                        LOG_err << "Failed to parse content inside 'ap' object";
+                        return handleParseError();
+                    }
+                }
+                else
+                {
+                    LOG_err << "Failed to read content of 'ap' object";
+                    json.leaveobject();
+                    return handleParseError();
+                }
+
+                json.leaveobject(); // Exit "ap" object
+                break;
+            }
+
+            // -------------------------- Legacy field: sc sequence number (compatible with old logic) --------------------------
+            case makeNameid("sn"):
+                if (!client->scsn.setScsn(&json))
+                {
+                    LOG_err << "Failed to parse 'sn' (sc sequence number)";
+                    return handleParseError();
+                }
+                break;
+
+            // -------------------------- Legacy field: sequence tag (compatible with old logic) --------------------------
+            case makeNameid("st"):
+            {
+                std::string st;
+                if (!json.storeobject(&st))
+                {
+                    LOG_err << "Failed to parse 'st' (sequence tag)";
+                    return handleParseError();
+                }
+                client->app->sequencetag_update(st);
+                client->mScDbStateRecord.seqTag = st;
+                break;
+            }
+
+            // -------------------------- Unknown top-level fields: Skip (avoid parsing failure) --------------------------
+            default:
+                if (!json.storeobject())
+                {
+                    LOG_err << "Unprocessable unknown top-level field";
+                    return handleParseError();
+                }
+                break;
+        }
+    }
+
+    // 4. Parsing completed: Clean up state and notify result
+    return parsingFinished();
+}
+
+// Unified parsing error handling
+bool CommandProcessActionPackets::handleParseError()
+{
+    client->actionpacketsCurrent = false;
+    client->mNodeManager.cleanNodes();
+    client->app->actionpackets_result(API_EINTERNAL);
+    return false;
+}
+
+// Post-parsing finalization: Load sync config & update state
+bool CommandProcessActionPackets::parsingFinished()
+{
+    if (!client->scsn.ready())
+    {
+        // sc channel not ready: Return error
+        client->actionpacketsCurrent = false;
+        client->mNodeManager.cleanNodes();
+        client->app->actionpackets_result(API_EINTERNAL);
+        return false;
+    }
+
+    // Merge new shared nodes to ensure state consistency
+    client->mergenewshares(0);
+    client->actionpacketsCurrent = true;
+
+    // Load sync config if needed
+#ifdef ENABLE_SYNC
+    if (mLoadSyncs)
+        client->syncs.loadSyncConfigsOnFetchnodesComplete(true);
+#endif*/
+
+    return true;
+}
+
+// read Large T-Element content incrementally
+bool CommandProcessActionPackets::procLargeTElement(JSON& json, int64_t elementId, size_t totalSize)
+{
+    const size_t CHUNK_SIZE = 4096; // Read in 4KB chunks to avoid memory spikes
+    char buffer[CHUNK_SIZE] = {0};
+    size_t readSize = 0;
+
+    // Read T-element content of current chunk
+    while ((readSize = readRaw(json, buffer, CHUNK_SIZE)) > 0)
+    {
+        mCurrentTElemBuffer.append(buffer, readSize);
+        mCurrentTElemProcessed += readSize;
+
+        // Process data every 1MB accumulated (reduce IO operations)
+        if (mCurrentTElemBuffer.size() >= 1024 * 1024)
+        {
+            processAndClearTElemBuffer(elementId, totalSize);
+        }
+
+        // Prevent exceeding total size (malicious data protection)
+        if (mCurrentTElemProcessed > totalSize)
+        {
+            LOG_err << "Large 't' element overflow (ID: " << elementId << ")";
+            mCurrentTElemBuffer.clear();
+            return false;
+        }
+    }
+
+    // Process remaining data (less than 1MB)
+    if (!mCurrentTElemBuffer.empty())
+    {
+        processAndClearTElemBuffer(elementId, totalSize);
+    }
+
+    // Verify integrity
+    if (mCurrentTElemProcessed < totalSize)
+    {
+        LOG_warn << "Large 't' element incomplete (ID: " << elementId 
+                 << ", Processed: " << mCurrentTElemProcessed << ", Total: " << totalSize << ")";
+        return false;
+    }
+
+    LOG_debug << "Large 't' element fully processed (ID: " << elementId << ")";
+    return true;
+}
+
+// New: Process and clear T-element buffer (call MegaClient for chunk processing)
+void CommandProcessActionPackets::processAndClearTElemBuffer(int64_t elementId, size_t totalSize)
+{
+    if (mCurrentTElemBuffer.empty() || !client) return;
+
+    // Call MegaClient to handle decryption and node parsing
+    bool success = client->processLargeTElementChunk(
+        elementId,
+        totalSize,
+        mCurrentTElemBuffer.c_str(),
+        mCurrentTElemBuffer.size()
+    );
+
+    if (!success)
+    {
+        LOG_err << "Failed to process 't' element buffer (ID: " << elementId << ")";
+    }
+
+    // Clear the buffer
+    mCurrentTElemBuffer.clear();
+}
+
+size_t CommandProcessActionPackets::readRaw(JSON& json, char* buffer, size_t maxSize)
+{
+    if (!buffer || maxSize == 0 || !json.pos)
+        return 0;
+
+    size_t bytesRead = 0;
+    // Read up to "maxSize" bytes (stop when reaching end of data or buffer limit)
+    while (bytesRead < maxSize && *json.pos)
+    {
+        buffer[bytesRead++] = *json.pos++;
+    }
+
+    return bytesRead;
+}
+
 CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph, int phtype, int64_t ts)
 {
     cmd("vpay");

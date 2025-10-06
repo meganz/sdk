@@ -360,6 +360,7 @@ struct MEGA_API HttpReq
 
     // if the out payload includes a fetch nodes command
     bool includesFetchingNodes = false;
+    bool includesFetchingActionPackets = false;
 
     byte* buf;
     m_off_t buflen, bufpos, notifiedbufpos;

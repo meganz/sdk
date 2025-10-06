@@ -31,6 +31,11 @@ bool Request::isFetchNodes() const
     return cmds.size() == 1 && dynamic_cast<CommandFetchNodes*>(cmds.back().get());
 }
 
+bool Request::isFetchActionPackets() const
+{
+    return cmds.size() == 1 && dynamic_cast<CommandProcessActionPackets*>(cmds.back().get());
+}
+
 void Request::add(Command* c)
 {
     // Once this becomes the in-progress request, it must not have anything added
@@ -165,8 +170,13 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
         return 0;
     }
 
-    // Only fetchnodes command is currently supported
-    assert(isFetchNodes());
+    // Only fetchnodes and fetchactionpackets command is currently supported
+    if (!isFetchNodes() && !isFetchActionPackets())
+    {
+        assert(false && "Chunked processing is only supported for fetchnodes and actionpackets commands");
+        clear();
+        return 0;
+    }
 
     m_off_t consumed = 0;
     Command& cmd = *cmds[0];
@@ -461,6 +471,7 @@ Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
 }
 
 string RequestDispatcher::serverrequest(bool& includesFetchingNodes,
+                                        bool& includesActionPackets,
                                         MegaClient* client,
                                         string& idempotenceId)
 {
@@ -482,6 +493,7 @@ string RequestDispatcher::serverrequest(bool& includesFetchingNodes,
     }
     string requestJSON = inflightreq.get(client, reqid, idempotenceId);
     includesFetchingNodes = inflightreq.isFetchNodes();
+    includesActionPackets = inflightreq.isFetchActionPackets();
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;

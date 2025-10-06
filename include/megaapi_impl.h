@@ -3838,6 +3838,7 @@ class MegaApiImpl : public MegaApp
 
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
+        void fetchActionPackets(MegaRequestListener* listener);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(const std::optional<std::string>& countryCode = std::nullopt,
                         MegaRequestListener* listener = nullptr);

@@ -509,6 +509,61 @@ protected:
     bool mFirstChunkProcessed = false;
 };
 
+/**
+ * @brief Process incremental account state updates via actionpackets sequence
+ * 
+ * Handles streaming parsing of actionpackets (server-sent operation sequences) to update
+ * local account state incrementally. Supports both full caching of actionpackets and
+ * chunked parsing for large payloads (e.g., oversized "t" elements) to avoid memory overload
+ * on resource-constrained devices.
+ * 
+ * Works complementarily with CommandFetchNodes: while CommandFetchNodes reloads the full
+ * node tree, this class applies incremental changes (file operations, shares, etc.) to keep
+ * the local state in sync with the server.
+ */
+class MEGA_API CommandProcessActionPackets : public Command
+{
+    bool mLoadSyncs = false;
+    // Track the LargerTElement buffer and processing progress
+    std::string mCurrentTElemBuffer;
+    size_t mCurrentTElemProcessed = 0;
+
+    const char* getJSON(MegaClient* clientOfRequest) override;
+
+public:
+    CommandProcessActionPackets(MegaClient* client, int tag, bool loadSyncs);
+    ~CommandProcessActionPackets();
+
+    bool procresult(Result, JSON&) override;
+    bool handleParseError();
+    bool parsingFinished();
+
+    bool procLargeTElement(JSON& json, int64_t elementId, size_t totalSize);
+
+protected:
+    handle mPreviousHandleForAlert = UNDEF;
+    NodeManager::MissingParentNodes mMissingParentNodes;
+
+    handle mScsn;
+    string mSt;
+
+    std::unique_lock<recursive_mutex> mNodeTreeIsChanging;
+    bool mFirstChunkProcessed = false;
+
+    int64_t mCurrentTElemId = -1;
+    size_t mCurrentTElemTotalSize = 0;
+    
+    // Process and clear the T element buffer
+    void processAndClearTElemBuffer(int64_t elementId, size_t totalSize);
+
+    // Read raw bytes from JSON parser's current position (for encrypted "t" element content)
+    // @param json: Reference to the JSON parser (uses its public "pos" pointer for raw access)
+    // @param buffer: Destination buffer to store the read raw bytes (must be valid and large enough for maxSize)
+    // @param maxSize: Maximum number of bytes to read in this call (avoids buffer overflow)
+    // @return: Actual number of bytes read (0 if buffer is null, maxSize is 0, or no more data to read)
+    size_t readRaw(JSON& json, char* buffer, size_t maxSize);
+};
+
 // update own node keys
 class MEGA_API CommandNodeKeyUpdate : public Command
 {

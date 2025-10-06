@@ -2470,6 +2470,89 @@ public:
     // purge account state and abort server-client connection
     void purgenodesusersabortsc(bool keepOwnUser);
 
+public:
+    // Actionpackets-specific state & methods
+    // Tracks ongoing actionpackets processing (prevents concurrent operations on actionpackets
+    bool mProcessingActionPackets = false; 
+
+    /**
+     * @brief Force refresh actionpackets (actively pull incremental updates)
+     * @param loadSyncs Whether to load sync config after processing
+     * @param tag Request tag (for request tracking)
+     */
+    void fetchActionPackets(bool loadSyncs, int tag);
+
+    /**
+     * @brief Parse single actionpacket and perform incremental updates (nodes/account/shares, etc.)
+     * @param json Actionpacket JSON object to parse
+     * @param missingParents Record missing parent nodes found during parsing (to be completed
+     * later)
+     * @return 1=success, 0=failure, -1=skip (invalid packet)
+     */
+    int readActionPacket(JSON* json, NodeManager::MissingParentNodes& missingParents);
+
+    /**
+     * @brief Processes a single encrypted chunk of a large "t" element (decryption + incremental JSON parsing)
+     * @param elementId Unique identifier of the large "t" element (t_id returned by the server)
+     * @param totalSize Total byte count of the large "t" element (includes IV, AuthTag, and encrypted data, t_total returned by the server)
+     * @param chunk Pointer to the current encrypted chunk data to be processed (memory must be valid and contain the complete chunk content)
+     * @param chunkSize Byte count of the current encrypted chunk (note: chunks may contain IV, AuthTag, or pure encrypted data with the following structures:
+     *     1. First chunk: Contains 12-byte IV + encrypted data + 16-byte AuthTag (AuthTag is included only if the chunk is the last one);
+     *     2. Middle chunks: Contain only encrypted data (no IV or AuthTag);
+     *     3. Last chunk: Contains encrypted data + 16-byte AuthTag (no IV);
+     *     Overall, must satisfy chunkSize ≤ totalSize, and the sum of all chunk sizes must eventually equal totalSize)
+     * @return bool Returns true if chunk processing succeeds, false if it fails (invalid parameters, decryption failure, parsing exceptions, etc.)
+     */
+    bool processLargeTElementChunk(int64_t elementId, size_t totalSize, const char* chunk, size_t chunkSize);
+
+private:
+    class JSONRootGuard
+    {
+    public:
+        JSONRootGuard(JSON* json):
+            mJson(json),
+            mEntered(false)
+        {
+            if (mJson)
+            {
+                mEntered = mJson->enterobject();
+            }
+        }
+
+        ~JSONRootGuard()
+        {
+            if (mJson && mEntered)
+            {
+                mJson->leaveobject();
+            }
+        }
+
+        bool isEntered() const
+        {
+            return mEntered;
+        }
+
+    private:
+        JSON* mJson;
+        bool mEntered;
+    };
+
+    struct LargeTElementState
+    {
+        int64_t elementId = -1;
+        size_t totalSize = 0;
+        size_t processedSize = 0;
+        bool isInitialized = false;
+        SymmCipher decryptCipher;
+        std::string jsonBuffer;
+        JSON* jsonParser = nullptr;
+        bool isComplete = false;
+    };
+
+    std::mutex mLargeTStateMutex; 
+    std::unordered_map<int64_t, LargeTElementState> mLargeTStates;
+
+public:
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
     static const int NODEHANDLE = 6;

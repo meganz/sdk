@@ -2918,8 +2918,10 @@ void MegaClient::exec()
                     pendingcs->mCancelSnapshot = mLoginCancelSnapshot;
 
                     string idempotenceId;
-                    *pendingcs->out =
-                        reqs.serverrequest(pendingcs->includesFetchingNodes, this, idempotenceId);
+                    *pendingcs->out = reqs.serverrequest(pendingcs->includesFetchingNodes,
+                                                         pendingcs->includesFetchingActionPackets,
+                                                         this,
+                                                         idempotenceId);
 
                     pendingcs->posturl = httpio->APIURL;
                     pendingcs->posturl.append("cs?id=");
@@ -2940,9 +2942,10 @@ void MegaClient::exec()
                     }
                     pendingcs->type = REQ_JSON;
 
-                    if (pendingcs->includesFetchingNodes && !mNodeManager.hasCacheLoaded())
+                    if ((pendingcs->includesFetchingNodes && !mNodeManager.hasCacheLoaded()) || pendingcs->includesFetchingActionPackets)
                     {
-                        // Currently only fetchnodes requests can take advantage of chunked processing
+                        // Currently only fetchnodes and actionpackets requests can take advantage of chunked processing
+                        // action packets may contain numerous operations or large "t" elements regardless of cache status
                         // However VPN client shouldn't need it, because it'll receive a minimal response
                         pendingcs->mChunked = !isClientType(ClientType::VPN);
                     }
@@ -15473,6 +15476,271 @@ void MegaClient::fatalError(ErrorReason errorReason)
 bool MegaClient::accountShouldBeReloadedOrRestarted() const
 {
     return mLastFatalErrorDetected != REASON_ERROR_NO_ERROR;
+}
+
+/**
+ * @brief Actively fetches incremental actionpackets updates via API
+ *
+ * Follows core design patterns from fetchNodes, reusing mechanisms for:
+ * - Concurrency control
+ * - User data pre-fetching
+ * - Command-based operation dispatching
+ *
+ * @param loadSyncs Whether to load sync configurations after processing completes
+ * @param tag Request tag for tracking operation lifecycle
+ */
+void MegaClient::fetchActionPackets(bool loadSyncs, int tag)
+{
+    // Prevent concurrent operations to avoid race conditions
+    if (mProcessingActionPackets)
+    {
+        LOG_warn << "Actionpackets fetch in progress (tag: " << tag << ")";
+        return;
+    }
+
+    // Initialize processing state
+    mProcessingActionPackets = true;
+    actionpacketsCurrent = false;
+
+    // Callback handler for completed user data fetch
+    auto onUserDataComplete = [this, tag, loadSyncs](string*, string*, string*, error e)
+    {
+        if (e != API_OK)
+        {
+            LOG_err << "Actionpackets fetch failed: User data request error (" << e << ")";
+            app->actionpackets_result(e);
+            mProcessingActionPackets = false;
+            return;
+        }
+
+        // Initialize encryption keys for full account sessions
+        if (loggedin() == FULLACCOUNT || loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+        {
+            initializekeys();
+            loadAuthrings();
+        }
+
+        // Dispatch actionpacket processing command
+        reqs.add(new CommandProcessActionPackets(this, tag, loadSyncs));
+        LOG_info << "Actionpackets fetch command dispatched (tag: " << tag << ")";
+    };
+
+    // Pre-fetch user data if not logged into folder
+    if (!loggedIntoFolder())
+    {
+        getuserdata(0, onUserDataComplete);
+    }
+    else
+    {
+        // Bypass user data fetch for folder login scenario
+        onUserDataComplete(nullptr, nullptr, nullptr, API_OK);
+    }
+}
+
+int MegaClient::readActionPacket(JSON* json, NodeManager::MissingParentNodes& missingParents)
+{
+    // Use RAII guard to automatically manage json root objects
+    JSONRootGuard rootGuard(json);
+    if (!json || !rootGuard.isEntered())
+    {
+        LOG_err << "Invalid actionpacket: JSON object expected";
+        return 0;
+    }
+
+    nameid opFieldId;
+    vector<NewNode> tempNewNodes; 
+    //  Iterate through all fields inside the "ap" object
+    while ((opFieldId = json->getnameid()) != EOO)
+    {
+        switch (opFieldId)
+        {
+            // -------------------------- Batch Node Updates --------------------------
+            case makeNameid("f"):
+			case makeNameid("f2"):
+            {
+                if (!readnodes(json,
+                               1, // Notify listeners for incremental updates
+                               PUTNODES_APP, // Source: Application-level operation
+                               &tempNewNodes, // Temp storage for new nodes
+                               false, // Not modified by this client
+                               true, // Apply encryption keys
+                               nullptr, // No prior deleted node context
+                               nullptr)) // No first handle match check
+                {
+                    LOG_err << "Failed to parse nodes array";
+                    return 0;
+                }
+                break;
+            }
+
+            // -------------------------- Batch User Updates --------------------------
+            case makeNameid("u"):
+            {
+                if (!readusers(json, true)) // true = actionpacket incremental context
+                {
+                    LOG_err << "Failed to parse users array";
+                    return 0;
+                }
+                break;
+            }
+
+            // -------------------------- Batch Share Updates --------------------------
+            case makeNameid("ps"):
+            {
+                readoutshares(json);
+                break;
+            }
+
+            // -------------------------- Unknown Fields --------------------------
+            default:
+                if (!json->storeobject())
+                {
+                    LOG_err << "Unprocessable unknown field";
+                    return 2;
+                }
+                break;
+        }
+    }
+
+    mergenewshares(1);
+    mNodeManager.checkOrphanNodes(missingParents);
+    return 1;
+}
+
+bool MegaClient::processLargeTElementChunk(int64_t elementId, size_t totalSize, const char* chunk, size_t chunkSize)
+{
+    if (elementId == -1 || !chunk || chunkSize == 0 || totalSize == 0)
+    {
+        LOG_err << "Invalid params for large 't' element (ID: " << elementId << ")";
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(mLargeTStateMutex);
+    auto& state = mLargeTStates[elementId];
+
+    // 1. Initialize T-element state (first processing)
+    if (!state.isInitialized)
+    {
+        state.elementId = elementId;
+        state.totalSize = totalSize;
+        state.processedSize = 0;
+
+        // Verify account key
+        if (SymmCipher::isZeroKey(key.key, SymmCipher::KEYLENGTH))
+        {
+            LOG_err << "Invalid account key for 't' element (ID: " << elementId << ")";
+            mLargeTStates.erase(elementId);
+            return false;
+        }
+
+        // Initialize decryptor (GCM mode)
+        byte decryptKey[SymmCipher::KEYLENGTH];
+        state.decryptCipher.setkey(decryptKey, 1);
+        if (SymmCipher::isZeroKey(state.decryptCipher.key, SymmCipher::KEYLENGTH))
+        {
+            LOG_err << "Failed to init decrypt cipher (ID: " << elementId << ")";
+            mLargeTStates.erase(elementId);
+            return false;
+        }
+
+        state.isInitialized = true;
+        LOG_debug << "Init large 't' element state (ID: " << elementId << ")";
+    }
+
+    // 2. Accumulate processing size
+    state.processedSize += chunkSize;
+    if (state.processedSize > state.totalSize)
+    {
+        LOG_err << "Large 't' element overflow (ID: " << elementId << ")";
+        mLargeTStates.erase(elementId);
+        return false;
+    }
+
+    // 3. Decrypt chunk (GCM mode: IV=12 bytes, AuthTag=16 bytes, data in between)
+    byte iv[12] = {0};
+    byte authTag[16] = {0};
+    const byte* additionalData = nullptr;
+    const size_t additionalDataLen = 0;
+    byte* dataStart = const_cast<byte*>(reinterpret_cast<const byte*>(chunk));
+    
+    // First chunk: Extract IV (first 12 bytes)
+    if (state.processedSize == chunkSize)
+    {
+        memcpy(iv, dataStart, 12);
+        memcpy(authTag, dataStart + chunkSize - 16, 16);
+        dataStart += 12;
+        chunkSize -= 28; // Subtract IV(12) and AuthTag(16)
+    }
+    // Subsequent chunks: Extract AuthTag (only in last chunk)
+    else if (state.processedSize == state.totalSize)
+    {
+        memcpy(authTag, dataStart + chunkSize - 16, 16);
+        chunkSize -= 16;
+    }
+
+    // Decrypt data
+    const size_t CHUNK_SIZE = 8192;
+    byte decryptedBuf[CHUNK_SIZE + 1] = {0};
+    size_t decryptedLen = CHUNK_SIZE;
+
+    if (!state.decryptCipher.gcm_decrypt_add(dataStart,
+                                             chunkSize,
+                                             additionalData,
+                                             additionalDataLen,
+                                             authTag,
+                                             sizeof(authTag),
+                                             iv,
+                                             sizeof(iv),
+                                             decryptedBuf,
+                                             decryptedLen))
+    {
+        LOG_err << "Failed to decrypt 't' element chunk (ID: " << elementId << ")";
+        mLargeTStates.erase(elementId);
+        return false;
+    }
+
+    // 4. Incremental JSON parsing (node metadata)
+    state.jsonBuffer.append(reinterpret_cast<const char*>(decryptedBuf), decryptedLen);
+    if (!state.jsonParser)
+    {
+        state.jsonParser = new JSON(state.jsonBuffer.c_str());
+        // Verify T-element content is JSON array
+        if (!state.jsonParser->enterarray())
+        {
+            LOG_err << "Large 't' element is not JSON array (ID: " << elementId << ")";
+            mLargeTStates.erase(elementId);
+            return false;
+        }
+    }
+
+    // Parse node metadata (call readnodes for incremental processing)
+    NodeManager::MissingParentNodes missingParents;
+    if (!readnodes(
+            state.jsonParser,
+            1, // Incremental update notification
+            PUTNODES_APP,
+            nullptr,
+            false,
+            true,
+            nullptr,
+            nullptr
+        ))
+    {
+        LOG_warn << "Skipped invalid node in 't' element (ID: " << elementId << ")";
+    }
+
+    // 5. Processing complete: Clean up state
+    if (state.processedSize == state.totalSize)
+    {
+        mNodeManager.checkOrphanNodes(missingParents);
+        mergenewshares(1);
+
+        delete state.jsonParser;
+        mLargeTStates.erase(elementId);
+        LOG_info << "Large 't' element processed (ID: " << elementId << ")";
+    }
+
+    return true;
 }
 
 void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServers)

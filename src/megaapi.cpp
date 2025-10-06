@@ -3056,6 +3056,11 @@ void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
     pImpl->disableExport(node, listener);
 }
 
+void MegaApi::fetchActionPackets(MegaRequestListener* listener)
+{
+    pImpl->fetchActionPackets(listener);
+}
+
 void MegaApi::fetchNodes(MegaRequestListener *listener)
 {
     pImpl->fetchNodes(listener);

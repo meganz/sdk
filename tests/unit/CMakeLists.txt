@@ -18,6 +18,7 @@ target_sources(test_unit
     canceller_test.cpp
     ChunkMacMap_test.cpp
     Commands_test.cpp
+    Commands_ProcActionPackets_test.cpp
     Crypto_test.cpp
     FileFingerprint_test.cpp
     File_test.cpp

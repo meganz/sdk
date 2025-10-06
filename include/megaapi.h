@@ -5118,7 +5118,8 @@ class MegaRequest
             TYPE_ADD_SYNC_PREVALIDATION = 207,
             TYPE_GET_MAX_CONNECTIONS = 208,
             TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS = 209,
-            TOTAL_OF_REQUEST_TYPES = 210,
+            TYPE_FETCH_ACTION_PACKETS = 210,
+            TOTAL_OF_REQUEST_TYPES = 211,
         };
 
         virtual ~MegaRequest();
@@ -14986,6 +14987,12 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Actively pull actionpackets incremental updates
+         * @param listener Request listener (receives processing results)
+         */
+        void fetchActionPackets(MegaRequestListener* listener);
 
         /**
          * @brief Fetch the filesystem in MEGA and resumes syncs following a successful fetch

@@ -129,6 +129,9 @@ struct MEGA_API MegaApp
     // user attribute update notification
     virtual void userattr_update(User*, int, const char*) { }
 
+    // actionpackets processing result
+    virtual void actionpackets_result(const Error&) { }
+
     // node fetch result
     virtual void fetchnodes_result(const Error&) { }
 

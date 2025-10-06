@@ -21289,6 +21289,20 @@ error MegaApiImpl::performRequest_export(MegaRequestPrivate* request)
                 });
 }
 
+void MegaApiImpl::fetchActionPackets(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_ACTION_PACKETS, listener);
+
+    request->performRequest = [this]()
+    {
+        client->fetchActionPackets(false, client->nextreqtag());
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::fetchNodes(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES, listener);
