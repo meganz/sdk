@@ -1584,7 +1584,7 @@ FileInfoContextPtr FileServiceContext::EventProcessor::info(FileID id)
 
     // File's in memory but has been marked as removed.
     if (info && info->removed())
-        return info;
+        return nullptr;
 
     // Return the file's information to our caller.
     return info;
