@@ -42,12 +42,9 @@ FileStorage::FileStorage(const Client& client):
     mFilesystem(std::make_unique<FSACCESS_CLASS>()),
     mStorageDirectory(*mFilesystem, logger(), "file-service", client.dbRootPath()),
     mUserStorageDirectory(*mFilesystem, logger(), client.sessionID(), mStorageDirectory),
-    mUserCacheDirectory(*mFilesystem, logger(), "cache", mUserStorageDirectory)
-{
-    // Prevent others, especially file explorer, from opening files under the folder, generating
-    // thumbnail while we're running. We have seen we're blocked to open files forever due to this.
-    mFolderLocker = platform::FolderLocker{mUserCacheDirectory.path().asPlatformEncoded(true)};
-}
+    mUserCacheDirectory(*mFilesystem, logger(), "cache", mUserStorageDirectory),
+    mFolderLocker(mUserCacheDirectory.path().asPlatformEncoded(true))
+{}
 
 FileStorage::~FileStorage() = default;
 
