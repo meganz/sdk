@@ -436,7 +436,8 @@ public:
         if (auto iterator = mByRangeEnd.upper_bound(range.mBegin))
         {
             // Convenience.
-            auto& other = KeyFunctionType()(iterator->mValue);
+            auto tempFunctor = KeyFunctionType();
+            auto& other = tempFunctor(iterator->mValue);
 
             // The other range contains the leading part of our range.
             if (other.mBegin <= range.mBegin)
