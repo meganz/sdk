@@ -98,7 +98,7 @@ pipeline {
                                 'Debian_11','Debian_12','Debian_13','Debian_testing',
                                 'DEB_Arch_Extra',
                                 'Raspbian_12',
-                                'Fedora_42','Fedora_43'
+                                'Fedora_42','Fedora_43',
                                 'AlmaLinux_9','CentOS_Stream_9',
                                 'openSUSE_Leap_15.6', 'openSUSE_Leap_16.0', 'openSUSE_Tumbleweed'
                     }
