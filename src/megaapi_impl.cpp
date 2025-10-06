@@ -13157,11 +13157,14 @@ NodeSearchFilter searchToNodeFilter(const MegaSearchFilter& filter,
 
 sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
-    ShareType_t shareType = filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ? IN_SHARES :
-                            (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ? OUT_SHARES :
-                            (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK : NO_SHARES));
+    int shareType =
+        filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ?
+            IN_SHARES :
+            (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ?
+                 static_cast<ShareType_t>(OUT_SHARES | PENDING_OUTSHARES) :
+                 (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK : NO_SHARES));
 
-    NodeSearchFilter nf = searchToNodeFilter(*filter, shareType);
+    NodeSearchFilter nf = searchToNodeFilter(*filter, static_cast<ShareType_t>(shareType));
 
     if (filter->byLocation() == MegaApi::SEARCH_TARGET_ROOTNODE)
     {
