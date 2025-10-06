@@ -21,28 +21,18 @@ class InstanceLogger
     // The logger we'll use to emit log messages.
     Logger& mLogger;
 
-    // Used to detect if we're destructing due to an exception.
-    int mUncaughtExceptions;
-
 public:
     InstanceLogger(const char* className, const T& instance, Logger& logger):
         mClassName(className),
         mInstance(instance),
-        mLogger(logger),
-        mUncaughtExceptions(std::uncaught_exceptions())
+        mLogger(logger)
     {
         LogDebugF(mLogger, "%s (%p) constructed", mClassName, &mInstance);
     }
 
     ~InstanceLogger()
     {
-        const char* message = "";
-
-        // We're being destructed due to exception unwinding.
-        if (std::uncaught_exceptions() > mUncaughtExceptions)
-            message = " due to uncaught exception";
-
-        LogDebugF(mLogger, "%s (%p) destructed%s", mClassName, &mInstance, message);
+        LogDebugF(mLogger, "%s (%p) destructed", mClassName, &mInstance);
     }
 }; // InstanceLogger
 
