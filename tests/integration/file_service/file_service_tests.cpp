@@ -3382,6 +3382,9 @@ void FileServiceTests::SetUpTestSuite()
     // Generate link.
     auto link = mClient->getPublicLink(*rootHandle);
     ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // Make sure the service logs *everything*.
+    logger().logLevel(logDebug);
 }
 
 void FileServiceTests::TearDown()
