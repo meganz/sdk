@@ -581,8 +581,8 @@ TEST_F(FileServiceTests, append_succeeds)
                 ElementsAre(range, FileRange(size - computed.size(), size + computed.size())));
 
     // Make sure we received the events we expected.
-    ASSERT_EQ(expected, fileObserver.events());
-    ASSERT_EQ(expected, serviceObserver.events());
+    ASSERT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+    ASSERT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
@@ -640,8 +640,8 @@ TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
     EXPECT_TRUE(file1->info().removed());
 
     // Make sure we received remove events.
-    EXPECT_EQ(expected.file0, fileObserver0.events());
-    EXPECT_EQ(expected.file1, fileObserver1.events());
+    EXPECT_TRUE(fileObserver0.match(expected.file0, mDefaultTimeout));
+    EXPECT_TRUE(fileObserver1.match(expected.file1, mDefaultTimeout));
 
     // UnorderedElementsAreArray(...) necessary as order is unpredictable.
     EXPECT_THAT(expected.service, UnorderedElementsAreArray(serviceObserver.events()));
@@ -680,8 +680,8 @@ TEST_F(FileServiceTests, cloud_file_removed_when_removed_in_cloud)
     EXPECT_TRUE(file->info().removed());
 
     // And that we received a remove event.
-    EXPECT_EQ(expected, fileObserver.events());
-    EXPECT_EQ(expected, serviceObserver.events());
+    EXPECT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+    EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_cloud_add)
@@ -720,8 +720,8 @@ TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_cloud_add)
 
     expected.emplace_back(FileRemoveEvent{file->info().id(), true});
 
-    EXPECT_EQ(expected, fileObserver.events());
-    EXPECT_EQ(expected, serviceObserver.events());
+    EXPECT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+    EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_new_version)
@@ -774,8 +774,8 @@ TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_new_version)
 
     expected.emplace_back(FileRemoveEvent{file->info().id(), true});
 
-    EXPECT_EQ(expected, fileObserver.events());
-    EXPECT_EQ(expected, serviceObserver.events());
+    EXPECT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+    EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, create_fails_when_file_already_exists)
@@ -867,8 +867,8 @@ TEST_F(FileServiceTests, create_flush_succeeds)
         // Make sure we received the events we expected.
         wanted.emplace_back(FileFlushEvent{info.handle(), info.id()});
 
-        EXPECT_EQ(fileObserver.events(), wanted);
-        EXPECT_EQ(serviceObserver.events(), wanted);
+        EXPECT_TRUE(fileObserver.match(wanted, mDefaultTimeout));
+        EXPECT_TRUE(serviceObserver.match(wanted, mDefaultTimeout));
 
         // One or more of our expectations failed.
         if (HasFailure())
@@ -1018,8 +1018,8 @@ TEST_F(FileServiceTests, create_write_succeeds)
     ASSERT_EQ(data, *computed);
 
     // Make sure we received the events we were expecting.
-    ASSERT_EQ(expected, fileObserver.events());
-    ASSERT_EQ(expected, serviceObserver.events());
+    ASSERT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+    ASSERT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, fetch_succeeds)
@@ -1222,8 +1222,8 @@ TEST_F(FileServiceTests, flush_succeeds)
         // Make sure we received a flush event.
         wanted.emplace_back(FileFlushEvent{oldFile->info().handle(), id});
 
-        EXPECT_EQ(fileObserver.events(), wanted);
-        EXPECT_EQ(serviceObserver.events(), wanted);
+        EXPECT_TRUE(fileObserver.match(wanted, mDefaultTimeout));
+        EXPECT_TRUE(serviceObserver.match(wanted, mDefaultTimeout));
     }
 
     // Latch the file's new handle.
@@ -1308,8 +1308,8 @@ TEST_F(FileServiceTests, flush_succeeds)
     // Make sure we received a flush event.
     wanted.emplace_back(FileFlushEvent{newHandle, newFile->info().id()});
 
-    EXPECT_EQ(fileObserver.events(), wanted);
-    EXPECT_EQ(serviceObserver.events(), wanted);
+    EXPECT_TRUE(fileObserver.match(wanted, mDefaultTimeout));
+    EXPECT_TRUE(serviceObserver.match(wanted, mDefaultTimeout));
 
     // Make sure our updated file is in the cloud.
     EXPECT_TRUE(waitFor(
@@ -1441,7 +1441,7 @@ TEST_F(FileServiceTests, inactive_file_moved)
                                         FileLocation{name1, mRootHandle},
                                         FileID::from(*handle)});
 
-    EXPECT_EQ(expected, observer.events());
+    EXPECT_TRUE(observer.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, inactive_file_removed)
@@ -1477,7 +1477,7 @@ TEST_F(FileServiceTests, inactive_file_removed)
 
     expected.emplace_back(FileRemoveEvent{FileID::from(*handle), false});
 
-    EXPECT_EQ(expected, observer.events());
+    EXPECT_TRUE(observer.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, inactive_file_replaced)
@@ -1524,7 +1524,7 @@ TEST_F(FileServiceTests, inactive_file_replaced)
 
     expected.emplace_back(FileRemoveEvent{id, true});
 
-    EXPECT_EQ(expected, observer.events());
+    EXPECT_TRUE(observer.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, info_directory_fails)
@@ -1629,7 +1629,7 @@ TEST_F(FileServiceTests, local_file_removed_when_parent_removed)
     FileEventVector expected;
 
     expected.emplace_back(FileRemoveEvent{d0f->info().id(), false});
-    EXPECT_EQ(expected, fileObserver0.events());
+    EXPECT_TRUE(fileObserver0.match(expected, mDefaultTimeout));
 
     expected.emplace_back(FileRemoveEvent{d1f->info().id(), false});
 
@@ -1637,7 +1637,7 @@ TEST_F(FileServiceTests, local_file_removed_when_parent_removed)
     EXPECT_THAT(expected, UnorderedElementsAreArray(serviceObserver.events()));
 
     expected.erase(expected.begin());
-    EXPECT_EQ(expected, fileObserver1.events());
+    EXPECT_TRUE(fileObserver1.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_add)
@@ -1679,8 +1679,8 @@ TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_add)
 
     expected.emplace_back(FileRemoveEvent{file->info().id(), true});
 
-    EXPECT_EQ(expected, fileObserver.events());
-    EXPECT_EQ(expected, serviceObserver.events());
+    EXPECT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+    EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_move)
@@ -1745,9 +1745,9 @@ TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_move)
     expected.service.emplace_back(expected.file0.back());
     expected.service.emplace_back(expected.file1.back());
 
-    EXPECT_EQ(expected.file0, fileObserver0.events());
-    EXPECT_EQ(expected.file1, fileObserver1.events());
-    EXPECT_EQ(expected.service, serviceObserver.events());
+    EXPECT_TRUE(fileObserver0.match(expected.file0, mDefaultTimeout));
+    EXPECT_TRUE(fileObserver1.match(expected.file1, mDefaultTimeout));
+    EXPECT_TRUE(serviceObserver.match(expected.service, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
@@ -1805,8 +1805,8 @@ TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
     expected.emplace_back(
         FileMoveEvent{std::move(*location), std::move(newLocation), file->info().id()});
 
-    EXPECT_EQ(expected, fileObserver.events());
-    EXPECT_EQ(expected, serviceObserver.events());
+    EXPECT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+    EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, open_by_path_fails_when_file_is_a_directory)
@@ -2781,8 +2781,8 @@ TEST_F(FileServiceTests, remove_local_succeeds)
         ASSERT_TRUE(file0->info().removed());
 
         // Make sure we received a remove event.
-        EXPECT_EQ(expected, fileObserver.events());
-        EXPECT_EQ(expected, serviceObserver.events());
+        EXPECT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+        EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 
         // Make sure we can't get a new reference to a removed file.
         ASSERT_EQ(mClient->fileInfo(id).errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_UNKNOWN_FILE);
@@ -2865,8 +2865,8 @@ TEST_F(FileServiceTests, remove_cloud_succeeds)
             mDefaultTimeout));
 
         // Make sure we received a remove event.
-        EXPECT_EQ(expected, fileObserver.events());
-        EXPECT_EQ(expected, serviceObserver.events());
+        EXPECT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+        EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 
         EXPECT_EQ(mClient->get(*handle).errorOr(API_OK), API_ENOENT);
         EXPECT_TRUE(file0->info().removed());
@@ -2937,8 +2937,8 @@ TEST_F(FileServiceTests, touch_succeeds)
     EXPECT_EQ(info.modified(), modified - 1);
 
     // Make sure we received an event.
-    ASSERT_EQ(expected, fileObserver.events());
-    ASSERT_EQ(expected, serviceObserver.events());
+    ASSERT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+    ASSERT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
@@ -3016,8 +3016,8 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         EXPECT_EQ(info.size(), newSize);
 
         // Make sure we received our expected events.
-        EXPECT_EQ(expected, fileObserver.events());
-        EXPECT_EQ(expected, serviceObserver.events());
+        EXPECT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+        EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 
         // One of the above expectations wasn't met.
         if (HasFailure())
@@ -3140,8 +3140,8 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     EXPECT_EQ(result->find_first_not_of('\0', length), npos);
 
     // Make sure we received the events we expected.
-    ASSERT_EQ(expected, fileObserver.events());
-    ASSERT_EQ(expected, serviceObserver.events());
+    ASSERT_TRUE(fileObserver.match(expected, mDefaultTimeout));
+    ASSERT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, write_cancels_orphan_reads)
@@ -3260,8 +3260,8 @@ TEST_F(FileServiceTests, write_succeeds)
         EXPECT_EQ(info.size(), size);
 
         // Make sure we received the events we wanted.
-        EXPECT_EQ(fileObserver.events(), wanted);
-        EXPECT_EQ(serviceObserver.events(), wanted);
+        EXPECT_TRUE(fileObserver.match(wanted, mDefaultTimeout));
+        EXPECT_TRUE(serviceObserver.match(wanted, mDefaultTimeout));
 
         // One or more of our expectations weren't satisfied.
         if (HasFailure())
