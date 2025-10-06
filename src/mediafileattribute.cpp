@@ -917,7 +917,7 @@ void MediaProperties::extractMediaPropertyFileAttributes(LocalPath& localFilenam
         }
         catch (std::exception& e)
         {
-            LOG_err << "exception caught reading media file attibutes: " << e.what();
+            LOG_err << "exception caught reading media file attributes: " << e.what();
         }
         catch (...)
         {
