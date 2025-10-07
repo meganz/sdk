@@ -3,6 +3,7 @@
 #include <mega/common/client_forward.h>
 #include <mega/common/directory.h>
 #include <mega/common/node_info_forward.h>
+#include <mega/common/platform/folder_locker.h>
 #include <mega/types.h>
 
 #include <optional>
@@ -35,6 +36,11 @@ class FileStorage
 
     // Where the service is storing this user's cached files
     common::Directory mUserCacheDirectory;
+
+    // On Windows, prevent others, especially file explorer, from opening files under the folder,
+    // generating thumbnail while we're running. We have seen we're blocked to open files forever
+    // due to this.
+    common::platform::FolderLocker mFolderLocker;
 
 public:
     explicit FileStorage(const common::Client& client);

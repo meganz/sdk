@@ -84,10 +84,13 @@ target_sources(SDKlib PRIVATE
 
 target_sources_conditional(SDKlib FLAG UNIX PRIVATE
                                   src/common/platform/posix/mega/common/platform/date_time.h
+                                  src/common/platform/posix/mega/common/platform/folder_locker.h
 )
 
 target_sources_conditional(SDKlib FLAG WIN32 PRIVATE
                                   src/common/platform/windows/mega/common/platform/date_time.h
+                                  src/common/platform/windows/mega/common/platform/folder_locker.h
+                                  src/common/platform/windows/mega/common/platform/folder_locker.cpp
 )
 
 target_sources(SDKlib PRIVATE

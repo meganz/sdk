@@ -3,6 +3,7 @@
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
 #include <mega/common/lockable.h>
+#include <mega/common/platform/folder_locker.h>
 #include <mega/common/task_executor_forward.h>
 #include <mega/filesystem.h>
 #include <mega/fuse/common/file_cache_forward.h>
@@ -75,7 +76,7 @@ class FileCache: public common::Lockable<FileCache>
     // Signalled when a context or info instance is removed.
     std::condition_variable_any mRemoved;
 
-    WINDOWS_ONLY(platform::FolderLocker mFolderLocker);
+    common::platform::FolderLocker mFolderLocker;
 
 public:
     explicit FileCache(platform::ServiceContext& context);

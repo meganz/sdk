@@ -338,15 +338,14 @@ ErrorOr<FileInfoRef> FileCache::create(const FileExtension& extension,
 void FileCache::current()
 {
     // Preventive
-    WINDOWS_ONLY(mFolderLocker.release());
+    mFolderLocker.reset();
 
     // Purge any unreferenced files in the cache.
     purge();
 
     // Prevent others, especially file explorer, from opening files under the folder, generating
     // thumbnail while we're running. We have seen we're blocked to open files forever due to this.
-
-    WINDOWS_ONLY(mFolderLocker = platform::FolderLocker{mCachePath.asPlatformEncoded(true)});
+    mFolderLocker = common::platform::FolderLocker{mCachePath.asPlatformEncoded(true)};
 }
 
 TaskExecutor& FileCache::executor() const

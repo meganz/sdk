@@ -42,7 +42,8 @@ FileStorage::FileStorage(const Client& client):
     mFilesystem(std::make_unique<FSACCESS_CLASS>()),
     mStorageDirectory(*mFilesystem, logger(), "file-service", client.dbRootPath()),
     mUserStorageDirectory(*mFilesystem, logger(), client.sessionID(), mStorageDirectory),
-    mUserCacheDirectory(*mFilesystem, logger(), "cache", mUserStorageDirectory)
+    mUserCacheDirectory(*mFilesystem, logger(), "cache", mUserStorageDirectory),
+    mFolderLocker(mUserCacheDirectory.path().asPlatformEncoded(true))
 {}
 
 FileStorage::~FileStorage() = default;
