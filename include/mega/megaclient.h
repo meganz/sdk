@@ -3466,6 +3466,43 @@ private:
 
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;
+    /* Modified Begin by chongyi 2025-10-07, Task1: Buffer ActionPacket then processing */
+public:
+    enum ActionPacketProcMode
+    {
+        AP_STREAMING_EXECUTE = 0,
+        AP_BUFFER_THEN_EXECUTE = 1,
+    };
+	// 缓冲相关状态
+    enum BufferingState {
+        BS_IDLE,           // 未在缓冲
+        BS_ACCUMULATING,   // 正在累积数据
+        BS_READY           // 缓冲完成，准备执行
+    };
+    void setActionPacketProcMode(ActionPacketProcMode mode){
+        this->mActionPacketMode = mode;
+    }
+    ActionPacketProcMode getActionPacketProcMode() const{
+        return mActionPacketMode;
+    }
+private:
+    ActionPacketProcMode mActionPacketMode = AP_STREAMING_EXECUTE;
+    BufferingState mBufferingState = BS_IDLE;
+    std::string mActionPacketBuffer;
+    const char* mBufferingStartPos = nullptr;
+	
+    bool processActionPacketInBufferingMode(std::shared_ptr<Node>& lastAPDeletedNode);
+	bool startBuffering();
+    bool continueBuffering();
+    bool executeBufferedActionPacket(std::shared_ptr<Node>& lastAPDeletedNode);
+    void resetBufferingState();
+
+	void processSingleActionPacket(JSON&j,std::shared_ptr<Node>&lastAPDeletedNode);
+	
+	bool processBufferedActionPacket(JSON& j, std::shared_ptr<Node>& lastAPDeletedNode);
+    handle sc_newnodes_buffered(JSON&j, Node* priorActionPacketDeletedNode, bool&firstHandleMatchesDelete);
+    void readtree_buffered(JSON*j, Node* priorActionPacketDeletedNode, bool& firstHandleMatchesDelete);
+    /* Modified End by chongyi 2025-10-07, Task1: Buffer ActionPacket then processing */
 };
 
 } // namespace

@@ -5234,7 +5234,7 @@ bool MegaClient::procsc()
     actionpacketsCurrent = false;
 
     CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
-    nameid name;
+    //nameid name;
 
     std::shared_ptr<Node> lastAPDeletedNode;
 
@@ -5493,7 +5493,7 @@ bool MegaClient::procsc()
 
         if (insca)
         {
-            auto actionpacketStart = jsonsc.pos;
+            auto actionpacketStart = jsonsc.pos;            
             if (jsonsc.enterobject())
             {
                 // Check if it is ok to process the current action packet.
@@ -5507,224 +5507,25 @@ bool MegaClient::procsc()
             }
             jsonsc.pos = actionpacketStart;
 
+			/* Modified Begin by chongyi 2025-10-07 for task1: 完整缓冲模式 */
+            if (mActionPacketMode == AP_BUFFER_THEN_EXECUTE)
+            {
+                // 缓冲模式：我们自己实现流式缓冲
+	            if (processActionPacketInBufferingMode(lastAPDeletedNode)) 
+                {
+	                // 成功处理了一个缓冲的action packet
+	                continue; // 继续处理下一个
+	            } 
+	            // 缓冲未完成或失败，需要更多数据或回退
+	            return false; // 让调用者知道需要更多数据
+	            
+            }
+            /* Modified End by chongyi 2025-10-07 for task1 */
+
             if (jsonsc.enterobject())
             {
-                // the "a" attribute is guaranteed to be the first in the object
-                if (jsonsc.getnameid() == makeNameid("a"))
-                {
-                    if (!statecurrent)
-                    {
-                        fnstats.actionPackets++;
-                    }
-
-                    name = jsonsc.getnameidvalue();
-
-                    // only process server-client request if not marked as
-                    // self-originating ("i" marker element guaranteed to be following
-                    // "a" element if present)
-                    if (fetchingnodes || !Utils::startswith(jsonsc.pos, "\"i\":\"") ||
-                        memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid) ||
-                        jsonsc.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
-                        name == 't') // we still set 'i' on move commands to produce backward
-                                     // compatible actionpackets, so don't skip those here
-                    {
-#ifdef ENABLE_CHAT
-                        bool readingPublicChat = false;
-#endif
-                        switch (name)
-                        {
-                            case name_id::u:
-                                // node update
-                                sc_updatenode();
-                                break;
-
-                            case makeNameid("t"):
-                            {
-                                bool isMoveOperation = false;
-                                // node addition
-                                {
-                                    if (!loggedIntoFolder())
-                                        useralerts.beginNotingSharedNodes();
-                                    handle originatingUser = sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode.get(), isMoveOperation);
-                                    mergenewshares(1);
-                                    if (!loggedIntoFolder())
-                                        useralerts.convertNotedSharedNodes(true, originatingUser);
-                                }
-                                lastAPDeletedNode = nullptr;
-                            }
-                            break;
-
-                            case name_id::d:
-                                // node deletion
-                                lastAPDeletedNode = sc_deltree();
-                                break;
-
-                            case makeNameid("s"):
-                            case makeNameid("s2"):
-                                // share addition/update/revocation
-                                if (sc_shares())
-                                {
-                                    int creqtag = reqtag;
-                                    reqtag = 0;
-                                    mergenewshares(1);
-                                    reqtag = creqtag;
-                                }
-                                break;
-
-                            case name_id::c:
-                                // contact addition/update
-                                sc_contacts();
-                                break;
-
-                            case makeNameid("fa"):
-                                // file attribute update
-                                sc_fileattr();
-                                break;
-
-                            case makeNameid("ua"):
-                                // user attribute update
-                                sc_userattr();
-                                break;
-
-                            case name_id::psts:
-                            case name_id::psts_v2:
-                            case makeNameid("ftr"):
-                                if (sc_upgrade(name))
-                                {
-                                    app->account_updated();
-                                    abortbackoff(true);
-                                }
-                                break;
-
-                            case name_id::pses:
-                                sc_paymentreminder();
-                                break;
-
-                            case name_id::ipc:
-                                // incoming pending contact request (to us)
-                                sc_ipc();
-                                break;
-
-                            case makeNameid("opc"):
-                                // outgoing pending contact request (from us)
-                                sc_opc();
-                                break;
-
-                            case name_id::upci:
-                                // incoming pending contact request update (accept/deny/ignore)
-                                sc_upc(true);
-                                break;
-
-                            case name_id::upco:
-                                // outgoing pending contact request update (from them, accept/deny/ignore)
-                                sc_upc(false);
-                                break;
-
-                            case makeNameid("ph"):
-                                // public links handles
-                                sc_ph();
-                                break;
-
-                            case makeNameid("se"):
-                                // set email
-                                sc_se();
-                                break;
-#ifdef ENABLE_CHAT
-                            case makeNameid("mcpc"):
-                            {
-                                readingPublicChat = true;
-                            } // fall-through
-                            case makeNameid("mcc"):
-                                // chat creation / peer's invitation / peer's removal
-                                sc_chatupdate(readingPublicChat);
-                                break;
-
-                            case makeNameid("mcfpc"): // fall-through
-                            case makeNameid("mcfc"):
-                                // chat flags update
-                                sc_chatflags();
-                                break;
-
-                            case makeNameid("mcpna"): // fall-through
-                            case makeNameid("mcna"):
-                                // granted / revoked access to a node
-                                sc_chatnode();
-                                break;
-
-                            case name_id::mcsmp:
-                                // scheduled meetings updates
-                                sc_scheduledmeetings();
-                                break;
-
-                            case name_id::mcsmr:
-                                // scheduled meetings removal
-                                sc_delscheduledmeeting();
-                                break;
-#endif
-                            case makeNameid("uac"):
-                                sc_uac();
-                                break;
-
-                            case makeNameid("la"):
-                                // last acknowledged
-                                sc_la();
-                                break;
-
-                            case makeNameid("ub"):
-                                // business account update
-                                sc_ub();
-                                break;
-
-                            case makeNameid("sqac"):
-                                // storage quota allowance changed
-                                sc_sqac();
-                                break;
-
-                            case makeNameid("asp"):
-                                // new/update of a Set
-                                sc_asp();
-                                break;
-
-                            case makeNameid("ass"):
-                                sc_ass();
-                                break;
-
-                            case makeNameid("asr"):
-                                // removal of a Set
-                                sc_asr();
-                                break;
-
-                            case makeNameid("aep"):
-                                // new/update of a Set Element
-                                sc_aep();
-                                break;
-
-                            case makeNameid("aer"):
-                                // removal of a Set Element
-                                sc_aer();
-                                break;
-                            case makeNameid("pk"):
-                                // pending keys
-                                sc_pk();
-                                break;
-
-                            case makeNameid("uec"):
-                                // User Email Confirm (uec)
-                                sc_uec();
-                                break;
-
-                            case makeNameid("cce"):
-                                // credit card for this user is potentially expiring soon or new card is registered
-                                sc_cce();
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        lastAPDeletedNode = nullptr;
-                    }
-                }
-
+                
+				processSingleActionPacket(jsonsc, lastAPDeletedNode);
                 jsonsc.leaveobject();
             }
             else
@@ -24427,5 +24228,565 @@ void MegaClient::setMegaURL(const std::string& url)
     std::unique_lock lock(megaUrlMutex);
     MEGAURL = url;
 }
+
+/*  Modified Begin by chongyi 2025-10-07 for task1 */
+
+// 重置缓冲状态
+void MegaClient::resetBufferingState()
+{
+    mBufferingState = BS_IDLE;
+    mActionPacketBuffer.clear();
+    mBufferingStartPos = nullptr;
+}
+
+// 添加辅助方法：缓冲并处理整个action packet
+bool MegaClient::processActionPacketInBufferingMode(std::shared_ptr<Node>& lastAPDeletedNode)
+{
+    switch (mBufferingState) {
+        case BS_IDLE:
+            return startBuffering();
+            
+        case BS_ACCUMULATING:
+            return continueBuffering();
+            
+        case BS_READY:
+            return executeBufferedActionPacket(lastAPDeletedNode);
+            
+        default:
+            LOG_err << "Unknown buffering state: " << mBufferingState;
+            resetBufferingState();
+            return false;
+    }
+}
+
+void MegaClient::processSingleActionPacket(JSON & j,std::shared_ptr<Node>&lastAPDeletedNode)
+{
+	nameid name;
+
+	// the "a" attribute is guaranteed to be the first in the object
+    if (j.getnameid() == makeNameid("a"))
+    {
+        if (!statecurrent)
+        {
+            fnstats.actionPackets++;
+        }
+
+        name = j.getnameidvalue();
+
+        // only process server-client request if not marked as
+        // self-originating ("i" marker element guaranteed to be following
+        // "a" element if present)
+        if (fetchingnodes || !Utils::startswith(j.pos, "\"i\":\"") ||
+            memcmp(j.pos + 5, sessionid, sizeof sessionid) ||
+            j.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
+            name == 't') // we still set 'i' on move commands to produce backward
+                         // compatible actionpackets, so don't skip those here
+        {
+#ifdef ENABLE_CHAT
+            bool readingPublicChat = false;
+#endif
+            switch (name)
+            {
+                case name_id::u:
+                    // node update
+                    sc_updatenode();
+                    break;
+
+                case makeNameid("t"):
+                {
+                    bool isMoveOperation = false;
+                    // node addition
+                    {
+                        if (!loggedIntoFolder())
+                            useralerts.beginNotingSharedNodes();
+                        handle originatingUser = sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode.get(), isMoveOperation);
+                        mergenewshares(1);
+                        if (!loggedIntoFolder())
+                            useralerts.convertNotedSharedNodes(true, originatingUser);
+                    }
+                    lastAPDeletedNode = nullptr;
+                }
+                break;
+
+                case name_id::d:
+                    // node deletion
+                    lastAPDeletedNode = sc_deltree();
+                    break;
+
+                case makeNameid("s"):
+                case makeNameid("s2"):
+                    // share addition/update/revocation
+                    if (sc_shares())
+                    {
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        mergenewshares(1);
+                        reqtag = creqtag;
+                    }
+                    break;
+
+                case name_id::c:
+                    // contact addition/update
+                    sc_contacts();
+                    break;
+
+                case makeNameid("fa"):
+                    // file attribute update
+                    sc_fileattr();
+                    break;
+
+                case makeNameid("ua"):
+                    // user attribute update
+                    sc_userattr();
+                    break;
+
+                case name_id::psts:
+                case name_id::psts_v2:
+                case makeNameid("ftr"):
+                    if (sc_upgrade(name))
+                    {
+                        app->account_updated();
+                        abortbackoff(true);
+                    }
+                    break;
+
+                case name_id::pses:
+                    sc_paymentreminder();
+                    break;
+
+                case name_id::ipc:
+                    // incoming pending contact request (to us)
+                    sc_ipc();
+                    break;
+
+                case makeNameid("opc"):
+                    // outgoing pending contact request (from us)
+                    sc_opc();
+                    break;
+
+                case name_id::upci:
+                    // incoming pending contact request update (accept/deny/ignore)
+                    sc_upc(true);
+                    break;
+
+                case name_id::upco:
+                    // outgoing pending contact request update (from them, accept/deny/ignore)
+                    sc_upc(false);
+                    break;
+
+                case makeNameid("ph"):
+                    // public links handles
+                    sc_ph();
+                    break;
+
+                case makeNameid("se"):
+                    // set email
+                    sc_se();
+                    break;
+#ifdef ENABLE_CHAT
+                case makeNameid("mcpc"):
+                {
+                    readingPublicChat = true;
+                } // fall-through
+                case makeNameid("mcc"):
+                    // chat creation / peer's invitation / peer's removal
+                    sc_chatupdate(readingPublicChat);
+                    break;
+
+                case makeNameid("mcfpc"): // fall-through
+                case makeNameid("mcfc"):
+                    // chat flags update
+                    sc_chatflags();
+                    break;
+
+                case makeNameid("mcpna"): // fall-through
+                case makeNameid("mcna"):
+                    // granted / revoked access to a node
+                    sc_chatnode();
+                    break;
+
+                case name_id::mcsmp:
+                    // scheduled meetings updates
+                    sc_scheduledmeetings();
+                    break;
+
+                case name_id::mcsmr:
+                    // scheduled meetings removal
+                    sc_delscheduledmeeting();
+                    break;
+#endif
+                case makeNameid("uac"):
+                    sc_uac();
+                    break;
+
+                case makeNameid("la"):
+                    // last acknowledged
+                    sc_la();
+                    break;
+
+                case makeNameid("ub"):
+                    // business account update
+                    sc_ub();
+                    break;
+
+                case makeNameid("sqac"):
+                    // storage quota allowance changed
+                    sc_sqac();
+                    break;
+
+                case makeNameid("asp"):
+                    // new/update of a Set
+                    sc_asp();
+                    break;
+
+                case makeNameid("ass"):
+                    sc_ass();
+                    break;
+
+                case makeNameid("asr"):
+                    // removal of a Set
+                    sc_asr();
+                    break;
+
+                case makeNameid("aep"):
+                    // new/update of a Set Element
+                    sc_aep();
+                    break;
+
+                case makeNameid("aer"):
+                    // removal of a Set Element
+                    sc_aer();
+                    break;
+                case makeNameid("pk"):
+                    // pending keys
+                    sc_pk();
+                    break;
+
+                case makeNameid("uec"):
+                    // User Email Confirm (uec)
+                    sc_uec();
+                    break;
+
+                case makeNameid("cce"):
+                    // credit card for this user is potentially expiring soon or new card is registered
+                    sc_cce();
+                    break;
+            }
+        }
+        else
+        {
+            lastAPDeletedNode = nullptr;
+        }
+    }
+}
+
+// 添加缓冲版本的action packet处理函数
+bool MegaClient::processBufferedActionPacket(JSON& j, std::shared_ptr<Node>& lastAPDeletedNode)
+{
+    if (!j.enterobject())
+    {
+        LOG_err << "Failed to enter buffered action packet object";
+        return false;
+    }
+
+    // 复制现有procsc()中处理单个action packet的逻辑
+    // 但使用缓冲的JSON对象而不是jsonsc
+    processSingleActionPacket(j, lastAPDeletedNode);
+    #if 0
+    // the "a" attribute is guaranteed to be the first in the object
+    if (j.getnameid() == makeNameid("a"))
+    {
+        nameid name = j.getnameidvalue();
+
+        // only process server-client request if not marked as
+        // self-originating ("i" marker element guaranteed to be following
+        // "a" element if present)
+        if (fetchingnodes || !Utils::startswith(j.pos, "\"i\":\"") ||
+            memcmp(j.pos + 5, sessionid, sizeof sessionid) ||
+            j.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
+            name == 't') // we still set 'i' on move commands to produce backward
+                         // compatible actionpackets, so don't skip those here
+        {
+            //bool firstHandleMatchesDelete = false;
+            
+            switch (name)
+            {
+                case name_id::u:
+                    // node update
+                    sc_updatenode();
+                    break;
+
+                case makeNameid("t"):
+                {
+                    bool isMoveOperation = false;
+                    // node addition
+                    {
+                        if (!loggedIntoFolder())
+                            useralerts.beginNotingSharedNodes();
+                        handle originatingUser = sc_newnodes_buffered(j, fetchingnodes ? nullptr : lastAPDeletedNode.get(), isMoveOperation);
+                        mergenewshares(1);
+                        if (!loggedIntoFolder())
+                            useralerts.convertNotedSharedNodes(true, originatingUser);
+                    }
+                    lastAPDeletedNode = nullptr;
+                }
+                break;
+
+                case name_id::d:
+                    // node deletion
+                    lastAPDeletedNode = sc_deltree();
+                    break;
+
+                case makeNameid("s"):
+                case makeNameid("s2"):
+                    // share addition/update/revocation
+                    if (sc_shares())
+                    {
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        mergenewshares(1);
+                        reqtag = creqtag;
+                    }
+                    break;
+
+                case name_id::c:
+                    // contact addition/update
+                    sc_contacts();
+                    break;
+
+                case makeNameid("fa"):
+                    // file attribute update
+                    sc_fileattr();
+                    break;
+
+                case makeNameid("ua"):
+                    // user attribute update
+                    sc_userattr();
+                    break;
+
+                // ... 其他case处理保持不变 ...
+                default:
+                    LOG_debug << "Unhandled action packet type in buffered mode: " << name;
+                    break;
+            }
+        }
+        else
+        {
+            lastAPDeletedNode = nullptr;
+            LOG_debug << "Skipped self-originating action packet";
+        }
+    }
+	#endif
+    j.leaveobject();
+    return true;
+}
+
+// 开始新的缓冲
+bool MegaClient::startBuffering()
+{
+    // 记录开始位置
+    mBufferingStartPos = jsonsc.pos;
+    
+    // 快速检查：必须以{开头才是有效的JSON对象
+    if (*mBufferingStartPos != '{') {
+        LOG_err << "Invalid action packet: does not start with '{'";
+        resetBufferingState();
+        return false;
+    }
+    
+    // 初始化缓冲区
+    mActionPacketBuffer.clear();
+    mBufferingState = BS_ACCUMULATING;
+    
+    LOG_debug << "Starting to buffer action packet from position: " << (mBufferingStartPos - jsonsc.pos);
+    
+    // 立即开始累积数据
+    return continueBuffering();
+}
+
+// 继续累积数据并尝试解析
+bool MegaClient::continueBuffering()
+{
+    // 计算新到达的数据长度
+    const char* currentDataEnd = jsonsc.pos;
+    size_t previouslyBufferedSize = mActionPacketBuffer.size();
+    const char* newDataStart = mBufferingStartPos + previouslyBufferedSize;
+    size_t newDataLength = currentDataEnd - newDataStart;
+    
+    if (newDataLength == 0) {
+        // 没有新数据，需要等待
+        LOG_debug << "No new data available for buffering";
+        return false;
+    }
+    
+    // 追加新数据到缓冲区
+    mActionPacketBuffer.append(newDataStart, newDataLength);
+    
+    LOG_debug << "Buffered " << newDataLength << " new bytes, total: " << mActionPacketBuffer.size() << " bytes";
+    
+    // 尝试解析缓冲的数据
+    JSON tempJson(mActionPacketBuffer);
+    std::string testObject;
+    if (tempJson.storeobject(&testObject)) {
+        // 成功解析完整JSON对象！
+        LOG_debug << "Successfully buffered complete action packet, size: " << mActionPacketBuffer.size() << " bytes";
+        
+        // 更新解析器位置：消耗已缓冲的数据
+        jsonsc.pos = mBufferingStartPos + mActionPacketBuffer.size();
+        
+        // 进入就绪状态
+        mBufferingState = BS_READY;
+        return true; // 表示可以继续处理（进入READY状态）
+    }
+    
+    // 数据还不完整，需要继续等待
+    LOG_debug << "Action packet not yet complete, waiting for more data. Current size: " << mActionPacketBuffer.size();
+    return false;
+}
+
+class JsonParserSwitcher
+{
+public:
+	JsonParserSwitcher(JSON& mainParser,JSON&tempParser) : mMainParser(mainParser),mTempParser(tempParser)
+	{
+		std::swap(mMainParser,mTempParser);
+	}
+	~JsonParserSwitcher()
+	{
+		std::swap(mMainParser,mTempParser);
+	}
+private:
+	JSON& mMainParser;
+	JSON& mTempParser;
+};
+
+// 执行缓冲的action packet
+bool MegaClient::executeBufferedActionPacket(std::shared_ptr<Node>& lastAPDeletedNode)
+{
+    LOG_debug << "Executing buffered action packet";
+    
+    // 创建JSON解析器来解析缓冲的数据
+    JSON bufferedJson(mActionPacketBuffer);
+    
+    // 处理缓冲的action packet
+    bool result = false;
+	{
+		JsonParserSwitcher switcher(jsonsc, bufferedJson);
+		result = processBufferedActionPacket(jsonsc, lastAPDeletedNode);
+	}	
+    
+    // 重置状态，准备处理下一个action packet
+    resetBufferingState();
+    
+    return result;
+}
+
+
+// 添加缓冲版本的sc_newnodes函数
+handle MegaClient::sc_newnodes_buffered(JSON& j, Node* priorActionpacketDeletedNode, bool& firstHandleMatchesDelete)
+{
+    handle originatingUser = UNDEF;
+    
+    if (!j.enterobject())
+    {
+        return originatingUser;
+    }
+
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+            case makeNameid("t"):
+                readtree_buffered(&j, priorActionpacketDeletedNode, firstHandleMatchesDelete);
+                break;
+
+            case name_id::u:
+                readusers(&j, true); // readusers已经支持传入JSON
+                break;
+
+            case makeNameid("ou"):
+                originatingUser = j.gethandle(USERHANDLE);
+                break;
+
+            case EOO:
+                j.leaveobject();
+                return originatingUser;
+
+            default:
+                if (!j.storeobject())
+                {
+                    j.leaveobject();
+                    return originatingUser;
+                }
+        }
+    }
+}
+
+// 添加缓冲版本的readtree函数
+void MegaClient::readtree_buffered(JSON* j, Node* priorActionpacketDeletedNode, bool& firstHandleMatchesDelete)
+{
+    if (j->enterobject())
+    {
+        for (;;)
+        {
+            switch (j->getnameid())
+            {
+                case makeNameid("f"):
+                    if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
+                    {
+                        putnodesCmd->emptyResponse = Utils::startswith(j->pos, "[]");
+                        readnodes(j,
+                                  1,
+                                  putnodesCmd->source,
+                                  &putnodesCmd->nn,
+                                  putnodesCmd->tag != 0,
+                                  true,
+                                  priorActionpacketDeletedNode,
+                                  &firstHandleMatchesDelete);
+                    }
+                    else
+                    {
+                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false, priorActionpacketDeletedNode, &firstHandleMatchesDelete);
+                    }
+                    break;
+
+                case makeNameid("f2"):
+                    if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
+                    {
+                        // new nodes can appear in copied version lists too
+                        readnodes(j,
+                                  1,
+                                  putnodesCmd->source,
+                                  &putnodesCmd->nn,
+                                  putnodesCmd->tag != 0,
+                                  true,
+                                  nullptr,
+                                  nullptr);
+                    }
+                    else
+                    {
+                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false, nullptr, nullptr);
+                    }
+                    break;
+
+                case name_id::u:
+                    readusers(j, true);
+                    break;
+
+                case EOO:
+                    j->leaveobject();
+                    return;
+
+                default:
+                    if (!j->storeobject())
+                    {
+                        j->leaveobject();
+                        return;
+                    }
+            }
+        }
+    }
+}
+/*  Modified End by chongyi 2025-10-07 for task1 */
 
 } // namespace
