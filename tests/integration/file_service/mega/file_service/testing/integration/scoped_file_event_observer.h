@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mega/common/expected_forward.h>
+#include <mega/common/testing/utility.h>
 #include <mega/file_service/file_event_observer.h>
 #include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_event_observer_result.h>
@@ -87,6 +88,8 @@ class ScopedFileEventObserver
         mID = extract(source.addObserver(
             [this](auto& event)
             {
+                std::lock_guard guard(mEventsLock);
+
                 mEvents.emplace_back(event);
 
                 return FILE_EVENT_OBSERVER_KEEP;
@@ -96,6 +99,9 @@ class ScopedFileEventObserver
     // What events has this observer received?
     FileEventVector mEvents;
 
+    // Serializes access to mEvents.
+    mutable std::mutex mEventsLock;
+
     // The ID of our event observer.
     FileEventObserverID mID;
 
@@ -103,11 +109,7 @@ class ScopedFileEventObserver
     Source* mSource;
 
 public:
-    ScopedFileEventObserver(ScopedFileEventObserver&& other):
-        mEvents(std::exchange(other.mEvents, {})),
-        mID(other.mID),
-        mSource(std::exchange(other.mSource, nullptr))
-    {}
+    ScopedFileEventObserver(ScopedFileEventObserver&& other) = delete;
 
     ~ScopedFileEventObserver()
     {
@@ -115,24 +117,25 @@ public:
             mSource->removeObserver(mID);
     }
 
-    ScopedFileEventObserver& operator=(ScopedFileEventObserver&& rhs)
+    ScopedFileEventObserver& operator=(ScopedFileEventObserver&& rhs) = delete;
+
+    FileEventVector events() const
     {
-        if (this == &rhs)
-            return *this;
+        std::lock_guard guard(mEventsLock);
 
-        if (mSource)
-            mSource->removeObserver(mID);
-
-        mEvents = std::exchange(rhs.mEvents, {});
-        mID = rhs.mID;
-        mSource = std::exchange(rhs.mSource, nullptr);
-
-        return *this;
+        return mEvents;
     }
 
-    const FileEventVector& events() const
+    template<typename Rep, typename Period>
+    bool match(const FileEventVector& expected, std::chrono::duration<Rep, Period> period) const
     {
-        return mEvents;
+        return waitFor(
+            [&]()
+            {
+                std::lock_guard guard(mEventsLock);
+                return expected == mEvents;
+            },
+            period);
     }
 }; // ScopedFileEventObserver
 

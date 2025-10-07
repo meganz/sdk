@@ -874,30 +874,30 @@ public:
     void setBlocked(bool value);
 
     // enqueue/abort direct read
-    void pread(Node*, m_off_t, m_off_t, DirectRead::Callback&& callback);
-    void pread(handle,
-               SymmCipher* cypher,
-               int64_t,
-               m_off_t,
-               m_off_t,
+    void pread(Node* node, m_off_t offset, m_off_t count, DirectRead::Callback&& callback);
+    void pread(handle handle,
+               SymmCipher* cipher,
+               int64_t iv,
+               m_off_t offset,
+               m_off_t count,
                DirectRead::Callback&& callback,
-               bool = false,
-               const char* = NULL,
-               const char* = NULL,
-               const char* = NULL);
-    void pread(Node*, m_off_t, m_off_t, void*);
-    void pread(handle,
-               SymmCipher* cypher,
-               int64_t,
-               m_off_t,
-               m_off_t,
-               void*,
-               bool = false,
-               const char* = NULL,
-               const char* = NULL,
-               const char* = NULL);
-    void preadabort(Node*, m_off_t = -1, m_off_t = -1);
-    void preadabort(handle, m_off_t = -1, m_off_t = -1);
+               bool isPrivate = false,
+               const char* privateAuth = NULL,
+               const char* publicAuth = NULL,
+               const char* chatAuth = NULL);
+    void pread(Node* node, m_off_t offset, m_off_t count, void* appData);
+    void pread(handle handle,
+               SymmCipher* cipher,
+               int64_t iv,
+               m_off_t offset,
+               m_off_t count,
+               void* appData,
+               bool isPrivate = false,
+               const char* privateAuth = NULL,
+               const char* publicAuth = NULL,
+               const char* chatAuth = NULL);
+    void preadabort(Node* node, m_off_t offset = -1, m_off_t count = -1);
+    void preadabort(handle handle, m_off_t offset = -1, m_off_t count = -1);
 
     // pause flags
     bool xferpaused[2];
@@ -1917,18 +1917,27 @@ public:
     bool isprivatehandle(handle*);
 
     // add direct read
-    void queueread(handle,
-                   bool,
-                   SymmCipher*,
-                   int64_t,
-                   m_off_t,
-                   m_off_t,
+    void queueread(handle handle,
+                   bool isPrivate,
+                   SymmCipher* cipher,
+                   int64_t iv,
+                   m_off_t offset,
+                   m_off_t count,
                    DirectRead::Callback&& callback,
-                   const char* = NULL,
-                   const char* = NULL,
-                   const char* = NULL);
+                   const char* privateAuth = NULL,
+                   const char* publicAuth = NULL,
+                   const char* chatAuth = NULL);
 
-    void queueread(handle, bool, SymmCipher*, int64_t, m_off_t, m_off_t, void*, const char* = NULL, const char* = NULL, const char* = NULL);
+    void queueread(handle handle,
+                   bool isPrivate,
+                   SymmCipher* cipher,
+                   int64_t iv,
+                   m_off_t offset,
+                   m_off_t count,
+                   void* appData,
+                   const char* privateAuth = NULL,
+                   const char* publicAuth = NULL,
+                   const char* chatAuth = NULL);
 
     // execute pending direct reads
     bool execdirectreads();
@@ -1937,7 +1946,7 @@ public:
     static const int MAXDRSLOTS = 16;
 
     // abort queued direct read(s)
-    void abortreads(handle, bool, m_off_t, m_off_t);
+    void abortreads(handle handle, bool isPrivate, m_off_t offset, m_off_t count);
 
     // abort all queued direct reads.
     void abortreads();

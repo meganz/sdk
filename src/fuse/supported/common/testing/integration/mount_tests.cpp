@@ -647,13 +647,13 @@ TEST_F(FUSEMountTests, enables_enabled_persisent_mounts_after_login)
     ASSERT_TRUE(observer->wait(mDefaultTimeout));
 
     auto sessionToken = client->sessionToken();
-    ASSERT_FALSE(sessionToken.empty());
+    ASSERT_EQ(sessionToken.errorOr(API_OK), API_OK);
 
     ASSERT_EQ(client->logout(true), API_OK);
 
     observer->expect({mount.name(), MOUNT_SUCCESS, MOUNT_ENABLED});
 
-    ASSERT_EQ(client->login(sessionToken), API_OK);
+    ASSERT_EQ(client->login(*sessionToken), API_OK);
 
     ASSERT_TRUE(observer->wait(mDefaultTimeout));
 }
@@ -1077,10 +1077,10 @@ TEST_F(FUSEMountTests, persistent_mounts_are_persistent)
     ASSERT_TRUE(observer->wait(mDefaultTimeout));
 
     auto sessionToken = client->sessionToken();
-    ASSERT_FALSE(sessionToken.empty());
+    ASSERT_EQ(sessionToken.errorOr(API_OK), API_OK);
 
     ASSERT_EQ(client->logout(true), API_OK);
-    ASSERT_EQ(client->login(sessionToken), API_OK);
+    ASSERT_EQ(client->login(*sessionToken), API_OK);
 
     auto mount_ = client->mountInfo(mount.name());
     ASSERT_TRUE(mount_);
@@ -1317,10 +1317,10 @@ TEST_F(FUSEMountTests, transient_mounts_are_transient)
     ASSERT_TRUE(observer->wait(mDefaultTimeout));
 
     auto sessionToken = client->sessionToken();
-    ASSERT_FALSE(sessionToken.empty());
+    ASSERT_EQ(sessionToken.errorOr(API_OK), API_OK);
 
     ASSERT_EQ(client->logout(true), API_OK);
-    ASSERT_EQ(client->login(sessionToken), API_OK);
+    ASSERT_EQ(client->login(*sessionToken), API_OK);
 
     ASSERT_FALSE(client->mountInfo(mount.name()));
 }

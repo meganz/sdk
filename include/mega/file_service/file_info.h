@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/common/instance_logger.h>
 #include <mega/file_service/file_context_badge_forward.h>
 #include <mega/file_service/file_event_observer.h>
 #include <mega/file_service/file_event_observer_id.h>
@@ -10,6 +11,7 @@
 #include <mega/file_service/file_service_context_badge_forward.h>
 
 #include <cstdint>
+#include <optional>
 
 namespace mega
 {
@@ -21,12 +23,18 @@ namespace file_service
 
 class FileInfo
 {
+    // Logs instance lifetime.
+    common::InstanceLogger<FileInfo> mInstanceLogger;
+
+    // What context does this instance wrap?
     FileInfoContextPtr mContext;
 
 public:
     FileInfo(FileContextBadge badge, FileInfoContextPtr context);
 
     FileInfo(FileServiceContextBadge badge, FileInfoContextPtr context);
+
+    FileInfo(const FileInfo& other);
 
     ~FileInfo();
 
@@ -41,6 +49,9 @@ public:
     {
         return !operator==(rhs);
     }
+
+    // Assign rhs to this instance.
+    FileInfo& operator=(const FileInfo& rhs);
 
     // When was this file last accessed?
     std::int64_t accessed() const;
@@ -61,7 +72,7 @@ public:
     FileID id() const;
 
     // Where is this file located in the cloud?
-    FileLocation location() const;
+    std::optional<FileLocation> location() const;
 
     // When was this file last modified?
     std::int64_t modified() const;

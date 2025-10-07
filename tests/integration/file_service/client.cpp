@@ -1,4 +1,6 @@
 #include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/path.h>
 #include <mega/file_service/file.h>
@@ -18,6 +20,8 @@ namespace testing
 {
 
 using common::ErrorOr;
+using common::NodeInfo;
+using common::NodeKeyData;
 using common::testing::CloudPath;
 using common::testing::Path;
 
@@ -26,6 +30,38 @@ Client::Client(const std::string& clientName, const Path& databasePath, const Pa
 {}
 
 Client::~Client() {}
+
+auto Client::fileAdd(const PublicLink& link) -> FileServiceResultOr<FileID>
+{
+    // Try and extract the file's handle and decryption key from the link.
+    auto handleAndKey = parsePublicLink(link);
+
+    // Couldn't extract the file's handle or decryption key.
+    if (!handleAndKey)
+        return unexpected(FILE_SERVICE_UNEXPECTED);
+
+    // Convenience.
+    auto& [handle, keyAndIV] = *handleAndKey;
+
+    // Try and get information about the file.
+    auto info = get(handle, false, keyAndIV.data(), keyAndIV.size(), {}, {});
+
+    // Couldn't get information about the file.
+    if (!info)
+        return unexpected(FILE_SERVICE_UNEXPECTED);
+
+    // Populate the file's node key data.
+    NodeKeyData keyData;
+
+    keyData.mIsPublic = true;
+    keyData.mKeyAndIV = std::move(keyAndIV);
+
+    // Convenience.
+    auto size = static_cast<std::uint64_t>(info->mSize);
+
+    // Try and add the file to the service.
+    return fileService().add(handle, keyData, size);
+}
 
 auto Client::fileCreate(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>
 {

@@ -64,6 +64,10 @@ class RealClient: public virtual Client, protected MegaApp
     // Called when the client emits a "nodes current" event.
     void nodes_current() override;
 
+    // Extract the public node handle and decryption key from a public link.
+    auto parsePublicLink(const PublicLink& link)
+        -> common::ErrorOr<std::pair<NodeHandle, std::string>> override;
+
     // Prepare the specified node for sharing.
     Error openShareDialog(NodeHandle handle);
 
@@ -82,6 +86,18 @@ class RealClient: public virtual Client, protected MegaApp
     bool shared(const std::string& email, NodeHandle handle, accesslevel_t permissions) const;
 
 protected:
+    // Retrieve information about a foreign node.
+    void get(GetCallback callback,
+             NodeHandle handle,
+             bool isPrivate,
+             const void* key,
+             std::size_t keyLength,
+             const char* privateAuth,
+             const char* publicAuth) override;
+
+    // Get (or create) a public link for the specified node.
+    void getPublicLink(GetPublicLinkCallback callback, NodeHandle handle) override;
+
     // The actual client.
     std::unique_ptr<MegaClient> mClient;
 
@@ -130,8 +146,11 @@ public:
     // Try and log the specified user in.
     Error login(const std::string& email, const std::string& password) override;
 
+    // Try and log into a directory via public link.
+    Error login(const PublicLink& link) override;
+
     // Try and log the user into an existing session.
-    Error login(const std::string& sessionToken) override;
+    Error login(const SessionToken& sessionToken) override;
 
     // Check if the user is logged in.
     sessiontype_t loggedIn() const override;
@@ -146,7 +165,7 @@ public:
     NodeHandle rootHandle() const override;
 
     // Retrieve this user's session token.
-    std::string sessionToken() const override;
+    auto sessionToken() const -> ErrorOr<SessionToken> override;
 
     // Set the client's maximum download speed.
     m_off_t setDownloadSpeed(m_off_t speed) override;

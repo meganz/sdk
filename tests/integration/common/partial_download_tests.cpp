@@ -218,7 +218,7 @@ TEST_F(PartialDownloadTests, DISABLED_measure_average_fetch_times)
             FetchCallback callback(std::move(notifier));
 
             // Try and create a partial download for our test file.
-            auto download = mClient->partialDownload(callback, *handle, 0, size);
+            auto download = mClient->partialDownload(callback, *handle, size, 0);
 
             // Make sure we could create a partial download.
             ASSERT_EQ(download.errorOr(API_OK), API_OK);
@@ -262,7 +262,7 @@ TEST_F(PartialDownloadTests, cancel_completed_fails)
     PartialDownloadCallback callback;
 
     // Create a download.
-    auto download = mClient->partialDownload(callback, mFileHandle, 0, 1_KiB);
+    auto download = mClient->partialDownload(callback, mFileHandle, 1_KiB, 0);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
     // Begin the download.
@@ -280,7 +280,7 @@ TEST_F(PartialDownloadTests, cancel_on_download_destruction_succeeds)
     PartialDownloadCallback callback;
 
     // Create a download.
-    auto download = mClient->partialDownload(callback, mFileHandle, 0, 1_MiB);
+    auto download = mClient->partialDownload(callback, mFileHandle, 1_MiB, 0);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
     // Make sure the download isn't completed before we can cancel it.
@@ -301,7 +301,7 @@ TEST_F(PartialDownloadTests, cancel_during_data_succeeds)
     PartialDownloadCallback callback;
 
     // Create a download.
-    auto download = mClient->partialDownload(callback, mFileHandle, 0, 1_MiB);
+    auto download = mClient->partialDownload(callback, mFileHandle, 1_MiB, 0);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
     // Specify which download our callback is associated with.
@@ -326,7 +326,7 @@ TEST_F(PartialDownloadTests, cancel_on_logout_succeeds)
     PartialDownloadCallback callback;
 
     // Create a download.
-    auto download = client->partialDownload(callback, mFileHandle, 0, 1_MiB);
+    auto download = client->partialDownload(callback, mFileHandle, 1_MiB, 0);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
     // Make sure the download isn't completed before we can cancel it.
@@ -353,7 +353,7 @@ TEST_F(PartialDownloadTests, cancel_succeeds)
     PartialDownloadCallback callback;
 
     // Try and create a download for us to cancel.
-    auto download = mClient->partialDownload(callback, mFileHandle, 0, 1_MiB);
+    auto download = mClient->partialDownload(callback, mFileHandle, 1_MiB, 0);
     ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
     // Downloads are cancellable until they've been completed.
@@ -383,8 +383,38 @@ TEST_F(PartialDownloadTests, download_directory_fails)
     PartialDownloadCallback callback;
 
     // You shouldn't be able to download a directory.
-    auto download = mClient->partialDownload(callback, "/y", 0, 1_MiB);
+    auto download = mClient->partialDownload(callback, "/y", 1_MiB, 0);
     ASSERT_EQ(download.errorOr(API_OK), API_FUSE_EISDIR);
+}
+
+TEST_F(PartialDownloadTests, download_public_file_succeeds)
+{
+    // Try and get a public link for our file.
+    auto link = mClient->getPublicLink(mFileHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // Create a new client with which to download the file.
+    auto client = CreateClient("partial_" + randomName());
+
+    // Try and log the client in.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Processes download events.
+    PartialDownloadCallback callback;
+
+    // Try and create a new partial download.
+    auto download = client->partialDownload(callback, *link, mFileContent.size(), 0);
+    ASSERT_EQ(download.errorOr(API_OK), API_OK);
+
+    // Try and download the file's content.
+    (*download)->begin();
+
+    // Wait for the download to complete.
+    ASSERT_EQ(callback.result(), API_OK);
+
+    // Make sure the content is what we expect it to be.
+    ASSERT_EQ(mFileContent.size(), callback.content().size());
+    ASSERT_FALSE(mFileContent.compare(callback.content()));
 }
 
 TEST_F(PartialDownloadTests, download_succeeds)
@@ -398,7 +428,7 @@ TEST_F(PartialDownloadTests, download_succeeds)
         PartialDownloadCallback callback;
 
         // Try and create a new partial download.
-        auto download = mClient->partialDownload(callback, mFileHandle, begin, end - begin);
+        auto download = mClient->partialDownload(callback, mFileHandle, end - begin, begin);
         ASSERT_EQ(download.errorOr(API_OK), API_OK);
 
         // Try and download some content from our test file.

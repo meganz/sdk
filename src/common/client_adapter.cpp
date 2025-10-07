@@ -7,12 +7,14 @@
 #include <mega/common/node_event_queue.h>
 #include <mega/common/node_event_type.h>
 #include <mega/common/node_info.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/normalized_path.h>
 #include <mega/common/partial_download.h>
 #include <mega/common/partial_download_callback.h>
 #include <mega/common/status_flag.h>
 #include <mega/common/upload.h>
 #include <mega/common/utility.h>
+#include <mega/crypto/cryptopp.h>
 #include <mega/file.h>
 #include <mega/megaapp.h>
 #include <mega/megaclient.h>
@@ -165,6 +167,9 @@ class ClientPartialDownload:
     // The file that we're downloading.
     const NodeHandle mHandle;
 
+    // The file's decryption key, IV and authentication tokens.
+    NodeKeyData mKeyData;
+
     // At what location in the file should we start downloading?
     std::uint64_t mOffset;
 
@@ -178,8 +183,9 @@ public:
     ClientPartialDownload(PartialDownloadCallback& callback,
                           ClientAdapter& client,
                           NodeHandle handle,
-                          std::uint64_t offset,
-                          std::uint64_t length);
+                          const NodeKeyData& keyData,
+                          std::uint64_t length,
+                          std::uint64_t offset);
 
     ~ClientPartialDownload();
 
@@ -757,6 +763,59 @@ ErrorOr<bool> ClientAdapter::isFile(NodeHandle handle) const
     return node->type == FILENODE;
 }
 
+ErrorOr<NodeKeyData> ClientAdapter::keyData(NodeHandle handle, bool authorize) const
+{
+    // Make sure deinitialize(...) waits for this call to complete.
+    auto activity = mActivities.begin();
+
+    // Client's being torn down.
+    if (mDeinitialized)
+        return unexpected(LOCAL_LOGGED_OUT);
+
+    // Acquire RNT lock.
+    std::lock_guard guard(mClient.nodeTreeMutex);
+
+    // Try and locate the specified node.
+    auto node = mClient.nodeByHandle(handle);
+
+    // Couldn't locate the specified node.
+    if (!node)
+        return unexpected(API_ENOENT);
+
+    // Node's decryption key isn't available.
+    if (!node->keyApplied())
+        return unexpected(API_EKEY);
+
+    // Instantiate and populate node key data.
+    NodeKeyData keyData;
+
+    keyData.mKeyAndIV = node->nodekey();
+    keyData.mIsPublic = false;
+
+    // Caller doesn't want to authorize the node.
+    if (!authorize)
+        return keyData;
+
+    // Node's a file.
+    if (node->type == FILENODE)
+    {
+        // Private authentication token is the master key.
+        keyData.mPrivateAuth = Base64::btoa(mClient.sid);
+
+        // Return the node's key data to our caller.
+        return keyData;
+    }
+
+    // Public authentication token is the account's root handle.
+    auto rootHandle = mClient.mNodeManager.getRootNodeFiles();
+
+    // Encoded as Base64.
+    keyData.mPublicAuth = Base64Str(&rootHandle);
+
+    // Return the node's key data to our caller.
+    return keyData;
+}
+
 void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
                                   const std::string& name,
                                   NodeHandle parent)
@@ -897,25 +956,72 @@ ErrorOr<NodeHandle> ClientAdapter::parentHandle(NodeHandle handle) const
 
 auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
                                     NodeHandle handle,
-                                    std::uint64_t offset,
-                                    std::uint64_t length) -> ErrorOr<PartialDownloadPtr>
+                                    std::uint64_t length,
+                                    std::uint64_t offset) -> ErrorOr<PartialDownloadPtr>
 {
-    // Check if the specified node exists and denotes a file.
-    auto isFile = this->isFile(handle);
+    // Make sure deinitialize(...) waits for this call to complete.
+    auto activity = mActivities.begin();
 
-    // Node exists.
-    if (isFile)
-    {
-        // And it denotes a file.
-        if (*isFile)
-            return std::make_shared<ClientPartialDownload>(callback, *this, handle, offset, length);
+    // Client's being torn down.
+    if (mDeinitialized)
+        return unexpected(LOCAL_LOGGED_OUT);
 
-        // Node isn't a file.
+    // Acquire RNT lock.
+    std::lock_guard guard(mClient.nodeTreeMutex);
+
+    // Try and locate the specified node.
+    auto node = mClient.nodeByHandle(handle);
+
+    // Couldn't locate the specified node.
+    if (!node)
+        return unexpected(API_ENOENT);
+
+    // Node isn't a file.
+    if (node->type != FILENODE)
         return unexpected(API_FUSE_EISDIR);
-    }
 
-    // Node doesn't exist or isn't accessible.
-    return unexpected(isFile.error());
+    // Node's decryption key isn't available.
+    if (!node->keyApplied())
+        return unexpected(API_EKEY);
+
+    // Instantiate and populate node key data.
+    NodeKeyData keyData;
+
+    keyData.mKeyAndIV = node->nodekey();
+    keyData.mIsPublic = false;
+
+    // Convenience.
+    auto size = static_cast<std::uint64_t>(node->size);
+
+    // Sanitize length and offset.
+    offset = std::min(offset, size);
+    length = std::min(length, size - offset);
+
+    // Return partial download to our caller.
+    return partialDownload(callback, handle, keyData, length, offset);
+}
+
+auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
+                                    NodeHandle handle,
+                                    const NodeKeyData& keyData,
+                                    std::uint64_t length,
+                                    std::uint64_t offset) -> ErrorOr<PartialDownloadPtr>
+{
+    // No handle? No download.
+    if (handle.isUndef())
+        return unexpected(API_EARGS);
+
+    // Caller's passed us a bogus key.
+    if (keyData.mKeyAndIV.size() != FILENODEKEYLENGTH)
+        return unexpected(API_EKEY);
+
+    // Return explicit partial download to caller.
+    return std::make_shared<ClientPartialDownload>(callback,
+                                                   *this,
+                                                   handle,
+                                                   keyData,
+                                                   length,
+                                                   offset);
 }
 
 ErrorOr<accesslevel_t> ClientAdapter::permissions(NodeHandle handle) const
@@ -1628,13 +1734,15 @@ void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
 ClientPartialDownload::ClientPartialDownload(PartialDownloadCallback& callback,
                                              ClientAdapter& client,
                                              NodeHandle handle,
-                                             std::uint64_t offset,
-                                             std::uint64_t length):
+                                             const NodeKeyData& keyData,
+                                             std::uint64_t length,
+                                             std::uint64_t offset):
     PartialDownload(),
     enable_shared_from_this(),
     mCallback(callback),
     mClient(client),
     mHandle(handle),
+    mKeyData(keyData),
     mOffset(offset),
     mRemaining(length),
     mStatus{SF_CANCELLABLE}
@@ -1674,31 +1782,36 @@ void ClientPartialDownload::begin()
             if (cancelled())
                 return completed(API_EINCOMPLETE);
 
-            // Get our hands on the node we want to download.
-            auto node = mClient.client().nodeByHandle(mHandle);
-
-            // Node doesn't exist.
-            if (!node)
-                return completed(API_ENOENT);
-
-            // Convenience.
-            auto size = static_cast<std::uint64_t>(node->size);
-
-            // Sanitize the user's offset and length.
-            mOffset = std::min(mOffset, size);
-            mRemaining = std::min(mRemaining, size - mOffset);
-
             // Sanitized length is zero so complete the download early.
             if (!mRemaining)
                 return completed(API_OK);
 
+            // Convenience.
+            auto& keyAndIV = mKeyData.mKeyAndIV;
+
+            // Sanity.
+            assert(keyAndIV.size() == FILENODEKEYLENGTH);
+
+            // Populate cipher.
+            SymmCipher cipher;
+
+            cipher.setkey(&keyAndIV);
+
+            // Latch IV for convenience.
+            auto iv = MemAccess::get<std::int64_t>(&keyAndIV[SymmCipher::KEYLENGTH]);
+
             // Begin the download.
-            mClient.client().pread(node.get(),
-                                   static_cast<m_off_t>(mOffset),
-                                   static_cast<m_off_t>(mRemaining),
-                                   std::bind(&ClientPartialDownload::notify,
-                                             std::move(cookie),
-                                             std::placeholders::_1));
+            mClient.client().pread(
+                mHandle.as8byte(),
+                &cipher,
+                iv,
+                static_cast<std::int64_t>(mOffset),
+                static_cast<std::int64_t>(mRemaining),
+                std::bind(&ClientPartialDownload::notify, std::move(cookie), std::placeholders::_1),
+                !mKeyData.mIsPublic,
+                toCharPointer(mKeyData.mPrivateAuth),
+                toCharPointer(mKeyData.mPublicAuth),
+                toCharPointer(mKeyData.mChatAuth));
         });
 }
 

@@ -94,12 +94,12 @@ auto Parameter::null() -> Parameter&
                     sqlite3_errmsg(mQuery.database()));
 }
 
-auto Parameter::string(const char* value) -> Parameter&
+auto Parameter::string(const char* data, std::size_t length) -> Parameter&
 {
     auto result = sqlite3_bind_text(mQuery.mStatement,
                                     mIndex,
-                                    value,
-                                    -1,
+                                    data,
+                                    static_cast<int>(length),
                                     SQLITE_TRANSIENT);
 
     if (result == SQLITE_OK)

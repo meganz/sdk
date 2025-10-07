@@ -17104,60 +17104,73 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 }
 
 // request direct read by node pointer
-void MegaClient::pread(Node* n, m_off_t offset, m_off_t count, DirectRead::Callback&& callback)
+void MegaClient::pread(Node* node, m_off_t offset, m_off_t count, DirectRead::Callback&& callback)
 {
-    queueread(n->nodehandle,
+    queueread(node->nodehandle,
               true,
-              n->nodecipher(),
-              MemAccess::get<int64_t>((const char*)n->nodekey().data() + SymmCipher::KEYLENGTH),
+              node->nodecipher(),
+              MemAccess::get<int64_t>((const char*)node->nodekey().data() + SymmCipher::KEYLENGTH),
               offset,
               count,
               std::move(callback));
 }
 
-void MegaClient::pread(handle ph,
-                       SymmCipher* cypher,
-                       int64_t ctriv,
+void MegaClient::pread(handle handle,
+                       SymmCipher* cipher,
+                       int64_t iv,
                        m_off_t offset,
                        m_off_t count,
                        DirectRead::Callback&& callback,
-                       bool isforeign,
-                       const char* privauth,
-                       const char* pubauth,
-                       const char* cauth)
+                       bool isPrivate,
+                       const char* privateAuth,
+                       const char* publicAuth,
+                       const char* chatAuth)
 {
-    queueread(ph,
-              isforeign,
-              cypher,
-              ctriv,
+    queueread(handle,
+              isPrivate,
+              cipher,
+              iv,
               offset,
               count,
               std::move(callback),
-              privauth,
-              pubauth,
-              cauth);
+              privateAuth,
+              publicAuth,
+              chatAuth);
 }
 
-void MegaClient::pread(Node* n, m_off_t offset, m_off_t count, void* appdata)
+void MegaClient::pread(Node* node, m_off_t offset, m_off_t count, void* appData)
 {
-    queueread(n->nodehandle, true, n->nodecipher(),
-              MemAccess::get<int64_t>((const char*)n->nodekey().data() + SymmCipher::KEYLENGTH),
-              offset, count, appdata);
+    queueread(node->nodehandle,
+              true,
+              node->nodecipher(),
+              MemAccess::get<int64_t>((const char*)node->nodekey().data() + SymmCipher::KEYLENGTH),
+              offset,
+              count,
+              appData);
 }
 
 // request direct read by exported handle / key
-void MegaClient::pread(handle ph,
-                       SymmCipher* cypher,
-                       int64_t ctriv,
+void MegaClient::pread(handle handle,
+                       SymmCipher* cipher,
+                       int64_t iv,
                        m_off_t offset,
                        m_off_t count,
-                       void* appdata,
-                       bool isforeign,
-                       const char* privauth,
-                       const char* pubauth,
-                       const char* cauth)
+                       void* appData,
+                       bool isPrivate,
+                       const char* privateAuth,
+                       const char* publicAuth,
+                       const char* chatAuth)
 {
-    queueread(ph, isforeign, cypher, ctriv, offset, count, appdata, privauth, pubauth, cauth);
+    queueread(handle,
+              isPrivate,
+              cipher,
+              iv,
+              offset,
+              count,
+              appData,
+              privateAuth,
+              publicAuth,
+              chatAuth);
 }
 
 // since only the first six bytes of a handle are in use, we use the seventh to encode its type
@@ -17174,19 +17187,19 @@ bool MegaClient::isprivatehandle(handle* hp)
     return ((char*)hp)[NODEHANDLE] != 0;
 }
 
-void MegaClient::queueread(handle h,
-                           bool p,
-                           SymmCipher* cypher,
-                           int64_t ctriv,
+void MegaClient::queueread(handle handle,
+                           bool isPrivate,
+                           SymmCipher* cipher,
+                           int64_t iv,
                            m_off_t offset,
                            m_off_t count,
-                           void* appdata,
-                           const char* privauth,
-                           const char* pubauth,
-                           const char* cauth)
+                           void* appData,
+                           const char* privateAuth,
+                           const char* publicAuth,
+                           const char* chatAuth)
 {
-    assert(appdata);
-    auto callback = [this, appdata](DirectRead::CallbackParam& param) mutable
+    assert(appData);
+    auto callback = [this, appData](DirectRead::CallbackParam& param) mutable
     {
         std::visit(overloaded{[&](DirectRead::Data& data)
                               {
@@ -17195,60 +17208,74 @@ void MegaClient::queueread(handle h,
                                                              data.offset,
                                                              data.speed,
                                                              data.meanSpeed,
-                                                             appdata);
+                                                             appData);
                               },
                               [&](DirectRead::Failure& failure)
                               {
                                   failure.ret = app->pread_failure(failure.e,
                                                                    failure.retry,
-                                                                   appdata,
+                                                                   appData,
                                                                    failure.timeLeft);
                               },
                               [&](DirectRead::Revoke& revoke)
                               {
-                                  if (appdata == revoke.appdata)
+                                  if (appData == revoke.appdata)
                                   {
-                                      appdata = nullptr;
+                                      appData = nullptr;
                                       revoke.ret = true;
                                   }
                               },
                               [&](DirectRead::IsValid& isValid)
                               {
-                                  isValid.ret = appdata != nullptr;
+                                  isValid.ret = appData != nullptr;
                               }},
                    param);
     };
 
-    queueread(h, p, cypher, ctriv, offset, count, std::move(callback), privauth, pubauth, cauth);
+    queueread(handle,
+              isPrivate,
+              cipher,
+              iv,
+              offset,
+              count,
+              std::move(callback),
+              privateAuth,
+              publicAuth,
+              chatAuth);
 }
 
-void MegaClient::queueread(handle h,
-                           bool p,
-                           SymmCipher* cypher,
-                           int64_t ctriv,
+void MegaClient::queueread(handle handle,
+                           bool isPrivate,
+                           SymmCipher* cipher,
+                           int64_t iv,
                            m_off_t offset,
                            m_off_t count,
                            DirectRead::Callback&& callback,
-                           const char* privauth,
-                           const char* pubauth,
-                           const char* cauth)
+                           const char* privateAuth,
+                           const char* publicAuth,
+                           const char* chatAuth)
 {
     assert(callback);
 
     handledrn_map::iterator it;
 
-    encodehandletype(&h, p);
+    encodehandletype(&handle, isPrivate);
 
-    it = hdrns.find(h);
+    it = hdrns.find(handle);
 
     if (it == hdrns.end())
     {
         // this handle is not being accessed yet: insert
-        it = hdrns.insert(
-            hdrns.end(),
-            pair<handle, DirectReadNode*>(
-                h,
-                new DirectReadNode(this, h, p, cypher, ctriv, privauth, pubauth, cauth)));
+        it = hdrns.insert(hdrns.end(),
+                          std::make_pair(handle,
+                                         new DirectReadNode(this,
+                                                            handle,
+                                                            isPrivate,
+                                                            cipher,
+                                                            iv,
+                                                            privateAuth,
+                                                            publicAuth,
+                                                            chatAuth)));
         it->second->hdrn_it = it;
         auto directRead = it->second->enqueue(offset, count, reqtag, std::move(callback));
 
@@ -17290,23 +17317,23 @@ void MegaClient::removeAppData(void* t)
 }
 
 // cancel direct read by node pointer / count / count
-void MegaClient::preadabort(Node* n, m_off_t offset, m_off_t count)
+void MegaClient::preadabort(Node* node, m_off_t offset, m_off_t count)
 {
-    abortreads(n->nodehandle, true, offset, count);
+    abortreads(node->nodehandle, true, offset, count);
 }
 
 // cancel direct read by exported handle / offset / count
-void MegaClient::preadabort(handle ph, m_off_t offset, m_off_t count)
+void MegaClient::preadabort(handle handle, m_off_t offset, m_off_t count)
 {
-    abortreads(ph, false, offset, count);
+    abortreads(handle, false, offset, count);
 }
 
-void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
+void MegaClient::abortreads(handle handle, bool isPrivate, m_off_t offset, m_off_t count)
 {
-    encodehandletype(&h, p);
+    encodehandletype(&handle, isPrivate);
 
     // Try and find the direct read node associated with our handle.
-    auto i = hdrns.find(h);
+    auto i = hdrns.find(handle);
 
     // No node assocated with this handle.
     if (i == hdrns.end())

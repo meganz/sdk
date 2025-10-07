@@ -6,6 +6,7 @@
 #include <mega/common/logger_forward.h>
 #include <mega/common/node_event_observer_forward.h>
 #include <mega/common/node_info_forward.h>
+#include <mega/common/node_key_data_forward.h>
 #include <mega/common/normalized_path_forward.h>
 #include <mega/common/partial_download_callback_forward.h>
 #include <mega/common/partial_download_forward.h>
@@ -16,6 +17,7 @@
 
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <tuple>
@@ -108,6 +110,9 @@ public:
     // Check whether a node is a file.
     virtual ErrorOr<bool> isFile(NodeHandle handle) const = 0;
 
+    // Retrieve the specified node's key data.
+    virtual ErrorOr<NodeKeyData> keyData(NodeHandle handle, bool authorize) const = 0;
+
     // What logger is this client using?
     Logger& logger() const;
 
@@ -151,11 +156,18 @@ public:
     // Query who a node's parent is.
     virtual ErrorOr<NodeHandle> parentHandle(NodeHandle handle) const = 0;
 
-    // Download part of a file from the cloud.
+    // Download part of a local file from the cloud.
     virtual auto partialDownload(PartialDownloadCallback& callback,
                                  NodeHandle handle,
-                                 std::uint64_t offset,
-                                 std::uint64_t length) -> ErrorOr<PartialDownloadPtr> = 0;
+                                 std::uint64_t length,
+                                 std::uint64_t offset) -> ErrorOr<PartialDownloadPtr> = 0;
+
+    // Download part of a foreign file from the cloud.
+    virtual auto partialDownload(PartialDownloadCallback& callback,
+                                 NodeHandle handle,
+                                 const NodeKeyData& keyData,
+                                 std::uint64_t length,
+                                 std::uint64_t offset) -> ErrorOr<PartialDownloadPtr> = 0;
 
     // What permissions are applicable to a node?
     virtual ErrorOr<accesslevel_t> permissions(NodeHandle handle) const = 0;

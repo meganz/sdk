@@ -3,7 +3,9 @@
 #include <mega/common/activity_monitor.h>
 #include <mega/common/client_forward.h>
 #include <mega/common/database.h>
+#include <mega/common/instance_logger.h>
 #include <mega/common/node_event_observer.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/shared_mutex.h>
 #include <mega/common/task_executor.h>
 #include <mega/common/task_queue.h>
@@ -44,14 +46,8 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     // Processes client node events.
     class EventProcessor;
 
-    // Returned from info(From(Database|Index)).
-    using InfoContextResult = FileServiceResultOr<std::pair<FileInfoContextPtr, FileAccessPtr>>;
-
-    // Returned from openFrom(Cloud|Database|Index).
+    // Returned from fileContextFrom(Cloud|Database|Index).
     using FileContextResult = FileServiceResultOr<FileContextPtr>;
-
-    // Returned from rangesFrom(Database|Index).
-    using RangesResult = FileServiceResultOr<std::optional<FileRangeVector>>;
 
     // Tracks state necessary for reclaim.
     class ReclaimContext;
@@ -65,23 +61,29 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     template<typename Lock>
     void deallocateID(FileID id, Lock&& lock, common::Transaction& transaction);
 
+    auto fileContextFromCloud(FileID id) -> FileContextResult;
+
+    auto fileContextFromDatabase(FileID id) -> FileContextResult;
+
+    template<typename Lock>
+    auto fileContextFromIndex(FileID id, Lock&& lock) -> FileContextResult;
+
     template<typename Lock, typename T>
     auto getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
         -> std::shared_ptr<T>;
 
-    auto infoFromDatabase(FileID id, bool open) -> InfoContextResult;
+    auto infoContextFromDatabase(FileID id) -> FileInfoContextPtr;
 
     template<typename Lock>
-    auto infoFromIndex(FileID id, Lock&& lock, bool open) -> InfoContextResult;
+    auto infoContextFromIndex(FileID id, Lock&& lock) -> FileInfoContextPtr;
 
-    auto info(FileID id, bool open) -> InfoContextResult;
+    auto infoContext(FileID id) -> FileServiceResultOr<FileInfoContextPtr>;
 
-    auto openFromCloud(FileID id) -> FileContextResult;
+    template<typename Transaction>
+    auto keyData(FileID id, Transaction&& transaction) -> std::optional<common::NodeKeyData>;
 
-    auto openFromDatabase(FileID id) -> FileContextResult;
-
-    template<typename Lock>
-    auto openFromIndex(FileID id, Lock&& lock) -> FileContextResult;
+    template<typename Transaction>
+    auto ranges(FileID id, Transaction&& transaction) -> FileRangeVector;
 
     void reclaimTaskCallback(common::Activity& activity,
                              std::chrono::steady_clock::time_point when,
@@ -110,6 +112,9 @@ class FileServiceContext: common::NodeEventObserver, public FileEventEmitter
     auto storageUsed(Lock&& lock, Transaction&& transaction) -> std::uint64_t;
 
     void updated(common::NodeEventQueue& events) override;
+
+    // Logs instance lifetime.
+    common::InstanceLogger<FileServiceContext> mInstanceLogger;
 
     common::Client& mClient;
 
@@ -170,6 +175,10 @@ public:
     FileServiceContext(common::Client& client, const FileServiceOptions& options);
 
     ~FileServiceContext();
+
+    // Add a foreign file to the service.
+    auto add(NodeHandle handle, const common::NodeKeyData& keyData, std::size_t size)
+        -> FileServiceResultOr<FileID>;
 
     // Retrieve a reference to this service's client.
     common::Client& client();

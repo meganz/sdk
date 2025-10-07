@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/common/instance_logger.h>
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_event_observer.h>
@@ -21,18 +22,22 @@ namespace file_service
 
 class File
 {
+    // Logs instance lifetime.
+    common::InstanceLogger<File> mInstanceLogger;
+
+    // What context is this instance wrapping?
     FileContextPtr mContext;
 
 public:
     File(FileServiceContextBadge badge, FileContextPtr context);
 
-    File(const File& other) = default;
+    File(const File& other);
 
     File(File&& other);
 
     ~File();
 
-    File& operator=(const File& rhs) = default;
+    File& operator=(const File& rhs);
 
     File& operator=(File&& rhs);
 
@@ -44,6 +49,9 @@ public:
 
     // Fetch all of this file's data from the cloud.
     void fetch(FileFetchCallback callback);
+
+    // Wait until all fetches in progress have completed.
+    void fetchBarrier(FileFetchBarrierCallback callback);
 
     // Flush this file's local modifications to the cloud.
     void flush(FileFlushCallback callback);

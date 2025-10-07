@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/common/node_key_data_forward.h>
 #include <mega/common/testing/client.h>
 #include <mega/common/testing/cloud_path_forward.h>
 #include <mega/common/testing/path_forward.h>
@@ -30,6 +31,9 @@ protected:
 
 public:
     virtual ~Client();
+
+    // Add a file referenced by a public link to the File Service.
+    auto fileAdd(const PublicLink& link) -> FileServiceResultOr<FileID>;
 
     // Create a new file that is to be managed by the File Service.
     auto fileCreate(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
