@@ -229,6 +229,7 @@ struct FindCloneNodeCandidatePredicate
                                                                        mUpload.getLocalname(),
                                                                        mUpload,
                                                                        &node,
+                                                                       true /*excludeMtime*/,
                                                                        false /*debugMode*/);
             compRes == NODE_COMP_EQUAL)
         {
@@ -255,19 +256,40 @@ struct FindCloneNodeCandidatePredicate
     }
 };
 
-Node* findCloneNodeCandidate(MegaClient& mc, const SyncUpload_inClient& upload)
+std::shared_ptr<Node> findCloneNodeCandidate(MegaClient& mc,
+                                             const SyncUpload_inClient& upload,
+                                             const bool excludeMtime)
 {
     FindCloneNodeCandidatePredicate predicate{
         mc,
         upload,
     };
-    const auto candidates{mc.mNodeManager.getNodesByFingerprint(upload)};
+    std::vector<std::shared_ptr<Node>> matches;
+    const auto candidates{mc.mNodeManager.getNodesByFingerprint(upload, excludeMtime)};
 
-    if (const auto it = std::find_if(begin(candidates), end(candidates), predicate);
-        (it != std::end(candidates) && !predicate.mFoundCandidateHasZeroKey))
-        return it->get();
+    std::copy_if(candidates.begin(),
+                 candidates.end(),
+                 std::back_inserter(matches),
+                 [&](const auto& nodePtr)
+                 {
+                     return predicate(nodePtr) && !predicate.mFoundCandidateHasZeroKey;
+                 });
 
-    return nullptr;
+    if (matches.empty())
+        return nullptr;
+
+    // All nodes in `matches` vector have the same fingerprint and META_MAC than upload node
+    std::shared_ptr<Node> candidateNode = matches.at(0);
+    for (auto& n: matches)
+    {
+        // Break if we find a candidate in `matches` vector with same name and target node
+        if (n->displayname() == upload.name && n->parenthandle == upload.h.as8byte())
+        {
+            candidateNode = n;
+            break;
+        }
+    }
+    return candidateNode;
 }
 
 /****************\
@@ -284,27 +306,78 @@ void clientUpload(MegaClient& mc,
     assert(!upload->wasStarted);
     upload->wasStarted = true;
 
-    // If we found a node to clone with a valid key, call putNodesToCloneNode.
-    if (auto cloneNode = findCloneNodeCandidate(mc, *upload); cloneNode)
+    auto cloneNodeCandidate = findCloneNodeCandidate(mc, *upload, true /*excludeMtime*/);
+    if (!cloneNodeCandidate)
     {
-        const auto displayPath = cloneNode->displaypath();
-        LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for "
-                  << upload->sourceLocalname << " (ovHandleIfShortcut: "
-                  << Base64Str<MegaClient::NODEHANDLE>(ovHandleIfShortcut.as8byte()) << ")"
-                  << " found cloneNode (handle): "
-                  << Base64Str<MegaClient::NODEHANDLE>(cloneNode->nodeHandle().as8byte()) << ")";
-
-        // completion function is supplied to putNodes command
-        upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNode);
-        upload->putnodesStarted = true;
-        upload->wasCompleted = true;
+        // Otherwise, proceed with the normal upload.
+        upload->tag = mc.nextreqtag();
+        upload->selfKeepAlive = upload;
+        mc.startxfer(PUT,
+                     upload.get(),
+                     committer,
+                     false,
+                     queueFirst,
+                     false,
+                     vo,
+                     nullptr,
+                     upload->tag);
         return;
     }
 
-    // Otherwise, proceed with the normal upload.
-    upload->tag = mc.nextreqtag();
-    upload->selfKeepAlive = upload;
-    mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo, nullptr, upload->tag);
+    if (auto isSameNode = cloneNodeCandidate->displayname() == upload->name &&
+                          cloneNodeCandidate->parenthandle == upload->h.as8byte();
+        isSameNode)
+    {
+        if (cloneNodeCandidate->mtime != upload->mtime)
+        {
+            auto attrCmdSentResult = upload->updateNodeMtime(
+                &mc,
+                cloneNodeCandidate,
+                upload->mtime,
+                [cloneNodeCandidate](NodeHandle h, Error e)
+                {
+                    if (cloneNodeCandidate->nodeHandle() != h)
+                    {
+                        LOG_err << "clientUpload (Update mTime): Unexpected Node Handle ("
+                                << toNodeHandle(cloneNodeCandidate->nodehandle) << "). Expected ("
+                                << toNodeHandle(h) << ")";
+                        assert(false && "clientUpload (Update mTime): Unexpected Node Handle");
+                    }
+
+                    if (e != API_OK)
+                    {
+                        LOG_err << "clientUpload (Update mTime): Unexpected result ("
+                                << toNodeHandle(cloneNodeCandidate->nodehandle) << ")";
+                    }
+                });
+
+            if (attrCmdSentResult != API_OK)
+            {
+                LOG_err << "clientUpload (Update mTime): command could not be sent to API: Err ("
+                        << attrCmdSentResult << ")";
+            }
+            return;
+        }
+
+        // Fallback to cloning node
+        // This should not happen as candidate node has same name META_MAC and FP (including mtime)
+        // than upload node It means that node has not changed but it has been detected as changed
+        LOG_err << "fsNode has not changed respect cloudNode but is was detected as changed by "
+                   "sync engine: "
+                << toNodeHandle(cloneNodeCandidate->nodehandle);
+        assert(false && "fsNode has not changed respect cloudNode");
+    }
+
+    // We have found a candidate node to clone with a valid key, call putNodesToCloneNode.
+    const auto displayPath = cloneNodeCandidate->displaypath();
+    LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for "
+              << upload->sourceLocalname;
+
+    // completion function is supplied to putNodes command
+    upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNodeCandidate.get());
+    upload->putnodesStarted = true;
+    upload->wasCompleted = true;
+    return;
 }
 
 } // namespace mega

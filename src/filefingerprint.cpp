@@ -72,6 +72,21 @@ bool FileFingerprint::EqualExceptValidFlag(const FileFingerprint& rhs) const
 
 bool FileFingerprint::equalExceptMtime(const FileFingerprint& rhs) const
 {
+    if (this->size != rhs.size)
+    {
+        return false;
+    }
+
+    if (!this->isvalid || !rhs.isvalid)
+    {
+        return false;
+    }
+
+    return !memcmp(this->crc.data(), rhs.crc.data(), sizeof this->crc);
+}
+
+bool FileFingerprint::equalExceptMtimeAndIsValid(const FileFingerprint& rhs) const
+{
     return (memcmp(this->crc.data(), rhs.crc.data(), sizeof rhs.crc) == 0 &&
             this->size == rhs.size);
 }
@@ -80,6 +95,15 @@ bool FileFingerprint::serialize(string *d) const
 {
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)&mtime, sizeof(mtime));
+    d->append((const char*)crc.data(), sizeof(crc));
+    d->append((const char*)&isvalid, sizeof(isvalid));
+
+    return true;
+}
+
+bool FileFingerprint::serializeExcludingMtime(string* d) const
+{
+    d->append((const char*)&size, sizeof(size));
     d->append((const char*)crc.data(), sizeof(crc));
     d->append((const char*)&isvalid, sizeof(isvalid));
 

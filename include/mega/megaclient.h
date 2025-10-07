@@ -933,6 +933,17 @@ public:
                               const AttrMap& attrs,
                               const bool resetSensitive,
                               const bool isPublic);
+    /**
+     * @brief Updates the modification time (mtime) of a node.
+     * @param node Shared pointer to the Node to be modified
+     * @param newMtime The new modification time
+     * @param completion A callback function that will be invoked when the operation completes
+     * @return `true` if the command was successfully sent to the API, `false` if an error occurred
+     * before the command could be sent.
+     */
+    error updateNodeMtime(std::shared_ptr<Node> node,
+                          const m_time_t newMtime,
+                          std::function<void(NodeHandle, Error)>&& completion);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)

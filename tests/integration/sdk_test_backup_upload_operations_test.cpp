@@ -166,6 +166,9 @@ private:
     std::shared_ptr<std::promise<void>> mSyncUpToDatePms;
     std::unique_ptr<std::future<void>> mSyncFut;
     bool mCleanupFunctionSet{false};
+
+public:
+    std::unique_ptr<FSACCESS_CLASS> mFsAccess;
 }; // class SdkTestBackupUploadsOperations
 
 std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
@@ -238,6 +241,7 @@ void SdkTestBackupUploadsOperations::confirmModels() const
 void SdkTestBackupUploadsOperations::SetUp()
 {
     SdkTestBackup::SetUp();
+    mFsAccess = std::make_unique<FSACCESS_CLASS>();
     ASSERT_NO_FATAL_FAILURE(createBackupSync());
     ASSERT_NO_FATAL_FAILURE(createArchiveDestinationFolder());
     const std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByBackupId(getBackupId())};
@@ -415,8 +419,8 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
 
     // Set TransferListener expectations
     testing::Mock::VerifyAndClearExpectations(mMtl.get());
-    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(3);
-    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(3);
+    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
+    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
 
     constexpr unsigned numFiles{3};
     auto localBasePath{fs::absolute(getLocalFolderPath())};
@@ -463,6 +467,76 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
     LOG_debug << logPre << "#### TC10 ensure local and cloud drive models match ####";
     ASSERT_NO_FATAL_FAILURE(confirmModels());
 
+    LOG_verbose << logPre << "#### Test finished ####";
+}
+
+TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
+{
+    static const auto logPre{getLogPrefix()};
+    LOG_verbose << logPre << "#### Test body started ####";
+    // Add cleanup function to unregister listeners as soon as test fail/finish
+    const auto cleanup = setCleanupFunction();
+
+    // Set expectation for number of expected calls to MockTransferListener callbacks
+    testing::Mock::VerifyAndClearExpectations(mMtl.get());
+    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
+    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
+
+    // Reset MockSyncListener related promise/future
+    resetOnSyncStatsUpdated();
+
+    auto localBasePath{fs::absolute(getLocalFolderPath())};
+    LOG_debug << logPre << "#### TC1 Creating local file `file1` in Backup dir ####";
+    auto [res1, localFile1] = createLocalFileAndWaitForSync(localBasePath / "filewxyz",
+                                                            "abcde",
+                                                            fs::file_time_type::clock::now());
+    ASSERT_TRUE(res1) << "Cannot create local file `file1`";
+
+    LOG_debug << "#### TC2 wait until all files (in Backup folder) have been synced  ####";
+    ASSERT_TRUE(waitForBackupSyncUpToDate());
+
+    LOG_debug << logPre
+              << "#### TC3 Wait 5 seconds (skip tolerance checkups) and modify mtime  ####";
+    resetOnSyncStatsUpdated();
+
+    std::unique_ptr<MegaSync> backupSync(megaApi[0]->getSyncByBackupId(getBackupId()));
+    ASSERT_TRUE(backupSync) << "Cannot get backup sync";
+    std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(backupSync->getMegaHandle()));
+    ASSERT_TRUE(backupNode) << "Cannot get backup sync";
+    std::unique_ptr<MegaNode> fileNode(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), "filewxyz", FILENODE));
+    ASSERT_TRUE(fileNode) << "Cannot get file node";
+
+    bool mTimeChangeRecv{false};
+    mApi[0].mOnNodesUpdateCompletion =
+        [&mTimeChangeRecv,
+         oldMtime = fileNode->getModificationTime(),
+         targetNodeHandle = fileNode->getHandle()](size_t, MegaNodeList* nodes)
+    {
+        ASSERT_TRUE(nodes) << "Invalid meganode list received";
+        for (int i = 0; i < nodes->size(); ++i)
+        {
+            MegaNode* n = nodes->get(i);
+            if (n && n->getHandle() == targetNodeHandle &&
+                n->hasChanged(static_cast<uint64_t>(MegaNode::CHANGE_TYPE_ATTRIBUTES)) &&
+                oldMtime != n->getModificationTime())
+            {
+                mTimeChangeRecv = true;
+            }
+        }
+    };
+
+    LOG_debug << logPre << "#### TC3.1 Before touch file ####";
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(localBasePath / "filewxyz"),
+                             m_time(nullptr));
+    LOG_debug << logPre << "#### TC3.2 After touch file ####";
+    ASSERT_TRUE(waitForResponse(&mTimeChangeRecv))
+        << "No Mtime change recieved after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs(); // important to reset
+
+    LOG_debug << logPre << "#### TC4 Ensure local and cloud drive structures matches ####";
+    ASSERT_NO_FATAL_FAILURE(confirmModels());
     LOG_verbose << logPre << "#### Test finished ####";
 }
 #endif

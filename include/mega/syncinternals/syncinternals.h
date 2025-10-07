@@ -445,9 +445,11 @@ std::pair<bool, LocalNode*> findLocalNodeByFsid(const fsid_localnode_map& fsidLo
  *
  * @param mc Reference to the MegaClient managing the synchronization.
  * @param upload Const reference to the upload task being processed.
- * @return Pointer to a valid clone node if found, or nullptr otherwise.
+ * @return Shared pointer to a valid clone node if found, or nullptr otherwise.
  */
-Node* findCloneNodeCandidate(MegaClient& mc, const SyncUpload_inClient& upload);
+std::shared_ptr<Node> findCloneNodeCandidate(MegaClient& mc,
+                                             const SyncUpload_inClient& upload,
+                                             const bool excludeMtime);
 
 /****************\
 *  SYNC UPLOADS  *

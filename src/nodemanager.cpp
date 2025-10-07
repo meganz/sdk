@@ -800,16 +800,17 @@ sharedNode_vector NodeManager::getNodesWithLinks()
     return getNodesWithSharesOrLink_internal(ShareType_t::LINK);
 }
 
-sharedNode_vector NodeManager::getNodesByFingerprint(const FileFingerprint& fingerprint)
+sharedNode_vector NodeManager::getNodesByFingerprint(const FileFingerprint& fingerprint,
+                                                     const bool excludeMtime)
 {
     LockGuard g(mMutex);
-    return getNodesByFingerprint_internal(fingerprint);
+    return getNodesByFingerprint_internal(fingerprint, excludeMtime);
 }
 
-sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerprint& fingerprint)
+sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerprint& fingerprint,
+                                                              const bool excludeMtime)
 {
     assert(mMutex.owns_lock());
-
     sharedNode_vector nodes;
     if (!mTable || mNodes.empty())
     {
@@ -817,32 +818,44 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerpr
         return nodes;
     }
 
-    // Take first nodes in RAM
     std::set<NodeHandle> fpLoaded;
-    auto p = mFingerPrints.equal_range(&fingerprint);
-    for (auto it = p.first; it != p.second; ++it)
-    {
-        const auto node = static_cast<const Node*>(*it);
-        fpLoaded.emplace(node->nodeHandle());
-        std::shared_ptr<Node> sharedNode = node->mNodePosition->second.getNodeInRam();
-        assert(sharedNode && "Node loaded at fingerprint map should have a node in RAM ");
-        nodes.push_back(std::move(sharedNode));
-    }
-
-    // If all fingerprints are loaded at DB, it isn't necessary search in DB
-    if (mFingerPrints.allFingerprintsAreLoaded(&fingerprint))
-    {
-        return nodes;
-    }
-
-    // Look for nodes at DB
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     std::string fingerprintString;
-    fingerprint.FileFingerprint::serialize(&fingerprintString);
-    mTable->getNodesByFingerprint(fingerprintString, nodesFromTable);
+    if (!excludeMtime)
+    {
+        // TODO: Implement a mechanism to preserve the container of loaded fingerprints in RAM,
+        // while providing different methods to search elements in the container using different
+        // criteria (with or without mtime), and also preserving efficiency. Look for nodes at DB
+        fingerprint.FileFingerprint::serialize(&fingerprintString);
+        mTable->getNodesByFingerprint(fingerprintString, nodesFromTable);
+    }
+    else
+    {
+        // Take first nodes in RAM
+        auto p = mFingerPrints.equal_range(&fingerprint);
+        for (auto it = p.first; it != p.second; ++it)
+        {
+            const auto node = static_cast<const Node*>(*it);
+            fpLoaded.emplace(node->nodeHandle());
+            std::shared_ptr<Node> sharedNode = node->mNodePosition->second.getNodeInRam();
+            assert(sharedNode && "Node loaded at fingerprint map should have a node in RAM ");
+            nodes.push_back(std::move(sharedNode));
+        }
+
+        // If all fingerprints are loaded at DB, it isn't necessary search in DB
+        if (mFingerPrints.allFingerprintsAreLoaded(&fingerprint))
+        {
+            return nodes;
+        }
+
+        // Look for nodes at DB
+        fingerprint.FileFingerprint::serializeExcludingMtime(&fingerprintString);
+        mTable->getNodesByFingerprintExcludingMtime(fingerprintString, nodesFromTable);
+    }
+
     if (nodesFromTable.size())
     {
-        for (const auto& nodeIt : nodesFromTable)
+        for (const auto& nodeIt: nodesFromTable)
         {
             // avoid to load already loaded nodes (found at mFingerPrints)
             if (fpLoaded.find(nodeIt.first) == fpLoaded.end())
@@ -868,9 +881,7 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerpr
             }
         }
     }
-
     mFingerPrints.setAllFingerprintLoaded(&fingerprint);
-
     return nodes;
 }
 

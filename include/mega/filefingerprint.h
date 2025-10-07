@@ -65,6 +65,12 @@ struct MEGA_API FileFingerprint : public Cacheable
     // Includes size, CRC, mtime, and isvalid
     // Be wary that these must be used in pair; do not mix with serializefingerprint pair
     bool serialize(string* d) const override;
+
+    // Includes size, CRC, and isvalid (mtime is not included)
+    // This method can be used to serialize a file fingerprint without mtime, that could be used to
+    // find nodes with same content but only differs in mtime.
+    // Note: This method should not be used to serialize fingerprints that will be stored on Db
+    bool serializeExcludingMtime(string* d) const;
     static unique_ptr<FileFingerprint> unserialize(const char*& ptr, const char* end);
 
     // convenience function for clear comparisons etc, referring to (this) base class
@@ -74,6 +80,7 @@ struct MEGA_API FileFingerprint : public Cacheable
 
     bool EqualExceptValidFlag(const FileFingerprint& rhs) const;
     bool equalExceptMtime(const FileFingerprint& rhs) const;
+    bool equalExceptMtimeAndIsValid(const FileFingerprint& rhs) const;
 };
 
 // orders transfers by file fingerprints, ordered by size / mtime / sparse CRC

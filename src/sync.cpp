@@ -7710,7 +7710,7 @@ void SyncRow::reassignFingerprints()
     // different This means it has scanned but it is already synced Real value that it is obtained
     // from file system is stored at syncNode->realScannedFingerprint
     if (syncNode->syncedFingerprint.isvalid &&
-        syncNode->syncedFingerprint.equalExceptMtime(fsNode->fingerprint))
+        syncNode->syncedFingerprint.equalExceptMtimeAndIsValid(fsNode->fingerprint))
     {
         fsNode->fingerprint.mtime = syncNode->syncedFingerprint.mtime;
     }

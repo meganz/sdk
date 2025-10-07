@@ -2508,6 +2508,7 @@ std::pair<node_comparison_result, int64_t>
                                      const LocalPath& path,
                                      const FileFingerprint& fp,
                                      const Node* node,
+                                     const bool excludeMtime,
                                      bool debugMode)
 {
     if (!node)
@@ -2534,7 +2535,10 @@ std::pair<node_comparison_result, int64_t>
         return {NODE_COMP_EARGS, INVALID_META_MAC};
     }
 
-    if (fp != static_cast<const FileFingerprint&>(*node))
+    if (auto equalFp = excludeMtime ?
+                           fp.equalExceptMtime(static_cast<const FileFingerprint&>(*node)) :
+                           fp == static_cast<const FileFingerprint&>(*node);
+        !equalFp)
     {
         return {NODE_COMP_DIFFERS_FP, INVALID_META_MAC};
     }

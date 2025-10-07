@@ -11803,6 +11803,7 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
                                                                           localPath,
                                                                           localFileFp,
                                                                           node.get(),
+                                                                          false /*excludeMtime*/,
                                                                           true /*debugMode*/);
 
     std::string errMsg{"Node and file content comparisson: "};

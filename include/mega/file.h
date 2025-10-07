@@ -277,6 +277,11 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     FileNodeKey fileNodeKey;
     std::string fileAttr;
 
+    // update node mtime
+    bool updateNodeMtime(MegaClient* client,
+                         std::shared_ptr<Node> node,
+                         const m_time_t newMtime,
+                         std::function<void(NodeHandle, Error)>&& completion);
     void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
     void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);
 };

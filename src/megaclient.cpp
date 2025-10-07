@@ -9900,6 +9900,36 @@ void MegaClient::putnodes_prepareCopy(std::vector<NewNode>& nn,
     makeattr(&cipher, t->attrstring, attrstring.c_str());
 }
 
+error MegaClient::updateNodeMtime(std::shared_ptr<Node> node,
+                                  const m_time_t newMtime,
+                                  std::function<void(NodeHandle, Error)>&& completion)
+{
+    if (!node || node->mtime == newMtime || !completion)
+    {
+        LOG_err << "updateNodeMtime immediate error (EARGS)";
+        return API_EARGS;
+    }
+
+    // Compute the node's new fingerprint attribute.
+    auto attribute = ([&]() {
+        // Grab the node's current fingerprint.
+        auto fingerprint = node->fingerprint();
+
+        // Update the modification time.
+        fingerprint.mtime = newMtime;
+
+        std::string attribute;
+
+        // Serialize the fingerprint into an attribute.
+        fingerprint.serializefingerprint(&attribute);
+
+        // Return attribute to caller.
+        return attribute;
+    })();
+
+    return setattr(node, attr_map('c', std::move(attribute)), std::move(completion), true);
+}
+
 // send new nodes to API for processing
 void MegaClient::putnodes(NodeHandle h,
                           VersioningOption vo,

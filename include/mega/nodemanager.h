@@ -336,7 +336,13 @@ public:
                           const std::set<NodeHandle>& handles,
                           const std::string& pattern = {}) -> std::optional<std::set<std::string>>;
 
-    sharedNode_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
+    /**
+     * @brief Retrieves all nodes matching the specified file fingerprint.
+     * @param excludeMtime If true, ignores `mtime` when comparing fingerprints.
+     * @return A vector of shared pointers to matching `Node` objects.
+     */
+    sharedNode_vector getNodesByFingerprint(const FileFingerprint& fingerprint,
+                                            const bool excludeMtime = false);
     sharedNode_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
     std::shared_ptr<Node> getNodeByFingerprint(FileFingerprint &fingerprint);
 
@@ -638,7 +644,8 @@ private:
                                          CancelToken cancelToken = CancelToken(),
                                          bool includeVersions = false);
 
-    sharedNode_vector getNodesByFingerprint_internal(const FileFingerprint& fingerprint);
+    sharedNode_vector getNodesByFingerprint_internal(const FileFingerprint& fingerprint,
+                                                     const bool excludeMtime);
     sharedNode_vector getNodesByOrigFingerprint_internal(const std::string& fingerprint, Node *parent);
     std::shared_ptr<Node> getNodeByFingerprint_internal(FileFingerprint &fingerprint);
     std::shared_ptr<Node> childNodeByNameType_internal(const Node *parent, const std::string& name, nodetype_t nodeType);

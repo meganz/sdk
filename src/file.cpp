@@ -498,22 +498,26 @@ void File::sendPutnodesToCloneNode(MegaClient* client,
     assert(newnode->nodekey.size() == FILENODEKEYLENGTH);
 
     // copy attrs
-    AttrMap attrs;
-    attrs.map = nodeToClone->attrs.map;
-    attr_map::iterator it = attrs.map.find(AttrMap::string2nameid("rr"));
-    if (it != attrs.map.end())
+    AttrMap tmpAttrs;
+    tmpAttrs.map = nodeToClone->attrs.map;
+
+    // Serialize fsNode fp, overriding nodeToClone’s attrs.
+    serializefingerprint(&tmpAttrs.map['c']);
+
+    attr_map::iterator it = tmpAttrs.map.find(AttrMap::string2nameid("rr"));
+    if (it != tmpAttrs.map.end())
     {
         LOG_debug << "Removing rr attribute for clone";
-        attrs.map.erase(it);
+        tmpAttrs.map.erase(it);
     }
     newnode->type = FILENODE;
     newnode->parenthandle = UNDEF;
 
     // store filename
-    attrs.map['n'] = name;
+    tmpAttrs.map['n'] = name;
 
     string tattrstring;
-    attrs.getjson(&tattrstring);
+    tmpAttrs.getjson(&tattrstring);
 
     newnode->attrstring.reset(new string);
     MegaClient::makeattr(client->getRecycledTemporaryTransferCipher((byte*)newnode->nodekey.data(), FILENODE),
@@ -644,6 +648,14 @@ void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
         c->pendingattrstring(uploadHandle, &fileAttr);
 
     SyncTransfer_inClient::completed(t, source);
+}
+
+bool SyncUpload_inClient::updateNodeMtime(MegaClient* client,
+                                          std::shared_ptr<Node> node,
+                                          const m_time_t newMtime,
+                                          std::function<void(NodeHandle, Error)>&& completion)
+{
+    return client->updateNodeMtime(node, newMtime, std::move(completion));
 }
 
 void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle)
