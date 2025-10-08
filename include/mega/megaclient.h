@@ -932,6 +932,9 @@ public:
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
+    // copy remote file: reuse source content (no data transfer), Return: true = success, false = failed
+    bool copyServerFile(std::shared_ptr<Node> sourceNode, const std::string& targetFileName, Node* targetParent, VersioningOption vo, int tag);
+
     void putFileAttributes(handle h, fatype t, const std::string& encryptedAttributes, int tag);
 
     // attach file attribute to upload or node handle

@@ -174,6 +174,7 @@ set(SDKLIB_HEADERS
     include/mega/utils.h
     include/mega/hashcash.h
     include/mega/utils_optional.h
+    include/mega/utils_upload.h
     include/mega/account.h
     include/mega/transfer.h
     include/mega/transferstats.h
@@ -271,6 +272,7 @@ set(SDKLIB_SOURCES
     src/user.cpp
     src/useralerts.cpp
     src/utils.cpp
+    src/utils_upload.cpp
     src/waiterbase.cpp
     src/crypto/cryptopp.cpp
     src/crypto/sodium.cpp

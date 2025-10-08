@@ -32,6 +32,7 @@
 #include "mega/udp_socket.h"
 #include "mega/user_attribute.h"
 #include "mega/utils_optional.h"
+#include "mega/utils_upload.h"
 
 #include <algorithm>
 #include <bitset>
@@ -6568,42 +6569,41 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     if (type == FILENODE)
     {
         auto fa = client->fsaccess->newfileaccess();
-        if (fa->fopen(localname, true, false, FSLogging::logOnError))
-        {
-            FileFingerprint fp;
-            fp.genfingerprint(fa.get());
-
-            if (previousNode)
-            {
-                if (previousNode->type == FILENODE)
-                {
-                    if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode.get()))
-                    {
-                        cout << "Identical file already exist. Skipping transfer of " << name << endl;
-                        return;
-                    }
-                }
-                else
-                {
-                    cout << "Can't upload file over the top of a folder with the same name: " << name << endl;
-                    return;
-                }
-            }
-            fa.reset();
-
-            AppFilePut* f = new AppFilePut(localname, parent ? parent->nodeHandle() : NodeHandle(), targetuser.c_str());
-            f->noRetries = noRetries;
-
-            if (onCompletedGenerator) f->onCompleted = onCompletedGenerator(localname);
-            *static_cast<FileFingerprint*>(f) = fp;
-            f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
-            client->startxfer(PUT, f, committer, false, false, false, vo, nullptr, client->nextreqtag());
-            total++;
-        }
-        else
-        {
+        if (!fa->fopen(localname, true, false, FSLogging::logOnError)) {
             cout << "Can't open file: " << name << endl;
+            return;
         }
+
+        FileFingerprint fp;
+        fp.genfingerprint(fa.get());
+
+        UploadJudgement judgement = shouldProceedWithUpload(previousNode, fp, fa, allowDuplicateVersions, name);
+        fa.reset();
+        
+        if (!judgement.needUpload && !judgement.sourceNode)
+        {
+            cout << "Upload aborted: Can't upload file over the top of a folder with the same name: " << name << endl;
+            return;
+        }
+
+        if (!judgement.needUpload && judgement.sourceNode)
+        {
+            if (client->copyServerFile(judgement.sourceNode, name, parent, vo, gNextClientTag++))
+            {
+                return;
+            }
+            cout << "Remote copy failed, fallback to full upload" << endl;
+        }
+        
+        // Proceed with full upload if needed or copy failed
+        AppFilePut* f = new AppFilePut(localname, parent ? parent->nodeHandle() : NodeHandle(), targetuser.c_str());
+        f->noRetries = noRetries;
+
+        if (onCompletedGenerator) f->onCompleted = onCompletedGenerator(localname);
+        *static_cast<FileFingerprint*>(f) = fp;
+        f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
+        client->startxfer(PUT, f, committer, false, false, false, vo, nullptr, client->nextreqtag());
+        total++;
     }
     else if (type == FOLDERNODE && recursive)
     {

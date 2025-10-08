@@ -9657,6 +9657,42 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
     queuepubkeyreq(user, std::make_unique<PubKeyActionPutNodes>(std::move(newnodes), tag, std::move(completion)));
 }
 
+// copy remote file
+bool MegaClient::copyServerFile(std::shared_ptr<Node> sourceNode, const std::string& targetFileName, Node* targetParent, VersioningOption vo, int tag)
+{
+    if (!sourceNode || !targetParent || targetFileName.empty() || sourceNode->type != FILENODE) {
+        LOG_err << "Invalid parameters for remote file copy";
+        return false;
+    }
+
+    if (targetFileName == sourceNode->displayname()) {
+        LOG_info << "Target filename matches source; no need to copy: " << targetFileName;
+        return true;
+    }
+
+    std::vector<NewNode> nn(1);
+    nn[0].source = NEW_NODE;
+    nn[0].type = sourceNode->type;
+    nn[0].nodehandle = UNDEF;
+    nn[0].nodekey = sourceNode->nodekey();
+    nn[0].parenthandle = UNDEF;
+
+    AttrMap attrs = sourceNode->attrs;
+    std::string normalizedName = targetFileName;
+    LocalPath::utf8_normalize(&normalizedName);
+    attrs.map['n'] = normalizedName;
+
+    SymmCipher cipher;
+    cipher.setkey((const byte*)nn[0].nodekey.data(), nn[0].type);
+
+    std::string attrJson;
+    attrs.getjson(&attrJson);
+    nn[0].attrstring.reset(new std::string);
+    makeattr(&cipher, nn[0].attrstring, attrJson.c_str());
+    putnodes(targetParent->nodeHandle(), vo, std::move(nn), nullptr, tag, false);
+    return true;
+}
+
 void MegaClient::putFileAttributes(handle h, fatype t, const string& encryptedAttributes, int tag)
 {
     std::shared_ptr<Node> node = mNodeManager.getNodeByHandle(NodeHandle().set6byte(h));

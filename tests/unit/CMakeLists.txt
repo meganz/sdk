@@ -45,6 +45,7 @@ target_sources(test_unit
     impl/share_test.cpp
     utils.cpp
     utils_test.cpp
+    utils_upload_test.cpp
     utils_optional_test.cpp
     pwm_file_parser_test.cpp
     pwm_import_validation.cpp
