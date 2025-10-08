@@ -126,6 +126,9 @@ class FileServiceContext::ReclaimContext
     // Called when a file has been reclaimed.
     void reclaimed(ReclaimContextPtr context, FileResultOr<std::uint64_t> result);
 
+    // Logs instance lifetime.
+    common::InstanceLogger<ReclaimContext> mInstanceLogger;
+
     // Make sure our service stays alive as long as we do.
     Activity mActivity;
 
@@ -234,143 +237,7 @@ void FileServiceContext::deallocateID(FileID id,
     query.execute();
 }
 
-template<typename Lock, typename T>
-auto FileServiceContext::getFromIndex(FileID id,
-                                      [[maybe_unused]] Lock&& lock,
-                                      FromFileIDMap<std::weak_ptr<T>>& map) -> std::shared_ptr<T>
-{
-    assert(lock.mutex() == &mLock);
-    assert(lock.owns_lock());
-
-    // Try and find the entry in the map.
-    auto entry = map.find(id);
-
-    // No entry in the map.
-    if (entry == map.end())
-        return nullptr;
-
-    // Try and get a strong reference to the entry's instance.
-    auto instance = entry->second.lock();
-
-    // Entry references a dead instance.
-    if (!instance)
-        return map.erase(entry), nullptr;
-
-    // Return instance to caller.
-    return instance;
-}
-
-auto FileServiceContext::infoFromDatabase(FileID id, bool open) -> InfoContextResult
-{
-    // Make sure no one is changing our indexes.
-    UniqueLock lockContexts(mLock);
-
-    // Make sure no one is changing our database.
-    UniqueLock lockDatabase(mDatabase);
-
-    // Check if another thread loaded this file's info.
-    auto result = infoFromIndex(id, lockContexts, open);
-
-    // Info was loaded (or marked as removed) by another thread.
-    if (!result || result->first)
-        return result;
-
-    // Check if this file exists in the database.
-    auto transaction = mDatabase.transaction();
-    auto query = transaction.query(mQueries.mGetFile);
-
-    query.param(":handle").set(nullptr);
-    query.param(":id").set(id);
-    query.param(":removed").set(false);
-
-    // The caller's looking up the file by a node handle.
-    if (!synthetic(id))
-        query.param(":handle").set(id.toHandle());
-
-    query.execute();
-
-    // We know nothing about this file.
-    if (!query)
-        return std::make_pair(nullptr, nullptr);
-
-    // Latch the file's attributes from the database.
-    auto accessed = query.field("accessed").get<std::int64_t>();
-    auto allocatedSize = query.field("allocated_size").get<std::uint64_t>();
-    auto dirty = query.field("dirty").get<bool>();
-    auto handle = NodeHandle();
-    auto modified = query.field("modified").get<std::int64_t>();
-    auto name = query.field("name").get<std::string>();
-    auto parent = query.field("parent_handle").get<NodeHandle>();
-    auto reportedSize = query.field("reported_size").get<std::uint64_t>();
-    auto size = query.field("size").get<std::uint64_t>();
-
-    if (!query.field("handle").null())
-        handle = query.field("handle").get<NodeHandle>();
-
-    id = query.field("id").get<FileID>();
-
-    // Convenience.
-    FileLocation location{std::move(name), parent};
-
-    // Instantiate a context to represent this file's information.
-    auto info = std::make_shared<FileInfoContext>(accessed,
-                                                  mActivities.begin(),
-                                                  allocatedSize,
-                                                  dirty,
-                                                  handle,
-                                                  id,
-                                                  location,
-                                                  modified,
-                                                  reportedSize,
-                                                  *this,
-                                                  size);
-
-    // Add the context to our index.
-    mInfoContexts.emplace(id, info);
-
-    // Caller isn't interested in the file itself, only its information.
-    if (!open)
-        return std::make_pair(std::move(info), nullptr);
-
-    // Return the file and its information to our caller.
-    return std::make_pair(std::move(info), mStorage.getFile(id));
-}
-
-template<typename Lock>
-auto FileServiceContext::infoFromIndex(FileID id, Lock&& lock, bool open) -> InfoContextResult
-{
-    // Check if this file's information is in the index.
-    auto info = getFromIndex(id, std::forward<Lock>(lock), mInfoContexts);
-
-    // File's information isn't in the index.
-    if (!info)
-        return std::make_pair(nullptr, nullptr);
-
-    // File's been removed.
-    if (info->removed())
-        return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
-
-    // Open the file if requested.
-    auto file = open ? mStorage.getFile(id) : nullptr;
-
-    // Return the file and its information to our caller.
-    return std::make_pair(std::move(info), std::move(file));
-}
-
-auto FileServiceContext::info(FileID id, bool open) -> InfoContextResult
-{
-    // Check if the file's in memory.
-    auto result = infoFromIndex(id, SharedLock(mLock), open);
-
-    // File's in memory or has been removed.
-    if (!result || result->first)
-        return result;
-
-    // Check if the file's in the database.
-    return infoFromDatabase(id, open);
-}
-
-auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileContextPtr>
+auto FileServiceContext::fileContextFromCloud(FileID id) -> FileServiceResultOr<FileContextPtr>
 {
     // Synthetic IDs are never a valid node handle.
     if (synthetic(id))
@@ -401,7 +268,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     UniqueLock lockDatabase(mDatabase);
 
     // Check if another thread's opened (or removed) this file.
-    auto maybeFile = openFromIndex(id, lockContexts);
+    auto maybeFile = fileContextFromIndex(id, lockContexts);
 
     // Another thread opened (or removed) this file.
     if (!maybeFile || *maybeFile)
@@ -463,6 +330,7 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     auto context = std::make_shared<FileContext>(mActivities.begin(),
                                                  std::move(file),
                                                  std::move(info),
+                                                 std::nullopt,
                                                  FileRangeVector(),
                                                  *this);
 
@@ -473,21 +341,21 @@ auto FileServiceContext::openFromCloud(FileID id) -> FileServiceResultOr<FileCon
     return context;
 }
 
-auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<FileContextPtr>
+auto FileServiceContext::fileContextFromDatabase(FileID id) -> FileServiceResultOr<FileContextPtr>
 {
     // Try and get our hands on the file's information.
-    auto maybeInfo = this->info(id, true);
+    auto maybeInfo = infoContext(id);
 
     // File's been removed.
     if (!maybeInfo)
         return unexpected(maybeInfo.error());
 
     // Clarity.
-    auto& [info, file] = *maybeInfo;
+    auto& info = *maybeInfo;
 
     // File isn't in storage so open it from the cloud.
     if (!info)
-        return openFromCloud(id);
+        return fileContextFromCloud(id);
 
     // Acquire lock.
     UniqueLock lock(mLock);
@@ -497,7 +365,7 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
         return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 
     // Check if another thread opened the file.
-    auto maybeFile = openFromIndex(info->id(), lock);
+    auto maybeFile = fileContextFromIndex(info->id(), lock);
 
     // File was opened (or removed) by another thread.
     if (!maybeFile || *maybeFile)
@@ -506,8 +374,10 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
     // Make sure we're using the file's canonical ID.
     id = info->id();
 
-    // Retrieve this file's ranges from the database.
-    auto ranges = [id, this]()
+    // Retrieve this file's key data and ranges from the database.
+    std::optional<NodeKeyData> keyData;
+    FileRangeVector ranges;
+
     {
         // Acquire database lock.
         UniqueLock lockDatabase(mDatabase);
@@ -515,28 +385,18 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
         // So we can safely access the database.
         auto transaction = mDatabase.transaction();
 
-        // Retrieve this file's ranges from the database.
-        auto ranges = FileRangeVector();
-        auto query = transaction.query(mQueries.mGetFileRanges);
+        // Retrieve the file's key data from the database.
+        keyData = this->keyData(id, transaction);
 
-        query.param(":id").set(id);
-
-        for (query.execute(); query; ++query)
-        {
-            auto begin = query.field("begin").get<std::uint64_t>();
-            auto end = query.field("end").get<std::uint64_t>();
-
-            ranges.emplace_back(begin, end);
-        }
-
-        // Return this file's ranges to our caller.
-        return ranges;
-    }();
+        // Retrieve the file's ranges from the database.
+        ranges = this->ranges(id, transaction);
+    }
 
     // Instantiate a new file context.
     auto context = std::make_shared<FileContext>(mActivities.begin(),
-                                                 std::move(file),
+                                                 mStorage.getFile(id),
                                                  std::move(info),
+                                                 std::move(keyData),
                                                  ranges,
                                                  *this);
 
@@ -548,7 +408,7 @@ auto FileServiceContext::openFromDatabase(FileID id) -> FileServiceResultOr<File
 }
 
 template<typename Lock>
-auto FileServiceContext::openFromIndex(FileID id, Lock&& lock)
+auto FileServiceContext::fileContextFromIndex(FileID id, Lock&& lock)
     -> FileServiceResultOr<FileContextPtr>
 {
     // Check if the file's in memory.
@@ -564,6 +424,180 @@ auto FileServiceContext::openFromIndex(FileID id, Lock&& lock)
 
     // Return file to caller.
     return file;
+}
+
+template<typename Lock, typename T>
+auto FileServiceContext::getFromIndex(FileID id,
+                                      [[maybe_unused]] Lock&& lock,
+                                      FromFileIDMap<std::weak_ptr<T>>& map) -> std::shared_ptr<T>
+{
+    assert(lock.mutex() == &mLock);
+    assert(lock.owns_lock());
+
+    // Try and find the entry in the map.
+    auto entry = map.find(id);
+
+    // No entry in the map.
+    if (entry == map.end())
+        return nullptr;
+
+    // Try and get a strong reference to the entry's instance.
+    auto instance = entry->second.lock();
+
+    // Entry references a dead instance.
+    if (!instance)
+        return map.erase(entry), nullptr;
+
+    // Return instance to caller.
+    return instance;
+}
+
+auto FileServiceContext::infoContextFromDatabase(FileID id) -> FileInfoContextPtr
+{
+    // Make sure no one is changing our indexes.
+    UniqueLock lockContexts(mLock);
+
+    // Make sure no one is changing our database.
+    UniqueLock lockDatabase(mDatabase);
+
+    // Check if another thread loaded this file's info.
+    auto info = infoContextFromIndex(id, lockContexts);
+
+    // Info was loaded by another thread.
+    if (info)
+        return info;
+
+    // Check if this file exists in the database.
+    auto transaction = mDatabase.transaction();
+    auto query = transaction.query(mQueries.mGetFile);
+
+    query.param(":handle").set(nullptr);
+    query.param(":id").set(id);
+    query.param(":removed").set(false);
+
+    // The caller's looking up the file by a node handle.
+    if (!synthetic(id))
+        query.param(":handle").set(id.toHandle());
+
+    query.execute();
+
+    // We know nothing about this file.
+    if (!query)
+        return nullptr;
+
+    // Latch the file's attributes from the database.
+    auto accessed = query.field("accessed").get<std::int64_t>();
+    auto allocatedSize = query.field("allocated_size").get<std::uint64_t>();
+    auto dirty = query.field("dirty").get<bool>();
+    auto handle = NodeHandle();
+    auto modified = query.field("modified").get<std::int64_t>();
+    auto name = query.field("name").get<std::optional<std::string>>();
+    auto parent = query.field("parent_handle").get<std::optional<NodeHandle>>();
+    auto reportedSize = query.field("reported_size").get<std::uint64_t>();
+    auto size = query.field("size").get<std::uint64_t>();
+
+    if (!query.field("handle").null())
+        handle = query.field("handle").get<NodeHandle>();
+
+    id = query.field("id").get<FileID>();
+
+    std::optional<FileLocation> location;
+
+    // File only has a location if its name and parent are set.
+    if (name && parent)
+        location = FileLocation{std::move(*name), *parent};
+
+    // Instantiate a context to represent this file's information.
+    info = std::make_shared<FileInfoContext>(accessed,
+                                             mActivities.begin(),
+                                             allocatedSize,
+                                             dirty,
+                                             handle,
+                                             id,
+                                             std::move(location),
+                                             modified,
+                                             reportedSize,
+                                             *this,
+                                             size);
+
+    // Add the context to our index.
+    mInfoContexts.emplace(id, info);
+
+    // Return the file's information to our caller.
+    return info;
+}
+
+template<typename Lock>
+auto FileServiceContext::infoContextFromIndex(FileID id, Lock&& lock) -> FileInfoContextPtr
+{
+    // Check if this file's information is in the index.
+    return getFromIndex(id, std::forward<Lock>(lock), mInfoContexts);
+}
+
+auto FileServiceContext::infoContext(FileID id) -> FileServiceResultOr<FileInfoContextPtr>
+{
+    // Check if the file's in memory.
+    auto info = infoContextFromIndex(id, SharedLock(mLock));
+
+    // File's not in memory.
+    if (!info)
+        return infoContextFromDatabase(id);
+
+    // File's been marked as removed.
+    if (info->removed())
+        return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+
+    // Return the file's information to our caller.
+    return info;
+}
+
+template<typename Transaction>
+auto FileServiceContext::keyData(FileID id, Transaction&& transaction) -> std::optional<NodeKeyData>
+{
+    assert(transaction.inProgress());
+
+    auto query = transaction.query(mQueries.mGetFileKeyData);
+
+    query.param(":id").set(id);
+
+    if (!query.execute())
+        return std::nullopt;
+
+    using MaybeString = std::optional<std::string>;
+
+    NodeKeyData keyData;
+
+    keyData.mChatAuth = query.field("chat_auth").template get<MaybeString>();
+    keyData.mIsPublic = query.field("is_public").template get<bool>();
+    keyData.mKeyAndIV = query.field("key_and_iv").template get<std::string>();
+    keyData.mPrivateAuth = query.field("private_auth").template get<MaybeString>();
+    keyData.mPublicAuth = query.field("public_auth").template get<MaybeString>();
+
+    // Sanity.
+    assert(keyData.mKeyAndIV.size() == FILENODEKEYLENGTH);
+
+    return keyData;
+}
+
+template<typename Transaction>
+auto FileServiceContext::ranges(FileID id, Transaction&& transaction) -> FileRangeVector
+{
+    assert(transaction.inProgress());
+
+    auto query = transaction.query(mQueries.mGetFileRanges);
+    auto ranges = FileRangeVector();
+
+    query.param(":id").set(id);
+
+    for (query.execute(); query; ++query)
+    {
+        auto begin = query.field("begin").template get<std::uint64_t>();
+        auto end = query.field("end").template get<std::uint64_t>();
+
+        ranges.emplace_back(begin, end);
+    }
+
+    return ranges;
 }
 
 void FileServiceContext::reclaimTaskCallback(Activity& activity,
@@ -846,6 +880,7 @@ void FileServiceContext::updated(NodeEventQueue& events)
 FileServiceContext::FileServiceContext(Client& client, const FileServiceOptions& options):
     NodeEventObserver(),
     FileEventEmitter(),
+    mInstanceLogger("FileServiceContext", *this, logger()),
     mClient(client),
     mStorage(mClient),
     mDatabase(createDatabase(mStorage.databasePath())),
@@ -901,6 +936,82 @@ FileServiceContext::~FileServiceContext()
 {
     // Let the client know we're no longer interested in node events.
     mClient.removeEventObserver(*this);
+}
+
+auto FileServiceContext::add(NodeHandle handle, const NodeKeyData& keyData, std::size_t size)
+    -> FileServiceResultOr<FileID>
+try
+{
+    // Caller's given us a bogus key.
+    if (keyData.mKeyAndIV.size() != FILENODEKEYLENGTH)
+        return unexpected(FILE_SERVICE_INVALID_FILE_KEY);
+
+    // Acquire context lock.
+    std::lock_guard lockContexts(mLock);
+
+    // Acquire database lock.
+    std::lock_guard lockDatabase(mDatabase);
+
+    // So we can safely access the database.
+    auto transaction = mDatabase.transaction();
+
+    // Check if this file's already in the database.
+    auto query = transaction.query(mQueries.mGetFile);
+
+    query.param(":id").set(handle);
+
+    // File's already in the database.
+    if (query.execute())
+        return unexpected(FILE_SERVICE_FILE_ALREADY_EXISTS);
+
+    // Convenience.
+    auto accessed = now();
+    auto id = FileID::from(handle);
+
+    // Add the file to the database.
+    query = transaction.query(mQueries.mAddFile);
+
+    query.param(":accessed").set(accessed);
+    query.param(":allocated_size").set(0u);
+    query.param(":dirty").set(false);
+    query.param(":handle").set(handle);
+    query.param(":id").set(id);
+    query.param(":modified").set(accessed);
+    query.param(":name").set(nullptr);
+    query.param(":parent_handle").set(nullptr);
+    query.param(":removed").set(false);
+    query.param(":reported_size").set(0u);
+    query.param(":size").set(size);
+
+    query.execute();
+
+    // Add the file's key data to the database.
+    query = transaction.query(mQueries.mAddFileKeyData);
+
+    query.param(":chat_auth").set(keyData.mChatAuth);
+    query.param(":id").set(id);
+    query.param(":is_public").set(keyData.mIsPublic);
+    query.param(":key_and_iv").set(keyData.mKeyAndIV);
+    query.param(":private_auth").set(keyData.mPrivateAuth);
+    query.param(":public_auth").set(keyData.mPublicAuth);
+
+    query.execute();
+
+    // Add the file to storage.
+    mStorage.addFile(id);
+
+    // Persist database changes.
+    transaction.commit();
+
+    // Let the caller know the foreign file was added successfully.
+    return id;
+}
+
+catch (std::runtime_error& exception)
+{
+    FSErrorF("Unable to add foreign file to service: %s", exception.what());
+
+    return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
 Client& FileServiceContext::client()
@@ -1002,6 +1113,7 @@ try
     auto file = std::make_shared<FileContext>(mActivities.begin(),
                                               mStorage.addFile(id),
                                               info,
+                                              std::nullopt,
                                               FileRangeVector(),
                                               *this);
 
@@ -1037,7 +1149,7 @@ auto FileServiceContext::info(FileID id) -> FileServiceResultOr<FileInfo>
 try
 {
     // Try and get our hands on this file's info.
-    auto maybeInfo = info(id, false);
+    auto maybeInfo = infoContext(id);
 
     // Couldn't get information.
     if (!maybeInfo)
@@ -1051,7 +1163,7 @@ try
     }
 
     // Clarity.
-    auto& [info, _] = *maybeInfo;
+    auto& info = *maybeInfo;
 
     // File's in storage.
     if (info)
@@ -1146,7 +1258,7 @@ auto FileServiceContext::open(FileID id) -> FileServiceResultOr<File>
 try
 {
     // Check if the file's already been opened.
-    auto maybeFile = openFromIndex(id, SharedLock(mLock));
+    auto maybeFile = fileContextFromIndex(id, SharedLock(mLock));
 
     // File's been marked as removed.
     if (!maybeFile)
@@ -1154,7 +1266,7 @@ try
 
     // File isn't in memory.
     if (!*maybeFile)
-        maybeFile = openFromDatabase(id);
+        maybeFile = fileContextFromDatabase(id);
 
     // Couldn't open the file.
     if (!maybeFile)
@@ -1467,15 +1579,15 @@ catch (std::runtime_error& exception)
 
 FileInfoContextPtr FileServiceContext::EventProcessor::info(FileID id)
 {
-    // Check if the file's info is in memory.
-    auto maybeInfo = mService.infoFromIndex(id, mServiceLock, false);
+    // Check if the file's information is in memory.
+    auto info = mService.infoContextFromIndex(id, mServiceLock);
 
     // File's in memory but has been marked as removed.
-    if (!maybeInfo)
+    if (info && info->removed())
         return nullptr;
 
-    // File may or may not be in memory.
-    return maybeInfo->first;
+    // Return the file's information to our caller.
+    return info;
 }
 
 bool FileServiceContext::EventProcessor::mark(FileID id, bool replaced)
@@ -1762,6 +1874,7 @@ void FileServiceContext::ReclaimContext::reclaimed(ReclaimContextPtr context,
 }
 
 FileServiceContext::ReclaimContext::ReclaimContext(FileServiceContext& service):
+    mInstanceLogger("ReclaimContext", *this, logger()),
     mActivity(service.mActivities.begin()),
     mCallbacks(),
     mIDs(),

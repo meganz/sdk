@@ -12,6 +12,7 @@ namespace file_service
     expander(FILE_ALREADY_EXISTS, "The file you're trying to create already exists") \
     expander(FILE_DOESNT_EXIST, "The file you're trying to open doesn't exist") \
     expander(FILE_IS_A_DIRECTORY, "The file you're trying to open is a directory") \
+    expander(INVALID_FILE_KEY, "The file key you've provided is invalid") \
     expander(INVALID_NAME, "The name you've specified is invalid") \
     expander(PARENT_DOESNT_EXIST, "The parent you've specified doesn't exist") \
     expander(PARENT_IS_A_FILE, "The parent you've specified is a file") \

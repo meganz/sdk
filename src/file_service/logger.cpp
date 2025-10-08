@@ -12,8 +12,6 @@ SubsystemLogger& logger()
 {
     static SubsystemLogger logger("FileService");
 
-    logger.logLevel(logDebug);
-
     return logger;
 }
 

@@ -20,10 +20,6 @@ class SharedMutex
     bool try_lock_shared_until(std::chrono::steady_clock::time_point time,
                                bool validate);
 
-    // Try to acquire exclusive ownership of this mutex.
-    bool try_lock_until(std::chrono::steady_clock::time_point time,
-                        bool validate);
-
     // How many threads own this mutex?
     //
     // >0 One or more readers own this mutex.
@@ -86,10 +82,7 @@ public:
     }
 
     // Try to acquire exclusive ownership of this mutex.
-    bool try_lock_until(std::chrono::steady_clock::time_point time)
-    {
-        return try_lock_until(time, false);
-    }
+    bool try_lock_until(std::chrono::steady_clock::time_point time);
 
     // Translate exclusive ownership of this mutex to shared ownership.
     SharedMutex& unique_to_shared();

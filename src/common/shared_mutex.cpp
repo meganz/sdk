@@ -44,36 +44,6 @@ bool SharedMutex::try_lock_shared_until(steady_clock::time_point time,
     return true;
 }
 
-bool SharedMutex::try_lock_until(steady_clock::time_point time,
-                                 [[maybe_unused]] bool validate)
-{
-    std::unique_lock<std::mutex> lock(mLock);
-
-    // What thread wants to acquire this mutex?
-    auto id = std::this_thread::get_id();
-
-    // Make sure this thread doesn't already hold a read lock.
-    assert(!validate || !mReaders.count(id) || !mReaders[id]);
-
-    // Make sure this thread doesn't already hold a write lock.
-    assert(!validate || id != mWriterID);
-
-    // Wait for the mutex to be available.
-    auto result = mWriterCV.wait_until(lock, time, [&]() {
-        return !mCounter;
-    });
-
-    // Couldn't acquire the mutex.
-    if (!result)
-        return result;
-
-    // Mutex has been acquired.
-    mCounter--;
-    mWriterID = id;
-
-    return true;
-}
-
 void SharedMutex::lock_shared()
 {
     while (!try_lock_shared_until(steady_time::max(), true))
@@ -82,7 +52,7 @@ void SharedMutex::lock_shared()
 
 void SharedMutex::lock()
 {
-    while (!try_lock_until(steady_time::max(), true))
+    while (!try_lock_until(steady_time::max()))
         ;
 }
 
@@ -96,6 +66,42 @@ bool SharedMutex::try_lock()
     return try_lock_until(steady_clock::now());
 }
 
+bool SharedMutex::try_lock_until(steady_clock::time_point time)
+{
+    std::unique_lock<std::mutex> lock(mLock);
+
+    // What thread wants to acquire this mutex?
+    auto id = std::this_thread::get_id();
+
+    // Make sure this thread doesn't already hold a read lock.
+    assert(!mReaders.count(id));
+
+    // This thread doesn't own the mutex.
+    if (mWriterID != id)
+    {
+        // Wait for the mutex to become available.
+        auto result = mWriterCV.wait_until(lock,
+                                           time,
+                                           [&]()
+                                           {
+                                               return !mCounter;
+                                           });
+
+        // Couldn't acquire the mutex.
+        if (!result)
+            return false;
+
+        // Remember that this thread owns the mutex.
+        mWriterID = id;
+    }
+
+    // Mutex has been acquired.
+    --mCounter;
+
+    // Let our caller know the mutex was acquired.
+    return true;
+}
+
 SharedMutex& SharedMutex::unique_to_shared()
 {
     // Convenience.
@@ -107,7 +113,7 @@ SharedMutex& SharedMutex::unique_to_shared()
     // Make sure this thread currently holds the lock.
     assert(mWriterID == id);
 
-    // Recursive locks are no longer possible but let's be sure.
+    // Make sure this thread doesn't hold any recursive lock.
     assert(mCounter == -1);
 
     // Translate our writer to a reader.

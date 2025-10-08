@@ -14,6 +14,7 @@
 #include <mega/file_service/file_touch_request.h>
 #include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request.h>
+#include <mega/file_service/logger.h>
 
 #include <utility>
 
@@ -23,14 +24,29 @@ namespace file_service
 {
 
 File::File(FileServiceContextBadge, FileContextPtr context):
+    mInstanceLogger("File", *this, logger()),
     mContext(std::move(context))
 {}
 
 File::~File() = default;
 
-File::File(File&& other):
-    mContext(std::move(other.mContext))
+File::File(const File& other):
+    mInstanceLogger("File", *this, logger()),
+    mContext(other.mContext)
 {}
+
+File::File(File&& other):
+    mInstanceLogger("File", *this, logger()),
+    mContext(std::exchange(other.mContext, nullptr))
+{}
+
+File& File::operator=(const File& rhs)
+{
+    if (this != &rhs)
+        mContext = rhs.mContext;
+
+    return *this;
+}
 
 File& File::operator=(File&& rhs)
 {
@@ -64,6 +80,14 @@ void File::fetch(FileFetchCallback callback)
     assert(mContext);
 
     mContext->fetch(FileFetchRequest{std::move(callback)});
+}
+
+void File::fetchBarrier(FileFetchBarrierCallback callback)
+{
+    assert(callback);
+    assert(mContext);
+
+    mContext->fetchBarrier(std::move(callback));
 }
 
 void File::flush(FileFlushCallback callback)

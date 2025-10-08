@@ -2,6 +2,8 @@
 
 #include <mega/common/activity_monitor.h>
 #include <mega/common/client_forward.h>
+#include <mega/common/instance_logger.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/partial_download_callback.h>
 #include <mega/common/partial_download_forward.h>
 #include <mega/file_service/buffer_pointer.h>
@@ -47,6 +49,9 @@ class FileRangeContext: private common::PartialDownloadCallback
     // Called when our download's encountered a failure.
     virtual auto failed(Error result, int retries) -> std::variant<Abort, Retry> override;
 
+    // Logs instance lifetime.
+    common::InstanceLogger<FileRangeContext> mInstanceLogger;
+
     // Keeps our manager alive until we're dead.
     common::Activity mActivity;
 
@@ -82,8 +87,10 @@ public:
     void cancel();
 
     // Create a download this range.
-    auto download(common::Client& client, FileBufferPtr buffer, NodeHandle handle)
-        -> common::PartialDownloadPtr;
+    auto download(common::Client& client,
+                  FileBufferPtr buffer,
+                  NodeHandle handle,
+                  const std::optional<common::NodeKeyData>& keyData) -> common::PartialDownloadPtr;
 
     // Queue a callback for execution when this range has downloaded.
     void queue(FileFetchCallback callback);

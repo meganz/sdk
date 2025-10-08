@@ -1,11 +1,14 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/normalized_path.h>
 #include <mega/common/testing/client.h>
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/file.h>
 #include <mega/common/upload.h>
 #include <mega/common/utility.h>
+#include <mega/crypto/cryptopp.h>
+#include <mega/utils.h>
 
 #include <atomic>
 #include <env_var_accounts.h>
@@ -217,6 +220,54 @@ ErrorOr<NodeInfo> Client::get(CloudPath path) const
     return unexpected(handle.error());
 }
 
+ErrorOr<NodeInfo> Client::get(NodeHandle handle,
+                              bool isPrivate,
+                              const void* key,
+                              std::size_t keyLength,
+                              const char* privateAuth,
+                              const char* publicAuth)
+{
+    // So we can signal when we've retrieved the file's information.
+    auto notifier = makeSharedPromise<ErrorOr<NodeInfo>>();
+
+    // Called when we've retrieved the file's information.
+    auto retrieved = [notifier](ErrorOr<NodeInfo> result)
+    {
+        notifier->set_value(std::move(result));
+    }; // retrieved
+
+    // Try and retrieve the file's information.
+    get(std::move(retrieved), handle, isPrivate, key, keyLength, privateAuth, publicAuth);
+
+    // Return the file's information to our caller.
+    return waitFor(notifier->get_future());
+}
+
+auto Client::getPublicLink(CloudPath path) -> ErrorOr<PublicLink>
+{
+    // Try and resolve the path to a node handle.
+    auto handle = path.resolve(*this);
+
+    // Couldn't resolve the path to a node handle.
+    if (!handle)
+        return unexpected(handle.error());
+
+    // So we can signal when the link has been retrieved.
+    auto notifier = makeSharedPromise<ErrorOr<PublicLink>>();
+
+    // Called when the link has been retrieved.
+    auto linked = [notifier](ErrorOr<PublicLink> result)
+    {
+        notifier->set_value(std::move(result));
+    }; // linked
+
+    // Ask the client to get (or create) this node's public link.
+    getPublicLink(std::move(linked), *handle);
+
+    // Return the link to our caller.
+    return waitFor(notifier->get_future());
+}
+
 ErrorOr<NodeHandle> Client::handle(CloudPath parentPath, const std::string& name) const
 {
     // Resolve the parent's handle.
@@ -241,6 +292,19 @@ ErrorOr<NodeHandle> Client::handle(const std::string& path) const
 
     // Couldn't locate the specified node.
     return unexpected(info.error());
+}
+
+auto Client::keyData(CloudPath path, bool authorize) -> ErrorOr<NodeKeyData> const
+{
+    // Try and resolve the path to a node handle.
+    auto handle = path.resolve(*this);
+
+    // Path references a valid node.
+    if (handle)
+        return client().keyData(*handle, authorize);
+
+    // Path doesn't reference a valid node.
+    return unexpected(handle.error());
 }
 
 Error Client::login(std::size_t accountIndex)
@@ -298,15 +362,54 @@ Error Client::move(const std::string& name, CloudPath source, CloudPath target)
 
 auto Client::partialDownload(PartialDownloadCallback& callback,
                              CloudPath path,
-                             std::uint64_t offset,
-                             std::uint64_t length) -> ErrorOr<PartialDownloadPtr>
+                             std::uint64_t length,
+                             std::uint64_t offset) -> ErrorOr<PartialDownloadPtr>
 {
     auto handle = path.resolve(*this);
 
     if (handle)
-        return client().partialDownload(callback, *handle, offset, length);
+        return client().partialDownload(callback, *handle, length, offset);
 
     return unexpected(handle.error());
+}
+
+auto Client::partialDownload(PartialDownloadCallback& callback,
+                             PublicLink link,
+                             std::uint64_t length,
+                             std::uint64_t offset) -> ErrorOr<PartialDownloadPtr>
+{
+    // Try and extract the file's handle and key from the link.
+    auto keyAndHandle = parsePublicLink(link);
+
+    // Couldn't parse the link.
+    if (!keyAndHandle)
+        return unexpected(keyAndHandle.error());
+
+    // Convenience.
+    auto& [handle, key] = *keyAndHandle;
+
+    // Try and get information about the file.
+    auto info = get(handle, false, key.data(), key.size(), {}, {});
+
+    // Couldn't get information about the file.
+    if (!info)
+        return unexpected(info.error());
+
+    // Convenience.
+    auto size = static_cast<std::uint64_t>(info->mSize);
+
+    // Sanitize offset and length.
+    offset = std::min(offset, size);
+    length = std::min(length, size - offset);
+
+    // Instantiate and populate node key data.
+    NodeKeyData keyData;
+
+    keyData.mIsPublic = true;
+    keyData.mKeyAndIV = key;
+
+    // Return partial download to our caller.
+    return client().partialDownload(callback, handle, keyData, length, offset);
 }
 
 Error Client::remove(CloudPath path)
@@ -611,6 +714,24 @@ ErrorOr<NodeHandle> Client::Uploader::operator()(const std::string& name,
 
     // The root's content has been uploaded.
     return handle;
+}
+
+Client::PublicLink::PublicLink(const std::string& link):
+    mLink(link)
+{}
+
+const std::string& Client::PublicLink::get() const
+{
+    return mLink;
+}
+
+Client::SessionToken::SessionToken(const std::string& value):
+    mValue(value)
+{}
+
+const std::string& Client::SessionToken::get() const
+{
+    return mValue;
 }
 
 } // testing

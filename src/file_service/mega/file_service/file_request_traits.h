@@ -38,6 +38,12 @@ template<typename T>
 constexpr auto IsFileReclaimRequestV = IsFileReclaimRequest<T>::value;
 
 template<typename T>
+using IsFileRemoveRequest = std::is_same<FileRemoveRequest, T>;
+
+template<typename T>
+constexpr auto IsFileRemoveRequestV = IsFileRemoveRequest<T>::value;
+
+template<typename T>
 using IsFileRequest = std::is_constructible<FileRequest, T>;
 
 template<typename T>
@@ -57,6 +63,8 @@ using detail::IsFileReadRequest;
 using detail::IsFileReadRequestV;
 using detail::IsFileReclaimRequest;
 using detail::IsFileReclaimRequestV;
+using detail::IsFileRemoveRequest;
+using detail::IsFileRemoveRequestV;
 using detail::IsFileRequest;
 using detail::IsFileRequestV;
 using detail::IsFileWriteRequest;

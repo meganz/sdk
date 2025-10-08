@@ -2,11 +2,14 @@
 
 #include <mega/common/activity_monitor.h>
 #include <mega/common/database_forward.h>
+#include <mega/common/instance_logger.h>
 #include <mega/common/lock_forward.h>
+#include <mega/common/node_key_data.h>
 #include <mega/common/transaction_forward.h>
 #include <mega/file_service/buffer_pointer.h>
 #include <mega/file_service/file_append_request_forward.h>
 #include <mega/file_service/file_buffer_pointer.h>
+#include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_event_observer.h>
@@ -173,6 +176,10 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
     void queued(std::unique_lock<std::mutex> lock, FileReadRequestTag tag);
     void queued(std::unique_lock<std::mutex> lock, FileWriteRequestTag tag);
 
+    // Return an error if this request should be rejected.
+    template<typename Request>
+    auto reject(const Request& request) -> std::enable_if_t<IsFileRequestV<Request>, FileResult>;
+
     // Remove zero or more ranges from the database.
     void removeRanges(const FileRange& range, common::Transaction& transaction);
 
@@ -190,6 +197,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Update the file's sizes in the database.
     void updateSize(std::uint64_t size, common::Transaction& transaction);
+
+    // Logs instance lifetime.
+    common::InstanceLogger<FileContext> mInstanceLogger;
 
     // Keep our service alive until we're dead.
     common::Activity mActivity;
@@ -214,6 +224,9 @@ class FileContext final: FileRangeContextManager, public std::enable_shared_from
 
     // Serializes access to mFlushContext.
     std::recursive_mutex mFlushContextLock;
+
+    // The file's decryption key, IV and authentication tokens.
+    const std::optional<common::NodeKeyData> mKeyData;
 
     // How many write requests are pending?
     std::size_t mNumPendingWriteRequests;
@@ -249,6 +262,7 @@ public:
     FileContext(common::Activity activity,
                 FileAccessPtr file,
                 FileInfoContextPtr info,
+                std::optional<common::NodeKeyData> keyData,
                 const FileRangeVector& ranges,
                 FileServiceContext& service);
 
@@ -262,6 +276,9 @@ public:
 
     // Fetch all of this file's data from the cloud.
     void fetch(FileFetchRequest request);
+
+    // Wait until all fetches in progress have completed.
+    void fetchBarrier(FileFetchBarrierCallback callback);
 
     // Flush this file's local modifications to the cloud.
     void flush(FileFlushRequest request);

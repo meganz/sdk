@@ -5,6 +5,7 @@
 #include <mega/file_service/file_info_context_badge.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_service_context.h>
+#include <mega/file_service/logger.h>
 #include <mega/filesystem.h>
 
 #include <utility>
@@ -47,19 +48,20 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
                                  bool dirty,
                                  NodeHandle handle,
                                  FileID id,
-                                 const FileLocation& location,
+                                 std::optional<FileLocation> location,
                                  std::int64_t modified,
                                  std::uint64_t reportedSize,
                                  FileServiceContext& service,
                                  std::uint64_t size):
     FileEventEmitter(),
+    mInstanceLogger("FileInfoContext", *this, logger()),
     mAccessed(accessed),
     mActivity(std::move(activity)),
     mAllocatedSize(allocatedSize),
     mDirty(dirty),
     mHandle(handle),
     mID(id),
-    mLocation(location),
+    mLocation(std::move(location)),
     mLock(),
     mModified(modified),
     mRemoved(false),
@@ -140,8 +142,11 @@ void FileInfoContext::location(const FileLocation& to)
             // Make sure no one else is modifying the location.
             std::lock_guard guard(mLock);
 
+            // Sanity.
+            assert(mLocation);
+
             // Latch the file's current location.
-            auto from = std::move(mLocation);
+            auto from = std::move(*mLocation);
 
             // Update the file's current location.
             mLocation = to;
@@ -151,7 +156,7 @@ void FileInfoContext::location(const FileLocation& to)
         }());
 }
 
-FileLocation FileInfoContext::location() const
+std::optional<FileLocation> FileInfoContext::location() const
 {
     return get(&FileInfoContext::mLocation);
 }

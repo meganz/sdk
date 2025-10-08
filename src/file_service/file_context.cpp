@@ -51,6 +51,9 @@ class FileContext::FetchContext
     // Called when the fetch has been completed.
     void completed(FileResult result);
 
+    // Logs instance lifetime.
+    common::InstanceLogger<FetchContext> mInstanceLogger;
+
     // Keep mContext alive as long as we are alive.
     Activity mActivity;
 
@@ -86,6 +89,9 @@ class FileContext::FlushContext
 
     // Called when the file's data has been uploaded.
     void uploaded(FlushContextPtr& context, ErrorOr<UploadResult> result);
+
+    // Logs instance lifetime.
+    common::InstanceLogger<FlushContext> mInstanceLogger;
 
     // Keep mContext alive as long as we are alive.
     Activity mActivity;
@@ -124,6 +130,9 @@ class FileContext::ReclaimContext
     // Called when the reclaim request has completed.
     template<typename Lock>
     void completed(ReclaimContextPtr context, Lock&& lock, FileResultOr<std::uint64_t> result);
+
+    // Logs instance lifetime.
+    common::InstanceLogger<ReclaimContext> mInstanceLogger;
 
     // Keep mContext alive as long as we are alive.
     Activity mActivity;
@@ -978,7 +987,7 @@ void FileContext::execute(FileReadRequest& request)
     // Try and create downloads for our ranges.
     for (auto* range_: ranges)
     {
-        if (auto download = range_->download(client, mBuffer, handle))
+        if (auto download = range_->download(client, mBuffer, handle, mKeyData))
             downloads.emplace_back(std::move(download));
     }
 
@@ -1266,6 +1275,10 @@ void FileContext::execute(FileRequest& request)
             // Sanity.
             assert(request.mCallback);
 
+            // Immediately reject the request if necessary.
+            if (auto result = reject(request); result != FILE_SUCCESS)
+                return completed(std::move(request), result);
+
             // Try and execute the request.
             this->execute(request);
         }
@@ -1322,8 +1335,16 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
     static_assert(std::is_rvalue_reference_v<decltype(request)>);
 
     // Request isn't executable so queue it for later execution.
+    //
+    // If executable(...) returns true, request will have acquired a read (or write) lock.
     if (std::unique_lock lock(mRequestsLock); !executable(lock, true, request))
         return queue(std::move(lock), std::forward<Request>(request));
+
+    // Immediately reject the request if necessary.
+    //
+    // completed(...) needs to be called here as it expects a request to hold some lock.
+    if (auto result = reject(request); result != FILE_SUCCESS)
+        return completed(std::forward<Request>(request), result);
 
     // Otherwise execute the request.
     execute(request);
@@ -1437,6 +1458,25 @@ void FileContext::queued([[maybe_unused]] std::unique_lock<std::mutex> lock, Fil
     assert(lock.owns_lock());
 
     ++mNumPendingWriteRequests;
+}
+
+template<typename Request>
+auto FileContext::reject([[maybe_unused]] const Request& request)
+    -> std::enable_if_t<IsFileRequestV<Request>, FileResult>
+{
+    if constexpr (!IsFileReclaimRequestV<Request> && IsFileWriteRequestV<Request>)
+    {
+        if constexpr (IsFileRemoveRequestV<Request>)
+        {
+            if (request.mServiceOnly)
+                return FILE_SUCCESS;
+        }
+
+        if (mKeyData)
+            return FILE_READONLY;
+    }
+
+    return FILE_SUCCESS;
 }
 
 void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
@@ -1571,10 +1611,12 @@ void FileContext::updateSize(std::uint64_t size, Transaction& transaction)
 FileContext::FileContext(Activity activity,
                          FileAccessPtr file,
                          FileInfoContextPtr info,
+                         std::optional<NodeKeyData> keyData,
                          const FileRangeVector& ranges,
                          FileServiceContext& service):
     FileRangeContextManager(),
     enable_shared_from_this(),
+    mInstanceLogger("FileContext", *this, logger()),
     mActivity(std::move(activity)),
     mBuffer(std::make_shared<SparseFileBuffer>(*file, *info)),
     mInfo(std::move(info)),
@@ -1583,6 +1625,7 @@ FileContext::FileContext(Activity activity,
     mFile(std::move(file)),
     mFlushContext(),
     mFlushContextLock(),
+    mKeyData(std::move(keyData)),
     mNumPendingWriteRequests(0u),
     mRanges(),
     mRangesLock(),
@@ -1620,6 +1663,64 @@ void FileContext::append(FileAppendRequest request)
 void FileContext::fetch(FileFetchRequest request)
 {
     executeOrQueue(std::move(request));
+}
+
+void FileContext::fetchBarrier(FileFetchBarrierCallback callback)
+{
+    // Sanity.
+    assert(callback);
+
+    // Acquire range lock.
+    std::unique_lock lock(mRangesLock);
+
+    // True if a download is in progress.
+    auto fetching = [](const auto& entry)
+    {
+        return entry.second != nullptr;
+    }; // fetching
+
+    // How many fetches are in progress?
+    auto count = std::count_if(mRanges.begin(), mRanges.end(), fetching);
+
+    // No fetches are in progress.
+    if (!count)
+    {
+        // Release range lock.
+        lock.unlock();
+
+        // Invoke user callback.
+        return callback();
+    }
+
+    // To avoid copying state needlessly.
+    struct BarrierContext
+    {
+        BarrierContext(FileFetchBarrierCallback callback, std::size_t count):
+            mCallback(std::move(callback)),
+            mCount{count}
+        {}
+
+        FileFetchBarrierCallback mCallback;
+        std::atomic<std::size_t> mCount;
+    }; // BarrierContext
+
+    // Instantiate barrier context.
+    auto context = std::make_shared<BarrierContext>(std::move(callback), count);
+
+    // Called when a fetch has completed.
+    auto fetched = [context](FileResult)
+    {
+        // Invoke the user's callback when all fetches have completed.
+        if (context->mCount.fetch_sub(1) == 1)
+            context->mCallback();
+    }; // fetched
+
+    // Make sure fetched is called when each fetch has completed.
+    for (auto& entry: mRanges)
+    {
+        if (entry.second)
+            entry.second->queue(fetched);
+    }
 }
 
 void FileContext::flush(FileFlushRequest request)
@@ -1727,6 +1828,7 @@ void FileContext::FetchContext::completed(FileResult result)
 }
 
 FileContext::FetchContext::FetchContext(FileContext& context, FileFetchRequest request):
+    mInstanceLogger("FetchContext", *this, logger()),
     mActivity(context.mActivities.begin()),
     mContext(context),
     mRequests()
@@ -1890,10 +1992,11 @@ void FileContext::FlushContext::uploaded(FlushContextPtr& context, ErrorOr<Uploa
 }
 
 FileContext::FlushContext::FlushContext(FileContext& context, FileFlushRequest request):
+    mInstanceLogger("FlushContext", *this, logger()),
     mActivity(context.mActivities.begin()),
     mContext(context),
     mHandle(context.mInfo->handle()),
-    mLocation(context.mInfo->location()),
+    mLocation(context.mInfo->location().value()),
     mRequests(),
     mUpload()
 {
@@ -2002,6 +2105,7 @@ void FileContext::ReclaimContext::completed(ReclaimContextPtr context,
 }
 
 FileContext::ReclaimContext::ReclaimContext(FileContext& context):
+    mInstanceLogger("ReclaimContext", *this, logger()),
     mActivity(context.mActivities.begin()),
     mAllocatedSize(context.mInfo->allocatedSize()),
     mCallbacks(),

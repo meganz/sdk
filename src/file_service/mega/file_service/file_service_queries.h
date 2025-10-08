@@ -14,11 +14,13 @@ struct FileServiceQueries
 
     common::Query mAddFile;
     common::Query mAddFileID;
+    common::Query mAddFileKeyData;
     common::Query mAddFileRange;
     common::Query mGetFile;
     common::Query mGetFileByNameAndParentHandle;
     common::Query mGetFileIDs;
     common::Query mGetFileIDsByParentHandle;
+    common::Query mGetFileKeyData;
     common::Query mGetFileRanges;
     common::Query mGetFreeFileID;
     common::Query mGetNextFileID;

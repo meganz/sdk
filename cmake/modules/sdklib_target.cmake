@@ -347,6 +347,7 @@ target_include_directories(SDKlib
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
         $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/osx>
         $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/win32>
+        $<$<BOOL:${ANDROID}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/android> # Before posix.
         $<$<BOOL:${UNIX}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/posix>
     )
 

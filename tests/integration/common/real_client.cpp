@@ -1,4 +1,5 @@
 #include <mega/common/error_or.h>
+#include <mega/common/node_info.h>
 #include <mega/common/testing/cloud_path.h>
 #include <mega/common/testing/real_client.h>
 #include <mega/common/utility.h>
@@ -291,6 +292,35 @@ void RealClient::nodes_current()
     nodesCurrent(true);
 }
 
+auto RealClient::parsePublicLink(const PublicLink& link)
+    -> ErrorOr<std::pair<NodeHandle, std::string>>
+{
+    // Will store the file's public handle.
+    ::mega::handle handle;
+
+    // Will store the file's decryption key.
+    std::string key(FILENODEKEYLENGTH, '\0');
+
+    // For simplicity, let's assume the link denotes a file.
+    constexpr auto linkType = TypeOfLink::FILE;
+
+    // Make sure no one else is messing with the client.
+    std::lock_guard guard(mClientLock);
+
+    // Try and destructure the link.
+    auto result = mClient->parsepubliclink(link.get().data(),
+                                           handle,
+                                           reinterpret_cast<byte*>(key.data()),
+                                           linkType);
+
+    // Couldn't destructure the link.
+    if (result != API_OK)
+        return unexpected(result);
+
+    // Return the file's handle and key to our caller.
+    return std::make_pair(NodeHandle().set6byte(handle), std::move(key));
+}
+
 Error RealClient::openShareDialog(NodeHandle handle)
 {
     std::unique_lock<std::mutex> lock(mClientLock);
@@ -443,6 +473,155 @@ bool RealClient::shared(const std::string& email,
     // Have we shared our node with the specified user?
     return (node->outshares && scan(*node->outshares)) ||
            (node->pendingshares && scan(*node->pendingshares));
+}
+
+void RealClient::get(GetCallback callback,
+                     NodeHandle handle,
+                     bool isPrivate,
+                     const void* key,
+                     std::size_t keyLength,
+                     const char* privateAuth,
+                     const char* publicAuth)
+{
+    // Sanity.
+    assert(callback);
+    assert(key);
+    assert(keyLength);
+
+    // Acquire client lock.
+    std::lock_guard guard(mClientLock);
+
+    // Called when we've retrieved the node's information.
+    auto retrieved = [](GetCallback& callback,
+                        NodeHandle handle,
+                        std::string* name,
+                        const Error& result,
+                        std::int64_t size)
+    {
+        // Couldn't retrieve file information.
+        if (result != API_OK)
+            return callback(unexpected(result)), true;
+
+        // Couldn't retrieve the file's name.
+        if (!name)
+            return callback(unexpected(API_EFAILED)), true;
+
+        // Build a minimal description for the node.
+        NodeInfo info;
+
+        info.mHandle = handle;
+        info.mIsDirectory = false;
+        info.mName = *name;
+        info.mPermissions = RDONLY;
+        info.mSize = size;
+
+        // Pass description to our waiter.
+        callback(std::move(info));
+
+        // Let our caller know that we've handled the response.
+        return true;
+    }; // retrieved
+
+    // Instantiate a request for this file's information.
+    auto request = std::make_unique<CommandGetFile>(mClient.get(),
+                                                    static_cast<const byte*>(key),
+                                                    keyLength,
+                                                    false,
+                                                    handle.as8byte(),
+                                                    isPrivate,
+                                                    privateAuth,
+                                                    publicAuth,
+                                                    nullptr,
+                                                    false,
+                                                    std::bind(std::move(retrieved),
+                                                              std::move(callback),
+                                                              handle,
+                                                              std::placeholders::_4,
+                                                              std::placeholders::_1,
+                                                              std::placeholders::_2));
+
+    // Ask the client to execute this request.
+    mClient->reqs.add(request.get());
+
+    // Client now owns the request.
+    request.release();
+
+    // Let the client know it has work to do.
+    mClient->waiter->notify();
+}
+
+void RealClient::getPublicLink(GetPublicLinkCallback callback, NodeHandle handle)
+{
+    // Sanity.
+    assert(callback);
+
+    // Make sure nothing else is messing with the client.
+    std::lock_guard<std::mutex> guard(mClientLock);
+
+    // Try and get our hands on the node's description.
+    auto node = mClient->nodeByHandle(handle);
+
+    // Couldn't get the node's description.
+    if (!node)
+        return callback(unexpected(API_ENOENT));
+
+    // Called when the node's public link has been retrieved.
+    auto linked =
+        [this](GetPublicLinkCallback& callback, auto linkHandle, auto nodeHandle, auto result)
+    {
+        // Couldn't retrieve the node's public link.
+        if (result != API_OK)
+            return callback(unexpected(result));
+
+        // Try and get our hands on the node.
+        auto node = mClient->nodeByHandle(nodeHandle);
+
+        // Node's no longer present.
+        if (!node)
+            return callback(unexpected(API_ENOENT));
+
+        // Convenience.
+        auto linkFormat = mClient->mNewLinkFormat;
+        auto linkType = mClient->validTypeForPublicURL(node->type);
+
+        // Node's a directory.
+        if (node->type != FILENODE)
+        {
+            // Which doesn't have a share key.
+            if (!node->sharekey)
+                return callback(unexpected(API_EKEY));
+
+            // Generate public link URI.
+            auto key = Base64Str<FOLDERNODEKEYLENGTH>(node->sharekey->key);
+            auto link = mClient->publicLinkURL(linkFormat, linkType, linkHandle, key);
+
+            // Pass public link to waiter.
+            return callback(PublicLink(link));
+        }
+
+        // Generate public link URI.
+        auto key = Base64Str<FILENODEKEYLENGTH>(node->nodekey().data());
+        auto link = mClient->publicLinkURL(linkFormat, linkType, linkHandle, key);
+
+        // Pass public link to waiter.
+        return callback(PublicLink(link));
+    }; // linked
+
+    // Ask the client to get (or create) this node's public link.
+    mClient->exportnode(std::move(node),
+                        false,
+                        0,
+                        false,
+                        false,
+                        0,
+                        std::bind(std::move(linked),
+                                  std::move(callback),
+                                  std::placeholders::_3,
+                                  handle,
+                                  std::placeholders::_1));
+
+    // Let the client know it has work to do.
+    mClient->waiter->notify();
 }
 
 RealClient::RealClient(const std::string& clientName,
@@ -603,7 +782,30 @@ Error RealClient::login(const std::string& email, const std::string& password)
     return waitForNodesCurrent(seconds(8));
 }
 
-Error RealClient::login(const std::string& sessionToken)
+Error RealClient::login(const PublicLink& link)
+{
+    // Make sure the public link is valid.
+    {
+        // Make sure no one else is messing with the client.
+        std::lock_guard guard(mClientLock);
+
+        // Make sure the public link is valid.
+        auto result = mClient->folderaccess(link.get().data(), nullptr, false);
+
+        // Public link isn't valid.
+        if (result != API_OK)
+            return result;
+    }
+
+    // Couldn't get a description of the directory's content.
+    if (auto result = fetch(true); result != API_OK)
+        return result;
+
+    // Wait for our view of the directory to be up to date.
+    return waitForNodesCurrent(std::chrono::seconds(8));
+}
+
+Error RealClient::login(const SessionToken& sessionToken)
 {
     auto notifier = makeSharedPromise<Error>();
 
@@ -618,7 +820,7 @@ Error RealClient::login(const std::string& sessionToken)
         }; // result
 
         // Try and log in the user.
-        mClient->login(sessionToken, std::move(completion));
+        mClient->login(sessionToken.get(), std::move(completion));
 
         // Let the client know it has work to do.
         mClient->waiter->notify();
@@ -695,15 +897,16 @@ NodeHandle RealClient::rootHandle() const
     return mClient->mNodeManager.getRootNodeFiles();
 }
 
-std::string RealClient::sessionToken() const
+auto RealClient::sessionToken() const -> ErrorOr<SessionToken>
 {
     std::lock_guard<std::mutex> guard(mClientLock);
 
-    std::string sessionToken;
+    std::string token;
 
-    mClient->dumpsession(sessionToken);
+    if (mClient->dumpsession(token))
+        return SessionToken(token);
 
-    return sessionToken;
+    return unexpected(API_EFAILED);
 }
 
 m_off_t RealClient::setDownloadSpeed(m_off_t speed)

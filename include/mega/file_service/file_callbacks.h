@@ -13,6 +13,7 @@ namespace file_service
 {
 
 using FileAppendCallback = std::function<void(FileResult)>;
+using FileFetchBarrierCallback = std::function<void()>;
 using FileFetchCallback = std::function<void(FileResult)>;
 using FileFlushCallback = std::function<void(FileResult)>;
 using FilePurgeCallback = std::function<void(FileResult)>;

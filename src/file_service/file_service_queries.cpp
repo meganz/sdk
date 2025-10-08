@@ -11,11 +11,13 @@ using namespace common;
 FileServiceQueries::FileServiceQueries(Database& database):
     mAddFile(database.query()),
     mAddFileID(database.query()),
+    mAddFileKeyData(database.query()),
     mAddFileRange(database.query()),
     mGetFile(database.query()),
     mGetFileByNameAndParentHandle(database.query()),
     mGetFileIDs(database.query()),
     mGetFileIDsByParentHandle(database.query()),
+    mGetFileKeyData(database.query()),
     mGetFileRanges(database.query()),
     mGetFreeFileID(database.query()),
     mGetNextFileID(database.query()),
@@ -50,6 +52,15 @@ FileServiceQueries::FileServiceQueries(Database& database):
 
     mAddFileID = "insert into file_ids values (:id)";
 
+    mAddFileKeyData = "insert into file_key_data values ( "
+                      "  :chat_auth, "
+                      "  :id, "
+                      "  :is_public, "
+                      "  :key_and_iv, "
+                      "  :private_auth, "
+                      "  :public_auth "
+                      ")";
+
     mAddFileRange = "insert into file_ranges values ( "
                     "  :begin, "
                     "  :end, "
@@ -74,6 +85,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
                                 "  from files "
                                 " where parent_handle = :parent_handle "
                                 "   and (:removed is null or removed = :removed)";
+
+    mGetFileKeyData = "select * from file_key_data where id = :id";
 
     mGetFileRanges = "select begin "
                      "     , end "

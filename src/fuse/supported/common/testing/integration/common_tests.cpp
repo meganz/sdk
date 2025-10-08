@@ -368,8 +368,10 @@ TEST_F(FUSECommonTests, file_cache_load)
     {
         auto sessionToken = client->sessionToken();
 
+        ASSERT_EQ(sessionToken.errorOr(API_OK), API_OK);
+
         ASSERT_EQ(client->logout(true), API_OK);
-        ASSERT_EQ(client->login(sessionToken), API_OK);
+        ASSERT_EQ(client->login(*sessionToken), API_OK);
     }
 
     // Re-enable the mount.

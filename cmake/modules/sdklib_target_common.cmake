@@ -46,6 +46,8 @@ target_sources(SDKlib PRIVATE
                       include/mega/common/node_event_type_forward.h
                       include/mega/common/node_info.h
                       include/mega/common/node_info_forward.h
+                      include/mega/common/node_key_data.h
+                      include/mega/common/node_key_data_forward.h
                       include/mega/common/normalized_path.h
                       include/mega/common/normalized_path_forward.h
                       include/mega/common/partial_download.h
@@ -82,10 +84,13 @@ target_sources(SDKlib PRIVATE
 
 target_sources_conditional(SDKlib FLAG UNIX PRIVATE
                                   src/common/platform/posix/mega/common/platform/date_time.h
+                                  src/common/platform/posix/mega/common/platform/folder_locker.h
 )
 
 target_sources_conditional(SDKlib FLAG WIN32 PRIVATE
                                   src/common/platform/windows/mega/common/platform/date_time.h
+                                  src/common/platform/windows/mega/common/platform/folder_locker.h
+                                  src/common/platform/windows/mega/common/platform/folder_locker.cpp
 )
 
 target_sources(SDKlib PRIVATE

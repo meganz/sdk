@@ -196,6 +196,7 @@ FileRangeContext::FileRangeContext(Activity activity,
                                    FileRangeContextPtrMap::Iterator iterator,
                                    FileRangeContextManager& manager):
     PartialDownloadCallback(),
+    mInstanceLogger("FileRangeContext", *this, logger()),
     mActivity(std::move(activity)),
     mBuffer(),
     mCallbacks(),
@@ -219,8 +220,10 @@ void FileRangeContext::cancel()
         download->cancel();
 }
 
-auto FileRangeContext::download(Client& client, FileBufferPtr buffer, NodeHandle handle)
-    -> PartialDownloadPtr
+auto FileRangeContext::download(Client& client,
+                                FileBufferPtr buffer,
+                                NodeHandle handle,
+                                const std::optional<NodeKeyData>& keyData) -> PartialDownloadPtr
 {
     // Sanity.
     assert(buffer);
@@ -250,7 +253,8 @@ auto FileRangeContext::download(Client& client, FileBufferPtr buffer, NodeHandle
     }();
 
     // Try and create a partial download.
-    auto download = client.partialDownload(*this, handle, offset, length);
+    auto download = keyData ? client.partialDownload(*this, handle, *keyData, length, offset) :
+                              client.partialDownload(*this, handle, length, offset);
 
     // Couldn't create the download.
     if (!download)
