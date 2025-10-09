@@ -19915,6 +19915,9 @@ void MegaApiImpl::sendPendingRequests()
         else
         {
             committer.commitNow();
+            // Scoped retaining the request back into the requestQueue, allowing its listener
+            // to be removed if removeListener is called in the scope by any chance
+            const auto scopedRetaining = requestQueue.scopedRetainingRequest(request);
             g.unlock();
             yield();
             g.lock();
@@ -28958,8 +28961,40 @@ void TransferQueue::setAllCancelled(CancelToken cancelled, int direction)
     }
 }
 
+void RequestQueue::RetainedRequest::removeListener(MegaRequestListener* listener)
+{
+    if (mRequest && mRequest->getListener() == listener)
+        mRequest->setListener(NULL);
+}
+
+void RequestQueue::RetainedRequest::removeListener(MegaScheduledCopyListener* listener)
+{
+    if (mRequest && mRequest->getBackupListener() == listener)
+        mRequest->setBackupListener(NULL);
+}
+
+RequestQueue::ScopedRetainingRequest::ScopedRetainingRequest(
+    RequestQueue::RetainedRequest& retainedRequest,
+    MegaRequestPrivate* request):
+    mRetainedRequest{retainedRequest}
+{
+    mRetainedRequest.set(request);
+}
+
+RequestQueue::ScopedRetainingRequest::~ScopedRetainingRequest()
+{
+    mRetainedRequest.clear();
+}
+
 RequestQueue::RequestQueue()
 {
+}
+
+std::unique_ptr<RequestQueue::ScopedRetainingRequest>
+    RequestQueue::scopedRetainingRequest(MegaRequestPrivate* request)
+{
+    std::lock_guard<std::mutex> guard(mutex);
+    return std::make_unique<RequestQueue::ScopedRetainingRequest>(this->retainedRequest, request);
 }
 
 void RequestQueue::push(MegaRequestPrivate *request)
@@ -29018,6 +29053,8 @@ void RequestQueue::removeListener(MegaRequestListener *listener)
             request->setListener(NULL);
         it++;
     }
+
+    retainedRequest.removeListener(listener);
 }
 
 void RequestQueue::removeListener(MegaScheduledCopyListener *listener)
@@ -29032,6 +29069,8 @@ void RequestQueue::removeListener(MegaScheduledCopyListener *listener)
             request->setBackupListener(NULL);
         it++;
     }
+
+    retainedRequest.removeListener(listener);
 }
 
 MegaHashSignatureImpl::MegaHashSignatureImpl(const char *base64Key)
