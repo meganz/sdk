@@ -2789,6 +2789,21 @@ using namespace mega;
     return self.megaApi->areTransfersPaused((int)direction);
 }
 
+- (BOOL)areThereAnyTransferWithAppDataMatching:(BOOL (^)(NSString *appData))filter {
+    if (self.megaApi == nil) return NO;
+    MegaTransferList *transferList = self.megaApi->getTransfers();
+    for (int i = 0; i < transferList->size(); i++) {
+        MegaTransfer *transfer = transferList->get(i);
+        const char *transferAppData = transfer->getAppData();
+        if (transferAppData != NULL && filter([[NSString alloc] initWithUTF8String:transferAppData])) {
+            delete transferList;
+            return YES;
+        }
+    }
+    delete transferList;
+    return NO;
+}
+
 - (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)mediaUpload delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, mediaUpload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
@@ -2799,6 +2814,8 @@ using namespace mega;
     if (self.megaApi) {
         const char *base64Token = MegaApi::binaryToBase64((const char *)token.bytes, token.length);
         self.megaApi->backgroundMediaUploadComplete(mediaUpload.getCPtr, fileName.UTF8String, parentNode.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, base64Token, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+        
+        delete[] base64Token;
     }
 }
 

@@ -121,6 +121,12 @@ DirectoryIterator fdopendir(FileDescriptor descriptor)
     return DirectoryIterator(iterator);
 }
 
+bool flushFile(const Path& path)
+{
+    auto descriptor = open(path, O_RDONLY);
+    return !fsync(descriptor);
+}
+
 int fstat(const FileDescriptor& descriptor, Stat& buffer)
 {
     return ::fstat(descriptor.get(), &buffer);

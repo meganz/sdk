@@ -49,9 +49,15 @@ size_t writeData(void* ptr, size_t size, size_t nmemb, std::ofstream* stream)
 #endif
     }
 }
-}
 
-bool SdkTestDataProvider::getFileFromURL(const std::string& url, const fs::path& dstPath)
+/**
+ * @brief Download a file from a URL using cURL
+ *
+ * @param url The URL of the File
+ * @param dstPath The destination file path to write
+ * @return True if the file was downloaded successfully, otherwise false
+ */
+bool getFileFromURL(const std::string& url, const fs::path& dstPath)
 {
     auto curlCleaner = [](CURL* curl)
     {
@@ -96,9 +102,9 @@ bool SdkTestDataProvider::getFileFromURL(const std::string& url, const fs::path&
     LOG_verbose << "File " << dstPath.u8string() << " downloaded successfully";
     return true;
 }
+}
 
-bool SdkTestDataProvider::getFileFromArtifactory(const std::string& relativeUrl,
-                                                 const fs::path& dstPath)
+bool getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath)
 {
     static const std::string baseUrl{
         "https://artifactory.developers.mega.co.nz:443/artifactory/sdk"};

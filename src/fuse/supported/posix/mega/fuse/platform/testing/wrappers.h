@@ -82,6 +82,8 @@ int accessat(const platform::FileDescriptor& descriptor,
 
 DirectoryIterator fdopendir(platform::FileDescriptor descriptor);
 
+bool flushFile(const Path& path);
+
 int fstat(const platform::FileDescriptor& descriptor, Stat& buffer);
 
 int fsync(const platform::FileDescriptor& descriptor);

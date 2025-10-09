@@ -735,7 +735,15 @@ CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySi
                                const char *publicauth, const char *chatauth,
                                bool singleUrl, Cb &&completion)
 {
-    cmd(undelete ? "gd" : "g");
+    if (undelete)
+    {
+        cmd("gd");
+    }
+    else
+    {
+        cmd("g");
+        mLockless = true;
+    }
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
 
@@ -1181,11 +1189,10 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
                 // include pending file attributes for this upload
                 string s;
 
-                if (nni->fileattributes)
+                if (!nni->fileattributes.empty())
                 {
                     // if attributes are set on the newnode then the app is not using the pendingattr mechanism
-                    s.swap(*nni->fileattributes);
-                    nni->fileattributes.reset();
+                    s = std::move(nni->fileattributes);
                 }
                 else
                 {

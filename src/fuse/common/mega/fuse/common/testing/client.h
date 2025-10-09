@@ -1,9 +1,6 @@
 #pragma once
 
-#include <chrono>
-#include <condition_variable>
-#include <functional>
-#include <mutex>
+#include "mega/types.h"
 
 #include <mega/common/client_callbacks.h>
 #include <mega/common/client_forward.h>
@@ -11,6 +8,8 @@
 #include <mega/common/node_info_forward.h>
 #include <mega/common/normalized_path_forward.h>
 #include <mega/common/task_queue_forward.h>
+#include <mega/common/upload_callbacks.h>
+#include <mega/common/upload_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount_event_forward.h>
 #include <mega/fuse/common/mount_flags_forward.h>
@@ -21,8 +20,11 @@
 #include <mega/fuse/common/testing/cloud_path_forward.h>
 #include <mega/fuse/common/testing/mount_event_observer_forward.h>
 #include <mega/fuse/common/testing/path.h>
-#include <mega/common/upload_callbacks.h>
-#include <mega/common/upload_forward.h>
+
+#include <chrono>
+#include <condition_variable>
+#include <functional>
+#include <mutex>
 
 namespace mega
 {
@@ -184,6 +186,9 @@ public:
 
     // Retrieve the handle of the node at the specified path.
     NodeHandle handle(const std::string& path) const;
+
+    // Query whether a node has file attributes.
+    virtual bool hasFileAttribute(NodeHandle handle, fatype type) const = 0;
 
     // Send a friendship invite to the specified user.
     virtual auto invite(const std::string& email) -> common::ErrorOr<InvitePtr> = 0;

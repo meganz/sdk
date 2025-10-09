@@ -33,7 +33,7 @@ using namespace std::chrono_literals;
 using mega::gfx::SocketUtils;
 #endif
 
-class ServerClientTest: public SdkTestDataProvider, public testing::Test
+class ServerClientTest: public testing::Test
 {
 protected:
     void SetUp() override

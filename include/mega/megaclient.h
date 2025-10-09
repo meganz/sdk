@@ -907,10 +907,15 @@ public:
     unsigned char connections[2];
 
     // helpfer function for preparing a putnodes call for new node
-    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                  const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
+    error putnodes_prepareOneFile(NewNode* newnode,
+                                  Node* parentNode,
+                                  const char* utf8Name,
+                                  const UploadToken& binaryUploadToken,
+                                  const byte* theFileKey,
+                                  const char* megafingerprint,
+                                  const char* fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
-                                  std::function<error(std::string *)> addFileAttrsFunc = nullptr);
+                                  std::function<error(std::string&)> addFileAttrsFunc = nullptr);
 
     // helper function for preparing a putnodes call for new folders
     void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, bool canChangeVault, std::function<void (AttrMap&)> addAttrs = nullptr);
@@ -1737,6 +1742,7 @@ private:
     DriveInfoCollector mDriveInfoCollector;
 #endif
     BackoffTimer btcs;
+    BackoffTimer mBackoffTimerLocklessCS;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
     BackoffTimer btreqstat;
@@ -2031,6 +2037,8 @@ public:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
+    // API lockless request
+    std::unique_ptr<HttpReq> mPendingLocklessCS;
 
     // When triggering an API Hashcash challenge, the HTTP response will contain
     // X-Hashcash header, with relevant data to be saved and used for the next retry.
@@ -2397,6 +2405,9 @@ public:
 
     // client-server request double-buffering
     RequestDispatcher reqs;
+
+    // Lockless client-server request double-buffering
+    RequestDispatcher mReqsLockless;
 
     // returns if the current pendingcs includes a fetch nodes command
     bool isFetchingNodesPendingCS();

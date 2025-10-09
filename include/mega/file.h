@@ -68,6 +68,7 @@ struct MEGA_API File: public FileFingerprint
     void sendPutnodesOfUpload(
         MegaClient* client,
         UploadHandle fileAttrMatchHandle,
+        std::string&& fileAttr,
         const UploadToken& ultoken,
         const FileNodeKey& newFileKey,
         putsource_t source,
@@ -274,6 +275,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     UploadHandle uploadHandle;
     UploadToken uploadToken;
     FileNodeKey fileNodeKey;
+    std::string fileAttr;
 
     void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
     void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);

@@ -42,6 +42,7 @@ target_sources(test_integration
     SdkTestSyncNodeAttribute_test.cpp
     SdkTestCaseInsensitiveCollision_test.cpp
     backup_sync_operations_test.cpp
+    sdk_test_lockless_cs_channel.cpp
 
     passwordManager/SdkTestPasswordManager.cpp
     passwordManager/SdkTestPasswordManager.h

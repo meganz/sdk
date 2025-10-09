@@ -502,7 +502,6 @@ using MegaApiTestPointer = std::unique_ptr<MegaApiTest, MegaApiTestDeleter>;
 // Fixture class with common code for most of tests
 class SdkTest:
     public SdkTestBase,
-    public SdkTestDataProvider,
     public MegaListener,
     public MegaRequestListener,
     MegaTransferListener,
@@ -697,7 +696,7 @@ protected:
     void TearDown() override;
 
     void Cleanup();
-    void setTestAccountsToFree();
+    void setTestAccountsToFree(unsigned int nApi);
 
     int getApiIndex(MegaApi* api);
     bool getApiIndex(MegaApi* api, size_t& apindex);
@@ -1710,7 +1709,19 @@ auto createDirectory(MegaApi& client, const MegaNode& parent, const std::string&
  * An account level restorer on success.
  * An error on failure.
  */
-auto elevateToPro(MegaApi& client) -> Expected<ScopedDestructor>;
+auto scopedToPro(MegaApi& client) -> Expected<ScopedDestructor>;
+
+/**
+ * @brief
+ * Demote client to a free plan.
+ *
+ * @param client
+ * The client who we want to demote to a free plan.
+ *
+ * @return
+ * An error on failure or succuss.
+ */
+auto demoteToFree(MegaApi& client) -> Error;
 
 /**
  * @brief

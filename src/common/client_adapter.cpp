@@ -147,6 +147,7 @@ class ClientUpload
               NodeHandle lastHandle,
               ClientUploadPtr self,
               UploadHandle uploadHandle,
+              std::string fileAttr,
               UploadToken uploadToken);
 
     // Called when our upload has been bound to a name.
@@ -1291,6 +1292,7 @@ void ClientUpload::bind(BoundCallback callback,
                         NodeHandle lastHandle,
                         ClientUploadPtr self,
                         UploadHandle uploadHandle,
+                        std::string fileAttr,
                         UploadToken uploadToken)
 {
     static NewNodeVector empty;
@@ -1314,7 +1316,9 @@ void ClientUpload::bind(BoundCallback callback,
                        const Task& task,
                        ClientUploadPtr self,
                        UploadHandle& uploadHandle,
-                       UploadToken& uploadToken) {
+                       std::string& fileAttr,
+                       UploadToken& uploadToken)
+    {
         // Client's being torn down.
         if (task.cancelled())
             return bound(std::move(callback),
@@ -1323,21 +1327,21 @@ void ClientUpload::bind(BoundCallback callback,
                          API_EINCOMPLETE);
 
         // Ask the client to bind a name to our data.
-        sendPutnodesOfUpload(
-            &mClient.client(),
-            std::move(uploadHandle),
-            std::move(uploadToken),
-            std::move(fileKey),
-            PUTNODES_APP,
-            lastHandle,
-            std::bind(&ClientUpload::bound,
-                      std::move(self),
-                      mClient.wrap(std::move(callback)),
-                      std::placeholders::_3,
-                      std::placeholders::_4,
-                      std::placeholders::_1),
-            nullptr,
-            false);
+        sendPutnodesOfUpload(&mClient.client(),
+                             std::move(uploadHandle),
+                             std::move(fileAttr),
+                             std::move(uploadToken),
+                             std::move(fileKey),
+                             PUTNODES_APP,
+                             lastHandle,
+                             std::bind(&ClientUpload::bound,
+                                       std::move(self),
+                                       mClient.wrap(std::move(callback)),
+                                       std::placeholders::_3,
+                                       std::placeholders::_4,
+                                       std::placeholders::_1),
+                             nullptr,
+                             false);
     }; // bind
 
     // Called when our content has been bound to a name.
@@ -1363,6 +1367,7 @@ void ClientUpload::bind(BoundCallback callback,
                               std::placeholders::_1,
                               std::move(self),
                               std::move(uploadHandle),
+                              std::move(fileAttr),
                               std::move(uploadToken)));
 }
 
@@ -1421,6 +1426,9 @@ void ClientUpload::completed(Transfer* upload, putsource_t)
     // Sanity.
     assert(upload);
 
+    std::string fileAttr;
+    mClient.client().pendingattrstring(upload->uploadhandle, &fileAttr);
+
     // Instantiate bind callback.
     BindCallback bind = std::bind(&ClientUpload::bind,
                                   this,
@@ -1429,6 +1437,7 @@ void ClientUpload::completed(Transfer* upload, putsource_t)
                                   std::placeholders::_2,
                                   std::move(mSelf),
                                   upload->uploadhandle,
+                                  std::move(fileAttr),
                                   *upload->ultoken);
 
     // Latch callback.

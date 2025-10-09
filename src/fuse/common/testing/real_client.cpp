@@ -1,19 +1,20 @@
-#include <chrono>
-#include <future>
-#include <utility>
+#include "mega.h"
 
 #include <mega/common/error_or.h>
-#include <mega/log_level.h>
 #include <mega/common/utility.h>
+#include <mega/db/sqlite.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/testing/cloud_path.h>
 #include <mega/fuse/common/testing/real_client.h>
-
-#include <mega/db/sqlite.h>
+#include <mega/gfx.h>
+#include <mega/log_level.h>
 #include <mega/logging.h>
-#include "megawaiter.h"
-
 #include <tests/integration/test.h>
+
+#include <chrono>
+#include <future>
+#include <memory>
+#include <utility>
 
 namespace mega
 {
@@ -23,6 +24,20 @@ namespace testing
 {
 
 using namespace common;
+
+static std::unique_ptr<GfxProc> createGfxProc()
+{
+    auto provider = IGfxProvider::createInternalGfxProvider();
+    if (!provider)
+    {
+        return nullptr;
+    }
+
+    auto gfx = std::make_unique<GfxProc>(std::move(provider));
+    if (gfx)
+        gfx->startProcessingThread();
+    return gfx;
+}
 
 class RealClient::RealContact
   : public Contact
@@ -434,7 +449,8 @@ RealClient::RealClient(const std::string& clientName,
     mClientThread(),
     mHTTPIO(new CurlHttpIO()),
     mPendingRequests(),
-    mWaiter(std::make_shared<WAIT_CLASS>())
+    mWaiter(std::make_shared<WAIT_CLASS>()),
+    mGfxProc(createGfxProc())
 {
     // Sanity.
     assert(!clientName.empty());
@@ -444,7 +460,7 @@ RealClient::RealClient(const std::string& clientName,
                                  mWaiter,
                                  mHTTPIO.get(),
                                  new DBACCESS_CLASS(databasePath),
-                                 nullptr,
+                                 mGfxProc.get(),
                                  "N9tSBJDC",
                                  USER_AGENT.c_str(),
                                  THREADS_PER_MEGACLIENT));
@@ -499,6 +515,20 @@ auto RealClient::contact(const std::string& email) const -> ContactPtr
 
     // User's not a contact.
     return nullptr;
+}
+
+bool RealClient::hasFileAttribute(NodeHandle handle, fatype type) const
+{
+    std::lock_guard<std::mutex> guard(mClientLock);
+
+    // Try and locate the specified node.
+    auto node = mClient->nodeByHandle(handle);
+
+    // Node doesn't exist.
+    if (!node)
+        return false;
+
+    return node->hasfileattribute(type) != 0;
 }
 
 auto RealClient::invite(const std::string& email) -> ErrorOr<InvitePtr>

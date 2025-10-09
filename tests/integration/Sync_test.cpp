@@ -2641,14 +2641,15 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
 
             // Kick off the putnodes request.
             sendPutnodesOfUpload(transfer->client,
-                         transfer->uploadhandle,
-                         *transfer->ultoken,
-                         transfer->filekey,
-                         source,
-                         NodeHandle(),
-                         std::move(trampoline),
-                         nullptr,
-                         false);    // it's a putnodes from app, not from a sync
+                                 transfer->uploadhandle,
+                                 "",
+                                 *transfer->ultoken,
+                                 transfer->filekey,
+                                 source,
+                                 NodeHandle(),
+                                 std::move(trampoline),
+                                 nullptr,
+                                 false); // it's a putnodes from app, not from a sync
 
             // Destroy ourselves.
             delete this;
