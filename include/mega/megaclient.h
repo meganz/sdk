@@ -582,6 +582,8 @@ public:
     }
 
     void installWsEngineCallbacks();
+    bool wsCanStartAnotherFile() const;
+    bool prepareUploadForWs(Transfer& t);
 
     Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 

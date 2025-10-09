@@ -1647,6 +1647,16 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
             return false;
         }
 
+        // Preflight: let MegaClient run its legacy "prep" (FA scheduling/metadata etc).
+        // If it returns false, keep the file queued and try again later.
+        if (impl.mCb.preflightStart && !impl.mCb.preflightStart(f->transfer()))
+        {
+            LOG_debug << "[WsPool::getWsUploadFile] impl.mCb.preflightStart=true && "
+                         "!impl.mCb.preflightStart(f->transfer()) -> return false [this = "
+                      << this << "]";
+            return false;
+        }
+
         if (mUploadingFile != f)
         {
             LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile

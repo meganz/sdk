@@ -2179,37 +2179,138 @@ void MegaClient::installWsEngineCallbacks()
     ws::UploadEngine::Callbacks cb;
 
     // Phase 2: minimal mutation + app notification
+    cb.canStartAnotherFile = [this]() -> bool
+    {
+        return wsCanStartAnotherFile();
+    };
+
+    cb.preflightStart = [this](Transfer& t) -> bool
+    {
+        return prepareUploadForWs(t);
+    };
+
     cb.onStart = [this](Transfer& t)
     {
+        LOG_debug
+            << "[MegaClient::installWsEngineCallbacks] onStart t.pos = 0 && "
+               "t.setProgresscompleted(0) && t.state = TRANSFERSTATE_ACTIVE [t.localfilename = "
+            << t.localfilename << "]";
+        // Legacy parity with "openfinished": start at 0 and become ACTIVE.
+        t.pos = 0;
+        t.setProgresscompleted(0);
         t.state = TRANSFERSTATE_ACTIVE;
         app->transfer_update(&t);
     };
 
     cb.onProgress = [this](Transfer& t, const m_off_t confirmed)
     {
+        LOG_debug << "[MegaClient::installWsEngineCallbacks] onProgress -> "
+                     "t.setProgresscompleted(confirmed="
+                  << confirmed << ") [t.localfilename = " << t.localfilename << "]";
         t.setProgresscompleted(confirmed);
         app->transfer_update(&t);
     };
 
     cb.onFail = [this](Transfer& t, int /*reason*/)
     {
+        LOG_debug << "[MegaClient::installWsEngineCallbacks] onFail -> t.state = "
+                     "TRANSFERSTATE_RETRYING [t.localfilename = "
+                  << t.localfilename << "]";
         t.state = TRANSFERSTATE_RETRYING;
         app->transfer_update(&t);
     };
 
     cb.onComplete = [this](Transfer& t, const char* /*payload*/, const int /*len*/)
     {
+        LOG_debug << "[MegaClient::installWsEngineCallbacks] onComplete -> no putnodes yet, just "
+                     "surface a final tick -> app->transfer_update(&t) [t.localfilename = "
+                  << t.localfilename << "]";
         // Phase 2: no putnodes yet; just surface a final tick
         app->transfer_update(&t);
     };
 
-    cb.canStartAnotherFile = [this]() -> bool
-    {
-        // Defer new WS starts if FA pipeline is saturated (conservative)
-        return queuedfa.size() < MAXQUEUEDFA;
-    };
-
     m_wsEngine->setCallbacks(std::move(cb));
+}
+
+bool MegaClient::wsCanStartAnotherFile() const
+{
+    // Same semantics as legacy FA back‑pressure.
+    LOG_debug << "[MegaClient::wsCanStartAnotherFile] queuedfa.size() < MAXQUEUEDFA -> "
+              << queuedfa.size() << " < " << MAXQUEUEDFA;
+    return queuedfa.size() < MAXQUEUEDFA;
+}
+
+bool MegaClient::prepareUploadForWs(Transfer& t)
+{
+    // Idempotent WS preflight: mirror the non-network work done by the legacy path
+    // at openfinished, without TransferSlot/HttpReq:
+    //
+    // 1) Ensure localfilename is prepared
+    if (t.localfilename.empty())
+    {
+        LOG_debug << "[MegaClient::prepareUploadForWs] localfilename.empty() -> prepare(*fsaccess)";
+        for (file_list::iterator it = t.files.begin();
+             t.localfilename.empty() && it != t.files.end();
+             ++it)
+        {
+            (*it)->prepare(*fsaccess);
+        }
+
+        if (t.localfilename.empty() || !t.localfilename.isAbsolute())
+        {
+            LOG_err << "[MegaClient::prepareUploadForWs] No absolute localfilename yet";
+            return false; // defer start until we have a usable path
+        }
+
+        // App-side preparation (thumbnails may depend on this meta)
+        app->transfer_prepare(&t);
+    }
+
+    // 2) Create uploadhandle if not present (legacy: first activation)
+    if (t.uploadhandle.isUndef())
+    {
+        t.uploadhandle = mUploadHandle.next();
+        LOG_debug << "[MegaClient::prepareUploadForWs] t.uploadhandle.isUndef() -> t.uploadhandle "
+                     "= mUploadHandle.next() = "
+                  << t.uploadhandle << " [t.localfilename = " << t.localfilename << "]";
+    }
+
+    // 3) Enqueue thumbnail/preview FAs if applicable
+    if (!gfxdisabled && gfx && gfx->isgfx(t.localfilename))
+    {
+        LOG_debug << "[MegaClient::prepareUploadForWs] !gfxdisabled && gfx && "
+                     "gfx->isgfx(t.localfilename) -> generate and mark pending attributes "
+                     "[t.localfilename = "
+                  << t.localfilename << "]";
+        // Keep the behavior: generate and mark pending attributes
+        const int bitmask = gfx->gendimensionsputfa(t.localfilename,
+                                                    NodeOrUploadHandle(t.uploadhandle),
+                                                    t.transfercipher(),
+                                                    -1);
+
+        if (bitmask & (1 << GfxProc::THUMBNAIL))
+        {
+            LOG_debug << "[MegaClient::prepareUploadForWs] bitmask & (1 << GfxProc::THUMBNAIL) -> "
+                         "fileAttributesUploading.setFileAttributePending(t.uploadhandle, "
+                         "GfxProc::THUMBNAIL, &t) [t.localfilename = "
+                      << t.localfilename << "]";
+            fileAttributesUploading.setFileAttributePending(t.uploadhandle, GfxProc::THUMBNAIL, &t);
+        }
+        if (bitmask & (1 << GfxProc::PREVIEW))
+        {
+            LOG_debug << "[MegaClient::prepareUploadForWs] bitmask & (1 << GfxProc::PREVIEW) -> "
+                         "fileAttributesUploading.setFileAttributePending(t.uploadhandle, "
+                         "GfxProc::PREVIEW, &t) [t.localfilename = "
+                      << t.localfilename << "]";
+            fileAttributesUploading.setFileAttributePending(t.uploadhandle, GfxProc::PREVIEW, &t);
+        }
+    }
+
+    // (Phase 5) chunkmacs/fingerprint are handled later in WS callbacks
+    // (engine will open FA and verify mtime/size on first read)
+    LOG_debug << "[MegaClient::prepareUploadForWs] return true [t.localfilename = "
+              << t.localfilename << "]";
+    return true;
 }
 #endif
 
@@ -4470,6 +4571,7 @@ void MegaClient::dispatchTransfers()
         TransferCategory(GET, SMALLFILE),
     };
 
+    bool wsKickNeeded = false;
     for (auto category : categoryOrder)
     {
         for (Transfer *nexttransfer : nextInCategory[category.index()])
@@ -4583,15 +4685,14 @@ void MegaClient::dispatchTransfers()
                 if (nexttransfer->type == PUT &&
                     nexttransfer->channel == Transfer::Channel::WebSocket)
                 {
-                    // WS engine handles starts; we only give it a nudge for later FA/back-pressure
-                    // logic
-                    if (wsEngine())
+                    // WS engine owns starts. Only request a kick once per pass if this
+                    // transfer is not yet uploading (avoids log spam & redundant nudges).
+                    if (wsEngine() && !wsEngine()->isUploading(*nexttransfer))
                     {
-                        LOG_debug << "[Megaclient::dispatchTransfers] kick WS engine for "
-                                  << nexttransfer->localfilename << " [isUploading="
-                                  << (wsEngine()->isUploading(*nexttransfer) ? "true" : "false")
-                                  << "]";
-                        wsEngine()->kick();
+                        LOG_debug << "[Megaclient::dispatchTransfers] !isUploading() -> "
+                                     "wsKickNeeded = true [nexttransfer->localfilename = "
+                                  << nexttransfer->localfilename << "]";
+                        wsKickNeeded = true;
                     }
                     continue; // do not create TransferSlot/HttpReq for WS PUT
 
@@ -4917,6 +5018,15 @@ void MegaClient::dispatchTransfers()
             }
         }
     }
+
+#ifdef MEGA_USE_WSUPLOAD
+    if (wsKickNeeded && wsEngine())
+    {
+        LOG_debug << "[Megaclient::dispatchTransfers] wsKickNeeded && wsEngine() -> kick WS engine "
+                     "(coalesced) -> wsEngine()->kick()";
+        wsEngine()->kick();
+    }
+#endif
 }
 
 // do we have an upload that is still waiting for file attributes before being completed?

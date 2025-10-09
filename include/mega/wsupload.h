@@ -27,6 +27,12 @@ public:
     // if required.
     struct Callbacks
     {
+        // Preflight before starting a new file. Return false to defer the start.
+        // Use this to run the upload "prep" that dispatchTransfers() performs for legacy PUTs
+        // (e.g., FA scheduling, metadata checks). The engine will keep the file queued and
+        // retry later until true is returned.
+        std::function<bool(Transfer&)> preflightStart;
+
         // File selected to start sending (first chunk about to be read)
         std::function<void(Transfer&)> onStart;
 
