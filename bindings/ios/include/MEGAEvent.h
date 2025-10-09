@@ -67,6 +67,7 @@ NS_ASSUME_NONNULL_BEGIN
  * Objects of this class aren't live, they are snapshots of the state of the event
  * when the object is created, they are immutable.
  */
+NS_SWIFT_SENDABLE
 @interface MEGAEvent : NSObject
 
 /**
