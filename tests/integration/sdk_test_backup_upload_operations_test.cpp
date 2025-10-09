@@ -150,7 +150,8 @@ protected:
      * @param localPath Local relative path corresponding to the parent node.
      * @return True if both models match, false otherwise.
      */
-    bool checkSyncRecursively(const MegaHandle parentHandle, const std::string& localPath) const;
+    bool checkSyncRecursively(const MegaHandle parentHandle,
+                              std::optional<std::string> localPath) const;
     shared_ptr<sdk_test::LocalTempFile>
         createLocalFile(const fs::path& filePath,
                         const std::string_view contents,
@@ -228,7 +229,7 @@ void SdkTestBackupUploadsOperations::confirmModels() const
 {
     const auto areLocalAndCloudSyncedExhaustive = [this]() -> bool
     {
-        return checkSyncRecursively(getBackupRootHandle(), "");
+        return checkSyncRecursively(getBackupRootHandle(), nullopt);
     };
 
     ASSERT_TRUE(waitFor(areLocalAndCloudSyncedExhaustive, COMMON_TIMEOUT, 10s));
@@ -312,8 +313,9 @@ MegaHandle SdkTestBackupUploadsOperations::getBackupRootHandle() const
     return mBackupRootHandle;
 }
 
-bool SdkTestBackupUploadsOperations::checkSyncRecursively(const MegaHandle parentHandle,
-                                                          const std::string& localPath) const
+bool SdkTestBackupUploadsOperations::checkSyncRecursively(
+    const MegaHandle parentHandle,
+    std::optional<std::string> localPath) const
 {
     auto [childrenCloudNames, childrenNodeList] =
         getCloudFirstChildren(megaApi[0].get(), parentHandle);
@@ -336,8 +338,9 @@ bool SdkTestBackupUploadsOperations::checkSyncRecursively(const MegaHandle paren
             return false;
         }
 
-        const std::string childLocalPath =
-            localPath.empty() ? childNode->getName() : localPath + "/" + childNode->getName();
+        const std::string childLocalPath = !localPath.has_value() ?
+                                               childNode->getName() :
+                                               localPath.value() + "/" + childNode->getName();
         if (childNode->isFolder() && !checkSyncRecursively(childNode->getHandle(), childLocalPath))
         {
             return false;

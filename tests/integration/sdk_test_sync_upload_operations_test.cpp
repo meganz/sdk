@@ -100,10 +100,17 @@ public:
     }
 };
 
+/**
+ * @test SdkTestSyncUploadsOperations.BasicFileUpload
+ *
+ * 1. Create a new local file inside sync directory `dir2`.
+ * 2. Wait for sync (sync engine must upload file to the cloud).
+ * 3. Verify that local and remote models match after upload.
+ */
 TEST_F(SdkTestSyncUploadsOperations, BasicFileUpload)
 {
     static const std::string logPre{"SdkTestSyncUploadsOperations.BasicFileUpload : "};
-    LOG_verbose << logPre << "Creating a new file and upload it to dir1";
+    LOG_verbose << logPre << "Creating a new file and upload it to dir2";
 
     auto localFilePathAbs{fs::absolute(getLocalTmpDir() / "dir2" / "file1")};
     ASSERT_TRUE(
@@ -111,6 +118,15 @@ TEST_F(SdkTestSyncUploadsOperations, BasicFileUpload)
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 }
 
+/**
+ * @test SdkTestSyncUploadsOperations.DuplicatedFilesUpload
+ *
+ * 1. Create a new local file `file1` in `dir1` with given content and mtime.
+ *    - Expect a full upload (transfer started and finished).
+ * 2. Create a new local file `file1` in `dir2` with the same content and mtime.
+ *    - Expect a remote copy (no transfer started).
+ * 3. Confirm that cloud and local models remain consistent.
+ */
 TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUpload)
 {
     const std::string prefix{"SdkTestSyncUploadsOperations.DuplicatedFilesUpload: "};
@@ -157,6 +173,15 @@ TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUpload)
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 }
 
+/**
+ * @test SdkTestSyncUploadsOperations.DuplicatedFilesUploadDifferentMtime
+ *
+ * 1. Create a new local file `file1` in `dir1` with given content and mtime `mt1`.
+ *    - Expect a full upload.
+ * 2. Create the same file `file1` in `dir2` with same content but different mtime `mt2`.
+ *    - Expect another full upload since fingerprints differs (Fp = CRC + size + mtime).
+ * 3. Verify that local and remote states are fully synchronized.
+ */
 TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUploadDifferentMtime)
 {
     const std::string prefix{"SdkTestSyncUploadsOperations.DuplicatedFilesUploadDifferentMtime: "};
