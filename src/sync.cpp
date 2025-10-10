@@ -3141,7 +3141,7 @@ bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row,
             {
                 // just alert us to this an double check the case in the debugger
                 // resetting the movePtrs should cause re-evaluation
-                LOG_debug << syncname << "We found the soure move node, but the source movePtr is no longer there." << sourceSyncNode->getCloudPath(true) << logTriplet(row, fullPath);
+                LOG_debug << syncname << "We found the source move node, but the source movePtr is no longer there." << sourceSyncNode->getCloudPath(true) << logTriplet(row, fullPath);
                 assert(false);
             }
             else

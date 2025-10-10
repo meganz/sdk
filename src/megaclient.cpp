@@ -6777,7 +6777,7 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
             {
                 // special case for actionpackets from the move command - the 'd'+'t' sequence has the tag on 'd' but not 't'.
                 // However we must process the 't' as part of the move, and only call the command completion after.
-                LOG_verbose << clientname << "st tag implicity not changing for moves";
+                LOG_verbose << clientname << "st tag implicitly not changing for moves";
                 return true;
             }
             else
@@ -7567,7 +7567,7 @@ void MegaClient::sc_userattr()
                                         // a V3 request, false in any other case.
                                         if (mCurrentSeqtagSeen)
                                         {
-                                            LOG_debug << "Skiping " << User::attr2string(type)
+                                            LOG_debug << "Skipping " << User::attr2string(type)
                                                       << " self action packet. Will be managed by "
                                                          "the command response.";
                                         }
@@ -16336,7 +16336,7 @@ void MegaClient::loadAuthrings()
                         if (records)
                         {
                             mAuthRings.emplace(at, AuthRing(at, *records));
-                            LOG_info << "Authring succesfully loaded from cache: "
+                            LOG_info << "Authring successfully loaded from cache: "
                                      << User::attr2string(at);
                         }
                         else
@@ -16637,7 +16637,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     bool signatureVerified = EdDSA::verifyKey((unsigned char*) pubKey->data(), pubKey->size(), (string*)&signature, (unsigned char*) signingPubKey->data());
     if (signatureVerified)
     {
-        LOG_debug << "Signature " << User::attr2string(signatureType) << " succesfully verified for user " << user->uid;
+        LOG_debug << "Signature " << User::attr2string(signatureType) << " successfully verified for user " << user->uid;
 
         // check if user's key is already being tracked in the authring
         if (keyTracked)
@@ -16936,7 +16936,7 @@ error MegaClient::resetCredentials(handle uh, std::function<void(Error)> complet
         return API_ENOENT;
     }
     assert(authMethod == AUTH_METHOD_FINGERPRINT); // Ed25519 authring cannot be at AUTH_METHOD_SIGNATURE
-    LOG_debug << "Reseting credentials for user " << uidB64 << "...";
+    LOG_debug << "Resetting credentials for user " << uidB64 << "...";
 
     mKeyManager.commit(
         [this, uh, uidB64]()
