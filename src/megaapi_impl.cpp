@@ -19179,8 +19179,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     auto forceToUpload{false};
                     const auto skipSearchBySameName =
-                        client->getNumberOfChildren(parent->nodeHandle()) >
-                        MAX_CHILDREN_FOR_SAME_NAME_SEARCH;
+                        !parent || client->getNumberOfChildren(parent->nodeHandle()) >
+                                       MAX_CHILDREN_FOR_SAME_NAME_SEARCH;
                     const auto prevNodeSameName =
                         !skipSearchBySameName ?
                             client->childnodebyname(parent.get(), fileName, false) :
@@ -19245,8 +19245,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             {
                                 sameNodeFpFound = n;
                                 sameNodeSameNameInTarget =
-                                    (fileName == sameNodeFpFound->displayname()) &&
-                                    (sameNodeFpFound->parent->nodeHandle() == parent->nodeHandle());
+                                    (sameNodeFpFound->parent && parent) &&
+                                    (sameNodeFpFound->parent->nodeHandle() ==
+                                     parent->nodeHandle()) &&
+                                    (fileName == sameNodeFpFound->displayname());
+
                                 if (alreadyCheckedSameNodeNameInTarget || sameNodeSameNameInTarget)
                                 {
                                     break;
@@ -19316,6 +19319,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             }
                             else
                             {
+                                if (!parent)
+                                {
+                                    assert(false && "SendPendingTransfers(upload): invalid parent");
+                                    e = API_EARGS;
+                                    break;
+                                }
                                 client->putnodes(parent->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), nullptr, nextTag, false);
                             }
 
