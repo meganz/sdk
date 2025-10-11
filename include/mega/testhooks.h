@@ -25,7 +25,6 @@
 #include "types.h"
 
 #include <functional>
-#include <map>
 
 namespace mega {
 

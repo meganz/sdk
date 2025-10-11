@@ -8113,20 +8113,13 @@ namespace mega
 
         static bool onHttpReqPost509(HttpReq* req)
         {
-            if (!req)
+            if (!req || req->type != REQ_BINARY || countdownToOverquota-- != 0)
                 return false;
 
-            if (req->type == REQ_BINARY)
-            {
-                if (countdownToOverquota-- == 0)
-                {
-                    req->httpstatus = 509;
-                    req->timeleft = 30; // in seconds
-                    LOG_info << "SIMULATING OVERQUOTA";
-                    return onHttpReqFinishedWithSimulatedError(*req);
-                }
-            }
-            return false;
+            req->httpstatus = 509;
+            req->timeleft = 30; // in seconds
+            LOG_info << "SIMULATING OVERQUOTA";
+            return onHttpReqFinishedWithSimulatedError(*req);
         }
 
         static bool onHttpReqPostError(HttpReq* req)
@@ -8488,6 +8481,17 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 
 // Cloudraid test helper structures and functions
 #ifdef DEBUG
+
+// Some HTTP requests may fail due to transient errors.
+// Those are "unexpected" for the test, but
+// "acceptable" as they may happen even when everything else is working fine. The test should not
+// pass if those errors are present, but it can be retried with a limit.
+//
+// Http status 0: no respons was received from the server.
+// -> with CURLcode (error) 28: connection timeout. It may happen if the client network is saturated
+// or the connection is idle and the OS (especially mobile) need resources.
+// -> with CURLcode (error) 7: the connection could not be established. It may happen if the server
+// is temporary unavailable, or some network issue with the client.
 struct CloudraidFailureAnalysis
 {
     unsigned seen404{0};
@@ -8886,8 +8890,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
     // Configure test parameters for timeout scenario
     const CloudraidTestConfig config{
-        2, // maxRetries - No retries for timeout test
-        5, // maxAcceptableUnexpectedPerRun - No acceptable unexpected failures
+        2, // maxRetries
+        5, // maxAcceptableUnexpectedPerRun
         0, // maxExpectedFailedRequests - No expected failures for timeout test
         36, // baseRequestCount - Base request count for this file/chunking + 1 timed out
         false, // hasExpectedFailures - No expected failures like 404/403
