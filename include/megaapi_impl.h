@@ -3115,7 +3115,42 @@ private:
 class RequestQueue
 {
     protected:
+        class ScopedRetainingRequest;
+
+        class RetainedRequest
+        {
+            MegaRequestPrivate* mRequest{nullptr};
+
+            void set(MegaRequestPrivate* request)
+            {
+                mRequest = request;
+            }
+
+            void clear()
+            {
+                mRequest = nullptr;
+            }
+
+            friend class ScopedRetainingRequest;
+
+        public:
+            void removeListener(MegaRequestListener* listener);
+
+            void removeListener(MegaScheduledCopyListener* listener);
+        };
+
+        class ScopedRetainingRequest
+        {
+            RetainedRequest& mRetainedRequest;
+
+        public:
+            ScopedRetainingRequest(RetainedRequest& retainedRequest, MegaRequestPrivate* request);
+
+            ~ScopedRetainingRequest();
+        };
+
         std::deque<MegaRequestPrivate *> requests;
+        RetainedRequest retainedRequest;
         std::mutex mutex;
 
     public:
@@ -3127,6 +3162,7 @@ class RequestQueue
         MegaRequestPrivate * front();
         void removeListener(MegaRequestListener *listener);
         void removeListener(MegaScheduledCopyListener *listener);
+        std::unique_ptr<ScopedRetainingRequest> scopedRetainingRequest(MegaRequestPrivate* request);
 };
 
 
