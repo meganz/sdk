@@ -1,0 +1,1605 @@
+1 安装了vs2026 insider preview(使用最新的C++特性)
+2 但是sdk最高只支持到vs2022
+
+3 使用标准cmake(最新4.1.2),指定-G "Visual Studio 18 2026" -A x64 -T "v145" ..., 提示最高支持到2026
+4 使用vs2026自带的cmake, 发现能支持Visual studio 18 2026,但是Sdk工程的find_visual_studio_patch.cmake最新也只支持到2022
+用了vs2026自己的cmake：
+
+PS E:\code\git> cmake -DVCPKG_ROOT=vcpkg -DCMAKE_BUILD_TYPE=Debug -S sdk -B build_dir
+-- [SDKlib] is a top-level project. Install target is enabled by default.
+-- Examples and tests will be enabled by default.
+-- Using VCPKG dependencies. VCPKG base path: E:/code/git/vcpkg and tripplet x64-windows-mega
+-- Overlay for VCPKG ports: E:/code/git/sdk/cmake/vcpkg_overlay_ports
+-- Overlay for VCPKG triplets: E:/code/git/sdk/cmake/vcpkg_overlay_triplets
+-- Running vcpkg install
+command:
+"C:\Program Files\Microsoft Visual Studio\18\Insiders\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -DVCPKG_ROOT_DIR=E:/code/git/vcpkg -DPACKAGES_DIR=E:/code/git/vcpkg/packages -DBUILDTREES_DIR=E:/code/git/vcpkg/buildtrees -D_VCPKG_INSTALLED_DIR=E:/code/git/build_dir/vcpkg_installed -DDOWNLOADS=E:/code/git/vcpkg/downloads -DVCPKG_MANIFEST_INSTALL=OFF -P "E:\code\git\vcpkg\buildtrees\0.vcpkg_dep_info.cmake"
+failed with the following output:
+CMake Deprecation Warning at buildtrees/0.vcpkg_dep_info.cmake:1 (cmake_minimum_required):,   Compatibility with CMake < 3.10 will be removed from a future version of,   CMake., ,   Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax,   to tell CMake that the project requires at least <min> but has been updated,   to work with policies introduced by <max> or earlier., , , d8187afd-ea4a-4fc3-9aa4-a6782e1ed9af, CMake Error at E:/code/git/sdk/cmake/vcpkg_overlay_triplets/find_visual_studio_path.cmake:19 (message):,   No compatible Visual Studio 2022 installation found., Call Stack (most recent call first):,   buildtrees/0.vcpkg_dep_info.cmake:9 (find_visual_studio_path),   buildtrees/0.vcpkg_dep_info.cmake:37 (vcpkg_triplet_file),   buildtrees/0.vcpkg_dep_info.cmake:55 (vcpkg_get_dep_info), ,
+-- Running vcpkg install - failed
+CMake Error at E:/code/git/vcpkg/scripts/buildsystems/vcpkg.cmake:943 (message):
+  vcpkg install failed.  See logs for more information:
+  E:\code\git\build_dir\vcpkg-manifest-install.log
+Call Stack (most recent call first):
+  C:/Program Files/Microsoft Visual Studio/18/Insiders/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeDetermineSystem.cmake:146 (include)
+  CMakeLists.txt:72 (project)
+
+
+-- Configuring incomplete, errors occurred!
+PS E:\code\git> cmake --version
+cmake version 3.31.6-msvc9
+
+CMake suite maintained and supported by Kitware (kitware.com/cmake).
+
+5 修改find_visual_studio_patch.cmake, 添加本地2026 preview的路径
+
+6  完整的config输出
+
+
+PowerShell 7.5.3
+PS C:\Users\liang> e:
+PS E:\> cd .\code\git\
+PS E:\code\git> cmake -DVCPKG_ROOT=vcpkg -DCMAKE_BUILD_TYPE=Debug -S sdk -B build_dir
+-- Building for: Visual Studio 17 2022
+-- [SDKlib] is a top-level project. Install target is enabled by default.
+-- Examples and tests will be enabled by default.
+-- Using VCPKG dependencies. VCPKG base path: E:/code/git/vcpkg and tripplet x64-windows-mega
+-- Overlay for VCPKG ports: E:/code/git/sdk/cmake/vcpkg_overlay_ports
+-- Overlay for VCPKG triplets: E:/code/git/sdk/cmake/vcpkg_overlay_triplets
+-- Running vcpkg install
+Detecting compiler hash for triplet x64-windows...
+Compiler found: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+Detecting compiler hash for triplet x64-windows-mega...
+Compiler found: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.29.30133/bin/HostX64/x64/cl.exe
+The following packages are already installed:
+    cryptopp:x64-windows-mega@8.9.0#1
+    curl[core,non-http,schannel,ssl,sspi,zstd]:x64-windows-mega@8.14.1
+  * vcpkg-cmake:x64-windows@2024-04-23
+  * vcpkg-cmake-config:x64-windows@2024-05-23
+  * zlib:x64-windows-mega@1.3.1
+  * zstd:x64-windows-mega@1.5.7
+The following packages will be built and installed:
+  * brotli:x64-windows-mega@1.1.0#1
+  * bzip2[core,tool]:x64-windows-mega@1.0.8#6
+    ffmpeg[avcodec,avformat,core,swresample,swscale]:x64-windows-mega@7.1.1#2
+    freeimage:x64-windows-mega@3.18.0#27
+  * freetype[brotli,bzip2,core,png,zlib]:x64-windows-mega@2.13.3
+    gtest:x64-windows-mega@1.17.0#1
+  * icu[core,tools]:x64-windows@74.2#4
+    icu:x64-windows-mega@74.2#4
+  * imath:x64-windows-mega@3.1.12
+    jasper:x64-windows-mega@4.2.4#2
+  * jxrlib:x64-windows-mega@2019.10.9#7 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\jxrlib
+  * lcms:x64-windows-mega@2.17
+  * libdeflate[compression,core,decompression,gzip,zlib]:x64-windows-mega@1.24 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\libdeflate
+  * libjpeg-turbo:x64-windows-mega@3.1.0#1
+  * liblzma:x64-windows-mega@5.8.1
+  * libpng:x64-windows-mega@1.6.47
+  * libraw:x64-windows-mega@0.21.4
+    libsodium:x64-windows-mega@1.0.20#3
+  * libwebp[core,libwebpmux,nearlossless,simd,unicode]:x64-windows-mega@1.5.0#1
+  * openexr:x64-windows-mega@3.3.2
+  * openjpeg:x64-windows-mega@2.5.3
+    openssl:x64-windows-mega@3.5.0#1
+    pdfium:x64-windows-mega@6778#1 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\pdfium
+  * pkgconf:x64-windows@2.4.3#1
+    sqlite3[core,json1]:x64-windows-mega@3.49.2
+  * tiff[core,jpeg,lzma,zip]:x64-windows-mega@4.7.0
+  * vcpkg-cmake-get-vars:x64-windows@2025-05-29
+  * vcpkg-msbuild:x64-windows@2023-08-08
+  * vcpkg-pkgconfig-get-modules:x64-windows@2024-04-03
+  * vcpkg-tool-meson:x64-windows@1.7.2
+Additional packages (*) will be modified to complete this operation.
+Restored 0 package(s) from C:\Users\liang\AppData\Local\vcpkg\archives in 548 us. Use --debug to see more details.
+Installing 1/30 icu[core,tools]:x64-windows@74.2#4...
+Building icu[core,tools]:x64-windows@74.2#4...
+-- Using cached icu4c-74_2-src.tgz
+-- Cleaning sources at E:/code/git/vcpkg/buildtrees/icu/src/c-74_2-src-35bac2c62e.clean. Use --editable to skip cleaning for the packages you specify.
+-- Extracting source E:/code/git/vcpkg/downloads/icu4c-74_2-src.tgz
+-- Applying patch disable-escapestr-tool.patch
+-- Applying patch remove-MD-from-configure.patch
+-- Applying patch fix_parallel_build_on_windows.patch
+-- Applying patch fix-extra.patch
+-- Applying patch mingw-dll-install.patch
+-- Applying patch disable-static-prefix.patch
+-- Applying patch fix-win-build.patch
+-- Applying patch vcpkg-cross-data.patch
+-- Applying patch darwin-rpath.patch
+-- Applying patch mingw-strict-ansi.diff
+-- Using source at E:/code/git/vcpkg/buildtrees/icu/src/c-74_2-src-35bac2c62e.clean
+-- Found external ninja('1.12.1').
+-- Getting CMake variables for x64-windows
+-- Using cached msys2-autoconf-wrapper-20240607-1-any.pkg.tar.zst
+-- Using cached msys2-automake-wrapper-20240607-1-any.pkg.tar.zst
+-- Using cached msys2-binutils-2.44-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libtool-2.5.4-1-x86_64.pkg.tar.zst
+-- Using cached msys2-make-4.4.1-2-x86_64.pkg.tar.zst
+-- Using cached msys2-pkgconf-2.4.3-1-x86_64.pkg.tar.zst
+-- Using cached msys2-which-2.23-4-x86_64.pkg.tar.zst
+-- Using cached msys2-autoconf-archive-2023.02.20-1-any.pkg.tar.zst
+-- Using cached msys2-bash-5.2.037-2-x86_64.pkg.tar.zst
+-- Using cached msys2-coreutils-8.32-5-x86_64.pkg.tar.zst
+-- Using cached msys2-file-5.46-2-x86_64.pkg.tar.zst
+-- Using cached msys2-gawk-5.3.2-1-x86_64.pkg.tar.zst
+-- Using cached msys2-grep-1~3.0-7-x86_64.pkg.tar.zst
+-- Using cached msys2-gzip-1.14-1-x86_64.pkg.tar.zst
+-- Using cached msys2-diffutils-3.12-1-x86_64.pkg.tar.zst
+-- Using cached msys2-sed-4.9-1-x86_64.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using cached msys2-autoconf2.72-2.72-3-any.pkg.tar.zst
+-- Using cached msys2-automake1.16-1.16.5-1-any.pkg.tar.zst
+-- Using cached msys2-automake1.17-1.17-1-any.pkg.tar.zst
+-- Using cached msys2-libiconv-1.18-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libintl-0.22.5-1-x86_64.pkg.tar.zst
+-- Using cached msys2-zlib-1.3.1-1-x86_64.pkg.tar.zst
+-- Using cached msys2-findutils-4.10.0-2-x86_64.pkg.tar.zst
+-- Using cached msys2-tar-1.35-2-x86_64.pkg.tar.zst
+-- Using cached msys2-gmp-6.3.0-1-x86_64.pkg.tar.zst
+-- Using cached msys2-gcc-libs-13.3.0-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libbz2-1.0.8-4-x86_64.pkg.tar.zst
+-- Using cached msys2-liblzma-5.8.1-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libzstd-1.5.7-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libreadline-8.2.013-1-x86_64.pkg.tar.zst
+-- Using cached msys2-mpfr-4.2.2-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libpcre-8.45-5-x86_64.pkg.tar.zst
+-- Using cached msys2-m4-1.4.19-2-x86_64.pkg.tar.zst
+-- Using cached msys2-perl-5.38.4-2-x86_64.pkg.tar.zst
+-- Using cached msys2-ncurses-6.5.20240831-2-x86_64.pkg.tar.zst
+-- Using cached msys2-libxcrypt-4.4.38-1-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/8392cd453c24d30d
+-- Generating configure for x64-windows
+-- Finished generating configure for x64-windows
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Configuring x64-windows-dbg
+-- Configuring x64-windows-rel
+-- Building x64-windows-dbg
+-- Installing x64-windows-dbg
+-- Building x64-windows-rel
+-- Installing x64-windows-rel
+-- Installing: E:/code/git/vcpkg/packages/icu_x64-windows/tools/icu/config/icucross.inc
+-- Installing: E:/code/git/vcpkg/packages/icu_x64-windows/tools/icu/config/icucross.mk
+CMake Warning at scripts/cmake/vcpkg_copy_pdbs.cmake:44 (message):
+  Could not find a matching pdb file for:
+
+      E:/code/git/vcpkg/packages/icu_x64-windows/bin/icudt74.dll
+      E:/code/git/vcpkg/packages/icu_x64-windows/debug/bin/icudtd74.dll
+
+Call Stack (most recent call first):
+  buildtrees/versioning_/versions/icu/291bbc492b8f73dea0dbd12051e9b12b21aef900/portfile.cmake:157 (vcpkg_copy_pdbs)
+  scripts/ports.cmake:206 (include)
+
+
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows/lib/pkgconfig/icu-i18n.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows/lib/pkgconfig/icu-io.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows/lib/pkgconfig/icu-uc.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows/debug/lib/pkgconfig/icu-i18n.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows/debug/lib/pkgconfig/icu-io.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows/debug/lib/pkgconfig/icu-uc.pc
+-- Installing: E:/code/git/vcpkg/packages/icu_x64-windows/share/icu/vcpkg-cmake-wrapper.cmake
+-- Installing: E:/code/git/vcpkg/packages/icu_x64-windows/share/icu/copyright
+-- Performing post-build validation
+Starting submission of icu[core,tools]:x64-windows@74.2#4 to 1 binary cache(s) in the background
+Elapsed time to handle icu:x64-windows: 12 min
+icu:x64-windows package ABI: 91aef48702555c0933f5d2bb6701266f5b02c8253f8097ff446b8ddef1a1448b
+Installing 2/30 icu:x64-windows-mega@74.2#4...
+Building icu:x64-windows-mega@74.2#4...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+-- Using cached icu4c-74_2-src.tgz
+-- Cleaning sources at E:/code/git/vcpkg/buildtrees/icu/src/c-74_2-src-35bac2c62e.clean. Use --editable to skip cleaning for the packages you specify.
+-- Extracting source E:/code/git/vcpkg/downloads/icu4c-74_2-src.tgz
+-- Applying patch disable-escapestr-tool.patch
+-- Applying patch remove-MD-from-configure.patch
+-- Applying patch fix_parallel_build_on_windows.patch
+-- Applying patch fix-extra.patch
+-- Applying patch mingw-dll-install.patch
+-- Applying patch disable-static-prefix.patch
+-- Applying patch fix-win-build.patch
+-- Applying patch vcpkg-cross-data.patch
+-- Applying patch darwin-rpath.patch
+-- Applying patch mingw-strict-ansi.diff
+-- Using source at E:/code/git/vcpkg/buildtrees/icu/src/c-74_2-src-35bac2c62e.clean
+-- Found external ninja('1.12.1').
+-- Getting CMake variables for x64-windows-mega
+-- Using cached msys2-autoconf-wrapper-20240607-1-any.pkg.tar.zst
+-- Using cached msys2-automake-wrapper-20240607-1-any.pkg.tar.zst
+-- Using cached msys2-binutils-2.44-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libtool-2.5.4-1-x86_64.pkg.tar.zst
+-- Using cached msys2-make-4.4.1-2-x86_64.pkg.tar.zst
+-- Using cached msys2-pkgconf-2.4.3-1-x86_64.pkg.tar.zst
+-- Using cached msys2-which-2.23-4-x86_64.pkg.tar.zst
+-- Using cached msys2-autoconf-archive-2023.02.20-1-any.pkg.tar.zst
+-- Using cached msys2-bash-5.2.037-2-x86_64.pkg.tar.zst
+-- Using cached msys2-coreutils-8.32-5-x86_64.pkg.tar.zst
+-- Using cached msys2-file-5.46-2-x86_64.pkg.tar.zst
+-- Using cached msys2-gawk-5.3.2-1-x86_64.pkg.tar.zst
+-- Using cached msys2-grep-1~3.0-7-x86_64.pkg.tar.zst
+-- Using cached msys2-gzip-1.14-1-x86_64.pkg.tar.zst
+-- Using cached msys2-diffutils-3.12-1-x86_64.pkg.tar.zst
+-- Using cached msys2-sed-4.9-1-x86_64.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using cached msys2-autoconf2.72-2.72-3-any.pkg.tar.zst
+-- Using cached msys2-automake1.16-1.16.5-1-any.pkg.tar.zst
+-- Using cached msys2-automake1.17-1.17-1-any.pkg.tar.zst
+-- Using cached msys2-libiconv-1.18-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libintl-0.22.5-1-x86_64.pkg.tar.zst
+-- Using cached msys2-zlib-1.3.1-1-x86_64.pkg.tar.zst
+-- Using cached msys2-findutils-4.10.0-2-x86_64.pkg.tar.zst
+-- Using cached msys2-tar-1.35-2-x86_64.pkg.tar.zst
+-- Using cached msys2-gmp-6.3.0-1-x86_64.pkg.tar.zst
+-- Using cached msys2-gcc-libs-13.3.0-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libbz2-1.0.8-4-x86_64.pkg.tar.zst
+-- Using cached msys2-liblzma-5.8.1-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libzstd-1.5.7-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libreadline-8.2.013-1-x86_64.pkg.tar.zst
+-- Using cached msys2-mpfr-4.2.2-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libpcre-8.45-5-x86_64.pkg.tar.zst
+-- Using cached msys2-m4-1.4.19-2-x86_64.pkg.tar.zst
+-- Using cached msys2-perl-5.38.4-2-x86_64.pkg.tar.zst
+-- Using cached msys2-ncurses-6.5.20240831-2-x86_64.pkg.tar.zst
+-- Using cached msys2-libxcrypt-4.4.38-1-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/8392cd453c24d30d
+-- Generating configure for x64-windows-mega
+-- Finished generating configure for x64-windows-mega
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Configuring x64-windows-mega-dbg
+-- Configuring x64-windows-mega-rel
+-- Building x64-windows-mega-dbg
+-- Installing x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Installing x64-windows-mega-rel
+-- Installing: E:/code/git/vcpkg/packages/icu_x64-windows-mega/tools/icu/config/icucross.inc
+-- Installing: E:/code/git/vcpkg/packages/icu_x64-windows-mega/tools/icu/config/icucross.mk
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows-mega/lib/pkgconfig/icu-i18n.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows-mega/lib/pkgconfig/icu-io.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows-mega/lib/pkgconfig/icu-uc.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows-mega/debug/lib/pkgconfig/icu-i18n.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows-mega/debug/lib/pkgconfig/icu-io.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/icu_x64-windows-mega/debug/lib/pkgconfig/icu-uc.pc
+-- Installing: E:/code/git/vcpkg/packages/icu_x64-windows-mega/share/icu/vcpkg-cmake-wrapper.cmake
+-- Installing: E:/code/git/vcpkg/packages/icu_x64-windows-mega/share/icu/copyright
+-- Performing post-build validation
+Starting submission of icu:x64-windows-mega@74.2#4 to 1 binary cache(s) in the background
+Elapsed time to handle icu:x64-windows-mega: 9.2 min
+icu:x64-windows-mega package ABI: 15b40a5994e28ac7f94b2ce36316dfe603c11f62917636b6ec64eca12729864d
+Completed submission of icu[core,tools]:x64-windows@74.2#4 to 1 binary cache(s) in 15 s
+Installing 3/30 vcpkg-cmake-get-vars:x64-windows@2025-05-29...
+Building vcpkg-cmake-get-vars:x64-windows@2025-05-29...
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-cmake-get-vars_x64-windows/share/vcpkg-cmake-get-vars/vcpkg_cmake_get_vars.cmake
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-cmake-get-vars_x64-windows/share/vcpkg-cmake-get-vars/cmake_get_vars
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-cmake-get-vars_x64-windows/share/vcpkg-cmake-get-vars/cmake_get_vars/CMakeLists.txt
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-cmake-get-vars_x64-windows/share/vcpkg-cmake-get-vars/cmake-get-vars.cmake.in
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-cmake-get-vars_x64-windows/share/vcpkg-cmake-get-vars/vcpkg-port-config.cmake
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-cmake-get-vars_x64-windows/share/vcpkg-cmake-get-vars/copyright
+-- Performing post-build validation
+Starting submission of vcpkg-cmake-get-vars:x64-windows@2025-05-29 to 1 binary cache(s) in the background
+Elapsed time to handle vcpkg-cmake-get-vars:x64-windows: 219 ms
+vcpkg-cmake-get-vars:x64-windows package ABI: c0609d40a2512d35b902629345740eba13e32e86a795df67edcb9daf88862e90
+Installing 4/30 vcpkg-tool-meson:x64-windows@1.7.2...
+Building vcpkg-tool-meson:x64-windows@1.7.2...
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-tool-meson_x64-windows/share/vcpkg-tool-meson/copyright
+Downloading https://github.com/mesonbuild/meson/archive/1.7.2.tar.gz -> meson-1.7.2.tar.gz
+Successfully downloaded meson-1.7.2.tar.gz
+cmake -E tar: warning: skipping symbolic link "meson-1.7.2/test cases/frameworks/35 boost symlinks/boost/lib/boost_python-vc142-mt-gd-x32-0_3.lib" -> "../Cellar/boost-python/0.3.0/lib/boost_python-vc142-mt-gd-x32-0_3.lib".
+cmake -E tar: warning: skipping symbolic link "meson-1.7.2/test cases/frameworks/35 boost symlinks/boost/lib/boost_python-vc142-mt-gd-x64-0_3.lib" -> "../Cellar/boost-python/0.3.0/lib/boost_python-vc142-mt-gd-x64-0_3.lib".
+cmake -E tar: warning: skipping symbolic link "meson-1.7.2/test cases/frameworks/35 boost symlinks/boost/lib/boost_regex-vc142-mt-gd-x32-0_3.lib" -> "../Cellar/boost/0.3.0/lib/boost_regex-vc142-mt-gd-x32-0_3.lib".
+cmake -E tar: warning: skipping symbolic link "meson-1.7.2/test cases/frameworks/35 boost symlinks/boost/lib/boost_regex-vc142-mt-gd-x64-0_3.lib" -> "../Cellar/boost/0.3.0/lib/boost_regex-vc142-mt-gd-x64-0_3.lib".
+cmake -E tar: warning: skipping symbolic link "meson-1.7.2/test cases/frameworks/35 boost symlinks/boost/lib/libboost_python.so.0.3.0" -> "../Cellar/boost-python/0.3.0/lib/libboost_python.so.0.3.0".
+cmake -E tar: warning: skipping symbolic link "meson-1.7.2/test cases/frameworks/35 boost symlinks/boost/lib/libboost_regex.so.0.3.0" -> "../Cellar/boost/0.3.0/lib/libboost_regex.so.0.3.0".
+-- Applying patch E:/code/git/vcpkg/packages/vcpkg-tool-meson_x64-windows/share/vcpkg-tool-meson/meson-intl.patch
+-- Applying patch E:/code/git/vcpkg/packages/vcpkg-tool-meson_x64-windows/share/vcpkg-tool-meson/adjust-python-dep.patch
+-- Applying patch E:/code/git/vcpkg/packages/vcpkg-tool-meson_x64-windows/share/vcpkg-tool-meson/adjust-args.patch
+-- Applying patch E:/code/git/vcpkg/packages/vcpkg-tool-meson_x64-windows/share/vcpkg-tool-meson/remove-freebsd-pcfile-specialization.patch
+-- Found Python version '3.12.7 at E:/code/git/vcpkg/downloads/tools/python/python-3.12.7-x64-1/python.exe'
+-- Using meson: E:/code/git/vcpkg/downloads/tools/meson-1.7.2-549ef7/meson.py
+-- Performing post-build validation
+Starting submission of vcpkg-tool-meson:x64-windows@1.7.2 to 1 binary cache(s) in the background
+Elapsed time to handle vcpkg-tool-meson:x64-windows: 10 s
+vcpkg-tool-meson:x64-windows package ABI: b8302e6f90cdef00997882a8a8d30dedeb1f98ffd48b6889d9d77aaf7f344bec
+Installing 5/30 pkgconf:x64-windows@2.4.3#1...
+Building pkgconf:x64-windows@2.4.3#1...
+-- Found Python version '3.12.7 at E:/code/git/vcpkg/downloads/tools/python/python-3.12.7-x64-1/python.exe'
+-- Using meson: E:/code/git/vcpkg/downloads/tools/meson-1.7.2-549ef7/meson.py
+Downloading https://github.com/pkgconf/pkgconf/commit/664b53d5c4920e66e4a57c7515ccfd1bd1477bac.patch?full_index=1 -> pkgconf-add-missing-define-664b53d5c4920e66e4a57c7515ccfd1bd1477bac.patch
+Successfully downloaded pkgconf-add-missing-define-664b53d5c4920e66e4a57c7515ccfd1bd1477bac.patch
+Downloading https://github.com/pkgconf/pkgconf/archive/pkgconf-2.4.3.tar.gz -> pkgconf-pkgconf-pkgconf-2.4.3.tar.gz
+Successfully downloaded pkgconf-pkgconf-pkgconf-2.4.3.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/pkgconf-pkgconf-pkgconf-2.4.3.tar.gz
+-- Applying patch E:/code/git/vcpkg/downloads/pkgconf-add-missing-define-664b53d5c4920e66e4a57c7515ccfd1bd1477bac.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/pkgconf/src/conf-2.4.3-d5be0b9b2c.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-dbg
+-- Getting CMake variables for x64-windows
+-- Loading CMake variables from E:/code/git/vcpkg/buildtrees/pkgconf/cmake-get-vars_C_CXX-x64-windows.cmake.log
+-- Configuring x64-windows-dbg done
+-- Configuring x64-windows-rel
+-- Configuring x64-windows-rel done
+-- Package x64-windows-dbg
+-- Package x64-windows-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/pkgconf_x64-windows/lib/pkgconfig/libpkgconf.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/pkgconf_x64-windows/debug/lib/pkgconfig/libpkgconf.pc
+-- Installing: E:/code/git/vcpkg/packages/pkgconf_x64-windows/share/pkgconf/copyright
+-- Performing post-build validation
+Starting submission of pkgconf:x64-windows@2.4.3#1 to 1 binary cache(s) in the background
+Elapsed time to handle pkgconf:x64-windows: 30 s
+pkgconf:x64-windows package ABI: 5c7a5c0aa29f260232346a24b018c07e14f8d078504c2cad5249098c6fa1a0fe
+Completed submission of icu:x64-windows-mega@74.2#4 to 1 binary cache(s) in 28 s
+Completed submission of vcpkg-cmake-get-vars:x64-windows@2025-05-29 to 1 binary cache(s) in 63.2 ms
+Completed submission of vcpkg-tool-meson:x64-windows@1.7.2 to 1 binary cache(s) in 59.1 ms
+Installing 6/30 vcpkg-pkgconfig-get-modules:x64-windows@2024-04-03...
+Building vcpkg-pkgconfig-get-modules:x64-windows@2024-04-03...
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-pkgconfig-get-modules_x64-windows/share/vcpkg-pkgconfig-get-modules/copyright
+-- Performing post-build validation
+Starting submission of vcpkg-pkgconfig-get-modules:x64-windows@2024-04-03 to 1 binary cache(s) in the background
+Elapsed time to handle vcpkg-pkgconfig-get-modules:x64-windows: 92.2 ms
+vcpkg-pkgconfig-get-modules:x64-windows package ABI: 36fc07fe4ee0aef003289e21bbd7f0d3a76b6d8b6248d9b8f70b2b8eb0943887
+Installing 7/30 vcpkg-msbuild:x64-windows@2023-08-08...
+Building vcpkg-msbuild:x64-windows@2023-08-08...
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-msbuild_x64-windows/share/vcpkg-msbuild/vcpkg_msbuild.props.in
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-msbuild_x64-windows/share/vcpkg-msbuild/vcpkg_msbuild.targets.in
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-msbuild_x64-windows/share/vcpkg-msbuild/z_vcpkg_msbuild_create_props.cmake
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-msbuild_x64-windows/share/vcpkg-msbuild/vcpkg_msbuild_install.cmake
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-msbuild_x64-windows/share/vcpkg-msbuild/vcpkg-port-config.cmake
+-- Installing: E:/code/git/vcpkg/packages/vcpkg-msbuild_x64-windows/share/vcpkg-msbuild/copyright
+-- Performing post-build validation
+Starting submission of vcpkg-msbuild:x64-windows@2023-08-08 to 1 binary cache(s) in the background
+Elapsed time to handle vcpkg-msbuild:x64-windows: 122 ms
+vcpkg-msbuild:x64-windows package ABI: 8c463a084f37331634141c1cc1037acc51d3dbb700bc9984f5808a55c5389970
+Completed submission of pkgconf:x64-windows@2.4.3#1 to 1 binary cache(s) in 177 ms
+Installing 8/30 libsodium:x64-windows-mega@1.0.20#3...
+Building libsodium:x64-windows-mega@1.0.20#3...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/jedisct1/libsodium/archive/1.0.20-RELEASE.tar.gz -> jedisct1-libsodium-1.0.20-RELEASE.tar.gz
+Successfully downloaded jedisct1-libsodium-1.0.20-RELEASE.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/jedisct1-libsodium-1.0.20-RELEASE.tar.gz
+-- Applying patch 001-mingw-i386.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/libsodium/src/20-RELEASE-7f638670a5.clean
+-- Found external ninja('1.12.1').
+-- Getting CMake variables for x64-windows-mega
+-- Loading CMake variables from E:/code/git/vcpkg/buildtrees/libsodium/cmake-get-vars_C_CXX-x64-windows-mega.cmake.log
+-- Building builds/msvc/vs2022/libsodium/libsodium.vcxproj for Release
+-- Building builds/msvc/vs2022/libsodium/libsodium.vcxproj for Debug
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/core.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_aead_aegis128l.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_aead_aegis256.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_aead_aes256gcm.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_aead_chacha20poly1305.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_aead_xchacha20poly1305.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_auth.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_auth_hmacsha256.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_auth_hmacsha512.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_auth_hmacsha512256.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_box.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_box_curve25519xchacha20poly1305.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_box_curve25519xsalsa20poly1305.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_core_ed25519.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_core_hchacha20.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_core_hsalsa20.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_core_ristretto255.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_core_salsa20.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_core_salsa2012.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_core_salsa208.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_generichash.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_generichash_blake2b.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_hash.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_hash_sha256.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_hash_sha512.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_kdf.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_kdf_blake2b.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_kdf_hkdf_sha256.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_kdf_hkdf_sha512.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_kx.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_onetimeauth.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_onetimeauth_poly1305.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_pwhash.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_pwhash_argon2i.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_pwhash_argon2id.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_pwhash_scryptsalsa208sha256.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_scalarmult.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_scalarmult_curve25519.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_scalarmult_ed25519.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_scalarmult_ristretto255.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_secretbox.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_secretbox_xchacha20poly1305.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_secretbox_xsalsa20poly1305.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_secretstream_xchacha20poly1305.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_shorthash.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_shorthash_siphash24.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_sign.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_sign_ed25519.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_sign_edwards25519sha512batch.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_stream.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_stream_chacha20.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_stream_salsa20.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_stream_salsa2012.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_stream_salsa208.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_stream_xchacha20.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_stream_xsalsa20.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_verify_16.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_verify_32.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/crypto_verify_64.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/export.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private/asm_cet.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private/chacha20_ietf_ext.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private/common.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private/ed25519_ref10.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private/ed25519_ref10_fe_25_5.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private/ed25519_ref10_fe_51.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private/implementations.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private/mutex.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private/softaes.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/private/sse2_64_32.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/randombytes.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/randombytes_internal_random.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/randombytes_sysrandom.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/runtime.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/utils.h
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/version.h.in
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/include/sodium/version.h
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/lib/pkgconfig/libsodium.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/debug/lib/pkgconfig/libsodium.pc
+-- Installing: E:/code/git/vcpkg/packages/libsodium_x64-windows-mega/share/libsodium/copyright
+-- Performing post-build validation
+Starting submission of libsodium:x64-windows-mega@1.0.20#3 to 1 binary cache(s) in the background
+Elapsed time to handle libsodium:x64-windows-mega: 34 s
+libsodium:x64-windows-mega package ABI: 10a4efedd1b6d3e3a07528e748a5b7a276adb139dce69ffa85519727831a41da
+Completed submission of vcpkg-pkgconfig-get-modules:x64-windows@2024-04-03 to 1 binary cache(s) in 56.4 ms
+Completed submission of vcpkg-msbuild:x64-windows@2023-08-08 to 1 binary cache(s) in 62 ms
+Installing 9/30 sqlite3[core,json1]:x64-windows-mega@3.49.2...
+Building sqlite3[core,json1]:x64-windows-mega@3.49.2...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://sqlite.org/2025/sqlite-autoconf-3490200.tar.gz -> sqlite-autoconf-3490200.zip
+PS E:\code\git>
+PS E:\code\git>
+PS E:\code\git>
+PS E:\code\git> cmake -DVCPKG_ROOT=vcpkg -DCMAKE_BUILD_TYPE=Debug -S sdk -B build_dir
+-- Building for: Visual Studio 17 2022
+-- [SDKlib] is a top-level project. Install target is enabled by default.
+-- Examples and tests will be enabled by default.
+-- Using VCPKG dependencies. VCPKG base path: E:/code/git/vcpkg and tripplet x64-windows-mega
+-- Overlay for VCPKG ports: E:/code/git/sdk/cmake/vcpkg_overlay_ports
+-- Overlay for VCPKG triplets: E:/code/git/sdk/cmake/vcpkg_overlay_triplets
+-- Running vcpkg install
+Detecting compiler hash for triplet x64-windows...
+-- Automatically setting %HTTP(S)_PROXY% environment variables to "127.0.0.1:7890".
+Compiler found: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+Detecting compiler hash for triplet x64-windows-mega...
+Compiler found: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.29.30133/bin/HostX64/x64/cl.exe
+The following packages are already installed:
+    cryptopp:x64-windows-mega@8.9.0#1
+    curl[core,non-http,schannel,ssl,sspi,zstd]:x64-windows-mega@8.14.1
+  * icu[core,tools]:x64-windows@74.2#4
+    icu:x64-windows-mega@74.2#4
+    libsodium:x64-windows-mega@1.0.20#3
+  * pkgconf:x64-windows@2.4.3#1
+  * vcpkg-cmake:x64-windows@2024-04-23
+  * vcpkg-cmake-config:x64-windows@2024-05-23
+  * vcpkg-cmake-get-vars:x64-windows@2025-05-29
+  * vcpkg-msbuild:x64-windows@2023-08-08
+  * vcpkg-pkgconfig-get-modules:x64-windows@2024-04-03
+  * vcpkg-tool-meson:x64-windows@1.7.2
+  * zlib:x64-windows-mega@1.3.1
+  * zstd:x64-windows-mega@1.5.7
+The following packages will be built and installed:
+  * brotli:x64-windows-mega@1.1.0#1
+  * bzip2[core,tool]:x64-windows-mega@1.0.8#6
+    ffmpeg[avcodec,avformat,core,swresample,swscale]:x64-windows-mega@7.1.1#2
+    freeimage:x64-windows-mega@3.18.0#27
+  * freetype[brotli,bzip2,core,png,zlib]:x64-windows-mega@2.13.3
+    gtest:x64-windows-mega@1.17.0#1
+  * imath:x64-windows-mega@3.1.12
+    jasper:x64-windows-mega@4.2.4#2
+  * jxrlib:x64-windows-mega@2019.10.9#7 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\jxrlib
+  * lcms:x64-windows-mega@2.17
+  * libdeflate[compression,core,decompression,gzip,zlib]:x64-windows-mega@1.24 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\libdeflate
+  * libjpeg-turbo:x64-windows-mega@3.1.0#1
+  * liblzma:x64-windows-mega@5.8.1
+  * libpng:x64-windows-mega@1.6.47
+  * libraw:x64-windows-mega@0.21.4
+  * libwebp[core,libwebpmux,nearlossless,simd,unicode]:x64-windows-mega@1.5.0#1
+  * openexr:x64-windows-mega@3.3.2
+  * openjpeg:x64-windows-mega@2.5.3
+    openssl:x64-windows-mega@3.5.0#1
+    pdfium:x64-windows-mega@6778#1 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\pdfium
+    sqlite3[core,json1]:x64-windows-mega@3.49.2
+  * tiff[core,jpeg,lzma,zip]:x64-windows-mega@4.7.0
+Additional packages (*) will be modified to complete this operation.
+Restored 0 package(s) from C:\Users\liang\AppData\Local\vcpkg\archives in 524 us. Use --debug to see more details.
+Installing 1/22 sqlite3[core,json1]:x64-windows-mega@3.49.2...
+Building sqlite3[core,json1]:x64-windows-mega@3.49.2...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://sqlite.org/2025/sqlite-autoconf-3490200.tar.gz -> sqlite-autoconf-3490200.zip
+Successfully downloaded sqlite-autoconf-3490200.zip
+-- Extracting source E:/code/git/vcpkg/downloads/sqlite-autoconf-3490200.zip
+-- Applying patch fix-arm-uwp.patch
+-- Applying patch add-config-include.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/sqlite3/src/nf-3490200-5690851098.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/sqlite3_x64-windows-mega/lib/pkgconfig/sqlite3.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/sqlite3_x64-windows-mega/debug/lib/pkgconfig/sqlite3.pc
+-- Installing: E:/code/git/vcpkg/packages/sqlite3_x64-windows-mega/share/sqlite3/usage
+-- Performing post-build validation
+Starting submission of sqlite3[core,json1]:x64-windows-mega@3.49.2 to 1 binary cache(s) in the background
+Elapsed time to handle sqlite3:x64-windows-mega: 25 s
+sqlite3:x64-windows-mega package ABI: 964e5acdebff17ac16c46deb7bf2ba226f5b73342aa9875ddaf494bf1362b570
+Installing 2/22 gtest:x64-windows-mega@1.17.0#1...
+Building gtest:x64-windows-mega@1.17.0#1...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/google/googletest/archive/v1.17.0.tar.gz -> google-googletest-v1.17.0.tar.gz
+Successfully downloaded google-googletest-v1.17.0.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/google-googletest-v1.17.0.tar.gz
+-- Applying patch 001-fix-UWP-death-test.patch
+-- Applying patch clang-tidy-no-lint.patch
+-- Applying patch fix-main-lib-path.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/gtest/src/v1.17.0-0c449efaff.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest.cc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest_main.cc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest-all.cc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest-assertion-result.cc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest-death-test.cc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest-filepath.cc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest-internal-inl.h
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest-matchers.cc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest-port.cc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest-printers.cc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest-test-part.cc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/src/gtest-typed-test.cc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/lib/pkgconfig/gmock.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/lib/pkgconfig/gmock_main.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/lib/pkgconfig/gtest.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/lib/pkgconfig/gtest_main.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/debug/lib/pkgconfig/gmock.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/debug/lib/pkgconfig/gmock_main.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/debug/lib/pkgconfig/gtest.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/debug/lib/pkgconfig/gtest_main.pc
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/share/gtest/copyright
+-- Installing: E:/code/git/vcpkg/packages/gtest_x64-windows-mega/share/gtest/usage
+-- Performing post-build validation
+Starting submission of gtest:x64-windows-mega@1.17.0#1 to 1 binary cache(s) in the background
+Elapsed time to handle gtest:x64-windows-mega: 35 s
+gtest:x64-windows-mega package ABI: aef6fd53a619d75642bc0d87665bf549691c9ffd4c87c59b39419363b84a0b28
+Completed submission of sqlite3[core,json1]:x64-windows-mega@3.49.2 to 1 binary cache(s) in 1.1 s
+Installing 3/22 ffmpeg[avcodec,avformat,core,swresample,swscale]:x64-windows-mega@7.1.1#2...
+Building ffmpeg[avcodec,avformat,core,swresample,swscale]:x64-windows-mega@7.1.1#2...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/ffmpeg/ffmpeg/archive/n7.1.1.tar.gz -> ffmpeg-ffmpeg-n7.1.1.tar.gz
+Successfully downloaded ffmpeg-ffmpeg-n7.1.1.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/ffmpeg-ffmpeg-n7.1.1.tar.gz
+-- Applying patch 0001-create-lib-libraries.patch
+-- Applying patch 0002-fix-msvc-link.patch
+-- Applying patch 0003-fix-windowsinclude.patch
+-- Applying patch 0004-dependencies.patch
+-- Applying patch 0005-fix-nasm.patch
+-- Applying patch 0007-fix-lib-naming.patch
+-- Applying patch 0013-define-WINVER.patch
+-- Applying patch 0020-fix-aarch64-libswscale.patch
+-- Applying patch 0024-fix-osx-host-c11.patch
+-- Applying patch 0040-ffmpeg-add-av_stream_get_first_dts-for-chromium.patch
+-- Applying patch 0041-add-const-for-opengl-definition.patch
+-- Applying patch 0043-fix-miss-head.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/ffmpeg/src/n7.1.1-07cb3aa68a.clean
+Downloading nasm-2.16.03-win64.zip, trying https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/win64/nasm-2.16.03-win64.zip
+Successfully downloaded nasm-2.16.03-win64.zip
+-- Found external ninja('1.12.1').
+-- Getting CMake variables for x64-windows-mega
+-- Loading CMake variables from E:/code/git/vcpkg/buildtrees/ffmpeg/cmake-get-vars_C_CXX-x64-windows-mega.cmake.log
+-- Using cached msys2-automake-wrapper-20240607-1-any.pkg.tar.zst
+-- Using cached msys2-bash-5.2.037-2-x86_64.pkg.tar.zst
+-- Using cached msys2-coreutils-8.32-5-x86_64.pkg.tar.zst
+-- Using cached msys2-file-5.46-2-x86_64.pkg.tar.zst
+-- Using cached msys2-gawk-5.3.2-1-x86_64.pkg.tar.zst
+-- Using cached msys2-grep-1~3.0-7-x86_64.pkg.tar.zst
+-- Using cached msys2-gzip-1.14-1-x86_64.pkg.tar.zst
+-- Using cached msys2-diffutils-3.12-1-x86_64.pkg.tar.zst
+-- Using cached msys2-make-4.4.1-2-x86_64.pkg.tar.zst
+-- Using cached msys2-pkgconf-2.4.3-1-x86_64.pkg.tar.zst
+-- Using cached msys2-sed-4.9-1-x86_64.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using cached msys2-automake1.16-1.16.5-1-any.pkg.tar.zst
+-- Using cached msys2-automake1.17-1.17-1-any.pkg.tar.zst
+-- Using cached msys2-libiconv-1.18-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libintl-0.22.5-1-x86_64.pkg.tar.zst
+-- Using cached msys2-gmp-6.3.0-1-x86_64.pkg.tar.zst
+-- Using cached msys2-gcc-libs-13.3.0-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libbz2-1.0.8-4-x86_64.pkg.tar.zst
+-- Using cached msys2-liblzma-5.8.1-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libzstd-1.5.7-1-x86_64.pkg.tar.zst
+-- Using cached msys2-zlib-1.3.1-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libreadline-8.2.013-1-x86_64.pkg.tar.zst
+-- Using cached msys2-mpfr-4.2.2-1-x86_64.pkg.tar.zst
+-- Using cached msys2-libpcre-8.45-5-x86_64.pkg.tar.zst
+-- Using cached msys2-perl-5.38.4-2-x86_64.pkg.tar.zst
+-- Using cached msys2-ncurses-6.5.20240831-2-x86_64.pkg.tar.zst
+-- Using cached msys2-libxcrypt-4.4.38-1-x86_64.pkg.tar.zst
+-- Applying patch E:/code/git/vcpkg/scripts/cmake/compile_wrapper_consider_clang-cl.patch
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/98bfa283738806cc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Building Options: --toolchain=msvc --enable-pic --disable-doc --enable-debug --enable-runtime-cpudetect --disable-autodetect --target-os=win32 --enable-w32threads --enable-d3d11va --enable-d3d12va --enable-dxva2 --enable-mediafoundation --disable-inline-asm --cc=cl.exe --host_cc=cl.exe --cxx=cl.exe --windres=rc.exe --ld=link.exe --ar='ar-lib lib.exe' --ranlib=: --disable-ffmpeg --disable-ffplay --disable-ffprobe --enable-avcodec --disable-avdevice --enable-avformat --disable-avfilter --disable-postproc --enable-swresample --enable-swscale --disable-alsa --disable-amf --disable-libaom --disable-libass --disable-avisynth --disable-bzlib --disable-libdav1d --disable-libfdk-aac --disable-libfontconfig --disable-libharfbuzz --disable-libfreetype --disable-libfribidi --disable-iconv --disable-libilbc --disable-lzma --disable-libmp3lame --disable-libmodplug --disable-cuda --disable-nvenc --disable-nvdec  --disable-cuvid --disable-ffnvcodec --disable-opencl --disable-opengl --disable-libopenh264 --disable-libopenjpeg --disable-libopenmpt --disable-openssl --enable-schannel --disable-libopus --disable-sdl2 --disable-libsnappy --disable-libsoxr --disable-libspeex --disable-libssh --disable-libtensorflow --disable-libtesseract --disable-libtheora --disable-libvorbis --disable-libvpx --disable-libwebp --disable-libx264 --disable-libx265 --disable-libxml2 --disable-zlib --disable-libsrt --disable-libmfx --enable-cross-compile --disable-static --enable-shared --extra-cflags=-DHAVE_UNISTD_H=0 --pkg-config="E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef/mingw64/bin/pkg-config.exe"
+-- Building Release Options: --enable-optimizations --extra-ldflags=-libpath:"E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib"
+-- Building ffmpeg for Release
+-- Building Debug Options: --disable-optimizations --extra-ldflags=-libpath:"E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib"
+-- Building ffmpeg for Debug
+-- Generating E:\code\git\vcpkg\packages\ffmpeg_x64-windows-mega\debug\lib\avcodec.lib
+-- Generating E:\code\git\vcpkg\packages\ffmpeg_x64-windows-mega\debug\lib\avformat.lib
+-- Generating E:\code\git\vcpkg\packages\ffmpeg_x64-windows-mega\debug\lib\avutil.lib
+-- Generating E:\code\git\vcpkg\packages\ffmpeg_x64-windows-mega\debug\lib\swresample.lib
+-- Generating E:\code\git\vcpkg\packages\ffmpeg_x64-windows-mega\debug\lib\swscale.lib
+-- Generating E:\code\git\vcpkg\packages\ffmpeg_x64-windows-mega\lib\avcodec.lib
+-- Generating E:\code\git\vcpkg\packages\ffmpeg_x64-windows-mega\lib\avformat.lib
+-- Generating E:\code\git\vcpkg\packages\ffmpeg_x64-windows-mega\lib\avutil.lib
+-- Generating E:\code\git\vcpkg\packages\ffmpeg_x64-windows-mega\lib\swresample.lib
+-- Generating E:\code\git\vcpkg\packages\ffmpeg_x64-windows-mega\lib\swscale.lib
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/lib/pkgconfig/libavcodec.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/lib/pkgconfig/libavformat.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/lib/pkgconfig/libavutil.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/lib/pkgconfig/libswresample.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/lib/pkgconfig/libswscale.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/debug/lib/pkgconfig/libavcodec.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/debug/lib/pkgconfig/libavformat.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/debug/lib/pkgconfig/libavutil.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/debug/lib/pkgconfig/libswresample.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/debug/lib/pkgconfig/libswscale.pc
+-- Dependencies (release): secur32;ws2_32;mfuuid;strmiids;ole32;user32;bcrypt
+-- Dependencies (debug):   secur32;ws2_32;mfuuid;strmiids;ole32;user32;bcrypt
+-- Installing: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/share/ffmpeg/usage
+-- Installing: E:/code/git/vcpkg/packages/ffmpeg_x64-windows-mega/share/ffmpeg/copyright
+-- Performing post-build validation
+Starting submission of ffmpeg[avcodec,avformat,core,swresample,swscale]:x64-windows-mega@7.1.1#2 to 1 binary cache(s) in the background
+Elapsed time to handle ffmpeg:x64-windows-mega: 29 min
+ffmpeg:x64-windows-mega package ABI: df3fe9b67b086180b9819eaca91b0a95538a6422636c1f0dfd03dec0741dc5de
+Completed submission of gtest:x64-windows-mega@1.17.0#1 to 1 binary cache(s) in 4.4 s
+Installing 4/22 liblzma:x64-windows-mega@5.8.1...
+Building liblzma:x64-windows-mega@5.8.1...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/tukaani-project/xz/archive/v5.8.1.tar.gz -> tukaani-project-xz-v5.8.1.tar.gz
+Successfully downloaded tukaani-project-xz-v5.8.1.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/tukaani-project-xz-v5.8.1.tar.gz
+-- Applying patch build-tools.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/liblzma/src/v5.8.1-7ed4ee158b.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/liblzma_x64-windows-mega/lib/pkgconfig/liblzma.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/liblzma_x64-windows-mega/debug/lib/pkgconfig/liblzma.pc
+-- Installing: E:/code/git/vcpkg/packages/liblzma_x64-windows-mega/share/liblzma/copyright
+-- Performing post-build validation
+Starting submission of liblzma:x64-windows-mega@5.8.1 to 1 binary cache(s) in the background
+Elapsed time to handle liblzma:x64-windows-mega: 50 s
+liblzma:x64-windows-mega package ABI: 5547bd227830c48cc5aa43404390144fc33b7abccda4a08e256985b10fd1f369
+Completed submission of ffmpeg[avcodec,avformat,core,swresample,swscale]:x64-windows-mega@7.1.1#2 to 1 binary cache(s) in 6.6 s
+Installing 5/22 libjpeg-turbo:x64-windows-mega@3.1.0#1...
+Building libjpeg-turbo:x64-windows-mega@3.1.0#1...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/libjpeg-turbo/libjpeg-turbo/archive/3.1.0.tar.gz -> libjpeg-turbo-libjpeg-turbo-3.1.0.tar.gz
+Successfully downloaded libjpeg-turbo-libjpeg-turbo-3.1.0.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/libjpeg-turbo-libjpeg-turbo-3.1.0.tar.gz
+-- Applying patch add-options-for-exes-docs-headers.patch
+-- Applying patch workaround_cmake_system_processor.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/libjpeg-turbo/src/3.1.0-61083179ee.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libjpeg-turbo_x64-windows-mega/lib/pkgconfig/libjpeg.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libjpeg-turbo_x64-windows-mega/lib/pkgconfig/libturbojpeg.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libjpeg-turbo_x64-windows-mega/debug/lib/pkgconfig/libjpeg.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libjpeg-turbo_x64-windows-mega/debug/lib/pkgconfig/libturbojpeg.pc
+-- Installing: E:/code/git/vcpkg/packages/libjpeg-turbo_x64-windows-mega/share/libjpeg-turbo/copyright
+-- Performing post-build validation
+Starting submission of libjpeg-turbo:x64-windows-mega@3.1.0#1 to 1 binary cache(s) in the background
+Elapsed time to handle libjpeg-turbo:x64-windows-mega: 48 s
+libjpeg-turbo:x64-windows-mega package ABI: ec47a82e3457fc68543e32b12e406bdf2fd61002edccf95dc65b1be8ea7802eb
+Completed submission of liblzma:x64-windows-mega@5.8.1 to 1 binary cache(s) in 419 ms
+Installing 6/22 tiff[core,jpeg,lzma,zip]:x64-windows-mega@4.7.0...
+Building tiff[core,jpeg,lzma,zip]:x64-windows-mega@4.7.0...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://gitlab.com/libtiff/libtiff/-/archive/v4.7.0/libtiff-v4.7.0.tar.gz -> libtiff-libtiff-v4.7.0.tar.gz
+Successfully downloaded libtiff-libtiff-v4.7.0.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/libtiff-libtiff-v4.7.0.tar.gz
+-- Applying patch FindCMath.patch
+-- Applying patch prefer-config.diff
+-- Using source at E:/code/git/vcpkg/buildtrees/tiff/src/v4.7.0-05e0c9997b.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/tiff_x64-windows-mega/lib/pkgconfig/libtiff-4.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/tiff_x64-windows-mega/debug/lib/pkgconfig/libtiff-4.pc
+-- Installing: E:/code/git/vcpkg/packages/tiff_x64-windows-mega/share/tiff/copyright
+-- Performing post-build validation
+Starting submission of tiff[core,jpeg,lzma,zip]:x64-windows-mega@4.7.0 to 1 binary cache(s) in the background
+Elapsed time to handle tiff:x64-windows-mega: 52 s
+tiff:x64-windows-mega package ABI: 6204a115b59743ab9d88367328e0fdefaeb8a6f1f9e58b64bc89803f253ead46
+Completed submission of libjpeg-turbo:x64-windows-mega@3.1.0#1 to 1 binary cache(s) in 1.1 s
+Installing 7/22 openjpeg:x64-windows-mega@2.5.3...
+Building openjpeg:x64-windows-mega@2.5.3...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/uclouvain/openjpeg/archive/v2.5.3.tar.gz -> uclouvain-openjpeg-v2.5.3.tar.gz
+Successfully downloaded uclouvain-openjpeg-v2.5.3.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/uclouvain-openjpeg-v2.5.3.tar.gz
+-- Applying patch third-party.diff
+-- Using source at E:/code/git/vcpkg/buildtrees/openjpeg/src/v2.5.3-3517784c4c.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/openjpeg_x64-windows-mega/lib/pkgconfig/libopenjp2.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/openjpeg_x64-windows-mega/debug/lib/pkgconfig/libopenjp2.pc
+-- Installing: E:/code/git/vcpkg/packages/openjpeg_x64-windows-mega/share/openjpeg/usage
+-- Installing: E:/code/git/vcpkg/packages/openjpeg_x64-windows-mega/share/openjpeg/copyright
+-- Performing post-build validation
+Starting submission of openjpeg:x64-windows-mega@2.5.3 to 1 binary cache(s) in the background
+Elapsed time to handle openjpeg:x64-windows-mega: 1 min
+openjpeg:x64-windows-mega package ABI: 0535ffef445f5e0afee41b6593bca11a47f5ed113ff533af810292bfa59c4bda
+Completed submission of tiff[core,jpeg,lzma,zip]:x64-windows-mega@4.7.0 to 1 binary cache(s) in 578 ms
+Installing 8/22 libdeflate[compression,core,decompression,gzip,zlib]:x64-windows-mega@1.24...
+Building libdeflate[compression,core,decompression,gzip,zlib]:x64-windows-mega@1.24...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+E:/code/git/sdk/cmake/vcpkg_overlay_ports\libdeflate: info: installing overlay port from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/ebiggers/libdeflate/archive/v1.24.tar.gz -> ebiggers-libdeflate-v1.24.tar.gz
+Successfully downloaded ebiggers-libdeflate-v1.24.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/ebiggers-libdeflate-v1.24.tar.gz
+-- Applying patch remove_wrong_c_flags_modification.diff
+-- Applying patch msvc_dotprod.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/libdeflate/src/v1.24-1a90f60fb2.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libdeflate_x64-windows-mega/lib/pkgconfig/libdeflate.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libdeflate_x64-windows-mega/debug/lib/pkgconfig/libdeflate.pc
+-- Installing: E:/code/git/vcpkg/packages/libdeflate_x64-windows-mega/share/libdeflate/copyright
+-- Installing: E:/code/git/vcpkg/packages/libdeflate_x64-windows-mega/share/libdeflate/usage
+-- Performing post-build validation
+Starting submission of libdeflate[compression,core,decompression,gzip,zlib]:x64-windows-mega@1.24 to 1 binary cache(s) in the background
+Elapsed time to handle libdeflate:x64-windows-mega: 9.6 s
+libdeflate:x64-windows-mega package ABI: 666d019656e10536d236a6985a1352313db4dcbfe78d4ab6806cca4e5b92a1b6
+Completed submission of openjpeg:x64-windows-mega@2.5.3 to 1 binary cache(s) in 365 ms
+Installing 9/22 imath:x64-windows-mega@3.1.12...
+Building imath:x64-windows-mega@3.1.12...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/AcademySoftwareFoundation/Imath/archive/v3.1.12.tar.gz -> AcademySoftwareFoundation-Imath-v3.1.12.tar.gz
+Successfully downloaded AcademySoftwareFoundation-Imath-v3.1.12.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/AcademySoftwareFoundation-Imath-v3.1.12.tar.gz
+-- Using source at E:/code/git/vcpkg/buildtrees/imath/src/v3.1.12-874a67ad8f.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/imath_x64-windows-mega/lib/pkgconfig/Imath.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/imath_x64-windows-mega/debug/lib/pkgconfig/Imath.pc
+-- Installing: E:/code/git/vcpkg/packages/imath_x64-windows-mega/share/imath/copyright
+-- Performing post-build validation
+Starting submission of imath:x64-windows-mega@3.1.12 to 1 binary cache(s) in the background
+Elapsed time to handle imath:x64-windows-mega: 28 s
+imath:x64-windows-mega package ABI: df4c53e3371c71911976e6f7b71cc88c73420e3e9029eefb49fac3e9cc41acd5
+Completed submission of libdeflate[compression,core,decompression,gzip,zlib]:x64-windows-mega@1.24 to 1 binary cache(s) in 126 ms
+Installing 10/22 openexr:x64-windows-mega@3.3.2...
+Building openexr:x64-windows-mega@3.3.2...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/AcademySoftwareFoundation/openexr/archive/v3.3.2.tar.gz -> AcademySoftwareFoundation-openexr-v3.3.2.tar.gz
+warning: Download https://github.com/AcademySoftwareFoundation/openexr/archive/v3.3.2.tar.gz failed -- retrying after 1000ms
+PS E:\code\git>
+PS E:\code\git>
+PS E:\code\git> cmake -DVCPKG_ROOT=vcpkg -DCMAKE_BUILD_TYPE=Debug -S sdk -B build_dir
+-- Building for: Visual Studio 17 2022
+-- [SDKlib] is a top-level project. Install target is enabled by default.
+-- Examples and tests will be enabled by default.
+-- Using VCPKG dependencies. VCPKG base path: E:/code/git/vcpkg and tripplet x64-windows-mega
+-- Overlay for VCPKG ports: E:/code/git/sdk/cmake/vcpkg_overlay_ports
+-- Overlay for VCPKG triplets: E:/code/git/sdk/cmake/vcpkg_overlay_triplets
+-- Running vcpkg install
+Detecting compiler hash for triplet x64-windows...
+-- Automatically setting %HTTP(S)_PROXY% environment variables to "127.0.0.1:7890".
+Compiler found: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+Detecting compiler hash for triplet x64-windows-mega...
+Compiler found: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.29.30133/bin/HostX64/x64/cl.exe
+The following packages are already installed:
+    cryptopp:x64-windows-mega@8.9.0#1
+    curl[core,non-http,schannel,ssl,sspi,zstd]:x64-windows-mega@8.14.1
+    ffmpeg[avcodec,avformat,core,swresample,swscale]:x64-windows-mega@7.1.1#2
+    gtest:x64-windows-mega@1.17.0#1
+  * icu[core,tools]:x64-windows@74.2#4
+    icu:x64-windows-mega@74.2#4
+  * imath:x64-windows-mega@3.1.12
+  * libdeflate[compression,core,decompression,gzip,zlib]:x64-windows-mega@1.24 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\libdeflate
+  * libjpeg-turbo:x64-windows-mega@3.1.0#1
+  * liblzma:x64-windows-mega@5.8.1
+    libsodium:x64-windows-mega@1.0.20#3
+  * openjpeg:x64-windows-mega@2.5.3
+  * pkgconf:x64-windows@2.4.3#1
+    sqlite3[core,json1]:x64-windows-mega@3.49.2
+  * tiff[core,jpeg,lzma,zip]:x64-windows-mega@4.7.0
+  * vcpkg-cmake:x64-windows@2024-04-23
+  * vcpkg-cmake-config:x64-windows@2024-05-23
+  * vcpkg-cmake-get-vars:x64-windows@2025-05-29
+  * vcpkg-msbuild:x64-windows@2023-08-08
+  * vcpkg-pkgconfig-get-modules:x64-windows@2024-04-03
+  * vcpkg-tool-meson:x64-windows@1.7.2
+  * zlib:x64-windows-mega@1.3.1
+  * zstd:x64-windows-mega@1.5.7
+The following packages will be built and installed:
+  * brotli:x64-windows-mega@1.1.0#1
+  * bzip2[core,tool]:x64-windows-mega@1.0.8#6
+    freeimage:x64-windows-mega@3.18.0#27
+  * freetype[brotli,bzip2,core,png,zlib]:x64-windows-mega@2.13.3
+    jasper:x64-windows-mega@4.2.4#2
+  * jxrlib:x64-windows-mega@2019.10.9#7 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\jxrlib
+  * lcms:x64-windows-mega@2.17
+  * libpng:x64-windows-mega@1.6.47
+  * libraw:x64-windows-mega@0.21.4
+  * libwebp[core,libwebpmux,nearlossless,simd,unicode]:x64-windows-mega@1.5.0#1
+  * openexr:x64-windows-mega@3.3.2
+    openssl:x64-windows-mega@3.5.0#1
+    pdfium:x64-windows-mega@6778#1 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\pdfium
+Additional packages (*) will be modified to complete this operation.
+Restored 0 package(s) from C:\Users\liang\AppData\Local\vcpkg\archives in 543 us. Use --debug to see more details.
+Installing 1/13 openexr:x64-windows-mega@3.3.2...
+Building openexr:x64-windows-mega@3.3.2...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/AcademySoftwareFoundation/openexr/archive/v3.3.2.tar.gz -> AcademySoftwareFoundation-openexr-v3.3.2.tar.gz
+PS E:\code\git>
+PS E:\code\git>
+PS E:\code\git>
+PS E:\code\git>
+PS E:\code\git> cmake -DVCPKG_ROOT=vcpkg -DCMAKE_BUILD_TYPE=Debug -S sdk -B build_dir
+-- Building for: Visual Studio 17 2022
+-- [SDKlib] is a top-level project. Install target is enabled by default.
+-- Examples and tests will be enabled by default.
+-- Using VCPKG dependencies. VCPKG base path: E:/code/git/vcpkg and tripplet x64-windows-mega
+-- Overlay for VCPKG ports: E:/code/git/sdk/cmake/vcpkg_overlay_ports
+-- Overlay for VCPKG triplets: E:/code/git/sdk/cmake/vcpkg_overlay_triplets
+-- Running vcpkg install
+Detecting compiler hash for triplet x64-windows...
+-- Automatically setting %HTTP(S)_PROXY% environment variables to "127.0.0.1:7890".
+Compiler found: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+Detecting compiler hash for triplet x64-windows-mega...
+Compiler found: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.29.30133/bin/HostX64/x64/cl.exe
+The following packages are already installed:
+    cryptopp:x64-windows-mega@8.9.0#1
+    curl[core,non-http,schannel,ssl,sspi,zstd]:x64-windows-mega@8.14.1
+    ffmpeg[avcodec,avformat,core,swresample,swscale]:x64-windows-mega@7.1.1#2
+    gtest:x64-windows-mega@1.17.0#1
+  * icu[core,tools]:x64-windows@74.2#4
+    icu:x64-windows-mega@74.2#4
+  * imath:x64-windows-mega@3.1.12
+  * libdeflate[compression,core,decompression,gzip,zlib]:x64-windows-mega@1.24 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\libdeflate
+  * libjpeg-turbo:x64-windows-mega@3.1.0#1
+  * liblzma:x64-windows-mega@5.8.1
+    libsodium:x64-windows-mega@1.0.20#3
+  * openjpeg:x64-windows-mega@2.5.3
+  * pkgconf:x64-windows@2.4.3#1
+    sqlite3[core,json1]:x64-windows-mega@3.49.2
+  * tiff[core,jpeg,lzma,zip]:x64-windows-mega@4.7.0
+  * vcpkg-cmake:x64-windows@2024-04-23
+  * vcpkg-cmake-config:x64-windows@2024-05-23
+  * vcpkg-cmake-get-vars:x64-windows@2025-05-29
+  * vcpkg-msbuild:x64-windows@2023-08-08
+  * vcpkg-pkgconfig-get-modules:x64-windows@2024-04-03
+  * vcpkg-tool-meson:x64-windows@1.7.2
+  * zlib:x64-windows-mega@1.3.1
+  * zstd:x64-windows-mega@1.5.7
+The following packages will be built and installed:
+  * brotli:x64-windows-mega@1.1.0#1
+  * bzip2[core,tool]:x64-windows-mega@1.0.8#6
+    freeimage:x64-windows-mega@3.18.0#27
+  * freetype[brotli,bzip2,core,png,zlib]:x64-windows-mega@2.13.3
+    jasper:x64-windows-mega@4.2.4#2
+  * jxrlib:x64-windows-mega@2019.10.9#7 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\jxrlib
+  * lcms:x64-windows-mega@2.17
+  * libpng:x64-windows-mega@1.6.47
+  * libraw:x64-windows-mega@0.21.4
+  * libwebp[core,libwebpmux,nearlossless,simd,unicode]:x64-windows-mega@1.5.0#1
+  * openexr:x64-windows-mega@3.3.2
+    openssl:x64-windows-mega@3.5.0#1
+    pdfium:x64-windows-mega@6778#1 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\pdfium
+Additional packages (*) will be modified to complete this operation.
+Restored 0 package(s) from C:\Users\liang\AppData\Local\vcpkg\archives in 280 us. Use --debug to see more details.
+Installing 1/13 openexr:x64-windows-mega@3.3.2...
+Building openexr:x64-windows-mega@3.3.2...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/AcademySoftwareFoundation/openexr/archive/v3.3.2.tar.gz -> AcademySoftwareFoundation-openexr-v3.3.2.tar.gz
+PS E:\code\git> cmake -DVCPKG_ROOT=vcpkg -DCMAKE_BUILD_TYPE=Debug -S sdk -B build_dir
+-- Building for: Visual Studio 17 2022
+-- [SDKlib] is a top-level project. Install target is enabled by default.
+-- Examples and tests will be enabled by default.
+-- Using VCPKG dependencies. VCPKG base path: E:/code/git/vcpkg and tripplet x64-windows-mega
+-- Overlay for VCPKG ports: E:/code/git/sdk/cmake/vcpkg_overlay_ports
+-- Overlay for VCPKG triplets: E:/code/git/sdk/cmake/vcpkg_overlay_triplets
+-- Running vcpkg install
+Detecting compiler hash for triplet x64-windows...
+-- Automatically setting %HTTP(S)_PROXY% environment variables to "127.0.0.1:7890".
+Compiler found: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+Detecting compiler hash for triplet x64-windows-mega...
+Compiler found: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.29.30133/bin/HostX64/x64/cl.exe
+The following packages are already installed:
+    cryptopp:x64-windows-mega@8.9.0#1
+    curl[core,non-http,schannel,ssl,sspi,zstd]:x64-windows-mega@8.14.1
+    ffmpeg[avcodec,avformat,core,swresample,swscale]:x64-windows-mega@7.1.1#2
+    gtest:x64-windows-mega@1.17.0#1
+  * icu[core,tools]:x64-windows@74.2#4
+    icu:x64-windows-mega@74.2#4
+  * imath:x64-windows-mega@3.1.12
+  * libdeflate[compression,core,decompression,gzip,zlib]:x64-windows-mega@1.24 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\libdeflate
+  * libjpeg-turbo:x64-windows-mega@3.1.0#1
+  * liblzma:x64-windows-mega@5.8.1
+    libsodium:x64-windows-mega@1.0.20#3
+  * openjpeg:x64-windows-mega@2.5.3
+  * pkgconf:x64-windows@2.4.3#1
+    sqlite3[core,json1]:x64-windows-mega@3.49.2
+  * tiff[core,jpeg,lzma,zip]:x64-windows-mega@4.7.0
+  * vcpkg-cmake:x64-windows@2024-04-23
+  * vcpkg-cmake-config:x64-windows@2024-05-23
+  * vcpkg-cmake-get-vars:x64-windows@2025-05-29
+  * vcpkg-msbuild:x64-windows@2023-08-08
+  * vcpkg-pkgconfig-get-modules:x64-windows@2024-04-03
+  * vcpkg-tool-meson:x64-windows@1.7.2
+  * zlib:x64-windows-mega@1.3.1
+  * zstd:x64-windows-mega@1.5.7
+The following packages will be built and installed:
+  * brotli:x64-windows-mega@1.1.0#1
+  * bzip2[core,tool]:x64-windows-mega@1.0.8#6
+    freeimage:x64-windows-mega@3.18.0#27
+  * freetype[brotli,bzip2,core,png,zlib]:x64-windows-mega@2.13.3
+    jasper:x64-windows-mega@4.2.4#2
+  * jxrlib:x64-windows-mega@2019.10.9#7 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\jxrlib
+  * lcms:x64-windows-mega@2.17
+  * libpng:x64-windows-mega@1.6.47
+  * libraw:x64-windows-mega@0.21.4
+  * libwebp[core,libwebpmux,nearlossless,simd,unicode]:x64-windows-mega@1.5.0#1
+  * openexr:x64-windows-mega@3.3.2
+    openssl:x64-windows-mega@3.5.0#1
+    pdfium:x64-windows-mega@6778#1 -- E:/code/git/sdk/cmake/vcpkg_overlay_ports\pdfium
+Additional packages (*) will be modified to complete this operation.
+Restored 0 package(s) from C:\Users\liang\AppData\Local\vcpkg\archives in 290 us. Use --debug to see more details.
+Installing 1/13 openexr:x64-windows-mega@3.3.2...
+Building openexr:x64-windows-mega@3.3.2...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/AcademySoftwareFoundation/openexr/archive/v3.3.2.tar.gz -> AcademySoftwareFoundation-openexr-v3.3.2.tar.gz
+Successfully downloaded AcademySoftwareFoundation-openexr-v3.3.2.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/AcademySoftwareFoundation-openexr-v3.3.2.tar.gz
+-- Using source at E:/code/git/vcpkg/buildtrees/openexr/src/v3.3.2-ae4a05d199.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/openexr_x64-windows-mega/lib/pkgconfig/OpenEXR.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/openexr_x64-windows-mega/debug/lib/pkgconfig/OpenEXR.pc
+-- Installing: E:/code/git/vcpkg/packages/openexr_x64-windows-mega/share/openexr/usage
+-- Installing: E:/code/git/vcpkg/packages/openexr_x64-windows-mega/share/openexr/copyright
+-- Performing post-build validation
+Starting submission of openexr:x64-windows-mega@3.3.2 to 1 binary cache(s) in the background
+Elapsed time to handle openexr:x64-windows-mega: 1.6 min
+openexr:x64-windows-mega package ABI: b7991b5760ebd5f2a80d4a045d112f815fd2c3326ad4745de23b7b19811ef69e
+Installing 2/13 libwebp[core,libwebpmux,nearlossless,simd,unicode]:x64-windows-mega@1.5.0#1...
+Building libwebp[core,libwebpmux,nearlossless,simd,unicode]:x64-windows-mega@1.5.0#1...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/webmproject/libwebp/archive/v1.5.0.tar.gz -> webmproject-libwebp-v1.5.0.tar.gz
+Successfully downloaded webmproject-libwebp-v1.5.0.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/webmproject-libwebp-v1.5.0.tar.gz
+-- Applying patch 0002-cmake-config.patch
+-- Applying patch 0003-simd.patch
+-- Applying patch 0008-sdl.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/libwebp/src/v1.5.0-9ee206ccc1.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/lib/pkgconfig/libsharpyuv.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/lib/pkgconfig/libwebp.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/lib/pkgconfig/libwebpdecoder.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/lib/pkgconfig/libwebpdemux.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/lib/pkgconfig/libwebpmux.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/debug/lib/pkgconfig/libsharpyuv.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/debug/lib/pkgconfig/libwebp.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/debug/lib/pkgconfig/libwebpdecoder.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/debug/lib/pkgconfig/libwebpdemux.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/debug/lib/pkgconfig/libwebpmux.pc
+-- Installing: E:/code/git/vcpkg/packages/libwebp_x64-windows-mega/share/libwebp/usage
+-- Performing post-build validation
+Starting submission of libwebp[core,libwebpmux,nearlossless,simd,unicode]:x64-windows-mega@1.5.0#1 to 1 binary cache(s) in the background
+Elapsed time to handle libwebp:x64-windows-mega: 38 s
+libwebp:x64-windows-mega package ABI: 0c8c7786a80022f5adab010dd7927c05c90a49d87899ef9ed815fa728194daa4
+Completed submission of openexr:x64-windows-mega@3.3.2 to 1 binary cache(s) in 17 s
+Installing 3/13 lcms:x64-windows-mega@2.17...
+Building lcms:x64-windows-mega@2.17...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+-- Found Python version '3.12.7 at E:/code/git/vcpkg/downloads/tools/python/python-3.12.7-x64-1/python.exe'
+-- Using meson: E:/code/git/vcpkg/downloads/tools/meson-1.7.2-549ef7/meson.py
+Downloading https://github.com/mm2/Little-CMS/archive/lcms2.17.tar.gz -> mm2-Little-CMS-lcms2.17.tar.gz
+Successfully downloaded mm2-Little-CMS-lcms2.17.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/mm2-Little-CMS-lcms2.17.tar.gz
+-- Using source at E:/code/git/vcpkg/buildtrees/lcms/src/lcms2.17-afcc5fcb76.clean
+-- Found external ninja('1.12.1').
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Configuring x64-windows-mega-dbg
+-- Getting CMake variables for x64-windows-mega
+-- Loading CMake variables from E:/code/git/vcpkg/buildtrees/lcms/cmake-get-vars_C_CXX-x64-windows-mega.cmake.log
+-- Configuring x64-windows-mega-dbg done
+-- Configuring x64-windows-mega-rel
+-- Configuring x64-windows-mega-rel done
+-- Package x64-windows-mega-dbg
+-- Package x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/lcms_x64-windows-mega/lib/pkgconfig/lcms2.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/lcms_x64-windows-mega/debug/lib/pkgconfig/lcms2.pc
+-- Installing: E:/code/git/vcpkg/packages/lcms_x64-windows-mega/share/lcms/lcms-config.cmake
+-- Installing: E:/code/git/vcpkg/packages/lcms_x64-windows-mega/share/lcms2/lcms2-config.cmake
+-- Installing: E:/code/git/vcpkg/packages/lcms_x64-windows-mega/share/lcms/usage
+-- Installing: E:/code/git/vcpkg/packages/lcms_x64-windows-mega/share/lcms/copyright
+-- Performing post-build validation
+Starting submission of lcms:x64-windows-mega@2.17 to 1 binary cache(s) in the background
+Elapsed time to handle lcms:x64-windows-mega: 26 s
+lcms:x64-windows-mega package ABI: 64d8a04181c5bf2566c6db4917bea56f3e66f45cd5530d9193e3a3ff22196678
+Completed submission of libwebp[core,libwebpmux,nearlossless,simd,unicode]:x64-windows-mega@1.5.0#1 to 1 binary cache(s) in 826 ms
+Installing 4/13 jasper:x64-windows-mega@4.2.4#2...
+Building jasper:x64-windows-mega@4.2.4#2...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/jasper-software/jasper/archive/version-4.2.4.tar.gz -> jasper-software-jasper-version-4.2.4.tar.gz
+Successfully downloaded jasper-software-jasper-version-4.2.4.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/jasper-software-jasper-version-4.2.4.tar.gz
+-- Applying patch no_stdc_check.patch
+-- Applying patch fix-library-name.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/jasper/src/sion-4.2.4-ea4e92ed3f.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/jasper_x64-windows-mega/lib/pkgconfig/jasper.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/jasper_x64-windows-mega/debug/lib/pkgconfig/jasper.pc
+-- Installing: E:/code/git/vcpkg/packages/jasper_x64-windows-mega/share/jasper/copyright
+-- Performing post-build validation
+Starting submission of jasper:x64-windows-mega@4.2.4#2 to 1 binary cache(s) in the background
+Elapsed time to handle jasper:x64-windows-mega: 60 s
+jasper:x64-windows-mega package ABI: f5d6a023dda12c402fecdb43a68c25171772a07d45f46a15e16d3ccdc66dd0b2
+Completed submission of lcms:x64-windows-mega@2.17 to 1 binary cache(s) in 665 ms
+Installing 5/13 libraw:x64-windows-mega@0.21.4...
+Building libraw:x64-windows-mega@0.21.4...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/LibRaw/LibRaw/archive/0.21.4.tar.gz -> LibRaw-LibRaw-0.21.4.tar.gz
+Successfully downloaded LibRaw-LibRaw-0.21.4.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/LibRaw-LibRaw-0.21.4.tar.gz
+-- Using source at E:/code/git/vcpkg/buildtrees/libraw/src/0.21.4-a76ab75fc4.clean
+Downloading https://github.com/LibRaw/LibRaw-cmake/archive/eb98e4325aef2ce85d2eb031c2ff18640ca616d3.tar.gz -> LibRaw-LibRaw-cmake-eb98e4325aef2ce85d2eb031c2ff18640ca616d3.tar.gz
+Successfully downloaded LibRaw-LibRaw-cmake-eb98e4325aef2ce85d2eb031c2ff18640ca616d3.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/LibRaw-LibRaw-cmake-eb98e4325aef2ce85d2eb031c2ff18640ca616d3.tar.gz
+-- Applying patch dependencies.patch
+-- Applying patch fix-install.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/libraw/src/640ca616d3-f6ae978fdb.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libraw_x64-windows-mega/lib/pkgconfig/libraw.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libraw_x64-windows-mega/lib/pkgconfig/libraw_r.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libraw_x64-windows-mega/debug/lib/pkgconfig/libraw.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libraw_x64-windows-mega/debug/lib/pkgconfig/libraw_r.pc
+-- Installing: E:/code/git/vcpkg/packages/libraw_x64-windows-mega/share/libraw/usage
+-- Performing post-build validation
+Starting submission of libraw:x64-windows-mega@0.21.4 to 1 binary cache(s) in the background
+Elapsed time to handle libraw:x64-windows-mega: 2.1 min
+libraw:x64-windows-mega package ABI: d9b9fefb27c574e938c7d40995480326f1096a93e9f25c4384de5fcb74af3008
+Completed submission of jasper:x64-windows-mega@4.2.4#2 to 1 binary cache(s) in 698 ms
+Installing 6/13 libpng:x64-windows-mega@1.6.47...
+Building libpng:x64-windows-mega@1.6.47...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/pnggroup/libpng/archive/v1.6.47.tar.gz -> pnggroup-libpng-v1.6.47.tar.gz
+Successfully downloaded pnggroup-libpng-v1.6.47.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/pnggroup-libpng-v1.6.47.tar.gz
+-- Applying patch cmake.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/libpng/src/v1.6.47-8141442fc3.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Installing: E:/code/git/vcpkg/packages/libpng_x64-windows-mega/share/png/vcpkg-cmake-wrapper.cmake
+-- Installing: E:/code/git/vcpkg/packages/libpng_x64-windows-mega/share/libpng/libpng-config.cmake
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libpng_x64-windows-mega/lib/pkgconfig/libpng16.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/libpng_x64-windows-mega/debug/lib/pkgconfig/libpng16.pc
+-- Installing: E:/code/git/vcpkg/packages/libpng_x64-windows-mega/debug/lib/pkgconfig/libpng.pc
+-- Installing: E:/code/git/vcpkg/packages/libpng_x64-windows-mega/lib/pkgconfig/libpng.pc
+-- Installing: E:/code/git/vcpkg/packages/libpng_x64-windows-mega/share/libpng/usage
+-- Installing: E:/code/git/vcpkg/packages/libpng_x64-windows-mega/share/libpng/copyright
+-- Performing post-build validation
+Starting submission of libpng:x64-windows-mega@1.6.47 to 1 binary cache(s) in the background
+Elapsed time to handle libpng:x64-windows-mega: 14 s
+libpng:x64-windows-mega package ABI: a16167995dbb872c38b00a7215ac95c761d377dfe0e4785f25a5d7a081be632d
+Completed submission of libraw:x64-windows-mega@0.21.4 to 1 binary cache(s) in 7.3 s
+Installing 7/13 jxrlib:x64-windows-mega@2019.10.9#7...
+Building jxrlib:x64-windows-mega@2019.10.9#7...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+E:/code/git/sdk/cmake/vcpkg_overlay_ports\jxrlib: info: installing overlay port from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/4creators/jxrlib/archive/f7521879862b9085318e814c6157490dd9dbbdb4.tar.gz -> 4creators-jxrlib-f7521879862b9085318e814c6157490dd9dbbdb4.tar.gz
+Successfully downloaded 4creators-jxrlib-f7521879862b9085318e814c6157490dd9dbbdb4.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/4creators-jxrlib-f7521879862b9085318e814c6157490dd9dbbdb4.tar.gz
+-- Applying patch guiddef.patch
+-- Applying patch fix-mingw.patch
+-- Applying patch tmpnam.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/jxrlib/src/0dd9dbbdb4-8583bcb593.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Installing: E:/code/git/vcpkg/packages/jxrlib_x64-windows-mega/share/jxr/FindJXR.cmake
+-- Installing: E:/code/git/vcpkg/packages/jxrlib_x64-windows-mega/share/jxr/vcpkg-cmake-wrapper.cmake
+-- Installing: E:/code/git/vcpkg/packages/jxrlib_x64-windows-mega/share/jxrlib/usage
+-- Installing: E:/code/git/vcpkg/packages/jxrlib_x64-windows-mega/share/jxrlib/copyright
+-- Performing post-build validation
+Starting submission of jxrlib:x64-windows-mega@2019.10.9#7 to 1 binary cache(s) in the background
+Elapsed time to handle jxrlib:x64-windows-mega: 12 s
+jxrlib:x64-windows-mega package ABI: 5055b32e8cae500c1980626745e497e6f6d4d9fe584bd345178ddae8733e4337
+Completed submission of libpng:x64-windows-mega@1.6.47 to 1 binary cache(s) in 374 ms
+Installing 8/13 freeimage:x64-windows-mega@3.18.0#27...
+Building freeimage:x64-windows-mega@3.18.0#27...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading FreeImage3180.zip, trying https://sourceforge.net/projects/freeimage/files/Source%20Distribution/3.18.0/FreeImage3180.zip/download
+Successfully downloaded FreeImage3180.zip
+-- Extracting source E:/code/git/vcpkg/downloads/FreeImage3180.zip
+-- Applying patch disable-plugins-depending-on-internal-third-party-libraries.patch
+-- Applying patch use-external-jpeg.patch
+-- Applying patch use-external-jxrlib.patch
+-- Applying patch use-external-libtiff.patch
+-- Applying patch use-external-openjpeg.patch
+-- Applying patch use-external-png-zlib.patch
+-- Applying patch use-external-rawlib.patch
+-- Applying patch use-external-webp.patch
+-- Applying patch use-external-openexr.patch
+-- Applying patch use-freeimage-config-include.patch
+-- Applying patch fix-function-overload.patch
+-- Applying patch use-typedef-as-already-declared.patch
+-- Applying patch use-functions-to-override-libtiff-warning-error-handlers.patch
+-- Applying patch remove_auto_ptr.patch
+-- Applying patch rawlib-build-fix.patch
+-- Applying patch typedef-xcode.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/freeimage/src/-8291f48120.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Installing: E:/code/git/vcpkg/packages/freeimage_x64-windows-mega/share/freeimage/copyright
+-- Performing post-build validation
+Starting submission of freeimage:x64-windows-mega@3.18.0#27 to 1 binary cache(s) in the background
+Elapsed time to handle freeimage:x64-windows-mega: 59 s
+freeimage:x64-windows-mega package ABI: 1cca50ddfa1a746c25c45dbe97f328f969e0cbbae3c10e9e8b60ebe730340baf
+Completed submission of jxrlib:x64-windows-mega@2019.10.9#7 to 1 binary cache(s) in 369 ms
+Installing 9/13 openssl:x64-windows-mega@3.5.0#1...
+Building openssl:x64-windows-mega@3.5.0#1...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/openssl/openssl/commit/2b5e7253b9a6a4cde64d3f2f22d71272f6ad32c5.patch?full_index=1 -> openssl-certstore-crash-2b5e7253b9a6a4cde64d3f2f22d71272f6ad32c5.patch
+Successfully downloaded openssl-certstore-crash-2b5e7253b9a6a4cde64d3f2f22d71272f6ad32c5.patch
+Downloading https://github.com/openssl/openssl/archive/openssl-3.5.0.tar.gz -> openssl-openssl-openssl-3.5.0.tar.gz
+Successfully downloaded openssl-openssl-openssl-3.5.0.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/openssl-openssl-openssl-3.5.0.tar.gz
+-- Applying patch cmake-config.patch
+-- Applying patch command-line-length.patch
+-- Applying patch script-prefix.patch
+-- Applying patch windows/install-layout.patch
+-- Applying patch windows/install-pdbs.patch
+-- Applying patch E:/code/git/vcpkg/downloads/openssl-certstore-crash-2b5e7253b9a6a4cde64d3f2f22d71272f6ad32c5.patch
+-- Applying patch unix/android-cc.patch
+-- Applying patch unix/move-openssldir.patch
+-- Applying patch unix/no-empty-dirs.patch
+-- Applying patch unix/no-static-libs-for-shared.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/openssl/src/nssl-3.5.0-3b91ebed43.clean
+Downloading https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/download/SP_54201_64bit/strawberry-perl-5.42.0.1-64bit-portable.zip -> strawberry-perl-5.42.0.1-64bit-portable.zip
+Successfully downloaded strawberry-perl-5.42.0.1-64bit-portable.zip
+-- Found external ninja('1.12.1').
+-- Getting CMake variables for x64-windows-mega
+-- Loading CMake variables from E:/code/git/vcpkg/buildtrees/openssl/cmake-get-vars_C_CXX-x64-windows-mega.cmake.log
+-- Getting CMake variables for x64-windows-mega
+Downloading jom_1_1_4.zip, trying https://download.qt.io/official_releases/jom/jom_1_1_4.zip
+Successfully downloaded jom_1_1_4.zip
+-- Prerunning x64-windows-mega-dbg
+-- Building x64-windows-mega-dbg
+-- Prerunning x64-windows-mega-rel
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/openssl_x64-windows-mega/lib/pkgconfig/libcrypto.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/openssl_x64-windows-mega/lib/pkgconfig/libssl.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/openssl_x64-windows-mega/lib/pkgconfig/openssl.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/openssl_x64-windows-mega/debug/lib/pkgconfig/libcrypto.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/openssl_x64-windows-mega/debug/lib/pkgconfig/libssl.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/openssl_x64-windows-mega/debug/lib/pkgconfig/openssl.pc
+-- Installing: E:/code/git/vcpkg/packages/openssl_x64-windows-mega/share/openssl/usage
+-- Installing: E:/code/git/vcpkg/packages/openssl_x64-windows-mega/share/openssl/copyright
+-- Performing post-build validation
+Starting submission of openssl:x64-windows-mega@3.5.0#1 to 1 binary cache(s) in the background
+Elapsed time to handle openssl:x64-windows-mega: 7.5 min
+openssl:x64-windows-mega package ABI: 23cce167357ae1db40b9853cc6ef0c92a6932c668430fcc83e4c705c72000e52
+Completed submission of freeimage:x64-windows-mega@3.18.0#27 to 1 binary cache(s) in 5.1 s
+Installing 10/13 bzip2[core,tool]:x64-windows-mega@1.0.8#6...
+Building bzip2[core,tool]:x64-windows-mega@1.0.8#6...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading bzip2-1.0.8.tar.gz, trying https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz
+Successfully downloaded bzip2-1.0.8.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/bzip2-1.0.8.tar.gz
+-- Applying patch fix-import-export-macros.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/bzip2/src/bzip2-1-336d4794a3.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/bzip2_x64-windows-mega/lib/pkgconfig/bzip2.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/bzip2_x64-windows-mega/debug/lib/pkgconfig/bzip2.pc
+-- Installing: E:/code/git/vcpkg/packages/bzip2_x64-windows-mega/share/bzip2/copyright
+-- Performing post-build validation
+Starting submission of bzip2[core,tool]:x64-windows-mega@1.0.8#6 to 1 binary cache(s) in the background
+Elapsed time to handle bzip2:x64-windows-mega: 13 s
+bzip2:x64-windows-mega package ABI: f306fecdff3d83bd5cc37197c125c5ed9a7bfe124b663c11d776a5bc3d8b0b4d
+Installing 11/13 brotli:x64-windows-mega@1.1.0#1...
+Building brotli:x64-windows-mega@1.1.0#1...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://github.com/google/brotli/archive/v1.1.0.tar.gz -> google-brotli-v1.1.0.tar.gz
+Successfully downloaded google-brotli-v1.1.0.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/google-brotli-v1.1.0.tar.gz
+-- Applying patch install.patch
+-- Applying patch fix-arm-uwp.patch
+-- Applying patch pkgconfig.patch
+-- Applying patch emscripten.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/brotli/src/v1.1.0-958bece74c.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/brotli_x64-windows-mega/lib/pkgconfig/libbrotlicommon.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/brotli_x64-windows-mega/lib/pkgconfig/libbrotlidec.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/brotli_x64-windows-mega/lib/pkgconfig/libbrotlienc.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/brotli_x64-windows-mega/debug/lib/pkgconfig/libbrotlicommon.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/brotli_x64-windows-mega/debug/lib/pkgconfig/libbrotlidec.pc
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/brotli_x64-windows-mega/debug/lib/pkgconfig/libbrotlienc.pc
+-- Installing: E:/code/git/vcpkg/packages/brotli_x64-windows-mega/share/brotli/usage
+-- Installing: E:/code/git/vcpkg/packages/brotli_x64-windows-mega/share/brotli/copyright
+-- Performing post-build validation
+Starting submission of brotli:x64-windows-mega@1.1.0#1 to 1 binary cache(s) in the background
+Elapsed time to handle brotli:x64-windows-mega: 16 s
+brotli:x64-windows-mega package ABI: 199826c54daf77767cf054f47bf37ab43718db59ec3224806b5c3f2df1de1f32
+Completed submission of openssl:x64-windows-mega@3.5.0#1 to 1 binary cache(s) in 14 s
+Completed submission of bzip2[core,tool]:x64-windows-mega@1.0.8#6 to 1 binary cache(s) in 96.7 ms
+Installing 12/13 freetype[brotli,bzip2,core,png,zlib]:x64-windows-mega@2.13.3...
+Building freetype[brotli,bzip2,core,png,zlib]:x64-windows-mega@2.13.3...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+Downloading https://gitlab.freedesktop.org//freetype/freetype/-/archive/VER-2-13-3/freetype-VER-2-13-3.tar.gz -> freetype-freetype-VER-2-13-3.tar.gz
+Successfully downloaded freetype-freetype-VER-2-13-3.tar.gz
+-- Extracting source E:/code/git/vcpkg/downloads/freetype-freetype-VER-2-13-3.tar.gz
+-- Applying patch 0003-Fix-UWP.patch
+-- Applying patch brotli-static.patch
+-- Applying patch bzip2.patch
+-- Applying patch fix-exports.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/freetype/src/VER-2-13-3-8b423a038b.clean
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/freetype_x64-windows-mega/lib/pkgconfig/freetype2.pc
+-- Using cached msys2-mingw-w64-x86_64-pkgconf-1~2.4.3-1-any.pkg.tar.zst
+-- Using cached msys2-msys2-runtime-3.6.2-2-x86_64.pkg.tar.zst
+-- Using msys root at E:/code/git/vcpkg/downloads/tools/msys2/9272adbcaf19caef
+-- Fixing pkgconfig file: E:/code/git/vcpkg/packages/freetype_x64-windows-mega/debug/lib/pkgconfig/freetype2.pc
+-- Installing: E:/code/git/vcpkg/packages/freetype_x64-windows-mega/share/freetype/usage
+-- Performing post-build validation
+Starting submission of freetype[brotli,bzip2,core,png,zlib]:x64-windows-mega@2.13.3 to 1 binary cache(s) in the background
+Elapsed time to handle freetype:x64-windows-mega: 21 s
+freetype:x64-windows-mega package ABI: 384aea352bbb0f7fd9a35ab24d881e9d445dff53bee2e212acdd03a22fb3b306
+Completed submission of brotli:x64-windows-mega@1.1.0#1 to 1 binary cache(s) in 953 ms
+Installing 13/13 pdfium:x64-windows-mega@6778#1...
+Building pdfium:x64-windows-mega@6778#1...
+E:\code\git\sdk\cmake\vcpkg_overlay_triplets\x64-windows-mega.cmake: info: loaded overlay triplet from here
+E:/code/git/sdk/cmake/vcpkg_overlay_ports\pdfium: info: installing overlay port from here
+-- Found Visual Studio at: C:\Program Files\Microsoft Visual Studio\18\Insiders
+-- Fetching https://pdfium.googlesource.com/pdfium.git 7a8409531fbb58d7d15ae331e645977b113d7ced...
+-- Extracting source E:/code/git/vcpkg/downloads/pdfium-7a8409531fbb58d7d15ae331e645977b113d7ced.tar.gz
+-- Applying patch gcc_parentheses_init.patch
+-- Applying patch win-compilation-v142.patch
+-- Using source at E:/code/git/vcpkg/buildtrees/pdfium/src/7b113d7ced-695047563f.clean
+-- Working on submodules and other dependencies...
+-- Found external ninja('1.12.1').
+-- Configuring x64-windows-mega
+-- Building x64-windows-mega-dbg
+-- Building x64-windows-mega-rel
+-- Installing: E:/code/git/vcpkg/packages/pdfium_x64-windows-mega/share/pdfium//copyright
+-- Performing post-build validation
+Starting submission of pdfium:x64-windows-mega@6778#1 to 1 binary cache(s) in the background
+Elapsed time to handle pdfium:x64-windows-mega: 9.6 min
+pdfium:x64-windows-mega package ABI: 8a528c3f43f7e452ec0a97614b070d8e872cb81fc0232245f034299acbe35b24
+Installed contents are licensed to you by owners. Microsoft is not responsible for, nor does it grant any licenses to, third-party packages.
+Some packages did not declare an SPDX license. Check the `copyright` file for each package for more information about their licensing.
+Packages installed in this vcpkg installation declare the following licenses:
+(FTL OR GPL-2.0-or-later)
+(GPL-2.0-only OR GPL-3.0-only OR FreeImage)
+(LGPL-2.1-only OR CDDL-1.0)
+Apache-2.0
+BSD-2-Clause
+BSD-3-Clause
+MIT
+bzip2-1.0.6
+libpng-2.0
+cryptopp provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(cryptopp CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE cryptopp::cryptopp)
+
+cryptopp provides pkg-config modules:
+
+  # Crypto++ cryptographic library (built with CMake)
+  cryptopp
+
+curl is compatible with built-in CMake targets:
+
+    find_package(CURL REQUIRED)
+    target_link_libraries(main PRIVATE CURL::libcurl)
+
+icu provides pkg-config modules:
+
+  # International Components for Unicode: Internationalization library
+  icu-i18n
+
+  # International Components for Unicode: Stream and I/O Library
+  icu-io
+
+  # International Components for Unicode: Common and Data libraries
+  icu-uc
+
+libsodium provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(unofficial-sodium CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE unofficial-sodium::sodium)
+
+libsodium provides pkg-config modules:
+
+  # A modern and easy-to-use crypto library
+  libsodium
+
+sqlite3 provides pkgconfig bindings.
+sqlite3 provides CMake targets:
+
+    find_package(unofficial-sqlite3 CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE unofficial::sqlite3::sqlite3)
+
+The package gtest is compatible with built-in CMake targets:
+
+    enable_testing()
+
+    find_package(GTest CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main)
+
+    add_test(AllTestsInMain main)
+
+ffmpeg provides CMake integration:
+
+  find_package(FFMPEG REQUIRED)
+  target_include_directories(main PRIVATE ${FFMPEG_INCLUDE_DIRS})
+  target_link_directories(main PRIVATE ${FFMPEG_LIBRARY_DIRS})
+  target_link_libraries(main PRIVATE ${FFMPEG_LIBRARIES})
+
+ffmpeg provides pkg-config modules:
+
+  # FFmpeg codec library
+  libavcodec
+
+  # FFmpeg device handling library
+  libavdevice
+
+  # FFmpeg audio/video filtering library
+  libavfilter
+
+  # FFmpeg container format library
+  libavformat
+
+  # FFmpeg utility library
+  libavutil
+
+  # FFmpeg audio resampling library
+  libswresample
+
+  # FFmpeg image rescaling library
+  libswscale
+
+jasper provides pkg-config modules:
+
+  # Image Processing/Coding Tool Kit with JPEG-2000 Support
+  jasper
+
+freeimage provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(freeimage CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE freeimage::FreeImage freeimage::FreeImagePlus)
+
+openssl is compatible with built-in CMake targets:
+
+  find_package(OpenSSL REQUIRED)
+  target_link_libraries(main PRIVATE OpenSSL::SSL)
+  target_link_libraries(main PRIVATE OpenSSL::Crypto)
+
+pdfium provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(pdfium CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE PDFIUM::pdfium)
+
+Completed submission of freetype[brotli,bzip2,core,png,zlib]:x64-windows-mega@2.13.3 to 1 binary cache(s) in 1.6 s
+Waiting for 1 remaining binary cache submissions...
+Completed submission of pdfium:x64-windows-mega@6778#1 to 1 binary cache(s) in 1 min (1/1)
+All requested installations completed successfully in: 25 min
+-- Running vcpkg install - done
+-- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.26200.
+-- The C compiler identification is MSVC 19.29.30159.0
+-- The CXX compiler identification is MSVC 19.29.30159.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.29.30133/bin/HostX64/x64/cl.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.29.30133/bin/HostX64/x64/cl.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Generator: Visual Studio 17 2022
+-- Target OS version: 10.0.26200
+-- Target System Processor: AMD64
+-- Host System Processor: AMD64
+-- Generated with config types: Debug;Release;MinSizeRel;RelWithDebInfo
+-- Building SDKlib v9.14.0
+-- Found ZLIB: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/zlib.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/zlibd.lib (found suitable version "1.3.1", minimum required is "1")
+-- Found OpenSSL: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/libcrypto.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/libcrypto.lib (found version "3.5.0")
+-- Found ZLIB: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/zlib.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/zlibd.lib (found version "1.3.1")
+-- Found PNG: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/libpng16.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/libpng16d.lib (found version "1.6.47")
+-- Found JPEG: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/jpeg.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/jpeg.lib (found version "62")
+-- Found TIFF: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/tiff.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/tiffd.lib (found version "4.7.0")
+-- Found LibLZMA: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/lzma.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/lzma.lib (found version "5.8.1")
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed
+-- Looking for pthread_create in pthreads
+-- Looking for pthread_create in pthreads - not found
+-- Looking for pthread_create in pthread
+-- Looking for pthread_create in pthread - not found
+-- Found Threads: TRUE
+-- Found JXR: E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/include/jxrlib
+-- Could NOT find PkgConfig (missing: PKG_CONFIG_EXECUTABLE)
+-- Found LibRaw: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/manual-link/raw.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/manual-link/rawd.lib (found version "0.21.4")
+-- Found Jasper: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/jasper.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/jasperd.lib (found version "4.2.4")
+-- Found FFMPEG: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/avformat.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/avformat.lib;optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/avcodec.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/avcodec.lib;optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/swresample.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/swresample.lib;optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/swscale.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/swscale.lib;optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/avutil.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/avutil.lib;secur32;ws2_32;mfuuid;strmiids;ole32;user32;bcrypt
+-- Found BZip2: optimized;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/lib/bz2.lib;debug;E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/debug/lib/bz2d.lib (found version "1.0.8")
+-- Looking for BZ2_bzCompressInit
+-- Looking for BZ2_bzCompressInit - found
+-- Found ICU: E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/include (found version "74.2") found components: uc
+-- Found ICU: E:/code/git/build_dir/vcpkg_installed/x64-windows-mega/include (found version "74.2") found components: uc data
+CMake Warning (dev) at examples/simple_client/CMakeLists.txt:30 (add_custom_command):
+  The following keywords are not supported when using
+  add_custom_command(TARGET): DEPENDS.
+
+  Policy CMP0175 is not set: add_custom_command() rejects invalid arguments.
+  Run "cmake --help-policy CMP0175" for policy details.  Use the cmake_policy
+  command to set the policy and suppress this warning.
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- Configuring done (1581.5s)
+-- Generating done (0.3s)
+-- Build files have been written to: E:/code/git/build_dir
+PS E:\code\git>
+
+
+
+
+
+
+
+
+
+
+
+
+
+8 构建过程中,因为中文版windows, clone的文件源码被修改为gbk. 导致产生了c4819告警. 只能先禁用此告警
+9 编译继续,由于testing中有中文字符串,导致编译出现各种奇怪的错误,比如
+
+生成开始于 13:04...
+1>------ 已启动生成: 项目: test_integration, 配置: Debug x64 ------
+1>SdkTest_test.cpp
+1>E:\code\git\sdk\tests\integration\SdkTest_test.cpp(14880,21): error C3688: 文本后缀“璁撴垜鍊戞墦鐮撮€欏€”无效；未找到文文本运算符或文本运算符模板“operator """"璁撴垜鍊戞墦鐮撮€欏€”
+1>E:\code\git\sdk\tests\integration\SdkTest_test.cpp(14880,5): error C2146: 语法错误: 缺少“;”(在标识符“differentApiDtls”的前面)
+1>E:\code\git\sdk\tests\integration\SdkTest_test.cpp(15450,39): error C2001: 常量中有换行符
+1>E:\code\git\sdk\tests\integration\SdkTest_test.cpp(15451,5): error C2143: 语法错误: 缺少“;”(在“switch”的前面)
+1>已完成生成项目“test_integration.vcxproj”的操作 - 失败。
+========== 生成: 0 成功，1 失败，6 最新，0 已跳过 ==========
+========== 生成 于 13:04 完成，耗时 06.522 秒 ==========
+
+最开始, 为了快速解决问题,将所有的中文测试用例屏蔽. 通过了
+但是考虑到在ubuntu20.04中未修改测试用例,也可以编译成功. 那么应该是有解决办法的. 后来在testing工程中添加了 /utf-8编译选项,整个工程完整编译成功
