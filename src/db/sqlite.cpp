@@ -2680,6 +2680,21 @@ void SqliteAccountState::getFingerprintExcludingMtime(sqlite3_context* context,
 
     const unsigned char* input = static_cast<const unsigned char*>(sqlite3_value_blob(argv[0]));
     const int len = sqlite3_value_bytes(argv[0]);
+    if (!input)
+    {
+        sqlite3_result_null(context);
+        return;
+    }
+
+    if (len < 33)
+    {
+        LOG_err << "getFingerprintExcludingMtime: invalid fingerprint blob size (len=" << len
+                << ")";
+        assert(false && "getFingerprintExcludingMtime(): invalid fingerprint blob size");
+        sqlite3_result_null(context);
+        return;
+    }
+
     if (!input || len < 33)
     {
         sqlite3_result_null(context);

@@ -2346,8 +2346,14 @@ void NodeManager::FingerprintContainer::setAllFingerprintLoaded(const mega::File
     mAllFingerprintsLoaded.insert(*fingerprint);
 }
 
-void NodeManager::FingerprintContainer::removeAllFingerprintLoaded(const FileFingerprint* fingerprint)
+void NodeManager::FingerprintContainer::removeAllFingerprintLoaded(
+    const FileFingerprint* fingerprint)
 {
+    if (auto range = equal_range(fingerprint); range.first != range.second)
+    {
+        return;
+    }
+
     mAllFingerprintsLoaded.erase(*fingerprint);
 }
 
