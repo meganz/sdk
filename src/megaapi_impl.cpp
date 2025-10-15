@@ -19321,6 +19321,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             {
                                 if (!parent)
                                 {
+                                    LOG_err << "SendPendingTransfers(upload): invalid parent for "
+                                            << fileName;
                                     assert(false && "SendPendingTransfers(upload): invalid parent");
                                     e = API_EARGS;
                                     break;
