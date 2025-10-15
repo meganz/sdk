@@ -130,9 +130,8 @@ struct NodeCounter
     NodeCounter() = default;
 };
 
-typedef std::multiset<const FileFingerprint*, FileFingerprintCmp> fingerprint_set;
-typedef fingerprint_set::iterator FingerprintPosition;
-
+typedef std::multiset<const FileFingerprint*, FileFingerprintCmpNoMtime> fingerprintNoMtime_set;
+typedef fingerprintNoMtime_set::iterator FingerprintPosition;
 
 class NodeManagerNode
 {

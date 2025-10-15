@@ -531,7 +531,7 @@ private:
         void clear();
     } rootnodes;
 
-    class FingerprintContainer : public fingerprint_set
+    class FingerprintContainer: public fingerprintNoMtime_set
     {
     public:
         bool allFingerprintsAreLoaded(const FileFingerprint *fingerprint) const;
@@ -542,7 +542,7 @@ private:
     private:
         // it stores all FileFingerprint that have been looked up in DB, so it
         // avoid the DB query for future lookups (includes non-existing (yet) fingerprints)
-        std::set<FileFingerprint, FileFingerprintCmp> mAllFingerprintsLoaded;
+        std::set<FileFingerprint, FileFingerprintCmpNoMtime> mAllFingerprintsLoaded;
     };
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
@@ -587,7 +587,7 @@ private:
     NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, std::shared_ptr<Node> node, bool isInRubbish);
 
     // Container storing FileFingerprint* (Node* in practice) ordered by fingerprint
-    FingerprintContainer mFingerPrints;
+    FingerprintContainer mFingerPrintsNoMtime;
 
     // Return a node from Data base, node shouldn't be in RAM previously
     shared_ptr<Node> getNodeFromDataBase(NodeHandle handle);

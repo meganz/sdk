@@ -120,6 +120,7 @@ struct FileAttributeFetch;
 struct FileAttributeFetchChannel;
 struct FileFingerprint;
 struct FileFingerprintCmp;
+struct FileFingerprintCmpNoMtime;
 struct HttpReq;
 struct GenericHttpReq;
 struct LocalNode;

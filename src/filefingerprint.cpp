@@ -480,5 +480,19 @@ bool FileFingerprintCmp::operator()(const FileFingerprint &a, const FileFingerpr
      return operator()(&a, &b);
 }
 
+bool FileFingerprintCmpNoMtime::operator()(const FileFingerprint* a, const FileFingerprint* b) const
+{
+    if (a->size < b->size)
+        return true;
 
+    if (a->size > b->size)
+        return false;
+
+    return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
+}
+
+bool FileFingerprintCmpNoMtime::operator()(const FileFingerprint& a, const FileFingerprint& b) const
+{
+    return operator()(&a, &b);
+}
 } // mega

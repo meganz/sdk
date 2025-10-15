@@ -90,6 +90,12 @@ struct MEGA_API FileFingerprintCmp
     bool operator()(const FileFingerprint& a, const FileFingerprint& b) const;
 };
 
+struct MEGA_API FileFingerprintCmpNoMtime
+{
+    bool operator()(const FileFingerprint* a, const FileFingerprint* b) const;
+    bool operator()(const FileFingerprint& a, const FileFingerprint& b) const;
+};
+
 bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs);
 bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs);
 
