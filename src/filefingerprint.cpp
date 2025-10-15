@@ -103,6 +103,7 @@ bool FileFingerprint::serialize(string *d) const
 
 bool FileFingerprint::serializeExcludingMtime(string* d) const
 {
+    d->reserve(sizeof(size) + sizeof(crc) + sizeof(isvalid));
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)crc.data(), sizeof(crc));
     d->append((const char*)&isvalid, sizeof(isvalid));

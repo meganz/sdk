@@ -1362,8 +1362,8 @@ void SqliteAccountState::finalise()
     sqlite3_finalize(mStmtNodeTagsBelow);
     mStmtNodeTagsBelow = nullptr;
 
-    sqlite3_finalize(mStmtNodesByFp);
-    mStmtNodesByFp = nullptr;
+    sqlite3_finalize(mStmtNodesByFpNoMtime);
+    mStmtNodesByFpNoMtime = nullptr;
 
     sqlite3_finalize(mStmtNodeByFp);
     mStmtNodeByFp = nullptr;
@@ -2213,7 +2213,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
     return result;
 }
 
-bool SqliteAccountState::getNodesByFingerprintExcludingMtime(
+bool SqliteAccountState::getNodesByFingerprintNoMtime(
     const std::string& fingerprint,
     std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes)
 {
@@ -2223,70 +2223,37 @@ bool SqliteAccountState::getNodesByFingerprintExcludingMtime(
     }
 
     int sqlResult = SQLITE_OK;
-    if (!mStmtNodesByFpExcludingMtime)
+    if (!mStmtNodesByFpNoMtime)
     {
         sqlResult = sqlite3_prepare_v2(
             db,
             "SELECT nodehandle, counter, node FROM nodes WHERE fingerprintVirtual = ?",
             -1,
-            &mStmtNodesByFpExcludingMtime,
+            &mStmtNodesByFpNoMtime,
             NULL);
     }
 
     bool result = false;
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_blob(mStmtNodesByFpExcludingMtime,
+        if ((sqlResult = sqlite3_bind_blob(mStmtNodesByFpNoMtime,
                                            1,
                                            fingerprint.data(),
                                            (int)fingerprint.size(),
                                            SQLITE_STATIC)) == SQLITE_OK)
         {
-            result = processSqlQueryNodes(mStmtNodesByFpExcludingMtime, nodes);
+            result = processSqlQueryNodes(mStmtNodesByFpNoMtime, nodes);
         }
     }
 
     if (sqlResult != SQLITE_OK)
     {
-        errorHandler(sqlResult, "get nodes by fingerprint", false);
+        errorHandler(sqlResult, "get nodes by getNodesByFingerprintNoMtime", false);
     }
 
-    sqlite3_reset(mStmtNodesByFpExcludingMtime);
+    sqlite3_reset(mStmtNodesByFpNoMtime);
 
     return result;
-}
-
-bool SqliteAccountState::getNodesByFingerprint(const std::string &fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized> > &nodes)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    int sqlResult = SQLITE_OK;
-    if (!mStmtNodesByFp)
-    {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE fingerprint = ?", -1, &mStmtNodesByFp, NULL);
-    }
-
-    bool result = false;
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_bind_blob(mStmtNodesByFp, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
-        {
-            result = processSqlQueryNodes(mStmtNodesByFp, nodes);
-        }
-    }
-
-    if (sqlResult != SQLITE_OK)
-    {
-        errorHandler(sqlResult, "get nodes by fingerprint", false);
-    }
-
-    sqlite3_reset(mStmtNodesByFp);
-
-    return result;
-
 }
 
 bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, mega::NodeSerialized &node, NodeHandle& handle)

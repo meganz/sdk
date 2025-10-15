@@ -108,8 +108,7 @@ public:
                           const std::string& pattern = "")
         -> std::optional<std::set<std::string>> override;
 
-    bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
-    bool getNodesByFingerprintExcludingMtime(
+    bool getNodesByFingerprintNoMtime(
         const std::string& fingerprint,
         std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getNodeByFingerprint(const std::string& fingerprint,
@@ -188,8 +187,7 @@ private:
     std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
     std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
     sqlite3_stmt* mStmtNodeTagsBelow = nullptr;
-    sqlite3_stmt* mStmtNodesByFp = nullptr;
-    sqlite3_stmt* mStmtNodesByFpExcludingMtime = nullptr;
+    sqlite3_stmt* mStmtNodesByFpNoMtime = nullptr;
     sqlite3_stmt* mStmtNodeByFp = nullptr;
     sqlite3_stmt* mStmtNodeByOrigFp = nullptr;
     sqlite3_stmt* mStmtChildNode = nullptr;
