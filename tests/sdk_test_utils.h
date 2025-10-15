@@ -98,7 +98,9 @@ void createFile(const fs::path& filePath, const size_t fileSizeBytes);
 /**
  * @brief Creates a file with the given contents. It throws if the file cannot be opened
  */
-void createFile(const fs::path& filePath, const std::string_view contents);
+void createFile(const fs::path& filePath,
+                const std::string_view contents,
+                std::optional<fs::file_time_type> customMtime = std::nullopt);
 
 /**
  * @brief Appends data to a file with the given contents. It throws if the file cannot be opened
@@ -118,7 +120,9 @@ class LocalTempFile
 {
 public:
     LocalTempFile(const fs::path& _filePath, const size_t fileSizeBytes);
-    LocalTempFile(const fs::path& _filePath, const std::string_view contents);
+    LocalTempFile(const fs::path& _filePath,
+                  const std::string_view contents,
+                  std::optional<fs::file_time_type> customMtime = std::nullopt);
     ~LocalTempFile();
 
     // Delete copy constructors -> Don't allow many objects to remove the same file

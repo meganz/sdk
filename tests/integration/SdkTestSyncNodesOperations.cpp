@@ -161,6 +161,52 @@ void SdkTestSyncNodesOperations::waitForSyncToMatchCloudAndLocal()
     ASSERT_TRUE(waitFor(areLocalAndCloudSynched, COMMON_TIMEOUT, 10s));
 }
 
+void SdkTestSyncNodesOperations::waitForSyncToMatchCloudAndLocalExhaustive()
+{
+    const auto areLocalAndCloudSynchedExhaustive = [this]() -> bool
+    {
+        return checkSyncRecursively(getSync()->getMegaHandle(), "");
+    };
+    ASSERT_TRUE(waitFor(areLocalAndCloudSynchedExhaustive, COMMON_TIMEOUT, 10s));
+}
+
+bool SdkTestSyncNodesOperations::checkSyncRecursively(MegaHandle parentHandle,
+                                                      const std::string& localPath)
+{
+    auto [childrenCloudNames, childrenNodeList] =
+        getCloudFirstChildren(megaApi[0].get(), parentHandle);
+    if (!childrenCloudNames.has_value() || !childrenNodeList)
+    {
+        return false;
+    }
+
+    const auto localChildrenNames = getLocalFirstChildrenNames(
+        localPath.empty() ? std::nullopt : std::make_optional(localPath));
+
+    if (!Value(localChildrenNames, UnorderedElementsAreArray(childrenCloudNames.value())))
+    {
+        return false;
+    }
+
+    for (int i = 0; i < childrenNodeList->size(); ++i)
+    {
+        auto childNode = childrenNodeList->get(i);
+        if (!childNode)
+        {
+            return false;
+        }
+
+        std::string childLocalPath =
+            localPath.empty() ? childNode->getName() : localPath + "/" + childNode->getName();
+        if (childNode->isFolder() && !checkSyncRecursively(childNode->getHandle(), childLocalPath))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void SdkTestSyncNodesOperations::checkCurrentLocalMatchesOriginal(
     const std::string_view cloudDirName)
 {
@@ -235,9 +281,11 @@ void SdkTestSyncNodesOperations::checkCurrentLocalMatchesMirror() const
     ASSERT_NO_FATAL_FAILURE(thereIsAStall("testFile"));
 }
 
-std::vector<std::string> SdkTestSyncNodesOperations::getLocalFirstChildrenNames() const
+std::vector<std::string>
+    SdkTestSyncNodesOperations::getLocalFirstChildrenNames(std::optional<std::string> subPath) const
 {
-    return sdk_test::getLocalFirstChildrenNames_if(getLocalTmpDir(),
+    fs::path pathObj = subPath.has_value() ? getLocalTmpDir() / subPath.value() : getLocalTmpDir();
+    return sdk_test::getLocalFirstChildrenNames_if(pathObj,
                                                    [](const std::string& name)
                                                    {
                                                        return name.front() != '.' &&

@@ -134,6 +134,16 @@ std::vector<std::unique_ptr<::mega::MegaSyncStall>> getStalls(::mega::MegaApi* m
 #endif
 
 /**
+ * @brief Get a pair formed by a vector with the names of the nodes that are children of the node
+ * with the given handle and a unique ptr to MegaNodeList.
+ *
+ * If any of the operations to get the nodes fails, a pair formed by nullopt and nullptr is
+ * returned.
+ */
+std::pair<std::optional<std::vector<std::string>>, std::unique_ptr<::mega::MegaNodeList>>
+    getCloudFirstChildren(::mega::MegaApi* megaApi, const ::mega::MegaHandle nodeHandle);
+
+/**
  * @brief Get a vector with the names of the nodes that are children of the node with the given
  * handle.
  *
