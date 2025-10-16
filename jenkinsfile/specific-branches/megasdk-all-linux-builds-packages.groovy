@@ -51,7 +51,7 @@ pipeline {
                 echo "Do Build for ${params.DISTRO_TO_BUILD}"
                 dir(linux_sources_workspace) {
                     lock(resource: "${params.DISTRO_TO_BUILD}-${params.ARCH_TO_BUILD}-megasdk-build", quantity: 1) {
-                        buildAndSignPackage("${params.DISTRO_TO_BUILD}", "${params.ARCH_TO_BUILD}", "megasdk")
+                        buildAndSignPackage("${params.DISTRO_TO_BUILD}", "${params.ARCH_TO_BUILD}", "4", "megasdk")
                     }
                     script{
                         if ( params.UPLOAD_TO_REPOSITORY == true) {
@@ -149,7 +149,7 @@ pipeline {
                             echo "Do Build for ${DISTRO} - ${ARCHITECTURE}"
                             dir(linux_sources_workspace) {
                                 lock(resource: "${DISTRO}-${ARCHITECTURE}-megasdk-build", quantity: 1) {
-                                    buildAndSignPackage("${DISTRO}", "${ARCHITECTURE}", "megasdk")
+                                    buildAndSignPackage("${DISTRO}", "${ARCHITECTURE}", "2", "megasdk")
                                 }
                             }
                         }
@@ -243,11 +243,12 @@ pipeline {
 }
 
 
-def buildAndSignPackage(String distro, String architecture, String packageName) {
-    sh "${env.BUILDTOOLS_PATH}/build/buildManager.sh -a ${architecture} -j 1 build ${distro} . ${packageName}"
+def buildAndSignPackage(String distro, String architecture, String jobs, String packageName) {
+    sh "${env.BUILDTOOLS_PATH}/build/buildManager.sh -a ${architecture} -j ${jobs} build ${distro} . ${packageName}"
     sh "${env.BUILDTOOLS_PATH}/repo/repoManager.sh add ${env.INTERNAL_REPO_PATH}/builder/results/${distro}/${architecture}/${packageName}/ ${distro}"
     sh "SIGN_KEY_PATH=${env.INTERNAL_REPO_PATH}/sign_test/ ${env.BUILDTOOLS_PATH}/repo/repoManager.sh build -n ${distro}"
 }
+
 
 def getVersionFromHeader(String versionFilePath) {
     return sh(script: """
