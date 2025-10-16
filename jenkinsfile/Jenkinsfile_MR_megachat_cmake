@@ -171,7 +171,7 @@ pipeline {
                             sh "echo Building MEGAchat"
                             sh "cmake --preset dev-unix -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
                             -S ${megachat_sources_workspace} -B ${megachat_sources_workspace}/${BUILD_DIR}"
-                            sh "cmake --build ${megachat_sources_workspace}/${BUILD_DIR} -j3"
+                            sh "cmake --build ${megachat_sources_workspace}/${BUILD_DIR} -j5"
                         }
                     }
                     post {
