@@ -528,7 +528,7 @@ TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
 
     LOG_debug << logPre << "#### TC3.1 Before touch file ####";
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(localBasePath / "filewxyz"),
+    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath((localBasePath / "filewxyz").u8string()),
                              m_time(nullptr));
     LOG_debug << logPre << "#### TC3.2 After touch file ####";
     ASSERT_TRUE(waitForResponse(&mTimeChangeRecv))
