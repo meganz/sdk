@@ -8714,21 +8714,6 @@ public:
         return passed;
     }
 
-    bool runSimpleTest(std::function<void()> resetAttempt,
-                       std::function<void()> runDownloadAndWait,
-                       const SdkTest::SdkTestTransferStats& transferStats,
-                       const m_off_t& filesize,
-                       const m_off_t& progress)
-    {
-        resetAttempt();
-        runDownloadAndWait();
-
-        const auto analysis = analyzeCloudraidFailures(m_config, m_logPrefix, transferStats);
-        verifyCloudraidSuccessExpectations(analysis, m_config, filesize, progress, transferStats);
-
-        return analysis.totalFailed == m_config.maxExpectedFailedRequests;
-    }
-
 private:
     const CloudraidTestConfig m_config;
     const std::string m_logPrefix;
@@ -8786,7 +8771,6 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     globalMegaTestHooks.onHttpReqFinish = DebugTestHook::onHttpReqFinished;
 #endif
 
-    // Create reusable lambdas with C++17 best practices
     auto resetAttempt = [this, &filename]()
     {
         DebugTestHook::resetValues();
@@ -8798,7 +8782,6 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     auto runDownloadAndWait =
         CloudraidTestRunner::createDownloadFunction(this, nimported.get(), filename, logPre);
 
-    // Run the test using the generalized framework
     CloudraidTestRunner runner{config, logPre};
     const bool passed = runner.runTestWithRetries(resetAttempt,
                                                   runDownloadAndWait,
@@ -8928,11 +8911,11 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         });
 
     CloudraidTestRunner runner{config, logPre};
-    const bool passed = runner.runSimpleTest(resetAttempt,
-                                             runDownloadAndWait,
-                                             onTransferFinish_transferStats,
-                                             onTransferUpdate_filesize,
-                                             onTransferUpdate_progress);
+    const bool passed = runner.runTestWithRetries(resetAttempt,
+                                                  runDownloadAndWait,
+                                                  onTransferFinish_transferStats,
+                                                  onTransferUpdate_filesize,
+                                                  onTransferUpdate_progress);
 
     EXPECT_TRUE(passed);
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
