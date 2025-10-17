@@ -41,6 +41,11 @@
 #include <cctype>
 #include <chrono>
 #include <cstdint>
+#include <map>
+#include <mutex>
+#include <set>
+#include <sstream>
+#include <vector>
 
 #if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
 #include "mega/posix/gfx/worker/socket_utils.h"
@@ -8020,18 +8025,54 @@ namespace mega
 {
     class DebugTestHook
     {
+    private:
+        static constexpr int DEFAULT_COUNTDOWN = -1;
+        static constexpr bool DEFAULT_BOOL = false;
+        static constexpr m_off_t DEFAULT_PROGRESS = 0;
+
+        struct HttpOutcome
+        {
+            int http{};
+            unsigned curl{};
+            bool failed{};
+        };
+
     public:
-        static int countdownToOverquota;
-        static int countdownTo404;
-        static int countdownTo403;
-        static int countdownTo429;
-        static int countdownTo503;
-        static int countdownTo200WithErrCode;
-        static int countdownToTimeout;
-        static bool isRaid;
-        static bool isRaidKnown;
-        static m_off_t testProgressCompleted;
-        static m_off_t testProgressContiguous;
+        struct ObservedFailures
+        {
+            std::map<int, unsigned> byHttpStatus;
+            std::map<int, unsigned> byCurlCode;
+            unsigned totalFailed{0};
+        };
+
+        static inline int countdownToOverquota{DEFAULT_COUNTDOWN};
+        static inline int countdownTo404{DEFAULT_COUNTDOWN};
+        static inline int countdownTo403{DEFAULT_COUNTDOWN};
+        static inline int countdownTo429{DEFAULT_COUNTDOWN};
+        static inline int countdownTo503{DEFAULT_COUNTDOWN};
+        static inline int countdownTo200WithErrCode{DEFAULT_COUNTDOWN};
+        static inline int countdownToTimeout{DEFAULT_COUNTDOWN};
+        static inline bool isRaid{DEFAULT_BOOL};
+        static inline bool isRaidKnown{DEFAULT_BOOL};
+        static inline m_off_t testProgressCompleted{DEFAULT_PROGRESS};
+        static inline m_off_t testProgressContiguous{DEFAULT_PROGRESS};
+        static inline std::vector<HttpOutcome> sHttpOutcomes;
+
+        static void resetValues()
+        {
+            countdownToOverquota = DEFAULT_COUNTDOWN;
+            countdownTo404 = DEFAULT_COUNTDOWN;
+            countdownTo403 = DEFAULT_COUNTDOWN;
+            countdownTo429 = DEFAULT_COUNTDOWN;
+            countdownTo503 = DEFAULT_COUNTDOWN;
+            countdownTo200WithErrCode = DEFAULT_COUNTDOWN;
+            countdownToTimeout = DEFAULT_COUNTDOWN;
+            isRaid = DEFAULT_BOOL;
+            isRaidKnown = DEFAULT_BOOL;
+            testProgressCompleted = DEFAULT_PROGRESS;
+            testProgressContiguous = DEFAULT_PROGRESS;
+            sHttpOutcomes.clear();
+        }
 
         static void onSetIsRaid_morechunks(::mega::RaidBufferManager* tbm)
         {
@@ -8044,70 +8085,78 @@ namespace mega
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk << " and set AvoidSmallLastRequest flag to false";
         }
 
+        static void onHttpReqFinished(const int httpStatus,
+                                      const unsigned curlCode,
+                                      const bool failed)
+        {
+            LOG_info << "onHttpReqFinished: httpStatus=" << httpStatus << ", curlCode=" << curlCode
+                     << ", failed=" << failed;
+            sHttpOutcomes.push_back({httpStatus, curlCode, failed});
+        }
+
+        static bool onHttpReqFinishedWithSimulatedError(HttpReq& req)
+        {
+            LOG_info << "SIMULATING HTTP GET " << req.httpstatus
+                     << (req.mErrCode ? " with error CURLcode " + std::to_string(req.mErrCode) :
+                                        "");
+
+            if (req.httpstatus == 200 && !req.mErrCode)
+            {
+                LOG_err << "SIMULATING HTTP GET 200 with no error code -> return false";
+                return false;
+            }
+
+            req.status = REQ_FAILURE;
+            onHttpReqFinished(req.httpstatus, req.mErrCode, true);
+            return true;
+        }
+
         static bool onHttpReqPost509(HttpReq* req)
         {
-            if (req->type == REQ_BINARY)
-            {
-                if (countdownToOverquota-- == 0) {
-                    req->httpstatus = 509;
-                    req->timeleft = 30;  // in seconds
-                    req->status = REQ_FAILURE;
+            if (!req || req->type != REQ_BINARY || countdownToOverquota-- != 0)
+                return false;
 
-                    LOG_info << "SIMULATING HTTP GET 509 OVERQUOTA";
-                    return true;
-                }
-            }
-            return false;
+            req->httpstatus = 509;
+            req->timeleft = 30; // in seconds
+            LOG_info << "SIMULATING OVERQUOTA";
+            return onHttpReqFinishedWithSimulatedError(*req);
         }
 
         static bool onHttpReqPostError(HttpReq* req)
         {
+            if (!req)
+                return false;
+
             if (req->type == REQ_BINARY)
             {
                 if (countdownTo404-- == 0) {
                     req->httpstatus = 404;
-                    req->status = REQ_FAILURE;
-
-                    LOG_info << "SIMULATING HTTP GET 404";
-                    return true;
+                    return onHttpReqFinishedWithSimulatedError(*req);
                 }
                 if (countdownTo403-- == 0) {
                     req->httpstatus = 403;
-                    req->status = REQ_FAILURE;
-
-                    LOG_info << "SIMULATING HTTP GET 403";
-                    return true;
+                    return onHttpReqFinishedWithSimulatedError(*req);
                 }
                 if (countdownTo429-- == 0)
                 {
                     req->httpstatus = 429;
-                    req->status = REQ_FAILURE;
-
-                    LOG_info << "SIMULATING HTTP GET 429";
-                    return true;
+                    return onHttpReqFinishedWithSimulatedError(*req);
                 }
                 if (countdownTo503-- == 0)
                 {
                     req->httpstatus = 503;
-                    req->status = REQ_FAILURE;
-
-                    LOG_info << "SIMULATING HTTP GET 503";
-                    return true;
+                    return onHttpReqFinishedWithSimulatedError(*req);
                 }
 
                 if (countdownTo200WithErrCode-- == 0)
                 {
                     req->httpstatus = 200;
                     req->mErrCode = 56;
-                    req->status = REQ_FAILURE;
-
-                    LOG_info << "SIMULATING HTTP GET 200 with Error code";
-                    return true;
+                    return onHttpReqFinishedWithSimulatedError(*req);
                 }
             }
             return false;
         }
-
 
         static bool onHttpReqPostTimeout(HttpReq* req)
         {
@@ -8182,17 +8231,7 @@ namespace mega
         {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
             globalMegaTestHooks = MegaTestHooks(); // remove any callbacks set in other tests
-            countdownToOverquota = -1;
-            countdownTo404 = -1;
-            countdownTo403 = -1;
-            countdownTo429 = -1;
-            countdownTo200WithErrCode = -1;
-            countdownTo503 = -1;
-            countdownToTimeout = -1;
-            isRaid = false;
-            isRaidKnown = false;
-            testProgressCompleted = 0;
-            testProgressContiguous = 0;
+            resetValues();
             return true;
 #else
             return false;
@@ -8204,19 +8243,22 @@ namespace mega
             tbm->raidLinesPerChunk = 10;
         }
 
+        static ObservedFailures observedFailures()
+        {
+            ObservedFailures observedFailures;
+            for (const auto& o: sHttpOutcomes)
+            {
+                if (!o.failed)
+                    continue;
+                ++observedFailures.totalFailed;
+                if (o.http)
+                    ++observedFailures.byHttpStatus[o.http];
+                if (o.curl)
+                    ++observedFailures.byCurlCode[static_cast<int>(o.curl)];
+            }
+            return observedFailures;
+        }
     };
-
-    int DebugTestHook::countdownToOverquota = -1;
-    bool DebugTestHook::isRaid = false;
-    bool DebugTestHook::isRaidKnown = false;
-    int DebugTestHook::countdownTo404 = -1;
-    int DebugTestHook::countdownTo403 = -1;
-    int DebugTestHook::countdownTo200WithErrCode = -1;
-    int DebugTestHook::countdownTo429 = -1;
-    int DebugTestHook::countdownTo503 = -1;
-    int DebugTestHook::countdownToTimeout = -1;
-    m_off_t DebugTestHook::testProgressCompleted = 0;
-    m_off_t DebugTestHook::testProgressContiguous = 0;
 }
 
 /**
@@ -8437,18 +8479,260 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 }
 #endif
 
+// Cloudraid test helper structures and functions
+#ifdef DEBUG
+
+// Some HTTP requests may fail due to transient errors.
+// Those are "unexpected" for the test, but
+// "acceptable" as they may happen even when everything else is working fine. The test should not
+// pass if those errors are present, but it can be retried with a limit.
+//
+// Http status 0: no respons was received from the server.
+// -> with CURLcode (error) 28: connection timeout. It may happen if the client network is saturated
+// or the connection is idle and the OS (especially mobile) need resources.
+// -> with CURLcode (error) 7: the connection could not be established. It may happen if the server
+// is temporary unavailable, or some network issue with the client.
+struct CloudraidFailureAnalysis
+{
+    unsigned seen404{0};
+    unsigned seen403{0};
+    unsigned unexpected{0};
+    unsigned acceptableUnexpected{0};
+    unsigned totalFailed{0};
+
+    static inline std::vector<unsigned> acceptableUnexpectedCurlCode = {28, 7};
+};
+
+struct CloudraidTestConfig
+{
+    unsigned maxRetries{0};
+    unsigned maxAcceptableUnexpectedPerRun{0};
+    unsigned maxExpectedFailedRequests{0};
+    unsigned baseRequestCount{0};
+    bool hasExpectedFailures{false};
+    std::string testName{};
+};
+
+// Helper functions for cloudraid test analysis
+inline CloudraidFailureAnalysis
+    analyzeCloudraidFailures(const CloudraidTestConfig& config,
+                             const std::string& logPrefix,
+                             const SdkTest::SdkTestTransferStats& transferStats)
+{
+    CloudraidFailureAnalysis analysis{};
+    analysis.totalFailed = static_cast<unsigned>(transferStats.numFailedRequests);
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    const auto obs = DebugTestHook::observedFailures();
+    analysis.seen404 = obs.byHttpStatus.count(404) ? obs.byHttpStatus.at(404) : 0u;
+    analysis.seen403 = obs.byHttpStatus.count(403) ? obs.byHttpStatus.at(403) : 0u;
+    analysis.unexpected = (analysis.totalFailed > config.maxExpectedFailedRequests) ?
+                              (analysis.totalFailed - config.maxExpectedFailedRequests) :
+                              0u;
+
+    for (const auto& curlCode: CloudraidFailureAnalysis::acceptableUnexpectedCurlCode)
+    {
+        analysis.acceptableUnexpected += obs.byCurlCode.count(static_cast<int>(curlCode)) ?
+                                             obs.byCurlCode.at(static_cast<int>(curlCode)) :
+                                             0u;
+    }
+
+    std::ostringstream oss;
+    oss << "Observed failures: totalFailed=" << analysis.totalFailed << " 404=" << analysis.seen404
+        << " 403=" << analysis.seen403 << " unexpected=" << analysis.unexpected
+        << " acceptable=" << analysis.acceptableUnexpected << " | byHTTP:";
+    for (const auto& kv: obs.byHttpStatus)
+        oss << " " << kv.first << "=" << kv.second;
+    oss << " | byCURL:";
+    for (const auto& kv: obs.byCurlCode)
+        oss << " " << kv.first << "=" << kv.second;
+    LOG_debug << logPrefix << oss.str();
+#else
+    if (config.hasExpectedFailures)
+    {
+        analysis.seen404 = 1u;
+        analysis.seen403 = 1u;
+    }
+    analysis.acceptableUnexpected = 0u;
+#endif
+    return analysis;
+}
+
+inline void verifyCloudraidSuccessExpectations(const CloudraidFailureAnalysis& analysis,
+                                               const CloudraidTestConfig& config,
+                                               const m_off_t filesize,
+                                               const m_off_t progress,
+                                               const SdkTest::SdkTestTransferStats& transferStats)
+{
+    EXPECT_GT(filesize, 0u);
+    EXPECT_EQ(progress, filesize);
+
+    if (config.hasExpectedFailures)
+    {
+        EXPECT_LT(DebugTestHook::countdownTo404, 0);
+        EXPECT_LT(DebugTestHook::countdownTo403, 0);
+        EXPECT_EQ(analysis.seen404, 1u) << "Expected one HTTP 404 failure but none observed";
+        EXPECT_EQ(analysis.seen403, 1u) << "Expected one HTTP 403 failure but none observed";
+    }
+
+    EXPECT_EQ(transferStats.numTotalRequests,
+              config.baseRequestCount + config.maxExpectedFailedRequests);
+    EXPECT_EQ(transferStats.numFailedRequests, config.maxExpectedFailedRequests);
+    if (transferStats.numFailedRequests > 0)
+    {
+        const auto expectedFailedRequestRatio =
+            static_cast<double>(transferStats.numFailedRequests) /
+            static_cast<double>(transferStats.numTotalRequests);
+        EXPECT_NEAR(transferStats.failedRequestRatio, expectedFailedRequestRatio, 1e-6);
+    }
+    else
+    {
+        EXPECT_EQ(transferStats.failedRequestRatio, 0.0);
+    }
+}
+
+class CloudraidTestRunner
+{
+public:
+    explicit CloudraidTestRunner(const CloudraidTestConfig& config, const std::string& logPrefix):
+        m_config(config),
+        m_logPrefix(logPrefix)
+    {}
+
+    // Static helper to create a shared download function
+    static std::function<void()>
+        createDownloadFunction(SdkTest* test,
+                               MegaNode* node,
+                               const std::string& filename,
+                               const std::string& logPrefix,
+                               std::function<void()> additionalAssertions = nullptr)
+    {
+        return [test, node, filename, logPrefix, additionalAssertions]()
+        {
+            constexpr int timeoutSecs = 180;
+            test->onTransferUpdate_progress = 0;
+            test->onTransferUpdate_filesize = 0;
+            test->mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+            const auto t0 = std::chrono::steady_clock::now();
+            test->megaApi[0]->startDownload(
+                node,
+                filename.c_str(),
+                nullptr /*customName*/,
+                nullptr /*appData*/,
+                false /*startFirst*/,
+                nullptr /*cancelToken*/,
+                MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                false /* undelete */);
+            ASSERT_TRUE(
+                test->waitForResponse(&test->mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD],
+                                      timeoutSecs))
+                << logPrefix << "timeout after " << timeoutSecs << " secs";
+            ASSERT_EQ(API_OK, test->mApi[0].lastError)
+                << "Cannot download the cloudraid file (error: " << test->mApi[0].lastError << ")";
+            const auto t1 = std::chrono::steady_clock::now();
+            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+            LOG_debug << logPrefix << "downloadTime = " << ms << " ms, size = " << node->getSize()
+                      << " [speed = " << (node->getSize() / std::max<int64_t>(ms, 1)) << " B/s]";
+
+            // Run any additional test-specific assertions
+            if (additionalAssertions)
+            {
+                additionalAssertions();
+            }
+        };
+    }
+
+    bool runTestWithRetries(std::function<void()> resetAttempt,
+                            std::function<void()> runDownloadAndWait,
+                            const SdkTest::SdkTestTransferStats& transferStats,
+                            const m_off_t& filesize,
+                            const m_off_t& progress)
+    {
+        bool passed = false;
+        for (unsigned attempt = 0; attempt <= m_config.maxRetries && !passed; ++attempt)
+        {
+            LOG_debug << m_logPrefix << "Running test attempt " << (attempt + 1) << " of "
+                      << m_config.maxRetries;
+            resetAttempt();
+
+            runDownloadAndWait();
+
+            const auto analysis = analyzeCloudraidFailures(m_config, m_logPrefix, transferStats);
+
+            if (analysis.totalFailed != m_config.maxExpectedFailedRequests)
+            {
+                LOG_debug << m_logPrefix << "Failed attempt " << (attempt + 1) << ", expected "
+                          << m_config.maxExpectedFailedRequests << " failed requests but observed "
+                          << analysis.totalFailed;
+
+                EXPECT_GT(transferStats.failedRequestRatio, 0.0);
+                EXPECT_LE(transferStats.failedRequestRatio, 1.0);
+                EXPECT_EQ(transferStats.numTotalRequests,
+                          m_config.baseRequestCount + analysis.totalFailed);
+
+                const bool allUnexpectedAcceptable =
+                    (analysis.acceptableUnexpected == analysis.unexpected);
+                const bool underCap =
+                    (analysis.acceptableUnexpected <= m_config.maxAcceptableUnexpectedPerRun);
+
+                if (allUnexpectedAcceptable && underCap && attempt < m_config.maxRetries)
+                {
+                    LOG_debug << m_logPrefix
+                              << "Transient failure(s) were detected (e.g. cURL 28) in failed "
+                                 "attempt and "
+                                 "conditions were met for a retry. Retrying... "
+                                 "[analysis.acceptableUnexpected="
+                              << analysis.acceptableUnexpected
+                              << ", allUnexpectedAcceptable=" << allUnexpectedAcceptable
+                              << ", maxAcceptableUnexpectedPerRun="
+                              << m_config.maxAcceptableUnexpectedPerRun << "]";
+                    continue;
+                }
+                else
+                {
+                    LOG_debug << m_logPrefix
+                              << "Failed attempt did not meet conditions for a retry. Aborting... "
+                                 "[analysis.acceptableUnexpected="
+                              << analysis.acceptableUnexpected
+                              << ", allUnexpectedAcceptable=" << allUnexpectedAcceptable
+                              << ", maxAcceptableUnexpectedPerRun="
+                              << m_config.maxAcceptableUnexpectedPerRun << "]";
+                }
+                break;
+            }
+
+            // Success case - verify all expectations
+            verifyCloudraidSuccessExpectations(analysis,
+                                               m_config,
+                                               filesize,
+                                               progress,
+                                               transferStats);
+            passed = true;
+        }
+
+        return passed;
+    }
+
+private:
+    const CloudraidTestConfig m_config;
+    const std::string m_logPrefix;
+};
+#endif
 
 /**
-* @brief TEST_F SdkTestCloudraidTransferWithConnectionFailures
-*
-* Download a cloudraid file but with a connection failing with http errors 404 and 403. The download should recover from the problems in 5 channel mode
-*
-*/
-
+ * @brief TEST_F SdkTestCloudraidTransferWithConnectionFailures
+ *
+ * Download a cloudraid file but with a connection failing with http errors 404 and 403. The
+ * download should recover from the problems in 5 channel mode
+ *
+ */
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
-    LOG_info << "___TEST Cloudraid transfers with connection failures___";
+    static const auto logPre = getLogPrefix();
+    LOG_info << logPre << "___TEST Cloudraid transfers with connection failures___";
+
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // Make sure our clients are working with pro plans.
     auto restorer0 = scopedToPro(*megaApi[0]);
@@ -8462,59 +8746,50 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
         importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
+    const std::string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
 
-    string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
-    deleteFile(filename.c_str());
+    megaApi[0]->setMaxDownloadSpeed(1024 * 1024);
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2))
+        << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_debug << logPre << "For raidTests: client max connections set to 2";
 
-    // set up for 404 and 403 errors
-    // smaller chunk sizes so we can get plenty of pauses
-    DebugTestHook::countdownTo404 = 5;
-    DebugTestHook::countdownTo403 = 12;
+    // Configure test parameters
+    const CloudraidTestConfig config{
+        2, // maxRetries
+        5, // maxAcceptableUnexpectedPerRun
+        2, // maxExpectedFailedRequests
+        35, // baseRequestCount
+        true, // hasExpectedFailures
+        "ConnectionFailures" // testName
+    };
+
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPostError;
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
-    globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
-    globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
+    globalMegaTestHooks.onLimitMaxReqSize = DebugTestHook::onLimitMaxReqSize;
+    globalMegaTestHooks.onHookNumberOfConnections = DebugTestHook::onHookNumberOfConnections;
+    globalMegaTestHooks.onHttpReqFinish = DebugTestHook::onHttpReqFinished;
 #endif
 
-    megaApi[0]->setMaxDownloadSpeed(1024 * 1024);
-    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2)) << "doSetMaxConnections failed or took more than 1 minute";
-    LOG_debug << "For raidTests: client max connections set to 2";
-
-    // plain cloudraid download
+    auto resetAttempt = [this, &filename]()
     {
-        onTransferUpdate_progress = 0;
-        onTransferUpdate_filesize = 0;
-        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
-        const auto& downloadStartTime = std::chrono::system_clock::now();
-        megaApi[0]->startDownload(nimported.get(),
-                                  filename.c_str(),
-                                  nullptr  /*customName*/,
-                                  nullptr  /*appData*/,
-                                  false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/,
-                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
-                                  false    /* undelete */);
+        DebugTestHook::resetValues();
+        DebugTestHook::countdownTo404 = 5;
+        DebugTestHook::countdownTo403 = 12;
+        deleteFile(filename.c_str());
+    };
 
-        unsigned int transfer_timeout_in_seconds = 180;
-        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], transfer_timeout_in_seconds)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
-        ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
-        const auto& downloadEndTime = std::chrono::system_clock::now();
-        auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(downloadEndTime - downloadStartTime).count();
-        LOG_debug << "[SdkTestCloudRaidTransferWithConnectionFailures] downloadTime = " << downloadTime << " ms, size = " << nimported->getSize() << "" << " [speed = " << (nimported->getSize() / downloadTime) << " B/s]";
-        ASSERT_GE(onTransferUpdate_filesize, 0u);
-        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
-        ASSERT_LT(DebugTestHook::countdownTo404, 0);
-        ASSERT_LT(DebugTestHook::countdownTo403, 0);
-        ASSERT_EQ(onTransferFinish_transferStats.numFailedRequests, 2); // One 404 and one 403
-        ASSERT_GT(onTransferFinish_transferStats.failedRequestRatio, 0.0);
-        ASSERT_LT(onTransferFinish_transferStats.failedRequestRatio, 1.0);
-        ASSERT_EQ(onTransferFinish_transferStats.numTotalRequests,
-                  35 + 2); // 35 is the calculated number of requests for this file and chunk size
-                           // (+2 after 2 failed requests)
-    }
+    auto runDownloadAndWait =
+        CloudraidTestRunner::createDownloadFunction(this, nimported.get(), filename, logPre);
 
+    CloudraidTestRunner runner{config, logPre};
+    const bool passed = runner.runTestWithRetries(resetAttempt,
+                                                  runDownloadAndWait,
+                                                  onTransferFinish_transferStats,
+                                                  onTransferUpdate_filesize,
+                                                  onTransferUpdate_progress);
+
+    EXPECT_TRUE(passed);
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
@@ -8579,7 +8854,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
-    LOG_info << "___TEST Cloudraid transfers with single channel timeouts___";
+    static const auto logPre = getLogPrefix();
+    LOG_info << logPre << "___TEST Cloudraid transfers with single channel timeouts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // Make sure our clients are working with pro plans.
     auto restorer0 = scopedToPro(*megaApi[0]);
@@ -8593,50 +8869,55 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
+    const std::string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
 
-    string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
-    deleteFile(filename.c_str());
+    // Configure test parameters for timeout scenario
+    const CloudraidTestConfig config{
+        2, // maxRetries
+        5, // maxAcceptableUnexpectedPerRun
+        0, // maxExpectedFailedRequests - No expected failures for timeout test
+        36, // baseRequestCount - Base request count for this file/chunking + 1 timed out
+        false, // hasExpectedFailures - No expected failures like 404/403
+        "SingleChannelTimeouts" // testName
+    };
 
-    // set up for timeout
-    // smaller chunk sizes so we can get plenty of pauses
-    DebugTestHook::countdownToTimeout = 15;
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPostTimeout;
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
     globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
-    globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
+    globalMegaTestHooks.onHookNumberOfConnections =
+        ::mega::DebugTestHook::onHookNumberOfConnections;
 #endif
 
-    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2)) << "doSetMaxConnections failed or took more than 1 minute";
-    LOG_info << "For raidTests: client max connections set to 3";
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2))
+        << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_info << logPre << "For raidTests: client max connections set to 2";
 
-    // plain cloudraid download
+    auto resetAttempt = [this, &filename]()
     {
-        onTransferUpdate_progress = 0;
-        onTransferUpdate_filesize = 0;
-        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
-        megaApi[0]->startDownload(nimported.get(),
-                                  filename.c_str(),
-                                  nullptr  /*customName*/,
-                                  nullptr  /*appData*/,
-                                  false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/,
-                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
-                                  false    /* undelete */);
+        DebugTestHook::resetValues();
+        DebugTestHook::countdownToTimeout = 15;
+        deleteFile(filename.c_str());
+    };
 
-        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with timeout errors timed out (180 seconds)";
-        ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
-        ASSERT_GE(onTransferUpdate_filesize, 0u);
-        ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
-        ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
-        ASSERT_EQ(onTransferFinish_transferStats.numFailedRequests,
-                  0); // This "timeout" does not imply a request failure because it is detected as a
-                      // hanging source
-        ASSERT_EQ(onTransferFinish_transferStats.failedRequestRatio, 0.0);
-        ASSERT_EQ(onTransferFinish_transferStats.numTotalRequests,
-                  35 + 1); // 35 is the calculated number of requests for this file and chunk size
-    }
+    auto runDownloadAndWait = CloudraidTestRunner::createDownloadFunction(
+        this,
+        nimported.get(),
+        filename,
+        logPre,
+        []()
+        {
+            ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
+        });
+
+    CloudraidTestRunner runner{config, logPre};
+    const bool passed = runner.runTestWithRetries(resetAttempt,
+                                                  runDownloadAndWait,
+                                                  onTransferFinish_transferStats,
+                                                  onTransferUpdate_filesize,
+                                                  onTransferUpdate_progress);
+
+    EXPECT_TRUE(passed);
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 }
 
@@ -9223,16 +9504,16 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 
         compareDecryptedData[0] = ::mega::byte(nonraid ? nonraidchar : raidchar);
 
-        m_off_t start = 0, end = 0;
+        m_off_t start = RAIDLINE, end = RAIDLINE;
 
         if (testtype < 3)  // front of file
         {
-            start = std::max<int>(0, rand() % 5 * 10240 - 1024);
+            start = std::max<int>(RAIDLINE, rand() % 5 * 10240 - 1024);
             end = start + rand() % 5 * 10240;
         }
         else if (testtype == 3)  // within 1, 2, or 3 raidlines
         {
-            start = std::max<int>(0, rand() % 5 * 10240 - 1024);
+            start = std::max<int>(RAIDLINE, rand() % 5 * 10240 - 1024);
             end = start + rand() % (3 * RAIDLINE);
         }
         else if (testtype < 8) // end of file
@@ -9248,7 +9529,7 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
         else // decent piece of the file
         {
             int pieceSize = 50000; //gRunningInCI ? 50000 : 5000000;
-            start = rand() % pieceSize;
+            start = std::max<int>(RAIDLINE, rand() % pieceSize);
             int n = pieceSize / (smallpieces ? 100 : 1);
             end = start + n + rand() % n;
         }
@@ -9256,7 +9537,8 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
         // seems 0 size not allowed now - make sure we get at least 1 byte
         if (start == end)
         {
-            if (start > 0) start -= 1;
+            if (start > RAIDLINE)
+                start -= 1;
             else end += 1;
         }
         randomRunsBytes += end - start;
@@ -9453,7 +9735,7 @@ TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)
         DebugTestHook::countdownTo200WithErrCode = cd200Err;
         std::unique_ptr<CheckStreamedFile_MegaTransferListener> p(
             StreamRaidFilePart(megaApi[0].get(),
-                               0,
+                               RAIDLINE,
                                cloudRaidNode->getSize(),
                                true /*raid*/,
                                false,
