@@ -1906,6 +1906,9 @@ void MegaClient::init()
     mReceivingCatchUp = false;
     scsn.clear();
 
+    mActionPacketSplitter.clear();
+    mActionPacketFilters.clear();
+
     // initialize random client application instance ID (for detecting own
     // actions in server-client stream)
     resetId(sessionid, sizeof sessionid, rng);
@@ -3242,6 +3245,18 @@ void MegaClient::exec()
                     break;
                 }
 
+				// use new way
+                if (pendingsc->useStreaming)
+                {
+                    app->notify_network_activity(NetworkActivityChannel::SC,
+                                                 NetworkActivityType::REQUEST_RECEIVED,
+                                                 API_OK);
+                    pendingsc.reset();
+                    btsc.reset();
+                    break;
+                }
+
+				// unmatch, pendingsc is reset above
                 if (*pendingsc->in.c_str() == '{')
                 {
                     insca = false;
@@ -3400,25 +3415,39 @@ void MegaClient::exec()
             }
         }
 
-        if (!scpaused && jsonsc.pos)
-        {
-            // FIXME: reload in case of bad JSON
-            if (procsc())
-            {
-                // completed - initiate next SC request
-                jsonsc.pos = nullptr;
-                pendingsc.reset();
-                btsc.reset();
+        if (!scpaused)
+    	{
+			// old way
+			if(jsonsc.pos)
+	        {
+	            // FIXME: reload in case of bad JSON
+	            if (procsc())
+	            {
+	                // completed - initiate next SC request
+	                jsonsc.pos = nullptr;
+	                pendingsc.reset();
+	                btsc.reset();
 
-                // upon reception of action packets, if the cs request is waiting for a retry
-                // and it failed due to -3 or -4 error from API, we can abort the backoff
-                if (reqs.retryReasonIsApi())
-                {
-                    btcs.reset();
-                }
-            }
+	                // upon reception of action packets, if the cs request is waiting for a retry
+	                // and it failed due to -3 or -4 error from API, we can abort the backoff
+	                if (reqs.retryReasonIsApi())
+	                {
+	                    btcs.reset();
+	                }
+	            }
+			}
+
+			// new way
+			mActionPacketSplitter.clear();
+            mActionPacketFilters.clear();
+            createActionPacketFilters();
+
+            pendingsc->useStreaming = true;
+            pendingsc->streamingCallback = [this](const char* data, size_t len) {
+                mActionPacketSplitter.processChunk(&mActionPacketFilters, std::string(data, len));
+            };
         }
-
+		
         if (!pendingsc && !pendingscUserAlerts && scsn.ready() && btsc.armed() && !mBlocked)
         {
             if (useralerts.begincatchup)
@@ -24655,5 +24684,507 @@ void MegaClient::setMegaURL(const std::string& url)
     std::unique_lock lock(megaUrlMutex);
     MEGAURL = url;
 }
+
+
+void MegaClient::createActionPacketFilters()
+{
+	if (!mActionPacketFilters.empty())
+	{
+		return;  // Already configured
+	}
+
+	// Start of processing - initialize state
+	mActionPacketFilters.emplace("", [this](JSON*)
+	{
+		LOG_debug << "Starting actionpacket stream processing";
+		return true;
+	});
+
+	// Metadata fields processing
+	mActionPacketFilters.emplace("{\"w", [this](JSON* json)
+	{
+		return json->storeobject(&scnotifyurl);
+	});
+
+	mActionPacketFilters.emplace("{\"ir", [this](JSON* json)
+	{
+		insca_notlast = json->getint() == 1;
+		return true;
+	});
+
+	mActionPacketFilters.emplace("{\"sn", [this](JSON* json)
+	{
+		bool result = scsn.setScsn(json);
+		
+		if (result)
+		{
+			notifypurge();
+			
+			if (sctable)
+			{
+				if (!pendingcs && !csretrying && !reqs.readyToSend())
+				{
+					LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
+					sctable->commit();
+					sctable->begin();
+					app->notify_dbcommit();
+					pendingsccommit = false;
+				}
+				else
+				{
+					LOG_debug << "Postponing DB commit until cs requests finish";
+					pendingsccommit = true;
+				}
+			}
+		}
+		
+		return result;
+	});
+
+	// Individual actionpacket processing - buffers entire actionpacket before executing
+	// Path: {[a{ means unnamed object, array "a", each object in array
+	mActionPacketFilters.emplace("{[a{", [this](JSON* json)
+	{
+		if (!json->enterobject())
+		{
+			LOG_err << "Failed to enter actionpacket object";
+			return false;
+		}
+
+		// The "a" attribute is guaranteed to be the first in the object
+		if (json->getnameid() != makeNameid("a"))
+		{
+			LOG_err << "Expected 'a' attribute in actionpacket";
+			return false;
+		}
+
+		if (!statecurrent)
+		{
+			fnstats.actionPackets++;
+		}
+
+		nameid actionType = json->getnameidvalue();
+		std::shared_ptr<Node> lastAPDeletedNode;
+
+		// Check if we should skip self-originating actionpackets
+		bool shouldProcess = fetchingnodes || 
+						   !Utils::startswith(json->pos, "\"i\":\"") ||
+						   memcmp(json->pos + 5, sessionid, sizeof sessionid) ||
+						   json->pos[5 + sizeof sessionid] != '"' || 
+						   actionType == name_id::d ||
+						   actionType == makeNameid("t");
+
+		if (shouldProcess)
+		{
+#ifdef ENABLE_CHAT
+			bool readingPublicChat = false;
+#endif
+			// Process actionpacket based on type
+			switch (actionType)
+			{
+				case name_id::u:
+					sc_updatenode();
+					break;
+
+				case makeNameid("t"):
+				{
+					// Node addition - will be handled by nested filter for incremental parsing
+					bool isMoveOperation = false;
+					
+					if (!loggedIntoFolder())
+						useralerts.beginNotingSharedNodes();
+
+					handle originatingUser = sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode.get(), isMoveOperation);
+					
+					mergenewshares(1);
+					
+					if (!loggedIntoFolder())
+						useralerts.convertNotedSharedNodes(true, originatingUser);
+					
+					lastAPDeletedNode = nullptr;
+				}
+				break;
+
+				case name_id::d:
+					lastAPDeletedNode = sc_deltree();
+					break;
+
+				case makeNameid("s"):
+				case makeNameid("s2"):
+					if (sc_shares())
+					{
+						int creqtag = reqtag;
+						reqtag = 0;
+						mergenewshares(1);
+						reqtag = creqtag;
+					}
+					break;
+
+				case name_id::c:
+					sc_contacts();
+					break;
+
+				case makeNameid("fa"):
+					sc_fileattr();
+					break;
+
+				case makeNameid("ua"):
+					sc_userattr();
+					break;
+
+				case name_id::psts:
+				case name_id::psts_v2:
+				case makeNameid("ftr"):
+					if (sc_upgrade(actionType))
+					{
+						app->account_updated();
+						abortbackoff(true);
+					}
+					break;
+
+				case name_id::pses:
+					sc_paymentreminder();
+					break;
+
+				case name_id::ipc:
+					sc_ipc();
+					break;
+
+				case makeNameid("opc"):
+					sc_opc();
+					break;
+
+				case name_id::upci:
+					sc_upc(true);
+					break;
+
+				case name_id::upco:
+					sc_upc(false);
+					break;
+
+				case makeNameid("ph"):
+					sc_ph();
+					break;
+
+				case makeNameid("se"):
+					sc_se();
+					break;
+
+#ifdef ENABLE_CHAT
+				case makeNameid("mcpc"):
+					readingPublicChat = true;
+					// fall-through
+				case makeNameid("mcc"):
+					sc_chatupdate(readingPublicChat);
+					break;
+
+				case makeNameid("mcfpc"):
+				case makeNameid("mcfc"):
+					sc_chatflags();
+					break;
+
+				case makeNameid("mcpna"):
+				case makeNameid("mcna"):
+					sc_chatnode();
+					break;
+
+				case name_id::mcsmp:
+					sc_scheduledmeetings();
+					break;
+
+				case name_id::mcsmr:
+					sc_delscheduledmeeting();
+					break;
+#endif
+
+				case makeNameid("uac"):
+					sc_uac();
+					break;
+
+				case makeNameid("la"):
+					sc_la();
+					break;
+
+				case makeNameid("ub"):
+					sc_ub();
+					break;
+
+				case makeNameid("sqac"):
+					sc_sqac();
+					break;
+
+				case makeNameid("asp"):
+					sc_asp();
+					break;
+
+				case makeNameid("ass"):
+					sc_ass();
+					break;
+
+				case makeNameid("asr"):
+					sc_asr();
+					break;
+
+				case makeNameid("aep"):
+					sc_aep();
+					break;
+
+				case makeNameid("aer"):
+					sc_aer();
+					break;
+
+				case makeNameid("pk"):
+					sc_pk();
+					break;
+
+				case makeNameid("uec"):
+					sc_uec();
+					break;
+
+				case makeNameid("cce"):
+					sc_cce();
+					break;
+
+				default:
+					LOG_debug << "Skipping unknown actionpacket type: " << actionType;
+					break;
+			}
+		}
+
+		return json->leaveobject();
+	});
+
+	// Incremental parsing of 't' element (node array)
+	// Process each node in the array one by one without buffering entire array
+	mActionPacketFilters.emplace("{[a{\"t[{", [this](JSON* json)
+	{
+		NodeManager::MissingParentNodes missingParents;
+		handle previousAlertHandle = UNDEF;
+		
+		// Incrementally process each node without buffering the entire 't' array
+		if (readnode(json, 0, PUTNODES_APP, nullptr, false, true,
+					missingParents, previousAlertHandle,
+					nullptr, nullptr, nullptr) != 1)
+		{
+			LOG_err << "Failed to read node in 't' actionpacket element";
+			return false;
+		}
+
+		return json->leaveobject();
+	});
+
+	// End of 't' array processing
+	mActionPacketFilters.emplace("{[a{\"t[", [this](JSON* json)
+	{
+		json->enterarray();
+		return json->leavearray();
+	});
+
+	// End of actionpacket array
+	mActionPacketFilters.emplace("{[a", [this](JSON* json)
+	{
+		json->enterarray();
+		bool result = json->leavearray();
+		insca = false;
+		return result;
+	});
+
+	// Completion of entire actionpacket response
+	mActionPacketFilters.emplace("{", [this](JSON*)
+	{
+		if (!useralerts.isDeletedSharedNodesStashEmpty())
+		{
+			useralerts.purgeNodeVersionsFromStash();
+			useralerts.convertStashedDeletedSharedNodes();
+		}
+
+		LOG_debug << "Actionpacket processing complete. More to follow: " << insca_notlast;
+		
+		mergenewshares(1);
+		applykeys();
+		mNewKeyRepository.clear();
+
+		// Handle state transitions
+		if (!statecurrent && !insca_notlast)
+		{
+			if (fetchingnodes)
+			{
+				notifypurge();
+				if (sctable)
+				{
+					LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
+					sctable->commit();
+					sctable->begin();
+					pendingsccommit = false;
+				}
+
+				WAIT_CLASS::bumpds();
+				fnstats.timeToResult = Waiter::ds - fnstats.startTime;
+				fnstats.timeToCurrent = fnstats.timeToResult;
+
+				fetchingnodes = false;
+				restag = fetchnodestag;
+				fetchnodestag = 0;
+
+				if (!mBlockedSet && mCachedStatus.lookup(CacheableStatus::STATUS_BLOCKED, 0))
+				{
+					LOG_debug << "Cached blocked state reports blocked, issuing whyamiblocked";
+					whyamiblocked();
+				}
+
+				enabletransferresumption();
+				app->fetchnodes_result(API_OK);
+				app->notify_dbcommit();
+				fetchnodesAlreadyCompletedThisSession = true;
+
+				WAIT_CLASS::bumpds();
+				fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+
+				if (!loggedIntoFolder())
+				{
+					useralerts.begincatchup = true;
+				}
+			}
+			else
+			{
+				WAIT_CLASS::bumpds();
+				fnstats.timeToCurrent = Waiter::ds - fnstats.startTime;
+			}
+			
+			uint64_t numNodes = mNodeManager.getNodeCount();
+			fnstats.nodesCurrent = static_cast<long long>(numNodes);
+
+			if (mKeyManager.generation())
+			{
+				mKeyManager.syncSharekeyInUseBit();
+			}
+
+			statecurrent = true;
+			app->nodes_current();
+			mFuseService.current();
+			LOG_debug << "Cloud node tree up to date";
+
+#ifdef ENABLE_SYNC
+			if (!syncsAlreadyLoadedOnStatecurrent)
+			{
+				syncs.resumeSyncsOnStateCurrent();
+				syncsAlreadyLoadedOnStatecurrent = true;
+			}
+#endif
+
+			if (tctable && cachedfiles.size())
+			{
+				TransferDbCommitter committer(tctable);
+				for (unsigned int i = 0; i < cachedfiles.size(); i++)
+				{
+					direction_t type = NONE;
+					File* file = app->file_resume(&cachedfiles.at(i), &type, cachedfilesdbids.at(i));
+					if (!file || (type != GET && type != PUT))
+					{
+						tctable->del(cachedfilesdbids.at(i));
+						continue;
+					}
+					if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag, nullptr, nextreqtag()))
+					{
+						tctable->del(cachedfilesdbids.at(i));
+						continue;
+					}
+				}
+				cachedfiles.clear();
+				cachedfilesdbids.clear();
+			}
+
+			WAIT_CLASS::bumpds();
+			fnstats.timeToTransfersResumed = Waiter::ds - fnstats.startTime;
+
+			string report;
+			fnstats.toJsonArray(&report);
+			sendevent(99426, report.c_str(), 0);
+
+			app->nodes_updated(NULL, int(numNodes));
+			app->users_updated(NULL, int(users.size()));
+			app->pcrs_updated(NULL, int(pcrindex.size()));
+			app->sets_updated(nullptr, int(mSets.size()));
+			app->setelements_updated(nullptr, int(mSetElements.size()));
+#ifdef ENABLE_CHAT
+			app->chats_updated(NULL, int(chats.size()));
+#endif
+			app->useralerts_updated(nullptr, int(useralerts.alerts.size()));
+			mNodeManager.removeChanges();
+
+			if (loggedin() == FULLACCOUNT)
+			{
+				if (!mKeyManager.generation())
+				{
+					assert(!mKeyManager.getPostRegistration());
+					app->upgrading_security();
+				}
+				else
+				{
+					fetchContactsKeys();
+					sc_pk();
+				}
+			}
+		}
+
+		// Set actionpackets current flag
+		bool scTagNotCaughtUp = !mScDbStateRecord.seqTag.empty() &&
+							   !mLargestEverSeenScSeqTag.empty() &&
+							   (mScDbStateRecord.seqTag.size() < mLargestEverSeenScSeqTag.size() ||
+								(mScDbStateRecord.seqTag.size() == mLargestEverSeenScSeqTag.size() &&
+								 mScDbStateRecord.seqTag < mLargestEverSeenScSeqTag));
+
+		bool originalAC = actionpacketsCurrent;
+		actionpacketsCurrent = statecurrent && !insca_notlast && !scTagNotCaughtUp;
+
+		if (!originalAC && actionpacketsCurrent)
+		{
+			LOG_debug << clientname << " actionpacketsCurrent is true again";
+		}
+
+		if (mReceivingCatchUp && !insca_notlast)
+		{
+			mReceivingCatchUp = false;
+			mPendingCatchUps--;
+			LOG_debug << "Catchup complete. Still pending: " << mPendingCatchUps;
+			app->catchup_result();
+		}
+
+		if (pendingsccommit && sctable && !reqs.cmdsInflight() && scsn.ready())
+		{
+			LOG_debug << "Executing postponed DB commit";
+			sctable->commit();
+			sctable->begin();
+			app->notify_dbcommit();
+			pendingsccommit = false;
+		}
+
+#ifdef ENABLE_SYNC
+		syncs.waiter->notify();
+#endif
+
+		return true;
+	});
+
+	// Error handling
+	mActionPacketFilters.emplace("E", [](JSON*)
+	{
+		LOG_err << "Parse error in actionpacket stream";
+		return true;
+	});
+
+	// Numeric error response
+	mActionPacketFilters.emplace("#", [this](JSON* json)
+	{
+		error e;
+		checkError(e, *json);
+		LOG_err << "Error in actionpacket response: " << e;
+		return true;
+	});
+
+	LOG_debug << "Actionpacket filters configured for streaming parsing";
+}
+
+
 
 } // namespace

@@ -425,6 +425,11 @@ void HttpReq::put(void* data, unsigned len, bool purge)
     }
 
     bufpos += len;
+
+    if (useStreaming && streamingCallback && len > 0)
+    {
+        streamingCallback((const char*)data, len);
+    }
 }
 
 

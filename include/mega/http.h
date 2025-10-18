@@ -388,6 +388,9 @@ struct MEGA_API HttpReq
     // application Note: currently used to early exit from gencash() computation.
     cancel_epoch_t mCancelSnapshot{};
 
+    std::function<void(const char*, size_t)> streamingCallback;
+    bool useStreaming = false;
+
     // HttpIO implementation-specific identifier for this connection
     void* httpiohandle;
 

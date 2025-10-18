@@ -1782,6 +1782,10 @@ public:
     // lang URI component for API requests
     string lang;
 
+    JSONSplitter mActionPacketSplitter;
+    std::map<std::string, std::function<bool(JSON*)>> mActionPacketFilters;
+    void createActionPacketFilters();
+
     std::atomic<bool> mEnableSearchDBIndexes{true};
 
     struct FolderLink {
