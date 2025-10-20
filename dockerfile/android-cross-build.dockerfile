@@ -6,7 +6,7 @@
 #     -f : Specify dockerfile to be build, replace /path/to/your/sdk with your local path to it
 #
 # Run the Docker container and build the project for a specific architecture:
-#   docker run -v /path/to/your/sdk:/mega/sdk -v /path/to/your/vcpkg:/mega/vcpkg [-e ARCH=[arm, arm64, x86, x64]] [-e BUILD_SHARED_LIBS=ON] -it android-build-env
+#   docker run -v /path/to/your/sdk:/mega/sdk -v /path/to/your/vcpkg:/mega/vcpkg [-e ARCH=[arm, arm64, x86, x64]] -it android-build-env
 #     -v : Mounts a local directory into the container, replace /path/to/your/sdk and /path/to/your/vcpkg with your local paths
 #     -e : Sets an environment variable, `ARCH` environment variable is used to specify the target architecture
 #     -it : Starts an interactive terminal session inside the container after the cmake project is configured and build
@@ -77,19 +77,8 @@ CMD ["sh", "-c", "\
       *) \
         echo 'error: Unsupported architecture: ${ARCH}' && exit 1;; \
     esac && \
-    case ${BUILD_SHARED_LIBS} in \
-      ON) \
-        export DEFINE_BUILD_SHARED_LIBS_ON=-DBUILD_SHARED_LIBS=ON;; \
-      OFF|'') \
-        ;; \
-      *) \
-        echo 'error: Unsupported value for BUILD_SHARED_LIBS:' ${BUILD_SHARED_LIBS} && \
-        echo 'Valid values are: ON | OFF' && \
-        echo 'Build stopped.' && exit 1;; \
-    esac && \
-    su - me -w 'ANDROID_NDK_HOME,PATH,JAVA_HOME,ANDROID_ARCH,DEFINE_BUILD_SHARED_LIBS_ON,VCPKG_BINARY_SOURCES,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_ENDPOINT_URL' -c ' \
+    su - me -w 'ANDROID_NDK_HOME,PATH,JAVA_HOME,ANDROID_ARCH,VCPKG_BINARY_SOURCES,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_ENDPOINT_URL' -c ' \
     cmake --preset mega-android -B buildAndroid -S sdk \
-        ${DEFINE_BUILD_SHARED_LIBS_ON} \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DCMAKE_ANDROID_ARCH_ABI=${ANDROID_ARCH} \
         -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} && \

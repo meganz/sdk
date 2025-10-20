@@ -13,21 +13,45 @@ set_source_files_properties(${SWIG_INTERFACE_FILE} PROPERTIES
 
 # Set SWIG flags for generating Java code
 if(ENABLE_SYNC)
-    list(APPEND ADDITIONAL_SWIG_DEFINES -DENABLE_SYNC)
+    list(APPEND ADDITIONAL_SDK_SWIG_DEFINES -DENABLE_SYNC)
 endif()
 
 if(USE_LIBUV)
-    list(APPEND ADDITIONAL_SWIG_DEFINES -DHAVE_LIBUV)
+    list(APPEND ADDITIONAL_SDK_SWIG_DEFINES -DHAVE_LIBUV)
 endif()
 
-set(CMAKE_SWIG_FLAGS -c++ -package "nz.mega.sdk" ${ADDITIONAL_SWIG_DEFINES} -I${CMAKE_CURRENT_LIST_DIR}/../../include)
+if(ENABLE_CHAT)
+    list(APPEND ADDITIONAL_SDK_SWIG_DEFINES -DENABLE_CHAT)
+endif()
+
+if(ENABLE_LOG_PERFORMANCE)
+    list(APPEND ADDITIONAL_SDK_SWIG_DEFINES -DENABLE_LOG_PERFORMANCE)
+endif()
+
+set(CMAKE_SWIG_FLAGS -c++ -package "nz.mega.sdk" ${ADDITIONAL_SDK_SWIG_DEFINES} -I${CMAKE_CURRENT_LIST_DIR}/../../include)
+
+set(SDKLIB_ANDROID_LIBRARY_TYPE USE_BUILD_SHARED_LIBS)
+if(ENABLE_SDKLIB_ANDROID_DYNAMIC_LIBRARY)
+    set(SDKLIB_ANDROID_LIBRARY_TYPE SHARED)
+endif()
 
 # Generate java binding files
 swig_add_library(SDKJavaBindings
-    TYPE USE_BUILD_SHARED_LIBS
+    TYPE ${SDKLIB_ANDROID_LIBRARY_TYPE}
     LANGUAGE java
     SOURCES ${SWIG_INTERFACE_FILE}
     OUTPUT_DIR ${JAVA_OUTPUT_DIR}
+)
+
+if (ENABLE_SDKLIB_ANDROID_DYNAMIC_LIBRARY)
+    # Rename when a single dynamic library is produced
+    set_target_properties(SDKJavaBindings PROPERTIES
+      OUTPUT_NAME "mega" # libmega.so
+    )
+endif()
+
+set_target_properties(SDKJavaBindings PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
 )
 
 # For Android we do not need JNI
@@ -38,6 +62,15 @@ if(ANDROID)
     )
 else()
     find_package(JNI REQUIRED)
+endif()
+
+# If the library needs JNI_OnLoad
+if(SDKLIB_STANDALONE AND (BUILD_SHARED_LIBS OR ENABLE_SDKLIB_ANDROID_DYNAMIC_LIBRARY))
+    message(STATUS "JNI_OnLoad will be available in the SDK bindings dynamic library.")
+    target_compile_definitions(SDKJavaBindings
+        PRIVATE
+        SDKLIB_ONLOAD
+    )
 endif()
 
 target_include_directories(SDKJavaBindings

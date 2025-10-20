@@ -24,7 +24,8 @@
             "hidden": true,
             "inherits": "unix",
             "cacheVariables": {
-                "CMAKE_SYSTEM_NAME": "Android"
+                "CMAKE_SYSTEM_NAME": "Android",
+                "ENABLE_SDKLIB_ANDROID_DYNAMIC_LIBRARY": "ON"
             }
         },
         {

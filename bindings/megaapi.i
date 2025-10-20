@@ -1,38 +1,23 @@
-#define ENABLE_CHAT
-
 %module(directors="1") mega
 %{
-#define ENABLE_CHAT
 #include "megaapi.h"
 
-#ifdef ENABLE_WEBRTC
-#include "webrtc/modules/utility/include/jvm_android.h"
-#include "webrtc/rtc_base/logging.h"
-#include "webrtc/rtc_base/ssl_adapter.h"
-#include "webrtc/sdk/android/native_api/base/init.h"
-#include "webrtc/sdk/android/src/jni/jni_generator_helper.h"
-#include "webrtc/sdk/android/src/jni/jni_helpers.h"
-#include "webrtc/sdk/android/native_api/jni/class_loader.h"
-#include "modules/utility/include/jvm_android.h"
+#ifdef SWIGJAVA
 #include <jni.h>
 
-#endif
-
-#ifdef SWIGJAVA
 extern JavaVM* MEGAjvm;
 jstring strEncodeUTF8 = NULL;
 jclass clsString = NULL;
 jmethodID ctorString = NULL;
 jmethodID getBytes = NULL;
-extern jclass applicationClass;
-extern jmethodID deviceListMID;
-extern jobject surfaceTextureHelper;
 extern jclass fileWrapper;
 extern jclass integerClass;
 extern jclass arrayListClass;
 
+namespace megajni
+{
 
-extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
+jint on_load(JavaVM *jvm, void *reserved)
 {
     MEGAjvm = jvm;
     JNIEnv* jenv = NULL;
@@ -46,68 +31,6 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     jstring strEncodeUTF8Local = jenv->NewStringUTF("UTF-8");
     strEncodeUTF8 = (jstring)jenv->NewGlobalRef(strEncodeUTF8Local);
     jenv->DeleteLocalRef(strEncodeUTF8Local);
-
-#ifdef ENABLE_WEBRTC
-    // Initialize WebRTC
-    webrtc::JVM::Initialize(jvm);
-    webrtc::InitAndroid(MEGAjvm);
-    rtc::InitializeSSL();
-
-    jenv->ExceptionClear();
-    jclass appGlobalsClass = jenv->FindClass("android/app/AppGlobals");
-    if (appGlobalsClass)
-    {
-        jmethodID getInitialApplicationMID = jenv->GetStaticMethodID(appGlobalsClass, "getInitialApplication", "()Landroid/app/Application;");
-        jenv->DeleteLocalRef(appGlobalsClass);
-    }
-    else
-    {
-        jenv->ExceptionClear();
-    }
-
-    jclass videoCaptureUtilsClass = jenv->FindClass("mega/privacy/android/app/utils/VideoCaptureUtils");
-    if (videoCaptureUtilsClass)
-    {
-        applicationClass = (jclass)jenv->NewGlobalRef(videoCaptureUtilsClass);
-        jenv->DeleteLocalRef(videoCaptureUtilsClass);
-
-        deviceListMID = jenv->GetStaticMethodID(applicationClass, "deviceList", "()[Ljava/lang/String;");
-        if (!deviceListMID)
-        {
-            jenv->ExceptionClear();
-        }
-
-        jclass surfaceTextureHelperClass = jenv->FindClass("org/webrtc/SurfaceTextureHelper");
-        if (surfaceTextureHelperClass)
-        {
-            jmethodID createSurfaceMID = jenv->GetStaticMethodID(surfaceTextureHelperClass, "create", "(Ljava/lang/String;Lorg/webrtc/EglBase$Context;)Lorg/webrtc/SurfaceTextureHelper;");
-            if (createSurfaceMID)
-            {
-                jstring threadStr = (jstring) jenv->NewStringUTF("VideoCapturerThread");
-                jobject surface = jenv->CallStaticObjectMethod(surfaceTextureHelperClass, createSurfaceMID, threadStr, NULL);
-                if (surface)
-                {
-                    surfaceTextureHelper = jenv->NewGlobalRef(surface);
-                    jenv->DeleteLocalRef(surface);
-                }
-                jenv->DeleteLocalRef(threadStr);
-            }
-            else
-            {
-                jenv->ExceptionClear();
-            }
-            jenv->DeleteLocalRef(surfaceTextureHelperClass);
-        }
-        else
-        {
-            jenv->ExceptionClear();
-        }
-    }
-    else
-    {
-        jenv->ExceptionClear();
-    }
-#endif
 
     jclass localfileWrapper = jenv->FindClass("mega/privacy/android/data/filewrapper/FileWrapper");
     if (!localfileWrapper)
@@ -141,7 +64,17 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
     return JNI_VERSION_1_6;
 }
-#endif
+
+} // namespace megajni
+
+#ifdef SDKLIB_ONLOAD
+extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
+{
+    return megajni::on_load(jvm, reserved);
+}
+#endif // SDKLIB_ONLOAD
+
+#endif // SWIGJAVA
 %}
 
 #ifdef SWIGJAVA
