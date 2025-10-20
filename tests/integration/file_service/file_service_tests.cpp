@@ -469,7 +469,7 @@ TEST_F(FileServiceTests, add_fails_with_invalid_file_key)
 {
     NodeKeyData keyData;
 
-    keyData.mIsPublic = false;
+    keyData.mIsPublicHandle = false;
     keyData.mKeyAndIV.resize(FILENODEKEYLENGTH - 1);
 
     auto id = mClient->fileService().add(mRootHandle, keyData, 0);

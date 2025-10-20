@@ -1230,7 +1230,7 @@ struct MEGA_API DirectRead
 struct MEGA_API DirectReadNode
 {
     handle h;
-    bool p;
+    bool isPublicHandle;
     string publicauth;
     string privateauth;
     string chatauth;
@@ -1270,7 +1270,14 @@ struct MEGA_API DirectReadNode
     // report failure to app and abort or retry all reads
     void retry(const Error &, dstime = 0);
 
-    DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t, const char*, const char*, const char*);
+    DirectReadNode(MegaClient* client,
+                   handle h,
+                   bool isPublicHandle,
+                   SymmCipher* symmCipher,
+                   int64_t ctriv,
+                   const char* privateAuth,
+                   const char* publicAuth,
+                   const char* chatAuth);
     ~DirectReadNode();
 
     // Convenience.

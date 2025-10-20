@@ -589,7 +589,7 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     drn = cdrn;
 
     cmd("g");
-    arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
+    arg(drn->isPublicHandle ? "p" : "n", (byte*)&drn->h, MegaClient::NODEHANDLE);
     arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
     arg("v", 2);  // version 2: server can supply details for cloudraid files
 
