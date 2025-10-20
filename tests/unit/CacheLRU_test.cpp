@@ -98,6 +98,9 @@ public:
         {
             nodeSetupCb(nodeRef);
         }
+
+        node->serializefingerprint(&node->attrs.map['c']);
+        node->setfingerprint();
         mClient->mNodeManager.addNode(node, notify, isFetching, mMissingParentNodes);
         mClient->mNodeManager.saveNodeInDb(node.get());
         return node;
@@ -275,6 +278,7 @@ TEST_F(CacheLRU, getNodeByFingerprint_NoRAM_NoLRU)
                 file.size = static_cast<m_off_t>(index);
                 file.owner = 88;
                 file.ctime = 44;
+                file.mtime = 44;
                 // Modify fingerprint look nodes by fingerprint
                 file.crc[0] = index;
                 file.crc[1] = index;

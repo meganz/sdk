@@ -884,7 +884,6 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerpr
             }
         }
     }
-    mFingerPrintsNoMtime.setAllFingerprintLoaded(&fingerprint);
     return nodes;
 }
 
@@ -2356,11 +2355,6 @@ void NodeManager::FingerprintContainer::setAllFingerprintLoaded(const mega::File
 void NodeManager::FingerprintContainer::removeAllFingerprintLoaded(
     const FileFingerprint* fingerprint)
 {
-    if (auto range = equal_range(fingerprint); range.first != range.second)
-    {
-        return;
-    }
-
     mAllFingerprintsLoaded.erase(*fingerprint);
 }
 
