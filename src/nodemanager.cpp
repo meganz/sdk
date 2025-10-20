@@ -846,6 +846,13 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerpr
     fingerprint.FileFingerprint::serializeExcludingMtime(&fingerprintNoMtimeStr);
     mTable->getNodesByFingerprintNoMtime(fingerprintNoMtimeStr, nodesFromTable);
 
+    /*
+     * It’s important to add the `fingerprint` received as param to `mAllFingerprintsLoaded` before
+     * processing the retrieved nodes from the DB, as upon node unserialization, the LRU cache will
+     * properly manage them by inserting into `mFingerPrintsNoMtime` and removing them from both
+     * `mFingerPrintsNoMtime` and `mAllFingerprintsLoaded`.
+     */
+    mFingerPrintsNoMtime.setAllFingerprintLoaded(&fingerprint);
     if (nodesFromTable.size())
     {
         for (const auto& nodeIt: nodesFromTable)
