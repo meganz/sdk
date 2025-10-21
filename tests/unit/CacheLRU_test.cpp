@@ -19,15 +19,14 @@
  * program.
  */
 
-#include <gtest/gtest.h>
+#include "mega.h"
+#include "utils.h"
 
-#include <mega/megaclient.h>
+#include <gtest/gtest.h>
 #include <mega/megaapp.h>
+#include <mega/megaclient.h>
 #include <mega/user.h>
 #include <mega/utils.h>
-
-#include "utils.h"
-#include "mega.h"
 
 class CacheLRU: public testing::Test
 {
@@ -36,6 +35,7 @@ protected:
     mega::MegaApp mApp;
     mega::NodeManager::MissingParentNodes mMissingParentNodes;
     uint64_t mIndex = 1;
+    static constexpr uint64_t mNumRootNodes{3}; // Root node + rubbish + vault
     std::shared_ptr<mega::MegaClient> mClient;
 
     std::shared_ptr<mega::Node> addRootNodes()
@@ -104,6 +104,86 @@ public:
         mClient->mNodeManager.addNode(node, notify, isFetching, mMissingParentNodes);
         mClient->mNodeManager.saveNodeInDb(node.get());
         return node;
+    }
+
+    void checkNodesInCache(std::optional<uint64_t> expInRam,
+                           std::optional<uint64_t> expTotal,
+                           std::optional<uint64_t> expInLRU)
+    {
+        if (expInRam.has_value())
+        {
+            ASSERT_EQ(numNodesInRam(), expInRam) << "Unexpected num nodes in RAM";
+        }
+        if (expTotal.has_value())
+        {
+            ASSERT_EQ(numNodesTotal(), expTotal) << "Unexpected total num nodes";
+        }
+        if (expInLRU.has_value())
+        {
+            ASSERT_EQ(numNodesInCacheLru(), expInLRU) << "Unexpected num nodes in LRU cache";
+        }
+    }
+
+    void addNodeInCache(std::vector<std::string>& fingerprints,
+                        std::shared_ptr<mega::Node> folderNode,
+                        const m_off_t size,
+                        const int64_t mtime,
+                        const int32_t crcPart,
+                        const unsigned int numNodesWithSameData = 1,
+                        const mega::handle owner = 1,
+                        std::optional<mega::attr_map> attrs = std::nullopt)
+    {
+        for (unsigned int i = 0; i < numNodesWithSameData; ++i)
+        {
+            addNode(mega::nodetype_t::FILENODE,
+                    folderNode,
+                    true,
+                    false,
+                    [&fingerprints, attrs, owner, size, mtime, crcPart](mega::Node& file)
+                    {
+                        file.size = static_cast<m_off_t>(size);
+                        file.owner = owner;
+                        file.ctime = mtime;
+                        file.mtime = mtime;
+                        file.crc[0] = crcPart;
+                        file.crc[1] = crcPart;
+                        file.crc[2] = crcPart;
+                        file.crc[3] = crcPart;
+                        file.isvalid = true;
+                        file.attrs.map = attrs.value_or(
+                            []
+                            {
+                                mega::attr_map m;
+                                m[101] = "foo";
+                                m[102] = "bar";
+                                return m;
+                            }());
+
+                        std::string fp;
+                        file.mega::FileFingerprint::serialize(&fp);
+                        fingerprints.push_back(fp);
+                    });
+        }
+    }
+
+    void expectedNodeCountByFp(std::vector<std::string>& fingerprints,
+                               size_t expectedNodeCount,
+                               const size_t fpIdx,
+                               const bool excludeMtime = true)
+    {
+        ASSERT_LT(fpIdx, fingerprints.size()) << "expectedNodeCountByFp Invalid Fp Index";
+
+        const char* fingerpritnString = fingerprints.at(fpIdx).data();
+        std::unique_ptr<mega::FileFingerprint> fp(
+            mega::FileFingerprint::unserialize(fingerpritnString,
+                                               fingerpritnString + fingerprints.front().size()));
+        ASSERT_TRUE(!!fp) << "expectedNodeCountByFp: fingerprint could not be unserialized";
+
+        mega::sharedNode_vector nodes(
+            mClient->mNodeManager.getNodesByFingerprint(*fp, excludeMtime));
+
+        ASSERT_EQ(nodes.size(), expectedNodeCount)
+            << "expectedNodeCountByFp: Unexpected node count";
     }
 };
 
@@ -314,6 +394,129 @@ TEST_F(CacheLRU, getNodeByFingerprint_NoRAM_NoLRU)
     fp = mega::FileFingerprint::unserialize(fingerpritnString, fingerpritnString + fingerprints.front().size());
     nodes = mClient->mNodeManager.getNodesByFingerprint(*fp);
     ASSERT_EQ(nodes.size(), 1);
+}
+
+TEST_F(CacheLRU, getNodesByFingerprintIgnoringMtime)
+{
+    constexpr uint32_t lruSize{8};
+    auto rootNode = init(lruSize);
+    ASSERT_EQ(mClient->mNodeManager.getNumberNodesInRam(), 3);
+    auto folder = addNode(mega::nodetype_t::FOLDERNODE, rootNode, false, true);
+    std::vector<std::string> fingerprints;
+    uint64_t expectedNumNodes{0};
+    const std::vector<uint32_t> numNodes{5, 10, 15};
+
+    expectedNumNodes = numNodes[0] * 3;
+    addNodeInCache(fingerprints, folder, 10 /*size=*/, 20 /*mtime=*/, 30 /*crc*/, numNodes[0]);
+    addNodeInCache(fingerprints, folder, 20 /*size=*/, 20 /*mtime=*/, 40 /*crc*/, numNodes[0]);
+    addNodeInCache(fingerprints, folder, 30 /*size=*/, 40 /*mtime=*/, 50 /*crc*/, numNodes[0]);
+    ASSERT_EQ(fingerprints.size(), expectedNumNodes);
+
+    ASSERT_NO_FATAL_FAILURE(checkNodesInCache(mNumRootNodes + mLruSize,
+                                              mNumRootNodes + expectedNumNodes + +1 /*testFolder*/,
+                                              lruSize))
+        << "TC1: Unexpected num nodes in cache";
+
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[0], 0 /*FpIndex*/, true /*excludeMtime*/))
+        << "TC2: getNodesByFingerprint(ignoring mtime)";
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[0], 5 /*FpIndex*/, true /*excludeMtime*/))
+        << "TC3: getNodesByFingerprint(ignoring mtime)";
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[0], 10 /*FpIndex*/, true /*excludeMtime*/))
+        << "TC4: getNodesByFingerprint(ignoring mtime)";
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[0], 0 /*FpIndex*/, true /*excludeMtime*/))
+        << "TC5: getNodesByFingerprint(ignoring mtime)";
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[0], 5 /*FpIndex*/, true /*excludeMtime*/))
+        << "TC6: getNodesByFingerprint(ignoring mtime)";
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[0], 10 /*FpIndex*/, true /*excludeMtime*/))
+        << "TC7: getNodesByFingerprint(ignoring mtime)";
+
+    addNodeInCache(fingerprints, folder, 40, 50, 60, numNodes[1]);
+    addNodeInCache(fingerprints, folder, 40, 80, 60, numNodes[2]);
+    folder.reset();
+
+    expectedNumNodes += numNodes[1] + numNodes[2];
+    ASSERT_NO_FATAL_FAILURE(checkNodesInCache(mNumRootNodes + mLruSize,
+                                              mNumRootNodes + expectedNumNodes + +1 /*testFolder*/,
+                                              lruSize))
+        << "TC8: Unexpected num nodes in cache";
+
+    ASSERT_NO_FATAL_FAILURE(expectedNodeCountByFp(fingerprints,
+                                                  numNodes[1] + numNodes[2],
+                                                  15 /*FpIndex*/,
+                                                  true /*excludeMtime*/))
+        << "TC9: getNodesByFingerprint(ignoring mtime)";
+
+    ASSERT_NO_FATAL_FAILURE(expectedNodeCountByFp(fingerprints,
+                                                  numNodes[1] + numNodes[2],
+                                                  15 /*FpIndex*/,
+                                                  true /*excludeMtime*/))
+        << "TC10: getNodesByFingerprint(ignoring mtime)";
+
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[1], 15 /*FpIndex*/, false /*excludeMtime*/))
+        << "TC11: getNodesByFingerprint(including mtime)";
+}
+
+TEST_F(CacheLRU, getNodesByFingerprintIgnoringMtimeSmallLRUCache)
+{
+    constexpr uint32_t lruSize{2};
+    auto rootNode = init(lruSize);
+    uint64_t expectedNumNodes{0};
+    ASSERT_EQ(mClient->mNodeManager.getNumberNodesInRam(), 3);
+    auto folder = addNode(mega::nodetype_t::FOLDERNODE, rootNode, false, true);
+    std::vector<std::string> fingerprints;
+    const std::vector<uint32_t> numNodes{2, 3};
+    addNodeInCache(fingerprints, folder, 40, 50, 60, numNodes[0]);
+    addNodeInCache(fingerprints, folder, 40, 80, 60, numNodes[1]);
+    expectedNumNodes = numNodes[0] + numNodes[1];
+    folder.reset();
+
+    ASSERT_NO_FATAL_FAILURE(checkNodesInCache(mNumRootNodes + mLruSize,
+                                              mNumRootNodes + expectedNumNodes + +1 /*testFolder*/,
+                                              lruSize))
+        << "TC1: Unexpected num nodes in cache";
+
+    // Get nodes by Fingerprint (repeating use cases to force LRU cache to discard nodes)
+    // Also test both cases including/ignoring mtime in fingerprint comparison
+    ASSERT_NO_FATAL_FAILURE(expectedNodeCountByFp(fingerprints,
+                                                  numNodes[0] + numNodes[1],
+                                                  0 /*FpIndex*/,
+                                                  true /*excludeMtime*/))
+        << "TC2: getNodesByFingerprint(ignoring mtime)";
+
+    ASSERT_NO_FATAL_FAILURE(expectedNodeCountByFp(fingerprints,
+                                                  numNodes[0] + numNodes[1],
+                                                  2 /*FpIndex*/,
+                                                  true /*excludeMtime*/))
+        << "TC3: getNodesByFingerprint(ignoring mtime)";
+
+    ASSERT_NO_FATAL_FAILURE(expectedNodeCountByFp(fingerprints,
+                                                  numNodes[0] + numNodes[1],
+                                                  0 /*FpIndex*/,
+                                                  true /*excludeMtime*/))
+        << "TC4: getNodesByFingerprint(ignoring mtime)";
+
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[0], 0 /*FpIndex*/, false /*excludeMtime*/))
+        << "TC5: getNodesByFingerprint(including mtime)";
+
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[1], 2 /*FpIndex*/, false /*excludeMtime*/))
+        << "TC6: getNodesByFingerprint(including mtime)";
+
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[0], 0 /*FpIndex*/, false /*excludeMtime*/))
+        << "TC7: getNodesByFingerprint(including mtime)";
+
+    ASSERT_NO_FATAL_FAILURE(
+        expectedNodeCountByFp(fingerprints, numNodes[1], 2 /*FpIndex*/, false /*excludeMtime*/))
+        << "TC8: getNodesByFingerprint(including mtime)";
 }
 
 TEST_F(CacheLRU, searchNode) // processUnserializedNodes
