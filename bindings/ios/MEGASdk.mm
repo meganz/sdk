@@ -3083,7 +3083,7 @@ using namespace mega;
 }
 
 - (MEGANodeList *)nodesForOriginalFingerprint:(NSString *)fingerprint {
-    if (fingerprint.length == 0) {
+    if (fingerprint.length == 0 || self.megaApi == nil) {
         return nil;
     }
     
