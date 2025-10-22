@@ -19294,6 +19294,19 @@ class MegaApi
         MegaNodeList *getNodesByFingerprint(const char* fingerprint);
 
         /**
+         * @brief Returns all nodes that have a fingerprint (ignoring modification time)
+         *
+         * If there isn't any node in the account with that fingerprint, this function returns an
+         * empty MegaNodeList.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param fingerprint Fingerprint to check
+         * @return List of nodes with the same fingerprint (ignoring modification time)
+         */
+        MegaNodeList* getNodesByFingerprintIgnoringMtime(const char* fingerprint);
+
+        /**
          * @brief Returns nodes that have an originalFingerprint equal to the supplied value
          *
          * Search the node tree and return a list of nodes that have an originalFingerprint, which

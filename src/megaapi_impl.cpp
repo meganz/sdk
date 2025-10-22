@@ -13348,7 +13348,7 @@ MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint)
     return MegaNodePrivate::fromNode(getNodeByFingerprintInternal(fingerprint).get());
 }
 
-MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
+MegaNodeList* MegaApiImpl::getNodesByFingerprint(const char* fingerprint, const bool excludeMtime)
 {
     unique_ptr<FileFingerprint> fp(MegaApiImpl::getFileFingerprintInternal(fingerprint));
     if (!fp)
@@ -13357,7 +13357,7 @@ MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
     }
 
     SdkMutexGuard g(sdkMutex);
-    sharedNode_vector nodes = client->mNodeManager.getNodesByFingerprint(*fp);
+    sharedNode_vector nodes = client->mNodeManager.getNodesByFingerprint(*fp, excludeMtime);
     return new MegaNodeListPrivate(nodes);
 }
 

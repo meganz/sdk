@@ -470,6 +470,15 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
     LOG_verbose << logPre << "#### Test finished ####";
 }
 
+/**
+ * @test SdkTestBackupUploadsOperations.UpdateNodeMtime
+ *
+ * 1. Create a local file in the backup directory and ensure it is synced.
+ * 2. Wait until the backup sync is up to date.
+ * 3. Wait '5' seconds and modify local file mtime.
+ * 5. Wait for node update notification confirming mtime has been changed.
+ * 6. Confirm that local and remote (cloud) models match.
+ */
 TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
 {
     static const auto logPre{getLogPrefix()};
@@ -532,8 +541,154 @@ TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
                              m_time(nullptr));
     LOG_debug << logPre << "#### TC3.2 After touch file ####";
     ASSERT_TRUE(waitForResponse(&mTimeChangeRecv))
-        << "No Mtime change recieved after " << maxTimeout << " seconds";
+        << "No mtime change received after " << maxTimeout << " seconds";
     resetOnNodeUpdateCompletionCBs(); // important to reset
+
+    LOG_debug << logPre << "#### TC4 Ensure local and cloud drive structures matches ####";
+    ASSERT_NO_FATAL_FAILURE(confirmModels());
+    LOG_verbose << logPre << "#### Test finished ####";
+}
+
+/**
+ * @test SdkTestBackupUploadsOperations.getnodesByFingerprintNoMtime
+ *
+ * 1. Create '3' local files in the backup directory and ensure they are synced.
+ * 2. Validate `getNodesByFingerprint` and `getNodesByFingerprintIgnoringMtime` results
+ * 3. Modify the mtime of local file (idx_0) setting mtime of local file (idx_2) and wait for sync.
+ * 4. Modify the mtime of local file (idx_1) setting mtime of local file (idx_2) and wait for sync.
+ * 5. Validate `getNodesByFingerprint` and `getNodesByFingerprintIgnoringMtime` results
+ * 6. Confirm that local and remote (cloud) models match.
+ */
+TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
+{
+    static const auto logPre{getLogPrefix()};
+    LOG_verbose << logPre << "#### Test body started ####";
+
+    // Add cleanup function to unregister listeners as soon as test fail/finish
+    const auto cleanup = setCleanupFunction();
+
+    // Set TransferListener expectations
+    testing::Mock::VerifyAndClearExpectations(mMtl.get());
+    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
+    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
+
+    std::unique_ptr<MegaSync> backupSync(megaApi[0]->getSyncByBackupId(getBackupId()));
+    ASSERT_TRUE(backupSync) << "Cannot get backup sync";
+    std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(backupSync->getMegaHandle()));
+    ASSERT_TRUE(backupNode) << "Cannot get backup sync node";
+
+    constexpr unsigned numFiles{3};
+    auto localBasePath{fs::absolute(getLocalFolderPath())};
+    std::vector<std::pair<std::shared_ptr<sdk_test::LocalTempFile>, fs::file_time_type>> localFiles;
+    std::vector<std::string> filenames;
+
+    LOG_debug << logPre << "#### TC1: create (" << numFiles
+              << ") local files and wait until back up has been completed ####";
+    for (unsigned i = 1; i <= numFiles; ++i)
+    {
+        std::string fn = "file" + std::to_string(i);
+        filenames.emplace_back(fn);
+        LOG_debug << logPre << "#### TC1." << std::to_string(i) << " Creating local file `" << fn
+                  << "` in Backup dir ####";
+        auto mtime{fs::file_time_type::clock::now()};
+        auto [res, localFile] = createLocalFileAndWaitForSync(localBasePath / fn, "abcde", mtime);
+
+        ASSERT_TRUE(res) << "Cannot create local file `" << fn << "`";
+        localFiles.push_back({localFile, mtime});
+    }
+
+    LOG_debug << logPre << "#### TC2: getNodesByFingerprint with and without mtime ####";
+    std::unique_ptr<MegaNodeList> nl;
+    std::vector<std::unique_ptr<MegaNode>> nodes;
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[0].c_str(), FILENODE));
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[1].c_str(), FILENODE));
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[2].c_str(), FILENODE));
+
+    for (size_t i = 0; i < nodes.size(); ++i)
+    {
+        auto& n = nodes.at(i);
+        ASSERT_TRUE(n) << "Invalid node with index(" << std::to_string(i) << ")";
+        ASSERT_TRUE(n->getFingerprint())
+            << "Invalid fingerprint for node(" << toNodeHandle(n->getHandle()) << ")";
+        auto auxfp = n->getFingerprint();
+
+        nl.reset(megaApi[0]->getNodesByFingerprint(auxfp));
+        ASSERT_EQ(nl->size(), 1) << "TC2.1(" << std::to_string(i) << "): getNodesByFingerprint("
+                                 << auxfp << ") Unexpected node count";
+
+        nl.reset(megaApi[0]->getNodesByFingerprintIgnoringMtime(n->getFingerprint()));
+        ASSERT_EQ(nl->size(), nodes.size())
+            << "TC2.2(" << std::to_string(i) << "): getNodesByFingerprintIgnoringMtime(" << auxfp
+            << ") Unexpected node count";
+    }
+
+    auto updateNodeMtime =
+        [this](MegaHandle nodeHandle, const LocalPath& path, int64_t oldMtime, int64_t newMtime)
+    {
+        bool mTimeChangeRecv{false};
+        mApi[0].mOnNodesUpdateCompletion =
+            [&mTimeChangeRecv, oldMtime, nodeHandle](size_t, MegaNodeList* nodes)
+        {
+            ASSERT_TRUE(nodes) << "Invalid meganode list received";
+            for (int i = 0; i < nodes->size(); ++i)
+            {
+                MegaNode* n = nodes->get(i);
+                if (n && n->getHandle() == nodeHandle &&
+                    n->hasChanged(static_cast<uint64_t>(MegaNode::CHANGE_TYPE_ATTRIBUTES)) &&
+                    oldMtime != n->getModificationTime())
+                {
+                    mTimeChangeRecv = true;
+                }
+            }
+        };
+
+        mFsAccess->setmtimelocal(path, newMtime);
+        ASSERT_TRUE(waitForResponse(&mTimeChangeRecv))
+            << "No mtime change received after " << maxTimeout << " seconds";
+        resetOnNodeUpdateCompletionCBs(); // important to reset
+    };
+
+    LOG_debug
+        << logPre
+        << "#### TC3 update localNode (idx_0) mtime (with mtime of idx_2) and wait for sync ####";
+    auto h = nodes.at(0)->getHandle();
+    auto path = LocalPath::fromAbsolutePath(localFiles.at(0).first->getPath());
+    auto oldMtime = nodes.at(0)->getModificationTime();
+    auto newMtime = nodes.at(2)->getModificationTime();
+    updateNodeMtime(h, path, oldMtime, newMtime);
+
+    LOG_debug
+        << logPre
+        << "#### TC4 update localNode (idx_1) mtime (with mtime of idx_2) and wait for sync ####";
+    h = nodes.at(1)->getHandle();
+    path = LocalPath::fromAbsolutePath(localFiles.at(1).first->getPath());
+    oldMtime = nodes.at(1)->getModificationTime();
+    newMtime = nodes.at(2)->getModificationTime();
+    updateNodeMtime(h, path, oldMtime, newMtime);
+
+    LOG_debug << logPre
+              << "#### TC5: getNodesByFingerprint with and without mtime (Now 3 nodes should have "
+                 "same mtime) ####";
+    nodes.clear();
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[0].c_str(), FILENODE));
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[1].c_str(), FILENODE));
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[2].c_str(), FILENODE));
+    for (auto& n: nodes)
+    {
+        nl.reset(megaApi[0]->getNodesByFingerprint(n->getFingerprint()));
+        ASSERT_EQ(nl->size(), nodes.size())
+            << "(getNodesByFingerprint) Unexpected node count by FP1";
+
+        nl.reset(megaApi[0]->getNodesByFingerprintIgnoringMtime(n->getFingerprint()));
+        ASSERT_EQ(nl->size(), nodes.size())
+            << "(getNodesByFingerprintIgnoringMtime) Unexpected node count by FP1";
+    }
 
     LOG_debug << logPre << "#### TC4 Ensure local and cloud drive structures matches ####";
     ASSERT_NO_FATAL_FAILURE(confirmModels());

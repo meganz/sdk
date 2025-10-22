@@ -4296,7 +4296,8 @@ public:
         char* getFingerprint(const char* filePath);
         char *getFingerprint(MegaInputStream *inputStream, int64_t mtime);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
-        MegaNodeList *getNodesByFingerprint(const char* fingerprint);
+        MegaNodeList* getNodesByFingerprint(const char* fingerprint,
+                                            const bool excludeMtime = false);
         MegaNodeList *getNodesByOriginalFingerprint(const char* originalfingerprint, MegaNode* parent);
         MegaNode *getExportableNodeByFingerprint(const char *fingerprint, const char *name = NULL);
         MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
