@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/common/client_forward.h>
 #include <mega/common/date_time_forward.h>
 #include <mega/common/error_or_forward.h>
 #include <mega/common/testing/path_forward.h>
@@ -33,6 +34,8 @@ bool anyOf(Container&& container, Predicate predicate)
 {
     return std::any_of(std::begin(container), std::end(container), std::move(predicate));
 }
+
+Error befriend(Client& client0, Client& client1);
 
 ErrorOr<FileFingerprint> fingerprint(const std::string& content,
                                      std::chrono::system_clock::time_point modified);
