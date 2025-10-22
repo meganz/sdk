@@ -47,6 +47,17 @@
 #include <sys/resource.h>
 #endif // ! WIN32
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <In6addr.h>
+#include <Inaddr.h>
+
+#include <ws2tcpip.h>
+#else // _WIN32
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#endif // ! _WIN23
+
 namespace mega {
 
 std::atomic<uint32_t> CancelToken::tokensCancelledCount{0};
@@ -3905,6 +3916,43 @@ std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* f
     }
 
     return std::nullopt;
+}
+
+static bool isValidIPAddress(const char* string, int type)
+{
+    // Sanity.
+    assert(string);
+    assert(type == AF_INET || type == AF_INET6);
+
+    // Throwaway buffer: Necessary for parsing.
+    union
+    {
+        struct in_addr inaddr;
+        struct in6_addr in6addr;
+    } buffer;
+
+    // Try and parse the provided address string.
+    return inet_pton(type, string, &buffer) > 0;
+}
+
+bool isValidIPv4Address(const char* string)
+{
+    return isValidIPAddress(string, AF_INET);
+}
+
+bool isValidIPv4Address(const std::string& string)
+{
+    return isValidIPv4Address(string.c_str());
+}
+
+bool isValidIPv6Address(const char* string)
+{
+    return isValidIPAddress(string, AF_INET6);
+}
+
+bool isValidIPv6Address(const std::string& string)
+{
+    return isValidIPv6Address(string.c_str());
 }
 
 } // namespace mega

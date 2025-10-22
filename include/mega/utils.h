@@ -1738,6 +1738,14 @@ storagestatus_t getStorageStatusFromString(const std::string& storageStateStr);
  */
 std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* fsaccess);
 
+// True if string is a valid IPv4 address.
+bool isValidIPv4Address(const char* string);
+bool isValidIPv4Address(const std::string& string);
+
+// True if string is a valid IPv6 address.
+bool isValidIPv6Address(const char* string);
+bool isValidIPv6Address(const std::string& string);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

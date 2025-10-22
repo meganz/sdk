@@ -1839,3 +1839,35 @@ TEST_F(FileAccessTest, OpenEquivalence)
     EXPECT_EQ(lhs.type, rhs.type);
     EXPECT_EQ(lhs.mIsSymLink, rhs.mIsSymLink);
 }
+
+TEST(IP, is_valid_ipv4_address_fails)
+{
+    ASSERT_FALSE(isValidIPv4Address(""));
+    ASSERT_FALSE(isValidIPv4Address("1"));
+    ASSERT_FALSE(isValidIPv4Address("1.2"));
+    ASSERT_FALSE(isValidIPv4Address("1.2.3"));
+    ASSERT_FALSE(isValidIPv4Address("::1"));
+}
+
+TEST(IP, is_valid_ipv4_address_succeeds)
+{
+    ASSERT_TRUE(isValidIPv4Address("192.168.0.1"));
+}
+
+TEST(IP, is_valid_ipv6_address_fails)
+{
+    ASSERT_FALSE(isValidIPv6Address(""));
+    ASSERT_FALSE(isValidIPv6Address("192.168.0.1"));
+    ASSERT_FALSE(isValidIPv6Address("0"));
+    ASSERT_FALSE(isValidIPv6Address("::q"));
+}
+
+TEST(IP, is_valid_ipv6_address_succeeds)
+{
+    ASSERT_TRUE(isValidIPv6Address("2001:db8:3333:4444:5555:6666:7777:8888"));
+    ASSERT_TRUE(isValidIPv6Address("2001:db8::"));
+    ASSERT_TRUE(isValidIPv6Address("::1234:5678"));
+    ASSERT_TRUE(isValidIPv6Address("2001:db8:3333:4444:5555:6666:1.2.3.4"));
+    ASSERT_TRUE(isValidIPv6Address("2001:db8::1234:5678:5.6.7.8"));
+    ASSERT_TRUE(isValidIPv6Address("::11.22.33.44"));
+}
