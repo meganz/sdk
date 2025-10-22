@@ -24,6 +24,7 @@
 #include "mega/logging.h"
 #include "mega/posix/meganet.h"
 #include "mega/testhooks.h"
+#include "mega/utils.h"
 
 #if defined(USE_OPENSSL)
 #include <openssl/err.h>
@@ -654,6 +655,15 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
 
     for (std::vector<string>::size_type i = 0; i < urls.size(); ++i)
     {
+        // Convenience.
+        auto ipIndex = i * 2;
+
+        // IPv4 address isn't valid.
+        //
+        // We're doing the check here to avoid needless crackurl(...).
+        if (!isValidIPv4Address(ips[ipIndex]))
+            continue;
+
         // get host name from each URL
         string host, dummyscheme;
         int dummyPort;
@@ -661,10 +671,18 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
 
         crackurl(&url, &dummyscheme, &host, &dummyPort);
 
-        // add resolved host name to cache, or replace the previous one
-        CurlDNSEntry& dnsEntry = dnscache[host];
-        dnsEntry.ipv4 = std::move(ips[2 * i]);
-        dnsEntry.ipv6 = std::move(ips[2 * i + 1]);
+        // Add resolved host name to cache, or replace the previous one
+        auto& [ipv4, ipv6] = dnscache[host];
+
+        // Latch IPv4 address (which we know to be valid.)
+        ipv4 = std::move(ips[ipIndex]);
+
+        // IPv6 address isn't valid.
+        if (!isValidIPv4Address(ips[++ipIndex]))
+            continue;
+
+        // Latch IPv6 address.
+        ipv6 = std::move(ips[ipIndex]);
     }
 
     return true;
