@@ -491,20 +491,20 @@ struct MEGA_API FileAccess
                bool* retry = nullptr);
 
     // absolute position read to byte buffer
-    bool frawread(void* buffer,
-                  unsigned long length,
-                  m_off_t offset,
-                  bool alreadyOpened,
-                  FSLogging logging,
-                  bool* retry = nullptr);
+    virtual bool frawread(void* buffer,
+                          unsigned long length,
+                          m_off_t offset,
+                          bool alreadyOpened,
+                          FSLogging logging,
+                          bool* retry = nullptr);
 
     // After a successful nonblocking fopen(), call openf() to really open the file (by localname)
     // (this is a lazy-type approach in case we don't actually need to open the file after finding out type/size/mtime).
     // If the size or mtime changed, it will fail.
-    bool openf(FSLogging);
+    virtual bool openf(FSLogging);
 
     // After calling openf(), make sure to close the file again quickly with closef().
-    void closef();
+    virtual void closef();
 
     // Close an already open file.
     virtual void fclose() = 0;

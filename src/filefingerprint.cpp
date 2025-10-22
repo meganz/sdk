@@ -128,6 +128,25 @@ FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
     return *this;
 }
 
+// Helper: compute sparse window offset with 64-bit math and clamp to [0, size - blockBytes]
+static inline m_off_t computeSparseOffset64(const m_off_t size,
+                                            const unsigned lane_i,
+                                            const unsigned block_j,
+                                            const unsigned blocks,
+                                            const size_t crcCount,
+                                            const size_t blockBytes)
+{
+    const auto sz = static_cast<uint64_t>(size);
+    const auto idx64 = static_cast<uint64_t>(lane_i) * static_cast<uint64_t>(blocks) +
+                       static_cast<uint64_t>(block_j); // 0..(crcCount*blocks-1)
+    const auto numer = (sz - static_cast<uint64_t>(blockBytes)) * idx64; // 64-bit multiply
+    const auto denom =
+        static_cast<uint64_t>(crcCount) * static_cast<uint64_t>(blocks) - 1; // e.g. 127
+    const auto off64 = denom ? (numer / denom) : 0;
+    const auto clampMax = sz - static_cast<uint64_t>(blockBytes);
+    return static_cast<m_off_t>(off64 > clampMax ? clampMax : off64);
+}
+
 bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 {
     bool changed = false;
@@ -202,13 +221,10 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         {
             for (unsigned j = 0; j < blocks; j++)
             {
-                if (!fa->frawread(block,
-                                  sizeof block,
-                                  static_cast<m_off_t>((static_cast<size_t>(size) - sizeof block) *
-                                                       (i * blocks + j) /
-                                                       (crc.size() * blocks - 1)),
-                                  true,
-                                  FSLogging::logOnError))
+                const auto offset =
+                    computeSparseOffset64(size, i, j, blocks, crc.size(), sizeof block);
+
+                if (!fa->frawread(block, sizeof block, offset, true, FSLogging::logOnError))
                 {
                     size = -1;
                     fa->closef();
@@ -314,8 +330,8 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
         {
             for (unsigned j = 0; j < blocks; j++)
             {
-                m_off_t offset = static_cast<m_off_t>((static_cast<size_t>(size) - sizeof block) *
-                                                      (i * blocks + j) / (crc.size() * blocks - 1));
+                const auto offset =
+                    computeSparseOffset64(size, i, j, blocks, crc.size(), sizeof block);
 
                 //Seek
                 for (m_off_t fullstep = offset - current; fullstep > 0; )  // 500G or more and the step doesn't fit in 32 bits
