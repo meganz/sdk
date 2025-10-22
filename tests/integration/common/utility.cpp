@@ -4,6 +4,7 @@
 #include <mega/common/date_time.h>
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/common/testing/client.h>
 #include <mega/common/testing/path.h>
 #include <mega/common/testing/utility.h>
 

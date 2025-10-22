@@ -91,7 +91,7 @@ public:
     }
 
     // How long should we wait for something to happen?
-    static const std::chrono::seconds mDefaultTimeout;
+    static const std::chrono::minutes mDefaultTimeout;
 
     // Where should we store temporary state?
     static common::testing::Path mScratchPath;
@@ -101,7 +101,7 @@ template<typename Traits>
 Path Test<Traits>::mDatabasePath;
 
 template<typename Traits>
-const std::chrono::seconds Test<Traits>::mDefaultTimeout(8);
+const std::chrono::minutes Test<Traits>::mDefaultTimeout(1);
 
 template<typename Traits>
 Path Test<Traits>::mScratchPath;

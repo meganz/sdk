@@ -25,8 +25,6 @@ using IsInfoLike = common::IsOneOf<T, InodeInfo, common::NodeInfo>;
 template<typename I, typename T>
 using EnableIfInfoLike = std::enable_if<IsInfoLike<I>::value, T>;
 
-Error befriend(Client& client0, Client& client1);
-
 NodeHandle id(const common::NodeInfo& info);
 InodeID id(const InodeInfo& info);
 
