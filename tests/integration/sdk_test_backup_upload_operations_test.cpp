@@ -655,7 +655,7 @@ TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
         << logPre
         << "#### TC3 update localNode (idx_0) mtime (with mtime of idx_2) and wait for sync ####";
     auto h = nodes.at(0)->getHandle();
-    auto path = LocalPath::fromAbsolutePath(localFiles.at(0).first->getPath());
+    auto path = LocalPath::fromAbsolutePath(localFiles.at(0).first->getPath().u8string());
     auto oldMtime = nodes.at(0)->getModificationTime();
     auto newMtime = nodes.at(2)->getModificationTime();
     updateNodeMtime(h, path, oldMtime, newMtime);
@@ -664,7 +664,7 @@ TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
         << logPre
         << "#### TC4 update localNode (idx_1) mtime (with mtime of idx_2) and wait for sync ####";
     h = nodes.at(1)->getHandle();
-    path = LocalPath::fromAbsolutePath(localFiles.at(1).first->getPath());
+    path = LocalPath::fromAbsolutePath(localFiles.at(1).first->getPath().u8string());
     oldMtime = nodes.at(1)->getModificationTime();
     newMtime = nodes.at(2)->getModificationTime();
     updateNodeMtime(h, path, oldMtime, newMtime);

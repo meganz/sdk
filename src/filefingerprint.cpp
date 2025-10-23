@@ -42,7 +42,7 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
     }
 
     // mtime differs - cannot be equal
-    if (abs(lhs.mtime-rhs.mtime) > 2)
+    if (abs(lhs.mtime - rhs.mtime) > FS_MTIME_TOLERANCE_SECS)
     {
         return false;
     }
@@ -66,7 +66,8 @@ bool FileFingerprint::EqualExceptValidFlag(const FileFingerprint& rhs) const
 {
     // same as == but not checking valid
     if (size != rhs.size) return false;
-    if (abs(mtime-rhs.mtime) > 2) return false;
+    if (abs(mtime - rhs.mtime) > FS_MTIME_TOLERANCE_SECS)
+        return false;
     return !memcmp(crc.data(), rhs.crc.data(), sizeof crc);
 }
 

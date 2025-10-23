@@ -24,17 +24,193 @@ using namespace testing;
  */
 class SdkTestSyncUploadsOperations: public SdkTestSyncNodesOperations
 {
-public:
+protected:
+    std::unique_ptr<NiceMock<MockTransferListener>> mMtl;
+    std::unique_ptr<NiceMock<MockSyncListener>> mMsl;
+    std::unique_ptr<std::promise<int>> mFileUploadPms;
+    std::unique_ptr<std::future<int>> mFileUploadFut;
+    std::atomic<bool> mCreatedFile{false};
+    bool mCleanupFunctionSet{false};
     const std::string SYNC_REMOTE_PATH{"localSyncedDir"};
+    std::vector<shared_ptr<sdk_test::LocalTempFile>> mLocalFiles;
+    std::unique_ptr<FSACCESS_CLASS> mFsAccess;
 
+    /**
+     * @brief Creates a local file and waits until onSyncFileStateChanged with STATE_SYNCED is
+     * received.
+     * @note It's important that localFilePathAbs is an absolute path, othwewise it won't match with
+     * received one in onSyncFileStateChanged
+     *
+     * @param localFilePathAbs Absolute filesystem path where the file will be created.
+     * @param contents The file contents to write.
+     * @param customMtime Optional custom modification time to apply to the file.
+     *                    If not provided, the current system clock time will be used.
+     * otherwise.
+     */
+    std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
+        createLocalFileAndWaitForSync(const fs::path& localFilePathAbs,
+                                      const std::string_view contents,
+                                      std::optional<fs::file_time_type> customMtime)
+    {
+        EXPECT_CALL(*mMsl.get(), onSyncFileStateChanged(_, _, _, _))
+            .WillRepeatedly(
+                [this, localFilePathStr = localFilePathAbs.string()](MegaApi*,
+                                                                     MegaSync* sync,
+                                                                     std::string* localPath,
+                                                                     int newState)
+                {
+                    if (sync && sync->getBackupId() == getBackupId() &&
+                        newState == MegaApi::STATE_SYNCED && localPath &&
+                        *localPath == localFilePathStr && !mCreatedFile)
+                    {
+                        mCreatedFile = true;
+                        mFileUploadPms->set_value(newState);
+                    }
+                });
+        auto localFile =
+            std::make_shared<sdk_test::LocalTempFile>(localFilePathAbs, contents, customMtime);
+        const auto succeeded =
+            mFileUploadFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
+        resetLocalFileEnv();
+        return {succeeded, localFile};
+    }
+
+    /**
+     * @brief Resets related variables that tracks when a local file is created
+     */
+    void resetLocalFileEnv()
+    {
+        testing::Mock::VerifyAndClearExpectations(mMsl.get());
+        mFileUploadPms.reset(new std::promise<int>());
+        mFileUploadFut.reset(new std::future<int>(mFileUploadPms->get_future()));
+        mCreatedFile = false;
+    }
+
+    /**
+     * @brief Creates a local test file and verifies sync completion (and transfer finish just for
+     * expected full upload operations).
+     *
+     * @param localFilePathAbs Absolute filesystem path where the test file will be created. Must be
+     * an absolute path to match correctly with sync state change events.
+     * @param fileContent The content to write to the test file.
+     * @param customMtime Custom modification time to apply to the created file
+     * @param isFullUploadExpected If true, the function sets up expectations for transfer callbacks
+     * (onTransferStart and onTransferFinish) and validates that the upload completes with API_OK.
+     * If false, only sync state changes are verified
+     */
+    void createTestFileInternal(const fs::path& localFilePathAbs,
+                                const std::string& fileContent,
+                                std::chrono::time_point<fs::file_time_type::clock> customMtime,
+                                const bool isFullUploadExpected)
+    {
+        ASSERT_TRUE(mMtl) << "createTestFileInternal: Invalid transfer listener";
+        std::shared_ptr<std::promise<int>> fileUploadPms = std::make_shared<std::promise<int>>();
+        std::unique_ptr<std::future<int>> fut(new std::future<int>(fileUploadPms->get_future()));
+        if (isFullUploadExpected)
+        {
+            EXPECT_CALL(*mMtl, onTransferStart).Times(1);
+            EXPECT_CALL(*mMtl, onTransferFinish)
+                .Times(1)
+                .WillOnce(
+                    [fileUploadPms](::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* e)
+                    {
+                        fileUploadPms->set_value(e->getErrorCode());
+                    });
+        }
+
+        auto [res1, localFile1] =
+            createLocalFileAndWaitForSync(localFilePathAbs, fileContent, customMtime);
+        ASSERT_TRUE(res1);
+        mLocalFiles.emplace_back(localFile1);
+        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+        if (isFullUploadExpected)
+        {
+            ASSERT_EQ(fut->wait_for(COMMON_TIMEOUT), std::future_status::ready);
+            ASSERT_EQ(fut->get(), API_OK) << "Transfer failed (" << localFilePathAbs << ")";
+        }
+        testing::Mock::VerifyAndClearExpectations(mMtl.get());
+    }
+
+public:
     void SetUp() override
     {
         SdkTestNodesSetUp::SetUp();
+        mFsAccess = std::make_unique<FSACCESS_CLASS>();
         if (createSyncOnSetup())
         {
             ASSERT_NO_FATAL_FAILURE(
                 initiateSync(getLocalTmpDirU8string(), SYNC_REMOTE_PATH, mBackupId));
             ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+        }
+        mMtl.reset(new NiceMock<MockTransferListener>(megaApi[0].get()));
+        megaApi[0]->addListener(mMtl.get());
+
+        mMsl.reset(new NiceMock<MockSyncListener>(megaApi[0].get()));
+        resetLocalFileEnv();
+        megaApi[0]->addListener(mMsl.get());
+    }
+
+    void TearDown() override
+    {
+        ASSERT_TRUE(mCleanupFunctionSet)
+            << getLogPrefix()
+            << "(TearDown). cleanupfunction has not been properly set by "
+               "calling `setCleanupFunction()`.";
+
+        ASSERT_TRUE(!mMtl) << getLogPrefix()
+                           << "(TearDown). Transfer listener has not been unregistered yet";
+        ASSERT_TRUE(!mMsl) << getLogPrefix()
+                           << "(TearDown). Sync listener has not been unregistered yet";
+        SdkTestSyncNodesOperations::TearDown();
+    }
+
+    /**
+     * @brief Sets the cleanup function to be executed during TearDown.
+     *
+     * If a custom cleanup function is provided, it will be used.
+     * Otherwise, a default one will be set.
+     *
+     * @example:
+     *  - example1 (default cleanupFunction):
+     *          auto cleanup = setCleanupFunction();
+     *  - example2 (custom cleanupFunction):
+     *          auto cleanup = setCleanupFunction([this](){
+     *              // custom cleanup function code
+     *          });
+     *
+     * @note: is mandatory calling this method at the beginning of each test of this file, otherwise
+     * test will fail at teardown. The reason behind is to enforce setting an appropriate cleanup
+     * function for each test.
+     *
+     * @param customCleanupFunction Optional custom cleanup function.
+     * @return The cleanup function that was set.
+     */
+    std::unique_ptr<MrProper>
+        setCleanupFunction(std::function<void()> customCleanupFunction = nullptr)
+    {
+        mCleanupFunctionSet = true;
+        if (customCleanupFunction)
+        {
+            return std::make_unique<MrProper>(customCleanupFunction);
+        }
+        else
+        {
+            return std::make_unique<MrProper>(
+                [this]()
+                {
+                    if (mMtl)
+                    {
+                        megaApi[0]->removeListener(mMtl.get());
+                        mMtl.reset();
+                    }
+
+                    if (mMsl)
+                    {
+                        megaApi[0]->removeListener(mMsl.get());
+                        mMsl.reset();
+                    }
+                });
         }
     }
 
@@ -50,53 +226,116 @@ public:
         return ELEMENTS;
     }
 
-    shared_ptr<sdk_test::LocalTempFile>
-        createLocalFile(const fs::path& filePath,
-                        const std::string_view contents,
-                        std::optional<fs::file_time_type> customMtime)
+    /**
+     * @brief Updates local node mtime. See MIN_ALLOW_MTIME_DIFFERENCE
+     */
+    void updateLocalNodeMtime(MegaHandle nodeHandle,
+                              const LocalPath& path,
+                              int64_t oldMtime,
+                              int64_t newMtime,
+                              const string& msg)
     {
-        return std::make_shared<sdk_test::LocalTempFile>(filePath, contents, customMtime);
+        LOG_debug << "#### updateNodeMtime (" << msg << ")####";
+        bool mTimeChangeRecv{false};
+        mApi[0].mOnNodesUpdateCompletion =
+            [&mTimeChangeRecv, oldMtime, nodeHandle](size_t, MegaNodeList* nodes)
+        {
+            ASSERT_TRUE(nodes) << "Invalid meganode list received";
+            for (int i = 0; i < nodes->size(); ++i)
+            {
+                MegaNode* n = nodes->get(i);
+                if (n && n->getHandle() == nodeHandle &&
+                    n->hasChanged(static_cast<uint64_t>(MegaNode::CHANGE_TYPE_ATTRIBUTES)) &&
+                    oldMtime != n->getModificationTime())
+                {
+                    mTimeChangeRecv = true;
+                }
+            }
+        };
+
+        mFsAccess->setmtimelocal(path, newMtime);
+        ASSERT_TRUE(waitForResponse(&mTimeChangeRecv))
+            << "No mtime change received after " << maxTimeout << " seconds";
+        resetOnNodeUpdateCompletionCBs(); // important to reset
     }
 
     /**
-     * @brief Creates a local file and waits until onSyncFileStateChanged with STATE_SYNCED is
-     * received.
-     * @note It's important that localFilePathAbs is an absolute path, othwewise it won't match with
-     * received one in onSyncFileStateChanged
-     *
-     * @param localFilePathAbs Absolute filesystem path where the file will be created.
-     * @param contents The file contents to write.
-     * @param customMtime Optional custom modification time to apply to the file.
-     *                    If not provided, the current system clock time will be used.
-     * @return `true` if the file was successfully synchronized within the timeout, `false`
-     * otherwise.
+     * @brief Creates a new local file for test. See createTestFileInternal
      */
-    bool createLocalFileAndWaitForSync(const fs::path& localFilePathAbs,
-                                       const std::string_view contents,
-                                       std::optional<fs::file_time_type> customMtime)
+    void createTestFile(const string folderName,
+                        const std::string commonFileName,
+                        const std::string content,
+                        std::chrono::time_point<fs::file_time_type::clock> customMtime,
+                        const std::string& msg,
+                        bool isFullUploadExpected)
     {
-        std::shared_ptr<std::promise<int>> fileUploadPms = std::make_shared<std::promise<int>>();
-        std::unique_ptr<std::future<int>> fut(new std::future<int>(fileUploadPms->get_future()));
-        NiceMock<MockSyncListener> msl{megaApi[0].get()};
-        const auto hasExpectedId = Pointee(Property(&MegaSync::getBackupId, mBackupId));
-        EXPECT_CALL(msl, onSyncFileStateChanged(_, hasExpectedId, _, _))
-            .WillRepeatedly(
-                [fileUploadPms,
-                 localFilePathStr = localFilePathAbs.string()](MegaApi*,
-                                                               MegaSync*,
-                                                               std::string* localPath,
-                                                               int newState)
-                {
-                    if (newState == MegaApi::STATE_SYNCED && localPath &&
-                        *localPath == localFilePathStr)
-                    {
-                        fileUploadPms->set_value(newState);
-                    }
-                });
-        megaApi[0]->addListener(&msl);
+        LOG_debug << "#### createTestFile ( " << msg << ") `" << commonFileName << "` into `"
+                  << folderName << "` with content(" << content
+                  << ") and customMtime (full upload expected) ####";
 
-        auto localFile2 = createLocalFile(localFilePathAbs, contents, customMtime);
-        return fut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
+        ASSERT_NO_FATAL_FAILURE(
+            createTestFileInternal(fs::absolute(getLocalTmpDir() / folderName / commonFileName),
+                                   content,
+                                   customMtime,
+                                   isFullUploadExpected));
+    };
+
+    /**
+     * @brief Search nodes by fingerprint and validates the result.
+     *
+     * @param n The source node whose fingerprint will be used for the search. Must be a
+     *          valid node with a non-null fingerprint.
+     * @param excludeMtime If true, uses getNodesByFingerprintIgnoringMtime() which compares
+     *                     only CRC + size + isValid, ignoring the modification time. If false,
+     *                     uses getNodesByFingerprint() which compares the entire fingerprint
+     * including modification time
+     *
+     * @param expNodeCount The expected number of nodes that should be found with the given
+     *                     fingerprint.
+     * @param msg A descriptive message used for logging purposes
+     * @see FS_MTIME_TOLERANCE_SECS tolerance
+     */
+    void getNodesByFingerprint(MegaNode* n,
+                               bool excludeMtime,
+                               size_t expNodeCount,
+                               const string& msg)
+    {
+        LOG_debug << "#### getNodesByFingerprint (" << msg << ") ####";
+        ASSERT_TRUE(n) << "getNodesByFingerprint: Invalid node";
+        ASSERT_TRUE(n->getFingerprint())
+            << "Invalid fingerprint for node(" << toNodeHandle(n->getHandle()) << ")";
+        auto auxfp = n->getFingerprint();
+
+        std::unique_ptr<MegaNodeList> nl;
+        if (excludeMtime)
+            nl.reset(megaApi[0]->getNodesByFingerprintIgnoringMtime(auxfp));
+        else
+            nl.reset(megaApi[0]->getNodesByFingerprint(auxfp));
+
+        ASSERT_EQ(nl->size(), expNodeCount)
+            << "getNodesByFingerprint. " << msg << " Unexpected node count";
+    }
+
+    /**
+     * @brief Returns the backup MegaNode
+     */
+    std::shared_ptr<MegaNode> getBackupNode()
+    {
+        std::unique_ptr<MegaSync> backupSync(megaApi[0]->getSyncByBackupId(getBackupId()));
+        if (!backupSync)
+        {
+            LOG_err << "Cannot get backup sync";
+            return nullptr;
+        }
+
+        std::unique_ptr<MegaNode> backupNode(
+            megaApi[0]->getNodeByHandle(backupSync->getMegaHandle()));
+        if (!backupNode)
+        {
+            LOG_err << "Cannot get backup sync node";
+            return nullptr;
+        }
+        return backupNode;
     }
 };
 
@@ -105,16 +344,13 @@ public:
  *
  * 1. Create a new local file inside sync directory `dir2`.
  * 2. Wait for sync (sync engine must upload file to the cloud).
- * 3. Verify that local and remote models match after upload.
+ * 3. Verify that local and remote models match
  */
 TEST_F(SdkTestSyncUploadsOperations, BasicFileUpload)
 {
-    static const std::string logPre{"SdkTestSyncUploadsOperations.BasicFileUpload : "};
-    LOG_verbose << logPre << "Creating a new file and upload it to dir2";
-
-    auto localFilePathAbs{fs::absolute(getLocalTmpDir() / "dir2" / "file1")};
-    ASSERT_TRUE(
-        createLocalFileAndWaitForSync(localFilePathAbs, "abcde", fs::file_time_type::clock::now()));
+    const auto cleanup = setCleanupFunction();
+    auto mtime = fs::file_time_type::clock::now();
+    ASSERT_NO_FATAL_FAILURE(createTestFile("dir1", "file1", "abcde", mtime, "CF1", true));
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 }
 
@@ -125,51 +361,14 @@ TEST_F(SdkTestSyncUploadsOperations, BasicFileUpload)
  *    - Expect a full upload (transfer started and finished).
  * 2. Create a new local file `file1` in `dir2` with the same content and mtime.
  *    - Expect a remote copy (no transfer started).
- * 3. Confirm that cloud and local models remain consistent.
+ * 3. Verify that local and remote models match
  */
 TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUpload)
 {
-    const std::string prefix{"SdkTestSyncUploadsOperations.DuplicatedFilesUpload: "};
-    NiceMock<MockTransferListener> mtl{megaApi[0].get()};
-    megaApi[0]->addListener(&mtl);
-
-    LOG_debug
-        << prefix
-        << "#### TC1 Create localfile `file1` into `dir1` with Content1 and Mtime1 (full upload "
-           "expected) ####";
-    std::shared_ptr<std::promise<int>> fileUploadPms = std::make_shared<std::promise<int>>();
-    std::unique_ptr<std::future<int>> fut(new std::future<int>(fileUploadPms->get_future()));
-
-    EXPECT_CALL(mtl, onTransferStart).Times(1);
-    EXPECT_CALL(mtl, onTransferFinish)
-        .Times(1)
-        .WillOnce(
-            [fileUploadPms](::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* e)
-            {
-                fileUploadPms->set_value(e->getErrorCode());
-            });
-
-    auto customMtime = fs::file_time_type::clock::now();
-    auto localFilePathAbs1{fs::absolute(getLocalTmpDir() / "dir1" / "file1")};
-    ASSERT_TRUE(createLocalFileAndWaitForSync(localFilePathAbs1, "abcde", customMtime));
-    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
-
-    ASSERT_EQ(fut->wait_for(COMMON_TIMEOUT), std::future_status::ready);
-    ASSERT_EQ(fut->get(), API_OK) << "file1 transfer failed";
-
-    // Make sure phase-1 expectations are satisfied and then clear them.
-    testing::Mock::VerifyAndClearExpectations(&mtl);
-
-    // - Note: Sync engine does not create an associated MegaTransfer for remote copies.
-    LOG_debug
-        << prefix
-        << "#### TC2 Create localfile `file1` into `dir2` with Content1 and Mtime1 (remote copy "
-           "expected) ####";
-    EXPECT_CALL(mtl, onTransferStart).Times(0);
-    EXPECT_CALL(mtl, onTransferFinish).Times(0);
-
-    auto localFilePathAbs2{fs::absolute(getLocalTmpDir() / "dir2" / "file1")};
-    ASSERT_TRUE(createLocalFileAndWaitForSync(localFilePathAbs2, "abcde", customMtime));
+    const auto cleanup = setCleanupFunction();
+    auto mtime = fs::file_time_type::clock::now();
+    ASSERT_NO_FATAL_FAILURE(createTestFile("dir1", "file1", "abcde", mtime, "CF1", true));
+    ASSERT_NO_FATAL_FAILURE(createTestFile("dir2", "file1", "abcde", mtime, "CF2", false));
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 }
 
@@ -180,57 +379,17 @@ TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUpload)
  *    - Expect a full upload.
  * 2. Create the same file `file1` in `dir2` with same content but different mtime `mt2`.
  *    - Expect another full upload since fingerprints differs (Fp = CRC + size + mtime).
- * 3. Verify that local and remote states are fully synchronized.
+ * 3. Verify that local and remote models match
  */
 TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUploadDifferentMtime)
 {
-    const std::string prefix{"SdkTestSyncUploadsOperations.DuplicatedFilesUploadDifferentMtime: "};
-    NiceMock<MockTransferListener> mtl{megaApi[0].get()};
-    megaApi[0]->addListener(&mtl);
-
-    auto createLocalFileAndSync =
-        [&mtl, this](const fs::path& localFilePathAbs,
-                     const std::string& fileContent,
-                     std::chrono::time_point<fs::file_time_type::clock> customMtime)
-    {
-        std::shared_ptr<std::promise<int>> fileUploadPms = std::make_shared<std::promise<int>>();
-        std::unique_ptr<std::future<int>> fut(new std::future<int>(fileUploadPms->get_future()));
-
-        EXPECT_CALL(mtl, onTransferStart).Times(1);
-        EXPECT_CALL(mtl, onTransferFinish)
-            .Times(1)
-            .WillOnce(
-                [fileUploadPms](::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* e)
-                {
-                    fileUploadPms->set_value(e->getErrorCode());
-                });
-
-        ASSERT_TRUE(createLocalFileAndWaitForSync(localFilePathAbs, fileContent, customMtime));
-        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
-
-        ASSERT_EQ(fut->wait_for(COMMON_TIMEOUT), std::future_status::ready);
-        ASSERT_EQ(fut->get(), API_OK) << "file1 transfer failed";
-        testing::Mock::VerifyAndClearExpectations(&mtl);
-    };
-
-    LOG_debug
-        << prefix
-        << "#### TC1 Create localfile `file1` into `dir1` with Content1 and Mtime1 (full upload "
-           "expected) ####";
-    ASSERT_NO_FATAL_FAILURE(
-        createLocalFileAndSync(fs::absolute(getLocalTmpDir() / "dir1" / "file1"),
-                               "abcde",
-                               fs::file_time_type::clock::now()));
-
-    LOG_debug
-        << prefix
-        << "#### TC2 Create localfile `file1` into `dir2` with Content1 and Mtime2 (full upload "
-           "expected) ####";
-    ASSERT_NO_FATAL_FAILURE(
-        createLocalFileAndSync(fs::absolute(getLocalTmpDir() / "dir2" / "file1"),
-                               "abcde",
-                               fs::file_time_type::clock::now()));
-
+    const auto cleanup = setCleanupFunction();
+    auto mtime1 = fs::file_time_type::clock::now();
+    auto mtime2 =
+        mtime1 + std::chrono::seconds(
+                     MIN_ALLOW_MTIME_DIFFERENCE); // See MIN_ALLOW_MTIME_DIFFERENCE definition
+    ASSERT_NO_FATAL_FAILURE(createTestFile("dir1", "file1", "abcde", mtime1, "CF1", true));
+    ASSERT_NO_FATAL_FAILURE(createTestFile("dir2", "file1", "abcde", mtime2, "CF2", false));
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 }
 
@@ -279,4 +438,124 @@ TEST_F(SdkTestSyncUploadsOperations, MultimediaFileUpload)
 #endif
 }
 
+/**
+ * @test SdkTestSyncUploadsOperations.getnodesByFingerprintNoMtime
+ *
+ * 1. Create two files with identical content but different mtimes in separate directories.
+ *    - File `file1` in `dir1` with mtime `mt1`
+ *    - File `file1` in `dir2` with mtime `mt2` (differs by MIN_ALLOW_MTIME_DIFFERENCE)
+ * 2. Get nodes by fingerprint with and without mtime
+ * 3. Update the mtime of `file1` to match mtime of `file2`.
+ * 4. Get nodes by fingerprint with and without mtime
+ * 5. Verify that local and remote models match
+ */
+TEST_F(SdkTestSyncUploadsOperations, getnodesByFingerprintNoMtime)
+{
+    const auto cleanup = setCleanupFunction();
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << "Cannot get backup sync node";
+
+    const std::vector<string> folderNames{"dir1", "dir2"};
+    const std::string commonContent{"abcde"};
+    const std::string commonFileName{"file1"};
+    std::vector<std::unique_ptr<MegaNode>> folderNodes;
+    std::vector<std::unique_ptr<MegaNode>> fileNodes;
+
+    const auto mtime1 = fs::file_time_type::clock::now();
+    const auto mtime2 =
+        mtime1 + std::chrono::seconds(
+                     MIN_ALLOW_MTIME_DIFFERENCE); // See MIN_ALLOW_MTIME_DIFFERENCE definition
+    const std::vector<std::chrono::time_point<fs::file_time_type::clock>> mtimes{mtime1, mtime2};
+
+    auto getTestNodes = [this, backupNode, folderNames, commonFileName, &folderNodes, &fileNodes](
+                            const std::string& msg)
+    {
+        LOG_debug << "#### getTestNodes (" << msg << ") ####";
+        folderNodes.clear();
+        fileNodes.clear();
+
+        for (size_t i = 0; i < folderNames.size(); ++i)
+        {
+            std::unique_ptr<MegaNode> folderNode(
+                megaApi[0]->getChildNodeOfType(backupNode.get(),
+                                               folderNames.at(i).c_str(),
+                                               FOLDERNODE));
+
+            ASSERT_TRUE(folderNode) << msg << "Cannot get folderNode(" << folderNames.at(i) << ")";
+
+            std::unique_ptr<MegaNode> fileNode(
+                megaApi[0]->getChildNodeOfType(folderNode.get(), commonFileName.c_str(), FILENODE));
+
+            ASSERT_TRUE(fileNode) << msg << "Can not get fileNode(" << commonFileName
+                                  << ") which is inside " << folderNames.at(i);
+
+            folderNodes.emplace_back(std::move(folderNode));
+            fileNodes.emplace_back(std::move(fileNode));
+        }
+    };
+
+    ASSERT_NO_FATAL_FAILURE(createTestFile(folderNames.at(0),
+                                           commonFileName,
+                                           commonContent,
+                                           mtimes.at(0),
+                                           "CF1",
+                                           true));
+
+    ASSERT_NO_FATAL_FAILURE(createTestFile(folderNames.at(1),
+                                           commonFileName,
+                                           commonContent,
+                                           mtimes.at(1),
+                                           "CF2",
+                                           false));
+
+    ASSERT_NO_FATAL_FAILURE(getTestNodes("(GN1)"));
+
+    ASSERT_NO_FATAL_FAILURE(getNodesByFingerprint(fileNodes.at(0).get(),
+                                                  false /*excludeMtime*/,
+                                                  1 /*expNumNodes*/,
+                                                  "FP1"));
+
+    ASSERT_NO_FATAL_FAILURE(getNodesByFingerprint(fileNodes.at(0).get(),
+                                                  true /*excludeMtime*/,
+                                                  fileNodes.size() /*expNumNodes*/,
+                                                  "FP2"));
+
+    ASSERT_NO_FATAL_FAILURE(getNodesByFingerprint(fileNodes.at(1).get(),
+                                                  false /*excludeMtime*/,
+                                                  1 /*expNumNodes*/,
+                                                  "FP3"));
+
+    ASSERT_NO_FATAL_FAILURE(getNodesByFingerprint(fileNodes.at(1).get(),
+                                                  true /*excludeMtime*/,
+                                                  fileNodes.size() /*expNumNodes*/,
+                                                  "FP4"));
+
+    updateLocalNodeMtime(
+        fileNodes.at(0)->getHandle(),
+        LocalPath::fromAbsolutePath(
+            fs::absolute(getLocalTmpDir() / folderNames.at(0) / commonFileName).u8string()),
+        fileNodes.at(0)->getModificationTime(), /*oldMtime*/
+        fileNodes.at(1)->getModificationTime(), /*newMtime*/
+        "MT1");
+
+    ASSERT_NO_FATAL_FAILURE(getTestNodes("GN2"));
+
+    ASSERT_NO_FATAL_FAILURE(getNodesByFingerprint(fileNodes.at(0).get(),
+                                                  false /*excludeMtime*/,
+                                                  fileNodes.size() /*expNumNodes*/,
+                                                  "FP5"));
+    ASSERT_NO_FATAL_FAILURE(getNodesByFingerprint(fileNodes.at(0).get(),
+                                                  true /*excludeMtime*/,
+                                                  fileNodes.size() /*expNumNodes*/,
+                                                  "FP6"));
+    ASSERT_NO_FATAL_FAILURE(getNodesByFingerprint(fileNodes.at(1).get(),
+                                                  false /*excludeMtime*/,
+                                                  fileNodes.size() /*expNumNodes*/,
+                                                  "FP7"));
+    ASSERT_NO_FATAL_FAILURE(getNodesByFingerprint(fileNodes.at(1).get(),
+                                                  true /*excludeMtime*/,
+                                                  fileNodes.size() /*expNumNodes*/,
+                                                  "FP8"));
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+}
 #endif // ENABLE_SYNC

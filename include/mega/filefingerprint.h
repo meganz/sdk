@@ -34,6 +34,8 @@ struct MEGA_API InputStreamAccess
     virtual ~InputStreamAccess() { }
 };
 
+// Tolerance threshold (in seconds) for filesystem modification time comparisons
+constexpr unsigned FS_MTIME_TOLERANCE_SECS = 2;
 
 // sparse file fingerprint, including size and mtime
 struct MEGA_API FileFingerprint : public Cacheable
