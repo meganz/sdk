@@ -231,7 +231,7 @@ void Command::createSchedMeetingJson(const ScheduledMeeting* schedMeeting)
 #endif
 
 // cache urls and ips given in response to avoid further waiting for dns resolution
-bool Command::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
+int Command::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
 {
     // cache resolved URLs if received
     return client->httpio->cacheresolvedurls(urls, std::move(ips));

@@ -644,7 +644,7 @@ m_off_t CurlHttpIO::getmaxuploadspeed()
     return maxspeed[PUT];
 }
 
-bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
+int CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
 {
     return populateDNSCache(dnscache, ips, urls) >= 0;
 }
