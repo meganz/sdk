@@ -646,46 +646,7 @@ m_off_t CurlHttpIO::getmaxuploadspeed()
 
 bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
 {
-    // for each URL there should be 2 IPs (IPv4 first, IPv6 second)
-    if (urls.empty() || urls.size() * 2 != ips.size())
-    {
-        LOG_err << "Resolved URLs to be cached did not match with an IPv4 and IPv6 each";
-        return false;
-    }
-
-    for (std::vector<string>::size_type i = 0; i < urls.size(); ++i)
-    {
-        // Convenience.
-        auto ipIndex = i * 2;
-
-        // IPv4 address isn't valid.
-        //
-        // We're doing the check here to avoid needless crackURI(...).
-        if (!isValidIPv4Address(ips[ipIndex]))
-            continue;
-
-        // get host name from each URL
-        string host, dummyscheme;
-        int dummyPort;
-        const string& url = urls[i]; // this is "free" and helps with debugging
-
-        crackURI(url, dummyscheme, host, dummyPort);
-
-        // Add resolved host name to cache, or replace the previous one
-        auto& [ipv4, ipv6] = dnscache[host];
-
-        // Latch IPv4 address (which we know to be valid.)
-        ipv4 = std::move(ips[ipIndex]);
-
-        // IPv6 address isn't valid.
-        if (!isValidIPv6Address(ips[++ipIndex]))
-            continue;
-
-        // Latch IPv6 address.
-        ipv6 = std::move(ips[ipIndex]);
-    }
-
-    return true;
+    return populateDNSCache(dnscache, ips, urls);
 }
 
 // wake up from cURL I/O

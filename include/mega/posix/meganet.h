@@ -77,7 +77,6 @@ private:
 #endif
 };
 
-struct MEGA_API CurlDNSEntry;
 struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
@@ -98,7 +97,7 @@ protected:
     string proxypassword;
     int proxyinflight;
     std::queue<CurlHttpContext *> pendingrequests;
-    std::map<string, CurlDNSEntry> dnscache;
+    std::map<string, DNSEntry> dnscache;
     int pkpErrors;
 
     void send_pending_requests();
@@ -244,12 +243,6 @@ struct MEGA_API CurlHttpContext
     const char* data;
     std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> mCurlDnsList{nullptr,
                                                                              curl_slist_free_all};
-};
-
-struct MEGA_API CurlDNSEntry
-{
-    string ipv4;
-    string ipv6;
 };
 
 } // namespace
