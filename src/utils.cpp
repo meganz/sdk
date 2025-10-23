@@ -3921,10 +3921,9 @@ std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* f
     return std::nullopt;
 }
 
-static bool isValidIPAddress(const char* string, int type)
+static bool isValidIPAddress(std::string_view string, int type)
 {
     // Sanity.
-    assert(string);
     assert(type == AF_INET || type == AF_INET6);
 
     // Throwaway buffer: Necessary for parsing.
@@ -3935,27 +3934,17 @@ static bool isValidIPAddress(const char* string, int type)
     } buffer;
 
     // Try and parse the provided address string.
-    return inet_pton(type, string, &buffer) > 0;
+    return inet_pton(type, string.data(), &buffer) > 0;
 }
 
-bool isValidIPv4Address(const char* string)
+bool isValidIPv4Address(std::string_view string)
 {
-    return isValidIPAddress(string, AF_INET);
+    return isValidIPAddress(std::move(string), AF_INET);
 }
 
-bool isValidIPv4Address(const std::string& string)
+bool isValidIPv6Address(std::string_view string)
 {
-    return isValidIPv4Address(string.c_str());
-}
-
-bool isValidIPv6Address(const char* string)
-{
-    return isValidIPAddress(string, AF_INET6);
-}
-
-bool isValidIPv6Address(const std::string& string)
-{
-    return isValidIPv6Address(string.c_str());
+    return isValidIPAddress(std::move(string), AF_INET6);
 }
 
 } // namespace mega

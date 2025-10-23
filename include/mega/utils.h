@@ -29,6 +29,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <shared_mutex>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #undef SSIZE_MAX
@@ -1739,12 +1740,10 @@ storagestatus_t getStorageStatusFromString(const std::string& storageStateStr);
 std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* fsaccess);
 
 // True if string is a valid IPv4 address.
-bool isValidIPv4Address(const char* string);
-bool isValidIPv4Address(const std::string& string);
+bool isValidIPv4Address(std::string_view string);
 
 // True if string is a valid IPv6 address.
-bool isValidIPv6Address(const char* string);
-bool isValidIPv6Address(const std::string& string);
+bool isValidIPv6Address(std::string_view string);
 
 } // namespace mega
 
