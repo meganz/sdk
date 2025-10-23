@@ -1871,3 +1871,54 @@ TEST(IP, is_valid_ipv6_address_succeeds)
     ASSERT_TRUE(isValidIPv6Address("2001:db8::1234:5678:5.6.7.8"));
     ASSERT_TRUE(isValidIPv6Address("::11.22.33.44"));
 }
+
+// Using string_vector to avoid parsing problems with GTest.
+TEST(DNS, populate_dns_cache_fails)
+{
+    std::map<std::string, DNSEntry> cache;
+
+    // Not enough IPs for each URI.
+    EXPECT_FALSE(populateDNSCache(cache, string_vector(1), string_vector(1)));
+
+    // Not enough URIs for each IP.
+    EXPECT_FALSE(populateDNSCache(cache, string_vector(1), string_vector(4)));
+
+    // Make sure the cache remains empty.
+    EXPECT_TRUE(cache.empty());
+}
+
+TEST(DNS, populate_dns_cache_succeeds)
+{
+    std::map<std::string, DNSEntry> cache;
+
+    string_vector ips = {"1.2.3.4", "::1"}; // ips
+
+    string_vector uris = {"https://foo.bar.com"}; // uris
+
+    // URI has valid IPv4 and IPv6 addresses.
+    ASSERT_TRUE(populateDNSCache(cache, ips, uris));
+
+    // Make sure DNS entry is as expected.
+    std::map<std::string, DNSEntry> expected = {
+        {"foo.bar.com", DNSEntry{ips.front(), ips.back()}}}; // expected
+
+    EXPECT_EQ(cache, expected);
+
+    // URI only has a valid IPv4 address.
+    cache.clear();
+    ips.back() = "q";
+
+    ASSERT_TRUE(populateDNSCache(cache, ips, uris));
+
+    expected = {{"foo.bar.com", DNSEntry{ips.front(), ""}}};
+
+    EXPECT_EQ(cache, expected);
+
+    // URI only has a valid IPv6 address.
+    cache.clear();
+    ips.back() = "::1";
+    ips.front() = "q";
+
+    ASSERT_TRUE(populateDNSCache(cache, ips, uris));
+    EXPECT_TRUE(cache.empty());
+}

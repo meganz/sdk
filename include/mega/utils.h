@@ -1751,6 +1751,16 @@ bool crackURI(const string& uri, string& scheme, string& host, int& port);
 // Represents a DNS entry for a particular URI.
 struct DNSEntry
 {
+    bool operator==(const DNSEntry& rhs) const
+    {
+        return ipv4 == rhs.ipv4 && ipv6 == rhs.ipv6;
+    }
+
+    bool operator!=(const DNSEntry& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
     // The URI's IPv4 address.
     std::string ipv4;
 
