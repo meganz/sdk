@@ -4091,10 +4091,10 @@ int populateDNSCache(std::map<std::string, DNSEntry>& cache,
     auto result = 0;
 
     // Add URIs with a valid IPv4 address to the cache.
-    for (auto i = uris.begin(); i != uris.end(); ++i)
+    for (auto i = 0u; i < uris.size(); ++i)
     {
         // Get references to this URI's IPv4 and IPv6 addresses.
-        auto* ipv4 = &ips[i - uris.begin()];
+        auto* ipv4 = &ips[i];
         auto* ipv6 = ipv4 + 1;
 
         // URI doesn't have a valid IPv4 address.
@@ -4109,7 +4109,7 @@ int populateDNSCache(std::map<std::string, DNSEntry>& cache,
         int port;
 
         // Couldn't extract the URI's host name.
-        if (!crackURI(*i, scheme, host, port) || host.empty())
+        if (!crackURI(uris[i], scheme, host, port) || host.empty())
             continue;
 
         // Add a DNS cache entry for this host.
