@@ -678,7 +678,7 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
         ipv4 = std::move(ips[ipIndex]);
 
         // IPv6 address isn't valid.
-        if (!isValidIPv4Address(ips[++ipIndex]))
+        if (!isValidIPv6Address(ips[++ipIndex]))
             continue;
 
         // Latch IPv6 address.
