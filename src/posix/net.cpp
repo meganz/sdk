@@ -660,7 +660,7 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
 
         // IPv4 address isn't valid.
         //
-        // We're doing the check here to avoid needless crackurl(...).
+        // We're doing the check here to avoid needless crackURI(...).
         if (!isValidIPv4Address(ips[ipIndex]))
             continue;
 
@@ -669,7 +669,7 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
         int dummyPort;
         const string& url = urls[i]; // this is "free" and helps with debugging
 
-        crackurl(&url, &dummyscheme, &host, &dummyPort);
+        crackURI(url, dummyscheme, host, dummyPort);
 
         // Add resolved host name to cache, or replace the previous one
         auto& [ipv4, ipv6] = dnscache[host];
@@ -1070,140 +1070,6 @@ void CurlHttpIO::request_proxy_ip()
     }
 }
 
-bool CurlHttpIO::crackurl(const string* url, string* schema, string* hostname, int* port)
-{
-    if (!url || !url->size() || !schema || !hostname || !port)
-    {
-        return false;
-    }
-
-    *port = 0;
-    schema->clear();
-    hostname->clear();
-
-    size_t starthost, endhost = 0, startport, endport;
-
-    starthost = url->find("://");
-
-    if (starthost != string::npos)
-    {
-        *schema = url->substr(0, starthost);
-        starthost += 3;
-    }
-    else
-    {
-        starthost = 0;
-    }
-
-    if ((*url)[starthost] == '[' && url->size() > 0)
-    {
-        starthost++;
-    }
-
-    startport = url->find("]:", starthost);
-
-    if (startport == string::npos)
-    {
-        startport = url->find(":", starthost);
-
-        if (startport != string::npos)
-        {
-            endhost = startport;
-        }
-    }
-    else
-    {
-        endhost = startport;
-        startport++;
-    }
-
-    if (startport != string::npos)
-    {
-        startport++;
-
-        endport = url->find("/", startport);
-
-        if (endport == string::npos)
-        {
-            endport = url->size();
-        }
-
-        if (endport <= startport || endport - startport > 5)
-        {
-            *port = -1;
-        }
-        else
-        {
-            for (size_t i = startport; i < endport; i++)
-            {
-                int c = url->data()[i];
-
-                if (c < '0' || c > '9')
-                {
-                    *port = -1;
-                    break;
-                }
-            }
-        }
-
-        if (!*port)
-        {
-            *port = atoi(url->data() + startport);
-
-            if (*port > 65535)
-            {
-                *port = -1;
-            }
-        }
-    }
-    else
-    {
-        endhost = url->find("]/", starthost);
-
-        if (endhost == string::npos)
-        {
-            endhost = url->find("/", starthost);
-
-            if (endhost == string::npos)
-            {
-                endhost = url->size();
-            }
-        }
-    }
-
-    if (!*port)
-    {
-        if (!schema->compare("https"))
-        {
-            *port = 443;
-        }
-        else if (!schema->compare("http"))
-        {
-            *port = 80;
-        }
-        else if (!schema->compare(0, 5, "socks"))
-        {
-            *port = 1080;
-        }
-        else
-        {
-            *port = -1;
-        }
-    }
-
-    *hostname = url->substr(starthost, endhost - starthost);
-
-    if (*port <= 0 || starthost == string::npos || starthost >= endhost)
-    {
-        *port = 0;
-        schema->clear();
-        hostname->clear();
-        return false;
-    }
-
-    return true;
-}
-
 int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void* debugdata)
 {
     if (type == CURLINFO_TEXT && size)
@@ -1250,7 +1116,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     bool validrequest = true;
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
         || (validrequest =
-                crackurl(&req->posturl, &httpctx->schema, &httpctx->hostname, &httpctx->port)) !=
+                crackURI(req->posturl, httpctx->schema, httpctx->hostname, httpctx->port)) !=
                true) // invalid request
     {
         if (validrequest)
@@ -1341,7 +1207,7 @@ void CurlHttpIO::setproxy(const Proxy& proxy)
 
     LOG_debug << "Setting proxy: " << proxyurl;
 
-    if (!crackurl(&proxyurl, &proxyschema, &proxyhost, &proxyport))
+    if (!crackURI(proxyurl, proxyschema, proxyhost, proxyport))
     {
         LOG_err << "Malformed proxy string: " << proxyurl;
 

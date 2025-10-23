@@ -140,7 +140,6 @@ protected:
     static void send_request(CurlHttpContext*);
     void request_proxy_ip();
     static struct curl_slist* clone_curl_slist(struct curl_slist*);
-    static bool crackurl(const string*, string*, string*, int*);
     static int debug_callback(CURL*, curl_infotype, char*, size_t, void*);
     const char* pubkeyForUrl(const char* url) const;
 

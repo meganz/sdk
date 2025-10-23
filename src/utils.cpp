@@ -3947,4 +3947,136 @@ bool isValidIPv6Address(std::string_view string)
     return isValidIPAddress(std::move(string), AF_INET6);
 }
 
+bool crackURI(const string& uri, string& scheme, string& host, int& port)
+{
+    if (uri.empty())
+        return false;
+
+    port = 0;
+    scheme.clear();
+    host.clear();
+
+    size_t starthost, endhost = 0, startport, endport;
+
+    starthost = uri.find("://");
+
+    if (starthost != string::npos)
+    {
+        scheme = uri.substr(0, starthost);
+        starthost += 3;
+    }
+    else
+    {
+        starthost = 0;
+    }
+
+    if (uri[starthost] == '[' && uri.size() > 0)
+    {
+        starthost++;
+    }
+
+    startport = uri.find("]:", starthost);
+
+    if (startport == string::npos)
+    {
+        startport = uri.find(":", starthost);
+
+        if (startport != string::npos)
+        {
+            endhost = startport;
+        }
+    }
+    else
+    {
+        endhost = startport;
+        startport++;
+    }
+
+    if (startport != string::npos)
+    {
+        startport++;
+
+        endport = uri.find("/", startport);
+
+        if (endport == string::npos)
+        {
+            endport = uri.size();
+        }
+
+        if (endport <= startport || endport - startport > 5)
+        {
+            port = -1;
+        }
+        else
+        {
+            for (size_t i = startport; i < endport; i++)
+            {
+                int c = uri.data()[i];
+
+                if (c < '0' || c > '9')
+                {
+                    port = -1;
+                    break;
+                }
+            }
+        }
+
+        if (!port)
+        {
+            port = atoi(uri.data() + startport);
+
+            if (port > 65535)
+            {
+                port = -1;
+            }
+        }
+    }
+    else
+    {
+        endhost = uri.find("]/", starthost);
+
+        if (endhost == string::npos)
+        {
+            endhost = uri.find("/", starthost);
+
+            if (endhost == string::npos)
+            {
+                endhost = uri.size();
+            }
+        }
+    }
+
+    if (!port)
+    {
+        if (!scheme.compare("https"))
+        {
+            port = 443;
+        }
+        else if (!scheme.compare("http"))
+        {
+            port = 80;
+        }
+        else if (!scheme.compare(0, 5, "socks"))
+        {
+            port = 1080;
+        }
+        else
+        {
+            port = -1;
+        }
+    }
+
+    host = uri.substr(starthost, endhost - starthost);
+
+    if (port <= 0 || starthost == string::npos || starthost >= endhost)
+    {
+        port = 0;
+        scheme.clear();
+        host.clear();
+        return false;
+    }
+
+    return true;
+}
+
 } // namespace mega

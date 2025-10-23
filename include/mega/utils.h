@@ -1745,6 +1745,9 @@ bool isValidIPv4Address(std::string_view string);
 // True if string is a valid IPv6 address.
 bool isValidIPv6Address(std::string_view string);
 
+// Separate a URI into its constituent pieces.
+bool crackURI(const string& uri, string& scheme, string& host, int& port);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H
