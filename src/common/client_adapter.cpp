@@ -790,7 +790,7 @@ ErrorOr<NodeKeyData> ClientAdapter::keyData(NodeHandle handle, bool authorize) c
     NodeKeyData keyData;
 
     keyData.mKeyAndIV = node->nodekey();
-    keyData.mIsPublic = false;
+    keyData.mIsPublicHandle = false;
 
     // Caller doesn't want to authorize the node.
     if (!authorize)
@@ -988,7 +988,7 @@ auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
     NodeKeyData keyData;
 
     keyData.mKeyAndIV = node->nodekey();
-    keyData.mIsPublic = false;
+    keyData.mIsPublicHandle = false;
 
     // Convenience.
     auto size = static_cast<std::uint64_t>(node->size);
@@ -1808,7 +1808,7 @@ void ClientPartialDownload::begin()
                 static_cast<std::int64_t>(mOffset),
                 static_cast<std::int64_t>(mRemaining),
                 std::bind(&ClientPartialDownload::notify, std::move(cookie), std::placeholders::_1),
-                !mKeyData.mIsPublic,
+                mKeyData.mIsPublicHandle,
                 toCharPointer(mKeyData.mPrivateAuth),
                 toCharPointer(mKeyData.mPublicAuth),
                 toCharPointer(mKeyData.mChatAuth));

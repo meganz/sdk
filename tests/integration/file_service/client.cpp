@@ -53,7 +53,7 @@ auto Client::fileAdd(const PublicLink& link) -> FileServiceResultOr<FileID>
     // Populate the file's node key data.
     NodeKeyData keyData;
 
-    keyData.mIsPublic = true;
+    keyData.mIsPublicHandle = true;
     keyData.mKeyAndIV = std::move(keyAndIV);
 
     // Convenience.

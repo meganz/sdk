@@ -19671,7 +19671,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                       startPos,
                                       totalBytes,
                                       transfer,
-                                      notOwnedNode->isForeign(),
+                                      !notOwnedNode->isForeign(),
                                       privateNode->getPrivateAuth()->c_str(),
                                       privateNode->getPublicAuth()->c_str(),
                                       privateNode->getChatAuth());

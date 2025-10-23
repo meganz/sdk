@@ -1277,30 +1277,37 @@ void Transfer::completefiles()
 #endif // ENABLE_SYNC
 }
 
-DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)
+DirectReadNode::DirectReadNode(MegaClient* client,
+                               handle h,
+                               bool isPublicHandle,
+                               SymmCipher* symmCipher,
+                               int64_t ctriv,
+                               const char* privateAuth,
+                               const char* publicAuth,
+                               const char* chatAuth)
 {
-    client = cclient;
+    this->client = client;
 
-    p = cp;
-    h = ch;
+    this->isPublicHandle = isPublicHandle;
+    this->h = h;
 
-    if (privauth)
+    if (privateAuth)
     {
-        privateauth = privauth;
+        privateauth = privateAuth;
     }
 
-    if (pubauth)
+    if (publicAuth)
     {
-        publicauth = pubauth;
+        publicauth = publicAuth;
     }
 
-    if (cauth)
+    if (chatAuth)
     {
-        chatauth = cauth;
+        chatauth = chatAuth;
     }
 
-    symmcipher = *csymmcipher;
-    ctriv = cctriv;
+    symmcipher = *symmCipher;
+    this->ctriv = ctriv;
 
     retries = 0;
     size = 0;
