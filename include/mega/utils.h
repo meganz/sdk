@@ -1771,13 +1771,18 @@ struct DNSEntry
 // Populates the specified DNS cache based on the provided URI and IPs.
 //
 // This function expects each URI to be associated with an IPv4 and an IPv6
-// address and will return false if this invariant is not respected.
+// address.
 //
 // Entries will be added to the cache if and only if a URI is associated
 // with a valid IPv4 address.
-bool populateDNSCache(std::map<std::string, DNSEntry>& cache,
-                      const std::vector<std::string>& ips,
-                      const std::vector<std::string>& uris);
+//
+// This function returns:
+// <0 - Too few or too many IPs vs. URIs.
+//  0 - Cache updated.
+// >0 - Cache updated but an invalid IP was detected.
+int populateDNSCache(std::map<std::string, DNSEntry>& cache,
+                     const std::vector<std::string>& ips,
+                     const std::vector<std::string>& uris);
 
 } // namespace mega
 

@@ -4079,13 +4079,16 @@ bool crackURI(const string& uri, string& scheme, string& host, int& port)
     return true;
 }
 
-bool populateDNSCache(std::map<std::string, DNSEntry>& cache,
-                      const std::vector<std::string>& ips,
-                      const std::vector<std::string>& uris)
+int populateDNSCache(std::map<std::string, DNSEntry>& cache,
+                     const std::vector<std::string>& ips,
+                     const std::vector<std::string>& uris)
 {
     // Each URI should be associated with an IPv4 and an IPv6 address.
     if (ips.size() != uris.size() * 2)
-        return false;
+        return -1;
+
+    // Assume all IPs are valid.
+    auto result = 0;
 
     // Add URIs with a valid IPv4 address to the cache.
     for (auto i = uris.begin(); i != uris.end(); ++i)
@@ -4096,7 +4099,10 @@ bool populateDNSCache(std::map<std::string, DNSEntry>& cache,
 
         // URI doesn't have a valid IPv4 address.
         if (!isValidIPv4Address(*ipv4))
+        {
+            ++result;
             continue;
+        }
 
         std::string host;
         std::string scheme;
@@ -4114,14 +4120,17 @@ bool populateDNSCache(std::map<std::string, DNSEntry>& cache,
 
         // URI isn't associated with a valid IPv6 address.
         if (!isValidIPv6Address(*ipv6))
+        {
+            ++result;
             continue;
+        }
 
         // Update the host's IPv6 address.
         entry.ipv6 = *ipv6;
     }
 
-    // Let our caller know the inputs were okay.
-    return true;
+    // Let our caller know the cache was updated.
+    return result;
 }
 
 } // namespace mega

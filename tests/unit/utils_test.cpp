@@ -1878,10 +1878,10 @@ TEST(DNS, populate_dns_cache_fails)
     std::map<std::string, DNSEntry> cache;
 
     // Not enough IPs for each URI.
-    EXPECT_FALSE(populateDNSCache(cache, string_vector(1), string_vector(1)));
+    EXPECT_LT(populateDNSCache(cache, string_vector(1), string_vector(1)), 0);
 
     // Not enough URIs for each IP.
-    EXPECT_FALSE(populateDNSCache(cache, string_vector(1), string_vector(4)));
+    EXPECT_LT(populateDNSCache(cache, string_vector(1), string_vector(4)), 0);
 
     // Make sure the cache remains empty.
     EXPECT_TRUE(cache.empty());
@@ -1896,7 +1896,7 @@ TEST(DNS, populate_dns_cache_succeeds)
     string_vector uris = {"https://foo.bar.com"}; // uris
 
     // URI has valid IPv4 and IPv6 addresses.
-    ASSERT_TRUE(populateDNSCache(cache, ips, uris));
+    ASSERT_EQ(populateDNSCache(cache, ips, uris), 0);
 
     // Make sure DNS entry is as expected.
     std::map<std::string, DNSEntry> expected = {
@@ -1908,7 +1908,7 @@ TEST(DNS, populate_dns_cache_succeeds)
     cache.clear();
     ips.back() = "q";
 
-    ASSERT_TRUE(populateDNSCache(cache, ips, uris));
+    ASSERT_EQ(populateDNSCache(cache, ips, uris), 1);
 
     expected = {{"foo.bar.com", DNSEntry{ips.front(), ""}}};
 
@@ -1919,6 +1919,6 @@ TEST(DNS, populate_dns_cache_succeeds)
     ips.back() = "::1";
     ips.front() = "q";
 
-    ASSERT_TRUE(populateDNSCache(cache, ips, uris));
+    ASSERT_EQ(populateDNSCache(cache, ips, uris), 1);
     EXPECT_TRUE(cache.empty());
 }
