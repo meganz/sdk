@@ -48,6 +48,9 @@
 #endif // ! WIN32
 
 #ifdef _WIN32
+
+// Winsock may include other Windows headers so we're defining this here to
+// ensure that if it does, it only pulls in the definitions it needs.
 #define WIN32_LEAN_AND_MEAN
 #include <In6addr.h>
 #include <Inaddr.h>
