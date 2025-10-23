@@ -3939,12 +3939,12 @@ static bool isValidIPAddress(std::string_view string, int type)
 
 bool isValidIPv4Address(std::string_view string)
 {
-    return isValidIPAddress(std::move(string), AF_INET);
+    return isValidIPAddress(string, AF_INET);
 }
 
 bool isValidIPv6Address(std::string_view string)
 {
-    return isValidIPAddress(std::move(string), AF_INET6);
+    return isValidIPAddress(string, AF_INET6);
 }
 
 bool crackURI(const string& uri, string& scheme, string& host, int& port)
