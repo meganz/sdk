@@ -1748,6 +1748,27 @@ bool isValidIPv6Address(std::string_view string);
 // Separate a URI into its constituent pieces.
 bool crackURI(const string& uri, string& scheme, string& host, int& port);
 
+// Represents a DNS entry for a particular URI.
+struct DNSEntry
+{
+    // The URI's IPv4 address.
+    std::string ipv4;
+
+    // The URI's IPv6 address, if any.
+    std::string ipv6;
+}; // DNSEntry
+
+// Populates the specified DNS cache based on the provided URI and IPs.
+//
+// This function expects each URI to be associated with an IPv4 and an IPv6
+// address and will return false if this invariant is not respected.
+//
+// Entries will be added to the cache if and only if a URI is associated
+// with a valid IPv4 address.
+bool populateDNSCache(std::map<std::string, DNSEntry>& cache,
+                      const std::vector<std::string>& ips,
+                      const std::vector<std::string>& uris);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

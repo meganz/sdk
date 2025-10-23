@@ -4079,4 +4079,49 @@ bool crackURI(const string& uri, string& scheme, string& host, int& port)
     return true;
 }
 
+bool populateDNSCache(std::map<std::string, DNSEntry>& cache,
+                      const std::vector<std::string>& ips,
+                      const std::vector<std::string>& uris)
+{
+    // Each URI should be associated with an IPv4 and an IPv6 address.
+    if (ips.size() != uris.size() * 2)
+        return false;
+
+    // Add URIs with a valid IPv4 address to the cache.
+    for (auto i = uris.begin(); i != uris.end(); ++i)
+    {
+        // Get references to this URI's IPv4 and IPv6 addresses.
+        auto* ipv4 = &ips[i - uris.begin()];
+        auto* ipv6 = ipv4 + 1;
+
+        // URI doesn't have a valid IPv4 address.
+        if (!isValidIPv4Address(*ipv4))
+            continue;
+
+        std::string host;
+        std::string scheme;
+        int port;
+
+        // Couldn't extract the URI's host name.
+        if (!crackURI(*i, scheme, host, port) || host.empty())
+            continue;
+
+        // Add a DNS cache entry for this host.
+        auto& entry = cache[host];
+
+        // Update the host's IPv4 address.
+        entry.ipv4 = *ipv4;
+
+        // URI isn't associated with a valid IPv6 address.
+        if (!isValidIPv6Address(*ipv6))
+            continue;
+
+        // Update the host's IPv6 address.
+        entry.ipv6 = *ipv6;
+    }
+
+    // Let our caller know the inputs were okay.
+    return true;
+}
+
 } // namespace mega
