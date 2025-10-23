@@ -56,7 +56,7 @@
 #else // _WIN32
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#endif // ! _WIN23
+#endif // ! _WIN32
 
 namespace mega {
 
