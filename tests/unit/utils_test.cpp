@@ -1883,6 +1883,9 @@ TEST(DNS, populate_dns_cache_fails)
     // Not enough URIs for each IP.
     EXPECT_LT(populateDNSCache(cache, string_vector(1), string_vector(4)), 0);
 
+    // Multiple URIs and no IPs.
+    EXPECT_LT(populateDNSCache(cache, string_vector(2), string_vector()), 0);
+
     // Make sure the cache remains empty.
     EXPECT_TRUE(cache.empty());
 }
@@ -1891,34 +1894,35 @@ TEST(DNS, populate_dns_cache_succeeds)
 {
     std::map<std::string, DNSEntry> cache;
 
-    string_vector ips = {"1.2.3.4", "::1"}; // ips
+    string_vector ips = {"1.2.3.4", "::1", "4.3.2.1", "::2"}; // ips
 
-    string_vector uris = {"https://foo.bar.com"}; // uris
+    string_vector uris = {"https://foo.bar.com", "https://frob.com"}; // uris
 
-    // URI has valid IPv4 and IPv6 addresses.
+    // URIs have valid IPv4 and IPv6 addresses.
     ASSERT_EQ(populateDNSCache(cache, ips, uris), 0);
 
     // Make sure DNS entry is as expected.
-    std::map<std::string, DNSEntry> expected = {
-        {"foo.bar.com", DNSEntry{ips.front(), ips.back()}}}; // expected
+    std::map<std::string, DNSEntry> expected = {{"foo.bar.com", DNSEntry{ips[0], ips[1]}},
+                                                {"frob.com", DNSEntry{ips[2], ips[3]}}};
 
     EXPECT_EQ(cache, expected);
 
-    // URI only has a valid IPv4 address.
+    // URIs only have valid IPv4 addresses.
     cache.clear();
-    ips.back() = "q";
+    ips[1] = "q";
+    ips[3] = "r";
 
-    ASSERT_EQ(populateDNSCache(cache, ips, uris), 1);
+    ASSERT_EQ(populateDNSCache(cache, ips, uris), 2);
 
-    expected = {{"foo.bar.com", DNSEntry{ips.front(), ""}}};
+    expected = {{"foo.bar.com", DNSEntry{ips[0], ""}}, {"frob.com", DNSEntry{ips[2], ""}}};
 
     EXPECT_EQ(cache, expected);
 
-    // URI only has a valid IPv6 address.
+    // URIs only have a valid IPv6 address.
     cache.clear();
-    ips.back() = "::1";
-    ips.front() = "q";
 
-    ASSERT_EQ(populateDNSCache(cache, ips, uris), 1);
+    ips = {"q", "::1", "r", "::2"};
+
+    ASSERT_EQ(populateDNSCache(cache, ips, uris), 2);
     EXPECT_TRUE(cache.empty());
 }
