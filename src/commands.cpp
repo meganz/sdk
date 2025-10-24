@@ -907,7 +907,11 @@ bool CommandGetFile::procresult(Result r, JSON& json)
                             return;
                         }
 
-                        // Detected an invalid IP address.
+                        // No invalid IPs to report.
+                        if (!result)
+                            return;
+
+                        // Report that we've detected an invalid IP address.
                         client->sendevent(800034,
                                           "Detected an invalid IP while executing `g` command");
                     });
