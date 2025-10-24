@@ -4118,6 +4118,9 @@ int populateDNSCache(std::map<std::string, DNSEntry>& cache,
         // Update the host's IPv4 address.
         entry.ipv4 = *ipv4;
 
+        // Assume IPv6 address is invalid.
+        entry.ipv6.clear();
+
         // URI isn't associated with a valid IPv6 address.
         if (!isValidIPv6Address(*ipv6))
         {
