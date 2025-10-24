@@ -19461,9 +19461,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                         if (sameNodeFpFound)
                         {
+                            const auto differentMtime{fp_forCloud.mtime != sameNodeFpFound->mtime};
                             if (sameNodeSameNameInTarget)
                             {
-                                if (fp_forCloud.mtime != sameNodeFpFound->mtime)
+                                if (differentMtime)
                                 {
                                     // If setNodeMtime fails immediately, we only need to set 'e' to
                                     // errCode. At the end of this method, fireOnTransferFinish will
@@ -19507,12 +19508,15 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             auto f = createMegaFileForRemoteCopyTransfer(*transfer,
                                                                          prevNodeSameName,
                                                                          committer);
-                            e = client->transferRemoteCopy(f,
-                                                           sameNodeFpFound,
-                                                           transfer->getFileName(),
-                                                           parent,
-                                                           nextTag,
-                                                           inboxTarget);
+                            e = client->transferRemoteCopy(
+                                f,
+                                sameNodeFpFound,
+                                transfer->getFileName(),
+                                parent,
+                                nextTag,
+                                differentMtime ? fp_forCloud :
+                                                 std::optional<FileFingerprint>{std::nullopt},
+                                inboxTarget);
 
                             if (e == API_OK)
                             {

@@ -15743,6 +15743,7 @@ void MegaClient::resumeTransferFromDB()
                                    data.remoteName,
                                    parent,
                                    tag,
+                                   std::nullopt,
                                    data.inboxTarget);
                 break;
             }
@@ -19070,6 +19071,7 @@ error MegaClient::transferRemoteCopy(File* file,
                                      const string& name,
                                      std::shared_ptr<Node> parent,
                                      int tag,
+                                     std::optional<FileFingerprint> overridenFp,
                                      std::optional<std::string> inboxTarget)
 {
     assert(file);
@@ -19086,7 +19088,15 @@ error MegaClient::transferRemoteCopy(File* file,
     string sname = name;
     LocalPath::utf8_normalize(&sname);
     attrs.map['n'] = sname;
-    attrs.map['c'] = sameNode->attrs.map['c'];
+    if (overridenFp.has_value())
+    {
+        overridenFp->serializefingerprint(&attrs.map['c']);
+    }
+    else
+    {
+        // avoid serializing FP again
+        attrs.map['c'] = sameNode->attrs.map['c'];
+    }
     attrs.getjson(&attrstring);
     makeattr(&nodeKey, tc.nn[0].attrstring, attrstring.c_str());
 

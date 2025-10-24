@@ -858,6 +858,7 @@ public:
                              const string& name,
                              std::shared_ptr<Node> parent,
                              int tag,
+                             std::optional<FileFingerprint> overridenFp,
                              std::optional<std::string> inboxTarget);
 
     // maximum number of connections per transfer
