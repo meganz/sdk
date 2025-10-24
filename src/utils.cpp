@@ -4094,7 +4094,7 @@ int populateDNSCache(std::map<std::string, DNSEntry>& cache,
     for (auto i = 0u; i < uris.size(); ++i)
     {
         // Get references to this URI's IPv4 and IPv6 addresses.
-        auto* ipv4 = &ips[i];
+        auto* ipv4 = &ips[i * 2];
         auto* ipv6 = ipv4 + 1;
 
         // URI doesn't have a valid IPv4 address.
