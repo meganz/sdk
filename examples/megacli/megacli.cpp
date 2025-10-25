@@ -6558,6 +6558,129 @@ void exec_more(autocomplete::ACState& s)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions);
 
+std::shared_ptr<Node> findNodeByFingerprintRecursive(const FileFingerprint& fp, Node* node, MegaClient* client)
+{
+    if (node->type == FILENODE)
+    {
+        FileFingerprint nodeFp = *static_cast<FileFingerprint*>(node);
+        if (nodeFp.isvalid && fp == nodeFp)
+        {
+            return client->nodebyhandle(node->nodehandle);
+        }
+    }
+    else if (node->type == FOLDERNODE)
+    {
+        for (auto& child : client->getChildren(node))
+        {
+            auto result = findNodeByFingerprintRecursive(fp, child.get(), client);
+            if (result) return result;
+        }
+    }
+    
+    return nullptr;
+}
+
+std::shared_ptr<Node> findNodeByFingerprint(const FileFingerprint& fp, MegaClient* client)
+{
+    // search nodes with the same fingerprint throughout the account
+    std::shared_ptr<Node> root = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
+    if (!root) return nullptr;
+    
+    return findNodeByFingerprintRecursive(fp, root.get(), client);
+}
+
+void computeFileMAC(const LocalPath& path, SymmCipher& cipher, byte* mac, m_off_t fileSize)
+{
+    auto fa = client->fsaccess->newfileaccess();
+    if (!fa->fopen(path, true, false, FSLogging::logOnError))
+        return;
+
+    memset(mac, 0, SymmCipher::BLOCKSIZE);
+    
+     const size_t bufferSize = 64 * 1024; // 64KB block
+    string buffer(bufferSize, '\0');
+    m_off_t pos = 0;
+    
+    while (pos < fileSize)
+    {
+        size_t chunkSize = std::min(bufferSize, static_cast<size_t>(fileSize - pos));
+        if (!fa->fread(&buffer, unsigned(chunkSize), pos, 0, FSLogging::logOnError))
+            break;
+            
+        // encrypt the block with remote file's key; then update MAC
+        size_t blockCount = chunkSize / SymmCipher::BLOCKSIZE;
+        cipher.cbc_encrypt(reinterpret_cast<byte*>(buffer.data()), blockCount * SymmCipher::BLOCKSIZE,mac);
+        pos += chunkSize;
+    }
+}
+
+
+bool verifyFileIdentity(const LocalPath& localPath, Node* remoteNode)
+{
+    // use remote key to read & encrypt local file
+    string remoteKey = remoteNode->nodekey();
+    
+    // create symmcipher 
+    SymmCipher cipher;
+    cipher.setkey((const byte*)remoteKey.data(), FILENODE);
+    
+    // read local file
+    auto fa = client->fsaccess->newfileaccess();
+    if (!fa->fopen(localPath, true, false, FSLogging::logOnError))
+        return false;
+    
+    // calc MAC with remote key
+    byte mac[SymmCipher::BLOCKSIZE];
+    computeFileMAC(localPath, cipher, mac, remoteNode->size);
+    
+    // verify MAC
+    return memcmp(mac, remoteNode->nodekey().data() + FILENODEKEYLENGTH/2, SymmCipher::BLOCKSIZE) == 0;
+}
+
+void copyNodeContents(std::shared_ptr<Node> sourceNode, Node* parent, 
+                     const string& newName, TransferDbCommitter& committer)
+{
+    // create new node & copy content from source node
+    NewNode newNode;
+    newNode.source = NEW_NODE;
+    newNode.type = sourceNode->type;
+    newNode.nodehandle = sourceNode->nodehandle;
+    newNode.parenthandle = parent->nodehandle;
+    
+    // copy key
+    newNode.nodekey = sourceNode->nodekey();
+    
+    // config attributes if rename if necessary
+    if (!newName.empty())
+    {
+        string attrstring;
+        SymmCipher key;
+        key.setkey((const byte*)newNode.nodekey.data(), sourceNode->type);
+        
+        AttrMap attrs;
+        attrs.map = sourceNode->attrs.map;
+        attrs.map['n'] = newName;
+        
+        attrs.getjson(&attrstring);
+        newNode.attrstring.reset(new string);
+        client->makeattr(&key, newNode.attrstring, attrstring.c_str());
+    }
+    else
+    {
+        // just copy origin attributes
+        newNode.attrstring.reset(new string(sourceNode->attrstring ? *sourceNode->attrstring : ""));
+    }
+    
+    // perform node copy
+    vector<NewNode> newNodes;
+    newNodes.push_back(std::move(newNode));
+    
+    client->putnodes(parent->nodeHandle(), NoVersioning, std::move(newNodes), 
+                    nullptr, client->nextreqtag(), false);
+}
+
+
+
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions)
@@ -6572,6 +6695,24 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
         {
             FileFingerprint fp;
             fp.genfingerprint(fa.get());
+
+			// Task2:check fingerprint match
+			if (fp.isvalid)
+			{
+				// search those files with the same finger print throughout the entire account(not only the same file name)
+				std::shared_ptr<Node> existingNode = findNodeByFingerprint(fp, client);
+                
+                if (existingNode && existingNode != previousNode && 
+                    verifyFileIdentity(localname, existingNode.get()))
+                {
+                    // both finger print & MAC match: perform copy but not upload
+                    cout << "File fingerprint and MAC match, copying existing file instead of uploading: " 
+                         << name << endl;
+                    
+                    copyNodeContents(existingNode, parent, name, committer);
+                    return; // skip upload
+                }
+			}
 
             if (previousNode)
             {
