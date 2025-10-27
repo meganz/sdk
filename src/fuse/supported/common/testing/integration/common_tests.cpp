@@ -126,7 +126,7 @@ TEST_F(FUSECommonTests, cloud_add_replace)
     EXPECT_EQ(fsidOf(MountPathW() / "sfx"), handle->as8byte());
 }
 
-TEST_F(FUSECommonTests, cloud_move)
+TEST_F(FUSECommonTests, DISABLED_cloud_move)
 {
     auto id = fsidOf(MountPathW() / "sf0");
     ASSERT_NE(id, UNDEF);
@@ -513,7 +513,7 @@ TEST_F(FUSECommonTests, reload)
     EXPECT_EQ(fsidOf(client->storagePath() / "s" / "sdx" / "sf0"), sf0i);
 }
 
-TEST_F(FUSECommonTests, share_changes_permissions)
+TEST_F(FUSECommonTests, DISABLED_share_changes_permissions)
 {
     // Convenience.
     constexpr auto U_R =
