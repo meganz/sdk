@@ -38,6 +38,15 @@ std::atomic<bool> g_netLoggingOn{false};
 #define NET_verbose if (g_netLoggingOn) LOG_verbose
 #define NET_debug if (g_netLoggingOn) LOG_debug
 
+// Logging msg in full if its size msgSize is less than maxLogSize. Otherwise, logging first and
+// last parts of the msg based on maxLogSize/2.
+#define MaxDirectMessage(msg, msgSize, maxLogSize) \
+    ((msgSize) < (maxLogSize) ? DirectMessage((msg), (msgSize)) : \
+                                DirectMessage((msg), (maxLogSize / 2))) \
+        << ((msgSize) < (maxLogSize) ? "" : "[...]") \
+        << ((msgSize) < (maxLogSize) ? \
+                "" : \
+                DirectMessage((msg) + (msgSize) - (maxLogSize / 2), (maxLogSize / 2)))
 
 #if defined(_WIN32)
 
@@ -815,14 +824,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         }
         else
         {
-            LOG_debug
-                << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
-                << DirectMessage(req->out->c_str(),
-                                 static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
-                << " [...] "
-                << DirectMessage(req->out->c_str() + req->out->size() -
-                                     SimpleLogger::getMaxPayloadLogSize() / 2,
-                                 static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
+            LOG_debug << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
+                      << MaxDirectMessage(req->out->c_str(),
+                                          req->out->size(),
+                                          static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize()))
+                      << " (at ds: " << Waiter::ds << ")";
         }
     }
 
@@ -1591,16 +1597,12 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         }
                         else
                         {
-                            LOG_debug
-                                << req->getLogName() << "Received " << req->in.size() << ": "
-                                << DirectMessage(req->in.c_str(),
-                                                 static_cast<size_t>(
-                                                     SimpleLogger::getMaxPayloadLogSize() / 2))
-                                << " [...] "
-                                << DirectMessage(req->in.c_str() + req->in.size() -
-                                                     SimpleLogger::getMaxPayloadLogSize() / 2,
-                                                 static_cast<size_t>(
-                                                     SimpleLogger::getMaxPayloadLogSize() / 2));
+                            LOG_debug << req->getLogName() << "Received " << req->in.size() << ": "
+                                      << MaxDirectMessage(req->in.c_str(),
+                                                          req->in.size(),
+                                                          static_cast<size_t>(
+                                                              SimpleLogger::getMaxPayloadLogSize()))
+                                      << " (at ds: " << Waiter::ds << ")";
                         }
                     }
                 }
