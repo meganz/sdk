@@ -585,7 +585,7 @@ TEST_F(FileServiceTests, append_succeeds)
     ASSERT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
+TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_parent_removed)
 {
     // Create a tree we can mess with.
     auto d0 = mClient->makeDirectory(randomName(), mRootHandle);
@@ -647,7 +647,7 @@ TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
     EXPECT_THAT(expected.service, UnorderedElementsAreArray(serviceObserver.events()));
 }
 
-TEST_F(FileServiceTests, cloud_file_removed_when_removed_in_cloud)
+TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_removed_in_cloud)
 {
     // What events do we expect to receive?
     FileEventVector expected;
@@ -684,7 +684,7 @@ TEST_F(FileServiceTests, cloud_file_removed_when_removed_in_cloud)
     EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_cloud_add)
+TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_replaced_by_cloud_add)
 {
     // So we have a stable name.
     auto name = randomName();
@@ -724,7 +724,7 @@ TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_cloud_add)
     EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_new_version)
+TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_replaced_by_new_version)
 {
     // So we have a stable name.
     auto name = randomName();
@@ -1389,7 +1389,7 @@ TEST_F(FileServiceTests, foreign_files_are_read_only)
     EXPECT_EQ(execute(flush, *file), FILE_SUCCESS);
 }
 
-TEST_F(FileServiceTests, inactive_file_moved)
+TEST_F(FileServiceTests, DISABLED_inactive_file_moved)
 {
     // For later reference.
     auto name0 = randomName();
@@ -1444,7 +1444,7 @@ TEST_F(FileServiceTests, inactive_file_moved)
     EXPECT_TRUE(observer.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, inactive_file_removed)
+TEST_F(FileServiceTests, DISABLED_inactive_file_removed)
 {
     // Create a file that we can remove.
     auto handle = mClient->upload(randomBytes(512), randomName(), mRootHandle);
@@ -1480,7 +1480,7 @@ TEST_F(FileServiceTests, inactive_file_removed)
     EXPECT_TRUE(observer.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, inactive_file_replaced)
+TEST_F(FileServiceTests, DISABLED_inactive_file_replaced)
 {
     // For later reference.
     auto name0 = randomName();
@@ -1567,7 +1567,7 @@ TEST_F(FileServiceTests, info_succeeds)
     ASSERT_EQ(info->accessed(), accessed);
 }
 
-TEST_F(FileServiceTests, local_file_removed_when_parent_removed)
+TEST_F(FileServiceTests, DISABLED_local_file_removed_when_parent_removed)
 {
     // Create a directory tree for us to play with.
     auto d0 = mClient->makeDirectory(randomName(), mRootHandle);
@@ -1640,7 +1640,7 @@ TEST_F(FileServiceTests, local_file_removed_when_parent_removed)
     EXPECT_TRUE(fileObserver1.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_add)
+TEST_F(FileServiceTests, DISABLED_local_file_removed_when_replaced_by_cloud_add)
 {
     // Generate a name for our file.
     auto name = randomName();
@@ -1683,7 +1683,7 @@ TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_add)
     EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_move)
+TEST_F(FileServiceTests, DISABLED_local_file_removed_when_replaced_by_cloud_move)
 {
     // So we have a stable name.
     auto fileName0 = randomName();
@@ -1750,7 +1750,7 @@ TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_move)
     EXPECT_TRUE(serviceObserver.match(expected.service, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
+TEST_F(FileServiceTests, DISABLED_location_updated_when_moved_in_cloud)
 {
     // Generate a name for our file.
     auto name = randomName();

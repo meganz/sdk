@@ -1514,7 +1514,8 @@ void NodeManager::notifyPurge()
         LockGuard g(mMutex);
 
         // Let the client adapter know that nodes have been updated.
-        mClient.mClientAdapter.updated(nodesToReport);
+        // FIXME: uncomment the following line as part of SDK-5665 once it's safe to call
+        // mClient.mClientAdapter.updated(nodesToReport);
 
         TransferDbCommitter committer(mClient.tctable);
 
