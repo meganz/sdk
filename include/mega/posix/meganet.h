@@ -269,10 +269,10 @@ struct MEGA_API CurlHttpContext
 bool crackURI(const string& uri, string& scheme, string& host, int& port);
 
 // True if string is a valid IPv4 address.
-bool isValidIPv4Address(std::string_view string);
+bool isValidIPv4Address(const std::string& string);
 
 // True if string is a valid IPv6 address.
-bool isValidIPv6Address(std::string_view string);
+bool isValidIPv6Address(const std::string& string);
 
 // Populates the specified DNS cache based on the provided URI and IPs.
 //

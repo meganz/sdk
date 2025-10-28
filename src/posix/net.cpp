@@ -2285,7 +2285,7 @@ bool crackURI(const string& uri, string& scheme, string& host, int& port)
     return true;
 }
 
-static bool isValidIPAddress(std::string_view string, int type)
+static bool isValidIPAddress(const std::string& string, int type)
 {
     // Sanity.
     assert(type == AF_INET || type == AF_INET6);
@@ -2301,12 +2301,12 @@ static bool isValidIPAddress(std::string_view string, int type)
     return inet_pton(type, string.data(), &buffer) > 0;
 }
 
-bool isValidIPv4Address(std::string_view string)
+bool isValidIPv4Address(const std::string& string)
 {
     return isValidIPAddress(string, AF_INET);
 }
 
-bool isValidIPv6Address(std::string_view string)
+bool isValidIPv6Address(const std::string& string)
 {
     return isValidIPAddress(string, AF_INET6);
 }
