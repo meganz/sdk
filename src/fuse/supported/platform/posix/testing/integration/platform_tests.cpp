@@ -179,7 +179,7 @@ TEST_P(FUSEPlatformTests, fchown_succeeds)
     ASSERT_FALSE(fchown(sf0.get(), getuid(), getgid()));
 }
 
-TEST_P(FUSEPlatformTests, DISABLED_fstat_succeeds_after_directory_removed)
+TEST_P(FUSEPlatformTests, fstat_succeeds_after_directory_removed)
 {
     auto info = ClientW()->get("/x/s/sd0/sd0d0");
     ASSERT_TRUE(info);
@@ -208,7 +208,7 @@ TEST_P(FUSEPlatformTests, DISABLED_fstat_succeeds_after_directory_removed)
     ASSERT_EQ(buffer0, buffer1);
 }
 
-TEST_P(FUSEPlatformTests, DISABLED_fstat_succeeds_after_file_removed)
+TEST_P(FUSEPlatformTests, fstat_succeeds_after_file_removed)
 {
     auto info = ClientW()->get("/x/s/sf0");
     ASSERT_TRUE(info);
@@ -877,7 +877,7 @@ TEST_P(FUSEPlatformTests, read_write_succeeds)
     ASSERT_FALSE(terminate);
 }
 
-TEST_P(FUSEPlatformTests, DISABLED_readdir_succeeds_when_changing)
+TEST_P(FUSEPlatformTests, readdir_succeeds_when_changing)
 {
     auto iterator = opendir(MountPathW());
     ASSERT_TRUE(iterator);
@@ -1146,7 +1146,7 @@ TEST_P(FUSEPlatformTests, rename_replace_directory_succeeds)
         mDefaultTimeout));
 }
 
-TEST_P(FUSEPlatformTests, DISABLED_rename_replace_file_cloud_local_succeeds)
+TEST_P(FUSEPlatformTests, rename_replace_file_cloud_local_succeeds)
 {
     Stat sf0o;
     Stat sf0w;
@@ -1252,7 +1252,7 @@ TEST_P(FUSEPlatformTests, rename_replace_file_local_local_succeeds)
     ASSERT_FALSE(unlink(MountPathW() / "sfy"));
 }
 
-TEST_P(FUSEPlatformTests, DISABLED_rename_replace_file_succeeds)
+TEST_P(FUSEPlatformTests, rename_replace_file_succeeds)
 {
     Stat beforeO;
     Stat beforeW;
