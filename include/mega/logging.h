@@ -878,4 +878,24 @@ constexpr auto generateLogAndReturnError(F&& resGenerator)
     };
 }
 
+enum JSONLog
+{
+    JSON_LOG_NONE = 0,
+    JSON_LOG_CHUNK_RECEIVED = 1,
+    JSON_LOG_CHUNK_PROCESSING = 1 << 1,
+    JSON_LOG_CHUNK_CONSUMED = 1 << 2,
+};
+
+extern std::atomic_uint32_t gJSONLog;
+
+#define JSON_CHUNK_RECEIVED \
+    if (gJSONLog & JSON_LOG_CHUNK_RECEIVED) \
+    LOG_debug
+#define JSON_CHUNK_PROCESSING \
+    if (gJSONLog & JSON_LOG_CHUNK_PROCESSING) \
+    LOG_debug
+#define JSON_CHUNK_CONSUMED \
+    if (gJSONLog & JSON_LOG_CHUNK_CONSUMED) \
+    LOG_debug
+
 } // namespace

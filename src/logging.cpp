@@ -36,6 +36,7 @@ Logger *SimpleLogger::logger = &g_externalLogger;
 // by the default, display logs with level equal or less than logInfo
 std::atomic<LogLevel> SimpleLogger::logCurrentLevel{logInfo};
 long long SimpleLogger::maxPayloadLogSize  = 10240;
+std::atomic_uint32_t gJSONLog = JSON_LOG_CHUNK_CONSUMED;
 
 #ifndef ENABLE_LOG_PERFORMANCE
 std::string SimpleLogger::getTime()
