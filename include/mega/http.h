@@ -318,7 +318,7 @@ struct MEGA_API HttpIO : public EventTrigger
     // get max upload speed
     virtual m_off_t getmaxuploadspeed();
 
-    virtual int cacheresolvedurls(const std::vector<string>&, std::vector<string>&&)
+    virtual int cacheresolvedurls(const std::vector<string>&, const std::vector<string>&)
     {
         return false;
     }

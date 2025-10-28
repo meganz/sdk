@@ -221,7 +221,7 @@ public:
     // get max upload speed
     m_off_t getmaxuploadspeed() override;
 
-    int cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips) override;
+    int cacheresolvedurls(const std::vector<string>& urls, const std::vector<string>& ips) override;
     void addDnsResolution(CURL* curl,
                           std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)>& dnsList,
                           const string& host,

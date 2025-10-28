@@ -231,10 +231,33 @@ void Command::createSchedMeetingJson(const ScheduledMeeting* schedMeeting)
 #endif
 
 // cache urls and ips given in response to avoid further waiting for dns resolution
-int Command::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
+void Command::cacheresolvedurls(const std::string& command,
+                                const std::vector<string>& urls,
+                                const std::vector<string>& ips)
 {
-    // cache resolved URLs if received
-    return client->httpio->cacheresolvedurls(urls, std::move(ips));
+    // Try and update the DNS cache.
+    auto result = client->httpio->cacheresolvedurls(urls, ips);
+
+    // Not enough IPs for each URI.
+    if (result < 0)
+    {
+        LOG_err << "Unpaired IPs received for URLs in `" << command << "`. URLs: " << urls.size()
+                << " IPs: " << ips.size();
+
+        return;
+    }
+
+    // Each URI was associated with two valid IP addresses.
+    if (!result)
+        return;
+
+    // One or more URIs were associated with an invalid IP address.
+    std::ostringstream ostream;
+
+    ostream << "Detected one or more invalid IPs while processing `" << command << "` command";
+
+    // Report that we've detected one or more invalid IP addresses.
+    client->sendevent(800034, ostream.str().c_str());
 }
 
 // Store ips from response in the vector passed
