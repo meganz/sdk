@@ -13587,33 +13587,58 @@ void MegaApiImpl::transfer_update(Transfer *t)
     }
 }
 
-File* MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid)
+std::optional<std::string> getInboxTarget(const MegaTransferPrivate* transfer)
+{
+    bool uploadToInbox =
+        ISUNDEF(transfer->getParentHandle()) && transfer->getParentPath() &&
+        (strchr(transfer->getParentPath(), '@') || (strlen(transfer->getParentPath()) == 11));
+    std::optional<std::string> inboxTarget =
+        uploadToInbox ? std::make_optional<std::string>(transfer->getParentPath()) : std::nullopt;
+    return inboxTarget;
+}
+
+void MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid, FileResumeData& data)
 {
     if (!d || d->size() < sizeof(char))
     {
-        return NULL;
+        return;
     }
 
-    MegaFile *file = NULL;
     *type = (direction_t)MemAccess::get<char>(d->data());
     switch (*type)
     {
     case GET:
     {
-        file = MegaFileGet::unserialize(d);
+        data.file = MegaFileGet::unserialize(d);
         break;
     }
     case PUT:
     {
+        MegaFile* file = NULL;
         file = MegaFilePut::unserialize(d);
         if (!file)
         {
             break;
         }
+
+        data.file = file;
         MegaTransferPrivate* transfer = file->getTransfer();
+        data.inboxTarget = getInboxTarget(transfer);
         std::shared_ptr<Node> parent = client->nodebyhandle(transfer->getParentHandle());
         sharedNode_vector nodes = client->mNodeManager.getNodesByFingerprint(*file);
         const char *name = transfer->getFileName();
+
+        auto removeFile = [this, &data, transfer]()
+        {
+            TransferDbCommitter committer(client->tctable);
+            delete data.file;
+            delete transfer; // committer needed here
+            // Stored to clean the Transfer
+            data.sameNodeHandle.setUndef();
+            data.file = NULL;
+            data.parentHandle.setUndef();
+        };
+
         if (parent && nodes.size() && name)
         {
             // Get previous node if any
@@ -13623,13 +13648,22 @@ File* MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid)
                 if (node->parent == parent && !strcmp(node->displayname(), name))
                 {
                     // don't resume the upload if the node already exist in the target folder
-                    TransferDbCommitter committer(client->tctable);
-                    delete file;
-                    delete transfer;   // committer needed here
-                    file = NULL;
+                    removeFile();
                     break;
                 }
+                // Update data to copy remote, any element from nodes is valid
+                else
+                {
+                    data.sameNodeHandle = node->nodeHandle();
+                    data.remoteName = name;
+                    data.parentHandle = parent->nodeHandle();
+                }
             }
+        }
+        else if (!parent)
+        {
+            // don't resume the upload if parent node doesn't exist
+            removeFile();
         }
         break;
     }
@@ -13637,14 +13671,13 @@ File* MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid)
         break;
     }
 
-    if (file)
+    if (data.file)
     {
-        file->dbid = dbid;
-        currentTransfer = file->getTransfer();
-        currentTransfer->dbid = file->dbid;
+        data.file->dbid = dbid;
+        currentTransfer = static_cast<MegaFile*>(data.file)->getTransfer();
+        currentTransfer->dbid = data.file->dbid;
         waiter->notify();
     }
-    return file;
 }
 
 dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime timeLeft)
@@ -18883,6 +18916,56 @@ void MegaApiImpl::updateBackups()
     }
 }
 
+MegaFilePut*
+    MegaApiImpl::createMegaFileForRemoteCopyTransfer(MegaTransferPrivate& megaTransfer,
+                                                     std::shared_ptr<Node> prevNodeSameName,
+                                                     TransferDbCommitter& committer)
+{
+    bool uploadToInbox =
+        ISUNDEF(megaTransfer.getParentHandle()) && megaTransfer.getParentPath() &&
+        (strchr(megaTransfer.getParentPath(), '@') || (strlen(megaTransfer.getParentPath()) == 11));
+    const char* inboxTarget = uploadToInbox ? megaTransfer.getParentPath() : nullptr;
+    string sname = megaTransfer.getFileName();
+    bool isSourceTemporary = megaTransfer.isSourceFileTemporary();
+    MegaFilePut* f = new MegaFilePut(client,
+                                     megaTransfer.getLocalPath(),
+                                     &sname,
+                                     NodeHandle().set6byte(megaTransfer.getParentHandle()),
+                                     uploadToInbox ? inboxTarget : "",
+                                     megaTransfer.getTime(),
+                                     isSourceTemporary,
+                                     prevNodeSameName);
+    *static_cast<FileFingerprint*>(f) =
+        megaTransfer.fingerprint_onDisk; // deliberate slicing - startxfer would re-fingerprint if
+                                         // we don't supply this info
+
+    f->setTransfer(
+        &megaTransfer); // sets internal `megaTransfer`, different from internal `transfer`!
+    f->cancelToken = megaTransfer.accessCancelToken();
+
+    Transfer* t = new Transfer(client, direction_t::PUT);
+    t->skipserialization = false;
+    *(FileFingerprint*)t = *(FileFingerprint*)f;
+    t->tag = megaTransfer.getTag();
+    f->tag = megaTransfer.getTag();
+
+    t->size = megaTransfer.getTotalBytes();
+    t->progresscompleted = megaTransfer.getTotalBytes();
+
+    f->file_it = t->files.insert(t->files.end(), f);
+    f->transfer = t;
+    if (!f->dbid)
+    {
+        client->filecacheadd(f, committer);
+    }
+
+    f->prepare(*client->fsaccess);
+    client->transferlist.addtransfer(t, committer, false);
+    client->app->transfer_added(t);
+    client->app->file_added(f);
+    return f;
+}
+
 void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_EXECUTE_ON_THREAD, nullptr);
@@ -19280,61 +19363,30 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                 << ") with same FP and MAC exists in target node. Perform remote "
                                    "copy";
 
+                            currentTransfer = transfer;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
                             transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
-                            fireOnTransferStart(transfer);
 
-                            TreeProcCopy tc;
-                            client->proctree(sameNodeFpFound, &tc, false, true);
-                            tc.allocnodes();
-                            client->proctree(sameNodeFpFound, &tc, false, true);
-                            tc.nn[0].parenthandle = UNDEF;
+                            auto f = createMegaFileForRemoteCopyTransfer(*transfer,
+                                                                         prevNodeSameName,
+                                                                         committer);
+                            e = client->transferRemoteCopy(f,
+                                                           sameNodeFpFound,
+                                                           transfer->getFileName(),
+                                                           parent,
+                                                           nextTag,
+                                                           getInboxTarget(transfer));
 
-                            SymmCipher key;
-                            AttrMap attrs;
-                            string attrstring;
-                            key.setkey((const byte*)tc.nn[0].nodekey.data(), sameNodeFpFound->type);
-                            string sname = fileName;
-                            LocalPath::utf8_normalize(&sname);
-                            attrs.map['n'] = sname;
-                            attrs.map['c'] = sameNodeFpFound->attrs.map['c'];
-                            attrs.getjson(&attrstring);
-                            client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                            if (tc.nn[0].type == FILENODE)
+                            if (e == API_OK)
                             {
-                                if (std::shared_ptr<Node> ovn = client->getovnode(parent.get(), &sname))
-                                {
-                                    tc.nn[0].ovhandle = ovn->nodeHandle();
-                                }
+                                transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
+                                transfer->setSpeed(0);
+                                transfer->setMeanSpeed(0);
                             }
-
-                            if (uploadToInbox)
-                            {
-                                // obsolete feature, kept for sending logs to helpdesk
-                                client->putnodes(inboxTarget, std::move(tc.nn), nextTag);
-                            }
-                            else
-                            {
-                                if (!parent)
-                                {
-                                    LOG_err << "SendPendingTransfers(upload): invalid parent for "
-                                            << fileName;
-                                    assert(false && "SendPendingTransfers(upload): invalid parent");
-                                    e = API_EARGS;
-                                    break;
-                                }
-                                client->putnodes(parent->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), nullptr, nextTag, false);
-                            }
-
-                            transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
-                            transfer->setSpeed(0);
-                            transfer->setMeanSpeed(0);
-                            transfer->setState(MegaTransfer::STATE_COMPLETING);
-                            fireOnTransferUpdate(transfer);
                             break;
                         }
                     }

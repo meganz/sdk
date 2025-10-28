@@ -4965,7 +4965,8 @@ public:
         void transfer_complete(Transfer *) override;
         void transfer_removed(Transfer *) override;
 
-        File* file_resume(string*, direction_t* type, uint32_t) override;
+        void
+            file_resume(string* d, direction_t* type, uint32_t dbid, FileResumeData& data) override;
 
         void transfer_prepare(Transfer*) override;
         void transfer_failed(Transfer*, const Error& error, dstime timeleft) override;
@@ -5111,6 +5112,10 @@ public:
         void sendPendingRequests();
         unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr, m_off_t availableDiskSpace = 0);
         void updateBackups();
+
+        MegaFilePut* createMegaFileForRemoteCopyTransfer(MegaTransferPrivate& megaTransfer,
+                                                         std::shared_ptr<Node> prevNodeSameName,
+                                                         TransferDbCommitter& committer);
 
         void notify_network_activity(int networkActivityChannel,
                                      int networkActivityType,
