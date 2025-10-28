@@ -7326,6 +7326,16 @@ void MegaApiImpl::setLogJSONContent(bool enable)
     gLogJSONRequests = enable;
 }
 
+void MegaApiImpl::setLogJSON(uint32_t value)
+{
+    gJSONLog = value;
+}
+
+uint32_t MegaApiImpl::getLogJSON()
+{
+    return gJSONLog;
+}
+
 void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
 {
     SimpleLogger::postLog(LogLevel(logLevel), message, filename, line);

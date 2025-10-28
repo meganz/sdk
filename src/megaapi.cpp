@@ -2189,6 +2189,16 @@ void MegaApi::setLogJSONContent(bool enable)
     MegaApiImpl::setLogJSONContent(enable);
 }
 
+void MegaApi::setLogJSON(uint32_t value)
+{
+    MegaApiImpl::setLogJSON(value);
+}
+
+uint32_t MegaApi::getLogJSON()
+{
+    return MegaApiImpl::getLogJSON();
+}
+
 void MegaApi::addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
     MegaApiImpl::addLoggerClass(megaLogger, singleExclusiveLogger);
