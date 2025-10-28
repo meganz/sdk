@@ -22429,3 +22429,163 @@ TEST_F(SdkTest, EstablishContactRelationshipAutomatically)
     // Make sure that invitation fails: there's already an incoming PCR
     ASSERT_EQ(invitation1Sent, API_EEXIST);
 }
+
+/**
+ * @test SdkTransferCopyRemote
+ * @brief Verifies that remote copy transfers are correctly handled,
+ *
+ * Steps:
+ * 1. Create a temporary 50 MB file locally.
+ * 2. Upload the file to a remote folder using MegaApi::startUpload().
+ * 3. Repeat the upload with a different name to verify multiple transfer handling.
+ * 4. Perform a local logout while an upload is in progress, then log in again.
+ * 5. Confirm that pending or completed transfers are properly finalized or resumed.
+ *
+ * Expected Results:
+ * - At the end of the test, three nodes are present in the target folder,
+ *   confirming that all transfer recovery paths have completed successfully.
+ */
+TEST_F(SdkTest, SdkTransferCopyRemote)
+{
+    LOG_info << "___TEST SdkTransferCopyRemote___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    static const size_t kFileSize = 50ull * 1024 * 1024; // 50 MB
+
+    // Create local random file
+    fs::path filePath = fs::current_path() / PUBLICFILE;
+    sdk_test::LocalTempFile localFile(filePath, kFileSize);
+
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+
+    auto [errCode, fh] = createRemoteFolder(0, "Fodler", rootnode.get());
+    ASSERT_EQ(errCode, API_OK) << "Unexpected ErrCode upon creating Folder: ";
+
+    std::unique_ptr<MegaNode> folderNode{megaApi[0]->getNodeByHandle(fh)};
+
+    auto uploadFile =
+        [filePath, &folderNode, this](const char* uploadName = nullptr, bool localLogout = false)
+    {
+        testing::NiceMock<MockTransferListener> mockGlobalListener{megaApi[0].get()};
+        const MrProper cleanUp(
+            [&mockGlobalListener, this]()
+            {
+                ::testing::Mock::VerifyAndClearExpectations(&mockGlobalListener);
+                megaApi[0]->removeListener(&mockGlobalListener);
+            });
+
+        // --- Setup a global listener to capture dbid and tag on next transfer ---
+        std::promise<uint32_t> dbidAndTagOnStart;
+        EXPECT_CALL(mockGlobalListener, onTransferStart)
+            .WillOnce(
+                [&dbidAndTagOnStart](MegaApi*, MegaTransfer* transfer)
+                {
+                    dbidAndTagOnStart.set_value({transfer->getUniqueId()});
+                });
+
+        std::promise<void> transferFinishPromise;
+        EXPECT_CALL(mockGlobalListener, onTransferFinish)
+            .WillOnce(
+                [&transferFinishPromise](MegaApi*, MegaTransfer*, MegaError*)
+                {
+                    transferFinishPromise.set_value();
+                });
+
+        megaApi[0]->addListener(&mockGlobalListener);
+
+        mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
+        megaApi[0]->startUpload(filePath.u8string().c_str(),
+                                folderNode.get(),
+                                uploadName,
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/,
+                                nullptr); /*MegaTransferListener*/
+
+        // --- Get dbid and tag of first transfer since started listening ---
+        auto startTransferListerResult = dbidAndTagOnStart.get_future();
+        ASSERT_EQ(startTransferListerResult.wait_for(std::chrono::seconds(maxTimeout)),
+                  std::future_status::ready)
+            << "Timeout for the start upload";
+        const auto transferUniqueId = startTransferListerResult.get();
+        ASSERT_NE(transferUniqueId, 0)
+            << "Missing transferUniqueId param for onTransferStart event";
+
+        if (localLogout)
+        {
+            string session = unique_ptr<char[]>(dumpSession()).get();
+            locallogout(0);
+
+            PerApi& target = mApi[0];
+            target.resetlastEvent();
+            auto tracker = asyncRequestFastLogin(0, session.c_str());
+            ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session";
+
+            ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+            // make sure that client is up to date (upon logout, recent changes might not be
+            // committed to DB)
+            ASSERT_TRUE(WaitFor(
+                [&target]()
+                {
+                    return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT);
+                },
+                10000))
+                << "Timeout expired to receive actionpackets";
+        }
+
+        auto finishTransferListerResult = transferFinishPromise.get_future();
+        ASSERT_EQ(finishTransferListerResult.wait_for(std::chrono::seconds(maxTimeout)),
+                  std::future_status::ready)
+            << "Timeout for the finish upload";
+    };
+
+    int numFiles = 1;
+    ASSERT_NO_FATAL_FAILURE(uploadFile());
+    std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(folderNode.get())};
+    ASSERT_TRUE(children);
+    ASSERT_EQ(children->size(), numFiles);
+
+    ASSERT_NO_FATAL_FAILURE(uploadFile("NewName"));
+
+    numFiles = 2;
+    children.reset(megaApi[0]->getChildren(folderNode.get()));
+    ASSERT_TRUE(children);
+    ASSERT_EQ(children->size(), numFiles);
+
+    ASSERT_NO_FATAL_FAILURE(uploadFile("NewNewName", true));
+
+    // When a local logout is executed, all unfinished transfers are notified
+    // through an onTransferFinish callback with error -11. In this situation,
+    // there are three possible scenarios:
+    //
+    // 1. The logout occurs after the transfer has completed successfully.
+    //    The onTransferFinish event is received normally.
+    //
+    // 2. The logout occurs after the PUT command has been sent, but before
+    //    receiving the server response. On the next login, the SDK will
+    //    receive the action package notifying the creation of the new node,
+    //    and the pending transfer will be discarded.
+    //
+    // 3. The logout occurs before the PUT command is sent. On the next login,
+    //    the SDK will issue the PUT command again, and the transfer will
+    //    complete normally.
+    //
+    // The simplest way to verify that everything has been executed correctly
+    // is to check that there are three resulting items at the end of the process.
+    unsigned int timeOut = 30;
+    numFiles = 3;
+    ASSERT_TRUE(waitForEvent(
+        [this, numFiles, &folderNode]() -> bool
+        {
+            std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(folderNode.get())};
+            if (children)
+            {
+                return children->size() == numFiles;
+            }
+
+            return 0;
+        },
+        timeOut));
+}
