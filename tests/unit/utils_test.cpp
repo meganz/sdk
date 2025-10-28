@@ -1939,4 +1939,9 @@ TEST(DNS, populate_dns_cache_succeeds)
     expected = {{"foo.bar.com", DNSEntry{ips[0], ips[1]}}};
 
     EXPECT_EQ(cache, expected);
+
+    // No URIs and no IPs means no changes.
+    ASSERT_EQ(populateDNSCache(cache, string_vector(), string_vector()), 0);
+
+    EXPECT_EQ(cache, expected);
 }
