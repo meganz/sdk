@@ -104,7 +104,8 @@ TEST_F(SdkTestNodeTagsBasic, ExistingTagsCopiedToNewFileVersion)
     auto directory = nodeByPath(*client0, "/d0");
     ASSERT_NE(directory, nullptr);
 
-    auto newFile = createFile(*client0, *directory, "f0");
+    // Ensure that new version content is different, otherwise SDK won't perform a full upload
+    auto newFile = createFileWithContent(*client0, *directory, "f0", "abcd");
     ASSERT_EQ(result(newFile), API_OK);
 
     auto newFileTags = getTags(*client0, "/d0/f0");
@@ -535,6 +536,20 @@ auto SdkTestNodeTagsCommon::createFile(MegaApi& client,
 
     auto filePath = fs::u8path(name);
     LocalTempFile file(filePath, 0);
+
+    return uploadFile(client, parent, filePath);
+}
+
+auto SdkTestNodeTagsCommon::createFileWithContent(MegaApi& client,
+                                                  const MegaNode& parent,
+                                                  const std::string& name,
+                                                  const std::string_view content)
+    -> UploadFileResult
+{
+    using sdk_test::LocalTempFile;
+
+    auto filePath = fs::u8path(name);
+    LocalTempFile file(filePath, content);
 
     return uploadFile(client, parent, filePath);
 }

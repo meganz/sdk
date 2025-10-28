@@ -58,6 +58,11 @@ public:
     auto createFile(MegaApi& client, const MegaNode& parent, const std::string& name)
         -> UploadFileResult;
 
+    auto createFileWithContent(MegaApi& client,
+                               const MegaNode& parent,
+                               const std::string& name,
+                               const std::string_view content) -> UploadFileResult;
+
     auto fileVersioning(MegaApi& client, bool enabled) -> Error;
 
     auto getTags(MegaApi& client, const std::string& path) -> AllTagsResult;
