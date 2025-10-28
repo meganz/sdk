@@ -7494,9 +7494,13 @@ void DemoApp::getuseremail_result(string *email, error e)
     {
         cout << "Failed to retrieve email: " << e << endl;
     }
+    else if (!email)
+    {
+        cout << "Email: null" << endl;
+    }
     else
     {
-        cout << "Email: " << email << endl;
+        cout << "Email: " << *email << endl;
     }
 }
 
