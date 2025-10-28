@@ -1000,16 +1000,23 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
             if (it != httpio->dnscache.end())
             {
-                std::string addrs = it->second.ipv4; // must be non-empty
+                std::ostringstream ostream;
+
+                if (!it->second.ipv4.empty())
+                    ostream << it->second.ipv4;
+
                 if (!it->second.ipv6.empty())
                 {
-                    addrs += ",[" + it->second.ipv6 + "]";
+                    if (ostream.tellp() > 0)
+                        ostream << ", ";
+
+                    ostream << "[" << it->second.ipv6 << "]";
                 }
 
                 httpio->addDnsResolution(curl,
                                          httpctx->mCurlDnsList,
                                          httpctx->hostname,
-                                         addrs,
+                                         ostream.str(),
                                          httpctx->port);
             }
         }
@@ -2318,16 +2325,27 @@ int populateDNSCache(std::map<std::string, DNSEntry>& cache,
     // Add URIs with a valid IPv4 address to the cache.
     for (auto i = 0u; i < uris.size(); ++i)
     {
-        // Get references to this URI's IPv4 and IPv6 addresses.
-        auto* ipv4 = &ips[i * 2];
-        auto* ipv6 = ipv4 + 1;
+        // Get a copy of this URI's IPv4 and IPv6 addresses.
+        auto ipv4 = ips[i * 2];
+        auto ipv6 = ips[i * 2 + 1];
 
         // URI doesn't have a valid IPv4 address.
-        if (!isValidIPv4Address(*ipv4))
+        if (!isValidIPv4Address(ipv4))
         {
+            ipv4.clear();
             ++result;
-            continue;
         }
+
+        // URI doesn't have a valid IPv6 address.
+        if (!isValidIPv6Address(ipv6))
+        {
+            ipv6.clear();
+            ++result;
+        }
+
+        // URI doesn't have any valid IP addresses.
+        if (ipv4.empty() && ipv6.empty())
+            continue;
 
         std::string host;
         std::string scheme;
@@ -2340,21 +2358,9 @@ int populateDNSCache(std::map<std::string, DNSEntry>& cache,
         // Add a DNS cache entry for this host.
         auto& entry = cache[host];
 
-        // Update the host's IPv4 address.
-        entry.ipv4 = *ipv4;
-
-        // Assume IPv6 address is invalid.
-        entry.ipv6.clear();
-
-        // URI isn't associated with a valid IPv6 address.
-        if (!isValidIPv6Address(*ipv6))
-        {
-            ++result;
-            continue;
-        }
-
-        // Update the host's IPv6 address.
-        entry.ipv6 = *ipv6;
+        // Update the host's IP addresses.
+        entry.ipv4 = std::move(ipv4);
+        entry.ipv6 = std::move(ipv6);
     }
 
     // Let our caller know the cache was updated.

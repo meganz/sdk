@@ -1924,5 +1924,19 @@ TEST(DNS, populate_dns_cache_succeeds)
     ips = {"q", "::1", "r", "::2"};
 
     ASSERT_EQ(populateDNSCache(cache, ips, uris), 2);
-    EXPECT_TRUE(cache.empty());
+
+    expected = {{"foo.bar.com", DNSEntry{"", ips[1]}}, {"frob.com", DNSEntry{"", ips[3]}}};
+
+    EXPECT_EQ(cache, expected);
+
+    // A URI has no valid IP addresses.
+    cache.clear();
+
+    ips = {"192.168.0.1", "::1", "q", "r"};
+
+    ASSERT_EQ(populateDNSCache(cache, ips, uris), 2);
+
+    expected = {{"foo.bar.com", DNSEntry{ips[0], ips[1]}}};
+
+    EXPECT_EQ(cache, expected);
 }
