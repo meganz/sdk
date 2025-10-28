@@ -2,8 +2,11 @@
 %{
 #include "megaapi.h"
 
-#ifdef SWIGJAVA
+#ifdef __ANDROID__
 #include <android/log.h>
+#endif // __ANDROID__
+
+#ifdef SWIGJAVA
 #include <jni.h>
 
 extern JavaVM* MEGAjvm;
@@ -261,6 +264,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     MEGAJNI_CHECK(jenv, "director PopLocalFrame");
 }
 
+#ifdef __ANDROID__
 %feature("director:except") {
     if (jenv->ExceptionCheck()) {
         jthrowable pending = jenv->ExceptionOccurred();
@@ -347,7 +351,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
         jenv->DeleteLocalRef(pending);
     }
 }
-
+#endif // __ANDROID__
 
 
 
