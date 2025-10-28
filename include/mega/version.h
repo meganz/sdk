@@ -5,5 +5,5 @@
 #define MEGA_MINOR_VERSION 16
 #endif
 #ifndef MEGA_MICRO_VERSION
-#define MEGA_MICRO_VERSION 0
+#define MEGA_MICRO_VERSION 1
 #endif
