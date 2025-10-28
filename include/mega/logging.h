@@ -878,6 +878,16 @@ constexpr auto generateLogAndReturnError(F&& resGenerator)
     };
 }
 
+// Logging msg in full if its size msgSize is less than maxLogSize. Otherwise, logging first and
+// last parts of the msg based on maxLogSize/2.
+#define MaxDirectMessage(msg, msgSize, maxLogSize) \
+    ((msgSize) < (maxLogSize) ? DirectMessage((msg), (msgSize)) : \
+                                DirectMessage((msg), (maxLogSize / 2))) \
+        << ((msgSize) < (maxLogSize) ? "" : "[...]") \
+        << ((msgSize) < (maxLogSize) ? \
+                "" : \
+                DirectMessage((msg) + (msgSize) - (maxLogSize / 2), (maxLogSize / 2)))
+
 enum JSONLog
 {
     JSON_LOG_NONE = 0,

@@ -38,16 +38,6 @@ std::atomic<bool> g_netLoggingOn{false};
 #define NET_verbose if (g_netLoggingOn) LOG_verbose
 #define NET_debug if (g_netLoggingOn) LOG_debug
 
-// Logging msg in full if its size msgSize is less than maxLogSize. Otherwise, logging first and
-// last parts of the msg based on maxLogSize/2.
-#define MaxDirectMessage(msg, msgSize, maxLogSize) \
-    ((msgSize) < (maxLogSize) ? DirectMessage((msg), (msgSize)) : \
-                                DirectMessage((msg), (maxLogSize / 2))) \
-        << ((msgSize) < (maxLogSize) ? "" : "[...]") \
-        << ((msgSize) < (maxLogSize) ? \
-                "" : \
-                DirectMessage((msg) + (msgSize) - (maxLogSize / 2), (maxLogSize / 2)))
-
 #if defined(_WIN32)
 
 HANDLE SockInfo::sharedEventHandle()
