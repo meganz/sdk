@@ -26,6 +26,17 @@
 #include "mega/testhooks.h"
 #include "mega/utils.h"
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN // Reduce content pulled in by Windows.h -> speed up compile time
+#include <In6addr.h>
+#include <Inaddr.h>
+
+#include <ws2tcpip.h>
+#else // _WIN32
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#endif // ! _WIN32
+
 #if defined(USE_OPENSSL)
 #include <openssl/err.h>
 #endif
@@ -2133,6 +2144,221 @@ void CurlHttpIO::addDnsResolution(
     dnsList.reset(curl_slist_append(dnsList.release(), curlListEntry.c_str()));
 
     curl_easy_setopt(curl, CURLOPT_RESOLVE, dnsList.get());
+}
+
+bool crackURI(const string& uri, string& scheme, string& host, int& port)
+{
+    if (uri.empty())
+        return false;
+
+    port = 0;
+    scheme.clear();
+    host.clear();
+
+    size_t starthost, endhost = 0, startport, endport;
+
+    starthost = uri.find("://");
+
+    if (starthost != string::npos)
+    {
+        scheme = uri.substr(0, starthost);
+        starthost += 3;
+    }
+    else
+    {
+        starthost = 0;
+    }
+
+    if (uri[starthost] == '[' && uri.size() > 0)
+    {
+        starthost++;
+    }
+
+    startport = uri.find("]:", starthost);
+
+    if (startport == string::npos)
+    {
+        startport = uri.find(":", starthost);
+
+        if (startport != string::npos)
+        {
+            endhost = startport;
+        }
+    }
+    else
+    {
+        endhost = startport;
+        startport++;
+    }
+
+    if (startport != string::npos)
+    {
+        startport++;
+
+        endport = uri.find("/", startport);
+
+        if (endport == string::npos)
+        {
+            endport = uri.size();
+        }
+
+        if (endport <= startport || endport - startport > 5)
+        {
+            port = -1;
+        }
+        else
+        {
+            for (size_t i = startport; i < endport; i++)
+            {
+                int c = uri.data()[i];
+
+                if (c < '0' || c > '9')
+                {
+                    port = -1;
+                    break;
+                }
+            }
+        }
+
+        if (!port)
+        {
+            port = atoi(uri.data() + startport);
+
+            if (port > 65535)
+            {
+                port = -1;
+            }
+        }
+    }
+    else
+    {
+        endhost = uri.find("]/", starthost);
+
+        if (endhost == string::npos)
+        {
+            endhost = uri.find("/", starthost);
+
+            if (endhost == string::npos)
+            {
+                endhost = uri.size();
+            }
+        }
+    }
+
+    if (!port)
+    {
+        if (!scheme.compare("https"))
+        {
+            port = 443;
+        }
+        else if (!scheme.compare("http"))
+        {
+            port = 80;
+        }
+        else if (!scheme.compare(0, 5, "socks"))
+        {
+            port = 1080;
+        }
+        else
+        {
+            port = -1;
+        }
+    }
+
+    host = uri.substr(starthost, endhost - starthost);
+
+    if (port <= 0 || starthost == string::npos || starthost >= endhost)
+    {
+        port = 0;
+        scheme.clear();
+        host.clear();
+        return false;
+    }
+
+    return true;
+}
+
+static bool isValidIPAddress(std::string_view string, int type)
+{
+    // Sanity.
+    assert(type == AF_INET || type == AF_INET6);
+
+    // Throwaway buffer: Necessary for parsing.
+    union
+    {
+        struct in_addr inaddr;
+        struct in6_addr in6addr;
+    } buffer;
+
+    // Try and parse the provided address string.
+    return inet_pton(type, string.data(), &buffer) > 0;
+}
+
+bool isValidIPv4Address(std::string_view string)
+{
+    return isValidIPAddress(string, AF_INET);
+}
+
+bool isValidIPv6Address(std::string_view string)
+{
+    return isValidIPAddress(string, AF_INET6);
+}
+
+int populateDNSCache(std::map<std::string, DNSEntry>& cache,
+                     const std::vector<std::string>& ips,
+                     const std::vector<std::string>& uris)
+{
+    // Each URI should be associated with an IPv4 and an IPv6 address.
+    if (ips.size() != uris.size() * 2)
+        return -1;
+
+    // Assume all IPs are valid.
+    auto result = 0;
+
+    // Add URIs with a valid IPv4 address to the cache.
+    for (auto i = 0u; i < uris.size(); ++i)
+    {
+        // Get references to this URI's IPv4 and IPv6 addresses.
+        auto* ipv4 = &ips[i * 2];
+        auto* ipv6 = ipv4 + 1;
+
+        // URI doesn't have a valid IPv4 address.
+        if (!isValidIPv4Address(*ipv4))
+        {
+            ++result;
+            continue;
+        }
+
+        std::string host;
+        std::string scheme;
+        int port;
+
+        // Couldn't extract the URI's host name.
+        if (!crackURI(uris[i], scheme, host, port) || host.empty())
+            continue;
+
+        // Add a DNS cache entry for this host.
+        auto& entry = cache[host];
+
+        // Update the host's IPv4 address.
+        entry.ipv4 = *ipv4;
+
+        // Assume IPv6 address is invalid.
+        entry.ipv6.clear();
+
+        // URI isn't associated with a valid IPv6 address.
+        if (!isValidIPv6Address(*ipv6))
+        {
+            ++result;
+            continue;
+        }
+
+        // Update the host's IPv6 address.
+        entry.ipv6 = *ipv6;
+    }
+
+    // Let our caller know the cache was updated.
+    return result;
 }
 
 } // namespace

@@ -33,6 +33,26 @@ namespace mega {
 
 extern std::atomic<bool> g_netLoggingOn;
 
+// Represents a DNS entry for a particular URI.
+struct DNSEntry
+{
+    bool operator==(const DNSEntry& rhs) const
+    {
+        return ipv4 == rhs.ipv4 && ipv6 == rhs.ipv6;
+    }
+
+    bool operator!=(const DNSEntry& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    // The URI's IPv4 address.
+    std::string ipv4;
+
+    // The URI's IPv6 address, if any.
+    std::string ipv6;
+}; // DNSEntry
+
 struct MEGA_API SockInfo
 {
     enum
@@ -244,5 +264,30 @@ struct MEGA_API CurlHttpContext
     std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> mCurlDnsList{nullptr,
                                                                              curl_slist_free_all};
 };
+
+// Separate a URI into its constituent pieces.
+bool crackURI(const string& uri, string& scheme, string& host, int& port);
+
+// True if string is a valid IPv4 address.
+bool isValidIPv4Address(std::string_view string);
+
+// True if string is a valid IPv6 address.
+bool isValidIPv6Address(std::string_view string);
+
+// Populates the specified DNS cache based on the provided URI and IPs.
+//
+// This function expects each URI to be associated with an IPv4 and an IPv6
+// address.
+//
+// Entries will be added to the cache if and only if a URI is associated
+// with a valid IPv4 address.
+//
+// This function returns:
+// <0 - Too few or too many IPs vs. URIs.
+//  0 - Cache updated.
+// >0 - Cache updated but an invalid IP was detected.
+int populateDNSCache(std::map<std::string, DNSEntry>& cache,
+                     const std::vector<std::string>& ips,
+                     const std::vector<std::string>& uris);
 
 } // namespace
