@@ -1581,10 +1581,11 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                                   << (req->buf ? req->bufpos : (int)req->in.size())
                                   << " bytes of raw data]";
                     }
-                    else if (req->mChunked && static_cast<size_t>(req->bufpos) != req->in.size())
+                    else if (req->mChunked)
                     {
-                        LOG_debug << req->getLogName() << "[received " << req->bufpos
-                                  << " bytes of chunked data]";
+                        // Chunked data logging is handled in write_data callback to avoid
+                        // duplicate logging. The 'in' field may contain previously received
+                        // data that would be logged multiple times if printed here.
                     }
                     else
                     {
@@ -1848,6 +1849,17 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
         if (len)
         {
             req->put(ptr, static_cast<unsigned>(len), true);
+            // Chunked data is logged here when written since chunks are not
+            // consumed immediately upon receipt, avoiding duplicate logging.
+            if (req->mChunked)
+            {
+                JSON_CHUNK_RECEIVED
+                    << req->getLogName() << "Received chunk " << len << ": "
+                    << MaxDirectMessage(static_cast<const char*>(ptr),
+                                        static_cast<size_t>(len),
+                                        static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize()))
+                    << " (at ds: " << Waiter::ds << ")";
+            }
         }
 
         httpio->lastdata = Waiter::ds;
