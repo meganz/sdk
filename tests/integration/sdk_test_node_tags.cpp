@@ -431,7 +431,8 @@ TEST_F(SdkTestNodeTagsSearch, TagsBelowSucceeds)
     EXPECT_THAT(value(tags), ElementsAre("yf0", "yf1", "yf2", "zf0", "zf1", "zf2"));
 
     // Add a new version of yf without the yf1 tag.
-    auto yf = createFile(*client0, *y, "yf");
+    // Ensure that new version content is different, otherwise SDK won't perform a full upload
+    auto yf = createFileWithContent(*client0, *y, "yf", "abcd");
     ASSERT_EQ(result(yf), API_OK);
     ASSERT_EQ(removeTag(*client0, *value(yf), "yf1"), API_OK);
 
