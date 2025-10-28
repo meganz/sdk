@@ -236,10 +236,10 @@ void Command::cacheresolvedurls(const std::string& command,
                                 const std::vector<string>& ips)
 {
     // Try and update the DNS cache.
-    auto result = client->httpio->cacheresolvedurls(urls, ips);
+    auto updated = client->httpio->cacheresolvedurls(urls, ips);
 
     // Not enough IPs for each URI.
-    if (result < 0)
+    if (updated < 0)
     {
         LOG_err << "Unpaired IPs received for URLs in `" << command << "`. URLs: " << urls.size()
                 << " IPs: " << ips.size();
@@ -248,7 +248,7 @@ void Command::cacheresolvedurls(const std::string& command,
     }
 
     // Each URI was associated with two valid IP addresses.
-    if (!result)
+    if (!updated)
         return;
 
     // One or more URIs were associated with an invalid IP address.
