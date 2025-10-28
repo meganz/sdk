@@ -54,6 +54,7 @@ target_sources(test_unit
     shared_mutex_tests.cpp
     uripath_test.cpp
     Sqlite_test.cpp
+    file_access_tests.cpp
 )
 
 target_sources_conditional(test_unit
@@ -63,8 +64,14 @@ target_sources_conditional(test_unit
     GfxCommands_test.cpp
 )
 
+# Load File Service test sources.
+include(file_service/file_service.cmake)
+
 # Link with SDKlib
-target_link_libraries(test_unit PRIVATE MEGA::SDKlib)
+target_link_libraries(test_unit PRIVATE
+                                MEGA::CommonHeaderPaths
+                                MEGA::SDKlib
+)
 
 # Link with the common interface library for the tests.
 target_link_libraries(test_unit PRIVATE MEGA::test_tools MEGA::test_common)

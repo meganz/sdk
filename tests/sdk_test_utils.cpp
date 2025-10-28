@@ -105,9 +105,20 @@ void createFile(const fs::path& filePath, const size_t fileSizeBytes)
     writeFileContent<std::size_t>(filePath, std::ios::binary, fileSizeBytes);
 }
 
-void createFile(const fs::path& filePath, const std::string_view contents)
+void createFile(const fs::path& filePath,
+                const std::string_view contents,
+                std::optional<fs::file_time_type> customMtime)
 {
     writeFileContent<std::string_view>(filePath, std::ios::binary, contents);
+    if (customMtime)
+    {
+        std::error_code ec;
+        fs::last_write_time(filePath, *customMtime, ec);
+        if (ec)
+        {
+            throw std::runtime_error("Failed to set mtime: " + ec.message());
+        }
+    }
 }
 
 void appendToFile(const fs::path& filePath, const size_t bytesToAppend)
@@ -126,10 +137,12 @@ LocalTempFile::LocalTempFile(const fs::path& _filePath, const size_t fileSizeByt
     createRandomFile(mFilePath, fileSizeBytes);
 }
 
-LocalTempFile::LocalTempFile(const fs::path& _filePath, const std::string_view contents):
+LocalTempFile::LocalTempFile(const fs::path& _filePath,
+                             const std::string_view contents,
+                             std::optional<fs::file_time_type> customMtime):
     mFilePath(_filePath)
 {
-    createFile(mFilePath, contents);
+    createFile(mFilePath, contents, customMtime);
 }
 
 void LocalTempFile::appendData(const size_t bytesToAppend) const

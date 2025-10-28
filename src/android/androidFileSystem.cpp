@@ -917,11 +917,43 @@ void AndroidFileAccess::fclose()
     fCloseInternal();
 }
 
-bool AndroidFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
+bool AndroidFileAccess::fwrite(const void* buffer,
+                               unsigned long length,
+                               m_off_t offset,
+                               unsigned long* numWritten,
+                               bool* cretry)
 {
-    retry = false;
-    lseek64(fd, pos, SEEK_SET);
-    return write(fd, data, len) == len;
+    // Sanity.
+    assert(buffer || !length);
+    assert(offset >= 0);
+
+    // Keeps logic simple.
+    if (!cretry)
+        cretry = &retry;
+
+    auto numWritten_ = 0ul;
+
+    if (!numWritten)
+        numWritten = &numWritten_;
+
+    // Assume we can't write any data to file.
+    *numWritten = 0;
+
+    // Write failures are not retriable on POSIX systems.
+    *cretry = false;
+
+    // Try and perform the write.
+    auto result = pwrite(fd, buffer, length, offset);
+
+    // Couldn't perform the write.
+    if (result < 0)
+        return false;
+
+    // Let the user know how many bytes were written.
+    *numWritten = static_cast<unsigned long>(result);
+
+    // Write is successful if all bytes were be written.
+    return length == *numWritten;
 }
 
 bool AndroidFileAccess::fstat(m_time_t& modified, m_off_t& size)
@@ -984,11 +1016,55 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileAccess::stealFileWrapper()
     return std::exchange(mFileWrapper, nullptr);
 }
 
-bool AndroidFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
+bool AndroidFileAccess::setSparse()
 {
-    retry = false;
-    lseek64(fd, pos, SEEK_SET);
-    return read(fd, (char*)dst, len) == len;
+    return true;
+}
+
+auto AndroidFileAccess::getFileSize() const
+    -> std::optional<std::pair<std::uint64_t, std::uint64_t>>
+{
+    // File isn't open.
+    if (fd < 0)
+        return std::nullopt;
+
+    struct stat attributes;
+
+    // Couldn't retrieve the file's attributes.
+    if (::fstat(fd, &attributes) < 0)
+        return std::nullopt;
+
+    // Note that st_blocks is reported in units of 512B sectors.
+    auto allocatedSize = static_cast<std::uint64_t>(attributes.st_blocks) * 512ul;
+
+    // st_size is reported in units of bytes.
+    auto reportedSize = static_cast<std::uint64_t>(attributes.st_size);
+
+    return std::make_pair(allocatedSize, reportedSize);
+}
+
+bool AndroidFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* cretry)
+{
+    // Sanity.
+    assert(buffer || !length);
+    assert(offset >= 0);
+
+    // Keeps logic simple.
+    if (!cretry)
+        cretry = &retry;
+
+    // Reads are never retriable on POSIX systems.
+    *cretry = false;
+
+    // Perform the read.
+    auto result = pread(fd, buffer, length, offset);
+
+    // Read failed.
+    if (result < 0)
+        return false;
+
+    // Read was successful if all bytes were read.
+    return static_cast<unsigned long>(result) == length;
 }
 
 bool AndroidFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)

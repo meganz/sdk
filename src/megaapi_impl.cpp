@@ -1272,7 +1272,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
 {
     if (startPos != ChunkedHash::chunkfloor(startPos))
     {
-        LOG_err << "non-chunk start postion supplied";
+        LOG_err << "non-chunk start position supplied";
         return nullptr;
     }
 
@@ -13157,11 +13157,14 @@ NodeSearchFilter searchToNodeFilter(const MegaSearchFilter& filter,
 
 sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
-    ShareType_t shareType = filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ? IN_SHARES :
-                            (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ? OUT_SHARES :
-                            (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK : NO_SHARES));
+    int shareType =
+        filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ?
+            IN_SHARES :
+            (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ?
+                 static_cast<ShareType_t>(OUT_SHARES | PENDING_OUTSHARES) :
+                 (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK : NO_SHARES));
 
-    NodeSearchFilter nf = searchToNodeFilter(*filter, shareType);
+    NodeSearchFilter nf = searchToNodeFilter(*filter, static_cast<ShareType_t>(shareType));
 
     if (filter->byLocation() == MegaApi::SEARCH_TARGET_ROOTNODE)
     {
@@ -19176,8 +19179,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     auto forceToUpload{false};
                     const auto skipSearchBySameName =
-                        client->getNumberOfChildren(parent->nodeHandle()) >
-                        MAX_CHILDREN_FOR_SAME_NAME_SEARCH;
+                        !parent || client->getNumberOfChildren(parent->nodeHandle()) >
+                                       MAX_CHILDREN_FOR_SAME_NAME_SEARCH;
                     const auto prevNodeSameName =
                         !skipSearchBySameName ?
                             client->childnodebyname(parent.get(), fileName, false) :
@@ -19242,8 +19245,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             {
                                 sameNodeFpFound = n;
                                 sameNodeSameNameInTarget =
-                                    (fileName == sameNodeFpFound->displayname()) &&
-                                    (sameNodeFpFound->parent->nodeHandle() == parent->nodeHandle());
+                                    (sameNodeFpFound->parent && parent) &&
+                                    (sameNodeFpFound->parent->nodeHandle() ==
+                                     parent->nodeHandle()) &&
+                                    (fileName == sameNodeFpFound->displayname());
+
                                 if (alreadyCheckedSameNodeNameInTarget || sameNodeSameNameInTarget)
                                 {
                                     break;
@@ -19313,6 +19319,14 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             }
                             else
                             {
+                                if (!parent)
+                                {
+                                    LOG_err << "SendPendingTransfers(upload): invalid parent for "
+                                            << fileName;
+                                    assert(false && "SendPendingTransfers(upload): invalid parent");
+                                    e = API_EARGS;
+                                    break;
+                                }
                                 client->putnodes(parent->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), nullptr, nextTag, false);
                             }
 
@@ -19912,6 +19926,9 @@ void MegaApiImpl::sendPendingRequests()
         else
         {
             committer.commitNow();
+            // Scoped retaining the request back into the requestQueue, allowing its listener
+            // to be removed if removeListener is called in the scope by any chance
+            const auto scopedRetaining = requestQueue.scopedRetainingRequest(request);
             g.unlock();
             yield();
             g.lock();
@@ -28955,8 +28972,40 @@ void TransferQueue::setAllCancelled(CancelToken cancelled, int direction)
     }
 }
 
+void RequestQueue::RetainedRequest::removeListener(MegaRequestListener* listener)
+{
+    if (mRequest && mRequest->getListener() == listener)
+        mRequest->setListener(NULL);
+}
+
+void RequestQueue::RetainedRequest::removeListener(MegaScheduledCopyListener* listener)
+{
+    if (mRequest && mRequest->getBackupListener() == listener)
+        mRequest->setBackupListener(NULL);
+}
+
+RequestQueue::ScopedRetainingRequest::ScopedRetainingRequest(
+    RequestQueue::RetainedRequest& retainedRequest,
+    MegaRequestPrivate* request):
+    mRetainedRequest{retainedRequest}
+{
+    mRetainedRequest.set(request);
+}
+
+RequestQueue::ScopedRetainingRequest::~ScopedRetainingRequest()
+{
+    mRetainedRequest.clear();
+}
+
 RequestQueue::RequestQueue()
 {
+}
+
+std::unique_ptr<RequestQueue::ScopedRetainingRequest>
+    RequestQueue::scopedRetainingRequest(MegaRequestPrivate* request)
+{
+    std::lock_guard<std::mutex> guard(mutex);
+    return std::make_unique<RequestQueue::ScopedRetainingRequest>(this->retainedRequest, request);
 }
 
 void RequestQueue::push(MegaRequestPrivate *request)
@@ -29015,6 +29064,8 @@ void RequestQueue::removeListener(MegaRequestListener *listener)
             request->setListener(NULL);
         it++;
     }
+
+    retainedRequest.removeListener(listener);
 }
 
 void RequestQueue::removeListener(MegaScheduledCopyListener *listener)
@@ -29029,6 +29080,8 @@ void RequestQueue::removeListener(MegaScheduledCopyListener *listener)
             request->setBackupListener(NULL);
         it++;
     }
+
+    retainedRequest.removeListener(listener);
 }
 
 MegaHashSignatureImpl::MegaHashSignatureImpl(const char *base64Key)
@@ -32665,7 +32718,7 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     {
         size_t num = static_cast<size_t>(static_cast<int>(len) - remaining);
         LOG_debug << getLogName()
-                  << "[Streaming] Length exceeds limits of circular buffer. Writting a piece of "
+                  << "[Streaming] Length exceeds limits of circular buffer. Writing a piece of "
                   << num << " bytes to the end and the others " << remaining
                   << " bytes from the beginning"
                   << " [current index = " << currentIndex << ", len = " << len

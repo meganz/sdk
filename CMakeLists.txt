@@ -176,6 +176,6 @@ if(ENABLE_SDKLIB_TESTS)
 endif()
 
 ## Load FUSE support.
-include(src/fuse/CMakeLists.txt)
+add_subdirectory(src/fuse)
 
 add_subdirectory(third_party)

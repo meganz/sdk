@@ -196,38 +196,94 @@ WinFileAccess::~WinFileAccess()
     fclose();
 }
 
-bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
+bool WinFileAccess::setSparse()
+{
+    // Can't set a file as sparse if it isn't open.
+    if (hFile == INVALID_HANDLE_VALUE)
+        return false;
+
+    // Try and mark the file as a sparse file.
+    return DeviceIoControl(hFile, FSCTL_SET_SPARSE, nullptr, 0, nullptr, 0, nullptr, nullptr);
+}
+
+auto WinFileAccess::getFileSize() const -> std::optional<std::pair<std::uint64_t, std::uint64_t>>
+{
+    // File isn't open.
+    if (hFile == INVALID_HANDLE_VALUE)
+        return std::nullopt;
+
+    // Retrieve information about this file.
+    //
+    // buffer specifies where this information should be stored.
+    // kind specifies what kind of information we're interested in.
+    //
+    // returns false if we couldn't retrieve the information.
+    auto getInfo = [this](auto& buffer, auto kind)
+    {
+        if (GetFileInformationByHandleEx(hFile, kind, &buffer, sizeof(buffer)))
+            return true;
+
+        auto error = GetLastError();
+
+        LOG_err << "GetFileInformationByHandleEx failed. Error: " << error;
+
+        return false;
+    }; // getInfo
+
+    FILE_COMPRESSION_INFO compression;
+
+    // Couldn't retrieve the file's compression info.
+    if (!getInfo(compression, FileCompressionInfo))
+        return std::nullopt;
+
+    FILE_STANDARD_INFO standard;
+
+    // Couldn't retrieve the file's standard info.
+    if (!getInfo(standard, FileStandardInfo))
+        return std::nullopt;
+
+    // These casts prevent us having to assemble a u64 value by hand.
+    auto allocatedSize = static_cast<std::uint64_t>(compression.CompressedFileSize.QuadPart);
+    auto reportedSize = static_cast<std::uint64_t>(standard.EndOfFile.QuadPart);
+
+    return std::make_pair(allocatedSize, reportedSize);
+}
+
+bool WinFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, bool* cretry)
 {
     // Sanity.
-    assert(dst || !len);
+    assert(buffer || !length);
     assert(hFile != INVALID_HANDLE_VALUE);
 
+    // Keeps logic simple.
+    if (!cretry)
+        cretry = &retry;
+
     // Convenience.
-    auto buffer = reinterpret_cast<void*>(dst);
-    auto length = static_cast<DWORD>(len);
-    auto offset = static_cast<std::uint64_t>(pos);
+    auto length_ = static_cast<DWORD>(length);
+    auto offset_ = static_cast<std::uint64_t>(offset);
 
     // So we can read from a particular offset without races.
     OVERLAPPED overlapped{};
 
     // Specify where we should read from.
-    overlapped.Offset = offset & UINT32_MAX;
-    overlapped.OffsetHigh = offset >> 32;
+    overlapped.Offset = offset_ & UINT32_MAX;
+    overlapped.OffsetHigh = offset_ >> 32;
 
     // Tracks how many bytes we were able to read.
     DWORD numRead{};
 
     // Assume the read fails due to a persistent error.
-    retry = false;
+    *cretry = false;
 
     // Couldn't perform read.
-    if (!ReadFile(hFile, buffer, length, &numRead, &overlapped))
+    if (!ReadFile(hFile, buffer, length_, &numRead, &overlapped))
     {
         // Latch the error.
         auto error = GetLastError();
 
         // Let the caller know if it's worth retrying the read.
-        retry = WinFileSystemAccess::istransient(error);
+        *cretry = WinFileSystemAccess::istransient(error);
 
         // Leave a trail of what went wrong.
         LOG_err << "ReadFile failed. Error: " << error;
@@ -266,37 +322,46 @@ void WinFileAccess::fclose()
     hFind = INVALID_HANDLE_VALUE;
 }
 
-bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
+bool WinFileAccess::fwrite(const void* buffer,
+                           unsigned long length,
+                           m_off_t offset,
+                           unsigned long* numWritten,
+                           bool* cretry)
 {
     // Sanity.
-    assert(data || !len);
+    assert(buffer || !length);
+    assert(offset >= 0);
+
+    // Keeps logic simple.
+    if (!cretry)
+        cretry = &retry;
+
+    auto numWritten_ = 0ul;
+
+    if (!numWritten)
+        numWritten = &numWritten_;
 
     // Convenience.
-    auto buffer = reinterpret_cast<const void*>(data);
-    auto length = static_cast<DWORD>(len);
-    auto offset = static_cast<std::uint64_t>(pos);
+    auto offset_ = static_cast<std::uint64_t>(offset);
 
     // So we can explicitly specify where the write should begin.
     OVERLAPPED overlapped{};
 
     // Specify where the write should begin.
-    overlapped.Offset = offset & UINT32_MAX;
-    overlapped.OffsetHigh = offset >> 32;
-
-    // Tracks how many bytes were written.
-    DWORD numWritten{};
+    overlapped.Offset = offset_ & UINT32_MAX;
+    overlapped.OffsetHigh = offset_ >> 32;
 
     // Assume the write fails due to a persistent error.
-    retry = false;
+    *cretry = false;
 
     // Couldn't perform the write.
-    if (!WriteFile(hFile, buffer, length, &numWritten, &overlapped))
+    if (!WriteFile(hFile, buffer, length, numWritten, &overlapped))
     {
         // Latch error.
         auto error = GetLastError();
 
         // Should the caller retry the write?
-        retry = WinFileSystemAccess::istransient(error);
+        *cretry = WinFileSystemAccess::istransient(error);
 
         // Leave a trail.
         LOG_err << "WriteFile failed. Error: " << error;
@@ -306,10 +371,10 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
     }
 
     // Write succeeded but didn't write everything we specified.
-    if (length != numWritten)
+    if (length != *numWritten)
     {
         // Leave a trail.
-        LOG_err << "WriteFile failed (dwWritten) " << numWritten << " - " << length;
+        LOG_err << "WriteFile failed (dwWritten) " << *numWritten << " - " << length;
 
         // Let the caller know the write failed.
         return false;
@@ -322,7 +387,7 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
         auto error = GetLastError();
 
         // Should the caller retry the write?
-        retry = WinFileSystemAccess::istransient(error);
+        *cretry = WinFileSystemAccess::istransient(error);
 
         // Trail.
         LOG_err << "FlushFileBuffers failed. Error: " << error;

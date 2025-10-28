@@ -2367,7 +2367,8 @@ void LocalNode::initiateScanBlocked(bool folderBlocked, bool containsFingerprint
     {
         rare().scanBlocked->folderUnreadable = true;
 
-        LOG_verbose << sync->syncname << "Directory scan has become inaccesible for path: " << getLocalPath();
+        LOG_verbose << sync->syncname
+                    << "Directory scan has become inaccessible for path: " << getLocalPath();
 
         // Mark all immediate children as requiring refingerprinting.
         for (auto& childIt : children)
@@ -3295,7 +3296,7 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
         return !uploadPtr->putnodesStarted;
     }
 
-    LOG_debug << sync->syncname << "Cancelling superceded transfer of "
+    LOG_debug << sync->syncname << "Cancelling superseded transfer of "
               << transferSP->getLocalname() << ". Reason: "
               << (transferDirectionNeedsToChange ?
                       "Transfer direction needs to change." :

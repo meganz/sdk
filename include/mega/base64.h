@@ -48,36 +48,29 @@ public:
     static void toStandard(string& b64str);
 };
 
-template <unsigned BINARYSIZE>
+template<std::size_t BINARYSIZE>
 struct Base64Str
 {
     // provides a way to build the C string on the stack efficiently, using minimal space
-    enum { STRLEN = (BINARYSIZE * 4 + 2) / 3};
+    enum : std::size_t
+    {
+        STRLEN = (BINARYSIZE * 4 + 2) / 3
+    };
     char chars[STRLEN + 1]; // sizeof(chars) can be larger due to alignment etc
-    Base64Str(const byte* b)
+
+    Base64Str(const void* b):
+        Base64Str(b, BINARYSIZE)
+    {}
+
+    Base64Str(const void* b, int size)
     {
-        #ifndef NDEBUG
-        int n =
-        #endif
-        Base64::btoa(b, BINARYSIZE, chars);
-        assert(static_cast<size_t>(n + 1) == sizeof(chars));
-    }
-    Base64Str(const byte* b, int size)
-    {
-        #ifndef NDEBUG
-        int n =
-        #endif
-        Base64::btoa(b, size, chars);
+        [[maybe_unused]] int n = Base64::btoa(reinterpret_cast<const byte*>(b), size, chars);
         assert(static_cast<size_t>(n + 1) <= sizeof(chars));
     }
-    Base64Str(const handle& h)
-    {
-        #ifndef NDEBUG
-        int n =
-        #endif
-        Base64::btoa((const byte*)&h, BINARYSIZE, chars);
-        assert(static_cast<size_t>(n + 1) == sizeof(chars));
-    }
+
+    Base64Str(const handle& h):
+        Base64Str(&h)
+    {}
     operator const char* () const
     {
         return chars;
@@ -86,11 +79,16 @@ struct Base64Str
     {
         return reinterpret_cast<const byte*>(chars);
     }
-    unsigned int size() const
+
+    std::size_t size() const
     {
         return STRLEN;
     }
 };
+
+// Deduction guide for convenience.
+template<typename T>
+Base64Str(const T* data) -> Base64Str<sizeof(T)>;
 
 // lowercase base32 encoding
 class MEGA_API Base32

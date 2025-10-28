@@ -8,6 +8,11 @@ add_compile_definitions(
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Check if this platform's time_t type is distinct from int64_t.
+try_compile(HAVE_DISTINCT_TIME_T
+            "${CMAKE_BINARY_DIR}"
+            "${CMAKE_CURRENT_LIST_DIR}/checks/has_distinct_time_t.cpp")
+
 if (MSVC)
     # https://gitlab.kitware.com/cmake/cmake/-/issues/18837
     add_compile_options(/Zc:__cplusplus) # Enable updated __cplusplus macro

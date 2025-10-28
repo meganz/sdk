@@ -85,6 +85,15 @@ namespace fs = std::filesystem;
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/service_flags.h>
 
+// File Service.
+#include <mega/file_service/file.h>
+#include <mega/file_service/file_id.h>
+#include <mega/file_service/file_info.h>
+#include <mega/file_service/file_result.h>
+#include <mega/file_service/file_result_or.h>
+#include <mega/file_service/file_service_result.h>
+#include <mega/file_service/file_service_result_or.h>
+
 using namespace mega;
 using std::cout;
 using std::cerr;
@@ -4970,6 +4979,186 @@ void exec_udp_send_recv(autocomplete::ACState& state)
     }
 }
 
+static file_service::FileID toFileID(autocomplete::ACState& state)
+{
+    using file_service::FileID;
+
+    // User's passed us an encoded ID.
+    if (auto id = state.extractflagparam("-id"))
+        return FileID::from(*id);
+
+    // User's passed us a path.
+    if (auto path = state.extractflagparam("-path"))
+    {
+        // Found the node denoted by the user's path.
+        if (auto node = nodebypath(path->c_str()))
+            return FileID::from(node->nodeHandle());
+    }
+
+    // User's passed us bad flags or a bad node path.
+    return FileID();
+}
+
+static void exec_fileserviceinfo(autocomplete::ACState& state)
+{
+    using file_service::toString;
+
+    // What file does the user want us to describe?
+    auto id = toFileID(state);
+
+    // Try and retrieve a description of the file the user's specified.
+    auto info = client->mFileService.info(id);
+
+    // Couldn't retrieve a description.
+    if (!info)
+    {
+        conlock(std::cerr) << "Couldn't retrieve file information: " << toString(info.error())
+                           << std::endl;
+        return;
+    }
+
+    // Print the description.
+    conlock(std::cout) << "File " << toString(id) << ":\n"
+                       << "Allocated Size" << info->allocatedSize() << "\n"
+                       << "Handle: " << toNodeHandle(info->handle()) << "\n"
+                       << "Modified: " << displayTime(info->modified()) << "\n"
+                       << "Reported Size: " << info->reportedSize() << "\n"
+                       << "Size: " << info->size() << std::endl;
+}
+
+static void exec_fileserviceread(autocomplete::ACState& state)
+{
+    // Convenience.
+    using namespace file_service;
+
+    // Disambiguate.
+    using file_service::File;
+
+    // What file does the user want to read from?
+    auto id = toFileID(state);
+
+    // Try and open the file the user's specified.
+    auto file = client->mFileService.open(id);
+
+    // Couldn't open the file.
+    if (!file)
+    {
+        conlock(std::cerr) << "Couldn't open file for reading: " << toString(file.error());
+        return;
+    }
+
+    // Try and translate a string into a u64 value.
+    auto translate = [](const std::string& string)
+    {
+        // An empty string can't contain a value.
+        if (string.empty())
+            return std::optional<std::uint64_t>();
+
+        std::uint64_t value;
+
+        // Convenience.
+        auto begin = string.data();
+        auto end = begin + string.size();
+
+        // Try and translate string into a u64 value.
+        auto [last, result] = std::from_chars(begin, end, value);
+
+        // Couldn't translate the string.
+        if (last != end || result != std::errc{})
+            return std::optional<std::uint64_t>();
+
+        // Return value to caller.
+        return std::optional<std::uint64_t>(value);
+    }; // translate
+
+    // Assume the user wants to read the entire file.
+    std::uint64_t offset = 0;
+    std::uint64_t length = file->info().size();
+
+    // User wants to start reading from a particular offset.
+    if (state.words.size() > 2)
+    {
+        // Try and translate the user's offset.
+        auto offset_ = translate(state.words[2].s);
+
+        // Couldn't translate the user's offset.
+        if (!offset_)
+        {
+            conlock(std::cerr) << "Invalid offset: " << state.words[2].s << std::endl;
+            return;
+        }
+
+        offset = *offset_;
+    }
+
+    // User wants to read only so much of the file.
+    if (state.words.size() > 3)
+    {
+        // Try and translate the user's length.
+        auto length_ = translate(state.words[3].s);
+
+        // Couldn't translate the user's length.
+        if (!length_)
+        {
+            conlock(std::cerr) << "Invalid length: " << state.words[3].s << std::endl;
+            return;
+        }
+
+        length = *length_;
+    }
+
+    // Cleaner than complex capture lists.
+    class Reader
+    {
+        File mFile;
+        std::uint64_t mOffset;
+        std::uint64_t mLength;
+
+    public:
+        Reader(File file, std::uint64_t offset, std::uint64_t length):
+            mFile(std::move(file)),
+            mOffset(offset),
+            mLength(length)
+        {}
+
+        // Called when our read has completed.
+        void operator()(FileResultOr<FileReadResult> result)
+        {
+            // The read failed.
+            if (!result)
+            {
+                conlock(std::cerr) << "Read failed: " << toString(result.error()) << std::endl;
+                return;
+            }
+
+            // How much data were we able to read?
+            auto length = result->mLength;
+
+            // Read's completed.
+            if (!length)
+            {
+                conlock(std::cout) << "Read completed." << std::endl;
+                return;
+            }
+
+            // Bump our offset.
+            mOffset += length;
+
+            // Kick off another read.
+            read();
+        }
+
+        // Kick off the read.
+        void read()
+        {
+            mFile.read(*this, mOffset, mLength - mOffset);
+        }
+    }; // Reader
+
+    // Kick off the read.
+    Reader(std::move(*file), offset, length).read();
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -5578,6 +5767,19 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_dnsservers, sequence(text("setdns"), either(param("dnslist"), flag("-clear"))));
 
     p->Add(exec_cleanVault, text("cleanvault"));
+
+    p->Add(exec_fileserviceinfo,
+           sequence(text("file-service"),
+                    text("info"),
+                    either(sequence(flag("-id"), param("id")),
+                           sequence(flag("-path"), remoteFSFile(client, &cwd)))));
+
+    p->Add(exec_fileserviceread,
+           sequence(text("file-service"),
+                    text("read"),
+                    either(sequence(flag("-id"), param("id")),
+                           sequence(flag("-path"), remoteFSFile(client, &cwd))),
+                    opt(sequence(param("offset"), opt(param("length"))))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -13539,7 +13741,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
 
         if (pwdNode->isPasswordNode())
         {
-            const auto nRemoved =
+            [[maybe_unused]] const auto nRemoved =
                 entryData->map.erase(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP));
             assert(nRemoved <= 1);
         }

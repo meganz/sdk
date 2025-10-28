@@ -94,12 +94,12 @@ auto Parameter::null() -> Parameter&
                     sqlite3_errmsg(mQuery.database()));
 }
 
-auto Parameter::string(const char* value) -> Parameter&
+auto Parameter::string(const char* data, std::size_t length) -> Parameter&
 {
     auto result = sqlite3_bind_text(mQuery.mStatement,
                                     mIndex,
-                                    value,
-                                    -1,
+                                    data,
+                                    static_cast<int>(length),
                                     SQLITE_TRANSIENT);
 
     if (result == SQLITE_OK)
@@ -278,7 +278,7 @@ void Query::clear()
         throw LogErrorF(logger(), "%s: %s", prefix, sqlite3_errmsg(database()));
 }
 
-void Query::execute()
+bool Query::execute()
 {
     auto* prefix = "Unable to execute query";
 
@@ -290,7 +290,7 @@ void Query::execute()
     mHasNext = result == SQLITE_ROW;
 
     if (result == SQLITE_DONE || result == SQLITE_ROW)
-        return;
+        return mHasNext;
 
     throw LogErrorF(logger(), "%s: %s", prefix, sqlite3_errmsg(database()));
 }

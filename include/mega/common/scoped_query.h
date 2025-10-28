@@ -38,7 +38,7 @@ public:
 
     void clear();
 
-    void execute();
+    bool execute();
 
     Field field(const std::string& name);
     Field field(const char* name);

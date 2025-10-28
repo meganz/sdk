@@ -282,7 +282,7 @@ pipeline {
                     }
                     post {
                         always {
-                            dir("${env.WORKSPACE}/src/fuse/supported/posix/scripts") {
+                            dir("${env.WORKSPACE}/src/fuse/supported/platform/posix/scripts") {
                                 println "Attempting to clean up any stale MEGA-FS mounts"
                                 sh "./cleanup.sh '${env.WORKSPACE}'"
                             }
@@ -298,7 +298,7 @@ pipeline {
             }
             post{
                 always {
-                    dir("${env.WORKSPACE}/src/fuse/supported/posix/scripts") {
+                    dir("${env.WORKSPACE}/src/fuse/supported/platform/posix/scripts") {
                         echo "Final cleanup of any stale MEGA-FS mounts"
                         sh "./cleanup.sh '${env.WORKSPACE}'"
                     }

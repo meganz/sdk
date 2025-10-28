@@ -1,17 +1,18 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <map>
-#include <string>
-
 #include <mega/common/badge_forward.h>
 #include <mega/common/database_forward.h>
 #include <mega/common/logger_forward.h>
 #include <mega/common/query_forward.h>
 #include <mega/common/serialization_traits.h>
-
 #include <mega/types.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <map>
+#include <optional>
+#include <string>
 
 struct sqlite3;
 struct sqlite3_stmt;
@@ -69,7 +70,7 @@ class Parameter
 {
     auto null() -> Parameter&;
 
-    auto string(const char* value) -> Parameter&;
+    auto string(const char* data, std::size_t length) -> Parameter&;
 
     auto uint64(const std::uint64_t value) -> Parameter&;
 
@@ -101,14 +102,14 @@ public:
     auto set(const T& value)
       -> std::enable_if_t<std::is_same_v<std::string, T>, Parameter&>
     {
-        return string(value.c_str());
+        return string(value.c_str(), value.size());
     }
 
     template<typename T>
     auto set(const T* value)
       -> std::enable_if_t<std::is_same_v<char, T>, Parameter&>
     {
-        return string(value);
+        return string(value, std::strlen(value));
     }
 
     template<typename T>
@@ -143,7 +144,7 @@ struct Query
 
     void clear();
 
-    void execute();
+    bool execute();
 
     auto field(const std::string& name) -> Field;
 
@@ -189,6 +190,26 @@ struct SerializationTraits<NodeHandle>
 
     static void to(Parameter& parameter, const NodeHandle& value);
 }; // SerializationTraits<NodeHandle>
+
+template<typename T>
+struct SerializationTraits<std::optional<T>>
+{
+    static std::optional<T> from(const Field& field)
+    {
+        if (!field.null())
+            return std::optional<T>(std::in_place, field.get<T>());
+
+        return std::nullopt;
+    }
+
+    static void to(Parameter& parameter, const std::optional<T>& value)
+    {
+        if (value)
+            return parameter.set<T>(*value), void();
+
+        parameter.set(nullptr);
+    }
+}; // SerializationTraits<std::optional<T>>
 
 } // common
 } // mega

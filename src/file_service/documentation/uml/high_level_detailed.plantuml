@@ -1,0 +1,131 @@
+@startuml
+
+' Use :: as a package separator instead of .
+set separator ::
+
+' Hide all members by default.
+hide members
+
+' Define toplevel classes.
+class mega::MegaClient
+class mega::NodeHandle
+
+class std::int64_t
+class std::string
+class std::uint64_t
+
+' Define common classes.
+abstract class mega::common::Client
+class mega::common::ClientAdapter
+class mega::common::Expected<T, E>
+
+' ClientAdapter implements Client.
+mega::common::Client <|.. mega::common::ClientAdapter
+
+' ClientAdapter delegates (wraps) MegaClient.
+mega::MegaClient <-- mega::common::ClientAdapter
+
+' Define public file service classes.
+class mega::file_service::File
+class mega::file_service::FileContext
+class mega::file_service::FileID
+class mega::file_service::FileInfo
+class mega::file_service::FileInfoContext
+class mega::file_service::FileRange
+class mega::file_service::FileReadCallback
+class mega::file_service::FileReadRequest
+class mega::file_service::FileResultOr<T>
+class mega::file_service::FileService
+class mega::file_service::FileServiceContext
+class mega::file_service::FileServiceResultOr<T>
+class mega::file_service::FileWriteCallback
+class mega::file_service::FileWriteRequest
+enum mega::file_service::FileResult
+enum mega::file_service::FileServiceResult
+
+' FileService accesses cloud functionality via Client.
+mega::common::Client <-- mega::file_service::FileServiceContext
+
+' Every File instance references a FileContext instance.
+mega::file_service::File o-- mega::file_service::FileContext
+
+' Every FileInfo instance references a FileInfoContext instance.
+mega::file_service::FileInfo o-- mega::file_service::FileInfoContext
+
+' Every FileContext instance references a FileInfoContext instance.
+mega::file_service::FileContext o-- mega::file_service::FileInfoContext
+
+' The FileService may reference a FileServiceContext instance.
+mega::file_service::FileService *-- mega::file_service::FileServiceContext
+
+' FileServiceContext manages zero or more FileContexts.
+mega::file_service::FileServiceContext *--  mega::file_service::FileContext
+
+' FileServiceContext manages zero or more FileInfoContexts.
+mega::file_service::FileServiceContext *--  mega::file_service::FileInfoContext
+
+' Show members of the following classes.
+show members
+
+class mega::file_service::File {
+    void read(FileReadCallback callback, void* buffer, std::uint64_t offset, std::uint64_t length)
+    void read(FileReadCallback callback, void* buffer, const FileRange& range)
+    void write(FileWriteCallback callback, const void* buffer, std::uint64_t offset, std::uint64_t length)
+    void write(FileWriteCallback callback, const void* buffer, const FileRange& range)
+}
+
+class mega::file_service::FileContext {
+    void read(FileReadRequest request)
+    void write(FileWriteRequest request)
+}
+
+class mega::file_service::FileInfo {
+    NodeHandle handle() const
+    FileID id() const
+    std::int64_t modified() const
+    std::uint64_t size() const
+}
+
+class mega::file_service::FileInfoContext {
+    void handle(NodeHandle handle)
+    NodeHandle handle() const
+    FileID id() const
+    void modified(std::int64_t modified)
+    std::int64_t modified() const
+    void size(std::uint64_t size)
+    std::uint64_t size() const
+}
+
+class mega::file_service::FileRange {
+    std::uint64_t mBegin
+    std::uint64_t mEnd
+}
+
+class mega::file_service::FileReadRequest {
+    void* mBuffer
+    FileReadCallback mCallback
+    FileRange mRange
+}
+
+class mega::file_service::FileService {
+    FileServiceResultOr<File> create(NodeHandle parentHandle, const std::string& name)
+    void deinitialize()
+    FileServiceResult initialize(common::Client& client)
+    FileServiceResultOr<FileInfo> info(FileID id)
+    FileServiceResultOr<File> open(FileID id)
+}
+
+class mega::file_service::FileServiceContext {
+    FileServiceResultOr<File> create(NodeHandle parentHandle, const std::string& name)
+    FileServiceResultOr<FileInfo> info(FileID id)
+    FileServiceResultOr<File> open(FileID id)
+}
+
+class mega::file_service::FileWriteRequest {
+    const void* mBuffer
+    FileWriteCallback mCallback
+    FileRange mRange
+}
+
+@enduml
+

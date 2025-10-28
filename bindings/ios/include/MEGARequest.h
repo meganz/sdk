@@ -278,6 +278,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * for each type of request. Documentation of each request specify which fields are valid.
  *
  */
+NS_SWIFT_SENDABLE
 @interface MEGARequest : NSObject
 
 /**

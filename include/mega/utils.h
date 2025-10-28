@@ -21,6 +21,7 @@
 
 #ifndef MEGA_UTILS_H
 #define MEGA_UTILS_H 1
+#include "overloaded.h"
 #include "types.h"
 
 #include <algorithm>
@@ -1548,26 +1549,6 @@ std::optional<T> stringToNumber(const std::string_view sv)
         return r;
     return std::nullopt;
 }
-
-/**
- * @brief helper type for std::visit
- *
- * @example Usage example (see https://en.cppreference.com/w/cpp/utility/variant/visit):
- *   std::visit(overloaded{
- *          [](auto arg) { std::cout << arg << ' '; },
- *          [](double arg) { std::cout << std::fixed << arg << ' '; },
- *          [](const std::string& arg) { std::cout << std::quoted(arg) << ' '; }
- *      }, v);
- */
-template<class... Ts>
-struct overloaded: Ts...
-{
-    using Ts::operator()...;
-};
-
-// explicit deduction guide (not needed as of C++20)
-template<class... Ts>
-overloaded(Ts...) -> overloaded<Ts...>;
 
 /**
  * @brief Represents a range of unsigned integers, providing an iterator-based interface for

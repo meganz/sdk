@@ -1,13 +1,15 @@
 #pragma once
 
+#include <mega/common/error_or.h>
+#include <mega/types.h>
+
 #include <chrono>
 #include <cstdarg>
+#include <cstdint>
 #include <future>
 #include <memory>
-
-#include <mega/common/error_or.h>
-
-#include <mega/types.h>
+#include <optional>
+#include <string>
 
 namespace mega
 {
@@ -20,6 +22,8 @@ std::string format(const char* format, ...);
 
 std::string formatv(std::va_list arguments, const char* format);
 
+std::optional<std::string> fromCharPointer(const char* maybeString);
+
 template<typename T>
 using SharedPromise = std::shared_ptr<std::promise<T>>;
 
@@ -28,6 +32,10 @@ SharedPromise<T> makeSharedPromise()
 {
     return std::make_shared<std::promise<T>>();
 }
+
+std::int64_t now();
+
+const char* toCharPointer(const std::optional<std::string>& maybeString);
 
 template<typename T>
 auto waitFor(std::future<T> future)

@@ -31,6 +31,7 @@
 #include <mega/localpath.h>
 
 #include <atomic>
+#include <optional>
 
 namespace mega {
 
@@ -482,10 +483,20 @@ struct MEGA_API FileAccess
     virtual void updatelocalname(const LocalPath&, bool force) = 0;
 
     // absolute position read, with NUL padding
-    bool fread(string*, unsigned, unsigned, m_off_t, FSLogging);
+    bool fread(string* buffer,
+               unsigned long length,
+               unsigned long padding,
+               m_off_t offset,
+               FSLogging logging,
+               bool* retry = nullptr);
 
     // absolute position read to byte buffer
-    bool frawread(byte *, unsigned, m_off_t, bool caller_opened, FSLogging);
+    bool frawread(void* buffer,
+                  unsigned long length,
+                  m_off_t offset,
+                  bool alreadyOpened,
+                  FSLogging logging,
+                  bool* retry = nullptr);
 
     // After a successful nonblocking fopen(), call openf() to really open the file (by localname)
     // (this is a lazy-type approach in case we don't actually need to open the file after finding out type/size/mtime).
@@ -499,7 +510,11 @@ struct MEGA_API FileAccess
     virtual void fclose() = 0;
 
     // absolute position write
-    virtual bool fwrite(const byte *, unsigned, m_off_t) = 0;
+    virtual bool fwrite(const void* buffer,
+                        unsigned long length,
+                        m_off_t position,
+                        unsigned long* numWritten = nullptr,
+                        bool* retry = nullptr) = 0;
 
     // Stat an already open file.
     virtual bool fstat(m_time_t& modified, m_off_t& size) = 0;
@@ -526,6 +541,12 @@ struct MEGA_API FileAccess
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t, FSLogging fsl);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
+    // Mark this file as a sparse file.
+    virtual bool setSparse() = 0;
+
+    // Retrieve this file's allocated and reported size.
+    virtual auto getFileSize() const -> std::optional<std::pair<std::uint64_t, std::uint64_t>> = 0;
+
 protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(void *param);
@@ -533,7 +554,7 @@ protected:
     int numAsyncReads;
 
     // system-specific raw read/open/close to be provided by platform implementation.   fopen / openf / fread etc are implemented by calling these.
-    virtual bool sysread(byte *, unsigned, m_off_t) = 0;
+    virtual bool sysread(void* buffer, unsigned long length, m_off_t offset, bool* retry) = 0;
     virtual bool sysstat(m_time_t*, m_off_t*, FSLogging) = 0;
     virtual bool sysopen(bool async, FSLogging) = 0;
     virtual void sysclose() = 0;
@@ -837,6 +858,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // True if the file's hidden attribute was set.
     static bool setFileHidden(const LocalPath& path,
                               FSLogging logWhen = FSLogging::logOnError);
+
+    // Retrieve a file's allocated and reported size.
+    auto getFileSize(const LocalPath& path)
+        -> std::optional<std::pair<std::uint64_t, std::uint64_t>>;
 
 protected:
     // Specifies the minimum permissions allowed for directories.

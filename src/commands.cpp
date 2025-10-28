@@ -2039,8 +2039,13 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
+                // Initialize the client adapter.
+                client->mClientAdapter.initialize();
+
+                // Initialize File Service.
+                client->mFileService.initialize(client->mClientAdapter);
+
                 // Initialize FUSE subsystem.
-                client->mFuseClientAdapter.initialize();
                 client->mFuseService.initialize();
 
                 client->openStatusTable(true);
@@ -11131,7 +11136,7 @@ bool CommandExportSet::procresult(Result r, JSON& json)
         mSet->setChanged(Set::CH_EXPORTED);
         if (!client->updateSet(std::move(*mSet)))
         {
-            LOG_warn << "Sets: comand 'ass' succeeded, but Set was not found";
+            LOG_warn << "Sets: command 'ass' succeeded, but Set was not found";
             e = API_ENOENT;
         }
     }

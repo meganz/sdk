@@ -30,6 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @see [MEGASdk childrenForParent:], [MEGASdk inShares:].
  */
+NS_SWIFT_SENDABLE
 @interface MEGANodeList : NSObject
 
 /**

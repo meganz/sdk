@@ -10,8 +10,11 @@
 #include <mega/posix/megafs.h>
 #include <mega/types.h>
 
+#include <cstdint>
 #include <jni.h>
 #include <mutex>
+#include <optional>
+#include <utility>
 
 extern jclass fileWrapper;
 extern jclass integerClass;
@@ -196,7 +199,11 @@ public:
 
     void fclose() override;
 
-    bool fwrite(const byte*, unsigned, m_off_t) override;
+    bool fwrite(const void* buffer,
+                unsigned long length,
+                m_off_t position,
+                unsigned long* numWritten = nullptr,
+                bool* retry = nullptr) override;
 
     bool fstat(m_time_t& modified, m_off_t& size) override;
 
@@ -209,9 +216,15 @@ public:
 
     std::shared_ptr<AndroidFileWrapper> stealFileWrapper();
 
+    // Mark this file as a sparse file.
+    bool setSparse() override;
+
+    // Retrieve this file's allocated and reported size.
+    auto getFileSize() const -> std::optional<std::pair<std::uint64_t, std::uint64_t>> override;
+
 protected:
     void fCloseInternal();
-    bool sysread(byte*, unsigned, m_off_t) override;
+    bool sysread(void* buffer, unsigned long length, m_off_t offset, bool* retry) override;
     bool sysstat(m_time_t*, m_off_t*, FSLogging) override;
     bool sysopen(bool async, FSLogging) override;
     void sysclose() override;

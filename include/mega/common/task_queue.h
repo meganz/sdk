@@ -63,8 +63,14 @@ public:
     // True if this instance does not reference a task.
     bool operator!() const;
 
+    // Try and abort the task.
+    bool abort();
+
     // Try and cancel the task.
     bool cancel();
+
+    // Has the task been aborted?
+    bool aborted() const;
 
     // Has the task been cancelled?
     bool cancelled() const;

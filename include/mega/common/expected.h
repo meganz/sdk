@@ -79,7 +79,7 @@ public:
         mValue(std::in_place_type_t<T>(), std::forward<U>(other))
     {}
 
-    operator bool() const
+    explicit operator bool() const
     {
         return hasValue();
     }

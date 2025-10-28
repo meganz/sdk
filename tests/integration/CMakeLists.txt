@@ -37,6 +37,9 @@ target_sources(test_integration
     sdk_test_node_tags.cpp
     sdk_test_node_tags.h
     sdk_test_network.cpp
+    sdk_test_sync_upload_operations_test.cpp
+    backup_test_utils.h
+    sdk_test_backup_upload_operations_test.cpp
     SdkTestDeviceCenter_test.cpp
     SdkTestSyncLocalOperations_test.cpp
     SdkTestSyncNodeAttribute_test.cpp
@@ -58,6 +61,12 @@ target_sources_conditional(test_integration
     PRIVATE
     IsolatedGfx_test.cpp
 )
+
+# Load common test sources.
+include(common/common.cmake)
+
+# Load File Service test sources.
+include(file_service/file_service.cmake)
 
 # Link with SDKlib
 target_link_libraries(test_integration PRIVATE MEGA::SDKlib)

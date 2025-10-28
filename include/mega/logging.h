@@ -469,7 +469,14 @@ public:
 
 #else
         if (logger)
-            logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
+        {
+            const auto message = ostr.str();
+            logger->log(/*                                                                     */
+                        t.c_str(), /* time stamp                                               */
+                        level, /* log level                                                    */
+                        fname.c_str(), /* file name and line                                   */
+                        message.c_str()); /* the log message itself                            */
+        }
 #endif
     }
 

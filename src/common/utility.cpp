@@ -60,6 +60,34 @@ std::string formatv(std::va_list arguments, const char* format)
     return buffer;
 }
 
+std::optional<std::string> fromCharPointer(const char* maybeString)
+{
+    if (maybeString)
+        return std::string(maybeString);
+
+    return std::nullopt;
+}
+
+std::int64_t now()
+{
+    // Convenience.
+    using std::chrono::system_clock;
+
+    // Get our hands on the current time.
+    auto now = system_clock::now();
+
+    // Return the current time to our caller as a time_t value.
+    return system_clock::to_time_t(now);
+}
+
+const char* toCharPointer(const std::optional<std::string>& maybeString)
+{
+    if (maybeString)
+        return maybeString->data();
+
+    return nullptr;
+}
+
 } // common
 } // mega
 

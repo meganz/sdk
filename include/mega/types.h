@@ -227,6 +227,7 @@ typedef enum ErrorCodes : int
     LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
     LOCAL_ABANDONED = -1002,        ///< Request abandoned due to local logout.
     LOCAL_ENETWORK = -1003, ///< Local network error (DNS resolution failure)
+    LOCAL_LOGGED_OUT = -1004, ///< Client isn't logged in.
 
     API_FUSE_EBADF = -2000,
     API_FUSE_EISDIR = -2001,
@@ -236,6 +237,9 @@ typedef enum ErrorCodes : int
     API_FUSE_ENOTFOUND = -2005,
     API_FUSE_EPERM = -2006,
     API_FUSE_EROFS = -2007,
+    API_FUSE_EALREADY = -2008,
+    API_FUSE_ECANCELLED = -2009,
+    API_FUSE_EDUPLICATE = -2010
 } error;
 
 class Error
@@ -1302,6 +1306,7 @@ using fsfp_ptr_t = std::shared_ptr<fsfp_t>;
 using FileAccessPtr = std::unique_ptr<FileAccess>;
 using FileAccessSharedPtr = std::shared_ptr<FileAccess>;
 using FileAccessWeakPtr = std::weak_ptr<FileAccess>;
+using FileSystemAccessPtr = std::unique_ptr<FileSystemAccess>;
 
 template<typename T>
 using FromNodeHandleMap = std::map<NodeHandle, T>;
