@@ -910,6 +910,8 @@ enum JSONLog
     JSON_LOG_CHUNK_RECEIVED = 1,
     JSON_LOG_CHUNK_PROCESSING = 1 << 1,
     JSON_LOG_CHUNK_CONSUMED = 1 << 2,
+    JSON_LOG_SENDING = 1 << 3,
+    JSON_LOG_NONCHUNK_RECEIVED = 1 << 4,
 };
 
 extern std::atomic_uint32_t gJSONLog;
@@ -917,11 +919,20 @@ extern std::atomic_uint32_t gJSONLog;
 #define JSON_CHUNK_RECEIVED \
     if (gJSONLog & JSON_LOG_CHUNK_RECEIVED) \
     LOG_debug
+
 #define JSON_CHUNK_PROCESSING \
     if (gJSONLog & JSON_LOG_CHUNK_PROCESSING) \
     LOG_debug
+
 #define JSON_CHUNK_CONSUMED \
     if (gJSONLog & JSON_LOG_CHUNK_CONSUMED) \
     LOG_debug
 
+#define JSON_SENDING \
+    if (gJSONLog & JSON_LOG_SENDING) \
+    LOG_debug
+
+#define JSON_NONCHUNK_RECEIVED \
+    if (gJSONLog & JSON_LOG_NONCHUNK_RECEIVED) \
+    LOG_debug
 } // namespace

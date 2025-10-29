@@ -806,11 +806,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        LOG_debug << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
-                  << MaxDirectMessage(req->out->c_str(),
-                                      req->out->size(),
-                                      SimpleLogger::getMaxPayloadLogSize())
-                  << " (at ds: " << Waiter::ds << ")";
+        JSON_SENDING << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
+                     << MaxDirectMessage(req->out->c_str(),
+                                         req->out->size(),
+                                         SimpleLogger::getMaxPayloadLogSize())
+                     << " (at ds: " << Waiter::ds << ")";
     }
 
     req->outpos = 0;
@@ -1570,11 +1570,12 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
-                        LOG_debug << req->getLogName() << "Received " << req->in.size() << ": "
-                                  << MaxDirectMessage(req->in.c_str(),
-                                                      req->in.size(),
-                                                      SimpleLogger::getMaxPayloadLogSize())
-                                  << " (at ds: " << Waiter::ds << ")";
+                        JSON_NONCHUNK_RECEIVED
+                            << req->getLogName() << "Received " << req->in.size() << ": "
+                            << MaxDirectMessage(req->in.c_str(),
+                                                req->in.size(),
+                                                SimpleLogger::getMaxPayloadLogSize())
+                            << " (at ds: " << Waiter::ds << ")";
                     }
                 }
 

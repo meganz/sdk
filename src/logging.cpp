@@ -35,7 +35,8 @@ Logger *SimpleLogger::logger = &g_externalLogger;
 
 // by the default, display logs with level equal or less than logInfo
 std::atomic<LogLevel> SimpleLogger::logCurrentLevel{logInfo};
-std::atomic_uint32_t gJSONLog = JSON_LOG_CHUNK_CONSUMED;
+std::atomic_uint32_t gJSONLog =
+    JSON_LOG_CHUNK_CONSUMED | JSON_LOG_SENDING | JSON_LOG_NONCHUNK_RECEIVED;
 
 #ifndef ENABLE_LOG_PERFORMANCE
 std::string SimpleLogger::getTime()

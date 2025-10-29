@@ -10908,6 +10908,8 @@ class MegaApi
             JSON_LOG_CHUNK_RECEIVED = 1,
             JSON_LOG_CHUNK_PROCESSING = 1 << 1,
             JSON_LOG_CHUNK_CONSUMED = 1 << 2,
+            JSON_LOG_SENDING = 1 << 3,
+            JSON_LOG_NONCHUNK_RECEIVED = 1 << 4,
         };
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
@@ -13002,6 +13004,12 @@ class MegaApi
          *
          * - MegaApi::JSON_LOG_CHUNK_CONSUMED = 4
          *   Enable logging of consumed JSON chunked data (enabled by default)
+         *
+         * - MegaApi::JSON_LOG_SENDING = 8
+         *   Enable logging of JSON data being sent to the server (enabled by default)
+         *
+         * - MegaApi::JSON_LOG_NONCHUNK_RECEIVED = 16
+         *   Enable logging of received non-chunked JSON data (enabled by default)
          *
          * @param value Bitwise combination of logging flags
          *
