@@ -379,7 +379,7 @@ class SimpleLogger
 
     static std::atomic<LogLevel> logCurrentLevel;
 
-    static long long maxPayloadLogSize; //above this, the msg will be truncated by [ ... ]
+    static std::atomic_size_t maxPayloadLogSize; // above this, the msg will be truncated by [ ... ]
 
 public:
     // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
@@ -648,11 +648,12 @@ public:
     }
 
     // set the limit of size to requests payload
-    static void setMaxPayloadLogSize(long long size)
+    static void setMaxPayloadLogSize(size_t size)
     {
         maxPayloadLogSize = size;
     }
-    inline static const long long& getMaxPayloadLogSize()
+
+    inline static size_t getMaxPayloadLogSize()
     {
         return maxPayloadLogSize;
     }

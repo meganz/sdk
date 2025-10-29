@@ -9503,7 +9503,7 @@ void exec_setmaxloglinesize(autocomplete::ACState& s)
 {
     if (s.words.size() > 1)
     {
-        SimpleLogger::setMaxPayloadLogSize(atoll(s.words[1].s.c_str()));
+        SimpleLogger::setMaxPayloadLogSize(static_cast<size_t>(std::stoul(s.words[1].s)));
     }
 }
 

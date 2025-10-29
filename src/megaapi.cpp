@@ -2174,7 +2174,7 @@ void MegaApi::setLogExtraForModules(bool networking, bool syncs)
     return pImpl->setLogExtraForModules(networking, syncs);
 }
 
-void MegaApi::setMaxPayloadLogSize(long long maxSize)
+void MegaApi::setMaxPayloadLogSize(size_t maxSize)
 {
     MegaApiImpl::setMaxPayloadLogSize(maxSize);
 }

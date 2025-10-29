@@ -7234,7 +7234,7 @@ void MegaApiImpl::setLogLevel(int logLevel)
     SimpleLogger::setLogLevel(LogLevel(logLevel));
 }
 
-void MegaApiImpl::setMaxPayloadLogSize(long long maxSize)
+void MegaApiImpl::setMaxPayloadLogSize(size_t maxSize)
 {
     SimpleLogger::setMaxPayloadLogSize(maxSize);
 }

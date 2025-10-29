@@ -12943,7 +12943,7 @@ class MegaApi
          * This functions sets the max size that will be allowed for requests payload
          * If the payload exceeds that, the line will be truncated in the midle with [...] in between
          */
-        static void setMaxPayloadLogSize(long long maxSize);
+        static void setMaxPayloadLogSize(size_t maxSize);
 
         /**
          * @brief Enable log to console

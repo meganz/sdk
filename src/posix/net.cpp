@@ -806,7 +806,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (gLogJSONRequests || req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
+        if (gLogJSONRequests || req->out->size() < SimpleLogger::getMaxPayloadLogSize())
         {
             LOG_debug << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
                       << DirectMessage(req->out->c_str(), req->out->size())
@@ -817,7 +817,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             LOG_debug << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
                       << MaxDirectMessage(req->out->c_str(),
                                           req->out->size(),
-                                          static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize()))
+                                          SimpleLogger::getMaxPayloadLogSize())
                       << " (at ds: " << Waiter::ds << ")";
         }
     }
@@ -1580,7 +1580,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     else
                     {
                         if (gLogJSONRequests ||
-                            req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
+                            req->in.size() < SimpleLogger::getMaxPayloadLogSize())
                         {
                             LOG_debug << req->getLogName() << "Received " << req->in.size() << ": "
                                       << DirectMessage(req->in.c_str(), req->in.size())
@@ -1591,8 +1591,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                             LOG_debug << req->getLogName() << "Received " << req->in.size() << ": "
                                       << MaxDirectMessage(req->in.c_str(),
                                                           req->in.size(),
-                                                          static_cast<size_t>(
-                                                              SimpleLogger::getMaxPayloadLogSize()))
+                                                          SimpleLogger::getMaxPayloadLogSize())
                                       << " (at ds: " << Waiter::ds << ")";
                         }
                     }
@@ -1843,12 +1842,11 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
             // consumed immediately upon receipt, avoiding duplicate logging.
             if (req->mChunked)
             {
-                JSON_CHUNK_RECEIVED
-                    << req->getLogName() << "Received chunk " << len << ": "
-                    << MaxDirectMessage(static_cast<const char*>(ptr),
-                                        static_cast<size_t>(len),
-                                        static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize()))
-                    << " (at ds: " << Waiter::ds << ")";
+                JSON_CHUNK_RECEIVED << req->getLogName() << "Received chunk " << len << ": "
+                                    << MaxDirectMessage(static_cast<const char*>(ptr),
+                                                        static_cast<size_t>(len),
+                                                        SimpleLogger::getMaxPayloadLogSize())
+                                    << " (at ds: " << Waiter::ds << ")";
             }
         }
 
