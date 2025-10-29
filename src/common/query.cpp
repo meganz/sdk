@@ -352,12 +352,12 @@ void Query::reset()
     if (!mStatement)
         throw LogErrorF(logger(), "%s: No statement has been prepared", prefix);
 
+    mHasNext = false;
+
     auto result = sqlite3_reset(mStatement);
 
     if (result != SQLITE_OK)
         throw LogErrorF(logger(), "%s: %s", prefix, sqlite3_errmsg(database()));
-
-    mHasNext = false;
 }
 
 void Query::swap(Query& other)
