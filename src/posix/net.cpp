@@ -1008,7 +1008,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                 if (!it->second.ipv6.empty())
                 {
                     if (ostream.tellp() > 0)
-                        ostream << ", ";
+                        ostream << ",";
 
                     ostream << "[" << it->second.ipv6 << "]";
                 }
