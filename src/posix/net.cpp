@@ -806,20 +806,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (gLogJSONRequests || req->out->size() < SimpleLogger::getMaxPayloadLogSize())
-        {
-            LOG_debug << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
-                      << DirectMessage(req->out->c_str(), req->out->size())
-                      << " (at ds: " << Waiter::ds << ")";
-        }
-        else
-        {
-            LOG_debug << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
-                      << MaxDirectMessage(req->out->c_str(),
-                                          req->out->size(),
-                                          SimpleLogger::getMaxPayloadLogSize())
-                      << " (at ds: " << Waiter::ds << ")";
-        }
+        LOG_debug << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
+                  << MaxDirectMessage(req->out->c_str(),
+                                      req->out->size(),
+                                      SimpleLogger::getMaxPayloadLogSize())
+                  << " (at ds: " << Waiter::ds << ")";
     }
 
     req->outpos = 0;
@@ -1579,21 +1570,11 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
-                        if (gLogJSONRequests ||
-                            req->in.size() < SimpleLogger::getMaxPayloadLogSize())
-                        {
-                            LOG_debug << req->getLogName() << "Received " << req->in.size() << ": "
-                                      << DirectMessage(req->in.c_str(), req->in.size())
-                                      << " (at ds: " << Waiter::ds << ")";
-                        }
-                        else
-                        {
-                            LOG_debug << req->getLogName() << "Received " << req->in.size() << ": "
-                                      << MaxDirectMessage(req->in.c_str(),
-                                                          req->in.size(),
-                                                          SimpleLogger::getMaxPayloadLogSize())
-                                      << " (at ds: " << Waiter::ds << ")";
-                        }
+                        LOG_debug << req->getLogName() << "Received " << req->in.size() << ": "
+                                  << MaxDirectMessage(req->in.c_str(),
+                                                      req->in.size(),
+                                                      SimpleLogger::getMaxPayloadLogSize())
+                                  << " (at ds: " << Waiter::ds << ")";
                     }
                 }
 

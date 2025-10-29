@@ -12975,9 +12975,10 @@ class MegaApi
          * the content is less than the logger's maximum payload size.
          *
          * @see MegaApi::setMaxPayloadLogSize
+         * @see MegaApi::setLogJSON
          *
-         * @deprecated This function is deprecated and doesn't do anything useful and will be
-         * removed in future releases. Use setLogJSON instead.
+         * @deprecated This function is deprecated and will be removed in future releases. Use
+         * setLogJSON and setMaxPlayloadLogSize instead.
          */
         MEGA_DEPRECATED
         static void setLogJSONContent(bool enable);

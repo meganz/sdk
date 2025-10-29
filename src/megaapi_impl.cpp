@@ -7323,7 +7323,10 @@ void MegaApiImpl::setLogToConsole(bool enable)
 
 void MegaApiImpl::setLogJSONContent(bool enable)
 {
-    gLogJSONRequests = enable;
+    if (enable)
+        SimpleLogger::setMaxPayloadLogSize(0); // Max size
+    else
+        SimpleLogger::setMaxPayloadLogSize(); // Default
 }
 
 void MegaApiImpl::setLogJSON(uint32_t value)

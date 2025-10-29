@@ -29,8 +29,6 @@
 
 namespace mega {
 
-std::atomic<bool> gLogJSONRequests{false};
-
 // store array or object in string s
 // reposition after object
 bool JSON::storeobject(string* s)
