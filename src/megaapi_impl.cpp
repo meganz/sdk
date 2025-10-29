@@ -8803,6 +8803,16 @@ void MegaApiImpl::setNodeS4(MegaNode *node, const char *value, MegaRequestListen
     waiter->notify();
 }
 
+bool MegaApiImpl::isS4Enabled()
+{
+    return client->mIsS4Enabled.load();
+}
+
+MegaHandle MegaApiImpl::getS4Container()
+{
+    return client->mS4Container.load().as8byte();
+}
+
 void MegaApiImpl::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);

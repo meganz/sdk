@@ -2257,6 +2257,12 @@ public:
     // server-client request sequence number
     SCSN scsn;
 
+    // status of S4
+    std::atomic<bool> mIsS4Enabled;
+
+    // node's handle of S4 container
+    std::atomic<NodeHandle> mS4Container;
+
     // process an array of users from the API server
     bool readusers(JSON*, bool actionpackets);
 

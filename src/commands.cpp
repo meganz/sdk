@@ -3865,6 +3865,29 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                            "CommandGetUA: Storage status is unknown or invalid");
                                 }
                             }
+                            else if (at == ATTR_S4)
+                            {
+                                bool enabled = (value == "1");
+                                LOG_info << "S4 is " << (enabled ? "enabled" : "disabled");
+                                client->mIsS4Enabled.store(enabled);
+                            }
+                            else if (at == ATTR_S4_CONTAINER)
+                            {
+                                if (value.empty()) // it's been disabled
+                                {
+                                    assert(client->mIsS4Enabled == false);
+
+                                    client->mS4Container.store(NodeHandle());
+                                }
+                                else
+                                {
+                                    assert(client->mIsS4Enabled == true);
+                                    assert(value.size() == MegaClient::NODEHANDLE);
+
+                                    NodeHandle h = toNodeHandle(&value);
+                                    client->mS4Container.store(h);
+                                }
+                            }
                             break;
                         }
                         default: // legacy attributes without explicit scope or unknown attribute
@@ -4349,6 +4372,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string pwmh, pwmhVersion;
     vector<uint32_t> notifs;
     std::string sds, sdsVersion;
+    string s4, s4Version;
+    string s4container, s4containerVersion;
 
     bool uspw = false;
     string userStorageLevel, versionUserStorageLevel;
@@ -4746,6 +4771,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
         case makeNameid("*!sds"):
         {
             parseUserAttribute(json, sds, sdsVersion);
+            break;
+        }
+
+        case makeNameid("s4"):
+        {
+            parseUserAttribute(json, s4, s4Version);
+            break;
+        }
+
+        case makeNameid("s4c"):
+        {
+            parseUserAttribute(json, s4container, s4containerVersion);
             break;
         }
 
@@ -5202,6 +5239,37 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_debug << "[CommandGetUserData] userStorageLevel is empty";
+                }
+
+                if (!s4.empty() && !s4Version.empty())
+                {
+                    changes |= u->updateAttributeIfDifferentVersion(ATTR_S4, s4, s4Version);
+
+                    bool enabled = (s4 == "1");
+                    client->mIsS4Enabled.store(enabled);
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_S4);
+                    client->mIsS4Enabled.store(false);
+                }
+
+                if (!s4container.empty() && !s4containerVersion.empty())
+                {
+                    changes |= u->updateAttributeIfDifferentVersion(ATTR_S4_CONTAINER,
+                                                                    s4container,
+                                                                    s4containerVersion);
+
+                    assert(client->mIsS4Enabled == true);
+                    assert(s4container.size() == MegaClient::NODEHANDLE);
+
+                    NodeHandle h = toNodeHandle(&s4container);
+                    client->mS4Container.store(h);
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_S4_CONTAINER);
+                    client->mS4Container.store(NodeHandle());
                 }
 
                 if (changes)

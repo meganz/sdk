@@ -1870,6 +1870,8 @@ void MegaClient::init()
     statecurrent = false;
     actionpacketsCurrent = false;
     totalNodes.store(0);
+    mIsS4Enabled.store(0);
+    mS4Container.store(NodeHandle());
     faretrying = false;
 
 #ifdef ENABLE_SYNC
@@ -7541,6 +7543,8 @@ void MegaClient::sc_userattr()
                                         [[fallthrough]];
 
                                     // some attributes should be fetched upon invalidation
+                                    case ATTR_S4:
+                                    case ATTR_S4_CONTAINER:
                                     case ATTR_KEYS:
                                     case ATTR_AUTHRING:
                                     case ATTR_AUTHCU255:
