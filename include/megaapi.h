@@ -12938,10 +12938,15 @@ class MegaApi
         void setLogExtraForModules(bool networking, bool syncs);
 
         /**
-         * @brief Set the limit of size to requests payload
+         * @brief Set the maximum size limit for request payload logging
          *
-         * This functions sets the max size that will be allowed for requests payload
-         * If the payload exceeds that, the line will be truncated in the midle with [...] in between
+         * This function controls the maximum size of request payloads that will be logged
+         * in full. When a payload exceeds this limit, it will be truncated in the middle
+         * with "[...]" inserted between the first and last portions to indicate truncation.
+         *
+         * @param maxSize Maximum payload size in bytes that will be logged without truncation.
+         *                Use 0 to use the max size limit.
+         *
          */
         static void setMaxPayloadLogSize(size_t maxSize);
 

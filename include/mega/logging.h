@@ -379,7 +379,9 @@ class SimpleLogger
 
     static std::atomic<LogLevel> logCurrentLevel;
 
-    static std::atomic_size_t maxPayloadLogSize; // above this, the msg will be truncated by [ ... ]
+    static constexpr size_t PAYLOAD_LOG_DEFAULT_SIZE = 10240;
+
+    inline static std::atomic_size_t maxPayloadLogSize = PAYLOAD_LOG_DEFAULT_SIZE;
 
 public:
     // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
@@ -647,10 +649,23 @@ public:
         return logCurrentLevel;
     }
 
-    // set the limit of size to requests payload
-    static void setMaxPayloadLogSize(size_t size)
+    /**
+     * @brief Sets the maximum size limit for request payload logging.
+     *
+     * When logging request payloads, messages exceeding this size will be truncated
+     * with "[...]" to prevent extremely large log entries.
+     *
+     * @param size Maximum payload size in bytes. If set to 0, the max size limit of size_t is
+     * applied and payloads will be logged in full regardless of size. Default is
+     * PAYLOAD_LOG_DEFAULT_SIZE (10240 bytes).
+     *
+     */
+    static void setMaxPayloadLogSize(size_t size = PAYLOAD_LOG_DEFAULT_SIZE)
     {
-        maxPayloadLogSize = size;
+        if (size == 0)
+            maxPayloadLogSize = std::numeric_limits<size_t>::max();
+        else
+            maxPayloadLogSize = size;
     }
 
     inline static size_t getMaxPayloadLogSize()
