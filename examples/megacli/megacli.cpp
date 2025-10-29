@@ -40,6 +40,7 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -5446,6 +5447,14 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxloglinesize, sequence(text("setmaxloglinesize"), wholenumber(10000)));
+    p->Add(exec_setlogjson,
+           sequence(text("setlogjson"),
+                    repeat(either(flag("-chunk-received"),
+                                  flag("-chunk-processing"),
+                                  flag("-chunk-consumed"),
+                                  flag("-sending"),
+                                  flag("-nonchunk-received")))));
+    p->Add(exec_getlogjson, sequence(text("getlogjson")));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
     p->Add(exec_showattrs, sequence(text("showattrs"), opt(either(text("on"), text("off")))));
@@ -9505,6 +9514,36 @@ void exec_setmaxloglinesize(autocomplete::ACState& s)
     {
         SimpleLogger::setMaxPayloadLogSize(static_cast<size_t>(std::stoul(s.words[1].s)));
     }
+}
+
+static void printLogJson()
+{
+    const uint32_t value = gJSONLog;
+    std::ios_base::fmtflags f(cout.flags());
+    cout << "Current JSON log settings: 0x" << std::hex << value << "\n";
+    cout << "-chunk-received: " << ((value & JSON_LOG_CHUNK_RECEIVED) ? "on" : "off") << "\n";
+    cout << "-chunk-processing: " << ((value & JSON_LOG_CHUNK_PROCESSING) ? "on" : "off") << "\n";
+    cout << "-chunk-consumed: " << ((value & JSON_LOG_CHUNK_CONSUMED) ? "on" : "off") << "\n";
+    cout << "-sending:  " << ((value & JSON_LOG_SENDING) ? "on" : "off") << "\n";
+    cout << "-nonchunk-received: " << ((value & JSON_LOG_NONCHUNK_RECEIVED) ? "on" : "off") << "\n";
+    cout.flags(f);
+}
+
+void exec_setlogjson(autocomplete::ACState& s)
+{
+    uint32_t newValue = JSON_LOG_NONE;
+    newValue |= s.extractflag("-chunk-received") ? JSON_LOG_CHUNK_RECEIVED : 0;
+    newValue |= s.extractflag("-chunk-processing") ? JSON_LOG_CHUNK_PROCESSING : 0;
+    newValue |= s.extractflag("-chunk-consumed") ? JSON_LOG_CHUNK_CONSUMED : 0;
+    newValue |= s.extractflag("-sending") ? JSON_LOG_SENDING : 0;
+    newValue |= s.extractflag("-nonchunk-received") ? JSON_LOG_NONCHUNK_RECEIVED : 0;
+    gJSONLog = newValue;
+    printLogJson();
+}
+
+void exec_getlogjson(autocomplete::ACState&)
+{
+    printLogJson();
 }
 
 void exec_drivemonitor([[maybe_unused]] autocomplete::ACState& s)
