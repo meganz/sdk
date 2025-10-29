@@ -904,35 +904,50 @@ constexpr auto generateLogAndReturnError(F&& resGenerator)
                 "" : \
                 DirectMessage((msg) + (msgSize) - (maxLogSize / 2), (maxLogSize / 2)))
 
-enum JSONLog
+class JSONLog
 {
-    JSON_LOG_NONE = 0,
-    JSON_LOG_CHUNK_RECEIVED = 1,
-    JSON_LOG_CHUNK_PROCESSING = 1 << 1,
-    JSON_LOG_CHUNK_CONSUMED = 1 << 2,
-    JSON_LOG_SENDING = 1 << 3,
-    JSON_LOG_NONCHUNK_RECEIVED = 1 << 4,
+public:
+    enum
+    {
+        NONE = 0,
+        CHUNK_RECEIVED = 1,
+        CHUNK_PROCESSING = 1 << 1,
+        CHUNK_CONSUMED = 1 << 2,
+        SENDING = 1 << 3,
+        NONCHUNK_RECEIVED = 1 << 4,
+    };
+
+    static uint32_t get()
+    {
+        return mJSONLog;
+    }
+
+    static void set(uint32_t value)
+    {
+        mJSONLog = value;
+    }
+
+private:
+    inline static std::atomic_uint32_t mJSONLog{CHUNK_CONSUMED | SENDING | NONCHUNK_RECEIVED};
 };
 
-extern std::atomic_uint32_t gJSONLog;
-
 #define JSON_CHUNK_RECEIVED \
-    if (gJSONLog & JSON_LOG_CHUNK_RECEIVED) \
+    if (JSONLog::get() & JSONLog::CHUNK_RECEIVED) \
     LOG_debug
 
 #define JSON_CHUNK_PROCESSING \
-    if (gJSONLog & JSON_LOG_CHUNK_PROCESSING) \
+    if (JSONLog::get() & JSONLog::CHUNK_PROCESSING) \
     LOG_debug
 
 #define JSON_CHUNK_CONSUMED \
-    if (gJSONLog & JSON_LOG_CHUNK_CONSUMED) \
+    if (JSONLog::get() & JSONLog::CHUNK_CONSUMED) \
     LOG_debug
 
 #define JSON_SENDING \
-    if (gJSONLog & JSON_LOG_SENDING) \
+    if (JSONLog::get() & JSONLog::SENDING) \
     LOG_debug
 
 #define JSON_NONCHUNK_RECEIVED \
-    if (gJSONLog & JSON_LOG_NONCHUNK_RECEIVED) \
+    if (JSONLog::get() & JSONLog::NONCHUNK_RECEIVED) \
     LOG_debug
 } // namespace

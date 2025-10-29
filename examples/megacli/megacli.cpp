@@ -9518,26 +9518,26 @@ void exec_setmaxloglinesize(autocomplete::ACState& s)
 
 static void printLogJson()
 {
-    const uint32_t value = gJSONLog;
+    const uint32_t value = JSONLog::get();
     std::ios_base::fmtflags f(cout.flags());
     cout << "Current JSON log settings: 0x" << std::hex << value << "\n";
-    cout << "-chunk-received: " << ((value & JSON_LOG_CHUNK_RECEIVED) ? "on" : "off") << "\n";
-    cout << "-chunk-processing: " << ((value & JSON_LOG_CHUNK_PROCESSING) ? "on" : "off") << "\n";
-    cout << "-chunk-consumed: " << ((value & JSON_LOG_CHUNK_CONSUMED) ? "on" : "off") << "\n";
-    cout << "-sending:  " << ((value & JSON_LOG_SENDING) ? "on" : "off") << "\n";
-    cout << "-nonchunk-received: " << ((value & JSON_LOG_NONCHUNK_RECEIVED) ? "on" : "off") << "\n";
+    cout << "-chunk-received: " << ((value & JSONLog::CHUNK_RECEIVED) ? "on" : "off") << "\n";
+    cout << "-chunk-processing: " << ((value & JSONLog::CHUNK_PROCESSING) ? "on" : "off") << "\n";
+    cout << "-chunk-consumed: " << ((value & JSONLog::CHUNK_CONSUMED) ? "on" : "off") << "\n";
+    cout << "-sending:  " << ((value & JSONLog::SENDING) ? "on" : "off") << "\n";
+    cout << "-nonchunk-received: " << ((value & JSONLog::NONCHUNK_RECEIVED) ? "on" : "off") << "\n";
     cout.flags(f);
 }
 
 void exec_setlogjson(autocomplete::ACState& s)
 {
-    uint32_t newValue = JSON_LOG_NONE;
-    newValue |= s.extractflag("-chunk-received") ? JSON_LOG_CHUNK_RECEIVED : 0;
-    newValue |= s.extractflag("-chunk-processing") ? JSON_LOG_CHUNK_PROCESSING : 0;
-    newValue |= s.extractflag("-chunk-consumed") ? JSON_LOG_CHUNK_CONSUMED : 0;
-    newValue |= s.extractflag("-sending") ? JSON_LOG_SENDING : 0;
-    newValue |= s.extractflag("-nonchunk-received") ? JSON_LOG_NONCHUNK_RECEIVED : 0;
-    gJSONLog = newValue;
+    uint32_t newValue = JSONLog::NONE;
+    newValue |= s.extractflag("-chunk-received") ? JSONLog::CHUNK_RECEIVED : 0;
+    newValue |= s.extractflag("-chunk-processing") ? JSONLog::CHUNK_PROCESSING : 0;
+    newValue |= s.extractflag("-chunk-consumed") ? JSONLog::CHUNK_CONSUMED : 0;
+    newValue |= s.extractflag("-sending") ? JSONLog::SENDING : 0;
+    newValue |= s.extractflag("-nonchunk-received") ? JSONLog::NONCHUNK_RECEIVED : 0;
+    JSONLog::set(newValue);
     printLogJson();
 }
 
