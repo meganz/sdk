@@ -28,15 +28,16 @@ ScopedQuery::ScopedQuery(ScopedQuery&& other)
 }
 
 ScopedQuery::~ScopedQuery()
-try
 {
-    if (mQuery)
-        mQuery->reset();
-}
-
-catch (std::runtime_error&)
-{
-    // reset() would've alreaddy logged any generated exception.
+    try
+    {
+        if (mQuery)
+            mQuery->reset();
+    }
+    catch (std::runtime_error&)
+    {
+        // reset() would've alreaddy logged any generated exception.
+    }
 }
 
 ScopedQuery& ScopedQuery::operator=(ScopedQuery&& rhs)
