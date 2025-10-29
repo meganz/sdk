@@ -21,7 +21,6 @@ extern jclass arrayListClass;
 namespace megajni
 {
 
-/** --- JNI Exception Safety Helpers --- **/
 // Clear any pending Java exception; return true if there was one.
 static inline bool megajni_clear_pending_exception(JNIEnv* env, const char* where = nullptr) {
     if (!env) return false;
