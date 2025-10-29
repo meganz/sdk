@@ -1,8 +1,9 @@
-#include <cassert>
-
 #include <mega/common/badge.h>
 #include <mega/common/query.h>
 #include <mega/common/scoped_query.h>
+
+#include <cassert>
+#include <stdexcept>
 
 namespace mega
 {
@@ -27,9 +28,15 @@ ScopedQuery::ScopedQuery(ScopedQuery&& other)
 }
 
 ScopedQuery::~ScopedQuery()
+try
 {
     if (mQuery)
         mQuery->reset();
+}
+
+catch (std::runtime_error&)
+{
+    // reset() would've alreaddy logged any generated exception.
 }
 
 ScopedQuery& ScopedQuery::operator=(ScopedQuery&& rhs)
