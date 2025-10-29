@@ -411,6 +411,8 @@ void BackupMonitor::beat()
 {
     assert(syncs.onSyncThread());
 
+    std::lock_guard<std::recursive_mutex> guard(syncs.mSyncVecMutex);
+
     // Only send heartbeats for enabled active syncs.
     for (auto& us : syncs.mSyncVec)
     {
