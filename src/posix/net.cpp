@@ -2343,16 +2343,16 @@ int populateDNSCache(std::map<std::string, DNSEntry>& cache,
             ++result;
         }
 
-        // URI doesn't have any valid IP addresses.
-        if (ipv4.empty() && ipv6.empty())
-            continue;
-
         std::string host;
         std::string scheme;
         int port;
 
         // Couldn't extract the URI's host name.
         if (!crackURI(uris[i], scheme, host, port) || host.empty())
+            continue;
+
+        // URI isn't in the cache and has no valid IP addresses.
+        if (ipv4.empty() && ipv6.empty() && !cache.count(host))
             continue;
 
         // Add a DNS cache entry for this host.

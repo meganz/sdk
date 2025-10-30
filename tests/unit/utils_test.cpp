@@ -1873,75 +1873,94 @@ TEST(IP, is_valid_ipv6_address_succeeds)
 }
 
 // Using string_vector to avoid parsing problems with GTest.
-TEST(DNS, populate_dns_cache_fails)
+TEST(DNS, cache_resolved_urls_fails)
 {
-    std::map<std::string, DNSEntry> cache;
+    CurlHttpIO io;
 
     // Not enough IPs for each URI.
-    EXPECT_LT(populateDNSCache(cache, string_vector(1), string_vector(1)), 0);
+    EXPECT_LT(io.cacheresolvedurls(string_vector(1), string_vector(1)), 0);
 
     // Not enough URIs for each IP.
-    EXPECT_LT(populateDNSCache(cache, string_vector(1), string_vector(4)), 0);
+    EXPECT_LT(io.cacheresolvedurls(string_vector(1), string_vector(4)), 0);
 
     // Multiple URIs and no IPs.
-    EXPECT_LT(populateDNSCache(cache, string_vector(2), string_vector()), 0);
+    EXPECT_LT(io.cacheresolvedurls(string_vector(2), string_vector()), 0);
 
     // Make sure the cache remains empty.
-    EXPECT_TRUE(cache.empty());
+    EXPECT_TRUE(io.getCachedDNSEntries().empty());
 }
 
-TEST(DNS, populate_dns_cache_succeeds)
+TEST(DNS, cache_resolved_urls_succeeds)
 {
-    std::map<std::string, DNSEntry> cache;
+    CurlHttpIO io;
 
-    string_vector ips = {"1.2.3.4", "::1", "4.3.2.1", "::2"}; // ips
+    // Expected DNS cache entries.
+    std::map<std::string, DNSEntry> expected = {{"a.com", DNSEntry{"1.2.3.4", "::1"}},
+                                                {"b.com", DNSEntry{"2.3.4.5", "::2"}}}; // expected
 
-    string_vector uris = {"https://foo.bar.com", "https://frob.com"}; // uris
+    std::vector<std::string> uris = {"https://a.com", "https://b.com"};
+    std::vector<std::string> ips = {"1.2.3.4", "::1", "2.3.4.5", "::2"};
 
-    // URIs have valid IPv4 and IPv6 addresses.
-    ASSERT_EQ(populateDNSCache(cache, ips, uris), 0);
+    // Each URI is associated with a valid IPv4 and IPv6 address.
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 0);
 
-    // Make sure DNS entry is as expected.
-    std::map<std::string, DNSEntry> expected = {{"foo.bar.com", DNSEntry{ips[0], ips[1]}},
-                                                {"frob.com", DNSEntry{ips[2], ips[3]}}};
+    // Make sure the DNS cache was updated as expected.
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
 
-    EXPECT_EQ(cache, expected);
+    // Each URI is associated with an invalid IP.
+    //
+    // a.com has an invalid IPv4 address.
+    // b.com has an invalid IPv6 address.
+    ips[0] = "badV4";
+    ips[3] = "badV6";
 
-    // URIs only have valid IPv4 addresses.
-    cache.clear();
-    ips[1] = "q";
-    ips[3] = "r";
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 2);
 
-    ASSERT_EQ(populateDNSCache(cache, ips, uris), 2);
+    // Make sure previously valid IPs were cleared.
+    expected["a.com"].ipv4.clear();
+    expected["b.com"].ipv6.clear();
 
-    expected = {{"foo.bar.com", DNSEntry{ips[0], ""}}, {"frob.com", DNSEntry{ips[2], ""}}};
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
 
-    EXPECT_EQ(cache, expected);
+    // Each URI isn't associated with any valid IP address.
+    ips[1] = ips[3];
+    ips[2] = ips[0];
 
-    // URIs only have a valid IPv6 address.
-    cache.clear();
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 4);
 
-    ips = {"q", "::1", "r", "::2"};
+    // Make sure URIs remain and that any valid IPs were cleared.
+    expected["a.com"].ipv6.clear();
+    expected["b.com"].ipv4.clear();
 
-    ASSERT_EQ(populateDNSCache(cache, ips, uris), 2);
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
 
-    expected = {{"foo.bar.com", DNSEntry{"", ips[1]}}, {"frob.com", DNSEntry{"", ips[3]}}};
+    // A new URI isn't associated with any valid IP addresses.
+    uris = {"c.com"};
+    ips = {"badV4", "badV6"};
 
-    EXPECT_EQ(cache, expected);
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 2);
 
-    // A URI has no valid IP addresses.
-    cache.clear();
+    // Make sure no entry was added to the DNS cache.
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
 
-    ips = {"192.168.0.1", "::1", "q", "r"};
+    // Two new URIs only have a single valid IP each.
+    uris = {"https://d.com", "https://e.com"};
+    ips = {"4.5.6.7", "badV6", "badV4", "::3"};
 
-    ASSERT_EQ(populateDNSCache(cache, ips, uris), 2);
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 2);
 
-    expected = {{"foo.bar.com", DNSEntry{ips[0], ips[1]}}};
+    // Make sure each URI was added to the cache.
+    expected["d.com"].ipv4 = ips[0];
+    expected["e.com"].ipv6 = ips[3];
 
-    EXPECT_EQ(cache, expected);
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
 
-    // No URIs and no IPs means no changes.
-    ASSERT_EQ(populateDNSCache(cache, string_vector(), string_vector()), 0);
+    // Invalid URIs are skipped.
+    uris = {"z"};
+    ips = {"4.3.2.1", "::4"};
 
-    EXPECT_EQ(cache, expected);
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 0);
+
+    // Make sure the bad URI wasn't added to the cache.
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
 }

@@ -236,6 +236,12 @@ public:
     bool mSocketsWaitEvent_curl_call_needed = false;
 #endif
 
+    // Retrieve a reference to this instance's cached DNS entries.
+    const auto& getCachedDNSEntries() const
+    {
+        return dnscache;
+    }
+
 private:
     static int instanceCount;
     friend class MegaClient;
