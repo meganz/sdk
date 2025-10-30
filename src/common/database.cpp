@@ -111,17 +111,7 @@ Database::~Database()
         LogDebugF(*mLogger, "Database closed: %s", mPath.c_str());
 }
 
-std::string Database::execute(Badge<Transaction>, const char* statement)
-{
-    return execute(statement);
-}
-
 sqlite3* Database::get(Badge<Query>)
-{
-    return mDB;
-}
-
-sqlite3* Database::get(Badge<Transaction>)
 {
     return mDB;
 }

@@ -48,18 +48,8 @@ public:
 
     ~Database();
 
-    // Directly execute an SQL statement on this database.
-    //
-    // If the statement caused an error, a message describing that error is
-    // returned to the caller.
-    //
-    // If the statement executed successfully, an empty string is returned
-    // to the caller.
-    std::string execute(Badge<Transaction> badge, const char* statement);
-
     // Retrieve a reference to this database's SQL context.
     sqlite3* get(Badge<Query> badge);
-    sqlite3* get(Badge<Transaction> badge);
 
     // Retrieve a reference to this database's logger.
     Logger& logger() const;
