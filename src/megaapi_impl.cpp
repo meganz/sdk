@@ -12422,6 +12422,20 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
     SdkMutexGuard g(sdkMutex);
 
     sharedNode_vector vNodes = client->mNodeManager.getNodesWithLinks();
+
+    // avoid to return the link associated to the S4 container, in line with Webclient
+    if (client->mIsS4Enabled)
+    {
+        for (auto it = vNodes.begin(); it != vNodes.end(); ++it)
+        {
+            if (*it && (*it)->nodeHandle().eq(client->mS4Container))
+            {
+                vNodes.erase(it);
+                break;
+            }
+        }
+    }
+
     sortByComparatorFunction(vNodes, order, *client);
     return new MegaNodeListPrivate(vNodes);
 }
