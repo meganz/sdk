@@ -657,7 +657,56 @@ m_off_t CurlHttpIO::getmaxuploadspeed()
 
 int CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, const std::vector<string>& ips)
 {
-    return populateDNSCache(dnscache, ips, urls);
+    // Each URI should be associated with an IPv4 and an IPv6 address.
+    if (ips.size() != urls.size() * 2)
+        return -1;
+
+    // Assume all IPs are valid.
+    auto result = 0;
+
+    // Add URLs with a valid IPv4 address to the cache.
+    for (auto i = 0u; i < urls.size(); ++i)
+    {
+        // Get a copy of this URI's IPv4 and IPv6 addresses.
+        auto ipv4 = ips[i * 2];
+        auto ipv6 = ips[i * 2 + 1];
+
+        // URI doesn't have a valid IPv4 address.
+        if (!isValidIPv4Address(ipv4))
+        {
+            ipv4.clear();
+            ++result;
+        }
+
+        // URI doesn't have a valid IPv6 address.
+        if (!isValidIPv6Address(ipv6))
+        {
+            ipv6.clear();
+            ++result;
+        }
+
+        std::string host;
+        std::string scheme;
+        int port;
+
+        // Couldn't extract the URI's host name.
+        if (!crackURI(urls[i], scheme, host, port) || host.empty())
+            continue;
+
+        // URI isn't in the cache and has no valid IP addresses.
+        if (ipv4.empty() && ipv6.empty() && !dnscache.count(host))
+            continue;
+
+        // Add a DNS cache entry for this host.
+        auto& entry = dnscache[host];
+
+        // Update the host's IP addresses.
+        entry.ipv4 = std::move(ipv4);
+        entry.ipv6 = std::move(ipv6);
+    }
+
+    // Let our caller know the cache was updated.
+    return result;
 }
 
 // wake up from cURL I/O
@@ -2309,62 +2358,6 @@ bool isValidIPv4Address(const std::string& string)
 bool isValidIPv6Address(const std::string& string)
 {
     return isValidIPAddress(string, AF_INET6);
-}
-
-int populateDNSCache(std::map<std::string, DNSEntry>& cache,
-                     const std::vector<std::string>& ips,
-                     const std::vector<std::string>& uris)
-{
-    // Each URI should be associated with an IPv4 and an IPv6 address.
-    if (ips.size() != uris.size() * 2)
-        return -1;
-
-    // Assume all IPs are valid.
-    auto result = 0;
-
-    // Add URIs with a valid IPv4 address to the cache.
-    for (auto i = 0u; i < uris.size(); ++i)
-    {
-        // Get a copy of this URI's IPv4 and IPv6 addresses.
-        auto ipv4 = ips[i * 2];
-        auto ipv6 = ips[i * 2 + 1];
-
-        // URI doesn't have a valid IPv4 address.
-        if (!isValidIPv4Address(ipv4))
-        {
-            ipv4.clear();
-            ++result;
-        }
-
-        // URI doesn't have a valid IPv6 address.
-        if (!isValidIPv6Address(ipv6))
-        {
-            ipv6.clear();
-            ++result;
-        }
-
-        std::string host;
-        std::string scheme;
-        int port;
-
-        // Couldn't extract the URI's host name.
-        if (!crackURI(uris[i], scheme, host, port) || host.empty())
-            continue;
-
-        // URI isn't in the cache and has no valid IP addresses.
-        if (ipv4.empty() && ipv6.empty() && !cache.count(host))
-            continue;
-
-        // Add a DNS cache entry for this host.
-        auto& entry = cache[host];
-
-        // Update the host's IP addresses.
-        entry.ipv4 = std::move(ipv4);
-        entry.ipv6 = std::move(ipv6);
-    }
-
-    // Let our caller know the cache was updated.
-    return result;
 }
 
 } // namespace
