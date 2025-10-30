@@ -17540,7 +17540,7 @@ std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& new
 }
 
 SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
-                                               const handle backupIdToExclude) const
+                                               const handle backupIdToExclude)
 {
     if (!localPath.isAbsolute() && !localPath.isURI())
         return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
@@ -17566,6 +17566,15 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
     {
         LOG_warn << "Unsupported filesystem";
         return {API_EFAILED, UNSUPPORTED_FILE_SYSTEM, syncWarning};
+    }
+
+    if (isnetwork)
+    {
+        LOG_warn << "Network filesystem is not supported";
+
+        sendevent(800035, "Detected an attempt to setup a sync involving a network drive");
+
+        return {API_EFAILED, NETWORK_FILE_SYSTEM_UNSUPPORTED, NO_SYNC_WARNING};
     }
 
     std::unique_ptr openedLocalFolder = fsaccess->newfileaccess();

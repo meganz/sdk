@@ -7641,6 +7641,7 @@ public:
         FILESYSTEM_ID_UNAVAILABLE = 46,         // Could not get the filesystem's id
         UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
         LOCAL_PATH_MOUNTED = 48,                // The local path is a FUSE mount.
+        NETWORK_FILE_SYSTEM_UNSUPPORTED = 49, // Network filesystem is not supported.
     };
 
     enum Warning
