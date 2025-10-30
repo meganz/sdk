@@ -2115,9 +2115,6 @@ public:
     // key protecting non-shareable GPS coordinates in nodes (currently used only by CUv2 in iOS)
     string unshareablekey;
 
-    // application key
-    char appkey[16];
-
     // incoming shares to be attached to a corresponding node
     newshare_list newshares;
 

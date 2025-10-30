@@ -2926,7 +2926,6 @@ void MegaClient::exec()
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(idempotenceId);
                     pendingcs->posturl.append(getAuthURI());
-                    pendingcs->posturl.append(appkey);
                     pendingcs->posturl.append("&v=3");
 
                     if (lang.size())
@@ -3123,7 +3122,6 @@ void MegaClient::exec()
                     mPendingLocklessCS->posturl.append("cs?id=");
                     mPendingLocklessCS->posturl.append(idempotenceId);
                     mPendingLocklessCS->posturl.append(getAuthURI());
-                    mPendingLocklessCS->posturl.append(appkey);
                     mPendingLocklessCS->posturl.append("&v=3");
 
                     if (lang.size())
@@ -19192,8 +19190,6 @@ std::string MegaClient::getAuthURI(bool supressSID, bool supressAuthKey)
 void MegaClient::userfeedbackstore(const char *message)
 {
     string type = "feedback.";
-    type.append(&(appkey[4]));
-    type.append(".");
 
     string base64userAgent;
     base64userAgent.resize(useragent.size() * 4 / 3 + 4);
