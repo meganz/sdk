@@ -1383,9 +1383,6 @@ public:
     // SDK version
     const char* version();
 
-    // get the last available version of the app
-    void getlastversion(const char *appKey);
-
     // get a local ssl certificate for communications with the webclient
     void getlocalsslcertificate();
 
@@ -2817,7 +2814,14 @@ public:
         PASSWORD_MANAGER,
     };
 
-    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount, ClientType clientType = ClientType::DEFAULT);
+    MegaClient(MegaApp*,
+               shared_ptr<Waiter>,
+               HttpIO*,
+               DbAccess*,
+               GfxProc*,
+               const char*,
+               unsigned workerThreadCount,
+               ClientType clientType = ClientType::DEFAULT);
     ~MegaClient();
 
 struct MyAccountData

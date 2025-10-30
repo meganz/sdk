@@ -7994,52 +7994,6 @@ bool CommandConfirmEmailLink::procresult(Result r, JSON&)
     return r.wasErrorOrOK();
 }
 
-CommandGetVersion::CommandGetVersion(MegaClient *client, const char *appKey)
-{
-    this->client = client;
-    cmd("lv");
-    arg("a", appKey);
-    tag = client->reqtag;
-}
-
-bool CommandGetVersion::procresult(Result r, JSON& json)
-{
-    int versioncode = 0;
-    string versionstring;
-
-    if (r.wasErrorOrOK())
-    {
-        client->app->getversion_result(0, NULL, r.errorOrOK());
-        return r.wasErrorOrOK();
-    }
-
-    assert(r.hasJsonObject());
-    for (;;)
-    {
-        switch (json.getnameid())
-        {
-            case makeNameid("c"):
-                versioncode = int(json.getint());
-                break;
-
-            case makeNameid("s"):
-                json.storeobject(&versionstring);
-                break;
-
-            case EOO:
-                client->app->getversion_result(versioncode, versionstring.c_str(), API_OK);
-                return true;
-
-            default:
-                if (!json.storeobject())
-                {
-                    client->app->getversion_result(0, NULL, API_EINTERNAL);
-                    return false;
-                }
-        }
-    }
-}
-
 CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)
 {
     this->client = client;

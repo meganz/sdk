@@ -6890,21 +6890,30 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
     return it->second;
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
+MegaApiImpl::MegaApiImpl(MegaApi* api,
+                         MegaGfxProcessor* processor,
+                         const char* basePath,
+                         const char* userAgent,
+                         unsigned workerThreadCount,
+                         int clientType)
 {
-    init(api, appKey, createGfxProc(processor), basePath, userAgent, workerThreadCount, clientType);
+    init(api, createGfxProc(processor), basePath, userAgent, workerThreadCount, clientType);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
+MegaApiImpl::MegaApiImpl(MegaApi* api,
+                         MegaGfxProvider* provider,
+                         const char* basePath,
+                         const char* userAgent,
+                         unsigned workerThreadCount,
+                         int clientType)
 {
     auto p = dynamic_cast<MegaGfxProviderPrivate*>(provider);
     auto iProvider = p ? p->releaseProvider() : nullptr;
     auto gfxproc = iProvider ? std::make_unique<GfxProc>(std::move(iProvider)) : nullptr;
-    init(api, appKey, std::move(gfxproc), basePath, userAgent, workerThreadCount, clientType);
+    init(api, std::move(gfxproc), basePath, userAgent, workerThreadCount, clientType);
 }
 
 void MegaApiImpl::init(MegaApi* publicApi,
-                       const char* newAppKey,
                        std::unique_ptr<GfxProc> gfxproc,
                        const char* newBasePath,
                        const char* userAgent,
@@ -6970,16 +6979,11 @@ void MegaApiImpl::init(MegaApi* publicApi,
     }
 
     nocache = false;
-    if (newAppKey)
-    {
-        appKey = newAppKey;
-    }
     client = new MegaClient(this,
                             waiter,
                             httpio,
                             dbAccess,
                             gfxAccess,
-                            newAppKey,
                             userAgent,
                             clientWorkerThreadCount,
                             MegaClient::ClientType(clientType));
@@ -24536,21 +24540,14 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
     waiter->notify();
 }
 
-void MegaApiImpl::getLastAvailableVersion(const char* anyAppKey, MegaRequestListener* listener)
+void MegaApiImpl::getLastAvailableVersion(const char* /*anyAppKey*/, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_APP_VERSION, listener);
-    request->setText(anyAppKey);
 
-    request->performRequest = [this, request]()
-        {
-            const char *appKey = request->getText();
-            if (!appKey)
-            {
-                appKey = this->appKey.c_str();
-            }
-            client->getlastversion(appKey);
-            return API_OK;
-        };
+    request->performRequest = []()
+    {
+        return API_EACCESS;
+    };
 
     requestQueue.push(request);
     waiter->notify();

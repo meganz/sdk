@@ -1217,14 +1217,6 @@ public:
     CommandConfirmEmailLink(MegaClient*, const char*, const char *, const byte *, bool);
 };
 
-class MEGA_API CommandGetVersion : public Command
-{
-public:
-    bool procresult(Result, JSON&) override;
-
-    CommandGetVersion(MegaClient*, const char*);
-};
-
 class MEGA_API CommandGetLocalSSLCertificate : public Command
 {
 public:

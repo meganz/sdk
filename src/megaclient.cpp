@@ -1929,7 +1929,6 @@ MegaClient::MegaClient(MegaApp* a,
                        HttpIO* h,
                        DbAccess* d,
                        GfxProc* g,
-                       const char* k,
                        const char* u,
                        unsigned workerThreadCount,
                        ClientType clientType):
@@ -2069,8 +2068,6 @@ MegaClient::MegaClient(MegaApp* a,
 
     scsn.clear();
     cachedscsn = UNDEF;
-
-    snprintf(appkey, sizeof appkey, "&ak=%s", k);
 
     // initialize useragent
     useragent = u;
@@ -5356,11 +5353,6 @@ const char *MegaClient::version()
     return TOSTRING(MEGA_MAJOR_VERSION)
             "." TOSTRING(MEGA_MINOR_VERSION)
             "." TOSTRING(MEGA_MICRO_VERSION);
-}
-
-void MegaClient::getlastversion(const char *appKey)
-{
-    reqs.add(new CommandGetVersion(this, appKey));
 }
 
 void MegaClient::getlocalsslcertificate()

@@ -7194,7 +7194,6 @@ void exec_open(autocomplete::ACState& s)
                                NULL,
 #endif
                                gfx,
-                               "Gk8DyQBS",
                                "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
                                    MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION),
                                2,
@@ -11518,7 +11517,6 @@ int main(int argc, char* argv[])
                             httpIO,
                             dbAccess,
                             gfx,
-                            "Gk8DyQBS",
                             megacliUserAgent.c_str(),
                             2,
                             clientType);
