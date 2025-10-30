@@ -28,7 +28,16 @@ public:
     {
         SdkTest::SetUp();
         ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-        ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceName(megaApi[0].get()));
+        ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceNamesAttrExists(megaApi[0].get()));
+        auto [succeeded, name] =
+            ensureMyBackupsFolderExists(megaApi[0].get(), mMyBackupsFolderName);
+        ASSERT_TRUE(succeeded) << "`My Backups` Folder could not be created/retrieved";
+        if (name != mMyBackupsFolderName)
+        {
+            mMyBackupsFolderName = name;
+            myBackupsNameCustom = true;
+            LOG_debug << "`My backups` folder has a custom name: " << name;
+        }
     }
 
     void createBackupSync()
@@ -85,8 +94,21 @@ public:
         return mBackupName;
     }
 
+    std::string getMyBackupsFolderName() const
+    {
+        return mMyBackupsFolderName;
+    }
+
+    bool hasMyBackupsFolderCustomName() const
+    {
+        return myBackupsNameCustom;
+    }
+
 private:
     MegaHandle mBackupID{INVALID_HANDLE};
+    bool myBackupsNameCustom{false};
+    const std::string defaultBackupsName = "My Backups";
+    std::string mMyBackupsFolderName{defaultBackupsName};
     const std::string mBackupName{"myBackup"};
     const fs::path mLocalFolderName{getFilePrefix() + "dir"};
     const LocalTempDir mLocalTmpDir{fs::current_path() / mLocalFolderName};

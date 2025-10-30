@@ -241,7 +241,7 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootErrorOnBackup)
         "SdkTestSyncRootOperations.ChangeSyncRemoteRootErrorOnBackup : "};
 
     LOG_verbose << logPre << "Create a backup";
-    ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceName(megaApi[0].get()));
+    ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceNamesAttrExists(megaApi[0].get()));
     LocalTempDir tmpDir{"auxChangeSyncRemoteRootErrorOnBackupDir"};
 
     const auto backupId = backupFolder(megaApi[0].get(), tmpDir.getPath().u8string());
