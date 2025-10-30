@@ -647,7 +647,6 @@ RealClient::RealClient(const std::string& clientName,
                                  mHTTPIO.get(),
                                  new DBACCESS_CLASS(databasePath),
                                  mGfxProc.get(),
-                                 "N9tSBJDC",
                                  USER_AGENT.c_str(),
                                  THREADS_PER_MEGACLIENT));
 
