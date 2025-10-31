@@ -109,6 +109,9 @@ public:
 
     virtual string_type getRealPath() const = 0;
 
+    //added method to fix build error
+    virtual void truncate(size_t bytePos) = 0;
+
 private:
     virtual bool findNextSeparator(size_t& separatorBytePos) const = 0;
 };
@@ -194,6 +197,14 @@ public:
     void setImpl(std::unique_ptr<AbstractLocalPath>&& imp)
     {
         mImplementation = std::move(imp);
+    }
+
+    void truncate(size_t bytePos)
+    {
+        if (mImplementation)
+        {
+            mImplementation->truncate(bytePos);
+        }
     }
 
     // path2local / local2path are much more natural here than in FileSystemAccess

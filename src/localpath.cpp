@@ -213,7 +213,7 @@ public:
     {
         return PathType::URI_PATH;
     }
-
+    void truncate(size_t bytePos) override;
     bool extension(std::string& extension) const override;
     std::string extension() const override;
 
@@ -1755,6 +1755,14 @@ std::string PathURI::leafOrParentName() const
     }
 
     return {};
+}
+
+void PathURI::truncate(size_t bytePos)
+{
+    if (bytePos < mUri.size())
+    {
+        mUri.resize(bytePos);
+    }
 }
 
 void PathURI::append(const LocalPath& additionalPath)
