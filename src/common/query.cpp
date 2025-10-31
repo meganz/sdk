@@ -70,9 +70,6 @@ public:
     }
 }; // RetryTimer
 
-// How long should we wait, maximum, before retrying an operation?
-static constexpr auto MaxRetryInterval = std::chrono::seconds(2);
-
 void Field::match(const int requested) const
 {
 #define NAME(type) {type, #type}
