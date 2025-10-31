@@ -1197,10 +1197,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
                 else
                 {
                     client->pendingattrstring(nn[i].uploadhandle, &s);
-
-#ifdef USE_MEDIAINFO
-                    client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
-#endif
                 }
 
                 if (s.size())
