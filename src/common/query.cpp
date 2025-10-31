@@ -437,7 +437,7 @@ bool Query::execute(const char* prefix)
         std::this_thread::sleep_for(interval);
 
         // Exponentially increase interval.
-        interval = std::max(interval * 2, max);
+        interval = std::min(interval * 2, max);
     }
 }
 
