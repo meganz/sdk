@@ -16,6 +16,60 @@ namespace mega
 namespace common
 {
 
+class RetryTimer
+{
+    // How much time should we wait, maximum, between retries?
+    static constexpr auto MaxRetryInterval = std::chrono::seconds(2);
+
+    // How much time should we spend trying to retry?
+    static constexpr auto MaxRetryTime = std::chrono::minutes(1);
+
+    // Current interval between retries.
+    std::chrono::milliseconds mRetryInterval;
+
+    // Total time taken trying to retry.
+    std::chrono::milliseconds mRetryTime;
+
+public:
+    RetryTimer():
+        mRetryInterval(8),
+        mRetryTime(0)
+    {}
+
+    // Wait until we can perform another retry.
+    //
+    // Returns false if no further retries should be attempted.
+    bool wait()
+    {
+        // Convenience.
+        using std::chrono::duration_cast;
+        using std::chrono::milliseconds;
+
+        // Avoid having to cast many times.
+        constexpr auto MaxInterval = duration_cast<milliseconds>(MaxRetryInterval);
+        constexpr auto MaxTime = duration_cast<milliseconds>(MaxRetryTime);
+
+        // We've already waited long enough.
+        if (mRetryTime == MaxTime)
+            return false;
+
+        // Wait for a little while.
+        std::this_thread::sleep_for(mRetryInterval);
+
+        // Remember how long we waited.
+        mRetryTime += mRetryInterval;
+
+        // Exponentially increase retry interval.
+        mRetryInterval = std::min(mRetryInterval * 2, MaxInterval);
+
+        // Make sure our wait time never exceeds MaxTime.
+        mRetryInterval = std::min(mRetryInterval, MaxTime - mRetryTime);
+
+        // Let the caller know they should retry the operation.
+        return true;
+    }
+}; // RetryTimer
+
 // How long should we wait, maximum, before retrying an operation?
 static constexpr auto MaxRetryInterval = std::chrono::seconds(2);
 
