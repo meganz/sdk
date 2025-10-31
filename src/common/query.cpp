@@ -389,18 +389,8 @@ void Query::reset()
     // There will never be any results after the statement is reset.
     mHasNext = false;
 
-    // Convenience.
-    using std::chrono::duration_cast;
-    using std::chrono::milliseconds;
-
-    // How long should we wait between retries?
-    auto interval = milliseconds(4);
-
-    // No need to cast more than once.
-    constexpr auto max = duration_cast<milliseconds>(MaxRetryInterval);
-
     // Repeatedly try and reset the query.
-    while (true)
+    for (RetryTimer timer;;)
     {
         // Try and reset the query.
         auto result = sqlite3_reset(mStatement);
@@ -409,15 +399,17 @@ void Query::reset()
         if (result == SQLITE_OK)
             return;
 
-        // Couldn't reset query due to unknown failure.
-        if (result != SQLITE_BUSY && result != SQLITE_LOCKED)
-            throw LogErrorF(logger(), "%s: %s", prefix, sqlite3_errmsg(database()));
+        // Convenience.
+        const auto* reason = sqlite3_errmsg(database());
 
-        // Wait for a little while before we retry the reset.
-        std::this_thread::sleep_for(interval);
+        // Couldn't reset the query because:
+        // - We encountered a nontransient error.
+        // - We spent too long retrying.
+        if ((result != SQLITE_BUSY && result != SQLITE_LOCKED) || !timer.wait())
+            throw LogErrorF(logger(), "%s: %s", prefix, reason);
 
-        // Exponentially grow interval.
-        interval = std::min(interval * 2, max);
+        // So we know when reset fails due to locks.
+        LogWarningF(logger(), "%s: %s", prefix, reason);
     }
 }
 
@@ -447,18 +439,8 @@ bool Query::execute(const char* prefix)
     if (!mStatement)
         throw LogErrorF(logger(), "%s: No statement has been prepared", prefix);
 
-    // Convenience.
-    using std::chrono::duration_cast;
-    using std::chrono::milliseconds;
-
-    // How long should we wait before retrying the query?
-    auto interval = milliseconds(4);
-
-    // Avoid casting over and over again.
-    auto max = duration_cast<milliseconds>(MaxRetryInterval);
-
     // Repeatedly attempt to execute the query.
-    while (true)
+    for (RetryTimer timer;;)
     {
         // Try and execute the query.
         auto result = sqlite3_step(mStatement);
@@ -481,17 +463,17 @@ bool Query::execute(const char* prefix)
         // that later reset() calls do not fail spuriously.
         sqlite3_reset(mStatement);
 
-        // Query failed due to some unknown reason.
-        if (result != SQLITE_BUSY && result != SQLITE_LOCKED)
-            throw LogErrorF(logger(), "%s: %s", prefix, sqlite3_errmsg(database()));
+        // Convenience.
+        const auto* reason = sqlite3_errmsg(database());
 
-        // Query failed because we couldn't acquire a lock.
-        //
-        // Wait a little while before retrying.
-        std::this_thread::sleep_for(interval);
+        // Query failed because:
+        // - We encountered a nontransient error.
+        // - We spent too long retrying the query.
+        if ((result != SQLITE_BUSY && result != SQLITE_LOCKED) || !timer.wait())
+            throw LogErrorF(logger(), "%s: %s", prefix, reason);
 
-        // Exponentially increase interval.
-        interval = std::min(interval * 2, max);
+        // So we know when queries fail due to locks.
+        LogWarningF(logger(), "%s: %s", prefix, reason);
     }
 }
 
