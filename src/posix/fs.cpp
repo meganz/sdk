@@ -2564,6 +2564,16 @@ bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool&
     // Is it a known network filesystem?
     isnetwork = isNetworkFilesystem(type);
 
+    if (isnetwork)
+    {
+        LOG_debug << "Network folder detected";
+
+        syncError = NETWORK_FILE_SYSTEM_UNSUPPORTED;
+        syncWarning = NO_SYNC_WARNING;
+
+        return false;
+    }
+
     syncError = NO_SYNC_ERROR;
     syncWarning = NO_SYNC_WARNING;
 
