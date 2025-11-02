@@ -1054,6 +1054,54 @@ TEST_F(FileServiceTests, fetch_succeeds)
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 1_MiB)));
 }
 
+TEST_F(FileServiceTests, file_destroyed_on_client_thread_during_read_callback_succeeds)
+{
+    // Open our test file for reading.
+    auto file = mClient->fileOpen(mFileHandle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure readahead is disabled.
+    mClient->fileService().options(DisableReadahead);
+
+    // Make sure the client doesn't complete the download in one hit.
+    mClient->setDownloadSpeed(8192);
+
+    // Try and read all of the file's data.
+    auto waiter = [file = std::move(*file)]() mutable
+    {
+        // Transmits read result to our waiter.
+        auto notifier = makeSharedPromise<FileResult>();
+
+        // Try and read all of the file's data.
+        //
+        // Note that our callback will only be executed once.
+        file.read(
+            [file, notifier](auto&& result) mutable
+            {
+                // Called to notify our waiter on the client's thread.
+                auto notify = [](auto&, auto& notifier, auto result, auto&)
+                {
+                    notifier->set_value(result);
+                }; // notify
+
+                // Notify our waiter from the client's thread.
+                mClient->execute(std::bind(std::move(notify),
+                                           std::move(file),
+                                           std::move(notifier),
+                                           result.errorOr(FILE_SUCCESS),
+                                           std::placeholders::_1));
+            },
+            0,
+            mFileContent.size());
+
+        // Return a waiter to our caller.
+        return notifier->get_future();
+    }();
+
+    // Wait for the read (and destruction of file) to complete.
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+}
+
 TEST_F(FileServiceTests, flush_cancel_on_client_logout_succeeds)
 {
     // Create a client that we can safely logout.
