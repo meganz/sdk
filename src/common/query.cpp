@@ -41,17 +41,16 @@ public:
     // Returns false if no further retries should be attempted.
     bool wait()
     {
+        // We've already waited long enough.
+        if (mRetryTime >= MaxRetryTime)
+            return false;
+
         // Convenience.
         using std::chrono::duration_cast;
         using std::chrono::milliseconds;
 
         // Avoid having to cast many times.
         constexpr auto MaxInterval = duration_cast<milliseconds>(MaxRetryInterval);
-        constexpr auto MaxTime = duration_cast<milliseconds>(MaxRetryTime);
-
-        // We've already waited long enough.
-        if (mRetryTime == MaxTime)
-            return false;
 
         // Wait for a little while.
         std::this_thread::sleep_for(mRetryInterval);
@@ -63,7 +62,7 @@ public:
         mRetryInterval = std::min(mRetryInterval * 2, MaxInterval);
 
         // Make sure our wait time never exceeds MaxTime.
-        mRetryInterval = std::min(mRetryInterval, MaxTime - mRetryTime);
+        mRetryInterval = std::min(mRetryInterval, MaxRetryTime - mRetryTime);
 
         // Let the caller know they should retry the operation.
         return true;
