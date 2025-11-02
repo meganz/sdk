@@ -54,7 +54,9 @@ protected:
     bool mRead = false;// if json has already been read
 
     bool loadIpsFromJson(std::vector<string>& ips, JSON& json);
-    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips);
+    void cacheresolvedurls(const std::string& command,
+                           const std::vector<string>& urls,
+                           const std::vector<string>& ips);
 
     // True if the command can be sent to the API lockless CS channel
     // Updated internally by each command.

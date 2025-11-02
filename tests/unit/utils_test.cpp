@@ -1839,3 +1839,128 @@ TEST_F(FileAccessTest, OpenEquivalence)
     EXPECT_EQ(lhs.type, rhs.type);
     EXPECT_EQ(lhs.mIsSymLink, rhs.mIsSymLink);
 }
+
+TEST(IP, is_valid_ipv4_address_fails)
+{
+    ASSERT_FALSE(isValidIPv4Address(""));
+    ASSERT_FALSE(isValidIPv4Address("1"));
+    ASSERT_FALSE(isValidIPv4Address("1.2"));
+    ASSERT_FALSE(isValidIPv4Address("1.2.3"));
+    ASSERT_FALSE(isValidIPv4Address("::1"));
+}
+
+TEST(IP, is_valid_ipv4_address_succeeds)
+{
+    ASSERT_TRUE(isValidIPv4Address("192.168.0.1"));
+}
+
+TEST(IP, is_valid_ipv6_address_fails)
+{
+    ASSERT_FALSE(isValidIPv6Address(""));
+    ASSERT_FALSE(isValidIPv6Address("192.168.0.1"));
+    ASSERT_FALSE(isValidIPv6Address("0"));
+    ASSERT_FALSE(isValidIPv6Address("::q"));
+}
+
+TEST(IP, is_valid_ipv6_address_succeeds)
+{
+    ASSERT_TRUE(isValidIPv6Address("2001:db8:3333:4444:5555:6666:7777:8888"));
+    ASSERT_TRUE(isValidIPv6Address("2001:db8::"));
+    ASSERT_TRUE(isValidIPv6Address("::1234:5678"));
+    ASSERT_TRUE(isValidIPv6Address("2001:db8:3333:4444:5555:6666:1.2.3.4"));
+    ASSERT_TRUE(isValidIPv6Address("2001:db8::1234:5678:5.6.7.8"));
+    ASSERT_TRUE(isValidIPv6Address("::11.22.33.44"));
+}
+
+// Using string_vector to avoid parsing problems with GTest.
+TEST(DNS, cache_resolved_urls_fails)
+{
+    CurlHttpIO io;
+
+    // Not enough IPs for each URI.
+    EXPECT_LT(io.cacheresolvedurls(string_vector(1), string_vector(1)), 0);
+
+    // Not enough URIs for each IP.
+    EXPECT_LT(io.cacheresolvedurls(string_vector(1), string_vector(4)), 0);
+
+    // Multiple URIs and no IPs.
+    EXPECT_LT(io.cacheresolvedurls(string_vector(2), string_vector()), 0);
+
+    // Make sure the cache remains empty.
+    EXPECT_TRUE(io.getCachedDNSEntries().empty());
+}
+
+TEST(DNS, cache_resolved_urls_succeeds)
+{
+    CurlHttpIO io;
+
+    // Expected DNS cache entries.
+    std::map<std::string, DNSEntry> expected = {{"a.com", DNSEntry{"1.2.3.4", "::1"}},
+                                                {"b.com", DNSEntry{"2.3.4.5", "::2"}}}; // expected
+
+    std::vector<std::string> uris = {"https://a.com", "https://b.com"};
+    std::vector<std::string> ips = {"1.2.3.4", "::1", "2.3.4.5", "::2"};
+
+    // Each URI is associated with a valid IPv4 and IPv6 address.
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 0);
+
+    // Make sure the DNS cache was updated as expected.
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
+
+    // Each URI is associated with an invalid IP.
+    //
+    // a.com has an invalid IPv4 address.
+    // b.com has an invalid IPv6 address.
+    ips[0] = "badV4";
+    ips[3] = "badV6";
+
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 2);
+
+    // Make sure previously valid IPs were cleared.
+    expected["a.com"].ipv4.clear();
+    expected["b.com"].ipv6.clear();
+
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
+
+    // Each URI isn't associated with any valid IP address.
+    ips[1] = ips[3];
+    ips[2] = ips[0];
+
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 4);
+
+    // Make sure URIs remain and that any valid IPs were cleared.
+    expected["a.com"].ipv6.clear();
+    expected["b.com"].ipv4.clear();
+
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
+
+    // A new URI isn't associated with any valid IP addresses.
+    uris = {"c.com"};
+    ips = {"badV4", "badV6"};
+
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 2);
+
+    // Make sure no entry was added to the DNS cache.
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
+
+    // Two new URIs only have a single valid IP each.
+    uris = {"https://d.com", "https://e.com"};
+    ips = {"4.5.6.7", "badV6", "badV4", "::3"};
+
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 2);
+
+    // Make sure each URI was added to the cache.
+    expected["d.com"].ipv4 = ips[0];
+    expected["e.com"].ipv6 = ips[3];
+
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
+
+    // Invalid URIs are skipped.
+    uris = {"z"};
+    ips = {"4.3.2.1", "::4"};
+
+    EXPECT_EQ(io.cacheresolvedurls(uris, ips), 0);
+
+    // Make sure the bad URI wasn't added to the cache.
+    EXPECT_EQ(expected, io.getCachedDNSEntries());
+}

@@ -178,10 +178,7 @@ bool CommandPutFA::procresult(Result r, JSON& json)
                         std::vector<string> urls(1, posturl);
                         std::vector<string> ipsCopy = ips;
 
-                        if(!cacheresolvedurls(urls, std::move(ips)))
-                        {
-                            LOG_err << "Unpaired IPs received for URLs in `ufa` command. URLs: " << urls.size() << " IPs: " << ips.size();
-                        }
+                        cacheresolvedurls("ufa", urls, std::move(ips));
 
                         mCompletion(API_OK, posturl, ipsCopy);
                     }
@@ -271,12 +268,9 @@ bool CommandGetFA::procresult(Result r, JSON& json)
                     {
                         JSON::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
-                        size_t ipCount = ips.size();
-                        if (!cacheresolvedurls({it->second->posturl}, std::move(ips)))
-                        {
-                            LOG_err << "Unpaired IPs received for URLs in `ufa` command. "
-                                    << ipCount << " IPs for one URL.";
-                        }
+
+                        cacheresolvedurls("ufa", {it->second->posturl}, std::move(ips));
+
                         it->second->dispatch();
                     }
                     else
@@ -486,10 +480,7 @@ bool CommandPutFile::procresult(Result r, JSON& json)
 
                 if (tempurls.size() == 1)
                 {
-                    if(!cacheresolvedurls(tempurls, std::move(tempips)))
-                    {
-                        LOG_err << "Unpaired IPs received for URLs in `u` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
-                    }
+                    cacheresolvedurls("u", tempurls, std::move(tempips));
 
                     tslot->transfer->tempurls = tempurls;
                     tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
@@ -893,13 +884,12 @@ bool CommandGetFile::procresult(Result r, JSON& json)
             {
                 // defer code that steals the ips <move(tempips)> and stores them in the cache
                 // thus we can use them before going out of scope
-                std::shared_ptr<void> deferThis(nullptr, [this, &tempurls, &tempips](...)
-                {
-                    if(!cacheresolvedurls(tempurls, std::move(tempips)))
+                std::shared_ptr<void> deferThis(
+                    nullptr,
+                    [this, &tempurls, &tempips](...)
                     {
-                        LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
-                    }
-                });
+                        cacheresolvedurls("g", tempurls, std::move(tempips));
+                    });
 
                 if (canceled) //do not proceed: SymmCipher may no longer exist
                 {
