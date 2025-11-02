@@ -1,21 +1,73 @@
-#include <cassert>
-#include <tuple>
-#include <utility>
-
-#include <sqlite3.h>
-
 #include <mega/common/badge.h>
+#include <mega/common/database.h>
 #include <mega/common/logging.h>
 #include <mega/common/query.h>
-#include <mega/common/database.h>
-
 #include <mega/filesystem.h>
 #include <mega/types.h>
+
+#include <cassert>
+#include <chrono>
+#include <sqlite3.h>
+#include <tuple>
+#include <utility>
 
 namespace mega
 {
 namespace common
 {
+
+class RetryTimer
+{
+    // How much time should we wait, maximum, between retries?
+    static constexpr auto MaxRetryInterval = std::chrono::seconds(2);
+
+    // How much time should we spend trying to retry?
+    static constexpr auto MaxRetryTime = std::chrono::minutes(1);
+
+    // Current interval between retries.
+    std::chrono::milliseconds mRetryInterval;
+
+    // Total time taken trying to retry.
+    std::chrono::milliseconds mRetryTime;
+
+public:
+    RetryTimer():
+        mRetryInterval(8),
+        mRetryTime(0)
+    {}
+
+    // Wait until we can perform another retry.
+    //
+    // Returns false if no further retries should be attempted.
+    bool wait()
+    {
+        // We've already waited long enough.
+        if (mRetryTime >= MaxRetryTime)
+            return false;
+
+        // Convenience.
+        using std::chrono::duration_cast;
+        using std::chrono::milliseconds;
+
+        // Avoid having to cast many times.
+        constexpr auto MaxInterval = duration_cast<milliseconds>(MaxRetryInterval);
+
+        // Wait for a little while.
+        std::this_thread::sleep_for(mRetryInterval);
+
+        // Remember how long we waited.
+        mRetryTime += mRetryInterval;
+
+        // Exponentially increase retry interval.
+        mRetryInterval = std::min(mRetryInterval * 2, MaxInterval);
+
+        // Make sure our wait time never exceeds MaxTime.
+        mRetryInterval = std::min(mRetryInterval, MaxRetryTime - mRetryTime);
+
+        // Let the caller know they should retry the operation.
+        return true;
+    }
+}; // RetryTimer
 
 void Field::match(const int requested) const
 {
@@ -130,17 +182,13 @@ Parameter::Parameter(const int index, Query& query)
 {
 }
 
-Query::Query(Query&& other)
-  : mDB(std::move(other.mDB))
-  , mHasNext(std::move(other.mHasNext))
-  , mFields(std::move(other.mFields))
-  , mParameters(std::move(other.mParameters))
-  , mStatement(std::move(other.mStatement))
-{
-    other.mDB = nullptr;
-    other.mHasNext = false;
-    other.mStatement = nullptr;
-}
+Query::Query(Query&& other):
+    mDB(std::exchange(other.mDB, nullptr)),
+    mHasNext(std::exchange(other.mHasNext, false)),
+    mFields(std::move(other.mFields)),
+    mParameters(std::move(other.mParameters)),
+    mStatement(std::exchange(other.mStatement, nullptr))
+{}
 
 Query::~Query()
 {
@@ -239,17 +287,9 @@ Query& Query::operator++()
     if (!mHasNext)
         throw LogErrorF(logger(), "%s: No further rows available", prefix);
 
-    if (!mStatement)
-        throw LogErrorF(logger(), "%s: No statement has been executed", prefix);
+    execute(prefix);
 
-    auto result = sqlite3_step(mStatement);
-
-    mHasNext = result == SQLITE_ROW;
-
-    if (result == SQLITE_DONE || result == SQLITE_ROW)
-        return *this;
-
-    throw LogErrorF(logger(), "%s: %s", prefix, sqlite3_errmsg(database()));
+    return *this;
 }
 
 bool Query::operator!() const
@@ -280,19 +320,7 @@ void Query::clear()
 
 bool Query::execute()
 {
-    auto* prefix = "Unable to execute query";
-
-    if (!mStatement)
-        throw LogErrorF(logger(), "%s: No statement has been prepared", prefix);
-
-    auto result = sqlite3_step(mStatement);
-
-    mHasNext = result == SQLITE_ROW;
-
-    if (result == SQLITE_DONE || result == SQLITE_ROW)
-        return mHasNext;
-
-    throw LogErrorF(logger(), "%s: %s", prefix, sqlite3_errmsg(database()));
+    return execute("Unable to execute query");
 }
 
 auto Query::field(const std::string& name) -> Field
@@ -347,17 +375,38 @@ auto Query::param(const char* name) -> Parameter
 
 void Query::reset()
 {
+    // Convenience.
     auto* prefix = "Unable to reset query";
 
+    // Can't reset a statement that hasn't been prepared.
     if (!mStatement)
         throw LogErrorF(logger(), "%s: No statement has been prepared", prefix);
 
-    auto result = sqlite3_reset(mStatement);
-
-    if (result != SQLITE_OK)
-        throw LogErrorF(logger(), "%s: %s", prefix, sqlite3_errmsg(database()));
-
+    // There will never be any results after the statement is reset.
     mHasNext = false;
+
+    // Repeatedly try and reset the query.
+    for (RetryTimer timer;;)
+    {
+        // Try and reset the query.
+        auto result = sqlite3_reset(mStatement);
+
+        // Query was reset successfully.
+        if (result == SQLITE_OK)
+            return;
+
+        // Convenience.
+        const auto* reason = sqlite3_errmsg(database());
+
+        // Couldn't reset the query because:
+        // - We encountered a nontransient error.
+        // - We spent too long retrying.
+        if ((result != SQLITE_BUSY && result != SQLITE_LOCKED) || !timer.wait())
+            throw LogErrorF(logger(), "%s: %s", prefix, reason);
+
+        // So we know when reset fails due to locks.
+        LogWarningF(logger(), "%s: %s", prefix, reason);
+    }
 }
 
 void Query::swap(Query& other)
@@ -375,6 +424,53 @@ sqlite3* Query::database() const
     assert(mDB);
 
     return mDB->get(Badge<Query>());
+}
+
+bool Query::execute(const char* prefix)
+{
+    // Sanity.
+    assert(prefix);
+
+    // Can't execute a query that hasn't been prepared.
+    if (!mStatement)
+        throw LogErrorF(logger(), "%s: No statement has been prepared", prefix);
+
+    // Repeatedly attempt to execute the query.
+    for (RetryTimer timer;;)
+    {
+        // Try and execute the query.
+        auto result = sqlite3_step(mStatement);
+
+        // Does the query have any further rows to return?
+        mHasNext = result == SQLITE_ROW;
+
+        // Query executed successfully.
+        if (mHasNext || result == SQLITE_DONE)
+            return mHasNext;
+
+        // Reset the query.
+        //
+        // This is necessary for two reasons.
+        //
+        // First, we will want to retry the query if we were not able to
+        // acquire a necessary file or table lock.
+        //
+        // Second, we want to clear the latest error set on our statement so
+        // that later reset() calls do not fail spuriously.
+        sqlite3_reset(mStatement);
+
+        // Convenience.
+        const auto* reason = sqlite3_errmsg(database());
+
+        // Query failed because:
+        // - We encountered a nontransient error.
+        // - We spent too long retrying the query.
+        if ((result != SQLITE_BUSY && result != SQLITE_LOCKED) || !timer.wait())
+            throw LogErrorF(logger(), "%s: %s", prefix, reason);
+
+        // So we know when queries fail due to locks.
+        LogWarningF(logger(), "%s: %s", prefix, reason);
+    }
 }
 
 Query::Query(Badge<Database>, Database& db)

@@ -330,7 +330,7 @@ TEST_F(FUSEMountTests, disable_succeeds)
     EXPECT_FALSE(error);
 }
 
-TEST_F(FUSEMountTests, DISABLED_disable_when_source_removed)
+TEST_F(FUSEMountTests, disable_when_source_removed)
 {
     auto result = ClientW()->remove("/t");
     ASSERT_TRUE(result == API_FUSE_ENOTFOUND || result == API_OK);
