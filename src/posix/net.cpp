@@ -50,7 +50,6 @@ std::atomic<bool> g_netLoggingOn{false};
 #define NET_verbose if (g_netLoggingOn) LOG_verbose
 #define NET_debug if (g_netLoggingOn) LOG_debug
 
-
 #if defined(_WIN32)
 
 HANDLE SockInfo::sharedEventHandle()
@@ -846,23 +845,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (gLogJSONRequests || req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
-        {
-            LOG_debug << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
-                      << DirectMessage(req->out->c_str(), req->out->size())
-                      << " (at ds: " << Waiter::ds << ")";
-        }
-        else
-        {
-            LOG_debug
-                << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
-                << DirectMessage(req->out->c_str(),
-                                 static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
-                << " [...] "
-                << DirectMessage(req->out->c_str() + req->out->size() -
-                                     SimpleLogger::getMaxPayloadLogSize() / 2,
-                                 static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
-        }
+        JSON_SENDING << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
+                     << MaxDirectMessage(req->out->c_str(),
+                                         req->out->size(),
+                                         SimpleLogger::getMaxPayloadLogSize())
+                     << " (at ds: " << Waiter::ds << ")";
     }
 
     req->outpos = 0;
@@ -1487,33 +1474,20 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                                   << (req->buf ? req->bufpos : (int)req->in.size())
                                   << " bytes of raw data]";
                     }
-                    else if (req->mChunked && static_cast<size_t>(req->bufpos) != req->in.size())
+                    else if (req->mChunked)
                     {
-                        LOG_debug << req->getLogName() << "[received " << req->bufpos
-                                  << " bytes of chunked data]";
+                        // Chunked data logging is handled in write_data callback to avoid
+                        // duplicate logging. The 'in' field may contain previously received
+                        // data that would be logged multiple times if printed here.
                     }
                     else
                     {
-                        if (gLogJSONRequests ||
-                            req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
-                        {
-                            LOG_debug << req->getLogName() << "Received " << req->in.size() << ": "
-                                      << DirectMessage(req->in.c_str(), req->in.size())
-                                      << " (at ds: " << Waiter::ds << ")";
-                        }
-                        else
-                        {
-                            LOG_debug
-                                << req->getLogName() << "Received " << req->in.size() << ": "
-                                << DirectMessage(req->in.c_str(),
-                                                 static_cast<size_t>(
-                                                     SimpleLogger::getMaxPayloadLogSize() / 2))
-                                << " [...] "
-                                << DirectMessage(req->in.c_str() + req->in.size() -
-                                                     SimpleLogger::getMaxPayloadLogSize() / 2,
-                                                 static_cast<size_t>(
-                                                     SimpleLogger::getMaxPayloadLogSize() / 2));
-                        }
+                        JSON_NONCHUNK_RECEIVED
+                            << req->getLogName() << "Received " << req->in.size() << ": "
+                            << MaxDirectMessage(req->in.c_str(),
+                                                req->in.size(),
+                                                SimpleLogger::getMaxPayloadLogSize())
+                            << " (at ds: " << Waiter::ds << ")";
                     }
                 }
 
@@ -1758,6 +1732,16 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
         if (len)
         {
             req->put(ptr, static_cast<unsigned>(len), true);
+            // Chunked data is logged here when written since chunks are not
+            // consumed immediately upon receipt, avoiding duplicate logging.
+            if (req->mChunked)
+            {
+                JSON_CHUNK_RECEIVED << req->getLogName() << "Received chunk " << len << ": "
+                                    << MaxDirectMessage(static_cast<const char*>(ptr),
+                                                        static_cast<size_t>(len),
+                                                        SimpleLogger::getMaxPayloadLogSize())
+                                    << " (at ds: " << Waiter::ds << ")";
+            }
         }
 
         httpio->lastdata = Waiter::ds;

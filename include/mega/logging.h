@@ -379,7 +379,9 @@ class SimpleLogger
 
     static std::atomic<LogLevel> logCurrentLevel;
 
-    static long long maxPayloadLogSize; //above this, the msg will be truncated by [ ... ]
+    static constexpr size_t PAYLOAD_LOG_DEFAULT_SIZE = 10240;
+
+    inline static std::atomic_size_t maxPayloadLogSize = PAYLOAD_LOG_DEFAULT_SIZE;
 
 public:
     // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
@@ -647,12 +649,26 @@ public:
         return logCurrentLevel;
     }
 
-    // set the limit of size to requests payload
-    static void setMaxPayloadLogSize(long long size)
+    /**
+     * @brief Sets the maximum size limit for request payload logging.
+     *
+     * When logging request payloads, messages exceeding this size will be truncated
+     * with "[...]" to prevent extremely large log entries.
+     *
+     * @param size Maximum payload size in bytes. If set to 0, the max size limit of size_t is
+     * applied and payloads will be logged in full regardless of size. Default is
+     * PAYLOAD_LOG_DEFAULT_SIZE (10240 bytes).
+     *
+     */
+    static void setMaxPayloadLogSize(size_t size = PAYLOAD_LOG_DEFAULT_SIZE)
     {
-        maxPayloadLogSize = size;
+        if (size == 0)
+            maxPayloadLogSize = std::numeric_limits<size_t>::max();
+        else
+            maxPayloadLogSize = size;
     }
-    inline static const long long& getMaxPayloadLogSize()
+
+    inline static size_t getMaxPayloadLogSize()
     {
         return maxPayloadLogSize;
     }
@@ -878,4 +894,60 @@ constexpr auto generateLogAndReturnError(F&& resGenerator)
     };
 }
 
+// Logging msg in full if its size msgSize is less than maxLogSize. Otherwise, logging first and
+// last parts of the msg based on maxLogSize/2.
+#define MaxDirectMessage(msg, msgSize, maxLogSize) \
+    ((msgSize) < (maxLogSize) ? DirectMessage((msg), (msgSize)) : \
+                                DirectMessage((msg), (maxLogSize / 2))) \
+        << ((msgSize) < (maxLogSize) ? "" : "[...]") \
+        << ((msgSize) < (maxLogSize) ? \
+                "" : \
+                DirectMessage((msg) + (msgSize) - (maxLogSize / 2), (maxLogSize / 2)))
+
+class JSONLog
+{
+public:
+    enum
+    {
+        NONE = 0,
+        CHUNK_RECEIVED = 1,
+        CHUNK_PROCESSING = 1 << 1,
+        CHUNK_CONSUMED = 1 << 2,
+        SENDING = 1 << 3,
+        NONCHUNK_RECEIVED = 1 << 4,
+    };
+
+    static uint32_t get()
+    {
+        return mJSONLog;
+    }
+
+    static void set(uint32_t value)
+    {
+        mJSONLog = value;
+    }
+
+private:
+    inline static std::atomic_uint32_t mJSONLog{CHUNK_CONSUMED | SENDING | NONCHUNK_RECEIVED};
+};
+
+#define JSON_CHUNK_RECEIVED \
+    if (JSONLog::get() & JSONLog::CHUNK_RECEIVED) \
+    LOG_debug
+
+#define JSON_CHUNK_PROCESSING \
+    if (JSONLog::get() & JSONLog::CHUNK_PROCESSING) \
+    LOG_debug
+
+#define JSON_CHUNK_CONSUMED \
+    if (JSONLog::get() & JSONLog::CHUNK_CONSUMED) \
+    LOG_debug
+
+#define JSON_SENDING \
+    if (JSONLog::get() & JSONLog::SENDING) \
+    LOG_debug
+
+#define JSON_NONCHUNK_RECEIVED \
+    if (JSONLog::get() & JSONLog::NONCHUNK_RECEIVED) \
+    LOG_debug
 } // namespace

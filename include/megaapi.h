@@ -10902,6 +10902,16 @@ class MegaApi
             PWM_NODE_TYPE_CREDIT_CARD = 2,
         };
 
+        enum
+        {
+            JSON_LOG_NONE = 0,
+            JSON_LOG_CHUNK_RECEIVED = 1,
+            JSON_LOG_CHUNK_PROCESSING = 1 << 1,
+            JSON_LOG_CHUNK_CONSUMED = 1 << 2,
+            JSON_LOG_SENDING = 1 << 3,
+            JSON_LOG_NONCHUNK_RECEIVED = 1 << 4,
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
         static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
@@ -12930,12 +12940,17 @@ class MegaApi
         void setLogExtraForModules(bool networking, bool syncs);
 
         /**
-         * @brief Set the limit of size to requests payload
+         * @brief Set the maximum size limit for request payload logging
          *
-         * This functions sets the max size that will be allowed for requests payload
-         * If the payload exceeds that, the line will be truncated in the midle with [...] in between
+         * This function controls the maximum size of request payloads that will be logged
+         * in full. When a payload exceeds this limit, it will be truncated in the middle
+         * with "[...]" inserted between the first and last portions to indicate truncation.
+         *
+         * @param maxSize Maximum payload size in bytes that will be logged without truncation.
+         *                Use 0 to use the max size limit.
+         *
          */
-        static void setMaxPayloadLogSize(long long maxSize);
+        static void setMaxPayloadLogSize(size_t maxSize);
 
         /**
          * @brief Enable log to console
@@ -12962,8 +12977,65 @@ class MegaApi
          * the content is less than the logger's maximum payload size.
          *
          * @see MegaApi::setMaxPayloadLogSize
+         * @see MegaApi::setLogJSON
+         *
+         * @deprecated This function is deprecated and will be removed in future releases. Use
+         * setLogJSON and setMaxPlayloadLogSize instead.
          */
+        MEGA_DEPRECATED
         static void setLogJSONContent(bool enable);
+
+        /**
+         * @brief Configure JSON request and response logging options
+         *
+         * This function controls how JSON requests and responses are logged by the SDK.
+         * Use bitwise OR to combine multiple logging options.
+         *
+         * Available logging flags:
+         * - MegaApi::JSON_LOG_NONE = 0
+         *   Disable all JSON logging if no other flags are set
+         *
+         * - MegaApi::JSON_LOG_CHUNK_RECEIVED = 1
+         *   Enable logging of received JSON chunked data
+         *   @see MegaApi::setMaxPayloadLogSize for size limits
+         *
+         * - MegaApi::JSON_LOG_CHUNK_PROCESSING = 2
+         *   Enable logging of JSON chunked data during processing
+         *
+         * - MegaApi::JSON_LOG_CHUNK_CONSUMED = 4
+         *   Enable logging of consumed JSON chunked data (enabled by default)
+         *
+         * - MegaApi::JSON_LOG_SENDING = 8
+         *   Enable logging of JSON data being sent to the server (enabled by default)
+         *
+         * - MegaApi::JSON_LOG_NONCHUNK_RECEIVED = 16
+         *   Enable logging of received non-chunked JSON data (enabled by default)
+         *
+         * @param value Bitwise combination of logging flags
+         *
+         * Example usage:
+         * @code
+         * // Enable received and consumed logging
+         * MegaApi::setLogJSON(MegaApi::JSON_LOG_CHUNK_RECEIVED | MegaApi::JSON_LOG_CHUNK_CONSUMED);
+         *
+         * // Disable all JSON logging
+         * MegaApi::setLogJSON(MegaApi::JSON_LOG_NONE);
+         * @endcode
+         */
+        static void setLogJSON(uint32_t value);
+
+        /**
+         * @brief Get the current JSON logging configuration settings
+         *
+         * This function retrieves the currently active JSON logging flags that control
+         * how JSON requests and responses are logged by the SDK.
+         *
+         * @return Current JSON logging configuration as a bitwise combination of flags
+         *
+         * @see MegaApi::setLogJSON for configuring these settings
+         * @see MegaApi::setMaxPayloadLogSize for controlling log size limits
+         */
+        static uint32_t getLogJSON();
 
         /**
          * @brief Add a MegaLogger implementation to receive SDK logs

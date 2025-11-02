@@ -2174,7 +2174,7 @@ void MegaApi::setLogExtraForModules(bool networking, bool syncs)
     return pImpl->setLogExtraForModules(networking, syncs);
 }
 
-void MegaApi::setMaxPayloadLogSize(long long maxSize)
+void MegaApi::setMaxPayloadLogSize(size_t maxSize)
 {
     MegaApiImpl::setMaxPayloadLogSize(maxSize);
 }
@@ -2187,6 +2187,16 @@ void MegaApi::setLogToConsole(bool enable)
 void MegaApi::setLogJSONContent(bool enable)
 {
     MegaApiImpl::setLogJSONContent(enable);
+}
+
+void MegaApi::setLogJSON(uint32_t value)
+{
+    MegaApiImpl::setLogJSON(value);
+}
+
+uint32_t MegaApi::getLogJSON()
+{
+    return MegaApiImpl::getLogJSON();
 }
 
 void MegaApi::addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)

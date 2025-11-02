@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "mega/hashcash.h"
 #include "mega/heartbeats.h"
+#include "mega/logging.h"
 #include "mega/mediafileattribute.h"
 #include "mega/network_connectivity_test.h"
 #include "mega/scoped_helpers.h"
@@ -132,6 +133,9 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
+
+// How many bytes to logging at most
+static constexpr size_t CONSUMED_CHUNK_MAX_LOGGING = 20;
 
 // -- JourneyID constructor and methods --
 MegaClient::JourneyID::JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, const LocalPath& rootPath) :
@@ -2646,9 +2650,13 @@ void MegaClient::exec()
                                 if (pendingcs->mChunked)
                                 {
                                     size_t consumedBytes = reqs.serverChunk(pendingcs->data(), this);
-                                    LOG_verbose << "Consumed a chunk of " << consumedBytes << " bytes. "
-                                                << "Total: " << reqs.chunkedProgress() << " of "
-                                                << pendingcs->contentlength;
+                                    JSON_CHUNK_CONSUMED
+                                        << "Consumed a chunk of " << consumedBytes << " bytes. "
+                                        << "Total: " << reqs.chunkedProgress() << " of "
+                                        << pendingcs->contentlength << ". "
+                                        << MaxDirectMessage(pendingcs->data(),
+                                                            consumedBytes,
+                                                            CONSUMED_CHUNK_MAX_LOGGING);
                                     pendingcs->purge(consumedBytes);
                                 }
 
@@ -2701,7 +2709,12 @@ void MegaClient::exec()
                                     size_t consumedBytes = reqs.serverChunk(pendingcs->data(), this);
                                     if (consumedBytes)
                                     {
-                                        LOG_verbose << "Consumed the last chunk of " << consumedBytes << " bytes";
+                                        JSON_CHUNK_CONSUMED
+                                            << "Consumed the last chunk of " << consumedBytes
+                                            << " bytes. "
+                                            << MaxDirectMessage(pendingcs->data(),
+                                                                consumedBytes,
+                                                                CONSUMED_CHUNK_MAX_LOGGING);
                                     }
 
                                     // The requests should be already terminated

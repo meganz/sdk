@@ -3772,11 +3772,13 @@ class MegaApiImpl : public MegaApp
         void resetCredentials(MegaUser* user, MegaRequestListener* listener = NULL);
         void setLogExtraForModules(bool networking, bool syncs);
         static void setLogLevel(int logLevel);
-        static void setMaxPayloadLogSize(long long maxSize);
+        static void setMaxPayloadLogSize(size_t maxSize);
         static void addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void removeLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void setLogToConsole(bool enable);
         static void setLogJSONContent(bool enable);
+        static void setLogJSON(uint32_t value);
+        static uint32_t getLogJSON();
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
 

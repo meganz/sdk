@@ -29,10 +29,6 @@
 
 namespace mega {
 
-std::atomic<bool> gLogJSONRequests{false};
-
-#define JSON_verbose if (gLogJSONRequests) LOG_verbose
-
 // store array or object in string s
 // reposition after object
 bool JSON::storeobject(string* s)
@@ -1150,10 +1146,10 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
         mStarting = false;
     }
 
-    JSON_verbose << "JSON starting processChunk at path " << mCurrentPath
-                 << " ExpectValue: " << mExpectValue << " LastName: " << mLastName
-                 << " Data: " << std::string(data, strlen(data) < 32 ? strlen(data) : 32)
-                 << " Start: " << std::string(mPos, strlen(mPos) < 32 ? strlen(mPos) : 32);
+    JSON_CHUNK_PROCESSING << "JSON starting processChunk at path " << mCurrentPath
+                          << " ExpectValue: " << mExpectValue << " LastName: " << mLastName
+                          << " Data: " << std::string(data, strlen(data) < 32 ? strlen(data) : 32)
+                          << " Start: " << std::string(mPos, strlen(mPos) < 32 ? strlen(mPos) : 32);
 
     while (*mPos)
     {
@@ -1170,7 +1166,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
             mStack.push_back(c + mLastName);
             mCurrentPath.append(mStack.back());
 
-            JSON_verbose << "JSON starting path: " << mCurrentPath;
+            JSON_CHUNK_PROCESSING << "JSON starting path: " << mCurrentPath;
             if (filters && filters->find(mCurrentPath) != filters->end())
             {
                 // a filter is configured for this path - recurse
@@ -1220,8 +1216,9 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                 auto filterit = filters->find(filter);
                 if (filterit != filters->end() && filterit->second)
                 {
-                    JSON_verbose << "JSON object/array callback for path: " << filter << " Data: "
-                                 << std::string(mLastPos, static_cast<size_t>(mPos - mLastPos));
+                    JSON_CHUNK_PROCESSING
+                        << "JSON object/array callback for path: " << filter
+                        << " Data: " << std::string(mLastPos, static_cast<size_t>(mPos - mLastPos));
 
                     JSON jsonData(mLastPos);
                     auto& callback = filterit->second;
@@ -1248,7 +1245,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                 }
             }
 
-            JSON_verbose << "JSON finishing path: " << mCurrentPath;
+            JSON_CHUNK_PROCESSING << "JSON finishing path: " << mCurrentPath;
             mCurrentPath.resize(mCurrentPath.size() - mStack.back().size());
             mStack.pop_back();
             mExpectValue = 0;
@@ -1284,8 +1281,8 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
             int t = strEnd();
             if (t < 0)
             {
-                JSON_verbose << "JSON chunk finished parsing a string."
-                             << " Data: " << mPos;
+                JSON_CHUNK_PROCESSING << "JSON chunk finished parsing a string."
+                                      << " Data: " << mPos;
                 break;
             }
 
@@ -1297,8 +1294,9 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                     auto filterit = filters->find(filter);
                     if (filterit != filters->end() && filterit->second)
                     {
-                        JSON_verbose << "JSON string value callback for: " << filter
-                                     << " Data: " << std::string(mPos, static_cast<size_t>(t));
+                        JSON_CHUNK_PROCESSING
+                            << "JSON string value callback for: " << filter
+                            << " Data: " << std::string(mPos, static_cast<size_t>(t));
 
                         JSON jsonData(mPos);
                         auto& callback = filterit->second;
@@ -1314,9 +1312,9 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                     }
                 }
 
-                JSON_verbose << "JSON string value parsed at path " << mCurrentPath
-                             << " Data: " << mLastName << " = "
-                             << std::string(mPos + 1, static_cast<size_t>(t - 2));
+                JSON_CHUNK_PROCESSING << "JSON string value parsed at path " << mCurrentPath
+                                      << " Data: " << mLastName << " = "
+                                      << std::string(mPos + 1, static_cast<size_t>(t - 2));
 
                 mPos += t;
                 mExpectValue = 0;
@@ -1337,8 +1335,9 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                     return 0;
                 }
 
-                JSON_verbose << "JSON property name parsed at path " << mCurrentPath
-                             << " Data: " << std::string(mPos + 1, static_cast<size_t>(t - 2));
+                JSON_CHUNK_PROCESSING
+                    << "JSON property name parsed at path " << mCurrentPath
+                    << " Data: " << std::string(mPos + 1, static_cast<size_t>(t - 2));
 
                 mLastName = std::string(mPos + 1, static_cast<size_t>(t - 2));
                 mPos += t + 1;
@@ -1357,13 +1356,14 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
             int j = numEnd();
             if (j < 0 || !mPos[j])
             {
-                JSON_verbose << "JSON chunk finished parsing a number."
-                             << " Data: " << mPos;
+                JSON_CHUNK_PROCESSING << "JSON chunk finished parsing a number."
+                                      << " Data: " << mPos;
                 break;
             }
 
-            JSON_verbose << "JSON number parsed at path " << mCurrentPath << " Data: " << mLastName
-                         << " = " << std::string(mPos, static_cast<size_t>(j));
+            JSON_CHUNK_PROCESSING << "JSON number parsed at path " << mCurrentPath
+                                  << " Data: " << mLastName << " = "
+                                  << std::string(mPos, static_cast<size_t>(j));
 
             mPos += j;
             mExpectValue = 0;
@@ -1380,8 +1380,9 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                     if (filterit != filters->end())
                     {
                         JSON jsonData(mLastPos);
-                        JSON_verbose << "JSON error callback."
-                                     << " Data: " << std::string(mLastPos, static_cast<size_t>(j));
+                        JSON_CHUNK_PROCESSING
+                            << "JSON error callback."
+                            << " Data: " << std::string(mLastPos, static_cast<size_t>(j));
 
                         auto& callback = filterit->second;
                         if (!callback(&jsonData))
@@ -1420,10 +1421,11 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
     mProcessedBytes = mPos - mLastPos;
     m_off_t consumedBytes = mLastPos - data;
 
-    JSON_verbose << "JSON leaving processChunk at path " << mCurrentPath << "."
-                 << " Data: " << std::string(mPos, strlen(mPos) < 32 ? strlen(mPos) : 32)
-                 << " Processed: " << mProcessedBytes << " Consumed: " << consumedBytes
-                 << " Next start: " << std::string(mLastPos, strlen(mLastPos) < 32 ? strlen(mLastPos) : 32);
+    JSON_CHUNK_PROCESSING << "JSON leaving processChunk at path " << mCurrentPath << "."
+                          << " Data: " << std::string(mPos, strlen(mPos) < 32 ? strlen(mPos) : 32)
+                          << " Processed: " << mProcessedBytes << " Consumed: " << consumedBytes
+                          << " Next start: "
+                          << std::string(mLastPos, strlen(mLastPos) < 32 ? strlen(mLastPos) : 32);
 
     return consumedBytes;
 }
