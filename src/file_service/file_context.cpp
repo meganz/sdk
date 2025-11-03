@@ -185,54 +185,64 @@ void FileContext::cancel(const FileRange& range)
     // Make sure we have exclusive access to mRanges.
     std::unique_lock lock(mRangesLock);
 
-    // What ranges intersect range?
+    // What ranges does range intersect?
     auto [begin, end] = mRanges.find(range);
 
     // No ranges intersect range.
     if (begin == end)
         return;
 
-    // True if a download is in progress.
-    auto downloading = [](const auto& entry)
-    {
-        return entry.second != nullptr;
-    }; // downloading
+    // Tracks any downloads in progress.
+    std::vector<FileRangeContextPtr> contexts;
 
-    // How many of these ranges have a download in progress?
-    std::atomic count = std::count_if(begin, end, downloading);
+    // Tracks how many downloads are still in progress.
+    std::atomic<std::size_t> count{0};
 
-    // No reads are in progress.
-    if (!count)
-        return;
-
-    // So we can signal when the ranges have finished downloading.
+    // So we know when all downloads have completed.
     std::promise<void> notifier;
 
-    // Called when a range has finished downloading.
+    // Called when a download has completed.
     auto completed = [&](auto)
     {
-        // Wake up our waiter when all downloads have finished.
+        // All downloads have completed.
         if (count.fetch_sub(1) == 1)
             notifier.set_value();
-    };
+    }; // completed
 
-    // Cancel the downloads in progress.
-    for (auto lock_ = std::move(lock); begin != end;)
+    // Figure out which range downloads are in progress.
+    for (; begin != end; ++begin)
     {
-        // Necessary due to cancel() below.
-        auto current = begin++;
+        // Convenience.
+        auto context = begin->second;
 
-        // Sanity.
-        assert(current->second);
+        // Range doesn't have a download in progress.
+        if (!context)
+            continue;
 
-        // So we know when the download has completed.
-        current->second->queue(completed);
+        // Invoke our callback when the range's download completes.
+        context->queue(completed);
 
-        // Cancel the download.
-        current->second->cancel();
+        // Latch the context so we can cancel its download later.
+        contexts.emplace_back(context);
     }
 
-    // Wait for the downloads to complete.
+    // No range downloads need to be cancelled.
+    if (contexts.empty())
+        return;
+
+    // Track how many downloads are in progress.
+    count += contexts.size();
+
+    // Release ranges lock.
+    //
+    // Any ranges that were waiting on the lock will now complete.
+    lock.unlock();
+
+    // Cancel any range downloads still in progress.
+    for (auto& context: contexts)
+        context->cancel();
+
+    // Wait for range downloads to complete.
     notifier.get_future().get();
 }
 
@@ -258,28 +268,18 @@ void FileContext::cancel()
     // means that the client servicing those downloads may be executing
     // within us or about to execute within us.
 
-    // Cancel any downloads in progress.
+    // Get a snapshot of our ranges.
+    auto ranges = [&]()
     {
-        // Make sure no one else changes mRanges.
-        //
-        // This is necessary as FileRangeContext instances acquire this lock
-        // when they are servicing a partial download callback.
         std::lock_guard guard(mRangesLock);
+        return mRanges;
+    }();
 
-        // Cancel any downloads in progress.
-        for (auto i = mRanges.begin(); i != mRanges.end();)
-        {
-            // Keeps logic simple.
-            auto j = i++;
-
-            // Range is being downloaded.
-            //
-            // Calling cancel on a FileRangeContext with an active download
-            // will cause that context to call us immediately to remove
-            // itself from mRanges.
-            if (j->second)
-                j->second->cancel();
-        }
+    // Cancel any downloads in progress.
+    for (auto& [_, context]: ranges)
+    {
+        if (context)
+            context->cancel();
     }
 
     // Cancel the flush if necessary.
