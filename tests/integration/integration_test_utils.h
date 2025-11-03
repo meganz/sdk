@@ -164,7 +164,7 @@ void getDeviceNames(::mega::MegaApi* megaApi, std::unique_ptr<::mega::MegaString
 /**
  * @brief Get the special folder for backups (`My Backups`)
  * @return a pair with the result of retrieving MegaApi::USER_ATTR_MY_BACKUPS_FOLDER attr and the
- * handle ofnode in case it exists
+ * handle of node in case it exists
  */
 std::pair<bool, ::mega::MegaHandle> getMyBackupsFolder(::mega::MegaApi* megaApi);
 

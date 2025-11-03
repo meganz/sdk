@@ -283,7 +283,7 @@ std::shared_ptr<Node> findCloneNodeCandidate(MegaClient& mc,
     for (auto& n: matches)
     {
         // Break if we find a candidate in `matches` vector with same name and target node
-        if (n->displayname() == upload.name && n->parenthandle == upload.h.as8byte())
+        if (n->displayname() == upload.name && n->parentHandle() == upload.h)
         {
             candidateNode = n;
             break;
@@ -325,7 +325,7 @@ void clientUpload(MegaClient& mc,
     }
 
     if (auto isSameNode = cloneNodeCandidate->displayname() == upload->name &&
-                          cloneNodeCandidate->parenthandle == upload->h.as8byte();
+                          cloneNodeCandidate->parentHandle() == upload->h;
         isSameNode)
     {
         if (cloneNodeCandidate->mtime != upload->mtime)

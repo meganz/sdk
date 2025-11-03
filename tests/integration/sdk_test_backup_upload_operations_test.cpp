@@ -593,7 +593,7 @@ TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
         auto mtime{fs::file_time_type::clock::now()};
         auto [res, localFile] = createLocalFileAndWaitForSync(localBasePath / fn, "abcde", mtime);
 
-        ASSERT_TRUE(res) << "Cannot create local file `" << fn << "`";
+        ASSERT_TRUE(res) << "Cannot sync local file `" << fn << "`";
         localFiles.push_back({localFile, mtime});
     }
 
