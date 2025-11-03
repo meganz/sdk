@@ -8818,6 +8818,16 @@ void MegaApiImpl::setNodeS4(MegaNode *node, const char *value, MegaRequestListen
     waiter->notify();
 }
 
+bool MegaApiImpl::isS4Enabled()
+{
+    return client->mIsS4Enabled.load();
+}
+
+MegaHandle MegaApiImpl::getS4Container()
+{
+    return client->mS4Container.load().as8byte();
+}
+
 void MegaApiImpl::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
@@ -12427,6 +12437,20 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
     SdkMutexGuard g(sdkMutex);
 
     sharedNode_vector vNodes = client->mNodeManager.getNodesWithLinks();
+
+    // avoid to return the link associated to the S4 container, in line with Webclient
+    if (client->mIsS4Enabled)
+    {
+        for (auto it = vNodes.begin(); it != vNodes.end(); ++it)
+        {
+            if (*it && (*it)->nodeHandle().eq(client->mS4Container))
+            {
+                vNodes.erase(it);
+                break;
+            }
+        }
+    }
+
     sortByComparatorFunction(vNodes, order, *client);
     return new MegaNodeListPrivate(vNodes);
 }

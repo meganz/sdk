@@ -1874,6 +1874,8 @@ void MegaClient::init()
     statecurrent = false;
     actionpacketsCurrent = false;
     totalNodes.store(0);
+    mIsS4Enabled.store(0);
+    mS4Container.store(NodeHandle());
     faretrying = false;
 
 #ifdef ENABLE_SYNC
@@ -7554,6 +7556,8 @@ void MegaClient::sc_userattr()
                                         [[fallthrough]];
 
                                     // some attributes should be fetched upon invalidation
+                                    case ATTR_S4:
+                                    case ATTR_S4_CONTAINER:
                                     case ATTR_KEYS:
                                     case ATTR_AUTHRING:
                                     case ATTR_AUTHCU255:
@@ -10011,7 +10015,13 @@ error MegaClient::checkmove(Node* fn, Node* tn)
         tn = tn->parent.get();
     }
 
-    // condition #6: fn and tn must be in the same tree (same ultimate parent
+    // condition #6: fn cannot be the S4 container if S4 is enabled
+    if (mIsS4Enabled && fn->nodeHandle().eq(mS4Container))
+    {
+        return API_EACCESS;
+    }
+
+    // condition #7: fn and tn must be in the same tree (same ultimate parent
     // node or shared by the same user)
     for (;;)
     {
@@ -10346,6 +10356,12 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
     if (ststatus == STORAGE_PAYWALL)
     {
         return API_EPAYWALL;
+    }
+
+    // S4 container cannot be deleted if S4 is enabled
+    if (mIsS4Enabled && n->nodeHandle().eq(mS4Container))
+    {
+        return API_EACCESS;
     }
 
     bool kv = (keepversions && n->type == FILENODE);
@@ -14391,6 +14407,12 @@ error MegaClient::exportnode(
     }
 
     if (!checkaccess(n.get(), OWNER))
+    {
+        return API_EACCESS;
+    }
+
+    // the link associated to the S4 container cannot be deleted if S4 is enabled
+    if (mIsS4Enabled && n->nodeHandle().eq(mS4Container))
     {
         return API_EACCESS;
     }

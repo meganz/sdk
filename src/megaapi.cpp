@@ -2964,6 +2964,16 @@ void MegaApi::setNodeS4(MegaNode *node, const char *value, MegaRequestListener *
     pImpl->setNodeS4(node, value, listener);
 }
 
+bool MegaApi::isS4Enabled()
+{
+    return pImpl->isS4Enabled();
+}
+
+MegaHandle MegaApi::getS4Container()
+{
+    return pImpl->getS4Container();
+}
+
 void MegaApi::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
 {
     pImpl->setNodeLabel(node, label, listener);

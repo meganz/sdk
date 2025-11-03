@@ -1394,6 +1394,11 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         {
             cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
         }
+
+        if (type == mega::ATTR_S4_CONTAINER)
+        {
+            cout << "S4 container: " << client->mS4Container << endl;
+        }
     }
 
     if (type == ATTR_COOKIE_SETTINGS)

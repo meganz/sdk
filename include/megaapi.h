@@ -10677,6 +10677,8 @@ class MegaApi
             USER_ATTR_ENABLE_TEST_SURVEYS =
                 46, // private - non-encrypted - char array in B64 - non-versioned
             USER_ATTR_WELCOME_PDF_COPIED = 47, // private - non-encrypted - char array
+            USER_ATTR_S4 = 48, // private - non-encrypted - char array
+            USER_ATTR_S4_CONTAINER = 49, // private - non-encrypted - char array
         };
 
         enum {
@@ -14649,6 +14651,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener);
+
+        /**
+         * @brief Returns true if S4 object storage is enabled
+         *
+         * This method doesn't need to block the SDK mutex: do not cache the value in the app.
+         *
+         * @return True if enabled, false if disabled
+         */
+        bool isS4Enabled();
+
+        /**
+         * @brief Returns the node's handle of the S4 container
+         *
+         * S4 requires a folder in the root of the Cloud Drive to operate.
+         * This method returns the handle of the related node, or INVALID_HANDLE if the
+         * S4 service is disabled.
+         *
+         * This method doesn't need to block the SDK mutex: do not cache the value in the app.
+         *
+         * @return The node's handle, or INVALID_HANDLE if not set.
+         */
+        MegaHandle getS4Container();
 
         /**
          * @brief Set node label as a node attribute.
