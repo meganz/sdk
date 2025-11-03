@@ -475,9 +475,8 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
  *
  * 1. Create a local file in the backup directory and ensure it is synced.
  * 2. Wait until the backup sync is up to date.
- * 3. Wait '5' seconds and modify local file mtime.
- * 5. Wait for node update notification confirming mtime has been changed.
- * 6. Confirm that local and remote (cloud) models match.
+ * 3. Update mtime to local file and wait for notification that confirms change.
+ * 4. Confirm that local and remote (cloud) models match.
  */
 TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
 {
@@ -496,16 +495,13 @@ TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
 
     auto localBasePath{fs::absolute(getLocalFolderPath())};
     LOG_debug << logPre << "#### TC1 Creating local file `file1` in Backup dir ####";
-    auto [res1, localFile1] = createLocalFileAndWaitForSync(localBasePath / "filewxyz",
+    auto [res1, localFile1] = createLocalFileAndWaitForSync(localBasePath / "file1",
                                                             "abcde",
                                                             fs::file_time_type::clock::now());
     ASSERT_TRUE(res1) << "Cannot create local file `file1`";
 
     LOG_debug << "#### TC2 wait until all files (in Backup folder) have been synced  ####";
     ASSERT_TRUE(waitForBackupSyncUpToDate());
-
-    LOG_debug << logPre
-              << "#### TC3 Wait 5 seconds (skip tolerance checkups) and modify mtime  ####";
     resetOnSyncStatsUpdated();
 
     std::unique_ptr<MegaSync> backupSync(megaApi[0]->getSyncByBackupId(getBackupId()));
@@ -513,7 +509,7 @@ TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
     std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(backupSync->getMegaHandle()));
     ASSERT_TRUE(backupNode) << "Cannot get backup sync";
     std::unique_ptr<MegaNode> fileNode(
-        megaApi[0]->getChildNodeOfType(backupNode.get(), "filewxyz", FILENODE));
+        megaApi[0]->getChildNodeOfType(backupNode.get(), "file1", FILENODE));
     ASSERT_TRUE(fileNode) << "Cannot get file node";
 
     bool mTimeChangeRecv{false};
@@ -535,11 +531,10 @@ TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
         }
     };
 
-    LOG_debug << logPre << "#### TC3.1 Before touch file ####";
+    LOG_debug << logPre << "#### TC3 Update mtime to local file ####";
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath((localBasePath / "filewxyz").u8string()),
+    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath((localBasePath / "file1").u8string()),
                              m_time(nullptr));
-    LOG_debug << logPre << "#### TC3.2 After touch file ####";
     ASSERT_TRUE(waitForResponse(&mTimeChangeRecv))
         << "No mtime change received after " << maxTimeout << " seconds";
     resetOnNodeUpdateCompletionCBs(); // important to reset
@@ -590,6 +585,7 @@ TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
         filenames.emplace_back(fn);
         LOG_debug << logPre << "#### TC1." << std::to_string(i) << " Creating local file `" << fn
                   << "` in Backup dir ####";
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
         auto mtime{fs::file_time_type::clock::now()};
         auto [res, localFile] = createLocalFileAndWaitForSync(localBasePath / fn, "abcde", mtime);
 

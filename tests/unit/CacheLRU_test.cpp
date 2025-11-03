@@ -396,6 +396,29 @@ TEST_F(CacheLRU, getNodeByFingerprint_NoRAM_NoLRU)
     ASSERT_EQ(nodes.size(), 1);
 }
 
+/**
+ * @test CacheLRU.getNodesByFingerprintIgnoringMtime
+ * Test preconditions: Initialize the LRU cache with size (8) and create the root node.
+ *
+ * 1. Add multiple groups of nodes to the cache with different FPs (size, mtime, and CRC) between
+ * groups. All elements in the same group will have the same FP (size, mtime, and CRC).
+ * 2. Validate that the total number of nodes in the cache matches the expected count.
+ * 3. Test `getNodesByFingerprint` ignoring `mtime` to confirm that node search by FP behaves
+ * correctly.
+ *  - This test case forces the SDK to search nodes in the DB and allocate them in the LRU cache and
+ * in the FingerprintContainer.
+ *  - The LRU cache size (8) is small enough that this test case also exercises node unloading from
+ * the LRU cache when new ones need to be allocated.
+ * 4. Add more groups of nodes to the cache with different FPs (size, mtime, and CRC values) between
+ * groups. All elements in the same group will have the same FP (size, mtime, and CRC).
+ * 5. Validate that the total number of nodes in the cache matches the expected count.
+ * 6. Test `getNodesByFingerprint` both ignoring and including `mtime` to confirm that node search
+ * by FP behaves correctly in both cases.
+ *  - This test case forces the SDK to search nodes in the DB and allocate them in the LRU cache and
+ * in the FingerprintContainer.
+ *  - The LRU cache size (8) is small enough that this test case also exercises node unloading from
+ * the LRU cache when new ones need to be allocated.
+ */
 TEST_F(CacheLRU, getNodesByFingerprintIgnoringMtime)
 {
     constexpr uint32_t lruSize{8};
@@ -410,7 +433,8 @@ TEST_F(CacheLRU, getNodesByFingerprintIgnoringMtime)
     addNodeInCache(fingerprints, folder, 10 /*size=*/, 20 /*mtime=*/, 30 /*crc*/, numNodes[0]);
     addNodeInCache(fingerprints, folder, 20 /*size=*/, 20 /*mtime=*/, 40 /*crc*/, numNodes[0]);
     addNodeInCache(fingerprints, folder, 30 /*size=*/, 40 /*mtime=*/, 50 /*crc*/, numNodes[0]);
-    ASSERT_EQ(fingerprints.size(), expectedNumNodes);
+    ASSERT_EQ(fingerprints.size(), expectedNumNodes)
+        << "Unexpected num nodes in fingerprints vector";
 
     ASSERT_NO_FATAL_FAILURE(checkNodesInCache(mNumRootNodes + mLruSize,
                                               mNumRootNodes + expectedNumNodes + +1 /*testFolder*/,
@@ -463,6 +487,20 @@ TEST_F(CacheLRU, getNodesByFingerprintIgnoringMtime)
         << "TC11: getNodesByFingerprint(including mtime)";
 }
 
+/**
+ * @test CacheLRU.getNodesByFingerprintIgnoringMtimeSmallLRUCache
+ * Test preconditions: Initialize the LRU cache with a very small size (2) and create the root node.
+ *
+ * 1. Add multiple groups of nodes to the cache with different FPs (size, mtime, and CRC) between
+ * groups. All elements in the same group will have the same FP (size, mtime, and CRC).
+ * 2. Validate that the total number of nodes in the cache matches the expected count.
+ * 3. Test `getNodesByFingerprint` both ignoring and including `mtime` to confirm that node search
+ * by FP behaves correctly in both cases.
+ *  - This test case forces the SDK to search nodes in the DB and allocate them in the LRU cache and
+ * in the FingerprintContainer.
+ *  - As the LRU cache size (2) is very small, we search nodes from different groups (and multiple
+ * times), which causes the LRU to unload nodes to allocate new ones.
+ */
 TEST_F(CacheLRU, getNodesByFingerprintIgnoringMtimeSmallLRUCache)
 {
     constexpr uint32_t lruSize{2};
