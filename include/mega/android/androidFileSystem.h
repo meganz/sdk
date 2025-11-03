@@ -275,7 +275,7 @@ public:
     /* On Android we cannot set mtime on files, due to insufficient permissions */
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
-    bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
+    bool issyncsupported(const LocalPath&, SyncError&, SyncWarning&) override;
     bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
     int getdefaultfilepermissions() override;
     void setdefaultfilepermissions(int) override;

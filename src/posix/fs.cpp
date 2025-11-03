@@ -2556,13 +2556,15 @@ DirNotify* LinuxFileSystemAccess::newdirnotify(LocalNode& root,
 #endif
 #endif
 
-bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
+bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg,
+                                            SyncError& syncError,
+                                            SyncWarning& syncWarning)
 {
     // What filesystem is hosting our sync?
     auto type = getlocalfstype(localpathArg);
 
     // Is it a known network filesystem?
-    isnetwork = isNetworkFilesystem(type);
+    const bool isnetwork = isNetworkFilesystem(type);
 
     if (isnetwork)
     {

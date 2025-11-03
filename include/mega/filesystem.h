@@ -739,7 +739,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     }
 
     // check if synchronization is supported for a specific path
-    virtual bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) = 0;
+    virtual bool issyncsupported(const LocalPath&, SyncError&, SyncWarning&) = 0;
 
     // get the absolute path corresponding to a path
     virtual bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) = 0;
