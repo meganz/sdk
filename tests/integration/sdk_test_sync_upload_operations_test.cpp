@@ -234,4 +234,43 @@ TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUploadDifferentMtime)
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 }
 
+/**
+ * @brief SdkTestSyncUploadsOperations.MultimediaFileUpload
+ *
+ * Test the metadata and thumbnails from a synced video.
+ *
+ */
+#if !defined(USE_FREEIMAGE) && !defined(USE_MEDIAINFO)
+TEST_F(SdkTestSyncUploadsOperations, DISABLED_MultimediaFileUpload)
+#else
+TEST_F(SdkTestSyncUploadsOperations, MultimediaFileUpload)
+#endif
+{
+    static const string VIDEO_FILE = "sample_video.mp4";
+    static const int AVC1_FORMAT = 887; // ID from MediaInfo
+
+    static const std::string logPre = getLogPrefix();
+    LOG_verbose << logPre << "Upload a multimedia file in a sync";
+
+    // Get file in the sync path to be uploaded by the sync.
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + VIDEO_FILE,
+                                       fs::absolute(getLocalTmpDir() / VIDEO_FILE)));
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    auto uploadedNode = getNodeByPath(SYNC_REMOTE_PATH + "/" + VIDEO_FILE);
+    ASSERT_TRUE(uploadedNode);
+#ifdef USE_MEDIAINFO
+    ASSERT_EQ(uploadedNode->getDuration(), 5) << "Duration is not correct or unavailable.";
+    ASSERT_EQ(uploadedNode->getHeight(), 360) << "Height is not correct or unavailable.";
+    ASSERT_EQ(uploadedNode->getWidth(), 640) << "Width ID is not correct or unavailable.";
+    ASSERT_EQ(uploadedNode->getVideocodecid(), AVC1_FORMAT)
+        << "Codec ID is not correct or unavailable.";
+#endif
+#ifdef USE_FREEIMAGE
+    ASSERT_TRUE(uploadedNode->hasThumbnail())
+        << "Thumbnail is not available for the uploaded node.";
+#endif
+}
+
 #endif // ENABLE_SYNC
