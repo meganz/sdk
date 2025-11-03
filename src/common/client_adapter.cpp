@@ -170,6 +170,9 @@ class ClientPartialDownload:
     // The file's decryption key, IV and authentication tokens.
     NodeKeyData mKeyData;
 
+    // Serializes access to instance members.
+    mutable std::recursive_mutex mLock;
+
     // At what location in the file should we start downloading?
     std::uint64_t mOffset;
 
@@ -177,7 +180,7 @@ class ClientPartialDownload:
     std::uint64_t mRemaining;
 
     // Tracks the status of the download.
-    std::atomic<StatusFlags> mStatus;
+    StatusFlags mStatus;
 
 public:
     ClientPartialDownload(PartialDownloadCallback& callback,
@@ -1550,33 +1553,27 @@ std::size_t ClientNodeEventQueue::size() const
 
 void ClientPartialDownload::completed(Error result)
 {
-    // Try and complete the download.
-    while (true)
+    // Check and update download status.
     {
-        // Latch the download's current status.
-        auto expected = mStatus.load();
+        std::lock_guard guard(mLock);
 
-        // The download's already been completed.
-        if (expected & SF_COMPLETED)
+        // Download's already been completed.
+        if (mStatus & SF_COMPLETED)
             return;
 
         // Convenience.
         auto mask = SF_CANCELLABLE | SF_IN_PROGRESS;
 
-        // Compute the download's updated status.
-        auto desired = (expected & ~mask) | SF_COMPLETED;
+        // Update the download's status.
+        mStatus = (mStatus & ~mask) | SF_COMPLETED;
 
-        // Download's been effectively cancelled.
+        // Downloads been effectively cancelled.
         if (result == API_EINCOMPLETE)
-            desired |= SF_CANCELLED;
-
-        // Another thread's updated the download's status.
-        if (!mStatus.compare_exchange_weak(expected, desired))
-            continue;
-
-        // Let the user know their download's completed.
-        mCallback.completed(result);
+            mStatus |= SF_CANCELLED;
     }
+
+    // Let the user know their download has completed.
+    mCallback.completed(result);
 }
 
 void ClientPartialDownload::data(Data& data)
@@ -1653,26 +1650,17 @@ void ClientPartialDownload::failure(Failure& failure)
 
 bool ClientPartialDownload::inProgress()
 {
-    // Try and mark the download as in progress.
-    while (true)
-    {
-        // Latch the download's current status.
-        auto expected = mStatus.load();
+    std::lock_guard guard(mLock);
 
-        // The download's already begun or already completed.
-        if (expected != SF_CANCELLABLE)
-            return false;
+    // The download's already begun or already completed.
+    if (mStatus != SF_CANCELLABLE)
+        return false;
 
-        // Compute the download's updated status.
-        auto desired = expected | SF_IN_PROGRESS;
+    // Mark the download as in progress.
+    mStatus |= SF_IN_PROGRESS;
 
-        // Another thread's changed the download's status.
-        if (!mStatus.compare_exchange_weak(expected, desired))
-            continue;
-
-        // Let the caller know the download's in progress.
-        return true;
-    }
+    // Let the caller know the download's in progress.
+    return true;
 }
 
 void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
@@ -1707,6 +1695,10 @@ void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
                           event);
     }
 
+    // Make sure other threads don't cancel the download while we are
+    // executing callbacks.
+    std::lock_guard guard(download->mLock);
+
     // Dispatch the event.
     std::visit(overloaded{[&](Data& data)
                           {
@@ -1725,8 +1717,8 @@ void ClientPartialDownload::notify(PartialDownloadWeakPtr cookie, Event& event)
                           },
                           [&](Valid& valid)
                           {
-                              // We're valid as the download's still alive.
-                              valid.ret = true;
+                              // We're valid if the download hasn't been cancelled.
+                              valid.ret = !download->cancelled();
                           }},
                event);
 }
@@ -1743,6 +1735,7 @@ ClientPartialDownload::ClientPartialDownload(PartialDownloadCallback& callback,
     mClient(client),
     mHandle(handle),
     mKeyData(keyData),
+    mLock(),
     mOffset(offset),
     mRemaining(length),
     mStatus{SF_CANCELLABLE}
@@ -1773,6 +1766,9 @@ void ClientPartialDownload::begin()
             // Download's been destroyed.
             if (!download)
                 return;
+
+            // Make sure cancellation status doesn't change during setup.
+            std::lock_guard guard(mLock);
 
             // Client's being torn down.
             if (task.cancelled())
@@ -1817,52 +1813,45 @@ void ClientPartialDownload::begin()
 
 bool ClientPartialDownload::cancel()
 {
-    // Try and cancel the download.
-    while (true)
+    // Check and update the download's status.
     {
-        // Latch the download's current status.
-        auto expected = mStatus.load();
+        std::lock_guard guard(mLock);
 
         // Download's already been cancelled or completed.
-        if (!(expected & SF_CANCELLABLE))
+        if (!(mStatus & SF_CANCELLABLE))
             return false;
 
-        // Compute download's new status.
-        auto desired = (expected ^ SF_CANCELLABLE) | SF_CANCELLED;
-
-        // Couldn't update the download's status.
-        if (!mStatus.compare_exchange_weak(expected, desired))
-            continue;
-
-        // Download's in progress: Let the client call the user's callback.
-        if (expected & SF_IN_PROGRESS)
-            return true;
-
-        // Download hasn't started so mark it as complete.
-        mStatus |= SF_COMPLETED;
-
-        // And call the user's callback directly.
-        mCallback.completed(API_EINCOMPLETE);
-
-        // Let the caller know the download was cancelled.
-        return true;
+        // Compute the download's new status.
+        mStatus = (mStatus ^ SF_CANCELLABLE) | SF_CANCELLED | SF_COMPLETED;
     }
+
+    // Let the user know their download has been cancelled.
+    mCallback.completed(API_EINCOMPLETE);
+
+    // Let the caller know the download has been cancelled.
+    return true;
 }
 
 bool ClientPartialDownload::cancellable() const
 {
+    std::lock_guard guard(mLock);
+
     // Check if we can be cancelled.
     return (mStatus & SF_CANCELLABLE) > 0;
 }
 
 bool ClientPartialDownload::cancelled() const
 {
+    std::lock_guard guard(mLock);
+
     // Check if the download's been cancelled.
     return (mStatus & SF_CANCELLED) > 0;
 }
 
 bool ClientPartialDownload::completed() const
 {
+    std::lock_guard guard(mLock);
+
     // Check if we've been completed.
     return (mStatus & SF_COMPLETED) > 0;
 }
