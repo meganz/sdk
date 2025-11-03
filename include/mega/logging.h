@@ -773,6 +773,8 @@ inline void crashlytics_log(const char* msg)
 {
 #ifdef ENABLE_CRASHLYTICS
     firebase::crashlytics::Log(msg);
+#else
+    (void)msg;
 #endif
 }
 #endif
