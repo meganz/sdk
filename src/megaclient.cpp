@@ -2266,43 +2266,49 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
         app->transfer_prepare(&t);
     }
 
-    // 2) Create uploadhandle if not present (legacy: first activation)
+    // 2) First-activation only: create uploadhandle and enqueue FA imagery once
     if (t.uploadhandle.isUndef())
     {
         t.uploadhandle = mUploadHandle.next();
         LOG_debug << "[MegaClient::prepareUploadForWs] t.uploadhandle.isUndef() -> t.uploadhandle "
                      "= mUploadHandle.next() = "
                   << t.uploadhandle << " [t.localfilename = " << t.localfilename << "]";
-    }
 
-    // 3) Enqueue thumbnail/preview FAs if applicable
-    if (!gfxdisabled && gfx && gfx->isgfx(t.localfilename))
-    {
-        LOG_debug << "[MegaClient::prepareUploadForWs] !gfxdisabled && gfx && "
-                     "gfx->isgfx(t.localfilename) -> generate and mark pending attributes "
-                     "[t.localfilename = "
-                  << t.localfilename << "]";
-        // Keep the behavior: generate and mark pending attributes
-        const int bitmask = gfx->gendimensionsputfa(t.localfilename,
-                                                    NodeOrUploadHandle(t.uploadhandle),
-                                                    t.transfercipher(),
-                                                    -1);
+        // 3) Enqueue thumbnail/preview FAs if applicable
+        if (!gfxdisabled && gfx && gfx->isgfx(t.localfilename))
+        {
+            LOG_debug << "[MegaClient::prepareUploadForWs] !gfxdisabled && gfx && "
+                         "gfx->isgfx(t.localfilename) -> generate and mark pending attributes "
+                         "[t.localfilename = "
+                      << t.localfilename << "]";
+            // Keep the behavior: generate and mark pending attributes
+            const int bitmask = gfx->gendimensionsputfa(t.localfilename,
+                                                        NodeOrUploadHandle(t.uploadhandle),
+                                                        t.transfercipher(),
+                                                        -1);
 
-        if (bitmask & (1 << GfxProc::THUMBNAIL))
-        {
-            LOG_debug << "[MegaClient::prepareUploadForWs] bitmask & (1 << GfxProc::THUMBNAIL) -> "
-                         "fileAttributesUploading.setFileAttributePending(t.uploadhandle, "
-                         "GfxProc::THUMBNAIL, &t) [t.localfilename = "
-                      << t.localfilename << "]";
-            fileAttributesUploading.setFileAttributePending(t.uploadhandle, GfxProc::THUMBNAIL, &t);
-        }
-        if (bitmask & (1 << GfxProc::PREVIEW))
-        {
-            LOG_debug << "[MegaClient::prepareUploadForWs] bitmask & (1 << GfxProc::PREVIEW) -> "
-                         "fileAttributesUploading.setFileAttributePending(t.uploadhandle, "
-                         "GfxProc::PREVIEW, &t) [t.localfilename = "
-                      << t.localfilename << "]";
-            fileAttributesUploading.setFileAttributePending(t.uploadhandle, GfxProc::PREVIEW, &t);
+            if (bitmask & (1 << GfxProc::THUMBNAIL))
+            {
+                LOG_debug
+                    << "[MegaClient::prepareUploadForWs] bitmask & (1 << GfxProc::THUMBNAIL) -> "
+                       "fileAttributesUploading.setFileAttributePending(t.uploadhandle, "
+                       "GfxProc::THUMBNAIL, &t) [t.localfilename = "
+                    << t.localfilename << "]";
+                fileAttributesUploading.setFileAttributePending(t.uploadhandle,
+                                                                GfxProc::THUMBNAIL,
+                                                                &t);
+            }
+            if (bitmask & (1 << GfxProc::PREVIEW))
+            {
+                LOG_debug
+                    << "[MegaClient::prepareUploadForWs] bitmask & (1 << GfxProc::PREVIEW) -> "
+                       "fileAttributesUploading.setFileAttributePending(t.uploadhandle, "
+                       "GfxProc::PREVIEW, &t) [t.localfilename = "
+                    << t.localfilename << "]";
+                fileAttributesUploading.setFileAttributePending(t.uploadhandle,
+                                                                GfxProc::PREVIEW,
+                                                                &t);
+            }
         }
     }
 

@@ -302,6 +302,23 @@ public:
         mClientActiveFilesTick = true;
     }
 
+    // progress coalescing (server-confirmed): report if delta or time threshold hit
+    bool progressReportDue(const dstime now)
+    {
+        constexpr m_off_t kStepBytes = 64 * 1024; // 64 KiB
+        constexpr dstime kStepTime = 5; // 0.5s (ds)
+        const bool bytesDue = (mBytesConfirmed - mLastProgressReportBytes) >= kStepBytes;
+        const bool timeDue =
+            SteadyTime::difference(now, mLastProgressReportDs) >= static_cast<int32_t>(kStepTime);
+        if (bytesDue || timeDue)
+        {
+            mLastProgressReportBytes = mBytesConfirmed;
+            mLastProgressReportDs = now ? now : SteadyTime::ds();
+            return true;
+        }
+        return false;
+    }
+
     // accessors
     m_off_t size() const noexcept
     {
@@ -453,6 +470,8 @@ private:
     m_off_t mHeadPos{0};
     m_off_t mBytesConfirmed{0};
     m_off_t mLastReportedBytesConfirmed{0};
+    m_off_t mLastProgressReportBytes{0};
+    dstime mLastProgressReportDs{0};
     m_time_t mMtime{0};
 
     bool mEofSet{false};
@@ -1429,7 +1448,7 @@ void WsConn::onmessage(const char* msg, const int len)
             if (chunk.len)
             {
                 uf->onServerConfirmedBytes(chunk.len);
-                if (mPool->mImpl->mCb.onProgress)
+                if (mPool->mImpl->mCb.onProgress && uf->progressReportDue(SteadyTime::ds()))
                     mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
                 if (uf->bytesConfirmed() >= uf->size())
                 {
@@ -1462,6 +1481,8 @@ void WsConn::onmessage(const char* msg, const int len)
                               << ") -> something happened here !? [this = " << this << "]";
                 }
             }
+            if (mPool->mImpl->mCb.onProgress)
+                mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
 
