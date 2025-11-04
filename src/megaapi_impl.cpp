@@ -3497,6 +3497,18 @@ LocalPath MegaTransferPrivate::getLocalPath() const
     return mLocalPath;
 }
 
+std::optional<string> MegaTransferPrivate::getInboxTarget()
+{
+    constexpr size_t stringLenght = 11;
+    constexpr char charSeparator = '@';
+    bool uploadToInbox =
+        ISUNDEF(getParentHandle()) && getParentPath() &&
+        (strchr(getParentPath(), charSeparator) || (strlen(getParentPath()) == stringLenght));
+    std::optional<std::string> inboxTarget =
+        uploadToInbox ? std::make_optional<std::string>(getParentPath()) : std::nullopt;
+    return inboxTarget;
+}
+
 void MegaTransferPrivate::updateLocalPathInternal(const LocalPath& newPath)
 {
     if (path)
@@ -10163,9 +10175,8 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst,
         {
             transfer->fingerprint_filetype = fa->type; // => [FILENODE | FOLDERNODE]
 
-            bool uploadToInbox = ISUNDEF(transfer->getParentHandle()) && transfer->getParentPath() && (strchr(transfer->getParentPath(), '@') || (strlen(transfer->getParentPath()) == 11));
-
-            if (fa->type == FOLDERNODE && uploadToInbox)
+            auto uploadToInbox = transfer->getInboxTarget();
+            if (fa->type == FOLDERNODE && uploadToInbox.has_value())
             {
                 //Folder upload is not possible when sending to Inbox:
                 //API won't return handle for folder creation, and even if that was the case
@@ -13587,16 +13598,6 @@ void MegaApiImpl::transfer_update(Transfer *t)
     }
 }
 
-std::optional<std::string> getInboxTarget(const MegaTransferPrivate* transfer)
-{
-    bool uploadToInbox =
-        ISUNDEF(transfer->getParentHandle()) && transfer->getParentPath() &&
-        (strchr(transfer->getParentPath(), '@') || (strlen(transfer->getParentPath()) == 11));
-    std::optional<std::string> inboxTarget =
-        uploadToInbox ? std::make_optional<std::string>(transfer->getParentPath()) : std::nullopt;
-    return inboxTarget;
-}
-
 void MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid, FileResumeData& data)
 {
     if (!d || d->size() < sizeof(char))
@@ -13623,7 +13624,7 @@ void MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid, FileR
 
         data.file = file;
         MegaTransferPrivate* transfer = file->getTransfer();
-        data.inboxTarget = getInboxTarget(transfer);
+        data.inboxTarget = transfer->getInboxTarget();
         std::shared_ptr<Node> parent = client->nodebyhandle(transfer->getParentHandle());
         sharedNode_vector nodes = client->mNodeManager.getNodesByFingerprint(*file);
         const char *name = transfer->getFileName();
@@ -18921,17 +18922,15 @@ MegaFilePut*
                                                      std::shared_ptr<Node> prevNodeSameName,
                                                      TransferDbCommitter& committer)
 {
-    bool uploadToInbox =
-        ISUNDEF(megaTransfer.getParentHandle()) && megaTransfer.getParentPath() &&
-        (strchr(megaTransfer.getParentPath(), '@') || (strlen(megaTransfer.getParentPath()) == 11));
-    const char* inboxTarget = uploadToInbox ? megaTransfer.getParentPath() : nullptr;
+    auto inboxTarget = megaTransfer.getInboxTarget();
+
     string sname = megaTransfer.getFileName();
     bool isSourceTemporary = megaTransfer.isSourceFileTemporary();
     MegaFilePut* f = new MegaFilePut(client,
                                      megaTransfer.getLocalPath(),
                                      &sname,
                                      NodeHandle().set6byte(megaTransfer.getParentHandle()),
-                                     uploadToInbox ? inboxTarget : "",
+                                     inboxTarget.has_value() ? inboxTarget->c_str() : "",
                                      megaTransfer.getTime(),
                                      isSourceTemporary,
                                      prevNodeSameName);
@@ -19194,11 +19193,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 // and that param is used to populate transfer->parentPath (i.e.: it's not really a path, but a handle). At the same time, parentHandle is undef. So "uploadToInbox" would be true here.
                 // Later, when creating the MegaFilePut object, the cusertarget constructor param will have the value of inboxTarget (see below), so MegaFilePut::targetuser will have the value of MegaClient::SUPPORT_USER_HANDLE.
                 // This comparison (File::targetuser != MegaClient::SUPPORT_USER_HANDLE) can be used later to check if a transfer is for support.
-                bool uploadToInbox = ISUNDEF(transfer->getParentHandle()) && transfer->getParentPath() && (strchr(transfer->getParentPath(), '@') || (strlen(transfer->getParentPath()) == 11));
-                const char *inboxTarget = uploadToInbox ? transfer->getParentPath() : nullptr;
+                auto inboxTarget = transfer->getInboxTarget();
 
                 if (wLocalPath.empty() || !fileName || !(*fileName) ||
-                    (!uploadToInbox && (!parent || parent->type == FILENODE)))
+                    (!inboxTarget.has_value() && (!parent || parent->type == FILENODE)))
                 {
                     e = API_EARGS;
                     break;
@@ -19379,7 +19377,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                                            transfer->getFileName(),
                                                            parent,
                                                            nextTag,
-                                                           getInboxTarget(transfer));
+                                                           inboxTarget);
 
                             if (e == API_OK)
                             {
@@ -19398,7 +19396,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                         std::move(wLocalPath),
                                         &wFileName,
                                         NodeHandle().set6byte(transfer->getParentHandle()),
-                                        uploadToInbox ? inboxTarget : "",
+                                        inboxTarget.has_value() ? inboxTarget->c_str() : "",
                                         mtime,
                                         isSourceTemporary,
                                         prevNodeSameName);

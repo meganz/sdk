@@ -18832,6 +18832,7 @@ error MegaClient::transferRemoteCopy(File* file,
                                      int tag,
                                      std::optional<std::string> inboxTarget)
 {
+    assert(file);
     TreeProcCopy tc;
     proctree(sameNode, &tc, false, true);
     tc.allocnodes();

@@ -22458,7 +22458,7 @@ TEST_F(SdkTest, SdkTransferCopyRemote)
 
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
 
-    auto [errCode, fh] = createRemoteFolder(0, "Fodler", rootnode.get());
+    auto [errCode, fh] = createRemoteFolder(0, "Folder", rootnode.get());
     ASSERT_EQ(errCode, API_OK) << "Unexpected ErrCode upon creating Folder: ";
 
     std::unique_ptr<MegaNode> folderNode{megaApi[0]->getNodeByHandle(fh)};

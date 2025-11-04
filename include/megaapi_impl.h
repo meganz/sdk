@@ -1726,6 +1726,14 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         LocalPath getLocalPath() const;
 
+        /**
+         * @brief This method checks if the transfer destination corresponds to an Inbox upload
+         *
+         * @return std::optional<std::string> The Inbox target path if the transfer
+         *         corresponds to an Inbox; otherwise, std::nullopt.
+         */
+        std::optional<std::string> getInboxTarget();
+
         // for uploads, we fingerprint the file before queueing
         // as that way, it can be done without the main mutex locked
         error fingerprint_error = API_OK;
