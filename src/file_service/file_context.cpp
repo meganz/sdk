@@ -236,6 +236,10 @@ void FileContext::cancel(const FileRange& range)
     // Release ranges lock.
     //
     // Any ranges that were waiting on the lock will now complete.
+    //
+    // NOTE: As this function is only called while processing a write
+    // request, we can be assured that no ranges will be added after this
+    // lock is released.
     lock.unlock();
 
     // Cancel any range downloads still in progress.
