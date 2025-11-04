@@ -247,8 +247,6 @@ TEST_F(SdkTestSyncUploadsOperations, MultimediaFileUpload)
 #endif
 {
     static const string VIDEO_FILE = "sample_video.mp4";
-    static const int AVC1_FORMAT = 887; // ID from MediaInfo
-
     static const std::string logPre = getLogPrefix();
     LOG_verbose << logPre << "Upload a multimedia file in a sync";
 
@@ -261,9 +259,17 @@ TEST_F(SdkTestSyncUploadsOperations, MultimediaFileUpload)
     auto uploadedNode = getNodeByPath(SYNC_REMOTE_PATH + "/" + VIDEO_FILE);
     ASSERT_TRUE(uploadedNode);
 #ifdef USE_MEDIAINFO
-    ASSERT_EQ(uploadedNode->getDuration(), 5) << "Duration is not correct or unavailable.";
-    ASSERT_EQ(uploadedNode->getHeight(), 360) << "Height is not correct or unavailable.";
-    ASSERT_EQ(uploadedNode->getWidth(), 640) << "Width ID is not correct or unavailable.";
+    static constexpr int VIDEO_FILE_DURATION_SECS{5};
+    static constexpr int VIDEO_FILE_HEIGHT_PX{360};
+    static constexpr int VIDEO_FILE_WIDTH_PX{640};
+    static constexpr int AVC1_FORMAT{887}; // ID from MediaInfo
+
+    ASSERT_EQ(uploadedNode->getDuration(), VIDEO_FILE_DURATION_SECS)
+        << "Duration is not correct or unavailable.";
+    ASSERT_EQ(uploadedNode->getHeight(), VIDEO_FILE_HEIGHT_PX)
+        << "Height is not correct or unavailable.";
+    ASSERT_EQ(uploadedNode->getWidth(), VIDEO_FILE_WIDTH_PX)
+        << "Width ID is not correct or unavailable.";
     ASSERT_EQ(uploadedNode->getVideocodecid(), AVC1_FORMAT)
         << "Codec ID is not correct or unavailable.";
 #endif
