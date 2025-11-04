@@ -13995,20 +13995,18 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
 }
 
 /**
- * @brief TEST_F SdkTestAudioFileThumbnail
+ * @brief TEST_F SdkTestAudioFileAttributes
  *
- * Tests extracting thumbnail for uploaded audio file.
+ * Tests extracting thumbnail and other metadata for uploaded audio file.
  *
- * The file to be uploaded must exist or the test will fail.
- * File is expected at the directory returned by getTestDataDir().
  */
-#if !USE_FREEIMAGE || !USE_MEDIAINFO
-TEST_F(SdkTest, DISABLED_SdkTestAudioFileThumbnail)
+#ifndef USE_MEDIAINFO
+TEST_F(SdkTest, DISABLED_SdkTestAudioFileAttributes)
 #else
-TEST_F(SdkTest, SdkTestAudioFileThumbnail)
+TEST_F(SdkTest, SdkTestAudioFileAttributes)
 #endif
 {
-    LOG_info << "___TEST Audio File Thumbnail___";
+    LOG_info << "___TEST Audio thumbnail and metadata___";
 
     static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
     ASSERT_TRUE(getFileFromArtifactory("test-data/" + AUDIO_FILENAME, AUDIO_FILENAME));
@@ -14029,7 +14027,12 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
                             nullptr /*cancelToken*/))
         << "Cannot upload test file " << AUDIO_FILENAME;
     std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(AUDIO_FILENAME.c_str(), rootnode.get()));
+    ASSERT_TRUE(node);
+
+    ASSERT_EQ(node->getDuration(), 2) << "Duration of the audio file is not correct.";
+#if defined(USE_FREEIMAGE)
     ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
+#endif
 }
 
 /**
