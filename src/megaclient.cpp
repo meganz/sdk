@@ -1935,7 +1935,6 @@ MegaClient::MegaClient(MegaApp* a,
                        HttpIO* h,
                        DbAccess* d,
                        GfxProc* g,
-                       const char* k,
                        const char* u,
                        unsigned workerThreadCount,
                        ClientType clientType):
@@ -2075,8 +2074,6 @@ MegaClient::MegaClient(MegaApp* a,
 
     scsn.clear();
     cachedscsn = UNDEF;
-
-    snprintf(appkey, sizeof appkey, "&ak=%s", k);
 
     // initialize useragent
     useragent = u;
@@ -2944,7 +2941,6 @@ void MegaClient::exec()
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(idempotenceId);
                     pendingcs->posturl.append(getAuthURI());
-                    pendingcs->posturl.append(appkey);
                     pendingcs->posturl.append("&v=3");
 
                     if (lang.size())
@@ -3141,7 +3137,6 @@ void MegaClient::exec()
                     mPendingLocklessCS->posturl.append("cs?id=");
                     mPendingLocklessCS->posturl.append(idempotenceId);
                     mPendingLocklessCS->posturl.append(getAuthURI());
-                    mPendingLocklessCS->posturl.append(appkey);
                     mPendingLocklessCS->posturl.append("&v=3");
 
                     if (lang.size())
@@ -5371,11 +5366,6 @@ const char *MegaClient::version()
     return TOSTRING(MEGA_MAJOR_VERSION)
             "." TOSTRING(MEGA_MINOR_VERSION)
             "." TOSTRING(MEGA_MICRO_VERSION);
-}
-
-void MegaClient::getlastversion(const char *appKey)
-{
-    reqs.add(new CommandGetVersion(this, appKey));
 }
 
 void MegaClient::getlocalsslcertificate()
@@ -19235,8 +19225,6 @@ std::string MegaClient::getAuthURI(bool supressSID, bool supressAuthKey)
 void MegaClient::userfeedbackstore(const char *message)
 {
     string type = "feedback.";
-    type.append(&(appkey[4]));
-    type.append(".");
 
     string base64userAgent;
     base64userAgent.resize(useragent.size() * 4 / 3 + 4);

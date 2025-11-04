@@ -3644,8 +3644,18 @@ struct MegaRequestSyncFolderParams
 class MegaApiImpl : public MegaApp
 {
     public:
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
+        MegaApiImpl(MegaApi* api,
+                    MegaGfxProcessor* processor,
+                    const char* basePath,
+                    const char* userAgent,
+                    unsigned workerThreadCount,
+                    int clientType);
+        MegaApiImpl(MegaApi* api,
+                    MegaGfxProvider* provider,
+                    const char* basePath,
+                    const char* userAgent,
+                    unsigned workerThreadCount,
+                    int clientType);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -4336,8 +4346,7 @@ public:
 
         const char *getVersion();
         char *getOperatingSystemVersion();
-        void getLastAvailableVersion(const char* anyAppKey,
-                                     MegaRequestListener* listener = nullptr);
+        void getLastAvailableVersion(const char*, MegaRequestListener* listener = nullptr);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
         void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
@@ -4691,7 +4700,6 @@ public:
 
     private:
         void init(MegaApi* publicApi,
-                  const char* newAppKey,
                   std::unique_ptr<GfxProc> gfxproc,
                   const char* newBasePath /*= NULL*/,
                   const char* userAgent /*= NULL*/,
@@ -4807,8 +4815,7 @@ public:
         retryreason_t waitingRequest;
         mutable std::recursive_timed_mutex sdkMutex;
         using SdkMutexGuard = std::unique_lock<std::recursive_timed_mutex>;   // (equivalent to typedef)
-        MegaTransferPrivate *currentTransfer;
-        string appKey;
+        MegaTransferPrivate* currentTransfer;
 
         std::unique_ptr<MegaPushNotificationSettingsPrivate> getMegaPushNotificationSetting(); // returns lastest-seen settings (to be able to filter notifications)
 

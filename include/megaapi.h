@@ -10920,9 +10920,6 @@ class MegaApi
 
         /**
          * @brief Constructor suitable for most applications
-         * @param appKey AppKey of your application
-         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer
-         * required.
          *
          * @param basePath Base path to store the local cache
          * If you pass NULL to this parameter, the SDK will use the current working directory.
@@ -10938,7 +10935,11 @@ class MegaApi
          * differently
          *
          */
-        MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
+        MegaApi(const char* appKey,
+                const char* basePath = NULL,
+                const char* userAgent = NULL,
+                unsigned workerThreadCount = 1,
+                int clientType = CLIENT_TYPE_DEFAULT);
 
         /**
          * @brief MegaApi Constructor that uses a given GFX provider
@@ -10946,10 +10947,6 @@ class MegaApi
          * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs
          * a graphics provider.
          * @see MegaGfxProvider
-         *
-         * @param appKey AppKey of your application
-         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer
-         * required.
          *
          * @param provider Graphics processing provider. The SDK will use it to generate previews
          * and thumbnails. Once MegaApi returns, the provider couldn't be reused and the caller
@@ -10969,9 +10966,14 @@ class MegaApi
          * differently
          *
          */
-        MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
+        MegaApi(const char* appKey,
+                MegaGfxProvider* provider,
+                const char* basePath = NULL,
+                const char* userAgent = NULL,
+                unsigned workerThreadCount = 1,
+                int clientType = CLIENT_TYPE_DEFAULT);
 
-        #ifdef HAVE_MEGAAPI_RPC
+#ifdef HAVE_MEGAAPI_RPC
         MegaApi();
 #endif
         virtual ~MegaApi();
@@ -19829,26 +19831,9 @@ class MegaApi
         char *getOperatingSystemVersion();
 
         /**
-         * @brief Get the last available version of the app
-         *
-         * It returns the last available version corresponding to an app token
-         *
-         * The associated request type with this request is MegaRequest::TYPE_APP_VERSION
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getText - Returns the app token
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Returns the last available version code of the app
-         * - MegaRequest::getName - Returns the last available version string of the app
-         *
-         * Usually, the version code is used to internally control updates, and the version
-         * string is intended to be shown to final users.
-         *
-         * @param appKey Token of the app to check or NULL to use the same value as in the
-         * initialization of the MegaApi object
-         * @param listener MegaRequestListener to track this request
+         * @deprecated
          */
+        MEGA_DEPRECATED
         void getLastAvailableVersion(const char *appKey = NULL, MegaRequestListener *listener = NULL);
 
         /**

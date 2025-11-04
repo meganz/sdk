@@ -67,9 +67,9 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::DbAccess*
     using namespace mega;
     auto waiter = std::make_shared<WAIT_CLASS>();
 
-    std::shared_ptr<mega::MegaClient> client{new mega::MegaClient{
-            &app, waiter, httpio, dbAccess, nullptr, "XXX", "unit_test", 0
-        }, deleter};
+    std::shared_ptr<mega::MegaClient> client{
+        new mega::MegaClient{&app, waiter, httpio, dbAccess, nullptr, "unit_test", 0},
+        deleter};
 
     return client;
 }

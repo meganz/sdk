@@ -1442,33 +1442,37 @@ void StandardClient::setMinimumUploadThrottleSettings()
     }
 }
 
-StandardClient::StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder)
-    :
-      waiter(new WAIT_CLASS),
+StandardClient::StandardClient(const fs::path& basepath,
+                               const string& name,
+                               const fs::path& workingFolder):
+    waiter(new WAIT_CLASS),
 #ifdef GFX_CLASS
-      gfx(std::make_unique<GFX_CLASS>()),
+    gfx(std::make_unique<GFX_CLASS>()),
 #endif
-      client_dbaccess_path(ensureDir(basepath / name))
-    , httpio(new CurlHttpIO)
-    , client(this,
-                waiter,
-                httpio.get(),
+    client_dbaccess_path(ensureDir(basepath / name)),
+    httpio(new CurlHttpIO),
+    client(this,
+           waiter,
+           httpio.get(),
 #ifdef DBACCESS_CLASS
-                new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
+           new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
 #else
-                NULL,
+           NULL,
 #endif
 #ifdef GFX_CLASS
-                &gfx,
+           &gfx,
 #else
-                NULL,
+           NULL,
 #endif
-                "N9tSBJDC",
-                USER_AGENT.c_str(),
-                THREADS_PER_MEGACLIENT)
-    , clientname(name + " ")
-    , resultproc(*this)
-    , clientthread([this]() { threadloop(); })
+           USER_AGENT.c_str(),
+           THREADS_PER_MEGACLIENT),
+    clientname(name + " "),
+    resultproc(*this),
+    clientthread(
+        [this]()
+        {
+            threadloop();
+        })
 {
     client.clientname = clientname + " ";
     client.syncs.mDetailedSyncLogging = true;

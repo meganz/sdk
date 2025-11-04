@@ -1383,9 +1383,6 @@ public:
     // SDK version
     const char* version();
 
-    // get the last available version of the app
-    void getlastversion(const char *appKey);
-
     // get a local ssl certificate for communications with the webclient
     void getlocalsslcertificate();
 
@@ -2118,9 +2115,6 @@ public:
     // key protecting non-shareable GPS coordinates in nodes (currently used only by CUv2 in iOS)
     string unshareablekey;
 
-    // application key
-    char appkey[16];
-
     // incoming shares to be attached to a corresponding node
     newshare_list newshares;
 
@@ -2823,7 +2817,14 @@ public:
         PASSWORD_MANAGER,
     };
 
-    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount, ClientType clientType = ClientType::DEFAULT);
+    MegaClient(MegaApp*,
+               shared_ptr<Waiter>,
+               HttpIO*,
+               DbAccess*,
+               GfxProc*,
+               const char*,
+               unsigned workerThreadCount,
+               ClientType clientType = ClientType::DEFAULT);
     ~MegaClient();
 
 struct MyAccountData
