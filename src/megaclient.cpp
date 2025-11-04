@@ -6465,6 +6465,10 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
             }
         }
     }
+#ifdef USE_MEDIAINFO
+    // Append MediaInfo attributes, if any
+    mediaFileInfo.addUploadMediaFileAttributes(h, fa);
+#endif
 }
 
 // Upload file attribute data to fa servers. node handle can be UNDEF if we are giving fa handle back to the app
