@@ -1414,10 +1414,14 @@ bool AndroidFileSystemAccess::chdirlocal(LocalPath& path) const
 }
 
 bool AndroidFileSystemAccess::issyncsupported(const LocalPath& path,
+                                              bool& isnetwork,
                                               SyncError& syncError,
                                               SyncWarning& syncWarning)
 {
-    return LinuxFileSystemAccess::issyncsupported(getStandartPath(path), syncError, syncWarning);
+    return LinuxFileSystemAccess::issyncsupported(getStandartPath(path),
+                                                  isnetwork,
+                                                  syncError,
+                                                  syncWarning);
 }
 
 bool AndroidFileSystemAccess::expanselocalpath(const LocalPath& path, LocalPath& absolutepath)

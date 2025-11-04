@@ -66,7 +66,7 @@ public:
                             Waiter* notificationWaiter) override;
 #endif
 
-    bool issyncsupported(const LocalPath&, SyncError&, SyncWarning&) override;
+    bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
 
     bool getsname(const LocalPath&, LocalPath&) const override;
 

@@ -474,8 +474,6 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Could not get the filesystem's ID.";
     case LOCAL_PATH_MOUNTED:
         return "Local path is a FUSE mount.";
-    case NETWORK_FILE_SYSTEM_UNSUPPORTED:
-        return "Network file system not supported.";
     default:
         return "Undefined error";
     }

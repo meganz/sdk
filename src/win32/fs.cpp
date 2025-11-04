@@ -1905,12 +1905,14 @@ DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root,
 #endif
 
 bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg,
+                                          bool& isnetwork,
                                           SyncError& syncError,
                                           SyncWarning& syncWarning)
 {
     static const wchar_t* VBoxSharedFolderFS = L"VBoxSharedFolderFS";
     std::wstring path, fsname;
     bool result = true;
+    isnetwork = false;
     syncError = NO_SYNC_ERROR;
     syncWarning = NO_SYNC_WARNING;
 
@@ -1957,7 +1959,8 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg,
     if (GetDriveTypeW(path.data()) == DRIVE_REMOTE)
     {
         LOG_debug << "Network folder detected";
-        syncError = NETWORK_FILE_SYSTEM_UNSUPPORTED;
+        isnetwork = true;
+        syncError = UNSUPPORTED_FILE_SYSTEM;
         result = false;
     }
 

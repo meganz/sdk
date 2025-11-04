@@ -2557,6 +2557,7 @@ DirNotify* LinuxFileSystemAccess::newdirnotify(LocalNode& root,
 #endif
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg,
+                                            bool& isnetwork,
                                             SyncError& syncError,
                                             SyncWarning& syncWarning)
 {
@@ -2564,13 +2565,13 @@ bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg,
     auto type = getlocalfstype(localpathArg);
 
     // Is it a known network filesystem?
-    const bool isnetwork = isNetworkFilesystem(type);
+    isnetwork = isNetworkFilesystem(type);
 
     if (isnetwork)
     {
         LOG_debug << "Network folder detected";
 
-        syncError = NETWORK_FILE_SYSTEM_UNSUPPORTED;
+        syncError = UNSUPPORTED_FILE_SYSTEM;
         syncWarning = NO_SYNC_WARNING;
 
         return false;

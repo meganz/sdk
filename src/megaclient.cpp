@@ -17559,13 +17559,14 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
         return {API_EFAILED, LOCAL_PATH_MOUNTED, NO_SYNC_WARNING};
     }
 
+    bool isnetwork = false;
     SyncError auxSErr;
     SyncWarning syncWarning = NO_SYNC_WARNING;
-    if (!fsaccess->issyncsupported(rootPathWithoutEndingSeparator, auxSErr, syncWarning))
+    if (!fsaccess->issyncsupported(rootPathWithoutEndingSeparator, isnetwork, auxSErr, syncWarning))
     {
         LOG_warn << "Unsupported filesystem";
 
-        if (auxSErr == NETWORK_FILE_SYSTEM_UNSUPPORTED)
+        if (isnetwork)
         {
             sendevent(800035, "Detected an attempt to setup a sync involving a network drive");
         }
