@@ -2191,33 +2191,45 @@ void MegaClient::installWsEngineCallbacks()
 
     cb.onStart = [this](Transfer& t)
     {
-        LOG_debug
-            << "[MegaClient::installWsEngineCallbacks] onStart t.pos = 0 && "
-               "t.setProgresscompleted(0) && t.state = TRANSFERSTATE_ACTIVE [t.localfilename = "
-            << t.localfilename << "]";
-        // Legacy parity with "openfinished": start at 0 and become ACTIVE.
-        t.pos = 0;
-        t.setProgresscompleted(0);
-        t.state = TRANSFERSTATE_ACTIVE;
-        app->transfer_update(&t);
+        // Bounce to client thread: set pos/progress/state and notify app.
+        wsPostTransferUpdate(&t,
+                             [](Transfer& t, TransferDbCommitter&)
+                             {
+                                 LOG_debug
+                                     << "[MegaClient::wsPostTransferUpdate] onStart t.pos = 0 && "
+                                        "t.setProgresscompleted(0) && t.state = "
+                                        "TRANSFERSTATE_ACTIVE [t.localfilename = "
+                                     << t.localfilename << "]";
+                                 t.pos = 0;
+                                 t.setProgresscompleted(0);
+                                 t.state = TRANSFERSTATE_ACTIVE;
+                             });
     };
 
     cb.onProgress = [this](Transfer& t, const m_off_t confirmed)
     {
-        LOG_debug << "[MegaClient::installWsEngineCallbacks] onProgress -> "
-                     "t.setProgresscompleted(confirmed="
-                  << confirmed << ") [t.localfilename = " << t.localfilename << "]";
-        t.setProgresscompleted(confirmed);
-        app->transfer_update(&t);
+        wsPostTransferUpdate(&t,
+                             [&confirmed](Transfer& t, TransferDbCommitter&)
+                             {
+                                 LOG_debug << "[MegaClient::wsPostTransferUpdate] onProgress -> "
+                                              "t.setProgresscompleted(confirmed="
+                                           << confirmed
+                                           << ") [t.localfilename = " << t.localfilename << "]";
+                                 t.setProgresscompleted(confirmed);
+                             });
     };
 
     cb.onFail = [this](Transfer& t, int /*reason*/)
     {
-        LOG_debug << "[MegaClient::installWsEngineCallbacks] onFail -> t.state = "
-                     "TRANSFERSTATE_RETRYING [t.localfilename = "
-                  << t.localfilename << "]";
-        t.state = TRANSFERSTATE_RETRYING;
-        app->transfer_update(&t);
+        wsPostTransferUpdate(&t,
+                             [](Transfer& t, TransferDbCommitter&)
+                             {
+                                 LOG_debug
+                                     << "[MegaClient::wsPostTransferUpdate] onFail -> t.state = "
+                                        "TRANSFERSTATE_RETRYING [t.localfilename = "
+                                     << t.localfilename << "]";
+                                 t.state = TRANSFERSTATE_RETRYING;
+                             });
     };
 
     cb.onComplete = [this](Transfer& t, const char* /*payload*/, const int /*len*/)
@@ -2227,9 +2239,33 @@ void MegaClient::installWsEngineCallbacks()
                   << t.localfilename << "]";
         // Phase 2: no putnodes yet; just surface a final tick
         app->transfer_update(&t);
+        // Phase 5 will integrate MAC/putnodes; for now just tick.
+        wsPostTransferUpdate(&t, [](Transfer&, TransferDbCommitter&) {});
     };
 
     m_wsEngine->setCallbacks(std::move(cb));
+}
+
+void MegaClient::wsPostToClientThread(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
+{
+    {
+        std::lock_guard<std::mutex> g(mWsClientActionsMutex);
+        mWsClientActions.emplace_back(std::move(f));
+    }
+    waiter->notify(); // wake client thread to process actions in exec()
+}
+
+void MegaClient::wsPostTransferUpdate(Transfer* t,
+                                      std::function<void(Transfer&, TransferDbCommitter&)>&& f)
+{
+    wsPostToClientThread(
+        [this, t, f = std::move(f)](MegaClient& c, TransferDbCommitter& committer) mutable
+        {
+            if (!t)
+                return; // light guard; Transfer lifetime is managed elsewhere
+            f(*t, committer); // mutate on client thread
+            c.app->transfer_update(t); // and notify app on client thread
+        });
 }
 
 bool MegaClient::wsCanStartAnotherFile() const
@@ -3744,6 +3780,42 @@ void MegaClient::exec()
         {
             LOG_debug << "skipping slots doio while blocked";
         }
+
+#ifdef MEGA_USE_WSUPLOAD
+        // Process WS client-thread actions (Phase 3.0)
+        {
+            CodeCounter::ScopeTimer clientActionTime(performanceStats.clientThreadActions);
+            dstime ctr_start = waiter->ds;
+            size_t ctr_N = 0;
+            TransferDbCommitter committer(tctable);
+            for (;;)
+            {
+                std::function<void(MegaClient&, TransferDbCommitter&)> f;
+                {
+                    std::lock_guard<std::mutex> g(mWsClientActionsMutex);
+                    if (mWsClientActions.empty())
+                        break;
+                    f = std::move(mWsClientActions.front());
+                    mWsClientActions.pop_front();
+                }
+                f(*this, committer);
+                ++ctr_N;
+                waiter->bumpds();
+                if (ctr_start + 5 < waiter->ds)
+                    break;
+            }
+            size_t n = 0;
+            {
+                std::lock_guard<std::mutex> g(mWsClientActionsMutex);
+                n = mWsClientActions.size();
+            }
+            if (n)
+            {
+                LOG_debug << "Processed " << ctr_N << " WS requests in " << (waiter->ds - ctr_start)
+                          << "ms, " << n << " WS requests outstanding";
+            }
+        }
+#endif
 
 #ifdef ENABLE_SYNC
         if (!pendingDebris.empty())

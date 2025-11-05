@@ -524,6 +524,10 @@ class MEGA_API MegaClient
 {
     std::unique_ptr<ws::UploadEngine> m_wsEngine;
 
+    // WS client-thread actions (processed in MegaClient::exec()).
+    std::mutex mWsClientActionsMutex;
+    std::deque<std::function<void(MegaClient&, TransferDbCommitter&)>> mWsClientActions;
+
 public:
     // own identity
     handle me;
@@ -584,6 +588,13 @@ public:
     void installWsEngineCallbacks();
     bool wsCanStartAnotherFile() const;
     bool prepareUploadForWs(Transfer& t);
+
+    // ---- Phase 3.0: bounce WS callbacks to client thread ----
+    // Enqueue a client-thread action (same signature as sync’s queueClient functors).
+    void wsPostToClientThread(std::function<void(MegaClient&, TransferDbCommitter&)>&& f);
+    // Convenience: mutate a Transfer and issue app->transfer_update() on client thread.
+    void wsPostTransferUpdate(Transfer* t,
+                              std::function<void(Transfer&, TransferDbCommitter&)>&& f);
 
     Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 
