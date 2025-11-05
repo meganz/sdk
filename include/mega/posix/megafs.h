@@ -82,7 +82,10 @@ public:
     unique_ptr<DirAccess>  newdiraccess() override;
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
-    bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning) override;
+    bool issyncsupported(const LocalPath& localpathArg,
+                         bool& isnetwork,
+                         SyncError& syncError,
+                         SyncWarning& syncWarning) override;
 
     bool getsname(const LocalPath&, LocalPath&) const override;
 

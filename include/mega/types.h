@@ -592,7 +592,7 @@ enum SyncError {
     FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
     FILESYSTEM_ID_UNAVAILABLE = 46,         // If we can't get a filesystem's id
     UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
-    LOCAL_PATH_MOUNTED = 48,                // The local path is a FUSE mount.
+    LOCAL_PATH_MOUNTED = 48, // The local path is a FUSE mount.
 };
 
 enum SyncWarning {
