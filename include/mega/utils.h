@@ -632,6 +632,9 @@ bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
  * @param path Local path to the file to be compared.
  * @param fp Fingerprint of the local file to be compared.
  * @param node Pointer to the remote node to compare with.
+ * @param excludeMtime If true, ignores mtime time during fingerprint comparison, but still
+ * checks mtime if fingerprint and METAMAC match, otherwise, mtime will be included in the
+ * fingerprint comparison.
  * @return A value of type `node_comparison_result` indicating the comparison result:
  *         - NODE_COMP_EREAD: Error reading the local file.
  *         - NODE_COMP_EARGS: Invalid arguments

@@ -473,6 +473,42 @@ void clientUpload(MegaClient& mc,
                   const bool queueFirst,
                   const NodeHandle ovHandleIfShortcut);
 
+/********************\
+*  SYNC COMPARISONS  *
+\********************/
+
+/**
+ * @brief Compares a CloudNode with a FSNode, using file fingerprint and METAMAC.
+ *
+ * @param mc Reference to the MegaClient
+ * @param cn Reference to CloudNode object representing the cloud node to compare.
+ * @param fs Reference to FSNode object representing the local filesystem node.
+ * @param excludeMtime If true, ignores mtime time during fingerprint comparison, but still
+ * checks mtime if fingerprint and METAMAC match, otherwise, mtime will be included in the
+ * fingerprint comparison.
+ * @return A value of type `node_comparison_result` indicating the comparison result:
+ *         - NODE_COMP_EREAD: Error reading the local file.
+ *         - NODE_COMP_EARGS: Invalid arguments, or in case nodeByHandle() does not return a valid
+ * node
+ *         - NODE_COMP_DIFFERS_FP: Fingerprints do not match.
+ *         - NODE_COMP_DIFFERS_MAC: Fingerprints match but MACs differ.
+ *         - NODE_COMP_EQUAL: Both fingerprint and MAC match.
+ *
+ * @see CompareLocalFileWithNodeFpAndMac at utils.cpp
+ */
+node_comparison_result syncCompCloudToFsWithMac_internal(MegaClient& mc,
+                                                         const CloudNode& cn,
+                                                         const FSNode& fs,
+                                                         const bool excludeMtime);
+
+/*
+ * Compares a CloudNode with a FSNode, using file fingerprint and METAMAC.
+ * @see syncCompCloudToFsWithMac_internal for more details.
+ */
+node_comparison_result syncCompCloudToFsWithMac(MegaClient& mc,
+                                                const CloudNode& cn,
+                                                const FSNode& fs,
+                                                const bool excludeMtime);
 } // namespace mega
 
 #endif // ENABLE_SYNC

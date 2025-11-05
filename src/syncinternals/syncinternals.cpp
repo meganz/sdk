@@ -380,6 +380,39 @@ void clientUpload(MegaClient& mc,
     return;
 }
 
+node_comparison_result syncCompCloudToFsWithMac_internal(MegaClient& mc,
+                                                         const CloudNode& cn,
+                                                         const FSNode& fs,
+                                                         const bool excludeMtime)
+{
+    auto node = mc.nodeByHandle(cn.handle);
+    if (!node)
+    {
+        // [TO_CHECK]. What is expected in case Node cannot be retrieved from CloudNode?
+        return NODE_COMP_EARGS;
+    }
+
+    auto [res, _] = CompareLocalFileWithNodeFpAndMac(mc,
+                                                     fs.localname,
+                                                     fs.fingerprint,
+                                                     node.get(),
+                                                     excludeMtime);
+    // [TO_CHECK]. Should we store METAMAC at FsNode?
+    return res;
+}
+
+node_comparison_result syncCompCloudToFsWithMac(MegaClient& mc,
+                                                const CloudNode& cn,
+                                                const FSNode& fs,
+                                                const bool excludeMtime)
+{
+    if (cn.type != fs.type)
+        return NODE_COMP_EARGS;
+    if (cn.type != FILENODE)
+        return NODE_COMP_EQUAL;
+    assert(cn.fingerprint.isvalid && fs.fingerprint.isvalid);
+    return syncCompCloudToFsWithMac_internal(mc, cn, fs, excludeMtime);
+}
 } // namespace mega
 
 #endif // ENABLE_SYNC
