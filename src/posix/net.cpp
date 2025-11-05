@@ -41,6 +41,8 @@
 #include <openssl/err.h>
 #endif
 
+#include <string_view>
+
 #define MAX_SPEED_CONTROL_TIMEOUT_MS 500
 
 namespace mega {
@@ -1087,11 +1089,21 @@ void CurlHttpIO::request_proxy_ip()
 
 int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void* debugdata)
 {
-    if (type == CURLINFO_TEXT && size)
+    std::string_view dataView(data, size);
+    while (!dataView.empty() && (dataView.back() == '\r' || dataView.back() == '\n')) // Trim
     {
-        data[size - 1] = 0;
+        dataView.remove_suffix(1);
+    }
+
+    if (dataView.empty())
+    {
+        return 0;
+    }
+
+    if (type == CURLINFO_TEXT)
+    {
         std::string errnoInfo;
-        if (strstr(data, "SSL_ERROR_SYSCALL"))
+        if (dataView.find("SSL_ERROR_SYSCALL") != std::string_view::npos)
         {
             // This function is called quite early by curl code, and hopefully no other call would have
             // modified errno in the meantime.
@@ -1102,15 +1114,15 @@ int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t siz
                         ")";
         }
         NET_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->getLogName() : string())
-                    << "cURL: " << data << errnoInfo;
+                    << "cURL: " << dataView << errnoInfo;
     }
-    else if (type == CURLINFO_HEADER_IN && size)
+    else if (type == CURLINFO_HEADER_IN)
     {
-        NET_verbose << "CURL incoming header: " << std::string(data, size);
+        NET_verbose << "CURL incoming header: " << dataView;
     }
-    else if (type == CURLINFO_HEADER_OUT && size)
+    else if (type == CURLINFO_HEADER_OUT)
     {
-        NET_verbose << "CURL outgoing header: " << std::string(data, size);
+        NET_verbose << "CURL outgoing header: " << dataView;
     }
     return 0;
 }
