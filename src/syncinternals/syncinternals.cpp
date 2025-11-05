@@ -231,7 +231,7 @@ struct FindCloneNodeCandidatePredicate
                                                                        &node,
                                                                        true /*excludeMtime*/,
                                                                        false /*debugMode*/);
-            compRes == NODE_COMP_EQUAL)
+            compRes == NODE_COMP_EQUAL || compRes == NODE_COMP_DIFFERS_MTIME)
         {
             // Found a candidate that matches content
             if (node.hasZeroKey())

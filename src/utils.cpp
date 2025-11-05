@@ -2553,6 +2553,12 @@ std::pair<node_comparison_result, int64_t>
             {
                 client.sendevent(800029, "Node found with same Fp and MAC than local file");
             }
+
+            if (excludeMtime && fp.mtime != node->mtime)
+            {
+                return {NODE_COMP_DIFFERS_MTIME, mac};
+            }
+
             return {NODE_COMP_EQUAL, mac};
         }
         else

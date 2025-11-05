@@ -11824,6 +11824,9 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
         case NODE_COMP_DIFFERS_MAC:
             errMsg += "Local file and Node MetaMacs mismatch";
             break;
+        case NODE_COMP_DIFFERS_MTIME:
+            errMsg += "Local file and Node are equal except mtime";
+            break;
         case NODE_COMP_EQUAL:
             errMsg += "Both items are completly equal";
             break;

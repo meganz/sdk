@@ -69,6 +69,7 @@ typedef enum
     NODE_COMP_EQUAL = 0,
     NODE_COMP_DIFFERS_FP = 1,
     NODE_COMP_DIFFERS_MAC = 2,
+    NODE_COMP_DIFFERS_MTIME = 3,
 } node_comparison_result;
 
 std::string backupTypeToStr(BackupType type);

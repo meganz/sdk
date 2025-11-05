@@ -19426,16 +19426,16 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         }
                         else if (forceToUpload =
                                      hasToForceUpload(*prevNodeSameName.get(), *transfer);
-                                 !forceToUpload &&
-                                 CompareLocalFileWithNodeFpAndMac(*client,
-                                                                  wLocalPath,
-                                                                  fp_forCloud,
-                                                                  prevNodeSameName.get(),
-                                                                  true /*excludeMtime*/)
-                                         .first == NODE_COMP_EQUAL)
+                                 !forceToUpload)
                         {
-                            if (auto differentMtime{fp_forCloud.mtime != prevNodeSameName->mtime};
-                                differentMtime)
+                            auto [compRes, _] =
+                                CompareLocalFileWithNodeFpAndMac(*client,
+                                                                 wLocalPath,
+                                                                 fp_forCloud,
+                                                                 prevNodeSameName.get(),
+                                                                 true /*excludeMtime*/);
+
+                            if (compRes == NODE_COMP_DIFFERS_MTIME)
                             {
                                 updateNodeMtime(prevNodeSameName,
                                                 transfer,
@@ -19446,7 +19446,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                             // so ensure `e` is API OK to avoid duplicated actions
                                 break;
                             }
-                            else
+                            else if (compRes == NODE_COMP_EQUAL)
                             {
                                 immediateFinishSameNodeNameFoundInTarget(
                                     transfer,
@@ -19471,25 +19471,31 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         bool sameNodeSameNameInTarget{false};
                         for (auto& n: nodes)
                         {
-                            if (!hasToForceUpload(*n.get(), *transfer) &&
-                                CompareLocalFileWithNodeFpAndMac(*client,
-                                                                 wLocalPath,
-                                                                 fp_forCloud,
-                                                                 n.get(),
-                                                                 true /*excludeMtime*/)
-                                        .first == NODE_COMP_EQUAL)
+                            if (!hasToForceUpload(*n.get(), *transfer))
                             {
-                                sameNodeFpFound = n;
-                                sameNodeSameNameInTarget =
-                                    (sameNodeFpFound->parent && parent) &&
-                                    (sameNodeFpFound->parent->nodeHandle() ==
-                                     parent->nodeHandle()) &&
-                                    (fileName == sameNodeFpFound->displayname());
+                                auto [compRes, _] =
+                                    CompareLocalFileWithNodeFpAndMac(*client,
+                                                                     wLocalPath,
+                                                                     fp_forCloud,
+                                                                     n.get(),
+                                                                     true /*excludeMtime*/);
 
-                                if (alreadyCheckedSameNodeNameInTarget || sameNodeSameNameInTarget)
+                                if (compRes == NODE_COMP_EQUAL ||
+                                    compRes == NODE_COMP_DIFFERS_MTIME)
                                 {
-                                    // There only can be one node with same name in target node
-                                    break;
+                                    sameNodeFpFound = n;
+                                    sameNodeSameNameInTarget =
+                                        (sameNodeFpFound->parent && parent) &&
+                                        (sameNodeFpFound->parent->nodeHandle() ==
+                                         parent->nodeHandle()) &&
+                                        (fileName == sameNodeFpFound->displayname());
+
+                                    if (alreadyCheckedSameNodeNameInTarget ||
+                                        sameNodeSameNameInTarget)
+                                    {
+                                        // There only can be one node with same name in target node
+                                        break;
+                                    }
                                 }
                             }
                             // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
