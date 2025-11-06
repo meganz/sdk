@@ -652,10 +652,34 @@ void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
 
 bool SyncUpload_inClient::updateNodeMtime(MegaClient* client,
                                           std::shared_ptr<Node> node,
-                                          const m_time_t newMtime,
-                                          std::function<void(NodeHandle, Error)>&& completion)
+                                          const m_time_t newMtime)
 {
-    return client->updateNodeMtime(node, newMtime, std::move(completion));
+    weak_ptr<SyncUpload_inClient> self = shared_from_this();
+    return client->updateNodeMtime(node,
+                                   newMtime,
+                                   [node, self](NodeHandle, Error e)
+                                   {
+                                       // Is the originating SyncUpload_inClient still alive
+                                       if (auto s = self.lock())
+                                       {
+                                           if (e != API_OK)
+                                           {
+                                               LOG_err << "clientUpload (Update mTime): Error(" << e
+                                                       << "), Node("
+                                                       << toNodeHandle(node->nodehandle) << ")";
+                                               s->putnodesFailed = e != API_OK;
+                                               s->putnodesResultHandle.set6byte(UNDEF);
+                                           }
+
+                                           s->putnodesResultHandle.set6byte(node->nodehandle);
+
+                                           // Track the result of its putnodes request.
+                                           s->wasJustMtimeChanged = false;
+
+                                           // Let the engine know the putnodes has completed.
+                                           s->wasPutnodesCompleted.store(true);
+                                       }
+                                   });
 }
 
 void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle)
@@ -789,9 +813,15 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
         syncThreadSafeState->mCanChangeVault);
 }
 
-SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
-        const string& nodeName, const FileFingerprint& ff, shared_ptr<SyncThreadsafeState> stss,
-        handle fsid, const LocalPath& localname, bool fromInshare)
+SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder,
+                                         const LocalPath& fullPath,
+                                         const string& nodeName,
+                                         const FileFingerprint& ff,
+                                         shared_ptr<SyncThreadsafeState> stss,
+                                         handle fsid,
+                                         const LocalPath& localname,
+                                         bool fromInshare,
+                                         const bool justMtimeChanged)
 {
     *static_cast<FileFingerprint*>(this) = ff;
 
@@ -818,6 +848,7 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
 
     sourceFsid = fsid;
     sourceLocalname = localname;
+    wasJustMtimeChanged = justMtimeChanged;
 
     LOG_debug << "[SyncUpload_inClient()] Name: '" << getLocalname() << "'. Source local name: '"
               << sourceLocalname.toPath(false) << "'. Source fsid: " << fsid

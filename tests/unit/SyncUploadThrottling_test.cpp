@@ -107,6 +107,7 @@ protected:
         const bool fromInshare{false};
 
         // Create the SyncUpload_inClient
+        // [TO_CHECK] is enough to set `justMtimeChanged` to `false` for all cases
         mSyncUpload = std::make_shared<SyncUpload_inClient>(mDummyHandle,
                                                             dummyFullPath,
                                                             mNodeName,
@@ -114,7 +115,8 @@ protected:
                                                             mMockSyncThreadsafeState,
                                                             fsid,
                                                             dummyLocalName,
-                                                            fromInshare);
+                                                            fromInshare,
+                                                            false /*justMtimeChanged*/);
         mSyncUpload->wasRequesterAbandoned = true; // We do not finish uploads.
     }
 

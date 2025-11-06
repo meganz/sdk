@@ -648,7 +648,11 @@ public:
     bool resolve_makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter);
-    bool resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
+    bool resolve_upsync(SyncRow& row,
+                        SyncRow& parentRow,
+                        SyncPath& fullPath,
+                        PerFolderLogSummaryCounts& pflsc,
+                        const bool justMtimeChanged);
     bool resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc);
     bool resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);

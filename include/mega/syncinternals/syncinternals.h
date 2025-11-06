@@ -499,6 +499,7 @@ void clientUpload(MegaClient& mc,
 node_comparison_result syncCompCloudToFsWithMac_internal(MegaClient& mc,
                                                          const CloudNode& cn,
                                                          const FSNode& fs,
+                                                         const LocalPath& fsNodeFullPath,
                                                          const bool excludeMtime);
 
 /*
@@ -508,6 +509,7 @@ node_comparison_result syncCompCloudToFsWithMac_internal(MegaClient& mc,
 node_comparison_result syncCompCloudToFsWithMac(MegaClient& mc,
                                                 const CloudNode& cn,
                                                 const FSNode& fs,
+                                                const LocalPath& fsNodeFullPath,
                                                 const bool excludeMtime);
 } // namespace mega
 

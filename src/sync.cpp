@@ -9567,11 +9567,34 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         resolve_checkMoveDownloadComplete(row, fullPath);
 
         // all three exist; compare
-        bool fsCloudEqual = syncEqual(*row.cloudNode, *row.fsNode);
+        auto fsCloudEqualRes = syncCompCloudToFsWithMac(syncs.mClient,
+                                                        *row.cloudNode,
+                                                        *row.fsNode,
+                                                        fullPath.localPath,
+                                                        true);
         bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
         bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
+        auto justMtimeChanged = fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME;
 
-        if (fsCloudEqual)
+        if (fsCloudEqualRes == NODE_COMP_EREAD)
+        {
+            // [TO_CHECK] ->Is this the most appropriate way to manage a READ error?
+            LOG_err << "SyncItem: FsNode could not be readed";
+            ProgressingMonitor monitor(*this, row, fullPath);
+            monitor.waitingLocal(
+                fullPath.localPath,
+                SyncStallEntry(SyncWaitReason::FileIssue,
+                               true,
+                               false,
+                               {row.cloudNode->handle, fullPath.cloudPath},
+                               {},
+                               {fullPath.localPath, PathProblem::CannotFingerprintFile},
+                               {}));
+
+            return true;
+        }
+
+        if (fsCloudEqualRes == NODE_COMP_EQUAL)
         {
             // success! this row is synced
             if (!cloudEqual || !fsEqual)
@@ -9587,7 +9610,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         if (cloudEqual)
         {
             // filesystem changed, put the change
-            return resolve_upsync(row, parentRow, fullPath, pflsc);
+            return resolve_upsync(row, parentRow, fullPath, pflsc, justMtimeChanged);
         }
 
         if (fsEqual)
@@ -9601,7 +9624,8 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             }
             else
             {
-                // cloud has changed, get the change
+                // TODO SDK-5551: set mtime for fsnode just in case mtime is different but fp and
+                // METAMAC match, cloud has changed, get the change
                 return resolve_downsync(row, parentRow, fullPath, true, pflsc);
             }
         }
@@ -9626,7 +9650,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             LOG_warn << "CSF for a BACKUP with CloudNode != SyncNode != FSNode -> resolve upsync "
                         "to avoid user intervention"
                      << " " << logTriplet(row, fullPath);
-            return resolve_upsync(row, parentRow, fullPath, pflsc);
+            return resolve_upsync(row, parentRow, fullPath, pflsc, justMtimeChanged);
         }
 
         // both changed, so we can't decide without the user's help
@@ -9671,7 +9695,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         // either
         //  - cloud item did not exist before; upsync
         //  - the fs item has changed too; upsync (this lets users recover from the both sides changed state - user deletes the one they don't want anymore)
-        return resolve_upsync(row, parentRow, fullPath, pflsc);
+        return resolve_upsync(row, parentRow, fullPath, pflsc, false /*onlyUpdateMtime*/);
     }
     case SRT_CSX:
     {
@@ -10355,7 +10379,11 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
     return false;
 }
 
-bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
+bool Sync::resolve_upsync(SyncRow& row,
+                          SyncRow& parentRow,
+                          SyncPath& fullPath,
+                          PerFolderLogSummaryCounts& pflsc,
+                          const bool justMtimeChanged)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -10413,13 +10441,17 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             return false;
         }
 
-        shared_ptr<SyncUpload_inClient> existingUpload = std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
-
+        shared_ptr<SyncUpload_inClient> existingUpload =
+            std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
         if (existingUpload && !existingUpload->putnodesStarted)
         {
-            // keep the name and target folder details current:
+            // [TO_CHECK] --> in case upload already exists do we really need to set
+            // justMtimechanged?
+            existingUpload->wasJustMtimeChanged = justMtimeChanged;
 
-            // if it's just a case change in a case insensitive name, use the updated uppercase/lowercase
+            // keep the name and target folder details current:
+            // if it's just a case change in a case insensitive name, use the updated
+            // uppercase/lowercase
             bool onlyCaseChanged = mCaseInsensitive && row.cloudNode &&
                   0 == compareUtf(row.cloudNode->name, true, row.fsNode->localname, true, true);
 
@@ -10492,7 +10524,8 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                 assert(row.syncNode->scannedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint
                 assert(row.syncNode->scannedFingerprint == row.fsNode->fingerprint);
 
-                // if it's just a case change in a case insensitive name, use the updated uppercase/lowercase
+                // if it's just a case change in a case insensitive name, use the updated
+                // uppercase/lowercase
                 bool onlyCaseChanged = mCaseInsensitive && row.cloudNode &&
                     0 == compareUtf(row.cloudNode->name, true, row.fsNode->localname, true, true);
 
@@ -10502,8 +10535,14 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                     : row.cloudNode->name;
 
                 auto upload = std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle,
-                    fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
-                    row.fsNode->fsid, row.fsNode->localname, inshare);
+                                                                    fullPath.localPath,
+                                                                    nodeName,
+                                                                    row.fsNode->fingerprint,
+                                                                    threadSafeState,
+                                                                    row.fsNode->fsid,
+                                                                    row.fsNode->localname,
+                                                                    inshare,
+                                                                    justMtimeChanged);
 
                 const NodeHandle displaceHandle =
                     row.cloudNode ? row.cloudNode->handle : NodeHandle();

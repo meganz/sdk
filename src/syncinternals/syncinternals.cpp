@@ -306,6 +306,33 @@ void clientUpload(MegaClient& mc,
     assert(!upload->wasStarted);
     upload->wasStarted = true;
 
+    if (upload->wasJustMtimeChanged)
+    {
+        auto parent = mc.nodeByHandle(upload->h);
+        if (!parent)
+        {
+            LOG_warn << "clientUpload: Parent Node not found";
+            upload->putnodesFailed = true;
+            upload->wasPutnodesCompleted.store(true);
+            return;
+        }
+
+        auto node = mc.childnodebyname(parent.get(), upload->name.c_str());
+        if (!node)
+        {
+            LOG_warn << "clientUpload: Target Node not found";
+            upload->putnodesFailed = true;
+            upload->wasPutnodesCompleted.store(true);
+            return;
+        }
+
+        // [TO_DO] rename by upsyncStarted
+        upload->updateNodeMtime(&mc, node, upload->mtime);
+        upload->putnodesStarted = true;
+        upload->wasCompleted = true;
+        return;
+    }
+
     auto cloneNodeCandidate = findCloneNodeCandidate(mc, *upload, true /*excludeMtime*/);
     if (!cloneNodeCandidate)
     {
@@ -330,42 +357,22 @@ void clientUpload(MegaClient& mc,
     {
         if (cloneNodeCandidate->mtime != upload->mtime)
         {
-            auto attrCmdSentResult = upload->updateNodeMtime(
-                &mc,
-                cloneNodeCandidate,
-                upload->mtime,
-                [cloneNodeCandidate](NodeHandle h, Error e)
-                {
-                    if (cloneNodeCandidate->nodeHandle() != h)
-                    {
-                        LOG_err << "clientUpload (Update mTime): Unexpected Node Handle ("
-                                << toNodeHandle(cloneNodeCandidate->nodehandle) << "). Expected ("
-                                << toNodeHandle(h) << ")";
-                        assert(false && "clientUpload (Update mTime): Unexpected Node Handle");
-                    }
-
-                    if (e != API_OK)
-                    {
-                        LOG_err << "clientUpload (Update mTime): Unexpected result ("
-                                << toNodeHandle(cloneNodeCandidate->nodehandle) << ")";
-                    }
-                });
-
-            if (attrCmdSentResult != API_OK)
-            {
-                LOG_err << "clientUpload (Update mTime): command could not be sent to API: Err ("
-                        << attrCmdSentResult << ")";
-            }
-            return;
+            LOG_err << "fsNode has changed just mtime respect cloudNode and it should have managed "
+                       "before: "
+                    << toNodeHandle(cloneNodeCandidate->nodehandle);
+            assert(false && "fsNode has not changed respect cloudNode");
         }
-
-        // Fallback to cloning node
-        // This should not happen as candidate node has same name META_MAC and FP (including mtime)
-        // than upload node It means that node has not changed but it has been detected as changed
-        LOG_err << "fsNode has not changed respect cloudNode but is was detected as changed by "
-                   "sync engine: "
-                << toNodeHandle(cloneNodeCandidate->nodehandle);
-        assert(false && "fsNode has not changed respect cloudNode");
+        else
+        {
+            // Fallback to cloning node
+            // This should not happen as candidate node has same name META_MAC and FP (including
+            // mtime) than upload node It means that node has not changed but it has been detected
+            // as changed
+            LOG_err << "fsNode has not changed respect cloudNode but is was detected as changed by "
+                       "sync engine: "
+                    << toNodeHandle(cloneNodeCandidate->nodehandle);
+            assert(false && "fsNode has not changed respect cloudNode");
+        }
     }
 
     // We have found a candidate node to clone with a valid key, call putNodesToCloneNode.
@@ -383,6 +390,7 @@ void clientUpload(MegaClient& mc,
 node_comparison_result syncCompCloudToFsWithMac_internal(MegaClient& mc,
                                                          const CloudNode& cn,
                                                          const FSNode& fs,
+                                                         const LocalPath& fsNodeFullPath,
                                                          const bool excludeMtime)
 {
     auto node = mc.nodeByHandle(cn.handle);
@@ -393,7 +401,7 @@ node_comparison_result syncCompCloudToFsWithMac_internal(MegaClient& mc,
     }
 
     auto [res, _] = CompareLocalFileWithNodeFpAndMac(mc,
-                                                     fs.localname,
+                                                     fsNodeFullPath,
                                                      fs.fingerprint,
                                                      node.get(),
                                                      excludeMtime);
@@ -404,14 +412,15 @@ node_comparison_result syncCompCloudToFsWithMac_internal(MegaClient& mc,
 node_comparison_result syncCompCloudToFsWithMac(MegaClient& mc,
                                                 const CloudNode& cn,
                                                 const FSNode& fs,
+                                                const LocalPath& fsNodeFullPath,
                                                 const bool excludeMtime)
 {
     if (cn.type != fs.type)
-        return NODE_COMP_EARGS;
+        return NODE_COMP_INVALID_NODE_TYPE;
     if (cn.type != FILENODE)
         return NODE_COMP_EQUAL;
     assert(cn.fingerprint.isvalid && fs.fingerprint.isvalid);
-    return syncCompCloudToFsWithMac_internal(mc, cn, fs, excludeMtime);
+    return syncCompCloudToFsWithMac_internal(mc, cn, fs, fsNodeFullPath, excludeMtime);
 }
 } // namespace mega
 

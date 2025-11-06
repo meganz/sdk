@@ -3244,6 +3244,7 @@ void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
 
             // this flag allows in-progress transfers to self-cancel
             transferSP->wasRequesterAbandoned = true;
+            transferSP->wasJustMtimeChanged = false;
 
             // also queue an operation on the client thread to cancel it if it's queued
             auto tsp = transferSP;
@@ -3296,6 +3297,7 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
         return !uploadPtr->putnodesStarted;
     }
 
+    // TODO: SDK-5551
     LOG_debug << sync->syncname << "Cancelling superseded transfer of "
               << transferSP->getLocalname() << ". Reason: "
               << (transferDirectionNeedsToChange ?

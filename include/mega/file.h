@@ -222,6 +222,7 @@ struct SyncTransfer_inClient: public File
     std::atomic<bool> wasTerminated{false};
     std::atomic<bool> wasCompleted{false};
     std::atomic<bool> wasRequesterAbandoned{false};
+    std::atomic<bool> wasJustMtimeChanged{false};
 
     // Whether the terminated SyncTransfer_inClient was already notified to the apps/in the logs
     std::atomic<bool> terminatedReasonAlreadyKnown{false};
@@ -250,9 +251,15 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
 {
     // This class is part of the client's Transfer system (ie, works in the client's thread)
     // The sync system keeps a shared_ptr to it.  Whichever system finishes with it last actually deletes it
-    SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
-            const string& nodeName, const FileFingerprint& ff, shared_ptr<SyncThreadsafeState> stss,
-            handle fsid, const LocalPath& localname, bool fromInshare);
+    SyncUpload_inClient(NodeHandle targetFolder,
+                        const LocalPath& fullPath,
+                        const string& nodeName,
+                        const FileFingerprint& ff,
+                        shared_ptr<SyncThreadsafeState> stss,
+                        handle fsid,
+                        const LocalPath& localname,
+                        bool fromInshare,
+                        const bool justMtimeChanged);
     ~SyncUpload_inClient();
 
     void prepare(FileSystemAccess&) override;
@@ -278,10 +285,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     std::string fileAttr;
 
     // update node mtime
-    bool updateNodeMtime(MegaClient* client,
-                         std::shared_ptr<Node> node,
-                         const m_time_t newMtime,
-                         std::function<void(NodeHandle, Error)>&& completion);
+    bool updateNodeMtime(MegaClient* client, std::shared_ptr<Node> node, const m_time_t newMtime);
     void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
     void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);
 };
