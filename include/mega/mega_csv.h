@@ -5922,7 +5922,7 @@ namespace csv {
         template<typename T>
         class ThreadSafeDeque {
         public:
-            ThreadSafeDeque(size_t notify_size = 100) : _notify_size(notify_size) {};
+            ThreadSafeDeque(size_t notify_size = 100) : _notify_size(notify_size) {}
             ThreadSafeDeque(const ThreadSafeDeque& other) {
                 this->data = other.data;
                 this->_notify_size = other._notify_size;
@@ -6026,7 +6026,7 @@ namespace csv {
             IBasicCSVParser() = default;
             IBasicCSVParser(const CSVFormat&, const ColNamesPtr&);
             IBasicCSVParser(const ParseFlagMap& parse_flags, const WhitespaceMap& ws_flags
-            ) : _parse_flags(parse_flags), _ws_flags(ws_flags) {};
+            ) : _parse_flags(parse_flags), _ws_flags(ws_flags) {}
 
             virtual ~IBasicCSVParser() {}
 
@@ -6134,7 +6134,7 @@ namespace csv {
             StreamParser(TStream& source,
                 const CSVFormat& format,
                 const ColNamesPtr& col_names = nullptr
-            ) : IBasicCSVParser(format, col_names), _source(std::move(source)) {};
+            ) : IBasicCSVParser(format, col_names), _source(std::move(source)) {}
 
             StreamParser(
                 TStream& source,
@@ -6142,7 +6142,7 @@ namespace csv {
                 internals::WhitespaceMap ws_flags) :
                 IBasicCSVParser(parse_flags, ws_flags),
                 _source(std::move(source))
-            {};
+            {}
 
             ~StreamParser() {}
 
@@ -6207,7 +6207,7 @@ namespace csv {
             ) : IBasicCSVParser(format, col_names) {
                 this->_filename = filename.data();
                 this->source_size = get_file_size(filename);
-            };
+            }
 
             ~MmapParser() {}
 
@@ -6277,7 +6277,7 @@ namespace csv {
             #endif
 
             iterator() = default;
-            iterator(CSVReader* reader) : daddy(reader) {};
+            iterator(CSVReader* reader) : daddy(reader) {}
             iterator(CSVReader*, CSVRow&&);
 
             /** Access the CSVRow held by the iterator */
@@ -6346,7 +6346,7 @@ namespace csv {
         HEDLEY_CONST iterator end() const noexcept;
 
         /** Returns true if we have reached end of file */
-        bool eof() const noexcept { return this->parser->eof(); };
+        bool eof() const noexcept { return this->parser->eof(); }
         ///@}
 
         /** @name CSV Metadata */
@@ -6724,7 +6724,7 @@ namespace csv {
          *
          *  @param[out] filename  File to write to
          */
-        DelimWriter(const std::string& filename) : DelimWriter(std::ifstream(filename)) {};
+        DelimWriter(const std::string& filename) : DelimWriter(std::ifstream(filename)) {}
 
         /** Destructor will flush remaining data
          *

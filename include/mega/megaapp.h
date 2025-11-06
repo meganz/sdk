@@ -250,10 +250,10 @@ struct MEGA_API MegaApp
     virtual void getemaillink_result(error) {}
 
     // resend verification email
-    virtual void resendverificationemail_result(error) {};
+    virtual void resendverificationemail_result(error) {}
 
     // reset the verified phone number
-    virtual void resetSmsVerifiedPhoneNumber_result(error) {};
+    virtual void resetSmsVerifiedPhoneNumber_result(error) {}
 
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}

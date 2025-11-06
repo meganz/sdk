@@ -520,7 +520,7 @@ public:
         mCanChangeVault(canChangeVault)
     {}
 
-    virtual ~SyncThreadsafeState(){};
+    virtual ~SyncThreadsafeState(){}
 
     handle backupId() const
     {

@@ -51,8 +51,8 @@ public:
     static constexpr unsigned int schedEmptyFlags = 0;
 
     ScheduledFlags() = default;
-    ScheduledFlags (const unsigned long numericValue) : mFlags(numericValue) {};
-    ScheduledFlags (const ScheduledFlags* flags)      : mFlags(flags ? flags->getNumericValue() : schedEmptyFlags) {};
+    ScheduledFlags (const unsigned long numericValue) : mFlags(numericValue) {}
+    ScheduledFlags (const ScheduledFlags* flags)      : mFlags(flags ? flags->getNumericValue() : schedEmptyFlags) {}
     virtual ~ScheduledFlags() = default;
     ScheduledFlags(const ScheduledFlags&) = delete;
     ScheduledFlags(const ScheduledFlags&&) = delete;

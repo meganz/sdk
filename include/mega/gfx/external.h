@@ -43,7 +43,7 @@ class GfxProviderExternal : public IGfxLocalProvider
 public:
     GfxProviderExternal() = default;
     GfxProviderExternal(MegaGfxProcessor* gfxProcessor):
-        processor(gfxProcessor){};
+        processor(gfxProcessor){}
     void setProcessor(MegaGfxProcessor* gfxProcessor);
 };
 } // namespace
