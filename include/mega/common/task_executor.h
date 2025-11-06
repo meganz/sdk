@@ -51,10 +51,10 @@ class TaskExecutor
     WorkerList mWorkers;
 
     // Called on worker thread start
-    virtual void workerStarted(std::thread::id){};
+    virtual void workerStarted(std::thread::id){}
 
     // Called on worker thread stop
-    virtual void workerStopped(std::thread::id){};
+    virtual void workerStopped(std::thread::id){}
 
 public:
     explicit TaskExecutor(const TaskExecutorFlags& flags,

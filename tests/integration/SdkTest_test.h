@@ -446,7 +446,7 @@ public:
         mEndpointName{endpointName} {};
 
     MegaApiTestDeleter():
-        MegaApiTestDeleter(""){};
+        MegaApiTestDeleter(""){}
 
     void operator()(MegaApiTest* p) const;
 

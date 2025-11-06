@@ -122,7 +122,7 @@ private:
 class MEGA_API PlatformURIHelper
 {
 public:
-    virtual ~PlatformURIHelper(){};
+    virtual ~PlatformURIHelper(){}
     // Returns true if string is an URI
     virtual bool isURI(const string_type& URI) = 0;
     // Returns the name of file/directory pointed by the URI
