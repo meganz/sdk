@@ -101,6 +101,7 @@ set(SDKLIB_HEADERS
     include/mega/log_level.h
     include/mega/log_level_forward.h
     include/mega/overloaded.h
+    include/mega/sc_response_processor.h
 
     # megaapi_impl related headers
     include/impl/share.h
@@ -182,6 +183,7 @@ set(SDKLIB_SOURCES
     src/user_attribute_manager.cpp
     src/megautils.cpp
     src/log_level.cpp
+    src/sc_response_processor.cpp
 
     # megaapi_impl related sources
     src/impl/share.cpp
