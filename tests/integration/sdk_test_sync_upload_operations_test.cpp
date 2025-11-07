@@ -337,6 +337,70 @@ public:
         }
         return backupNode;
     }
+
+    /**
+     * @brief Retrieves test folder nodes and their first-level child file nodes.
+     *
+     * This function locates a set of folders under a given backup node (`backupNode`),
+     * as specified by the list of folder names in `folderNames`. For each folder found,
+     * it retrieves a file node with the common name `commonFileName` contained directly
+     * within that folder. The resulting folder and file nodes are stored in the
+     * `folderNodes` and `fileNodes` vectors, respectively.
+     *
+     * This function assumes a single-level hierarchy: folders exist directly under
+     * the backup node, and files exist directly inside those folders.
+     *
+     * @param backupNode The backup node under which the folders are located.
+     * @param folderNames A list of the folder names.
+     * @param folderNodes Vector to store the retrieved folder nodes.
+     * @param fileNodes Vector to store the retrieved file nodes.
+     * @param commonFileName The name of the common file expected inside each folder.
+     * @param msg A descriptive message used for logging purposes.
+     */
+    void
+        getTestFolderNodesAndFirstLevelChildren(std::shared_ptr<MegaNode> backupNode,
+                                                const std::vector<string>& folderNames,
+                                                std::vector<std::unique_ptr<MegaNode>>& folderNodes,
+                                                std::vector<std::unique_ptr<MegaNode>>& fileNodes,
+                                                const std::string& commonFileName,
+                                                const std::string& msg)
+    {
+        LOG_debug << "#### getTestFolderNodesAndFirstLevelChildren (" << msg << ") ####";
+        folderNodes.clear();
+        fileNodes.clear();
+
+        for (size_t i = 0; i < folderNames.size(); ++i)
+        {
+            std::unique_ptr<MegaNode> folderNode(
+                megaApi[0]->getChildNodeOfType(backupNode.get(),
+                                               folderNames.at(i).c_str(),
+                                               FOLDERNODE));
+
+            ASSERT_TRUE(folderNode) << msg << "Cannot get folderNode(" << folderNames.at(i) << ")";
+
+            std::unique_ptr<MegaNode> fileNode(
+                megaApi[0]->getChildNodeOfType(folderNode.get(), commonFileName.c_str(), FILENODE));
+
+            ASSERT_TRUE(fileNode) << msg << "Can not get fileNode(" << commonFileName
+                                  << ") which is inside " << folderNames.at(i);
+
+            folderNodes.emplace_back(std::move(folderNode));
+            fileNodes.emplace_back(std::move(fileNode));
+        }
+    }
+
+    /**
+     * @brief Gets the absolute LocalPath of a localtest file.
+     *
+     * @param folderName The name of the parent folder of file.
+     * @param fileName The name of the file for which to construct the absolute path.
+     * @return A LocalPath object representing the absolute path to the specified test file.
+     */
+    LocalPath getTestFileAbsolutePath(const std::string& folderName, const std::string& fileName)
+    {
+        return LocalPath::fromAbsolutePath(
+            fs::absolute(getLocalTmpDir() / folderName / fileName).u8string());
+    }
 };
 
 /**
@@ -350,6 +414,7 @@ TEST_F(SdkTestSyncUploadsOperations, BasicFileUpload)
 {
     const auto cleanup = setCleanupFunction();
     auto mtime = fs::file_time_type::clock::now();
+    LOG_err << "[JDEBUG] BasicFileUpload (TC1) create `file1`";
     ASSERT_NO_FATAL_FAILURE(createTestFile("dir1", "file1", "abcde", mtime, "CF1", true));
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 }
@@ -467,33 +532,6 @@ TEST_F(SdkTestSyncUploadsOperations, getnodesByFingerprintNoMtime)
                      MIN_ALLOW_MTIME_DIFFERENCE); // See MIN_ALLOW_MTIME_DIFFERENCE definition
     const std::vector<std::chrono::time_point<fs::file_time_type::clock>> mtimes{mtime1, mtime2};
 
-    auto getTestNodes = [this, backupNode, folderNames, commonFileName, &folderNodes, &fileNodes](
-                            const std::string& msg)
-    {
-        LOG_debug << "#### getTestNodes (" << msg << ") ####";
-        folderNodes.clear();
-        fileNodes.clear();
-
-        for (size_t i = 0; i < folderNames.size(); ++i)
-        {
-            std::unique_ptr<MegaNode> folderNode(
-                megaApi[0]->getChildNodeOfType(backupNode.get(),
-                                               folderNames.at(i).c_str(),
-                                               FOLDERNODE));
-
-            ASSERT_TRUE(folderNode) << msg << "Cannot get folderNode(" << folderNames.at(i) << ")";
-
-            std::unique_ptr<MegaNode> fileNode(
-                megaApi[0]->getChildNodeOfType(folderNode.get(), commonFileName.c_str(), FILENODE));
-
-            ASSERT_TRUE(fileNode) << msg << "Can not get fileNode(" << commonFileName
-                                  << ") which is inside " << folderNames.at(i);
-
-            folderNodes.emplace_back(std::move(folderNode));
-            fileNodes.emplace_back(std::move(fileNode));
-        }
-    };
-
     ASSERT_NO_FATAL_FAILURE(createTestFile(folderNames.at(0),
                                            commonFileName,
                                            commonContent,
@@ -508,7 +546,12 @@ TEST_F(SdkTestSyncUploadsOperations, getnodesByFingerprintNoMtime)
                                            "CF2",
                                            false));
 
-    ASSERT_NO_FATAL_FAILURE(getTestNodes("(GN1)"));
+    ASSERT_NO_FATAL_FAILURE(getTestFolderNodesAndFirstLevelChildren(backupNode,
+                                                                    folderNames,
+                                                                    folderNodes,
+                                                                    fileNodes,
+                                                                    commonFileName,
+                                                                    "(GN1)"));
 
     ASSERT_NO_FATAL_FAILURE(getNodesByFingerprint(fileNodes.at(0).get(),
                                                   false /*excludeMtime*/,
@@ -530,15 +573,18 @@ TEST_F(SdkTestSyncUploadsOperations, getnodesByFingerprintNoMtime)
                                                   fileNodes.size() /*expNumNodes*/,
                                                   "FP4"));
 
-    updateLocalNodeMtime(
-        fileNodes.at(0)->getHandle(),
-        LocalPath::fromAbsolutePath(
-            fs::absolute(getLocalTmpDir() / folderNames.at(0) / commonFileName).u8string()),
-        fileNodes.at(0)->getModificationTime(), /*oldMtime*/
-        fileNodes.at(1)->getModificationTime(), /*newMtime*/
-        "MT1");
+    updateLocalNodeMtime(fileNodes.at(0)->getHandle(),
+                         getTestFileAbsolutePath(folderNames.at(0), commonFileName),
+                         fileNodes.at(0)->getModificationTime(), /*oldMtime*/
+                         fileNodes.at(1)->getModificationTime(), /*newMtime*/
+                         "MT1");
 
-    ASSERT_NO_FATAL_FAILURE(getTestNodes("GN2"));
+    ASSERT_NO_FATAL_FAILURE(getTestFolderNodesAndFirstLevelChildren(backupNode,
+                                                                    folderNames,
+                                                                    folderNodes,
+                                                                    fileNodes,
+                                                                    commonFileName,
+                                                                    "(GN2)"));
 
     ASSERT_NO_FATAL_FAILURE(getNodesByFingerprint(fileNodes.at(0).get(),
                                                   false /*excludeMtime*/,
@@ -556,6 +602,48 @@ TEST_F(SdkTestSyncUploadsOperations, getnodesByFingerprintNoMtime)
                                                   true /*excludeMtime*/,
                                                   fileNodes.size() /*expNumNodes*/,
                                                   "FP8"));
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+}
+
+/**
+ * @test SdkTestSyncUploadsOperations.updateLocalNodeMtime
+ *
+ * 1. Create a new local file `file1` in `dir1` with given content and mtime (now).
+ *    - Expect a full upload.
+ * 2. Update the mtime of `file1`.
+ * 3. Verify that local and remote models match
+ */
+TEST_F(SdkTestSyncUploadsOperations, updateLocalNodeMtime)
+{
+    const auto cleanup = setCleanupFunction();
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << "Cannot get backup sync node";
+
+    const std::vector<string> folderNames{"dir1"};
+    const std::string commonFileName{"file1"};
+    std::vector<std::unique_ptr<MegaNode>> folderNodes;
+    std::vector<std::unique_ptr<MegaNode>> fileNodes;
+
+    ASSERT_NO_FATAL_FAILURE(createTestFile(folderNames.at(0),
+                                           commonFileName,
+                                           "abcde",
+                                           fs::file_time_type::clock::now(),
+                                           "CF1",
+                                           true));
+
+    ASSERT_NO_FATAL_FAILURE(getTestFolderNodesAndFirstLevelChildren(backupNode,
+                                                                    folderNames,
+                                                                    folderNodes,
+                                                                    fileNodes,
+                                                                    commonFileName,
+                                                                    "(GN1)"));
+
+    updateLocalNodeMtime(fileNodes.at(0)->getHandle(),
+                         getTestFileAbsolutePath(folderNames.at(0), commonFileName),
+                         fileNodes.at(0)->getModificationTime(), /*oldMtime*/
+                         fileNodes.at(0)->getModificationTime() + 100, /*newMtime*/
+                         "MT1");
+
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 }
 #endif // ENABLE_SYNC
