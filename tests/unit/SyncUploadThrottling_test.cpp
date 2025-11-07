@@ -240,7 +240,7 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenPutnodesStar
     EXPECT_CALL(*mMockSyncThreadsafeState, removeExpectedUpload(mDummyHandle, mNodeName)).Times(1);
 
     initializeSyncUpload_inClient();
-    mSyncUpload->putnodesStarted = true;
+    mSyncUpload->upsyncStarted = true;
 
     ASSERT_FALSE(mThrottlingFile.handleAbortUpload(*mSyncUpload,
                                                    DEFAULT_TRANSFER_DIRECTION_NEEDS_TO_CHANGE,
@@ -260,9 +260,9 @@ TEST_F(UploadThrottlingFileChangesTest, HandleAbortUploadNoAbortWhenUploadIsComp
     EXPECT_CALL(*mMockSyncThreadsafeState, removeExpectedUpload(mDummyHandle, mNodeName)).Times(1);
 
     initializeSyncUpload_inClient();
-    mSyncUpload->putnodesStarted = true;
-    mSyncUpload->wasCompleted = true;
-    mSyncUpload->wasPutnodesCompleted = true;
+    mSyncUpload->upsyncStarted = true;
+    mSyncUpload->wasFileTransferCompleted = true;
+    mSyncUpload->wasUpsyncCompleted = true;
     mSyncUpload->wasRequesterAbandoned = false;
 
     ASSERT_FALSE(mThrottlingFile.handleAbortUpload(*mSyncUpload,

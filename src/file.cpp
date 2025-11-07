@@ -631,8 +631,8 @@ void SyncTransfer_inClient::completed(Transfer*, [[maybe_unused]] putsource_t so
     // do not allow the base class to submit putnodes immediately
     //File::completed(t, source);
 
-    assert(!wasCompleted);
-    wasCompleted = true;
+    assert(!wasFileTransferCompleted);
+    wasFileTransferCompleted = true;
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
@@ -667,17 +667,17 @@ bool SyncUpload_inClient::updateNodeMtime(MegaClient* client,
                                                LOG_err << "clientUpload (Update mTime): Error(" << e
                                                        << "), Node("
                                                        << toNodeHandle(node->nodehandle) << ")";
-                                               s->putnodesFailed = e != API_OK;
-                                               s->putnodesResultHandle.set6byte(UNDEF);
+                                               s->upsyncFailed = e != API_OK;
+                                               s->upsyncResultHandle.set6byte(UNDEF);
                                            }
 
-                                           s->putnodesResultHandle.set6byte(node->nodehandle);
+                                           s->upsyncResultHandle.set6byte(node->nodehandle);
 
                                            // Track the result of its putnodes request.
                                            s->wasJustMtimeChanged = false;
 
-                                           // Let the engine know the putnodes has completed.
-                                           s->wasPutnodesCompleted.store(true);
+                                           // Let the engine know the setAttr has been completed.
+                                           s->wasUpsyncCompleted.store(true);
                                        }
                                    });
 }
@@ -718,17 +718,17 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
             if (auto s = self.lock())
             {
                 // Then track the result of its putnodes request.
-                s->putnodesFailed = e != API_OK;
+                s->upsyncFailed = e != API_OK;
 
                 // Capture the handle if the putnodes was successful.
-                if (!s->putnodesFailed)
+                if (!s->upsyncFailed)
                 {
                     assert(!nn.empty());
-                    s->putnodesResultHandle.set6byte(nn.front().mAddedHandle);
+                    s->upsyncResultHandle.set6byte(nn.front().mAddedHandle);
                 }
 
                 // Let the engine know the putnodes has completed.
-                s->wasPutnodesCompleted.store(true);
+                s->wasUpsyncCompleted.store(true);
             }
 
             if (auto s = stts.lock())
@@ -781,17 +781,17 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
             if (auto s = self.lock())
             {
                 // Then track the result of its putnodes request.
-                s->putnodesFailed = e != API_OK;
+                s->upsyncFailed = e != API_OK;
 
                 // Capture the handle if the putnodes was successful.
-                if (!s->putnodesFailed)
+                if (!s->upsyncFailed)
                 {
                     assert(!nn.empty());
-                    s->putnodesResultHandle.set6byte(nn.front().mAddedHandle);
+                    s->upsyncResultHandle.set6byte(nn.front().mAddedHandle);
                 }
 
                 // Let the engine know the putnodes has completed.
-                s->wasPutnodesCompleted.store(true);
+                s->wasUpsyncCompleted.store(true);
             }
 
             if (auto s = stts.lock())
@@ -857,13 +857,13 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder,
 
 SyncUpload_inClient::~SyncUpload_inClient()
 {
-    if (!wasTerminated && !wasCompleted)
+    if (!wasTerminated && !wasFileTransferCompleted)
     {
         assert(wasRequesterAbandoned);
         transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
     }
 
-    if (wasCompleted && wasPutnodesCompleted)
+    if (wasFileTransferCompleted && wasUpsyncCompleted)
     {
         syncThreadSafeState->transferComplete(PUT, size);
     }
@@ -872,7 +872,7 @@ SyncUpload_inClient::~SyncUpload_inClient()
         syncThreadSafeState->transferFailed(PUT, size);
     }
 
-    if (putnodesStarted)
+    if (upsyncStarted)
     {
         syncThreadSafeState->removeExpectedUpload(h, name);
     }
@@ -940,7 +940,7 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& cloc
 
 SyncDownload_inClient::~SyncDownload_inClient()
 {
-    if (!wasTerminated && !wasCompleted)
+    if (!wasTerminated && !wasFileTransferCompleted)
     {
         assert(wasRequesterAbandoned);
         transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
@@ -949,7 +949,7 @@ SyncDownload_inClient::~SyncDownload_inClient()
     if (!wasDistributed && downloadDistributor)
         downloadDistributor->removeTarget();
 
-    if (wasCompleted)
+    if (wasFileTransferCompleted)
     {
         syncThreadSafeState->transferComplete(GET, size);
     }

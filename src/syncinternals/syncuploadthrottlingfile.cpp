@@ -56,7 +56,7 @@ bool UploadThrottlingFile::handleAbortUpload(SyncUpload_inClient& upload,
                                              const unsigned maxUploadsBeforeThrottle,
                                              const LocalPath& transferPath)
 {
-    if (upload.putnodesStarted)
+    if (upload.upsyncStarted)
         return false;
 
     if (transferDirectionNeedsToChange)

@@ -220,7 +220,7 @@ struct SyncTransfer_inClient: public File
     error mError = API_OK;
 
     std::atomic<bool> wasTerminated{false};
-    std::atomic<bool> wasCompleted{false};
+    std::atomic<bool> wasFileTransferCompleted{false};
     std::atomic<bool> wasRequesterAbandoned{false};
     std::atomic<bool> wasJustMtimeChanged{false};
 
@@ -266,14 +266,17 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     void completed(Transfer*, putsource_t) override;
     void updateFingerprint(const FileFingerprint& newFingerprint);
 
-    bool putnodesStarted = false;
-
-    // Valid when wasPutnodesCompleted is true. (putnodes might be from upload, or shortcut node clone)
-    NodeHandle putnodesResultHandle;
-    bool putnodesFailed = false;
-
+    /* UpSync operation can be one of the following:
+     *  - putnodes of upload
+     *  - put nodes of clone
+     *  - update mtime of node in cloud
+     */
+    bool upsyncStarted = false;
+    bool upsyncFailed = false;
     std::atomic<bool> wasStarted{false};
-    std::atomic<bool> wasPutnodesCompleted{false};
+    std::atomic<bool> wasUpsyncCompleted{false};
+    // Valid when wasUpsyncCompleted is true.
+    NodeHandle upsyncResultHandle;
 
     handle sourceFsid = UNDEF;
     LocalPath sourceLocalname;

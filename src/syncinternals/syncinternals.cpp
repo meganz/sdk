@@ -101,7 +101,7 @@ bool FindLocalNodeByFSIDPredicate::operator()(LocalNode& localNode)
                 if (const auto upload =
                         std::dynamic_pointer_cast<SyncUpload_inClient>(localNode.transferSP);
                     upload && upload->fingerprint() == mTargetNodeAttributes.fingerprint &&
-                    upload->putnodesStarted)
+                    upload->upsyncStarted)
                 {
                     logMsg("source with same fsid excluded due to fingerprint mismatch has "
                            "a putnodes operation ongoing, fsid",
@@ -312,8 +312,8 @@ void clientUpload(MegaClient& mc,
         if (!parent)
         {
             LOG_warn << "clientUpload: Parent Node not found";
-            upload->putnodesFailed = true;
-            upload->wasPutnodesCompleted.store(true);
+            upload->upsyncFailed = true;
+            upload->wasUpsyncCompleted.store(true);
             return;
         }
 
@@ -321,15 +321,16 @@ void clientUpload(MegaClient& mc,
         if (!node)
         {
             LOG_warn << "clientUpload: Target Node not found";
-            upload->putnodesFailed = true;
-            upload->wasPutnodesCompleted.store(true);
+            upload->upsyncFailed = true;
+            upload->wasUpsyncCompleted.store(true);
             return;
         }
 
-        // [TO_DO] rename by upsyncStarted
         upload->updateNodeMtime(&mc, node, upload->mtime);
-        upload->putnodesStarted = true;
-        upload->wasCompleted = true;
+        // Set `true` even though no actual data transfer occurred, we're updating node's mtime
+        // instead
+        upload->wasFileTransferCompleted = true;
+        upload->upsyncStarted = true;
         return;
     }
 
@@ -382,8 +383,10 @@ void clientUpload(MegaClient& mc,
 
     // completion function is supplied to putNodes command
     upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNodeCandidate.get());
-    upload->putnodesStarted = true;
-    upload->wasCompleted = true;
+    // Set `true` even though no actual data transfer occurred, we're sending putnodes to clone
+    // node instead
+    upload->wasFileTransferCompleted = true;
+    upload->upsyncStarted = true;
     return;
 }
 

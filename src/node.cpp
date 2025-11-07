@@ -3237,8 +3237,7 @@ void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
 {
     if (transferSP)
     {
-        if (!transferSP->wasTerminated &&
-            !transferSP->wasCompleted)
+        if (!transferSP->wasTerminated && !transferSP->wasFileTransferCompleted)
         {
             LOG_debug << "Abandoning old transfer, and queueing its cancel on client thread";
 
@@ -3294,7 +3293,7 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
                                                           sync->syncs.maxUploadsBeforeThrottle(),
                                                           transferSP->getLocalname()))
     {
-        return !uploadPtr->putnodesStarted;
+        return !uploadPtr->upsyncStarted;
     }
 
     // TODO: SDK-5551

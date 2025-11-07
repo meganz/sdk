@@ -2036,7 +2036,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
         ProgressingMonitor monitor(*this, row, fullPath);
         if (auto upload = std::dynamic_pointer_cast<SyncUpload_inClient>(
                 sourceSyncNodeExcludedByFingerprintDuringPutnodes->transferSP);
-            upload && upload->putnodesStarted)
+            upload && upload->upsyncStarted)
         {
             // If the putnodes request has started, we need to wait.
             LOG_debug << "Potential move-source has outstanding putnodes: "
@@ -2948,11 +2948,11 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row,
                                           shared_ptr<SyncUpload_inClient> upload)
 {
     // we already checked that the upload including putnodes completed before calling here.
-    assert(row.syncNode && upload && upload->wasPutnodesCompleted);
+    assert(row.syncNode && upload && upload->wasUpsyncCompleted);
 
-    if (upload->putnodesResultHandle.isUndef())
+    if (upload->upsyncResultHandle.isUndef())
     {
-        assert(upload->putnodesFailed);
+        assert(upload->upsyncFailed);
 
         SYNC_verbose << syncname << "Upload from here failed, reset for reevaluation"
                      << logTriplet(row, fullPath);
@@ -2961,7 +2961,7 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row,
     }
     else
     {
-        assert(!upload->putnodesFailed);
+        assert(!upload->upsyncFailed);
 
         // Should we complete the putnodes later?
         if (syncs.deferPutnodeCompletion(fullPath.localPath))
@@ -3008,7 +3008,7 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row,
                      << logTriplet(row, fullPath);
         row.syncNode->setSyncedFsid(upload->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, row.syncNode->cloneShortname());
         row.syncNode->syncedFingerprint = *upload;
-        row.syncNode->setSyncedNodeHandle(upload->putnodesResultHandle);
+        row.syncNode->setSyncedNodeHandle(upload->upsyncResultHandle);
         statecacheadd(row.syncNode);
 
         // void going into syncItem() in case we only just got the cloud Node
@@ -8690,9 +8690,9 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         if (auto u = std::dynamic_pointer_cast<SyncUpload_inClient>(s->transferSP))
         {
             // Is it waiting for a putnodes request to complete?
-            if (u->putnodesStarted)
+            if (u->upsyncStarted)
             {
-                if (!u->wasPutnodesCompleted)
+                if (!u->wasUpsyncCompleted)
                 {
                     LOG_debug << "Waiting for putnodes to complete, defer move checking: "
                               << logTriplet(row, fullPath);
@@ -9005,7 +9005,7 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         downloadPtr->terminatedReasonAlreadyKnown = true;
         return keepSyncItem;
     }
-    if (downloadPtr->wasCompleted)
+    if (downloadPtr->wasFileTransferCompleted)
     {
         assert(downloadPtr->downloadDistributor);
 
@@ -10244,7 +10244,7 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
 
     if (auto u = std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP))
     {
-        if (u->putnodesStarted && !u->wasPutnodesCompleted)
+        if (u->upsyncStarted && !u->wasUpsyncCompleted)
         {
             // if we delete the LocalNode now, then the appearance of the uploaded file will cause a download which would be incorrect
             // if it hadn't started putnodes, it would be ok to delete (which should also cancel the transfer)
@@ -10443,7 +10443,7 @@ bool Sync::resolve_upsync(SyncRow& row,
 
         shared_ptr<SyncUpload_inClient> existingUpload =
             std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
-        if (existingUpload && !existingUpload->putnodesStarted)
+        if (existingUpload && !existingUpload->upsyncStarted)
         {
             // [TO_CHECK] --> in case upload already exists do we really need to set
             // justMtimechanged?
@@ -10581,7 +10581,7 @@ bool Sync::resolve_upsync(SyncRow& row,
 
             }
         }
-        else if (existingUpload->wasCompleted && !existingUpload->putnodesStarted)
+        else if (existingUpload->wasFileTransferCompleted && !existingUpload->upsyncStarted)
         {
             // We issue putnodes from the sync thread like this because localnodes may have moved/renamed in the meantime
             // And consider that the old target parent node may not even exist anymore
@@ -10592,7 +10592,7 @@ bool Sync::resolve_upsync(SyncRow& row,
                          PathProblem::PutnodeDeferredByController))
                 return false;
 
-            existingUpload->putnodesStarted = true;
+            existingUpload->upsyncStarted = true;
 
             SYNC_verbose << syncname << "Queueing putnodes for completed upload" << logTriplet(row, fullPath);
 
@@ -10643,16 +10643,15 @@ bool Sync::resolve_upsync(SyncRow& row,
                     existingUpload->sendPutnodesOfUpload(&mc, displaceNode ? displaceNode->nodeHandle() : NodeHandle());
                 });
         }
-        else if (existingUpload->wasPutnodesCompleted)
+        else if (existingUpload->wasUpsyncCompleted)
         {
             // Only reset the transfer if the putnode's completion hasn't been deferred.
             // This is necessary to prevent an infinite upload-loop in some cases.
             if (syncs.deferPutnodeCompletion(fullPath.localPath))
                 return false;
 
-            assert(!existingUpload->putnodesFailed ||
-                   existingUpload->putnodesResultHandle.isUndef());
-            if (existingUpload->putnodesFailed)
+            assert(!existingUpload->upsyncFailed || existingUpload->upsyncResultHandle.isUndef());
+            if (existingUpload->upsyncFailed)
             {
                 SYNC_verbose << syncname
                              << "Upload from here failed, reset for reevaluation in resolve_upsync."
@@ -10672,7 +10671,7 @@ bool Sync::resolve_upsync(SyncRow& row,
             row.syncNode->resetTransfer(nullptr);
             return false; // revisit in case of further changes
         }
-        else if (existingUpload->putnodesStarted)
+        else if (existingUpload->upsyncStarted)
         {
             SYNC_verbose << syncname << "Upload's putnodes already in progress" << logTriplet(row, fullPath);
         }
@@ -10893,9 +10892,10 @@ bool Sync::resolve_downsync(SyncRow& row,
                 if (!pflsc.alreadyDownloadingCount)
                 {
                     SYNC_verbose << syncname << "Download already in progress -> completed: "
-                                 << downloadPtr->wasCompleted << " terminated: "
-                                 << downloadPtr->wasTerminated << " requester abandoned: "
-                                 << downloadPtr->wasRequesterAbandoned << " -> " << logTriplet(row, fullPath);
+                                 << downloadPtr->wasFileTransferCompleted
+                                 << " terminated: " << downloadPtr->wasTerminated
+                                 << " requester abandoned: " << downloadPtr->wasRequesterAbandoned
+                                 << " -> " << logTriplet(row, fullPath);
                 }
                 pflsc.alreadyDownloadingCount += 1;
             }
