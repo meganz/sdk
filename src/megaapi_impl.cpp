@@ -18945,6 +18945,16 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
         .first;
 }
 
+bool CollisionChecker::fingerprintEqualRelaxed(const FileFingerprint& lhs,
+                                               const FileFingerprint& rhs)
+{
+#ifdef __ANDROID__
+    return lhs.equalExceptMtime(rhs);
+#else
+    return lhs == rhs;
+#endif
+}
+
 CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option)
 {
     auto decision = CollisionChecker::Result::Download;
@@ -19013,12 +19023,7 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> fa
 
         FileFingerprint fp;
         auto resGenFp = fp.genfingerprint(fa);
-        return ff->isvalid && resGenFp && fp.isvalid &&
-#ifdef __ANDROID__
-               ff->equalExceptMtime(fp);
-#else
-               fp == *ff;
-#endif
+        return ff->isvalid && resGenFp && fp.isvalid && fingerprintEqualRelaxed(*ff, fp);
     };
 
     auto metaMacFunc = [fileNode, faGetter]() {
@@ -19068,7 +19073,8 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess* ()> f
 
         FileFingerprint nodeFp = *node;
         FileFingerprint fp;
-        return (nodeFp.isvalid && fp.genfingerprint(fa) && fp.isvalid && fp == nodeFp);
+        return nodeFp.isvalid && fp.genfingerprint(fa) && fp.isvalid &&
+               fingerprintEqualRelaxed(fp, nodeFp);
     };
 
     auto metaMacFunc = [node, faGetter]() {
