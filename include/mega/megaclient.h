@@ -3874,14 +3874,20 @@ private:
     size_t chunkedSCProgress();
     void clearSC();
     void setupSCFilters();
+    bool checksca(JSON* json);
+    bool procsca(JSON* json);
 
-    JSON jsonsc_chunked;
+    // JSON jsonsc_chunked;
     JSONSplitter mSCJsonSplitter;
     size_t mSCChunkedProgress = 0;
     // filters for JSON parsing in streaming
     std::map<std::string, std::function<bool(JSON*)>> mSCFilters;
     std::shared_ptr<Node> lastAPDeletedNodeSC;
     bool processingSC = false;
+    // std::deque<std::string> mBufferedAP;
+    std::unique_lock<recursive_mutex> mNodeTreeIsChanging;
+    std::shared_ptr<Node> mlastAPDeletedNode;
+    bool mFirstChunkProcessed = false;
 };
 
 } // namespace
