@@ -226,6 +226,7 @@ struct SyncTransfer_inClient: public File
 
     // Whether the terminated SyncTransfer_inClient was already notified to the apps/in the logs
     std::atomic<bool> terminatedReasonAlreadyKnown{false};
+    std::optional<int64_t> mMetaMac;
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient
@@ -259,6 +260,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
                         handle fsid,
                         const LocalPath& localname,
                         bool fromInshare,
+                        const int64_t metamac,
                         const bool justMtimeChanged);
     ~SyncUpload_inClient();
 

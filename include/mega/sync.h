@@ -652,6 +652,7 @@ public:
                         SyncRow& parentRow,
                         SyncPath& fullPath,
                         PerFolderLogSummaryCounts& pflsc,
+                        const int64_t metamac,
                         const bool justMtimeChanged);
     bool resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc);
     bool resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);

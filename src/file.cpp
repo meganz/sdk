@@ -821,6 +821,7 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder,
                                          handle fsid,
                                          const LocalPath& localname,
                                          bool fromInshare,
+                                         const int64_t metamac,
                                          const bool justMtimeChanged)
 {
     *static_cast<FileFingerprint*>(this) = ff;
@@ -849,6 +850,7 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder,
     sourceFsid = fsid;
     sourceLocalname = localname;
     wasJustMtimeChanged = justMtimeChanged;
+    mMetaMac = metamac != INVALID_META_MAC ? metamac : std::optional<int64_t>{std::nullopt};
 
     LOG_debug << "[SyncUpload_inClient()] Name: '" << getLocalname() << "'. Source local name: '"
               << sourceLocalname.toPath(false) << "'. Source fsid: " << fsid

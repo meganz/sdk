@@ -486,7 +486,8 @@ void clientUpload(MegaClient& mc,
  * @param excludeMtime If true, ignores mtime time during fingerprint comparison, but still
  * checks mtime if fingerprint and METAMAC match, otherwise, mtime will be included in the
  * fingerprint comparison.
- * @return A value of type `node_comparison_result` indicating the comparison result:
+ * @return A pair of {`node_comparison_result` and metamac}
+          `node_comparison_result` indicates the comparison result:
  *         - NODE_COMP_EREAD: Error reading the local file.
  *         - NODE_COMP_EARGS: Invalid arguments, or in case nodeByHandle() does not return a valid
  * node
@@ -496,21 +497,22 @@ void clientUpload(MegaClient& mc,
  *
  * @see CompareLocalFileWithNodeFpAndMac at utils.cpp
  */
-node_comparison_result syncCompCloudToFsWithMac_internal(MegaClient& mc,
-                                                         const CloudNode& cn,
-                                                         const FSNode& fs,
-                                                         const LocalPath& fsNodeFullPath,
-                                                         const bool excludeMtime);
+std::pair<node_comparison_result, int64_t>
+    syncCompCloudToFsWithMac_internal(MegaClient& mc,
+                                      const CloudNode& cn,
+                                      const FSNode& fs,
+                                      const LocalPath& fsNodeFullPath,
+                                      const bool excludeMtime);
 
 /*
  * Compares a CloudNode with a FSNode, using file fingerprint and METAMAC.
  * @see syncCompCloudToFsWithMac_internal for more details.
  */
-node_comparison_result syncCompCloudToFsWithMac(MegaClient& mc,
-                                                const CloudNode& cn,
-                                                const FSNode& fs,
-                                                const LocalPath& fsNodeFullPath,
-                                                const bool excludeMtime);
+std::pair<node_comparison_result, int64_t> syncCompCloudToFsWithMac(MegaClient& mc,
+                                                                    const CloudNode& cn,
+                                                                    const FSNode& fs,
+                                                                    const LocalPath& fsNodeFullPath,
+                                                                    const bool excludeMtime);
 } // namespace mega
 
 #endif // ENABLE_SYNC

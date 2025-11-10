@@ -2485,6 +2485,14 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     return std::make_pair(true, chunkMacs.macsmac(&cipher));
 }
 
+bool CompareLocalFilePrecalculatedMetaMacWithNodeKey(const int64_t metamac,
+                                                     const std::string& nodeKey)
+{
+    const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
+    int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    return metamac == remoteMac;
+}
+
 std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
                                                             const std::string& nodeKey,
                                                             int type)
@@ -2501,6 +2509,82 @@ std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
 bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node)
 {
     return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type).first;
+}
+
+node_comparison_result CompareLocalFileWithNodeFpAndPrecalculatedMac(MegaClient& client,
+                                                                     const LocalPath& path,
+                                                                     const FileFingerprint& fp,
+                                                                     const Node* node,
+                                                                     const int64_t metamac,
+                                                                     const bool excludeMtime,
+                                                                     bool debugMode)
+{
+    if (!node)
+    {
+        return NODE_COMP_EARGS;
+    }
+
+    if (node->type != FILENODE)
+    {
+        LOG_err << "CompareLocalFileWithNodeFpAndPrecalculatedMac called with invalid node type";
+        assert(false &&
+               "CompareLocalFileWithNodeFpAndPrecalculatedMac called with invalid node type");
+        return NODE_COMP_INVALID_NODE_TYPE;
+    }
+
+    if (node->nodekey().empty())
+    {
+        return NODE_COMP_EARGS;
+    }
+
+    if (!node->isvalid || !fp.isvalid)
+    {
+        LOG_warn << "CompareLocalFileWithNodeFpAndPrecalculatedMac: valid node: " << node->isvalid
+                 << " valid file fingerprint: " << fp.isvalid;
+        return NODE_COMP_EARGS;
+    }
+
+    if (auto equalFp = excludeMtime ?
+                           fp.equalExceptMtime(static_cast<const FileFingerprint&>(*node)) :
+                           fp == static_cast<const FileFingerprint&>(*node);
+        !equalFp)
+    {
+        return NODE_COMP_DIFFERS_FP;
+    }
+
+    if (auto fa = client.fsaccess->newfileaccess();
+        fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
+    {
+        if (auto areEqual =
+                CompareLocalFilePrecalculatedMetaMacWithNodeKey(metamac, node->nodekey());
+            areEqual)
+        {
+            if (!debugMode)
+            {
+                client.sendevent(800029, "Node found with same Fp and MAC than local file");
+            }
+
+            if (excludeMtime && fp.mtime != node->mtime)
+            {
+                return NODE_COMP_DIFFERS_MTIME;
+            }
+
+            return NODE_COMP_EQUAL;
+        }
+        else
+        {
+            if (!debugMode)
+            {
+                client.sendevent(800030,
+                                 "Node found with same Fp but different MAC than local file");
+            }
+            return NODE_COMP_DIFFERS_MAC;
+        }
+    }
+
+    LOG_warn << "CompareLocalFileWithNodeFpAndPrecalculatedMac: cannot read local file: "
+             << path.toPath(false);
+    return NODE_COMP_EREAD;
 }
 
 std::pair<node_comparison_result, int64_t>
@@ -2525,7 +2609,7 @@ std::pair<node_comparison_result, int64_t>
 
     if (node->nodekey().empty())
     {
-        return {NODE_COMP_EARGS, 0};
+        return {NODE_COMP_EARGS, INVALID_META_MAC};
     }
 
     if (!node->isvalid || !fp.isvalid)
@@ -2546,8 +2630,9 @@ std::pair<node_comparison_result, int64_t>
     if (auto fa = client.fsaccess->newfileaccess();
         fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
     {
-        auto [res, mac] = CompareLocalFileMetaMacWithNodeKey(fa.get(), node->nodekey(), node->type);
-        if (res)
+        auto [areEqual, mac] =
+            CompareLocalFileMetaMacWithNodeKey(fa.get(), node->nodekey(), node->type);
+        if (areEqual)
         {
             if (!debugMode)
             {

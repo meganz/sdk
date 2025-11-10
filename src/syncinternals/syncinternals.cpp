@@ -103,6 +103,7 @@ bool FindLocalNodeByFSIDPredicate::operator()(LocalNode& localNode)
                     upload && upload->fingerprint() == mTargetNodeAttributes.fingerprint &&
                     upload->upsyncStarted)
                 {
+                    // [TO_DO]: see this subcase (sdk-5551)
                     logMsg("source with same fsid excluded due to fingerprint mismatch has "
                            "a putnodes operation ongoing, fsid",
                            localNode.getLocalPath());
@@ -225,13 +226,30 @@ struct FindCloneNodeCandidatePredicate
      */
     bool operator()(const Node& node)
     {
-        if (const auto [compRes, _] = CompareLocalFileWithNodeFpAndMac(mClient,
-                                                                       mUpload.getLocalname(),
-                                                                       mUpload,
-                                                                       &node,
-                                                                       true /*excludeMtime*/,
-                                                                       false /*debugMode*/);
-            compRes == NODE_COMP_EQUAL || compRes == NODE_COMP_DIFFERS_MTIME)
+        node_comparison_result compRes = NODE_COMP_EQUAL;
+        if (mUpload.mMetaMac.has_value())
+        {
+            // Avoid calculating metamac again by using precalculated one
+            compRes = CompareLocalFileWithNodeFpAndPrecalculatedMac(mClient,
+                                                                    mUpload.getLocalname(),
+                                                                    mUpload,
+                                                                    &node,
+                                                                    *mUpload.mMetaMac,
+                                                                    true /*excludeMtime*/,
+                                                                    false /*debugMode*/);
+        }
+        else
+        {
+            const auto [auxCompRes, _] = CompareLocalFileWithNodeFpAndMac(mClient,
+                                                                          mUpload.getLocalname(),
+                                                                          mUpload,
+                                                                          &node,
+                                                                          true /*excludeMtime*/,
+                                                                          false /*debugMode*/);
+            compRes = auxCompRes;
+        }
+
+        if (compRes == NODE_COMP_EQUAL || compRes == NODE_COMP_DIFFERS_MTIME)
         {
             // Found a candidate that matches content
             if (node.hasZeroKey())
@@ -390,38 +408,37 @@ void clientUpload(MegaClient& mc,
     return;
 }
 
-node_comparison_result syncCompCloudToFsWithMac_internal(MegaClient& mc,
-                                                         const CloudNode& cn,
-                                                         const FSNode& fs,
-                                                         const LocalPath& fsNodeFullPath,
-                                                         const bool excludeMtime)
+std::pair<node_comparison_result, int64_t>
+    syncCompCloudToFsWithMac_internal(MegaClient& mc,
+                                      const CloudNode& cn,
+                                      const FSNode& fs,
+                                      const LocalPath& fsNodeFullPath,
+                                      const bool excludeMtime)
 {
     auto node = mc.nodeByHandle(cn.handle);
     if (!node)
     {
         // [TO_CHECK]. What is expected in case Node cannot be retrieved from CloudNode?
-        return NODE_COMP_EARGS;
+        return {NODE_COMP_EARGS, 0};
     }
 
-    auto [res, _] = CompareLocalFileWithNodeFpAndMac(mc,
-                                                     fsNodeFullPath,
-                                                     fs.fingerprint,
-                                                     node.get(),
-                                                     excludeMtime);
-    // [TO_CHECK]. Should we store METAMAC at FsNode?
-    return res;
+    return CompareLocalFileWithNodeFpAndMac(mc,
+                                            fsNodeFullPath,
+                                            fs.fingerprint,
+                                            node.get(),
+                                            excludeMtime);
 }
 
-node_comparison_result syncCompCloudToFsWithMac(MegaClient& mc,
-                                                const CloudNode& cn,
-                                                const FSNode& fs,
-                                                const LocalPath& fsNodeFullPath,
-                                                const bool excludeMtime)
+std::pair<node_comparison_result, int64_t> syncCompCloudToFsWithMac(MegaClient& mc,
+                                                                    const CloudNode& cn,
+                                                                    const FSNode& fs,
+                                                                    const LocalPath& fsNodeFullPath,
+                                                                    const bool excludeMtime)
 {
     if (cn.type != fs.type)
-        return NODE_COMP_INVALID_NODE_TYPE;
+        return {NODE_COMP_INVALID_NODE_TYPE, 0};
     if (cn.type != FILENODE)
-        return NODE_COMP_EQUAL;
+        return {NODE_COMP_EQUAL, 0};
     assert(cn.fingerprint.isvalid && fs.fingerprint.isvalid);
     return syncCompCloudToFsWithMac_internal(mc, cn, fs, fsNodeFullPath, excludeMtime);
 }

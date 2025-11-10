@@ -9567,11 +9567,11 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         resolve_checkMoveDownloadComplete(row, fullPath);
 
         // all three exist; compare
-        auto fsCloudEqualRes = syncCompCloudToFsWithMac(syncs.mClient,
-                                                        *row.cloudNode,
-                                                        *row.fsNode,
-                                                        fullPath.localPath,
-                                                        true);
+        auto [fsCloudEqualRes, metamac] = syncCompCloudToFsWithMac(syncs.mClient,
+                                                                   *row.cloudNode,
+                                                                   *row.fsNode,
+                                                                   fullPath.localPath,
+                                                                   true);
         bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
         bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
         auto justMtimeChanged = fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME;
@@ -9610,7 +9610,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         if (cloudEqual)
         {
             // filesystem changed, put the change
-            return resolve_upsync(row, parentRow, fullPath, pflsc, justMtimeChanged);
+            return resolve_upsync(row, parentRow, fullPath, pflsc, metamac, justMtimeChanged);
         }
 
         if (fsEqual)
@@ -9624,7 +9624,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             }
             else
             {
-                // TODO SDK-5551: set mtime for fsnode just in case mtime is different but fp and
+                // [TO_DO] SDK-5551: set mtime for fsnode just in case mtime is different but fp and
                 // METAMAC match, cloud has changed, get the change
                 return resolve_downsync(row, parentRow, fullPath, true, pflsc);
             }
@@ -9650,7 +9650,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             LOG_warn << "CSF for a BACKUP with CloudNode != SyncNode != FSNode -> resolve upsync "
                         "to avoid user intervention"
                      << " " << logTriplet(row, fullPath);
-            return resolve_upsync(row, parentRow, fullPath, pflsc, justMtimeChanged);
+            return resolve_upsync(row, parentRow, fullPath, pflsc, metamac, justMtimeChanged);
         }
 
         // both changed, so we can't decide without the user's help
@@ -9695,7 +9695,12 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         // either
         //  - cloud item did not exist before; upsync
         //  - the fs item has changed too; upsync (this lets users recover from the both sides changed state - user deletes the one they don't want anymore)
-        return resolve_upsync(row, parentRow, fullPath, pflsc, false /*onlyUpdateMtime*/);
+        return resolve_upsync(row,
+                              parentRow,
+                              fullPath,
+                              pflsc,
+                              INVALID_META_MAC,
+                              false /*onlyUpdateMtime*/);
     }
     case SRT_CSX:
     {
@@ -10383,6 +10388,7 @@ bool Sync::resolve_upsync(SyncRow& row,
                           SyncRow& parentRow,
                           SyncPath& fullPath,
                           PerFolderLogSummaryCounts& pflsc,
+                          const int64_t metamac,
                           const bool justMtimeChanged)
 {
     assert(syncs.onSyncThread());
@@ -10433,14 +10439,16 @@ bool Sync::resolve_upsync(SyncRow& row,
 
     if (row.fsNode->type == FILENODE)
     {
-        // upload the file if we're not already uploading it
-        if (!row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint))
+        if (auto waitForUpsyncCompletion =
+                !row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint);
+            waitForUpsyncCompletion)
         {
             // if we are in the putnodes stage of a transfer though, then
             // wait for that to finish and then re-evaluate
             return false;
         }
 
+        // upload the file if we're not already uploading it
         shared_ptr<SyncUpload_inClient> existingUpload =
             std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
         if (existingUpload && !existingUpload->upsyncStarted)
@@ -10448,6 +10456,8 @@ bool Sync::resolve_upsync(SyncRow& row,
             // [TO_CHECK] --> in case upload already exists do we really need to set
             // justMtimechanged?
             existingUpload->wasJustMtimeChanged = justMtimeChanged;
+            existingUpload->mMetaMac =
+                metamac != INVALID_META_MAC ? metamac : std::optional<int64_t>{std::nullopt};
 
             // keep the name and target folder details current:
             // if it's just a case change in a case insensitive name, use the updated
@@ -10542,6 +10552,7 @@ bool Sync::resolve_upsync(SyncRow& row,
                                                                     row.fsNode->fsid,
                                                                     row.fsNode->localname,
                                                                     inshare,
+                                                                    metamac,
                                                                     justMtimeChanged);
 
                 const NodeHandle displaceHandle =
