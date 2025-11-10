@@ -3763,9 +3763,10 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     delete n5;
 }
 
+class SdkTestDownload: public SdkTest
+{};
+
 /**
- * @brief TEST_F SdkTestDownloadConflictFolderExistingName
- *
  * This test tries to download a File node into a local folder, that already contains a folder with
  * the same name as downloaded file.
  *
@@ -3773,9 +3774,10 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  * collisionResolution(COLLISION_RESOLUTION_OVERWRITE), so transfer will be retried sometimes by SDK
  * and finally will fail with API_EWRITE.
  */
-TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
+TEST_F(SdkTestDownload, ConflictFolderExistingName)
 {
-    LOG_info << "___TEST SdkTestDownloadConflictFolderExistingName___";
+    CASE_info << "started";
+
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << cwd();
 
@@ -3805,6 +3807,8 @@ TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
     ASSERT_TRUE(errCode.has_value()) << "test_utils(downloadFile) has returned nullopt";
     ASSERT_EQ(*errCode, API_EWRITE)
         << "test_utils(downloadFile) has returned unexpected errorCode: " << errCode.has_value();
+
+    CASE_info << "finished";
 }
 
 /**
@@ -3815,27 +3819,26 @@ TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
  * collisionResolution(COLLISION_RESOLUTION_NEW_WITH_N), so transfer will completed successfully
  * with skipping download as fingerprints match.
  */
-TEST_F(SdkTest, SdkTestDownloadConflictFileExistingName)
+TEST_F(SdkTestDownload, ConflictFileExistingName)
 {
-    constexpr long long FILE_SIZE = 1;
-    const auto logPre = getLogPrefix();
-    LOG_info << logPre << "started";
+    CASE_info << "started";
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     const std::string itemName{"testItem"};
     const fs::path basePath = fs::current_path();
 
-    LOG_debug << logPre << "#### TEST1: Create Folder and File in local FS " << basePath << "####";
+    LOG_debug << "#### TEST1: Create Folder and File in local FS " << basePath << "####";
+    constexpr long long FILE_SIZE = 1;
     const sdk_test::LocalTempDir d{basePath / itemName};
     const sdk_test::LocalTempFile f{basePath / itemName / itemName, static_cast<size_t>(FILE_SIZE)};
 
-    LOG_debug << logPre << "#### TEST2: Create File in cloud drive ####";
+    LOG_debug << "#### TEST2: Create File in cloud drive ####";
     const std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
     const auto newNode = sdk_test::uploadFile(megaApi[0].get(), f.getPath(), rootNode.get());
     ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
 
-    LOG_debug << logPre << "#### TEST3: Download file at dir with a file with same name ####";
+    LOG_debug << "#### TEST3: Download file at dir with a file with same name ####";
     std::shared_ptr<MegaTransfer> transfer;
     auto onTransferFinish =
         [&transfer](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError*)
@@ -3855,10 +3858,10 @@ TEST_F(SdkTest, SdkTestDownloadConflictFileExistingName)
     ASSERT_THAT(transfer, ::testing::NotNull());
     ASSERT_EQ(transfer->getState(), MegaTransfer::STATE_COMPLETED);
     ASSERT_EQ(transfer->getTotalBytes(), FILE_SIZE);
-    // Download is skipped so transferred bytes is 0
+    // Check transferred bytes to confirm download is skipped
     ASSERT_EQ(transfer->getTransferredBytes(), 0);
 
-    LOG_info << logPre << "finished";
+    CASE_info << "finished";
 }
 
 /**
