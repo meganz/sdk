@@ -180,6 +180,9 @@ bool checkAndExpectThat(const T& value, const MatcherT& matcher)
     return matched;
 }
 
+using TransferFinishCallback =
+    std::function<void(::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError*)>;
+
 /**
  * @brief Downloads a file from MEGA
  * @see MegaApi::startDownload for more details
@@ -195,6 +198,7 @@ std::optional<int> downloadNode(
     const std::chrono::seconds timeoutInSecs = MAX_TIMEOUT,
     const int collisionCheck = ::mega::MegaTransfer::COLLISION_CHECK_FINGERPRINT,
     const int collisionResolution = ::mega::MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+    TransferFinishCallback transferFinishCallback = nullptr,
     const char* customName = nullptr,
     const char* appData = nullptr,
     const bool startFirst = false,

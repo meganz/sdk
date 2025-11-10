@@ -3808,6 +3808,60 @@ TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
 }
 
 /**
+ * This test tries to download a File node into a local folder, that already contains a file with
+ * the same name as downloaded file.
+ *
+ * We download with collisionCheck(COLLISION_CHECK_FINGERPRINT) and
+ * collisionResolution(COLLISION_RESOLUTION_NEW_WITH_N), so transfer will completed successfully
+ * with skipping download as fingerprints match.
+ */
+TEST_F(SdkTest, SdkTestDownloadConflictFileExistingName)
+{
+    constexpr long long FILE_SIZE = 1;
+    const auto logPre = getLogPrefix();
+    LOG_info << logPre << "started";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string itemName{"testItem"};
+    const fs::path basePath = fs::current_path();
+
+    LOG_debug << logPre << "#### TEST1: Create Folder and File in local FS " << basePath << "####";
+    const sdk_test::LocalTempDir d{basePath / itemName};
+    const sdk_test::LocalTempFile f{basePath / itemName / itemName, static_cast<size_t>(FILE_SIZE)};
+
+    LOG_debug << logPre << "#### TEST2: Create File in cloud drive ####";
+    const std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    const auto newNode = sdk_test::uploadFile(megaApi[0].get(), f.getPath(), rootNode.get());
+    ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
+
+    LOG_debug << logPre << "#### TEST3: Download file at dir with a file with same name ####";
+    std::shared_ptr<MegaTransfer> transfer;
+    auto onTransferFinish =
+        [&transfer](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError*)
+    {
+        if (t)
+            transfer.reset(t->copy());
+    };
+    const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
+                                                newNode.get(),
+                                                basePath / itemName,
+                                                true,
+                                                180s /*timeout*/,
+                                                MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                                MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                                onTransferFinish);
+    ASSERT_EQ(*errCode, API_OK);
+    ASSERT_THAT(transfer, ::testing::NotNull());
+    ASSERT_EQ(transfer->getState(), MegaTransfer::STATE_COMPLETED);
+    ASSERT_EQ(transfer->getTotalBytes(), FILE_SIZE);
+    // Download is skipped so transferred bytes is 0
+    ASSERT_EQ(transfer->getTransferredBytes(), 0);
+
+    LOG_info << logPre << "finished";
+}
+
+/**
  * @brief TEST_F SdkTestTransfers
  *
  * It performs different operations related to transfers in both directions: up and down.
