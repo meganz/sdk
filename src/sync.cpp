@@ -9624,9 +9624,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             }
             else
             {
-                // [TO_DO] SDK-5551: set mtime for fsnode just in case mtime is different but fp and
-                // METAMAC match, cloud has changed, get the change
-                return resolve_downsync(row, parentRow, fullPath, true, pflsc);
+                return resolve_downsync(row, parentRow, fullPath, true, pflsc, justMtimeChanged);
             }
         }
 
@@ -9738,12 +9736,12 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         else if (row.syncNode->fsid_lastSynced == UNDEF)
         {
             // fs item did not exist before; downsync
-            return resolve_downsync(row, parentRow, fullPath, false, pflsc);
+            return resolve_downsync(row, parentRow, fullPath, false, pflsc, false);
         }
         else if (row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
         {
             // the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
-            return resolve_downsync(row, parentRow, fullPath, false, pflsc);
+            return resolve_downsync(row, parentRow, fullPath, false, pflsc, false);
         }
         else
         {
@@ -10797,7 +10795,8 @@ bool Sync::resolve_downsync(SyncRow& row,
                             SyncRow& parentRow,
                             SyncPath& fullPath,
                             [[maybe_unused]] bool alreadyExists,
-                            PerFolderLogSummaryCounts& pflsc)
+                            PerFolderLogSummaryCounts& pflsc,
+                            const bool justMtimeChanged)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -10856,9 +10855,9 @@ bool Sync::resolve_downsync(SyncRow& row,
 
         if (parentRow.fsNode)
         {
-            auto downloadPtr = std::dynamic_pointer_cast<SyncDownload_inClient>(row.syncNode->transferSP);
-
-            if (!downloadPtr)
+            auto existingDownload =
+                std::dynamic_pointer_cast<SyncDownload_inClient>(row.syncNode->transferSP);
+            if (!existingDownload)
             {
                 LOG_debug << syncname << "Sync - remote file addition detected: " << row.cloudNode->handle << " " << fullPath.cloudPath;
 
@@ -10892,21 +10891,28 @@ bool Sync::resolve_downsync(SyncRow& row,
                 bool downloadFirst = fullPath.localPath.leafName().toPath(false) == ".megaignore";
 
                 // download to tmpfaPath (folder debris/tmp). We will rename/mv it to correct location (updated if necessary) after that completes
-                row.syncNode->queueClientDownload(std::make_shared<SyncDownload_inClient>(*row.cloudNode,
-                    fullPath.localPath, inshare, threadSafeState, row.fsNode ? row.fsNode->fingerprint : FileFingerprint()
-                    ), downloadFirst);
-
+                row.syncNode->queueClientDownload(
+                    std::make_shared<SyncDownload_inClient>(*row.cloudNode,
+                                                            fullPath.localPath,
+                                                            inshare,
+                                                            threadSafeState,
+                                                            row.fsNode ? row.fsNode->fingerprint :
+                                                                         FileFingerprint(),
+                                                            justMtimeChanged),
+                    downloadFirst);
             }
             // terminated and completed transfers are checked for early in syncItem()
             else
             {
+                existingDownload->wasJustMtimeChanged = justMtimeChanged;
                 if (!pflsc.alreadyDownloadingCount)
                 {
                     SYNC_verbose << syncname << "Download already in progress -> completed: "
-                                 << downloadPtr->wasFileTransferCompleted
-                                 << " terminated: " << downloadPtr->wasTerminated
-                                 << " requester abandoned: " << downloadPtr->wasRequesterAbandoned
-                                 << " -> " << logTriplet(row, fullPath);
+                                 << existingDownload->wasFileTransferCompleted
+                                 << " terminated: " << existingDownload->wasTerminated
+                                 << " requester abandoned: "
+                                 << existingDownload->wasRequesterAbandoned << " -> "
+                                 << logTriplet(row, fullPath);
                 }
                 pflsc.alreadyDownloadingCount += 1;
             }

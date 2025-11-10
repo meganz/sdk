@@ -920,8 +920,12 @@ void SyncUpload_inClient::updateFingerprint(const FileFingerprint& newFingerprin
     FileFingerprint::operator=(newFingerprint);
 }
 
-SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare,
-        shared_ptr<SyncThreadsafeState> stss, const FileFingerprint& overwriteFF)
+SyncDownload_inClient::SyncDownload_inClient(CloudNode& n,
+                                             const LocalPath& clocalname,
+                                             bool fromInshare,
+                                             shared_ptr<SyncThreadsafeState> stss,
+                                             const FileFingerprint& overwriteFF,
+                                             const bool justMtimeChanged)
 {
     h = n.handle;
     *(FileFingerprint*)this = n.fingerprint;
@@ -934,6 +938,7 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& cloc
 
     syncThreadSafeState = std::move(stss);
     syncThreadSafeState->transferBegin(GET, size);
+    wasJustMtimeChanged = justMtimeChanged;
 
     LOG_debug << "[SyncDownload_inClient()] Name: '" << getLocalname() << "'. Handle: " << h
               << ". Cloud Fingerprint: " << fingerprintDebugString()

@@ -237,8 +237,12 @@ struct SyncDownload_inClient: public SyncTransfer_inClient
     void prepare(FileSystemAccess&) override;
     bool failed(error, MegaClient*) override;
 
-    SyncDownload_inClient(CloudNode& n, const LocalPath&, bool fromInshare,
-            shared_ptr<SyncThreadsafeState> stss, const FileFingerprint& overwriteFF);
+    SyncDownload_inClient(CloudNode& n,
+                          const LocalPath&,
+                          bool fromInshare,
+                          shared_ptr<SyncThreadsafeState> stss,
+                          const FileFingerprint& overwriteFF,
+                          const bool justMtimeChanged);
 
     ~SyncDownload_inClient();
 

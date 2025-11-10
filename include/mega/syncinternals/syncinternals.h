@@ -473,6 +473,14 @@ void clientUpload(MegaClient& mc,
                   const bool queueFirst,
                   const NodeHandle ovHandleIfShortcut);
 
+/******************\
+*  SYNC DOWNLOADS  *
+\******************/
+void clientDownload(MegaClient& mc,
+                    TransferDbCommitter& committer,
+                    std::shared_ptr<SyncDownload_inClient> download,
+                    const bool queueFirst);
+
 /********************\
 *  SYNC COMPARISONS  *
 \********************/

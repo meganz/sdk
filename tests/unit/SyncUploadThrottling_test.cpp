@@ -116,6 +116,7 @@ protected:
                                                             fsid,
                                                             dummyLocalName,
                                                             fromInshare,
+                                                            INVALID_META_MAC,
                                                             false /*justMtimeChanged*/);
         mSyncUpload->wasRequesterAbandoned = true; // We do not finish uploads.
     }

@@ -408,6 +408,54 @@ void clientUpload(MegaClient& mc,
     return;
 }
 
+/******************\
+*  SYNC DOWNLOADS  *
+\******************/
+void clientDownload(MegaClient& mc,
+                    TransferDbCommitter& committer,
+                    std::shared_ptr<SyncDownload_inClient> download,
+                    const bool queueFirst)
+{
+    if (download->wasJustMtimeChanged)
+    {
+        auto cloudNode = mc.nodeByHandle(download->h);
+        if (!cloudNode)
+        {
+            LOG_warn << "clientDownload: Cloud Node not found";
+            download->wasDistributed = true;
+            download->wasFileTransferCompleted.store(false);
+            return;
+        }
+
+        if (auto success = mc.fsaccess->setmtimelocal(download->getLocalname(), cloudNode->mtime);
+            success)
+        {
+            download->wasDistributed = true;
+            download->wasFileTransferCompleted.store(true);
+            return;
+        }
+
+        bool transient_err = mc.fsaccess->transient_error;
+        LOG_warn << "clientDownload: setmtimelocal failed with ("
+                 << (transient_err ? "Transient error" : "Non-transient error") << ")"
+                 << ". Falling back to full download transfer";
+
+        // [TO_CHECK]: in case of transient error, this could be improved to retry setmtimelocal
+        // again before performing download trasnsfer?
+    }
+
+    // Proceed with the download transfer.
+    mc.startxfer(GET,
+                 download.get(),
+                 committer,
+                 false,
+                 queueFirst,
+                 false,
+                 NoVersioning,
+                 nullptr,
+                 mc.nextreqtag());
+}
+
 std::pair<node_comparison_result, int64_t>
     syncCompCloudToFsWithMac_internal(MegaClient& mc,
                                       const CloudNode& cn,

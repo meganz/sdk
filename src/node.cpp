@@ -3224,13 +3224,13 @@ bool LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload,
 void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download, bool queueFirst)
 {
     resetTransfer(download);
-
-    sync->syncs.queueClient([download, queueFirst](MegaClient& mc, TransferDbCommitter& committer)
+    sync->syncs.queueClient(
+        [syncUpload = std::move(download), queueFirst](MegaClient& mc,
+                                                       TransferDbCommitter& committer)
         {
-            download->selfKeepAlive = download;
-            mc.startxfer(GET, download.get(), committer, false, queueFirst, false, NoVersioning, nullptr, mc.nextreqtag());
+            syncUpload->selfKeepAlive = syncUpload;
+            clientDownload(mc, committer, std::move(syncUpload), queueFirst);
         });
-
 }
 
 void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
