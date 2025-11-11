@@ -230,13 +230,10 @@ struct FindCloneNodeCandidatePredicate
         if (mUpload.mMetaMac.has_value())
         {
             // Avoid calculating metamac again by using precalculated one
-            compRes = CompareLocalFileWithNodeFpAndPrecalculatedMac(mClient,
-                                                                    mUpload.getLocalname(),
-                                                                    mUpload,
+            compRes = CompareLocalFileWithNodeFpAndPrecalculatedMac(mUpload,
                                                                     &node,
                                                                     *mUpload.mMetaMac,
-                                                                    true /*excludeMtime*/,
-                                                                    false /*debugMode*/);
+                                                                    true /*excludeMtime*/)
         }
         else
         {

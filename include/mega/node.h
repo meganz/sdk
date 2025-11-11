@@ -1068,7 +1068,9 @@ struct MEGA_API LocalNode
      * @todo Improve accuracy of the matching criteria, considering additional factors beyond
      * fingerprints.
      */
-    bool transferResetUnlessMatched(const direction_t, const FileFingerprint& fingerprint);
+    bool transferResetUnlessMatched(const direction_t,
+                                    const FileFingerprint& fingerprint,
+                                    const int64_t metamac);
 
     shared_ptr<SyncTransfer_inClient> transferSP;
 

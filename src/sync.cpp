@@ -9567,11 +9567,11 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         resolve_checkMoveDownloadComplete(row, fullPath);
 
         // all three exist; compare
-        auto [fsCloudEqualRes, metamac] = syncCompCloudToFsWithMac(syncs.mClient,
-                                                                   *row.cloudNode,
-                                                                   *row.fsNode,
-                                                                   fullPath.localPath,
-                                                                   true);
+        auto [fsCloudEqualRes, metamacFsNode] = syncCompCloudToFsWithMac(syncs.mClient,
+                                                                         *row.cloudNode,
+                                                                         *row.fsNode,
+                                                                         fullPath.localPath,
+                                                                         true);
         bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
         bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
         auto justMtimeChanged = fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME;
@@ -9610,7 +9610,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         if (cloudEqual)
         {
             // filesystem changed, put the change
-            return resolve_upsync(row, parentRow, fullPath, pflsc, metamac, justMtimeChanged);
+            return resolve_upsync(row, parentRow, fullPath, pflsc, metamacFsNode, justMtimeChanged);
         }
 
         if (fsEqual)
@@ -9624,7 +9624,13 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             }
             else
             {
-                return resolve_downsync(row, parentRow, fullPath, true, pflsc, justMtimeChanged);
+                return resolve_downsync(row,
+                                        parentRow,
+                                        fullPath,
+                                        true,
+                                        pflsc,
+                                        metaMacCloudNode,
+                                        justMtimeChanged);
             }
         }
 
@@ -9648,7 +9654,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             LOG_warn << "CSF for a BACKUP with CloudNode != SyncNode != FSNode -> resolve upsync "
                         "to avoid user intervention"
                      << " " << logTriplet(row, fullPath);
-            return resolve_upsync(row, parentRow, fullPath, pflsc, metamac, justMtimeChanged);
+            return resolve_upsync(row, parentRow, fullPath, pflsc, metamacFsNode, justMtimeChanged);
         }
 
         // both changed, so we can't decide without the user's help
@@ -10438,7 +10444,7 @@ bool Sync::resolve_upsync(SyncRow& row,
     if (row.fsNode->type == FILENODE)
     {
         if (auto waitForUpsyncCompletion =
-                !row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint);
+                !row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint, metamac);
             waitForUpsyncCompletion)
         {
             // if we are in the putnodes stage of a transfer though, then
@@ -10796,6 +10802,7 @@ bool Sync::resolve_downsync(SyncRow& row,
                             SyncPath& fullPath,
                             [[maybe_unused]] bool alreadyExists,
                             PerFolderLogSummaryCounts& pflsc,
+                            const int64_t metamac,
                             const bool justMtimeChanged)
 {
     assert(syncs.onSyncThread());
@@ -10841,7 +10848,7 @@ bool Sync::resolve_downsync(SyncRow& row,
             return false;
         }
 
-        row.syncNode->transferResetUnlessMatched(GET, row.cloudNode->fingerprint);
+        row.syncNode->transferResetUnlessMatched(GET, row.cloudNode->fingerprint, metamac);
 
         if (!row.syncNode->transferSP)
         {
@@ -10898,6 +10905,7 @@ bool Sync::resolve_downsync(SyncRow& row,
                                                             threadSafeState,
                                                             row.fsNode ? row.fsNode->fingerprint :
                                                                          FileFingerprint(),
+                                                            metamac,
                                                             justMtimeChanged),
                     downloadFirst);
             }
@@ -10905,6 +10913,7 @@ bool Sync::resolve_downsync(SyncRow& row,
             else
             {
                 existingDownload->wasJustMtimeChanged = justMtimeChanged;
+                existingDownload->mMetaMac = metamac;
                 if (!pflsc.alreadyDownloadingCount)
                 {
                     SYNC_verbose << syncname << "Download already in progress -> completed: "

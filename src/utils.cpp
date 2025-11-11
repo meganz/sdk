@@ -2511,80 +2511,38 @@ bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node)
     return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type).first;
 }
 
-node_comparison_result CompareLocalFileWithNodeFpAndPrecalculatedMac(MegaClient& client,
-                                                                     const LocalPath& path,
-                                                                     const FileFingerprint& fp,
-                                                                     const Node* node,
-                                                                     const int64_t metamac,
-                                                                     const bool excludeMtime,
-                                                                     bool debugMode)
+node_comparison_result CompareMacAndFpExcludingMtime(const FileFingerprint& fp1,
+                                                     const FileFingerprint& fp2,
+                                                     const int64_t metamac1,
+                                                     const int64_t metamac2)
 {
-    if (!node)
+    if (!fp1.isvalid || !fp2.isvalid)
     {
         return NODE_COMP_EARGS;
     }
 
-    if (node->type != FILENODE)
-    {
-        LOG_err << "CompareLocalFileWithNodeFpAndPrecalculatedMac called with invalid node type";
-        assert(false &&
-               "CompareLocalFileWithNodeFpAndPrecalculatedMac called with invalid node type");
-        return NODE_COMP_INVALID_NODE_TYPE;
-    }
-
-    if (node->nodekey().empty())
+    if (metamac1 == INVALID_META_MAC || metamac2 == INVALID_META_MAC)
     {
         return NODE_COMP_EARGS;
     }
 
-    if (!node->isvalid || !fp.isvalid)
-    {
-        LOG_warn << "CompareLocalFileWithNodeFpAndPrecalculatedMac: valid node: " << node->isvalid
-                 << " valid file fingerprint: " << fp.isvalid;
-        return NODE_COMP_EARGS;
-    }
+    // Fingerprint comparison excluding mtime
+    auto equalFpIgnoringMtime = fp1.equalExceptMtime(static_cast<const FileFingerprint&>(fp2));
 
-    if (auto equalFp = excludeMtime ?
-                           fp.equalExceptMtime(static_cast<const FileFingerprint&>(*node)) :
-                           fp == static_cast<const FileFingerprint&>(*node);
-        !equalFp)
+    // CRC, size or isValid are different
+    if (!equalFpIgnoringMtime)
     {
         return NODE_COMP_DIFFERS_FP;
     }
 
-    if (auto fa = client.fsaccess->newfileaccess();
-        fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
+    // CRC, size, isValid and mtime are the same
+    if (fp1.mtime == fp2.mtime)
     {
-        if (auto areEqual =
-                CompareLocalFilePrecalculatedMetaMacWithNodeKey(metamac, node->nodekey());
-            areEqual)
-        {
-            if (!debugMode)
-            {
-                client.sendevent(800029, "Node found with same Fp and MAC than local file");
-            }
-
-            if (excludeMtime && fp.mtime != node->mtime)
-            {
-                return NODE_COMP_DIFFERS_MTIME;
-            }
-
-            return NODE_COMP_EQUAL;
-        }
-        else
-        {
-            if (!debugMode)
-            {
-                client.sendevent(800030,
-                                 "Node found with same Fp but different MAC than local file");
-            }
-            return NODE_COMP_DIFFERS_MAC;
-        }
+        return NODE_COMP_EQUAL;
     }
 
-    LOG_warn << "CompareLocalFileWithNodeFpAndPrecalculatedMac: cannot read local file: "
-             << path.toPath(false);
-    return NODE_COMP_EREAD;
+    // Compare metamac
+    return metamac1 == metamac2 ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
 }
 
 std::pair<node_comparison_result, int64_t>
@@ -2619,14 +2577,31 @@ std::pair<node_comparison_result, int64_t>
         return {NODE_COMP_EARGS, INVALID_META_MAC};
     }
 
-    if (auto equalFp = excludeMtime ?
-                           fp.equalExceptMtime(static_cast<const FileFingerprint&>(*node)) :
-                           fp == static_cast<const FileFingerprint&>(*node);
-        !equalFp)
+    // Full fingerprint comparison
+    if (!excludeMtime)
+    {
+        const auto compRes = fp == static_cast<const FileFingerprint&>(*node) ?
+                                 NODE_COMP_EQUAL :
+                                 NODE_COMP_DIFFERS_FP;
+        return {compRes, INVALID_META_MAC};
+    }
+
+    // Fingerprint comparison excluding mtime
+    auto equalFpIgnoringMtime = fp.equalExceptMtime(static_cast<const FileFingerprint&>(*node));
+
+    // CRC, size or isValid are different
+    if (!equalFpIgnoringMtime)
     {
         return {NODE_COMP_DIFFERS_FP, INVALID_META_MAC};
     }
 
+    // CRC, size, isValid and mtime are the same
+    if (fp.mtime == node->mtime)
+    {
+        return {NODE_COMP_EQUAL, INVALID_META_MAC};
+    }
+
+    // Just mtime is different
     if (auto fa = client.fsaccess->newfileaccess();
         fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
     {
@@ -2638,13 +2613,7 @@ std::pair<node_comparison_result, int64_t>
             {
                 client.sendevent(800029, "Node found with same Fp and MAC than local file");
             }
-
-            if (excludeMtime && fp.mtime != node->mtime)
-            {
-                return {NODE_COMP_DIFFERS_MTIME, mac};
-            }
-
-            return {NODE_COMP_EQUAL, mac};
+            return {NODE_COMP_DIFFERS_MTIME, mac};
         }
         else
         {
@@ -2659,6 +2628,70 @@ std::pair<node_comparison_result, int64_t>
 
     LOG_warn << "CompareLocalFileWithNodeFpAndMac: cannot read local file: " << path.toPath(false);
     return {NODE_COMP_EREAD, INVALID_META_MAC};
+}
+
+node_comparison_result CompareLocalFileWithNodeFpAndPrecalculatedMac(const FileFingerprint& fp,
+                                                                     const Node* node,
+                                                                     const int64_t metamac,
+                                                                     const bool excludeMtime)
+{
+    if (!node)
+    {
+        return NODE_COMP_EARGS;
+    }
+
+    if (node->type != FILENODE)
+    {
+        LOG_err << "CompareLocalFileWithNodeFpAndPrecalculatedMac called with invalid node type";
+        assert(false &&
+               "CompareLocalFileWithNodeFpAndPrecalculatedMac called with invalid node type");
+        return NODE_COMP_INVALID_NODE_TYPE;
+    }
+
+    if (node->nodekey().empty())
+    {
+        return NODE_COMP_EARGS;
+    }
+
+    if (!node->isvalid || !fp.isvalid)
+    {
+        LOG_warn << "CompareLocalFileWithNodeFpAndPrecalculatedMac: valid node: " << node->isvalid
+                 << " valid file fingerprint: " << fp.isvalid;
+        return NODE_COMP_EARGS;
+    }
+
+    // Full fingerprint comparison
+    if (!excludeMtime)
+    {
+        return fp == static_cast<const FileFingerprint&>(*node) ? NODE_COMP_EQUAL :
+                                                                  NODE_COMP_DIFFERS_FP;
+    }
+
+    // Fingerprint comparison excluding mtime
+    auto equalFpExcludingMtime = fp.equalExceptMtime(static_cast<const FileFingerprint&>(*node));
+
+    // CRC size or isValid are different
+    if (!equalFpExcludingMtime)
+    {
+        return NODE_COMP_DIFFERS_FP;
+    }
+
+    // CRC, size, isValid and mtime are the same
+    if (fp.mtime == node->mtime)
+    {
+        return NODE_COMP_EQUAL;
+    }
+
+    if (auto areEqualMetaMacs =
+            CompareLocalFilePrecalculatedMetaMacWithNodeKey(metamac, node->nodekey());
+        areEqualMetaMacs)
+    {
+        return NODE_COMP_DIFFERS_MTIME;
+    }
+    else
+    {
+        return NODE_COMP_DIFFERS_MAC;
+    }
 }
 
 void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f, bool discardable)

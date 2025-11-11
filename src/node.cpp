@@ -3268,24 +3268,39 @@ void LocalNode::updateTransferLocalname()
 }
 
 bool LocalNode::transferResetUnlessMatched(const direction_t dir,
-                                           const FileFingerprint& fingerprint)
+                                           const FileFingerprint& fingerprint,
+                                           const int64_t metamac)
 {
     if (!transferSP)
         return true;
 
     const auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
-
     const bool transferDirectionNeedsToChange = dir != (uploadPtr ? PUT : GET);
+    auto different = false;
+    auto compRes = NODE_COMP_EQUAL;
 
-    const auto different =
-        transferDirectionNeedsToChange || transferSP->fingerprint() != fingerprint;
+    if (auto noPreviousMetaMac = !transferSP->mMetaMac.has_value(); noPreviousMetaMac)
+    {
+        different = transferDirectionNeedsToChange || transferSP->fingerprint() != fingerprint;
+    }
+    else
+    {
+        compRes = CompareMacAndFpExcludingMtime(transferSP->fingerprint(),
+                                                fingerprint,
+                                                transferSP->mMetaMac.value(),
+                                                metamac);
+
+        different = transferDirectionNeedsToChange || compRes != NODE_COMP_EQUAL;
+    }
 
     const auto transferTerminatedAndIsRetryable = transferSP->wasTerminated &&
                                                   transferSP->mError != API_EKEY &&
                                                   transferSP->mError != API_EBLOCKED;
 
     if (!different && !transferTerminatedAndIsRetryable)
+    {
         return true;
+    }
 
     if (uploadPtr && !mUploadThrottling.handleAbortUpload(*uploadPtr,
                                                           transferDirectionNeedsToChange,
@@ -3296,7 +3311,12 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
         return !uploadPtr->upsyncStarted;
     }
 
-    // TODO: SDK-5551
+    if (compRes == NODE_COMP_DIFFERS_MTIME)
+    {
+        uploadPtr->updateFingerprintMtime(fingerprint.mtime);
+        return true;
+    }
+
     LOG_debug << sync->syncname << "Cancelling superseded transfer of "
               << transferSP->getLocalname() << ". Reason: "
               << (transferDirectionNeedsToChange ?

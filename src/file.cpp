@@ -897,6 +897,21 @@ void SyncUpload_inClient::prepare(FileSystemAccess&)
     //todo: localNode.treestate(TREESTATE_SYNCING);
 }
 
+void SyncUpload_inClient::updateFingerprintMtime(const m_time_t newMtime)
+{
+    if (wasStarted)
+    {
+        assert(false && "Trying to update fingerprint with the upload alredy started");
+        return;
+    }
+
+    LOG_debug << "[SyncUpload_inClient::updateFingerprintMtime] Name: '" << getLocalname()
+              << "'. Source fsid: " << sourceFsid << ". Prev mTime: " << mtime
+              << ". New mTime: " << newMtime;
+
+    mtime = newMtime;
+}
+
 void SyncUpload_inClient::updateFingerprint(const FileFingerprint& newFingerprint)
 {
     if (wasStarted)
@@ -925,6 +940,7 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n,
                                              bool fromInshare,
                                              shared_ptr<SyncThreadsafeState> stss,
                                              const FileFingerprint& overwriteFF,
+                                             const int64_t metamac,
                                              const bool justMtimeChanged)
 {
     h = n.handle;
@@ -939,7 +955,7 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n,
     syncThreadSafeState = std::move(stss);
     syncThreadSafeState->transferBegin(GET, size);
     wasJustMtimeChanged = justMtimeChanged;
-
+    mMetaMac = metamac;
     LOG_debug << "[SyncDownload_inClient()] Name: '" << getLocalname() << "'. Handle: " << h
               << ". Cloud Fingerprint: " << fingerprintDebugString()
               << ". Local Fingerprint (overwrite): " << overwriteFF.fingerprintDebugString();

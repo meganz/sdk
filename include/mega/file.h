@@ -242,6 +242,7 @@ struct SyncDownload_inClient: public SyncTransfer_inClient
                           bool fromInshare,
                           shared_ptr<SyncThreadsafeState> stss,
                           const FileFingerprint& overwriteFF,
+                          const int64_t metamac,
                           const bool justMtimeChanged);
 
     ~SyncDownload_inClient();
@@ -270,6 +271,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
 
     void prepare(FileSystemAccess&) override;
     void completed(Transfer*, putsource_t) override;
+    void updateFingerprintMtime(const m_time_t newMtime);
     void updateFingerprint(const FileFingerprint& newFingerprint);
 
     /* UpSync operation can be one of the following:
