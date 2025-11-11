@@ -55,15 +55,6 @@ target_platform_compile_options(
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
-target_arch_compile_options(
-    TARGET libgfxworker
-    ARM32 -mno-unaligned-access
-    # Clang accepts the -mno-unaligned-access flag for ARM64, but GCC does not.
-    ARM64
-        $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-mno-unaligned-access>
-        $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-mstrict-align>
-)
-
 if(ENABLE_SDKLIB_WERROR)
     target_platform_compile_options(
         TARGET libgfxworker
@@ -87,15 +78,6 @@ target_platform_compile_options(
     WINDOWS /W4
             /we4800 # Implicit conversion from 'type' to bool. Possible information loss
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
-)
-
-target_arch_compile_options(
-    TARGET gfxworker
-    ARM32 -mno-unaligned-access
-    # Clang accepts the -mno-unaligned-access flag for ARM64, but GCC does not.
-    ARM64
-        $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-mno-unaligned-access>
-        $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-mstrict-align>
 )
 
 if(ENABLE_SDKLIB_WERROR)

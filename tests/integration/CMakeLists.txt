@@ -91,15 +91,6 @@ target_platform_compile_options(
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
-target_arch_compile_options(
-    TARGET test_integration
-    ARM32 -mno-unaligned-access
-    # Clang accepts the -mno-unaligned-access flag for ARM64, but GCC does not.
-    ARM64
-        $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-mno-unaligned-access>
-        $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-mstrict-align>
-)
-
 if(ENABLE_SDKLIB_WERROR)
     target_platform_compile_options(
         TARGET test_integration
