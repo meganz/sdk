@@ -5403,6 +5403,18 @@ void MegaRequestPrivate::setMegaCancelSubscriptionReasons(
     mMegaCancelSubscriptionReasons.reset(cancelReasons);
 }
 
+bool MegaRequestPrivate::causesLocklessRequest(const int type)
+{
+    // List of request which create lockless commands.
+    switch (type)
+    {
+        case TYPE_GET_DOWNLOAD_URLS:
+            return true;
+        default:
+            return false;
+    }
+}
+
 MegaBannerPrivate::MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details)
                   :mDetails(std::move(details))
 {
@@ -19931,7 +19943,7 @@ void MegaApiImpl::sendPendingRequests()
 
     error e = API_OK;
     MegaRequestPrivate *request = nullptr;
-    bool firstIteration = true;
+    bool abortBackoffTimer{true};
 
     while(1)
     {
@@ -19980,12 +19992,15 @@ void MegaApiImpl::sendPendingRequests()
 
         lastRequestType = request->getType();
 
-        // only try this in the 1st iteration
-        if (firstIteration && request->getType() != MegaRequest::TYPE_LOGOUT)
+        // Abort backoff timers if there are requests in the queue, but only once.
+        // Do not abort backoff timers for logout or MegaRequest which will end in a lockless
+        // request.
+        if (abortBackoffTimer && request->getType() != MegaRequest::TYPE_LOGOUT &&
+            !MegaRequestPrivate::causesLocklessRequest(request->getType()))
         {
             client->abortbackoff(false);
+            abortBackoffTimer = false;
         }
-        firstIteration = false;
 
         if (request->getType() != MegaRequest::TYPE_EXECUTE_ON_THREAD)
         {

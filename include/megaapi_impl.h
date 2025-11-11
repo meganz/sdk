@@ -2224,6 +2224,8 @@ class MegaRequestPrivate : public MegaRequest
         const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const override;
         void setMegaCancelSubscriptionReasons(MegaCancelSubscriptionReasonList* cancelReasons);
 
+        static bool causesLocklessRequest(const int type);
+
     protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
