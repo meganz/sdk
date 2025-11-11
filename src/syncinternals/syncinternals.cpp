@@ -233,7 +233,7 @@ struct FindCloneNodeCandidatePredicate
             compRes = CompareLocalFileWithNodeFpAndPrecalculatedMac(mUpload,
                                                                     &node,
                                                                     *mUpload.mMetaMac,
-                                                                    true /*excludeMtime*/)
+                                                                    true /*excludeMtime*/);
         }
         else
         {
