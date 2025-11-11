@@ -6460,6 +6460,10 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
             }
         }
     }
+#ifdef USE_MEDIAINFO
+    // Append MediaInfo attributes, if any
+    mediaFileInfo.addUploadMediaFileAttributes(h, fa);
+#endif
 }
 
 // Upload file attribute data to fa servers. node handle can be UNDEF if we are giving fa handle back to the app
@@ -17107,7 +17111,7 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 void MegaClient::pread(Node* node, m_off_t offset, m_off_t count, DirectRead::Callback&& callback)
 {
     queueread(node->nodehandle,
-              true,
+              false,
               node->nodecipher(),
               MemAccess::get<int64_t>((const char*)node->nodekey().data() + SymmCipher::KEYLENGTH),
               offset,
@@ -17121,13 +17125,13 @@ void MegaClient::pread(handle handle,
                        m_off_t offset,
                        m_off_t count,
                        DirectRead::Callback&& callback,
-                       bool isPrivate,
+                       bool isPublicHandle,
                        const char* privateAuth,
                        const char* publicAuth,
                        const char* chatAuth)
 {
     queueread(handle,
-              isPrivate,
+              isPublicHandle,
               cipher,
               iv,
               offset,
@@ -17141,7 +17145,7 @@ void MegaClient::pread(handle handle,
 void MegaClient::pread(Node* node, m_off_t offset, m_off_t count, void* appData)
 {
     queueread(node->nodehandle,
-              true,
+              false,
               node->nodecipher(),
               MemAccess::get<int64_t>((const char*)node->nodekey().data() + SymmCipher::KEYLENGTH),
               offset,
@@ -17156,13 +17160,13 @@ void MegaClient::pread(handle handle,
                        m_off_t offset,
                        m_off_t count,
                        void* appData,
-                       bool isPrivate,
+                       bool isPublicHandle,
                        const char* privateAuth,
                        const char* publicAuth,
                        const char* chatAuth)
 {
     queueread(handle,
-              isPrivate,
+              isPublicHandle,
               cipher,
               iv,
               offset,
@@ -17174,21 +17178,16 @@ void MegaClient::pread(handle handle,
 }
 
 // since only the first six bytes of a handle are in use, we use the seventh to encode its type
-void MegaClient::encodehandletype(handle* hp, bool p)
+void MegaClient::encodeHandleType(handle* h, bool isPublicHandle)
 {
-    if (p)
+    if (!isPublicHandle) // Not a public handle
     {
-        ((char*)hp)[NODEHANDLE] = 1;
+        ((char*)h)[NODEHANDLE] = 1;
     }
 }
 
-bool MegaClient::isprivatehandle(handle* hp)
-{
-    return ((char*)hp)[NODEHANDLE] != 0;
-}
-
 void MegaClient::queueread(handle handle,
-                           bool isPrivate,
+                           bool isPublicHandle,
                            SymmCipher* cipher,
                            int64_t iv,
                            m_off_t offset,
@@ -17233,7 +17232,7 @@ void MegaClient::queueread(handle handle,
     };
 
     queueread(handle,
-              isPrivate,
+              isPublicHandle,
               cipher,
               iv,
               offset,
@@ -17245,7 +17244,7 @@ void MegaClient::queueread(handle handle,
 }
 
 void MegaClient::queueread(handle handle,
-                           bool isPrivate,
+                           bool isPublicHandle,
                            SymmCipher* cipher,
                            int64_t iv,
                            m_off_t offset,
@@ -17259,7 +17258,7 @@ void MegaClient::queueread(handle handle,
 
     handledrn_map::iterator it;
 
-    encodehandletype(&handle, isPrivate);
+    encodeHandleType(&handle, isPublicHandle);
 
     it = hdrns.find(handle);
 
@@ -17270,7 +17269,7 @@ void MegaClient::queueread(handle handle,
                           std::make_pair(handle,
                                          new DirectReadNode(this,
                                                             handle,
-                                                            isPrivate,
+                                                            isPublicHandle,
                                                             cipher,
                                                             iv,
                                                             privateAuth,
@@ -17319,18 +17318,18 @@ void MegaClient::removeAppData(void* t)
 // cancel direct read by node pointer / count / count
 void MegaClient::preadabort(Node* node, m_off_t offset, m_off_t count)
 {
-    abortreads(node->nodehandle, true, offset, count);
+    abortreads(node->nodehandle, false, offset, count);
 }
 
 // cancel direct read by exported handle / offset / count
 void MegaClient::preadabort(handle handle, m_off_t offset, m_off_t count)
 {
-    abortreads(handle, false, offset, count);
+    abortreads(handle, true, offset, count);
 }
 
-void MegaClient::abortreads(handle handle, bool isPrivate, m_off_t offset, m_off_t count)
+void MegaClient::abortreads(handle handle, bool isPublicHandle, m_off_t offset, m_off_t count)
 {
-    encodehandletype(&handle, isPrivate);
+    encodeHandleType(&handle, isPublicHandle);
 
     // Try and find the direct read node associated with our handle.
     auto i = hdrns.find(handle);

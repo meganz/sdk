@@ -881,7 +881,7 @@ public:
                m_off_t offset,
                m_off_t count,
                DirectRead::Callback&& callback,
-               bool isPrivate = false,
+               bool isPublicHandle = true,
                const char* privateAuth = NULL,
                const char* publicAuth = NULL,
                const char* chatAuth = NULL);
@@ -892,7 +892,7 @@ public:
                m_off_t offset,
                m_off_t count,
                void* appData,
-               bool isPrivate = false,
+               bool isPublicHandle = true,
                const char* privateAuth = NULL,
                const char* publicAuth = NULL,
                const char* chatAuth = NULL);
@@ -1913,12 +1913,11 @@ public:
     bool csretrying;
 
     // encode/query handle type
-    void encodehandletype(handle*, bool);
-    bool isprivatehandle(handle*);
+    void encodeHandleType(handle* h, bool isPublicHandle);
 
     // add direct read
     void queueread(handle handle,
-                   bool isPrivate,
+                   bool isPublicHandle,
                    SymmCipher* cipher,
                    int64_t iv,
                    m_off_t offset,
@@ -1929,7 +1928,7 @@ public:
                    const char* chatAuth = NULL);
 
     void queueread(handle handle,
-                   bool isPrivate,
+                   bool isPublicHandle,
                    SymmCipher* cipher,
                    int64_t iv,
                    m_off_t offset,
@@ -1946,7 +1945,7 @@ public:
     static const int MAXDRSLOTS = 16;
 
     // abort queued direct read(s)
-    void abortreads(handle handle, bool isPrivate, m_off_t offset, m_off_t count);
+    void abortreads(handle handle, bool isPublicHandle, m_off_t offset, m_off_t count);
 
     // abort all queued direct reads.
     void abortreads();

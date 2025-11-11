@@ -23,6 +23,7 @@
 #include "mega/hashcash.h"
 #include "mega/logging.h"
 #include "mega/posix/meganet.h"
+#include "mega/testhooks.h"
 
 #if defined(USE_OPENSSL)
 #include <openssl/err.h>
@@ -1644,6 +1645,10 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
             // signal if the request has failed due to a DNS error (httpstatus = 0)
             req->mDnsFailure = (req->status == REQ_FAILURE && !req->httpstatus);
+
+            DEBUG_TEST_HOOK_HTTPREQ_FINISH(req->httpstatus,
+                                           req->mErrCode,
+                                           req->status != REQ_SUCCESS);
         }
         else
         {

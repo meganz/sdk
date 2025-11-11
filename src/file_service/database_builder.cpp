@@ -10,14 +10,15 @@ namespace file_service
 using namespace common;
 
 static void downgrade10(Query& query);
+static void downgrade21(Query& query);
 
 static void upgrade01(Query& query);
+static void upgrade12(Query& query);
 
 const DatabaseVersionVector& DatabaseBuilder::versions() const
 {
-    static const DatabaseVersionVector versions = {
-        {&downgrade10, &upgrade01},
-    }; // versions
+    static const DatabaseVersionVector versions = {{&downgrade10, &upgrade01},
+                                                   {&downgrade21, &upgrade12}}; // versions
 
     return versions;
 }
@@ -35,6 +36,13 @@ void downgrade10(Query& query)
         query = format("drop table %s", table);
         query.execute();
     }
+}
+
+void downgrade21(Query& query)
+{
+    query = "drop table file_key_data";
+
+    query.execute();
 }
 
 void upgrade01(Query& query)
@@ -75,29 +83,6 @@ void upgrade01(Query& query)
             "             unique (handle), "
             "  constraint uq_files_name_parent_handle "
             "             unique (name, parent_handle) "
-            ")";
-
-    query.execute();
-
-    query = "create table file_key_data ( "
-            "  chat_auth text, "
-            "  id integer "
-            "  constraint nn_file_key_data_id "
-            "             not null, "
-            "  is_public integer "
-            "  constraint nn_file_key_data_is_public "
-            "             not null, "
-            "  key_and_iv text "
-            "  constraint nn_file_key_data_key_and_iv "
-            "             not null, "
-            "  public_auth text, "
-            "  private_auth text, "
-            "  constraint fk_file_key_data_files "
-            "             foreign key (id) "
-            "             references files (id) "
-            "             on delete cascade, "
-            "  constraint pk_file_key_data "
-            "            primary key (id) "
             ")";
 
     query.execute();
@@ -148,6 +133,32 @@ void upgrade01(Query& query)
     query.execute();
 
     query = "insert into file_id values (0, 0)";
+
+    query.execute();
+}
+
+void upgrade12(Query& query)
+{
+    query = "create table if not exists file_key_data ( "
+            "  chat_auth text, "
+            "  id integer "
+            "  constraint nn_file_key_data_id "
+            "             not null, "
+            "  is_public integer "
+            "  constraint nn_file_key_data_is_public "
+            "             not null, "
+            "  key_and_iv text "
+            "  constraint nn_file_key_data_key_and_iv "
+            "             not null, "
+            "  public_auth text, "
+            "  private_auth text, "
+            "  constraint fk_file_key_data_files "
+            "             foreign key (id) "
+            "             references files (id) "
+            "             on delete cascade, "
+            "  constraint pk_file_key_data "
+            "            primary key (id) "
+            ")";
 
     query.execute();
 }

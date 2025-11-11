@@ -23,8 +23,8 @@
 #define MEGA_TESTHOOKS_H 1
 
 #include "types.h"
-#include <functional>
 
+#include <functional>
 
 namespace mega {
 
@@ -61,6 +61,9 @@ namespace mega {
         std::function<void(bool&)> onHookDownloadRequestSingleUrl;
         std::function<void(m_time_t&)> onHookResetTransferLastAccessTime;
         std::function<void(std::unique_ptr<HttpReq>&)> interceptLocklessCSRequest;
+        std::function<
+            void(const int /*httpStatus*/, const unsigned /*curlCode*/, const bool /*failed*/)>
+            onHttpReqFinish;
     };
 
     extern MegaTestHooks globalMegaTestHooks;
@@ -136,6 +139,12 @@ namespace mega {
             globalMegaTestHooks.interceptLocklessCSRequest(pendingLocklessCS); \
     }
 
+#define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED) \
+    { \
+        if (globalMegaTestHooks.onHttpReqFinish) \
+            globalMegaTestHooks.onHttpReqFinish((HTTPSTATUS), (CURLCODE), (FAILED)); \
+    }
+
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -150,6 +159,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_DOWNLOAD_REQUEST_SINGLEURL(singleUrlFlag)
 #define DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastAccessTime)
 #define DEBUG_TEST_HOOK_INTERCEPT_LOCKLESS_CS_REQUEST(pendingLocklessCS)
+#define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED)
 
 #endif
 

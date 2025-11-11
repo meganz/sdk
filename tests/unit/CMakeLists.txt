@@ -20,6 +20,7 @@ target_sources(test_unit
     Commands_test.cpp
     Crypto_test.cpp
     FileFingerprint_test.cpp
+    FileFingerprint_CRC_test.cpp
     File_test.cpp
     FsNode.cpp
     hashcash_test.cpp

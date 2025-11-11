@@ -31,7 +31,7 @@ Error Test::regenerate(Client& client,
     using ::testing::AnyOf;
 
     // Make sure our two clients are friends.
-    auto befriended = befriend(client, sharee);
+    auto befriended = befriend(client, sharee, mDefaultTimeout);
     EXPECT_EQ(befriended, API_OK);
 
     // Clients don't want to be friends.

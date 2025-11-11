@@ -4,12 +4,9 @@
 
 #include <numeric>
 JavaVM* MEGAjvm = nullptr;
-jclass applicationClass = nullptr;
-jmethodID deviceListMID = nullptr;
 jclass fileWrapper = nullptr;
 jclass integerClass = nullptr;
 jclass arrayListClass = nullptr;
-jobject surfaceTextureHelper = nullptr;
 
 namespace mega
 {

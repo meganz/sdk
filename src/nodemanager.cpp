@@ -1022,25 +1022,52 @@ sharedNode_vector NodeManager::getRootNodes_internal()
     {
         const auto loadVault = [this, &nodes]() -> void
         {
-            std::shared_ptr<Node> inBox = rootnodes.mRootNodes[VAULTNODE];
-            assert(inBox && "Vault node should be defined (except logged into folder link)");
-            nodes.push_back(std::move(inBox));
+            auto vaultIt = rootnodes.mRootNodes.find(VAULTNODE);
+            if (vaultIt != rootnodes.mRootNodes.end() && vaultIt->second)
+            {
+                nodes.push_back(vaultIt->second);
+            }
+            else
+            {
+                LOG_err << "Vault node should be defined (except logged into folder link)";
+                mClient.sendevent(800032, "Vault node is not present", 0);
+                assert(vaultIt != rootnodes.mRootNodes.end() && "Vault node is not defined");
+                assert(vaultIt->second && "Vault node is defined but it is null");
+            }
         };
 
         if (mClient.isClientType(MegaClient::ClientType::DEFAULT))
         {
-            std::shared_ptr<Node> rootNode = rootnodes.mRootNodes[ROOTNODE];
-            assert(rootNode && "Root node should be defined");
-            nodes.push_back(std::move(rootNode));
+            auto rootIt = rootnodes.mRootNodes.find(ROOTNODE);
+            if (rootIt != rootnodes.mRootNodes.end() && rootIt->second)
+            {
+                nodes.push_back(rootIt->second);
+            }
+            else
+            {
+                LOG_err << "Root node should be defined";
+                mClient.sendevent(800031, "Root node is not present", 0);
+                assert(rootIt != rootnodes.mRootNodes.end() && "Root node is not defined");
+                assert(rootIt->second && "Root node is defined but it is null");
+            }
 
             if (!mClient.loggedIntoFolder())
             {
                 loadVault();
 
-                std::shared_ptr<Node> rubbish = rootnodes.mRootNodes[RUBBISHNODE];
-                assert(rubbish &&
-                       "Rubbishbin node should be defined (except logged into folder link)");
-                nodes.push_back(std::move(rubbish));
+                auto rubbishIt = rootnodes.mRootNodes.find(RUBBISHNODE);
+                if (rubbishIt != rootnodes.mRootNodes.end() && rubbishIt->second)
+                {
+                    nodes.push_back(rubbishIt->second);
+                }
+                else
+                {
+                    LOG_err << "Rubbishbin node should be defined (except logged into folder link)";
+                    mClient.sendevent(800033, "Rubbishbin node is not present", 0);
+                    assert(rubbishIt != rootnodes.mRootNodes.end() &&
+                           "Rubbishbin node is not defined");
+                    assert(rubbishIt->second && "Rubbishbin node is defined but it is null");
+                }
             }
         }
         else if (mClient.isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
@@ -1514,7 +1541,8 @@ void NodeManager::notifyPurge()
         LockGuard g(mMutex);
 
         // Let the client adapter know that nodes have been updated.
-        mClient.mClientAdapter.updated(nodesToReport);
+        // FIXME: uncomment the following line as part of SDK-5665 once it's safe to call
+        // mClient.mClientAdapter.updated(nodesToReport);
 
         TransferDbCommitter committer(mClient.tctable);
 
