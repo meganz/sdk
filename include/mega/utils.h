@@ -63,6 +63,8 @@ typedef enum
 
 typedef enum
 {
+    NODE_COMP_INTERNAL = -33,
+    NODE_COMP_INVALID_META_MACS = -32,
     NODE_COMP_INVALID_NODE_TYPE = -31,
     NODE_COMP_EREAD = -21,
     NODE_COMP_EARGS = -2,
@@ -614,6 +616,10 @@ static constexpr int64_t INVALID_META_MAC{0xFFFFFFFF};
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv);
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
+
+std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
+                                                     const std::string& nodeKey,
+                                                     int type);
 
 std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
                                                             const std::string& nodeKey,

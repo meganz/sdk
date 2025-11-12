@@ -3278,12 +3278,10 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
     const bool transferDirectionNeedsToChange = dir != (uploadPtr ? PUT : GET);
     auto different = false;
     auto compRes = NODE_COMP_EQUAL;
+    auto transferMetamac =
+        transferSP->mMetaMac.has_value() ? transferSP->mMetaMac.value() : INVALID_META_MAC;
 
-    if (auto noPreviousMetaMac = !transferSP->mMetaMac.has_value(); noPreviousMetaMac)
-    {
-        different = transferDirectionNeedsToChange || transferSP->fingerprint() != fingerprint;
-    }
-    else
+    if (transferMetamac != INVALID_META_MAC && metamac != INVALID_META_MAC)
     {
         compRes = CompareMacAndFpExcludingMtime(transferSP->fingerprint(),
                                                 fingerprint,
@@ -3291,6 +3289,10 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
                                                 metamac);
 
         different = transferDirectionNeedsToChange || compRes != NODE_COMP_EQUAL;
+    }
+    else
+    {
+        different = transferDirectionNeedsToChange || transferSP->fingerprint() != fingerprint;
     }
 
     const auto transferTerminatedAndIsRetryable = transferSP->wasTerminated &&

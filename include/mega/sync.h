@@ -664,7 +664,6 @@ public:
     bool resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
 
-    bool syncEqual(const CloudNode&, const FSNode&);
     bool syncEqual(const CloudNode&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 

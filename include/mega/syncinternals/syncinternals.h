@@ -521,6 +521,12 @@ std::pair<node_comparison_result, int64_t> syncCompCloudToFsWithMac(MegaClient& 
                                                                     const FSNode& fs,
                                                                     const LocalPath& fsNodeFullPath,
                                                                     const bool excludeMtime);
+
+std::tuple<node_comparison_result, int64_t, int64_t>
+    syncEqualFsCloud(MegaClient& mc,
+                     const CloudNode& cn,
+                     const FSNode& fs,
+                     const LocalPath& fsNodeFullPath);
 } // namespace mega
 
 #endif // ENABLE_SYNC

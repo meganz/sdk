@@ -237,13 +237,8 @@ struct FindCloneNodeCandidatePredicate
         }
         else
         {
-            const auto [auxCompRes, _] = CompareLocalFileWithNodeFpAndMac(mClient,
-                                                                          mUpload.getLocalname(),
-                                                                          mUpload,
-                                                                          &node,
-                                                                          true /*excludeMtime*/,
-                                                                          false /*debugMode*/);
-            compRes = auxCompRes;
+            compRes = mUpload.fingerprint() == node.fingerprint() ? NODE_COMP_EQUAL :
+                                                                    NODE_COMP_DIFFERS_FP;
         }
 
         if (compRes == NODE_COMP_EQUAL || compRes == NODE_COMP_DIFFERS_MTIME)
@@ -486,6 +481,71 @@ std::pair<node_comparison_result, int64_t> syncCompCloudToFsWithMac(MegaClient& 
         return {NODE_COMP_EQUAL, 0};
     assert(cn.fingerprint.isvalid && fs.fingerprint.isvalid);
     return syncCompCloudToFsWithMac_internal(mc, cn, fs, fsNodeFullPath, excludeMtime);
+}
+
+std::tuple<node_comparison_result, int64_t, int64_t>
+    syncEqualFsCloud(MegaClient& mc,
+                     const CloudNode& cn,
+                     const FSNode& fs,
+                     const LocalPath& fsNodeFullPath)
+{
+    if (cn.type != fs.type)
+        return {NODE_COMP_INVALID_NODE_TYPE, INVALID_META_MAC, INVALID_META_MAC};
+
+    if (cn.type != FILENODE)
+        return {NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
+
+    if (!cn.fingerprint.isvalid || !fs.fingerprint.isvalid)
+    {
+        assert(false);
+        return {NODE_COMP_INTERNAL, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    if (auto differentFp = !fs.fingerprint.equalExceptMtime(cn.fingerprint); differentFp)
+    {
+        return {NODE_COMP_DIFFERS_FP, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    if (fs.fingerprint.mtime == cn.fingerprint.mtime)
+    {
+        return {NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    auto notifier =
+        std::make_shared<std::promise<std::tuple<node_comparison_result, int64_t, int64_t>>>();
+    auto fut = notifier->get_future();
+
+    mc.syncs.queueClient(
+        [cloudNodeHandle = cn.handle, fsNodeFullPath, notifier](MegaClient& mc,
+                                                                TransferDbCommitter&)
+        {
+            auto node = mc.nodeByHandle(cloudNodeHandle);
+            if (!node)
+            {
+                notifier->set_value({NODE_COMP_EARGS, INVALID_META_MAC, INVALID_META_MAC});
+                return;
+            }
+
+            auto fa = mc.fsaccess->newfileaccess();
+            if (!fa || !fa->fopen(fsNodeFullPath, true, false, FSLogging::logOnError))
+            {
+                notifier->set_value({NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC});
+                return;
+            }
+
+            auto [localMac, remoteMac] =
+                genLocalAndRemoteMetaMac(fa.get(), node->nodekey(), node->type);
+            if (localMac != remoteMac)
+            {
+                notifier->set_value({NODE_COMP_DIFFERS_MAC, localMac, remoteMac});
+                return;
+            }
+
+            notifier->set_value({NODE_COMP_DIFFERS_FP, localMac, remoteMac});
+        });
+
+    auto res = fut.get();
+    return res;
 }
 } // namespace mega
 

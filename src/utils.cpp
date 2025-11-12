@@ -2493,6 +2493,21 @@ bool CompareLocalFilePrecalculatedMetaMacWithNodeKey(const int64_t metamac,
     return metamac == remoteMac;
 }
 
+std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
+                                                     const std::string& nodeKey,
+                                                     int type)
+{
+    // [TO_DO] ADD log to inform when mac has been calculated and how many time took
+    SymmCipher cipher;
+    const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
+    int64_t remoteIv = MemAccess::get<int64_t>(iva);
+    int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    cipher.setkey((byte*)&nodeKey[0], type);
+    auto [succeeded, calcMac] = generateMetaMac(cipher, *fa, remoteIv);
+    int64_t localMac = succeeded ? calcMac : INVALID_META_MAC;
+    return {localMac, remoteMac};
+}
+
 std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
                                                             const std::string& nodeKey,
                                                             int type)
@@ -2523,7 +2538,7 @@ node_comparison_result CompareMacAndFpExcludingMtime(const FileFingerprint& fp1,
 
     if (metamac1 == INVALID_META_MAC || metamac2 == INVALID_META_MAC)
     {
-        return NODE_COMP_EARGS;
+        return NODE_COMP_INVALID_META_MACS;
     }
 
     // Fingerprint comparison excluding mtime

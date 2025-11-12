@@ -11830,6 +11830,12 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
         case NODE_COMP_EQUAL:
             errMsg += "Both items are completly equal";
             break;
+        case NODE_COMP_INVALID_META_MACS:
+            errMsg += "Any or both Metamacs are invalid";
+            break;
+        case NODE_COMP_INTERNAL:
+            errMsg += "Internal error comparing nodes";
+            break;
     }
     cout << errMsg << endl
          << "\t LocalFile Path: " << filePath << endl

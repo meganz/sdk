@@ -1852,6 +1852,8 @@ bool Sync::checkSpecialFile(SyncRow& child, SyncRow& parent, SyncPath& path)
     return true;
 }
 
+//[TO_CHECK] what changes do I need here in movements
+
 bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode)
 {
     // We have detected that this LocalNode might be a move/rename target (the moved-to location).
@@ -9559,107 +9561,114 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
 
     switch (rowType)
     {
-    case SRT_CSF:
-    {
-        CodeCounter::ScopeTimer csfTime(syncs.mClient.performanceStats.syncItemCSF);
-
-        // Are we part of a move and was our source a download-in-progress?
-        resolve_checkMoveDownloadComplete(row, fullPath);
-
-        // all three exist; compare
-        auto [fsCloudEqualRes, metamacFsNode] = syncCompCloudToFsWithMac(syncs.mClient,
-                                                                         *row.cloudNode,
-                                                                         *row.fsNode,
-                                                                         fullPath.localPath,
-                                                                         true);
-        bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
-        bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
-        auto justMtimeChanged = fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME;
-
-        if (fsCloudEqualRes == NODE_COMP_EREAD)
+        case SRT_CSF:
         {
-            // [TO_CHECK] ->Is this the most appropriate way to manage a READ error?
-            LOG_err << "SyncItem: FsNode could not be readed";
-            ProgressingMonitor monitor(*this, row, fullPath);
-            monitor.waitingLocal(
-                fullPath.localPath,
-                SyncStallEntry(SyncWaitReason::FileIssue,
-                               true,
-                               false,
-                               {row.cloudNode->handle, fullPath.cloudPath},
-                               {},
-                               {fullPath.localPath, PathProblem::CannotFingerprintFile},
-                               {}));
+            CodeCounter::ScopeTimer csfTime(syncs.mClient.performanceStats.syncItemCSF);
 
-            return true;
-        }
+            // Are we part of a move and was our source a download-in-progress?
+            resolve_checkMoveDownloadComplete(row, fullPath);
 
-        if (fsCloudEqualRes == NODE_COMP_EQUAL)
-        {
-            // success! this row is synced
-            if (!cloudEqual || !fsEqual)
+            // all three exist; compare
+            auto [fsCloudEqualRes, fcMacLocal, fcMacRemote] =
+                syncEqualFsCloud(syncs.mClient, *row.cloudNode, *row.fsNode, fullPath.localPath);
+
+            if (fsCloudEqualRes != NODE_COMP_INTERNAL || fsCloudEqualRes == NODE_COMP_EREAD)
             {
-                row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
-                assert(row.syncNode->syncedFingerprint == row.cloudNode->fingerprint);
-                statecacheadd(row.syncNode);
-            }
-
-            return resolve_rowMatched(row, parentRow, fullPath, pflsc);
-        }
-
-        if (cloudEqual)
-        {
-            // filesystem changed, put the change
-            return resolve_upsync(row, parentRow, fullPath, pflsc, metamacFsNode, justMtimeChanged);
-        }
-
-        if (fsEqual)
-        {
-            if (isBackup())
-            {
-                LOG_warn << "CSF with cloud node change and this is a BACKUP!"
-                         << " Local file will be upsynced to fix the mismatched cloud node."
-                         << " Triplet: " << logTriplet(row, fullPath);
-                assert(false && "CSF with cloud node change should not happen for a backup!");
-            }
-            else
-            {
-                return resolve_downsync(row,
-                                        parentRow,
-                                        fullPath,
-                                        true,
-                                        pflsc,
-                                        metaMacCloudNode,
-                                        justMtimeChanged);
-            }
-        }
-
-        if (auto uploadPtr = threadSafeState->isNodeAnExpectedUpload(row.cloudNode->parentHandle, row.cloudNode->name))
-        {
-            if (row.cloudNode->fingerprint == *uploadPtr &&
-                uploadPtr.get() == row.syncNode->transferSP.get())
-            {
-                // we uploaded a file and the user already re-updated the local version of the file
-                SYNC_verbose << syncname << "Node is a recent upload, while the FSFile is already updated: " << fullPath.cloudPath << logTriplet(row, fullPath);
-                row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
-                row.syncNode->syncedFingerprint  = row.cloudNode->fingerprint;
-                row.syncNode->transferSP.reset();
+                // [TO_DO] Add stall issue
                 return false;
             }
-        }
+            auto fsCloudJustMtimeChanged = fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME;
+            bool cloudSyncNodeEqual = syncEqual(*row.cloudNode, *row.syncNode);
+            bool fsSyncNodeEqual = syncEqual(*row.fsNode, *row.syncNode);
+            if (fsCloudEqualRes == NODE_COMP_EQUAL)
+            {
+                // success! - fsNode and CloudNode are equal (this row is synced)
+                if (!cloudSyncNodeEqual || !fsSyncNodeEqual)
+                {
+                    // syncNode is outdated, so update syncedFingerprint
+                    row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
+                    assert(row.syncNode->syncedFingerprint == row.cloudNode->fingerprint);
+                    statecacheadd(row.syncNode);
+                }
 
-        if (isBackup())
-        {
-            // for backups, we only change the cloud
-            LOG_warn << "CSF for a BACKUP with CloudNode != SyncNode != FSNode -> resolve upsync "
-                        "to avoid user intervention"
-                     << " " << logTriplet(row, fullPath);
-            return resolve_upsync(row, parentRow, fullPath, pflsc, metamacFsNode, justMtimeChanged);
-        }
+                return resolve_rowMatched(row, parentRow, fullPath, pflsc);
+            }
 
-        // both changed, so we can't decide without the user's help
-        return resolve_userIntervention(row, fullPath);
-    }
+            if (cloudSyncNodeEqual)
+            {
+                // fsNode changed, upload the change
+                return resolve_upsync(row,
+                                      parentRow,
+                                      fullPath,
+                                      pflsc,
+                                      fcMacLocal,
+                                      fsCloudJustMtimeChanged);
+            }
+
+            if (fsSyncNodeEqual)
+            {
+                // cloudNode changed, download the change
+                if (isBackup())
+                {
+                    LOG_warn << "CSF with cloud node change and this is a BACKUP!"
+                             << " Local file will be upsynced to fix the mismatched cloud node."
+                             << " Triplet: " << logTriplet(row, fullPath);
+                    assert(false && "CSF with cloud node change should not happen for a backup!");
+                }
+                else
+                {
+                    if (fcMacRemote == INVALID_META_MAC)
+                    {
+                        LOG_warn << "syncItem: CloudNode and FsNode are not equal but "
+                                    "metamacCloudNode has not been calculated";
+                    }
+                    return resolve_downsync(row,
+                                            parentRow,
+                                            fullPath,
+                                            true,
+                                            pflsc,
+                                            fcMacRemote,
+                                            fsCloudJustMtimeChanged);
+                }
+            }
+
+            if (auto uploadPtr =
+                    threadSafeState->isNodeAnExpectedUpload(row.cloudNode->parentHandle,
+                                                            row.cloudNode->name))
+            {
+                if (row.cloudNode->fingerprint == *uploadPtr &&
+                    uploadPtr.get() == row.syncNode->transferSP.get())
+                {
+                    // we uploaded a file and the user already re-updated the local version of the
+                    // file
+                    SYNC_verbose << syncname
+                                 << "Node is a recent upload, while the FSFile is already updated: "
+                                 << fullPath.cloudPath << logTriplet(row, fullPath);
+                    row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+                    row.syncNode->syncedFingerprint = row.cloudNode->fingerprint;
+                    row.syncNode->transferSP.reset();
+                    return false;
+                }
+            }
+
+            if (isBackup())
+            {
+                // for backups, we only change the cloud
+                LOG_warn
+                    << "CSF for a BACKUP with CloudNode != SyncNode != FSNode -> resolve upsync "
+                       "to avoid user intervention"
+                    << " " << logTriplet(row, fullPath);
+                return resolve_upsync(row,
+                                      parentRow,
+                                      fullPath,
+                                      pflsc,
+                                      fcMacLocal,
+                                      fsCloudJustMtimeChanged);
+            }
+
+            // both changed, so we can't decide without the user's help
+            return resolve_userIntervention(row, fullPath);
+        }
     case SRT_XSF:
     {
         CodeCounter::ScopeTimer xsfTime(syncs.mClient.performanceStats.syncItemXSF);
@@ -9698,7 +9707,8 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
 
         // either
         //  - cloud item did not exist before; upsync
-        //  - the fs item has changed too; upsync (this lets users recover from the both sides changed state - user deletes the one they don't want anymore)
+        //  - the fs item has changed too; upsync (this lets users recover from the both sides
+        //  changed state - user deletes the one they don't want anymore)
         return resolve_upsync(row,
                               parentRow,
                               fullPath,
@@ -9742,12 +9752,25 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         else if (row.syncNode->fsid_lastSynced == UNDEF)
         {
             // fs item did not exist before; downsync
-            return resolve_downsync(row, parentRow, fullPath, false, pflsc, false);
+            return resolve_downsync(row,
+                                    parentRow,
+                                    fullPath,
+                                    false,
+                                    pflsc,
+                                    INVALID_META_MAC,
+                                    false /*justMtimeChanged*/);
         }
         else if (row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
         {
-            // the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
-            return resolve_downsync(row, parentRow, fullPath, false, pflsc, false);
+            // the cloud item has changed too; downsync (this lets users recover from both sides
+            // changed state - user deletes the one they don't want anymore)
+            return resolve_downsync(row,
+                                    parentRow,
+                                    fullPath,
+                                    false,
+                                    pflsc,
+                                    INVALID_META_MAC,
+                                    false /*justMtimeChanged*/);
         }
         else
         {
@@ -9796,17 +9819,34 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             return false;
         }
 
+        if (isBackup())
+        {
+            // create the sync node from local to do the upsync later
+            return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+        }
+
+        auto [fsCloudEqualRes, fcMacLocal, fcMacRemote] =
+            syncEqualFsCloud(syncs.mClient, *row.cloudNode, *row.fsNode, fullPath.localPath);
+
+        if (fsCloudEqualRes != NODE_COMP_INTERNAL || fsCloudEqualRes == NODE_COMP_EREAD)
+        {
+            // [TO_DO] Add stall issue
+            return false;
+        }
+
         // Item exists locally and remotely but we haven't synced them previously
         // If they are equal then join them with a Localnode. Othewise report to user.
-        // The original algorithm would compare mtime, and if that was equal then size/crc
-
-        if (bool isSyncEqual = syncEqual(*row.cloudNode, *row.fsNode); isSyncEqual || isBackup())
+        if (fsCloudEqualRes == NODE_COMP_EQUAL)
         {
             // In both cases we create the sync node from local to do the upsync later
             return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
         }
         else
         {
+            if (fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME)
+            {
+                LOG_warn << "SyncItem: FsNode and Cloud node just differ in mtime";
+            }
             return resolve_userIntervention(row, fullPath);
         }
     }
@@ -11817,15 +11857,6 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& /*parentRow*/, SyncPath& fu
     row.syncNode->setSyncAgain(true, false, false); // make sure we revisit
 
     return false;
-}
-
-bool Sync::syncEqual(const CloudNode& n, const FSNode& fs)
-{
-    // Assuming names already match
-    if (n.type != fs.type) return false;
-    if (n.type != FILENODE) return true;
-    assert(n.fingerprint.isvalid && fs.fingerprint.isvalid);
-    return n.fingerprint == fs.fingerprint;  // size, mtime, crc
 }
 
 bool Sync::syncEqual(const CloudNode& n, const LocalNode& ln)
