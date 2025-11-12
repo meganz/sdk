@@ -3499,12 +3499,12 @@ LocalPath MegaTransferPrivate::getLocalPath() const
 
 std::optional<string> MegaTransferPrivate::getInboxTarget()
 {
-    constexpr size_t stringLenght = 11;
+    constexpr size_t stringLength = 11;
     constexpr char charSeparator = '@';
     bool uploadToInbox =
         ISUNDEF(getParentHandle()) && getParentPath() &&
-        (strchr(getParentPath(), charSeparator) || (strlen(getParentPath()) == stringLenght));
-    std::optional<std::string> inboxTarget =
+        (strchr(getParentPath(), charSeparator) || (strlen(getParentPath()) == stringLength));
+    auto inboxTarget =
         uploadToInbox ? std::make_optional<std::string>(getParentPath()) : std::nullopt;
     return inboxTarget;
 }
@@ -13600,8 +13600,12 @@ void MegaApiImpl::transfer_update(Transfer *t)
 
 void MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid, FileResumeData& data)
 {
-    if (!d || d->size() < sizeof(char))
+    assert(type);
+    assert(d);
+
+    if (d->size() < sizeof(char))
     {
+        LOG_err << "MegaApiImpl::file_resume - Invalid data size";
         return;
     }
 
@@ -13629,7 +13633,7 @@ void MegaApiImpl::file_resume(string* d, direction_t* type, uint32_t dbid, FileR
         sharedNode_vector nodes = client->mNodeManager.getNodesByFingerprint(*file);
         const char *name = transfer->getFileName();
 
-        auto removeFile = [this, &data, transfer]()
+        auto removeFile = [this, &data, &transfer]()
         {
             TransferDbCommitter committer(client->tctable);
             delete data.file;

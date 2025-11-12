@@ -15480,10 +15480,11 @@ void MegaClient::resumeTransferFromDB()
         if (!data.sameNodeHandle.isUndef())
         {
             assert(type == PUT);
-            auto range = multi_cachedtransfers[type].equal_range(file);
+            auto [start, end] = multi_cachedtransfers[type].equal_range(file);
             Transfer* t{nullptr};
-            for (auto& it = range.first; it != range.second;)
+            for (auto& it = start; it != end;)
             {
+                requiredStatxfer = false;
                 t = it->second;
                 assert(t->localfilename == file->getLocalname());
                 it = multi_cachedtransfers[type].erase(it);
@@ -15499,7 +15500,6 @@ void MegaClient::resumeTransferFromDB()
                     // file is auto removed
                     t->removeTransferFile(API_ENOENT, file, &committer);
                     t->removeAndDeleteSelf(transferstate_t::TRANSFERSTATE_FAILED);
-                    requiredStatxfer = false;
                     continue;
                 }
 
@@ -15512,7 +15512,6 @@ void MegaClient::resumeTransferFromDB()
                                    parent,
                                    tag,
                                    data.inboxTarget);
-                requiredStatxfer = false;
                 break;
             }
         }
@@ -15524,6 +15523,7 @@ void MegaClient::resumeTransferFromDB()
         if (requiredStatxfer)
         {
             error e;
+            // TODO: should we have serialized these flags and restored them?
             if (!startxfer(type,
                            file,
                            committer,

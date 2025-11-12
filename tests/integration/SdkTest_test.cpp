@@ -22585,7 +22585,7 @@ TEST_F(SdkTest, SdkTransferCopyRemote)
                 return children->size() == numFiles;
             }
 
-            return 0;
+            return false;
         },
         timeOut));
 }
