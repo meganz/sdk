@@ -1600,6 +1600,7 @@ public:
 private:
     static Result check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option);
     static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
+    static bool fingerprintEqualRelaxed(const FileFingerprint& lhs, const FileFingerprint& rhs);
 };
 
 class MegaTransferPrivate : public MegaTransfer, public Cacheable

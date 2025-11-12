@@ -281,6 +281,7 @@ std::optional<int> downloadNode(MegaApi* megaApi,
                                 const std::chrono::seconds timeoutInSecs,
                                 const int collisionCheck,
                                 const int collisionResolution,
+                                TransferFinishCallback transferFinishCallback,
                                 const char* customName,
                                 const char* appData,
                                 const bool startFirst,
@@ -297,8 +298,12 @@ std::optional<int> downloadNode(MegaApi* megaApi,
     testing::NiceMock<MockMegaTransferListener> mtl{megaApi};
     EXPECT_CALL(mtl, onTransferFinish)
         .WillOnce(
-            [&mtl, &err](MegaApi*, MegaTransfer*, MegaError* error)
+            [&mtl, &err, &transferFinishCallback](MegaApi* megaApi,
+                                                  MegaTransfer* t,
+                                                  MegaError* error)
             {
+                if (transferFinishCallback)
+                    transferFinishCallback(megaApi, t, error);
                 err = error ? error->getErrorCode() : API_EINTERNAL;
                 mtl.markAsFinished();
             });
