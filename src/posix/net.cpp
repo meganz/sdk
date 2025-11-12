@@ -2412,4 +2412,112 @@ bool isValidIPv6Address(const std::string& string)
     return isValidIPAddress(string, AF_INET6);
 }
 
+#ifdef MEGA_USE_WSUPLOAD
+void CurlHttpIO::configureWsEasy(CURL* easy, bool isPostJson)
+{
+    LOG_debug << "[CurlHttpIO::configureWsEasy] BEGIN [easy=" << (void*)easy
+              << "] [isPostJson=" << isPostJson << "] [this = " << this << "]";
+    assert(easy);
+    // Share DNS/SSL sessions while we are on the client thread
+    curl_easy_setopt(easy, CURLOPT_SHARE, curlsh);
+    curl_easy_setopt(easy, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(easy, CURLOPT_ACCEPT_ENCODING, "");
+    curl_easy_setopt(easy, CURLOPT_USERAGENT, useragent.c_str());
+
+    if (isPostJson)
+    {
+        curl_easy_setopt(easy, CURLOPT_HTTPHEADER, contenttypejson);
+        curl_easy_setopt(easy, CURLOPT_LOW_SPEED_TIME, 30L);
+        curl_easy_setopt(easy, CURLOPT_LOW_SPEED_LIMIT, 1L);
+        return;
+    }
+
+    // WebSocket lane
+    curl_easy_setopt(easy, CURLOPT_CONNECT_ONLY, 2L); // enable WS
+    curl_easy_setopt(easy, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+#ifdef CURLOPT_SSL_ENABLE_ALPN
+    curl_easy_setopt(easy, CURLOPT_SSL_ENABLE_ALPN, 0L);
+#endif
+#ifdef CURLOPT_SSL_ENABLE_NPN
+    curl_easy_setopt(easy, CURLOPT_SSL_ENABLE_NPN, 0L);
+#endif
+#ifdef CURLOPT_PROTOCOLS
+    curl_easy_setopt(easy, CURLOPT_PROTOCOLS, CURLPROTO_WS | CURLPROTO_WSS);
+    curl_easy_setopt(easy, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_WS | CURLPROTO_WSS);
+#endif
+    curl_easy_setopt(easy, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(easy, CURLOPT_TCP_KEEPIDLE, 90L);
+    curl_easy_setopt(easy, CURLOPT_TCP_KEEPINTVL, 60L);
+
+    // Respect current proxy/DNS settings
+    if (!dnsservers.empty())
+        curl_easy_setopt(easy, CURLOPT_DNS_SERVERS, dnsservers.c_str());
+
+    // Apply proxy if configured (same logic as send_request; abbreviated)
+    if (proxyip.size())
+    {
+        if (!proxyschema.size() || !proxyschema.compare(0, 4, "http"))
+            curl_easy_setopt(easy, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+        else if (!proxyschema.compare(0, 5, "socks"))
+            curl_easy_setopt(easy, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5_HOSTNAME);
+
+        curl_easy_setopt(easy, CURLOPT_PROXY, proxyip.c_str());
+        curl_easy_setopt(easy, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+        if (proxyusername.size())
+        {
+            curl_easy_setopt(easy, CURLOPT_PROXYUSERNAME, proxyusername.c_str());
+            curl_easy_setopt(easy, CURLOPT_PROXYPASSWORD, proxypassword.c_str());
+        }
+        // For WSS via HTTP proxies:
+        curl_easy_setopt(easy, CURLOPT_HTTPPROXYTUNNEL, 1L);
+    }
+    else if (proxytype == Proxy::NONE)
+    {
+        curl_easy_setopt(easy, CURLOPT_PROXY, "");
+    }
+
+    // TLS verification (no pinning for gfs userstorage endpoints)
+    curl_easy_setopt(easy, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(easy, CURLOPT_SSL_VERIFYHOST, 2L);
+
+    LOG_debug << "[CurlHttpIO::configureWsEasy] END [easy=" << (void*)easy
+              << "] [isPostJson=" << isPostJson << "] [this = " << this << "]";
+}
+
+CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::string* err)
+{
+    LOG_debug << "[CurlHttpIO::wsHandshake] BEGIN [url=" << url << "] [timeoutMs=" << timeoutMs
+              << "] [this = " << this << "]";
+    CURL* easy = curl_easy_init();
+    if (!easy)
+    {
+        if (err)
+            *err = "curl_easy_init failed";
+        return nullptr;
+    }
+
+    char ebuf[CURL_ERROR_SIZE] = {0};
+    curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, ebuf);
+    configureWsEasy(easy, /*isPostJson*/ false);
+    curl_easy_setopt(easy, CURLOPT_URL, url.c_str());
+    if (timeoutMs > 0)
+        curl_easy_setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, timeoutMs);
+
+    CURLcode rc = curl_easy_perform(easy);
+    if (rc != CURLE_OK)
+    {
+        if (err)
+            *err = std::string("handshake failed: ") + curl_easy_strerror(rc) + " (" + ebuf + ")";
+        curl_easy_cleanup(easy);
+        return nullptr;
+    }
+
+    // On success, DETACH from shared state before we hand the handle to worker threads.
+    curl_easy_setopt(easy, CURLOPT_SHARE, nullptr);
+    LOG_debug << "[CurlHttpIO::wsHandshake] END -> return easy=" << (void*)easy << " [url=" << url
+              << "] [timeoutMs=" << timeoutMs << "] [this = " << this << "]";
+    return easy;
+}
+#endif // MEGA_USE_WSUPLOAD
+
 } // namespace

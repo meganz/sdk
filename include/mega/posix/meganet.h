@@ -242,6 +242,15 @@ public:
         return dnscache;
     }
 
+#ifdef MEGA_USE_WSUPLOAD
+    // Configure cURL easy for WebSocket or JSON POST (reuses SDK defaults).
+    void configureWsEasy(CURL* easy, bool isPostJson);
+
+    // Do a WS handshake synchronously on the client thread and return an open easy handle.
+    // Returns nullptr on failure and fills err (optional).
+    CURL* wsHandshake(const std::string& url, long timeoutMs, std::string* err);
+#endif
+
 private:
     static int instanceCount;
     friend class MegaClient;

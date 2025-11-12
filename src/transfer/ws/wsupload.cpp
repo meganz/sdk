@@ -26,6 +26,7 @@
 #include "mega/megaclient.h"
 #include "mega/transfer.h"
 #include "mega/types.h"
+#include "meganet.h"
 
 // Phase 1: keep prototype's WS + threads. Phase 3: move into CurlHttpIO reactor.
 #include <curl/curl.h>
@@ -826,6 +827,8 @@ struct WsPoolMgr
 
     void setCurlResponseProc(CURL* curl, CurlResponseProc* proc)
     {
+        LOG_debug << "[WsPoolMgr::setCurlResponseProc] call [curl=" << (void*)curl
+                  << "] [proc=" << (void*)proc << "] [this = " << this << "]";
         mCurlProcs[curl] = proc;
         curl_easy_setopt(
             curl,
@@ -1213,6 +1216,7 @@ WsConn::~WsConn()
         curl_easy_cleanup(curl);
 }
 
+/*
 bool WsConn::connectWS()
 {
     LOG_debug << "[WsConn::connectWS] BEGIN [this = " << this << "]";
@@ -1226,6 +1230,18 @@ bool WsConn::connectWS()
     {
         LOG_debug << "[WsConn::connectWS] curl_easy_init failed, return false [this = " << this
                   << "]";
+        return false;
+    }
+
+    // Share CurlHttpIO settings but don't attach to its multi
+    if (auto* cio = dynamic_cast<CurlHttpIO*>(mPool->mImpl->client.httpio))
+    {
+        LOG_debug << "[WsConn::connectWS] configureWsEasy [curl=" << (void*)curl << "] [this = " << this << "]";
+        cio->configureWsEasy(curl, false);
+    }
+    else
+    {
+        LOG_warn << "[WsConn::connectWS] dynamic_cast<CurlHttpIO*>(mPool->mImpl->client.httpio) failed, return false [curl=" << (void*)curl << "] [this = " << this << "]";
         return false;
     }
 
@@ -1254,6 +1270,102 @@ bool WsConn::connectWS()
               << "] [this = " << this << "]";
     readyState = ReadyState::CLOSED;
     return false;
+}
+*/
+
+bool WsConn::connectWS()
+{
+    LOG_debug << "[WsConn::connectWS] BEGIN [this = " << this << "]";
+    if (curl)
+    {
+        LOG_debug << "[WsConn::connectWS] curl already exists, cleanup [this = " << this << "]";
+        curl_easy_cleanup(curl);
+        curl = nullptr;
+    }
+    readyState = ReadyState::CONNECTING;
+
+    struct Baton
+    {
+        std::mutex m;
+        std::condition_variable cv;
+        CURL* easy = nullptr;
+        bool done = false;
+    } baton;
+
+    const std::string url = mPool->mUrl;
+
+    mPool->mImpl->client.wsPostToClientThread(
+        [this, &baton, url](MegaClient& client, TransferDbCommitter&)
+        {
+            LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] BEGIN [this = " << this
+                      << "]";
+            auto* cio = dynamic_cast<CurlHttpIO*>(client.httpio);
+            std::string err;
+            CURL* e = cio ? cio->wsHandshake(url, /*timeoutMs*/ 15000, &err) : nullptr;
+
+            {
+                std::lock_guard<std::mutex> g(baton.m);
+                baton.easy = e;
+                baton.done = true;
+                if (cio)
+                {
+                    if (!err.empty())
+                    {
+                        LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] "
+                                     "cio->wsHandshake failed, err="
+                                  << err << ", set baton.easy=" << (void*)e << " [this = " << this
+                                  << "]";
+                    }
+                    else
+                    {
+                        LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] "
+                                     "cio->wsHandshake success, set baton.easy="
+                                  << (void*)e << " [this = " << this << "]";
+                    }
+                }
+                else
+                {
+                    LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] "
+                                 "dynamic_cast<CurlHttpIO*>(client.httpio) "
+                                 "failed, set baton.easy=nullptr [this = "
+                              << this << "]";
+                }
+            }
+            baton.cv.notify_one();
+            LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] END [this = " << this
+                      << "]";
+        });
+
+    // Wait here on the worker thread
+    std::unique_lock<std::mutex> lk(baton.m);
+    if (!baton.cv.wait_for(lk,
+                           std::chrono::seconds(20),
+                           [&]
+                           {
+                               return baton.done;
+                           }))
+    {
+        LOG_debug << "[WsConn::connectWS] !baton.cv.wait_for -> readyState=CLOSED and return false "
+                     "[this = "
+                  << this << "]";
+        readyState = ReadyState::CLOSED;
+        return false;
+    }
+
+    if (!baton.easy)
+    {
+        LOG_debug
+            << "[WsConn::connectWS] !baton.easy -> readyState=CLOSED and return false [this = "
+            << this << "]";
+        readyState = ReadyState::CLOSED;
+        return false;
+    }
+
+    curl = baton.easy; // worker thread exclusively owns the handle now
+    readyState = ReadyState::OPEN;
+    onopen(); // your existing callback
+    LOG_debug << "[WsConn::connectWS] END -> success, return true [this = " << this << "]";
+    return true;
 }
 
 void WsConn::closeWS()
@@ -2071,16 +2183,64 @@ void WsPoolMgr::refreshPools()
     if (!mImpl)
         return;
 
-    static const char* kStagingCS = "https://staging.api.mega.co.nz/cs";
+    mImpl->client.wsPostToClientThread(
+        [this](MegaClient& client, TransferDbCommitter&)
+        {
+            auto* cio = dynamic_cast<CurlHttpIO*>(client.httpio);
+            if (!cio)
+            {
+                LOG_warn << "[WsPoolMgr::refreshPools] [wsPostToClientThread] "
+                            "dynamic_cast<CurlHttpIO*>(client.httpio) "
+                            "failed, return [this = "
+                         << this << "]";
+                return;
+            }
 
-    CURL* curl = curl_easy_init();
-    if (!curl)
-        return;
+            // Plain POST handled in client thread; reuse JSON posture.
+            std::string body, err;
+            CURL* easy = curl_easy_init();
+            if (!easy)
+            {
+                LOG_warn << "[WsPoolMgr::refreshPools] [wsPostToClientThread] curl_easy_init "
+                            "failed, return [this = "
+                         << this << "]";
+                return;
+            }
 
-    curl_easy_setopt(curl, CURLOPT_URL, kStagingCS);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "[{\"a\":\"usc\"}]");
+            cio->configureWsEasy(easy, /*isPostJson*/ true);
 
-    setCurlResponseProc(curl, new CurlResponseProcRefreshPools(this));
+            static const char* kCS = "https://staging.api.mega.co.nz/cs";
+            curl_easy_setopt(easy, CURLOPT_URL, kCS);
+            curl_easy_setopt(easy, CURLOPT_POSTFIELDS, "[{\"a\":\"usc\"}]");
+            curl_easy_setopt(
+                easy,
+                CURLOPT_WRITEFUNCTION,
+                +[](char* p, size_t s, size_t n, void* u) -> size_t
+                {
+                    auto* out = static_cast<std::string*>(u);
+                    out->append(p, s * n);
+                    return s * n;
+                });
+            curl_easy_setopt(easy, CURLOPT_WRITEDATA, &body);
+
+            CURLcode rc = curl_easy_perform(easy);
+            curl_easy_cleanup(easy);
+
+            if (rc == CURLE_OK)
+            {
+                LOG_debug << "[WsPoolMgr::refreshPools] [wsPostToClientThread] rc == CURLE_OK -> "
+                             "refreshPoolsResponse(body) [this = "
+                          << this << "]";
+                std::lock_guard<std::mutex> g(mImpl->uploadMutex);
+                refreshPoolsResponse(body); // your existing parser unchanged
+            }
+            else
+            {
+                LOG_warn << "[WsPoolMgr::refreshPools] [wsPostToClientThread] rc != CURLE_OK -> "
+                            "USC fetch failed: "
+                         << rc << " [this = " << this << "]";
+            }
+        });
 }
 
 bool WsPoolMgr::refreshPoolsResponse(std::string& response)
