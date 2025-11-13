@@ -2447,11 +2447,26 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
     }
 }
 
-std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
+std::pair<bool, int64_t>
+    generateMetaMac(SymmCipher& cipher, FileAccess& ifAccess, const int64_t iv, const bool debug)
 {
-    FileInputStream isAccess(&ifAccess);
+    using clock = std::chrono::steady_clock;
+    [[maybe_unused]] auto start = clock::now();
 
-    return generateMetaMac(cipher, isAccess, iv);
+    FileInputStream isAccess(&ifAccess);
+    auto res = generateMetaMac(cipher, isAccess, iv);
+
+    if (debug)
+    {
+        auto end = clock::now();
+        auto durationUs =
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+        double durationSec = static_cast<double>(durationUs) / 1'000'000.0;
+        LOG_debug << "generateMetaMac: MAC computed in " << std::fixed << std::setprecision(6)
+                  << durationSec << " (s) for: " << ifAccess.nonblocking_localname.toPath(true);
+    }
+    return res;
 }
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv)
@@ -2494,7 +2509,7 @@ std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
     int64_t remoteIv = MemAccess::get<int64_t>(iva);
     int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     cipher.setkey((byte*)&nodeKey[0], type);
-    auto result = generateMetaMac(cipher, *fa, remoteIv);
+    auto result = generateMetaMac(cipher, *fa, remoteIv, true /*debug*/);
     return {(result.first && result.second == remoteMac), result.second};
 }
 
@@ -2507,13 +2522,12 @@ std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
                                                      const std::string& nodeKey,
                                                      int type)
 {
-    // [TO_DO] ADD log to inform when mac has been calculated and how many time took
     SymmCipher cipher;
     const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
     int64_t remoteIv = MemAccess::get<int64_t>(iva);
     int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     cipher.setkey((byte*)&nodeKey[0], type);
-    auto [succeeded, calcMac] = generateMetaMac(cipher, *fa, remoteIv);
+    auto [succeeded, calcMac] = generateMetaMac(cipher, *fa, remoteIv, true /*debug*/);
     int64_t localMac = succeeded ? calcMac : INVALID_META_MAC;
     return {localMac, remoteMac};
 }
