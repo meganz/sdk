@@ -495,11 +495,7 @@ std::tuple<node_comparison_result, int64_t, int64_t>
     if (cn.type != FILENODE)
         return {NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
 
-    if (!cn.fingerprint.isvalid || !fs.fingerprint.isvalid)
-    {
-        assert(false);
-        return {NODE_COMP_INTERNAL, INVALID_META_MAC, INVALID_META_MAC};
-    }
+    assert(fs.fingerprint.isvalid && cn.fingerprint.isvalid);
 
     if (auto differentFp = !fs.fingerprint.equalExceptMtime(cn.fingerprint); differentFp)
     {

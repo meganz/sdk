@@ -63,7 +63,6 @@ typedef enum
 
 typedef enum
 {
-    NODE_COMP_INTERNAL = -33,
     NODE_COMP_INVALID_META_MACS = -32,
     NODE_COMP_INVALID_NODE_TYPE = -31,
     NODE_COMP_EREAD = -21,

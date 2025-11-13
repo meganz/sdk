@@ -9559,6 +9559,20 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         return false;
     }
 
+    auto createStallIssueEread = [&]() -> void
+    {
+        ProgressingMonitor monitor(*this, row, fullPath);
+        monitor.waitingLocal(
+            fullPath.localPath,
+            SyncStallEntry(SyncWaitReason::FileIssue,
+                           false,
+                           false,
+                           {},
+                           {},
+                           {fullPath.localPath, PathProblem::CannotFingerprintFile},
+                           {}));
+    };
+
     switch (rowType)
     {
         case SRT_CSF:
@@ -9572,9 +9586,9 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             auto [fsCloudEqualRes, fcMacLocal, fcMacRemote] =
                 syncEqualFsCloud(syncs.mClient, *row.cloudNode, *row.fsNode, fullPath.localPath);
 
-            if (fsCloudEqualRes != NODE_COMP_INTERNAL || fsCloudEqualRes == NODE_COMP_EREAD)
+            if (fsCloudEqualRes == NODE_COMP_EREAD)
             {
-                // [TO_DO] Add stall issue
+                createStallIssueEread();
                 return false;
             }
             auto fsCloudJustMtimeChanged = fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME;
@@ -9828,9 +9842,9 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         auto [fsCloudEqualRes, fcMacLocal, fcMacRemote] =
             syncEqualFsCloud(syncs.mClient, *row.cloudNode, *row.fsNode, fullPath.localPath);
 
-        if (fsCloudEqualRes != NODE_COMP_INTERNAL || fsCloudEqualRes == NODE_COMP_EREAD)
+        if (fsCloudEqualRes == NODE_COMP_EREAD)
         {
-            // [TO_DO] Add stall issue
+            createStallIssueEread();
             return false;
         }
 
