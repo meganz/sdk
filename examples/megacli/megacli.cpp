@@ -12018,9 +12018,9 @@ int main(int argc, char* argv[])
     SimpleLogger::setLogLevel(logVerbose);
     // mega::g_netLoggingOn = true;
     // mega::gLogJSONRequests = true;
-    MyOutput output;
+    // MyOutput output;
     // SimpleLogger::setAllOutputs(&std::cout);
-    SimpleLogger::setOutputClass(&output);
+    // SimpleLogger::setOutputClass(&output);
     auto gLoggerAddr = &gLogger;
     g_externalLogger.addMegaLogger(&gLogger,
 

@@ -2061,28 +2061,30 @@ public:
 
     // server-client command processing
     bool sc_checkSequenceTag(const string& tag);
-    bool sc_checkActionPacket(Node* lastAPDeletedNode);
+    bool sc_checkActionPacket(JSON* json, Node* lastAPDeletedNode);
 
-    void sc_updatenode();
-    std::shared_ptr<Node> sc_deltree();
-    handle sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete);
-    void sc_contacts();
-    void sc_fileattr();
-    void sc_userattr();
-    bool sc_shares();
-    bool sc_upgrade(nameid paymentType);
-    void sc_paymentreminder();
-    void sc_opc();
-    void sc_ipc();
-    void sc_upc(bool incoming);
-    void sc_ph();
-    void sc_se();
+    void sc_updatenode(JSON* json);
+    std::shared_ptr<Node> sc_deltree(JSON* json);
+    handle sc_newnodes(JSON* json,
+                       Node* priorActionpacketDeletedNode,
+                       bool& firstHandleMismatchedDelete);
+    void sc_contacts(JSON* json);
+    void sc_fileattr(JSON* json);
+    void sc_userattr(JSON* json);
+    bool sc_shares(JSON* json);
+    bool sc_upgrade(JSON* json, nameid paymentType);
+    void sc_paymentreminder(JSON* json);
+    void sc_opc(JSON* json);
+    void sc_ipc(JSON* json);
+    void sc_upc(JSON* json, bool incoming);
+    void sc_ph(JSON* json);
+    void sc_se(JSON* json);
 #ifdef ENABLE_CHAT
-    void sc_chatupdate(bool readingPublicChat);
-    void sc_chatnode();
-    void sc_chatflags();
-    void sc_scheduledmeetings();
-    void sc_delscheduledmeeting();
+    void sc_chatupdate(JSON* json, bool readingPublicChat);
+    void sc_chatnode(JSON* json);
+    void sc_chatflags(JSON* json);
+    void sc_scheduledmeetings(JSON* json);
+    void sc_delscheduledmeeting(JSON* json);
     void createNewSMAlert(const handle&,
                           handle chatid,
                           handle schedId,
@@ -2099,11 +2101,11 @@ public:
                                                 UserAlert::UpdatedScheduledMeeting::Changeset*);
     void clearSchedOccurrences(TextChat& chat);
 #endif
-    void sc_uac();
-    void sc_uec();
-    void sc_la();
-    void sc_ub();
-    void sc_sqac();
+    void sc_uac(JSON* json);
+    void sc_uec(JSON* json);
+    void sc_la(JSON* json);
+    void sc_ub(JSON* json);
+    void sc_sqac(JSON* json);
     void sc_pk();
     void sc_cce();
 
@@ -3888,6 +3890,7 @@ private:
     std::unique_lock<recursive_mutex> mNodeTreeIsChanging;
     std::shared_ptr<Node> mlastAPDeletedNode;
     bool mFirstChunkProcessed = false;
+    bool originalAC = false;
 };
 
 } // namespace
