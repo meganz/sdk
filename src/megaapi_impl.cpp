@@ -19944,6 +19944,7 @@ void MegaApiImpl::sendPendingRequests()
     error e = API_OK;
     MegaRequestPrivate *request = nullptr;
     bool abortBackoffTimer{true};
+    constexpr dstime abortBackoffCoolDown{50}; // in deciseconds, 5 seconds
 
     while(1)
     {
@@ -19998,7 +19999,12 @@ void MegaApiImpl::sendPendingRequests()
         if (abortBackoffTimer && request->getType() != MegaRequest::TYPE_LOGOUT &&
             !MegaRequestPrivate::causesLocklessRequest(request->getType()))
         {
-            client->abortbackoff(false);
+            // Calculate the cool down before triggering a new abortbackoff
+            if (Waiter::ds - latestAbortBackoffs > abortBackoffCoolDown)
+            {
+                client->abortbackoff(false);
+                latestAbortBackoffs = Waiter::ds;
+            }
             abortBackoffTimer = false;
         }
 

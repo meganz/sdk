@@ -4827,6 +4827,9 @@ public:
         set<LocalPath> syncPathStateDeferredSet;
         mutex syncPathStateDeferredSetMutex;
 
+        // Track latest call to client->abortbackoff to avoid spamming.
+        dstime latestAbortBackoffs{0};
+
         int threadExit;
         void loop();
 
