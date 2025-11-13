@@ -11799,19 +11799,16 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
         return;
     }
 
-    const auto [compRes, localFileMac] = CompareLocalFileWithNodeFpAndMac(*client,
-                                                                          localPath,
-                                                                          localFileFp,
-                                                                          node.get(),
-                                                                          false /*excludeMtime*/,
-                                                                          true /*debugMode*/);
+    const auto [compRes, localFileMac] =
+        CompareLocalFileWithNodeMacAndFpExludingMtime(*client,
+                                                      localPath,
+                                                      localFileFp,
+                                                      node.get(),
+                                                      true /*debugMode*/);
 
     std::string errMsg{"Node and file content comparisson: "};
     switch (compRes)
     {
-        case NODE_COMP_INVALID_NODE_TYPE:
-            errMsg += "Invalid node type";
-            break;
         case NODE_COMP_EREAD:
             errMsg += "Local file read error";
             break;
@@ -11829,9 +11826,6 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
             break;
         case NODE_COMP_EQUAL:
             errMsg += "Both items are completly equal";
-            break;
-        case NODE_COMP_INVALID_META_MACS:
-            errMsg += "Any or both Metamacs are invalid";
             break;
     }
     cout << errMsg << endl

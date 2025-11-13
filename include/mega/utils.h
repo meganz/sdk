@@ -63,8 +63,6 @@ typedef enum
 
 typedef enum
 {
-    NODE_COMP_INVALID_META_MACS = -32,
-    NODE_COMP_INVALID_NODE_TYPE = -31,
     NODE_COMP_EREAD = -21,
     NODE_COMP_EARGS = -2,
     NODE_COMP_EQUAL = 0,
@@ -616,33 +614,37 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAcces
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
 
-std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
-                                                     const std::string& nodeKey,
-                                                     int type);
-
 std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
                                                             const std::string& nodeKey,
                                                             int type);
 
-bool CompareLocalFilePrecalculatedMetaMacWithNodeKey(const int64_t metamac,
-                                                     const std::string& nodeKey);
-
 bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
 
 /**
- * @brief Compares two fingerprints (excluding mtime) and two metamacs.
+ * @brief Generates local METAMAC (from local file) and remote METAMAC (from a Node)
+ * @param fa Pointer to FileAccess object for file operations
+ * @param nodeKey The node's encryption key
+ * @param type The node type
+ * @return A pair containing the local and remote METAMACs
+ */
+std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
+                                                     const std::string& nodeKey,
+                                                     int type);
+
+/**
+ * @brief Compares two fingerprints (excluding mtime) and two METAMACs.
  *
  * @param fp1 First Fingerprint to be compared.
  * @param fp2 Second Fingerprint to be compared.
  * @param metamac1 First MetaMac to be compared.
  * @param metamac2 Second MetaMac to be compared.
- * @note fpX and metamacX corresponds to the same Node (LocalNode | FsNode | CloudNode)
+ * @note fpX and metamacX corresponds to the same item
  * @return `node_comparison_result` indicating the comparison result:
- *         - NODE_COMP_EARGS: Invalid arguments
- *         - NODE_COMP_DIFFERS_FP: Fingerprints do not match.
- *         - NODE_COMP_DIFFERS_MAC: Fingerprints match but MACs differ.
- *         - NODE_COMP_EQUAL: Both fingerprint and MAC match.
- *         - NODE_COMP_DIFFERS_MTIME: Both fingerprint (except mtime is different) and MAC match.
+ *      - NODE_COMP_EQUAL: Fingerprints match including mtime
+ *      - NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more than
+ * mtime (CRC, Size, isValid).
+ *      - NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
+ *      - NODE_COMP_DIFFERS_MAC: Fingerprints differ in mtime and METAMACs also differ.
  */
 node_comparison_result CompareMacAndFpExcludingMtime(const FileFingerprint& fp1,
                                                      const FileFingerprint& fp2,
@@ -650,63 +652,57 @@ node_comparison_result CompareMacAndFpExcludingMtime(const FileFingerprint& fp1,
                                                      const int64_t metamac2);
 
 /**
- * @brief Compares a local file with a remote node based on fingerprint and MAC.
+ * @brief Compares node's fingerprint and METAMAC with fingerprint and METAMAC provided as params
+ * (Excluding mtime)
+ *
+ * @param node Pointer to the remote node to compare with.
+ * @param fp Fingerprint to be compared.
+ * @param precalcMetamac Precalculated METAMAC to be compared.
+ *
+ * @return A value of type `node_comparison_result` indicating the comparison result:
+ *      - NODE_COMP_EREAD: Error reading the local file.
+ *      - NODE_COMP_EQUAL: Fingerprints match including mtime
+ *      - NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more than
+ * mtime (CRC, Size, isValid).
+ *      - NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
+ *      - NODE_COMP_DIFFERS_MAC: Fingerprints differ in mtime and METAMACs also differ.
+ */
+node_comparison_result CompareNodeWithProvidedMacAndFpExcludingMtime(const Node* node,
+                                                                     const FileFingerprint& fp,
+                                                                     const int64_t precalcMetamac);
+
+/**
+ * @brief Compares a local file with a node based on fingerprint (Excluding mtime) and METAMAC.
  *
  * This function checks whether a local file matches a remote node by comparing:
  * 1. The fingerprint of the local file with the fingerprint of the node.
- * 2. The MAC (Message Authentication Code) of the local file with the node key.
+ * 2. The METAMAC (Message Authentication Code) of the local file with the METAMAC generated from
+ node key.
  *
  * @param client reference to the MegaClient instance.
  * @param path Local path to the file to be compared.
  * @param fp Fingerprint of the local file to be compared.
- * @param node Pointer to the remote node to compare with.
+ * @param node Pointer to the node to compare with.
  * @param excludeMtime If true, ignores mtime time during fingerprint comparison.
- * @note metamac is only compared if excludeMtime is true and both fingerprints only differs in
- mtime
+ *
+ * @note METAMACs are only compared if both fingerprints only differs in mtime
  *
  * @return A pair of {`node_comparison_result`, metamac}.
-           `node_comparison_result` indicates the comparison result:
- *         - NODE_COMP_EREAD: Error reading the local file.
- *         - NODE_COMP_EARGS: Invalid arguments
- *         - NODE_COMP_DIFFERS_FP: Fingerprints do not match.
- *         - NODE_COMP_DIFFERS_MAC: Fingerprints match but MACs differ.
- *         - NODE_COMP_EQUAL: Both fingerprint and MAC match.
- *         - NODE_COMP_DIFFERS_MTIME: Both fingerprint (except mtime is different) and MAC match.
+ *     `node_comparison_result` indicates:
+ *      - NODE_COMP_EARGS: Invalid arguments
+ *      - NODE_COMP_EREAD: Error reading the local file.
+ *      - NODE_COMP_EQUAL: Fingerprints match including mtime
+ *      - NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more than
+ mtime (CRC, Size, isValid).
+ *      - NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
+ *      - NODE_COMP_DIFFERS_MAC: Fingerprints differ in mtime and METAMACs also differ.
  */
 std::pair<node_comparison_result, int64_t>
-    CompareLocalFileWithNodeFpAndMac(MegaClient& client,
-                                     const LocalPath& path,
-                                     const FileFingerprint& fp,
-                                     const Node* node,
-                                     const bool excludeMtime = false,
-                                     bool debugMode = false);
-
-/**
- * @brief Compares a local file with a remote node based on fingerprint and a precalculated MAC.
- *
- * This function checks whether a local file matches a remote node by comparing:
- * 1. The fingerprint of the local file with the fingerprint of the node.
- * 2. The MAC (Message Authentication Code) of the local file with the node key.
- *
- * @param fp Fingerprint of the local file to be compared.
- * @param node Pointer to the remote node to compare with.
- * @param metamac Precalculated metamac to avoid calculating again
- * @param excludeMtime If true, ignores mtime time during fingerprint comparison.
- * @note metamac is only compared if excludeMtime is true and both fingerprints only differs in
- * mtime
- *
- * @return A value of type `node_comparison_result` indicating the comparison result:
- *         - NODE_COMP_EARGS: Invalid arguments
- *         - NODE_COMP_DIFFERS_FP: Fingerprints do not match.
- *         - NODE_COMP_DIFFERS_MAC: Fingerprints match but MACs differ.
- *         - NODE_COMP_EQUAL: Both fingerprint and MAC match.
- *         - NODE_COMP_DIFFERS_MTIME: Both fingerprint (except mtime is different) and MAC match.
- */
-node_comparison_result
-    CompareLocalFileWithNodeFpAndPrecalculatedMac(const FileFingerprint& fp,
+    CompareLocalFileWithNodeMacAndFpExludingMtime(MegaClient& client,
+                                                  const LocalPath& path,
+                                                  const FileFingerprint& fp,
                                                   const Node* node,
-                                                  const int64_t metamac,
-                                                  const bool excludeMtime = false);
+                                                  bool debugMode = false);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data

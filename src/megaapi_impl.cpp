@@ -19428,12 +19428,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                      hasToForceUpload(*prevNodeSameName.get(), *transfer);
                                  !forceToUpload)
                         {
-                            auto [compRes, _] =
-                                CompareLocalFileWithNodeFpAndMac(*client,
-                                                                 wLocalPath,
-                                                                 fp_forCloud,
-                                                                 prevNodeSameName.get(),
-                                                                 true /*excludeMtime*/);
+                            auto [compRes, _] = CompareLocalFileWithNodeMacAndFpExludingMtime(
+                                *client,
+                                wLocalPath,
+                                fp_forCloud,
+                                prevNodeSameName.get(),
+                                true /*debugMode*/);
 
                             if (compRes == NODE_COMP_DIFFERS_MTIME)
                             {
@@ -19473,12 +19473,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         {
                             if (!hasToForceUpload(*n.get(), *transfer))
                             {
-                                auto [compRes, _] =
-                                    CompareLocalFileWithNodeFpAndMac(*client,
-                                                                     wLocalPath,
-                                                                     fp_forCloud,
-                                                                     n.get(),
-                                                                     true /*excludeMtime*/);
+                                auto [compRes, _] = CompareLocalFileWithNodeMacAndFpExludingMtime(
+                                    *client,
+                                    wLocalPath,
+                                    fp_forCloud,
+                                    n.get(),
+                                    true /*debugMode*/);
 
                                 if (compRes == NODE_COMP_EQUAL ||
                                     compRes == NODE_COMP_DIFFERS_MTIME)

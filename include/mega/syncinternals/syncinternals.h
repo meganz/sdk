@@ -486,47 +486,31 @@ void clientDownload(MegaClient& mc,
 \********************/
 
 /**
- * @brief Compares a CloudNode with a FSNode, using file fingerprint and METAMAC.
+ * @brief Compares a fsNode with a cloudNode based on fingerprint (Excluding mtime) and METAMAC.
  *
  * @param mc Reference to the MegaClient
- * @param cn Reference to CloudNode object representing the cloud node to compare.
- * @param fs Reference to FSNode object representing the local filesystem node.
- * @param excludeMtime If true, ignores mtime time during fingerprint comparison, but still
- * checks mtime if fingerprint and METAMAC match, otherwise, mtime will be included in the
- * fingerprint comparison.
- * @return A pair of {`node_comparison_result` and metamac}
-          `node_comparison_result` indicates the comparison result:
- *         - NODE_COMP_EREAD: Error reading the local file.
- *         - NODE_COMP_EARGS: Invalid arguments, or in case nodeByHandle() does not return a valid
- * node
- *         - NODE_COMP_DIFFERS_FP: Fingerprints do not match.
- *         - NODE_COMP_DIFFERS_MAC: Fingerprints match but MACs differ.
- *         - NODE_COMP_EQUAL: Both fingerprint and MAC match.
+ * @param cn CloudNode representing the remote node.
+ * @param fs FSNode representing the local filesystem node.
+ * @param fsNodeFullPath Full local path to the filesystem node.
+ * @return `std::tuple<node_comparison_result, int64_t, int64_t>` where:
+ *         - The first element is a `node_comparison_result` indicating:
+ *              + NODE_COMP_EARGS: Invalid arguments
+ *              + NODE_COMP_EREAD: Error reading the local file.
+ *              + NODE_COMP_EQUAL: Fingerprints match including mtime
+ *              + NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more
+ * than mtime (CRC, Size, isValid).
+ *              + NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
+ *              + NODE_COMP_DIFFERS_MAC: Fingerprints differ in mtime and METAMACs also differ.
+ *         - The second element is the local MetaMAC, or INVALID_META_MAC if not computed.
+ *         - The third element is the remote MetaMAC, or INVALID_META_MAC if not computed.
  *
- * @see CompareLocalFileWithNodeFpAndMac at utils.cpp
+ * @note METAMACs are only computed and compared if both fingerprints only differs in mtime
  */
-std::pair<node_comparison_result, int64_t>
-    syncCompCloudToFsWithMac_internal(MegaClient& mc,
-                                      const CloudNode& cn,
-                                      const FSNode& fs,
-                                      const LocalPath& fsNodeFullPath,
-                                      const bool excludeMtime);
-
-/*
- * Compares a CloudNode with a FSNode, using file fingerprint and METAMAC.
- * @see syncCompCloudToFsWithMac_internal for more details.
- */
-std::pair<node_comparison_result, int64_t> syncCompCloudToFsWithMac(MegaClient& mc,
-                                                                    const CloudNode& cn,
-                                                                    const FSNode& fs,
-                                                                    const LocalPath& fsNodeFullPath,
-                                                                    const bool excludeMtime);
-
 std::tuple<node_comparison_result, int64_t, int64_t>
-    syncEqualFsCloud(MegaClient& mc,
-                     const CloudNode& cn,
-                     const FSNode& fs,
-                     const LocalPath& fsNodeFullPath);
+    syncEqualFsCloudExcludingMtime(MegaClient& mc,
+                                   const CloudNode& cn,
+                                   const FSNode& fs,
+                                   const LocalPath& fsNodeFullPath);
 } // namespace mega
 
 #endif // ENABLE_SYNC

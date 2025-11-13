@@ -9584,7 +9584,10 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
 
             // all three exist; compare
             auto [fsCloudEqualRes, fcMacLocal, fcMacRemote] =
-                syncEqualFsCloud(syncs.mClient, *row.cloudNode, *row.fsNode, fullPath.localPath);
+                syncEqualFsCloudExcludingMtime(syncs.mClient,
+                                               *row.cloudNode,
+                                               *row.fsNode,
+                                               fullPath.localPath);
 
             if (fsCloudEqualRes == NODE_COMP_EREAD)
             {
@@ -9840,7 +9843,10 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         }
 
         auto [fsCloudEqualRes, fcMacLocal, fcMacRemote] =
-            syncEqualFsCloud(syncs.mClient, *row.cloudNode, *row.fsNode, fullPath.localPath);
+            syncEqualFsCloudExcludingMtime(syncs.mClient,
+                                           *row.cloudNode,
+                                           *row.fsNode,
+                                           fullPath.localPath);
 
         if (fsCloudEqualRes == NODE_COMP_EREAD)
         {
@@ -9857,10 +9863,6 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         }
         else
         {
-            if (fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME)
-            {
-                LOG_warn << "SyncItem: FsNode and Cloud node just differ in mtime";
-            }
             return resolve_userIntervention(row, fullPath);
         }
     }
