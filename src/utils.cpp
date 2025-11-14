@@ -2551,14 +2551,17 @@ node_comparison_result CompareMacAndFpExcludingMtime(const FileFingerprint& fp1,
         return NODE_COMP_DIFFERS_FP;
     }
 
-    // Full fingerprint match (CRC, size, isValid and mtime)
-    if (fp1.mtime == fp2.mtime)
+    // IMPORTANT: we need to compare METAMACs even if entire Fingerprint Match (2 Items could differ
+    // just in a few bytes, and FPs could match but METAMAC differ)
+    auto areEqualMacs = metamac1 == metamac2;
+    if (!areEqualMacs)
     {
-        return NODE_COMP_EQUAL;
+        // It doesn't matter that FPs are equal as METAMAC comparison show that they are
+        // different items
+        return NODE_COMP_DIFFERS_MAC;
     }
 
-    // Compare metamac
-    return metamac1 == metamac2 ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
+    return fp1.mtime == fp2.mtime ? NODE_COMP_EQUAL : NODE_COMP_DIFFERS_MTIME;
 }
 
 node_comparison_result CompareNodeWithProvidedMacAndFpExcludingMtime(const Node* node,
@@ -2581,16 +2584,19 @@ node_comparison_result CompareNodeWithProvidedMacAndFpExcludingMtime(const Node*
         return NODE_COMP_DIFFERS_FP;
     }
 
-    // Full fingerprint match (CRC, size, isValid and mtime)
-    if (fp.mtime == node->mtime)
-    {
-        return NODE_COMP_EQUAL;
-    }
-
-    // Compare METAMACs
+    // IMPORTANT: we need to compare METAMACs even if entire Fingerprint Match (2 Items could differ
+    // just in a few bytes, and FPs could match but METAMAC differ)
     const char* iva = &node->nodekey()[SymmCipher::KEYLENGTH];
     const int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
-    return precalcMetamac == remoteMac ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
+    auto areEqualMacs = precalcMetamac == remoteMac;
+    if (!areEqualMacs)
+    {
+        // It doesn't matter that FPs are equal as METAMAC comparison show that they are
+        // different items
+        return NODE_COMP_DIFFERS_MAC;
+    }
+
+    return fp.mtime == node->mtime ? NODE_COMP_EQUAL : NODE_COMP_DIFFERS_MTIME;
 }
 
 std::pair<node_comparison_result, int64_t>
@@ -2614,30 +2620,37 @@ std::pair<node_comparison_result, int64_t>
                      << "), fp isValid (" << fp.isvalid << ")";
         }
 
+        // Fingerprints differ in any of these fields (CRC, Size, isValid)
+        // They may also differ in mtime (it's not relevant for this case as FPs also differs in
+        // something else)
         return {NODE_COMP_DIFFERS_FP, INVALID_META_MAC};
     }
 
-    // Full fingerprint match (CRC, size, isValid and mtime)
-    if (fp.mtime == node->mtime)
-    {
-        return {NODE_COMP_EQUAL, INVALID_META_MAC};
-    }
-
-    // Compare METAMACs
+    // IMPORTANT: we need to compare METAMACs even if entire Fingerprint Match (2 Items could differ
+    // just in few bytes, and FPs could match but METAMAC differ)
     if (auto fa = client.fsaccess->newfileaccess();
         fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
     {
-        auto [areEqual, mac] =
+        auto [areEqualMacs, mac] =
             CompareLocalFileMetaMacWithNodeKey(fa.get(), node->nodekey(), node->type);
 
-        if (debugMode)
+        auto sameMtime = fp.mtime == node->mtime;
+        if (debugMode && sameMtime)
         {
-            areEqual ?
+            areEqualMacs ?
                 client.sendevent(800029, "Node found with same Fp and MAC than local file") :
                 client.sendevent(800030,
                                  "Node found with same Fp but different MAC than local file");
         }
-        auto compRes = areEqual ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
+
+        if (!areEqualMacs)
+        {
+            // It doesn't matter that FPs are equal as METAMAC comparison show that they are
+            // different items
+            return {NODE_COMP_DIFFERS_MAC, mac};
+        }
+
+        auto compRes = sameMtime ? NODE_COMP_EQUAL : NODE_COMP_DIFFERS_MTIME;
         return {compRes, mac};
     }
 

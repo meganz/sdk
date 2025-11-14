@@ -109,8 +109,8 @@ bool FindLocalNodeByFSIDPredicate::operator()(LocalNode& localNode)
         {
             if (compRes == NodeMatchByFSIDResult::DifferentFingerprintOnlyMtime)
             {
-                LOG_err << "areNodesMatchedByFsidEquivalent: fingerprint differs only in mtime: "
-                        << localNode.getLocalPath().toPath(true);
+                LOG_warn << "areNodesMatchedByFsidEquivalent: fingerprint differs only in mtime: "
+                         << localNode.getLocalPath().toPath(true);
             }
 
             if (mOnFingerprintMismatchDuringPutnodes)
@@ -120,7 +120,7 @@ bool FindLocalNodeByFSIDPredicate::operator()(LocalNode& localNode)
                     upload && upload->fingerprint() == mTargetNodeAttributes.fingerprint &&
                     upload->upsyncStarted)
                 {
-                    // [TO_DO]: see this subcase (sdk-5551)
+                    // [SDK-5551_TODO]: see this subcase
                     logMsg("source with same fsid excluded due to fingerprint mismatch has "
                            "a putnodes operation ongoing, fsid",
                            localNode.getLocalPath());
@@ -244,7 +244,7 @@ struct FindCloneNodeCandidatePredicate
     bool operator()(const Node& node)
     {
         node_comparison_result compRes = NODE_COMP_EQUAL;
-        if (mUpload.mMetaMac.has_value())
+        if (mUpload.mMetaMac.has_value() && mUpload.mMetaMac.value() != INVALID_META_MAC)
         {
             // Avoid calculating metamac again by using precalculated one
             compRes =
@@ -252,11 +252,17 @@ struct FindCloneNodeCandidatePredicate
         }
         else
         {
-            compRes = mUpload.fingerprint() == node.fingerprint() ? NODE_COMP_EQUAL :
-                                                                    NODE_COMP_DIFFERS_FP;
+            const auto [auxRes, _] =
+                CompareLocalFileWithNodeMacAndFpExludingMtime(mClient,
+                                                              mUpload.getLocalname(),
+                                                              mUpload,
+                                                              &node,
+                                                              false /*debugMode*/);
+
+            compRes = auxRes;
         }
 
-        if (compRes == NODE_COMP_EQUAL || compRes == NODE_COMP_DIFFERS_MTIME)
+        if (compRes == NODE_COMP_EQUAL)
         {
             // Found a candidate that matches content
             if (node.hasZeroKey())
@@ -351,7 +357,15 @@ void clientUpload(MegaClient& mc,
             return;
         }
 
-        upload->updateNodeMtime(&mc, node, upload->mtime);
+        if (auto immediateResult = upload->updateNodeMtime(&mc, node, upload->mtime);
+            immediateResult != API_OK)
+        {
+            LOG_warn << "clientUpload: UpdateMtime immediate error";
+            upload->upsyncFailed = true;
+            upload->wasUpsyncCompleted.store(true);
+            return;
+        }
+
         // Set `true` even though no actual data transfer occurred, we're updating node's mtime
         // instead
         upload->wasFileTransferCompleted = true;
@@ -447,8 +461,8 @@ void clientDownload(MegaClient& mc,
                  << (transient_err ? "Transient error" : "Non-transient error") << ")"
                  << ". Falling back to full download transfer";
 
-        // [TO_CHECK]: in case of transient error, this could be improved to retry setmtimelocal
-        // again before performing download trasnsfer?
+        // [SDK-5551_TODO]: in case of transient error, this could be improved to retry
+        // setmtimelocal again before performing download transfer?
     }
 
     // Proceed with the download transfer.
@@ -486,6 +500,11 @@ std::tuple<node_comparison_result, int64_t, int64_t>
         return {NODE_COMP_DIFFERS_FP, INVALID_META_MAC, INVALID_META_MAC};
     }
 
+    // IMPORTANT: To avoid performance issues in this method, we will consider FsNode and
+    // CloudNode equal if their fingerprints fully match (CRC, size, isValid, mtime), although there
+    // could be collisions. We don't want to compute the METAMAC unless strictly necessary because
+    // it is expensive in terms of performance, so we will compute it only if the
+    // fingerprints differ only in mtime.
     if (fs.fingerprint.mtime == cn.fingerprint.mtime)
         return {NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
 

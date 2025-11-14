@@ -1852,8 +1852,6 @@ bool Sync::checkSpecialFile(SyncRow& child, SyncRow& parent, SyncPath& path)
     return true;
 }
 
-//[TO_CHECK] what changes do I need here in movements
-
 bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode)
 {
     // We have detected that this LocalNode might be a move/rename target (the moved-to location).
@@ -10513,8 +10511,6 @@ bool Sync::resolve_upsync(SyncRow& row,
             std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
         if (existingUpload && !existingUpload->upsyncStarted)
         {
-            // [TO_CHECK] --> in case upload already exists do we really need to set
-            // justMtimechanged?
             existingUpload->wasJustMtimeChanged = justMtimeChanged;
             existingUpload->mMetaMac =
                 metamac != INVALID_META_MAC ? metamac : std::optional<int64_t>{std::nullopt};

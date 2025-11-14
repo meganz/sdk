@@ -2478,6 +2478,7 @@ void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath, vector<SyncRow>
 
                 ++nChecked;
                 auto generated = row.syncNode->getScannedFSDetails();
+                //[SDK-5551_TODO] -> Do we need to add metamac comparison at equivalent to?
                 if (!generated.equivalentTo(*row.fsNode)) return;
             }
         }

@@ -512,7 +512,8 @@ void clientDownload(MegaClient& mc,
  *         - The second element is the local MetaMAC, or INVALID_META_MAC if not computed.
  *         - The third element is the remote MetaMAC, or INVALID_META_MAC if not computed.
  *
- * @note METAMACs are only computed and compared if both fingerprints only differs in mtime
+ * @note METAMACs are only computed and compared if both fingerprints only differs in mtime to avoid
+ * performance issues
  */
 std::tuple<node_comparison_result, int64_t, int64_t>
     syncEqualFsCloudExcludingMtime(MegaClient& mc,
