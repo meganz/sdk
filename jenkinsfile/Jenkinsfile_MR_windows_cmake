@@ -36,6 +36,13 @@ def setCommitStatus(String pStatus, String errorHint = '') {
     }
     updateGitlabCommitStatus(name: "${PIPELINE_NAME}", state: pState)
 }
+
+def BUILD_OPTIONS
+def TESTS_PARALLEL
+def GTEST_REPEAT
+def GTEST_FILTER
+def WIN32_FLAG
+
 pipeline {
     agent none
     options {
@@ -78,10 +85,12 @@ pipeline {
                                     TESTS_PARALLEL = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-sequence" >/dev/null 2>&1 && echo "" || echo "--INSTANCES:10"', returnStdout: true).trim()
                                     GTEST_REPEAT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_repeat=[^ ]*" | awk -F "gtest_repeat="  \'{print "--gtest_repeat="\$2}\'|| :', returnStdout: true).trim()
                                     GTEST_FILTER = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_filter=[^ ]*" | awk -F "gtest_filter="  \'{print "--gtest_filter="\$2}\'|| :', returnStdout: true).trim()
+                                    WIN32_FLAG = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-windows-32bits" || :', returnStdout: true).trim()
                                     println BUILD_OPTIONS
                                     println TESTS_PARALLEL
                                     println GTEST_REPEAT
                                     println GTEST_FILTER
+                                    println WIN32_FLAG
                                 }
                             }
                         }
@@ -181,7 +190,7 @@ pipeline {
                         MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                         MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
                         MEGA_REAL_PWD=credentials('MEGA_REAL_PWD_TEST')
-                        SYMBOL_PATH = "srv*C:\\symcache*;http://msdl.microsoft.com/download/symbols;${WORKSPACE}\\build_dir;${WORKSPACE}\\build_dir_x86;${WORKSPACE}\\build_dir\\tests\\integration\\Debug"
+                        SYMBOL_PATH = "srv*C:\\symcache*;http://msdl.microsoft.com/download/symbols;${WORKSPACE}\\build_dir;${WORKSPACE}\\build_dir_x86;${WORKSPACE}\\build_dir\\tests\\integration\\Debug;${WORKSPACE}\\build_dir_x86\\tests\\integration\\Debug"
                         USER_AGENT_TESTS_SDK = "${USER_AGENT_TESTS_SDK}"
                         APIURL_TO_TEST = "${APIURL_TO_TEST}"
                         GTEST_FILTER = "${GTEST_FILTER}"
@@ -196,6 +205,7 @@ pipeline {
                             } else  {
                                 lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
                             }
+                            env.BUILD_DIR = WIN32_FLAG ? "build_dir_x86" : "build_dir"
                             lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
                                 dir("${windows_sources_workspace}") {
                                     script{
@@ -204,7 +214,7 @@ pipeline {
                                     }
                                     bat """
 
-                                    cd build_dir
+                                    cd %BUILD_DIR%
 
                                     tests\\\\unit\\\\Debug\\\\test_unit.exe
                                     if %ERRORLEVEL% NEQ 0 exit 1
@@ -227,7 +237,7 @@ pipeline {
                                         sh """
                                             tar czf dumps.tgz dumps || true
                                             tar czf procdump.tgz procdump*.log || true
-                                            tar czf pdbs.tgz build_dir/Debug/*.pdb build_dir/tests/integration/Debug/*.pdb
+                                            tar czf pdbs.tgz $BUILD_DIR/Debug/*.pdb $BUILD_DIR/tests/integration/Debug/*.pdb
                                             exit ${integration_tests_error}
                                         """
                                     }
@@ -249,6 +259,8 @@ pipeline {
                 always {
                     archiveArtifacts artifacts: "build_dir/*.log", allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: "build_dir/*.log.gz", allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: "build_dir_x86/*.log", allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: "build_dir_x86/*.log.gz", allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: 'dumps.tgz', allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: 'pdbs.tgz', allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: 'procdump.tgz', allowEmptyArchive: true, fingerprint: true
