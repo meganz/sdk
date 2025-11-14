@@ -79,7 +79,15 @@ enum class NodeMatchByFSIDResult
      *
      * The source and target nodes have mismatching file fingerprints.
      */
-    DifferentFingerprint
+    DifferentFingerprint,
+
+    /**
+     * @brief File fingerprints differ only in mtime.
+     *
+     * The source and target nodes have mismatching file fingerprints but only in mtime (CRC, Size
+     * and isValid match).
+     */
+    DifferentFingerprintOnlyMtime,
 };
 
 /**

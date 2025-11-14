@@ -52,12 +52,21 @@ NodeMatchByFSIDResult
             return NodeMatchByFSIDResult::SourceIsExcluded; // Default to exclusion on invalid state
     }
 
-    // IMPORTANT: Ensure that we are not mixing two different files whose FSIDs have been reused.
-    if (source.nodetype == FILENODE && target.fingerprint != source.fingerprint &&
-        target.fingerprint != source.realFingerprint)
-        return NodeMatchByFSIDResult::DifferentFingerprint;
+    if (auto sameFp = source.nodetype != FILENODE || target.fingerprint == source.fingerprint ||
+                      target.fingerprint == source.realFingerprint;
+        sameFp)
+    {
+        return NodeMatchByFSIDResult::Matched;
+    }
 
-    return NodeMatchByFSIDResult::Matched;
+    if (auto sameFpExceptMtime = target.fingerprint.equalExceptMtime(source.fingerprint) ||
+                                 target.fingerprint.equalExceptMtime(source.realFingerprint);
+        sameFpExceptMtime)
+    {
+        return NodeMatchByFSIDResult::DifferentFingerprintOnlyMtime;
+    }
+
+    return NodeMatchByFSIDResult::DifferentFingerprint;
 }
 
 bool FindLocalNodeByFSIDPredicate::operator()(LocalNode& localNode)
@@ -76,8 +85,9 @@ bool FindLocalNodeByFSIDPredicate::operator()(LocalNode& localNode)
     const SourceNodeMatchByFSIDContext sourceContext{isFsidReused(localNode),
                                                      localNode.exclusionState()};
 
-    switch (
-        areNodesMatchedByFsidEquivalent(sourceNodeAttributes, mTargetNodeAttributes, sourceContext))
+    const auto compRes =
+        areNodesMatchedByFsidEquivalent(sourceNodeAttributes, mTargetNodeAttributes, sourceContext);
+    switch (compRes)
     {
         case NodeMatchByFSIDResult::Matched:
         {
@@ -95,7 +105,14 @@ bool FindLocalNodeByFSIDPredicate::operator()(LocalNode& localNode)
             return false;
         }
         case NodeMatchByFSIDResult::DifferentFingerprint:
+        case NodeMatchByFSIDResult::DifferentFingerprintOnlyMtime:
         {
+            if (compRes == NodeMatchByFSIDResult::DifferentFingerprintOnlyMtime)
+            {
+                LOG_err << "areNodesMatchedByFsidEquivalent: fingerprint differs only in mtime: "
+                        << localNode.getLocalPath().toPath(true);
+            }
+
             if (mOnFingerprintMismatchDuringPutnodes)
             {
                 if (const auto upload =
