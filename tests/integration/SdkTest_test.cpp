@@ -3828,7 +3828,7 @@ TEST_F(SdkTestDownload, ConflictFileExistingName)
     const std::string itemName{"testItem"};
     const fs::path basePath = fs::current_path();
 
-    LOG_debug << "#### TEST1: Create Folder and File in local FS " << basePath << "####";
+    LOG_debug << "#### TEST1: Create Folder and File in local FS " << basePath.u8string() << "####";
     constexpr long long FILE_SIZE = 1;
     const sdk_test::LocalTempDir d{basePath / itemName};
     const sdk_test::LocalTempFile f{basePath / itemName / itemName, static_cast<size_t>(FILE_SIZE)};
