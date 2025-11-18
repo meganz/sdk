@@ -861,6 +861,13 @@ public:
     void stopxfer(File* f, TransferDbCommitter* committer);
     void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
 
+    error transferRemoteCopy(File* file,
+                             std::shared_ptr<Node> sameNode,
+                             const string& name,
+                             std::shared_ptr<Node> parent,
+                             int tag,
+                             std::optional<std::string> inboxTarget);
+
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 100;
 
@@ -1954,6 +1961,7 @@ public:
     void disabletransferresumption();
 
     void resumeTransfersForNotLoggedInInstance();
+    void resumeTransferFromDB();
 
     // application callbacks
     struct MegaApp* app;
