@@ -414,7 +414,7 @@ TEST_F(SdkTestSyncUploadsOperations, BasicFileUpload)
 {
     const auto cleanup = setCleanupFunction();
     auto mtime = fs::file_time_type::clock::now();
-    LOG_err << "[JDEBUG] BasicFileUpload (TC1) create `file1`";
+    LOG_err << "BasicFileUpload (TC1) create `file1`";
     ASSERT_NO_FATAL_FAILURE(createTestFile("dir1", "file1", "abcde", mtime, "CF1", true));
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 }
@@ -470,6 +470,7 @@ TEST_F(SdkTestSyncUploadsOperations, DISABLED_MultimediaFileUpload)
 TEST_F(SdkTestSyncUploadsOperations, MultimediaFileUpload)
 #endif
 {
+    const auto cleanup = setCleanupFunction();
     static const string VIDEO_FILE = "sample_video.mp4";
     static const std::string logPre = getLogPrefix();
     LOG_verbose << logPre << "Upload a multimedia file in a sync";

@@ -11,12 +11,6 @@
 #include "megautils.h"
 #include "SdkTestNodesSetUp.h"
 
-/* IMPORTANT:
- * In case we want to perform a FSnode `mtime` update, the new value must be greater than
- * `FS_MTIME_TOLERANCE_SECS` respect the previous one, otherwise it won't be detected
- */
-constexpr unsigned MIN_ALLOW_MTIME_DIFFERENCE = FS_MTIME_TOLERANCE_SECS + 1;
-
 namespace sdk_test
 {
 

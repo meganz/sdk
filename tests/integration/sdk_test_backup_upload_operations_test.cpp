@@ -417,22 +417,24 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
     // Add cleanup function to unregister listeners as soon as test fail/finish
     const auto cleanup = setCleanupFunction();
 
-    // Set TransferListener expectations
-    testing::Mock::VerifyAndClearExpectations(mMtl.get());
-    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
-    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
-
     constexpr unsigned numFiles{3};
     auto localBasePath{fs::absolute(getLocalFolderPath())};
     std::vector<std::shared_ptr<sdk_test::LocalTempFile>> localFiles;
+
+    auto mtime = fs::file_time_type::clock::now();
     for (unsigned i = 1; i <= numFiles; ++i)
     {
+        // Set TransferListener expectations
+        testing::Mock::VerifyAndClearExpectations(mMtl.get());
+        EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
+        EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
+
+        auto auxMtime = mtime + std::chrono::seconds(MIN_ALLOW_MTIME_DIFFERENCE * i);
         std::string filename = "file" + std::to_string(i);
         LOG_debug << logPre << "#### TC " << std::to_string(i) << "Creating local file `"
                   << filename << "` in Backup dir ####";
-        auto [res, localFile] = createLocalFileAndWaitForSync(localBasePath / filename,
-                                                              "abcde",
-                                                              fs::file_time_type::clock::now());
+        auto [res, localFile] =
+            createLocalFileAndWaitForSync(localBasePath / filename, "abcde", auxMtime);
 
         ASSERT_TRUE(res) << "Cannot create local file `" << filename << "`";
         localFiles.push_back(localFile);
@@ -562,11 +564,6 @@ TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
     // Add cleanup function to unregister listeners as soon as test fail/finish
     const auto cleanup = setCleanupFunction();
 
-    // Set TransferListener expectations
-    testing::Mock::VerifyAndClearExpectations(mMtl.get());
-    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
-    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
-
     std::unique_ptr<MegaSync> backupSync(megaApi[0]->getSyncByBackupId(getBackupId()));
     ASSERT_TRUE(backupSync) << "Cannot get backup sync";
     std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(backupSync->getMegaHandle()));
@@ -579,18 +576,27 @@ TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
 
     LOG_debug << logPre << "#### TC1: create (" << numFiles
               << ") local files and wait until back up has been completed ####";
+
+    auto mtime{fs::file_time_type::clock::now()};
     for (unsigned i = 1; i <= numFiles; ++i)
     {
+        // Set TransferListener expectations
+        testing::Mock::VerifyAndClearExpectations(mMtl.get());
+        EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
+        EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
+
+        const auto auxMtime{mtime + std::chrono::seconds(MIN_ALLOW_MTIME_DIFFERENCE * i)};
         std::string fn = "file" + std::to_string(i);
         filenames.emplace_back(fn);
         LOG_debug << logPre << "#### TC1." << std::to_string(i) << " Creating local file `" << fn
                   << "` in Backup dir ####";
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        auto mtime{fs::file_time_type::clock::now()};
-        auto [res, localFile] = createLocalFileAndWaitForSync(localBasePath / fn, "abcde", mtime);
+
+        auto [res, localFile] =
+            createLocalFileAndWaitForSync(localBasePath / fn, "abcde", auxMtime);
 
         ASSERT_TRUE(res) << "Cannot sync local file `" << fn << "`";
-        localFiles.push_back({localFile, mtime});
+        localFiles.push_back({localFile, auxMtime});
     }
 
     LOG_debug << logPre << "#### TC2: getNodesByFingerprint with and without mtime ####";

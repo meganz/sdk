@@ -37,6 +37,12 @@ struct MEGA_API InputStreamAccess
 // Tolerance threshold (in seconds) for filesystem modification time comparisons
 constexpr unsigned FS_MTIME_TOLERANCE_SECS = 2;
 
+/* IMPORTANT:
+ * In case we want to perform a `mtime` update, the new value must be greater than
+ * `FS_MTIME_TOLERANCE_SECS` respect the previous one, otherwise it won't be detected
+ */
+constexpr unsigned MIN_ALLOW_MTIME_DIFFERENCE = FS_MTIME_TOLERANCE_SECS + 1;
+
 // sparse file fingerprint, including size and mtime
 struct MEGA_API FileFingerprint : public Cacheable
 {
