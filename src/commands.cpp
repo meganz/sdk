@@ -1913,7 +1913,6 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         client->sctable->remove();
                         client->sctable.reset();
                         client->mNodeManager.reset();
-                        client->pendingsccommit = false;
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
 
@@ -6927,7 +6926,6 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                 client->sctable->truncate();
                 client->sctable->commit();
                 client->sctable->begin();
-                client->pendingsccommit = false;
             }
 
             mFirstChunkProcessed = true;
@@ -7212,7 +7210,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         client->sctable->truncate();
         client->sctable->commit();
         client->sctable->begin();
-        client->pendingsccommit = false;
     }
 
     for (;;)
@@ -7352,7 +7349,6 @@ bool CommandFetchNodes::parsingFinished()
     client->mNodeManager.initCompleted();  // (nodes already written into DB)
 
     client->initsc();
-    client->pendingsccommit = false;
     client->fetchnodestag = tag;
 
     WAIT_CLASS::bumpds();
