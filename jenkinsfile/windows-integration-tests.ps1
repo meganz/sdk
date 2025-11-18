@@ -11,7 +11,7 @@ If (-Not ((Test-Path Env:BUILD_ID) -Or (Test-Path Env:APIURL_TO_TEST))) {
 # Build directory should be "build_dir" for amd64 and "build_dir_x86" for x86
 # If not defined it will be "build_dir"
 If (-Not (Test-Path Env:BUILD_DIR)) {
-  Env:BUILD_DIR = "build_dir"
+  $Env:BUILD_DIR = "build_dir"
 }
 
 $procdump = "C:\Tools\procdump.exe"
