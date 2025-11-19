@@ -2463,8 +2463,11 @@ std::pair<bool, int64_t>
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         double durationSec = static_cast<double>(durationUs) / 1'000'000.0;
-        LOG_debug << "generateMetaMac: MAC computed in " << std::fixed << std::setprecision(6)
-                  << durationSec << " (s) for: " << ifAccess.nonblocking_localname.toPath(true);
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(6) << durationSec;
+
+        LOG_debug << "generateMetaMac: MAC computed in " << oss.str()
+                  << " (s) for: " << ifAccess.nonblocking_localname.toPath(true);
     }
     return res;
 }
