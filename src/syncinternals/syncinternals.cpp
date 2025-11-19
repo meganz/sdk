@@ -367,54 +367,11 @@ void clientUpload(MegaClient& mc,
     auto cloneNodeCandidate = findCloneNodeCandidate(mc, *upload, true /*excludeMtime*/);
     if (!cloneNodeCandidate)
     {
-        // Otherwise, proceed with the normal upload.
-        upload->tag = mc.nextreqtag();
-        upload->selfKeepAlive = upload;
-        mc.startxfer(PUT,
-                     upload.get(),
-                     committer,
-                     false,
-                     queueFirst,
-                     false,
-                     vo,
-                     nullptr,
-                     upload->tag);
+        upload->fullUpload(mc, committer, vo, queueFirst);
         return;
     }
 
-    if (auto isSameNode = cloneNodeCandidate->displayname() == upload->name &&
-                          cloneNodeCandidate->parentHandle() == upload->h;
-        isSameNode)
-    {
-        if (cloneNodeCandidate->mtime != upload->mtime)
-        {
-            LOG_err << "fsNode has changed just mtime respect cloudNode and it should have managed "
-                       "before: "
-                    << toNodeHandle(cloneNodeCandidate->nodehandle)
-                    << ". Falling back to full upload transfer / Cloning node";
-        }
-        else
-        {
-            LOG_err << "fsNode has not changed respect cloudNode but is has been detected as "
-                       "changed by sync engine: "
-                    << toNodeHandle(cloneNodeCandidate->nodehandle)
-                    << ". Falling back to full upload transfer / Cloning node";
-            assert(false && "fsNode has not changed respect cloudNode");
-        }
-    }
-
-    // We have found a candidate node to clone with a valid key, call putNodesToCloneNode.
-    const auto displayPath = cloneNodeCandidate->displaypath();
-    LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for "
-              << upload->sourceLocalname;
-
-    // completion function is supplied to putNodes command
-    upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNodeCandidate.get());
-    // Set `true` even though no actual data transfer occurred, we're sending putnodes to clone
-    // node instead
-    upload->wasFileTransferCompleted = true;
-    upload->upsyncStarted = true;
-    return;
+    upload->cloneNode(mc, cloneNodeCandidate, ovHandleIfShortcut);
 }
 
 /******************\

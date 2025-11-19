@@ -38,6 +38,7 @@ enum class CollisionResolution : uint8_t
 constexpr unsigned FILE_MAX_RETRIES = 16;
 constexpr unsigned FILE_IO_MAX_RETRIES = 6;
 constexpr unsigned FILE_SYNC_MAX_RETRIES = 8;
+class TransferDbCommitter; // Forward declaration
 
 // File is the base class for an upload or download, as managed by the SDK core.
 // Each Transfer consists of a list of File that all have the same content and fingerprint
@@ -295,7 +296,15 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     FileNodeKey fileNodeKey;
     std::string fileAttr;
 
-    // update node mtime
+    void fullUpload(MegaClient& client,
+                    mega::TransferDbCommitter& committer,
+                    const VersioningOption vo,
+                    const bool queueFirst);
+
+    void cloneNode(MegaClient& client,
+                   std::shared_ptr<Node> cloneNodeCandidate,
+                   const NodeHandle ovHandleIfShortcut);
+
     bool updateNodeMtime(MegaClient* client, std::shared_ptr<Node> node, const m_time_t newMtime);
     void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
     void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);

@@ -650,6 +650,54 @@ void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
     SyncTransfer_inClient::completed(t, source);
 }
 
+void SyncUpload_inClient::fullUpload(MegaClient& client,
+                                     TransferDbCommitter& committer,
+                                     const VersioningOption vo,
+                                     const bool queueFirst)
+{
+    tag = client.nextreqtag();
+    selfKeepAlive = shared_from_this();
+    client.startxfer(PUT, this, committer, false, queueFirst, false, vo, nullptr, tag);
+}
+
+void SyncUpload_inClient::cloneNode(MegaClient& client,
+                                    std::shared_ptr<Node> cloneNodeCandidate,
+                                    const NodeHandle ovHandleIfShortcut)
+{
+    if (auto isSameNode =
+            cloneNodeCandidate->displayname() == name && cloneNodeCandidate->parentHandle() == h;
+        isSameNode)
+    {
+        if (cloneNodeCandidate->mtime != mtime)
+        {
+            LOG_err << "fsNode has changed just mtime respect cloudNode and it should have managed "
+                       "before: "
+                    << toNodeHandle(cloneNodeCandidate->nodehandle)
+                    << ". Falling back to full upload transfer / Cloning node";
+        }
+        else
+        {
+            LOG_err << "fsNode has not changed respect cloudNode but is has been detected as "
+                       "changed by sync engine: "
+                    << toNodeHandle(cloneNodeCandidate->nodehandle)
+                    << ". Falling back to full upload transfer / Cloning node";
+            assert(false && "fsNode has not changed respect cloudNode");
+        }
+    }
+
+    // We have found a candidate node to clone with a valid key, call putNodesToCloneNode.
+    const auto displayPath = cloneNodeCandidate->displaypath();
+    LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for "
+              << sourceLocalname;
+
+    // completion function is supplied to putNodes command
+    sendPutnodesToCloneNode(&client, ovHandleIfShortcut, cloneNodeCandidate.get());
+    // Set `true` even though no actual data transfer occurred, we're sending putnodes to clone
+    // node instead
+    wasFileTransferCompleted = true;
+    upsyncStarted = true;
+}
+
 bool SyncUpload_inClient::updateNodeMtime(MegaClient* client,
                                           std::shared_ptr<Node> node,
                                           const m_time_t newMtime)
