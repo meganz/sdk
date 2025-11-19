@@ -335,15 +335,64 @@ void clientUpload(MegaClient& mc,
                   const NodeHandle ovHandleIfShortcut)
 {
     assert(!upload->wasStarted);
-    upload->wasStarted = true;
+    auto mtimeCompletion = [&mc,
+                            vo,
+                            queueFirst,
+                            ovHandleIfShortcut,
+                            uploadWptr = upload->weak_from_this()](NodeHandle h, Error e)
+    {
+        if (auto u = uploadWptr.lock())
+        {
+            // Set `upSyncFailed` to `False` regardless of settAttr result.
+            // - If setAttr succeeded => upSyncFailed must be `False`
+            // - If setAttr failed we want to execute fallback mechanism (Full upload or Clone
+            // Node), so we need to reset flag anyway
+            u->wasJustMtimeChanged = false;
+            u->upsyncFailed = false;
 
+            if (auto setMtimeSucceeded = e == API_OK; setMtimeSucceeded)
+            {
+                // Let the engine know the setAttr has been completed successfully.
+                u->upsyncResultHandle = h;
+                u->wasUpsyncCompleted.store(true);
+                return;
+            }
+
+            if (auto cloneNodeCandidate = findCloneNodeCandidate(mc, *u, true /*excludeMtime*/);
+                cloneNodeCandidate)
+            {
+                LOG_err << "clientUpload (Update mTime): Error(" << e << "), Node("
+                        << toNodeHandle(h) << "). Falling back to Cloning node";
+                u->cloneNode(mc, cloneNodeCandidate, ovHandleIfShortcut);
+                return;
+            }
+
+            // We need to queue full opload operation again as commiter provided to
+            // clientUpload may not be valid
+            LOG_err << "clientUpload (Update mTime): Error(" << e << "), Node(" << toNodeHandle(h)
+                    << "). Falling back to full upload transfer";
+
+            mc.syncs.queueClient(
+                [uploadWptr = u->weak_from_this(), vo, queueFirst](MegaClient& mc,
+                                                                   TransferDbCommitter& committer)
+                {
+                    if (auto u = uploadWptr.lock())
+                    {
+                        u->fullUpload(mc, committer, vo, queueFirst);
+                    }
+                });
+        }
+    };
+
+    upload->wasStarted = true;
     if (upload->wasJustMtimeChanged)
     {
         auto parent = mc.nodeByHandle(upload->h);
         auto node = parent ? mc.childnodebyname(parent.get(), upload->name.c_str()) : nullptr;
         if (node)
         {
-            if (auto immediateResult = upload->updateNodeMtime(&mc, node, upload->mtime);
+            if (auto immediateResult =
+                    upload->updateNodeMtime(&mc, node, upload->mtime, std::move(mtimeCompletion));
                 immediateResult == API_OK)
             {
                 // Set `true` even though no actual data transfer occurred, we're updating node's
@@ -364,14 +413,14 @@ void clientUpload(MegaClient& mc,
         }
     }
 
-    auto cloneNodeCandidate = findCloneNodeCandidate(mc, *upload, true /*excludeMtime*/);
-    if (!cloneNodeCandidate)
+    if (auto cloneNodeCandidate = findCloneNodeCandidate(mc, *upload, true /*excludeMtime*/);
+        cloneNodeCandidate)
     {
-        upload->fullUpload(mc, committer, vo, queueFirst);
+        upload->cloneNode(mc, cloneNodeCandidate, ovHandleIfShortcut);
         return;
     }
 
-    upload->cloneNode(mc, cloneNodeCandidate, ovHandleIfShortcut);
+    upload->fullUpload(mc, committer, vo, queueFirst);
 }
 
 /******************\

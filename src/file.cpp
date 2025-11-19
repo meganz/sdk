@@ -655,6 +655,9 @@ void SyncUpload_inClient::fullUpload(MegaClient& client,
                                      const VersioningOption vo,
                                      const bool queueFirst)
 {
+    // Reset flags that signal transfer stage status
+    wasFileTransferCompleted = false;
+    upsyncStarted = false;
     tag = client.nextreqtag();
     selfKeepAlive = shared_from_this();
     client.startxfer(PUT, this, committer, false, queueFirst, false, vo, nullptr, tag);
@@ -664,27 +667,6 @@ void SyncUpload_inClient::cloneNode(MegaClient& client,
                                     std::shared_ptr<Node> cloneNodeCandidate,
                                     const NodeHandle ovHandleIfShortcut)
 {
-    if (auto isSameNode =
-            cloneNodeCandidate->displayname() == name && cloneNodeCandidate->parentHandle() == h;
-        isSameNode)
-    {
-        if (cloneNodeCandidate->mtime != mtime)
-        {
-            LOG_err << "fsNode has changed just mtime respect cloudNode and it should have managed "
-                       "before: "
-                    << toNodeHandle(cloneNodeCandidate->nodehandle)
-                    << ". Falling back to full upload transfer / Cloning node";
-        }
-        else
-        {
-            LOG_err << "fsNode has not changed respect cloudNode but is has been detected as "
-                       "changed by sync engine: "
-                    << toNodeHandle(cloneNodeCandidate->nodehandle)
-                    << ". Falling back to full upload transfer / Cloning node";
-            assert(false && "fsNode has not changed respect cloudNode");
-        }
-    }
-
     // We have found a candidate node to clone with a valid key, call putNodesToCloneNode.
     const auto displayPath = cloneNodeCandidate->displaypath();
     LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for "
@@ -700,34 +682,10 @@ void SyncUpload_inClient::cloneNode(MegaClient& client,
 
 bool SyncUpload_inClient::updateNodeMtime(MegaClient* client,
                                           std::shared_ptr<Node> node,
-                                          const m_time_t newMtime)
+                                          const m_time_t newMtime,
+                                          std::function<void(NodeHandle, Error)>&& completion)
 {
-    weak_ptr<SyncUpload_inClient> self = shared_from_this();
-    return client->updateNodeMtime(node,
-                                   newMtime,
-                                   [node, self](NodeHandle, Error e)
-                                   {
-                                       // Is the originating SyncUpload_inClient still alive
-                                       if (auto s = self.lock())
-                                       {
-                                           if (e != API_OK)
-                                           {
-                                               LOG_err << "clientUpload (Update mTime): Error(" << e
-                                                       << "), Node("
-                                                       << toNodeHandle(node->nodehandle) << ")";
-                                               s->upsyncResultHandle.set6byte(UNDEF);
-                                           }
-                                           else
-                                           {
-                                               s->upsyncResultHandle.set6byte(node->nodehandle);
-                                           }
-
-                                           // Let the engine know the setAttr has been completed.
-                                           s->upsyncFailed = e != API_OK;
-                                           s->wasJustMtimeChanged = false;
-                                           s->wasUpsyncCompleted.store(true);
-                                       }
-                                   });
+    return client->updateNodeMtime(node, newMtime, std::move(completion));
 }
 
 void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle)
