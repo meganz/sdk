@@ -715,16 +715,16 @@ bool SyncUpload_inClient::updateNodeMtime(MegaClient* client,
                                                LOG_err << "clientUpload (Update mTime): Error(" << e
                                                        << "), Node("
                                                        << toNodeHandle(node->nodehandle) << ")";
-                                               s->upsyncFailed = e != API_OK;
                                                s->upsyncResultHandle.set6byte(UNDEF);
                                            }
-
-                                           s->upsyncResultHandle.set6byte(node->nodehandle);
-
-                                           // Track the result of its putnodes request.
-                                           s->wasJustMtimeChanged = false;
+                                           else
+                                           {
+                                               s->upsyncResultHandle.set6byte(node->nodehandle);
+                                           }
 
                                            // Let the engine know the setAttr has been completed.
+                                           s->upsyncFailed = e != API_OK;
+                                           s->wasJustMtimeChanged = false;
                                            s->wasUpsyncCompleted.store(true);
                                        }
                                    });
