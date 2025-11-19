@@ -6950,18 +6950,26 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                      });
 
     // Node objects (one by one)
-    auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
-    {
-        if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true,
-                             mMissingParentNodes, mPreviousHandleForAlert,
-                             nullptr, // allParents disabled because Syncs::triggerSync
-                             // does nothing when MegaClient::fetchingnodes is true
-                             nullptr, nullptr) != 1)
+    auto f = mFilters.emplace(
+        "{[f{",
+        [this, client](JSON* json)
         {
-            return false;
-        }
-        return json->leaveobject();
-    });
+            if (client->readnode(json,
+                                 0,
+                                 PUTNODES_APP,
+                                 nullptr,
+                                 false,
+                                 true,
+                                 mMissingParentNodes,
+                                 mPreviousHandleForAlert,
+                                 nullptr // allParents disabled because Syncs::triggerSync
+                                 // does nothing when MegaClient::fetchingnodes is true
+                                 ) != 1)
+            {
+                return false;
+            }
+            return json->leaveobject();
+        });
 
     // Node versions (one by one)
     mFilters.emplace("{[f2{", f.first->second);
@@ -7221,7 +7229,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         {
             case makeNameid("f"):
                 // nodes
-                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true, nullptr, nullptr))
+                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true))
                 {
                     client->fetchingnodes = false;
                     client->mNodeManager.cleanNodes();
@@ -7232,7 +7240,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
 
             case makeNameid("f2"):
                 // old versions
-                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true, nullptr, nullptr))
+                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true))
                 {
                     client->fetchingnodes = false;
                     client->mNodeManager.cleanNodes();

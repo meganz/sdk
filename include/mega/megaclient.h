@@ -1857,8 +1857,8 @@ public:
     bool sc_checkActionPacket(Node* lastAPDeletedNode);
 
     void sc_updatenode();
-    std::shared_ptr<Node> sc_deltree();
-    handle sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete);
+    std::shared_ptr<Node> sc_deltree(bool& moveOperation);
+    handle sc_newnodes();
     void sc_contacts();
     void sc_fileattr();
     void sc_userattr();
@@ -1900,7 +1900,7 @@ public:
     unsigned addnode(sharedNode_vector* v, std::shared_ptr<Node> n) const;
 
     // read node tree from JSON object
-    void readtree(JSON*, Node* priorActionpacketDeletedNode, bool& firstHandleMatchedDelete);
+    void readtree(JSON*);
 
     // converts UTF-8 to 32-bit word array
     static char* utf8_to_a32forjs(const char*, int*);
@@ -2437,16 +2437,27 @@ public:
 #endif
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMismatchedDelete);
+    int readnodes(JSON*,
+                  int,
+                  putsource_t,
+                  vector<NewNode>*,
+                  bool modifiedByThisClient,
+                  bool applykeys);
 
     // process a JSON node object
     // possible results:
     // 0 -> no object found
     // 1 -> successful parsing
     // any other number -> parsing error
-    int readnode(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys,
-                 NodeManager::MissingParentNodes& missingParentNodes, handle &previousHandleForAlert, set<NodeHandle> *allParents,
-                 Node *priorActionpacketDeletedNode, bool *firstHandleMatchesDelete);
+    int readnode(JSON*,
+                 int,
+                 putsource_t,
+                 vector<NewNode>*,
+                 bool modifiedByThisClient,
+                 bool applykeys,
+                 NodeManager::MissingParentNodes& missingParentNodes,
+                 handle& previousHandleForAlert,
+                 set<NodeHandle>* allParents);
 
     void readok(JSON*);
     void readokelement(JSON*);
