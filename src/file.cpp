@@ -20,14 +20,17 @@
  */
 
 #include "mega/file.h"
-#include "mega/transfer.h"
-#include "mega/transferslot.h"
+
+#include "mega/base64.h"
+#include "mega/command.h"
+#include "mega/heartbeats.h"
+#include "mega/logging.h"
+#include "mega/megaapp.h"
 #include "mega/megaclient.h"
 #include "mega/sync.h"
-#include "mega/command.h"
-#include "mega/logging.h"
-#include "mega/heartbeats.h"
-#include "mega/megaapp.h"
+#include "mega/tlv.h"
+#include "mega/transfer.h"
+#include "mega/transferslot.h"
 
 namespace mega {
 
@@ -446,7 +449,7 @@ void File::sendPutnodesOfUpload(MegaClient* client,
     else
     {
         NodeHandle th = h;
-
+        std::shared_ptr<Node> parentNode = client->nodeByHandle(th);
 
         if (syncxfer)
         {
@@ -457,11 +460,28 @@ void File::sendPutnodesOfUpload(MegaClient* client,
             // for manual upload, let the API apply the `ov` according to the global versions_disabled flag.
             // with versions on, the API will make the ov the first version of this new node
             // with versions off, the API will permanently delete `ov`, replacing it with this (and attaching the ov's old versions)
-            std::shared_ptr<Node> n = client->nodeByHandle(th);
-            if (std::shared_ptr<Node> ovNode = client->getovnode(n.get(), &name))
+            if (parentNode)
             {
-                newnode->ovhandle = ovNode->nodeHandle();
+                if (std::shared_ptr<Node> ovNode = client->getovnode(parentNode.get(), &name))
+                {
+                    newnode->ovhandle = ovNode->nodeHandle();
+                }
             }
+        }
+
+        const bool inIncomingShare = parentNode && parentNode->matchesOrHasAncestorMatching(
+                                                       [](const Node& node)
+                                                       {
+                                                           return node.inshare != nullptr;
+                                                       });
+
+        Pitag pitag;
+        pitag.purpose = PitagPurpose::Upload;
+        pitag.nodeType = PitagNodeType::File;
+        pitag.target = PitagTarget::CloudDrive;
+        if (inIncomingShare)
+        {
+            pitag.target = PitagTarget::IncomingShare;
         }
 
         client->queueCommand(new CommandPutNodes(client,
@@ -474,7 +494,8 @@ void File::sendPutnodesOfUpload(MegaClient* client,
                                                  nullptr,
                                                  std::move(completion),
                                                  canChangeVault,
-                                                 {})); // customerIpPort
+                                                 {}, // customerIpPort
+                                                 pitag));
     }
 }
 
@@ -529,6 +550,7 @@ void File::sendPutnodesToCloneNode(MegaClient* client,
         NodeHandle th = h;
         assert(syncxfer);
         newnode->ovhandle = ovHandle;
+        Pitag pitag;
         client->queueCommand(new CommandPutNodes(client,
                                                  th,
                                                  NULL,
@@ -539,10 +561,10 @@ void File::sendPutnodesToCloneNode(MegaClient* client,
                                                  nullptr,
                                                  std::move(completion),
                                                  canChangeVault,
-                                                 {})); // customerIpPort
+                                                 {},
+                                                 pitag)); // customerIpPort
     }
 }
-
 
 void File::terminated(error)
 {

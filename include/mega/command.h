@@ -700,8 +700,72 @@ public:
     CommandAttachFA(MegaClient*, handle, fatype, const std::string& encryptedAttributes, int);
 };
 
+#include <array>
 
-class MEGA_API CommandPutNodes : public Command
+enum class PitagPurpose : char
+{
+    Unknown = '.',
+    Upload = 'U',
+    CreateFolder = 'F',
+    Import = 'I',
+    Copy = 'C',
+    Sync = 'S',
+    Backup = 'B',
+    Password = 'P',
+    Fuse = 'f',
+    Helpdesk = 'H'
+};
+
+enum class PitagTrigger : char
+{
+    NotApplicable = '.',
+    Picker = 'p',
+    DragAndDrop = 'd',
+    Camera = 'c',
+    Scanner = 's',
+    SyncAlgorithm = 'a'
+};
+
+enum class PitagNodeType : char
+{
+    NotApplicable = '.',
+    Folder = 'F',
+    File = 'f'
+};
+
+enum class PitagTarget : char
+{
+    NotApplicable = '.',
+    CloudDrive = 'D',
+    Chat1To1 = 'c',
+    ChatGroup = 'C',
+    NoteToSelf = 's',
+    IncomingShare = 'i'
+};
+
+enum class PitagImportSource : char
+{
+    NotApplicable = '.',
+    FolderLink = 'F',
+    FileLink = 'f',
+    AlbumLink = 'A',
+    CloudDrive = 'D',
+    Chat1To1 = 'c',
+    ChatGroup = 'C',
+    NoteToSelf = 's',
+    IncomingShare = 'i'
+};
+
+struct Pitag
+{
+    PitagPurpose purpose = PitagPurpose::Unknown;
+    PitagTrigger trigger = PitagTrigger::NotApplicable;
+    PitagNodeType nodeType = PitagNodeType::NotApplicable;
+    PitagTarget target = PitagTarget::NotApplicable;
+    PitagImportSource importSource = PitagImportSource::NotApplicable;
+};
+
+class MEGA_API CommandPutNodes: public Command
 {
 public:
     using Completion = std::function<void(const Error&,
@@ -740,10 +804,11 @@ public:
                     const char* cauth,
                     Completion&&,
                     bool canChangeVault,
-                    const std::string& customerIpPort);
+                    const std::string& customerIpPort,
+                    const Pitag pitag);
 };
 
-class MEGA_API CommandSetAttr : public Command
+class MEGA_API CommandSetAttr: public Command
 {
 public:
     using Completion = std::function<void(NodeHandle, Error)>;

@@ -64,6 +64,7 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
             nn[i].nodekey.assign((char*)buf, static_cast<size_t>(t));
         }
 
+        Pitag pitag;
         client->queueCommand(new CommandPutNodes(client,
                                                  NodeHandle(),
                                                  u->uid.c_str(),
@@ -74,7 +75,8 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
                                                  nullptr,
                                                  std::move(completion),
                                                  false, // canChangeVault
-                                                 {})); // customerIpPort
+                                                 {}, // customerIpPort
+                                                 pitag));
         // 'canChangeVault' is false here because this code path is to write to user's Inbox, which
         // should not require "vw:1"
     }
