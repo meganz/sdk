@@ -340,37 +340,28 @@ void clientUpload(MegaClient& mc,
     if (upload->wasJustMtimeChanged)
     {
         auto parent = mc.nodeByHandle(upload->h);
-        if (!parent)
+        auto node = parent ? mc.childnodebyname(parent.get(), upload->name.c_str()) : nullptr;
+        if (node)
         {
-            LOG_warn << "clientUpload: Parent Node not found";
-            upload->upsyncFailed = true;
-            upload->wasUpsyncCompleted.store(true);
-            return;
+            if (auto immediateResult = upload->updateNodeMtime(&mc, node, upload->mtime);
+                immediateResult == API_OK)
+            {
+                // Set `true` even though no actual data transfer occurred, we're updating node's
+                // mtime instead
+                upload->wasFileTransferCompleted = true;
+                upload->upsyncStarted = true;
+                return;
+            }
+            LOG_warn << "clientUpload: UpdateMtime immediate error. Falling back to full upload "
+                        "transfer / Cloning node";
         }
-
-        auto node = mc.childnodebyname(parent.get(), upload->name.c_str());
-        if (!node)
+        else
         {
-            LOG_warn << "clientUpload: Target Node not found";
-            upload->upsyncFailed = true;
-            upload->wasUpsyncCompleted.store(true);
-            return;
+            LOG_warn << "clientUpload: "
+                     << (!parent ? "Parent Node not found" : "Cloud Node not found")
+                     << ". Falling back to full upload transfer / Cloning node";
+            assert(false);
         }
-
-        if (auto immediateResult = upload->updateNodeMtime(&mc, node, upload->mtime);
-            immediateResult != API_OK)
-        {
-            LOG_warn << "clientUpload: UpdateMtime immediate error";
-            upload->upsyncFailed = true;
-            upload->wasUpsyncCompleted.store(true);
-            return;
-        }
-
-        // Set `true` even though no actual data transfer occurred, we're updating node's mtime
-        // instead
-        upload->wasFileTransferCompleted = true;
-        upload->upsyncStarted = true;
-        return;
     }
 
     auto cloneNodeCandidate = findCloneNodeCandidate(mc, *upload, true /*excludeMtime*/);
@@ -399,18 +390,15 @@ void clientUpload(MegaClient& mc,
         {
             LOG_err << "fsNode has changed just mtime respect cloudNode and it should have managed "
                        "before: "
-                    << toNodeHandle(cloneNodeCandidate->nodehandle);
-            assert(false && "fsNode has not changed respect cloudNode");
+                    << toNodeHandle(cloneNodeCandidate->nodehandle)
+                    << ". Falling back to full upload transfer / Cloning node";
         }
         else
         {
-            // Fallback to cloning node
-            // This should not happen as candidate node has same name META_MAC and FP (including
-            // mtime) than upload node It means that node has not changed but it has been detected
-            // as changed
-            LOG_err << "fsNode has not changed respect cloudNode but is was detected as changed by "
-                       "sync engine: "
-                    << toNodeHandle(cloneNodeCandidate->nodehandle);
+            LOG_err << "fsNode has not changed respect cloudNode but is has been detected as "
+                       "changed by sync engine: "
+                    << toNodeHandle(cloneNodeCandidate->nodehandle)
+                    << ". Falling back to full upload transfer / Cloning node";
             assert(false && "fsNode has not changed respect cloudNode");
         }
     }
@@ -439,30 +427,28 @@ void clientDownload(MegaClient& mc,
 {
     if (download->wasJustMtimeChanged)
     {
-        auto cloudNode = mc.nodeByHandle(download->h);
-        if (!cloudNode)
+        if (auto cloudNode = mc.nodeByHandle(download->h); cloudNode)
         {
-            LOG_warn << "clientDownload: Cloud Node not found";
-            download->wasDistributed = true;
-            download->wasFileTransferCompleted.store(false);
-            return;
-        }
+            if (mc.fsaccess->setmtimelocal(download->getLocalname(), cloudNode->mtime))
+            {
+                download->wasDistributed = true;
+                download->wasFileTransferCompleted.store(true);
+                return;
+            }
 
-        if (auto success = mc.fsaccess->setmtimelocal(download->getLocalname(), cloudNode->mtime);
-            success)
+            // [SDK-5551_TODO]: in case of transient error, this could be improved to retry
+            // setmtimelocal again before performing download transfer?
+            bool transient_err = mc.fsaccess->transient_error;
+            LOG_warn << "clientDownload: setmtimelocal failed with ("
+                     << (transient_err ? "Transient error" : "Non-transient error") << ")"
+                     << ". Falling back to full download transfer.";
+        }
+        else
         {
-            download->wasDistributed = true;
-            download->wasFileTransferCompleted.store(true);
-            return;
+            LOG_warn
+                << "clientDownload: Cloud node not found. Falling back to full download transfer.";
+            assert(false);
         }
-
-        bool transient_err = mc.fsaccess->transient_error;
-        LOG_warn << "clientDownload: setmtimelocal failed with ("
-                 << (transient_err ? "Transient error" : "Non-transient error") << ")"
-                 << ". Falling back to full download transfer";
-
-        // [SDK-5551_TODO]: in case of transient error, this could be improved to retry
-        // setmtimelocal again before performing download transfer?
     }
 
     // Proceed with the download transfer.
