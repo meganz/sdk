@@ -1992,9 +1992,6 @@ public:
 
     recursive_mutex nodeTreeMutex;
 
-    // there is data to commit to the database when possible
-    bool pendingsccommit;
-
     // transfer cache table
     unique_ptr<DbTable> tctable;
 

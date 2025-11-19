@@ -1977,7 +1977,6 @@ MegaClient::MegaClient(MegaApp* a,
 
     mNodeManager.reset();
     sctable.reset();
-    pendingsccommit = false;
     tctable = NULL;
     statusTable = nullptr;
     me = UNDEF;
@@ -2726,14 +2725,6 @@ void MegaClient::exec()
                                 pendingcs = NULL;
 
                                 notifypurge();
-                                if (sctable && pendingsccommit && !reqs.readyToSend() && scsn.ready())
-                                {
-                                    LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
-                                    sctable->commit();
-                                    sctable->begin();
-                                    app->notify_dbcommit();
-                                    pendingsccommit = false;
-                                }
 
                                 if (auto completion = std::move(mOnCSCompletion))
                                 {
@@ -5161,7 +5152,6 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
 
     sctable.reset();
     mNodeManager.setTable(nullptr);
-    pendingsccommit = false;
 
     statusTable.reset();
 
@@ -5349,7 +5339,6 @@ void MegaClient::removeCaches()
         mNodeManager.setTable(nullptr);
         sctable->remove();
         sctable.reset();
-        pendingsccommit = false;
     }
 
     if (statusTable)
@@ -5494,19 +5483,11 @@ bool MegaClient::procsc()
                     notifypurge();
                     if (sctable)
                     {
-                        if (!pendingcs && !csretrying && !reqs.readyToSend())
-                        {
-                            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
-                            sctable->commit();
-                            sctable->begin();
-                            app->notify_dbcommit();
-                            pendingsccommit = false;
-                        }
-                        else
-                        {
-                            LOG_debug << "Postponing DB commit until cs requests finish";
-                            pendingsccommit = true;
-                        }
+                        LOG_debug << "DB transaction COMMIT (sessionid: "
+                                  << string(sessionid, sizeof(sessionid)) << ")";
+                        sctable->commit();
+                        sctable->begin();
+                        app->notify_dbcommit();
                     }
                     break;
 
@@ -5533,7 +5514,6 @@ bool MegaClient::procsc()
                                 LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                 sctable->commit();
                                 sctable->begin();
-                                pendingsccommit = false;
                             }
 
                             WAIT_CLASS::bumpds();
@@ -5665,20 +5645,6 @@ bool MegaClient::procsc()
                             LOG_debug << "catchup complete. Still pending: " << mPendingCatchUps;
                             app->catchup_result();
                         }
-                    }
-
-                    if (pendingsccommit && sctable && !reqs.cmdsInflight() && scsn.ready())
-                    {
-                        LOG_debug << "Executing postponed DB commit 1";
-                        sctable->commit();
-                        sctable->begin();
-                        app->notify_dbcommit();
-                        pendingsccommit = false;
-                    }
-
-                    if (pendingsccommit)
-                    {
-                        LOG_debug << "Postponing DB commit until cs requests finish (spoonfeeding)";
                     }
 
 #ifdef ENABLE_SYNC
@@ -6156,7 +6122,6 @@ void MegaClient::initsc()
             LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
             sctable->commit();
             sctable->begin();
-            pendingsccommit = false;
         }
     }
 }
@@ -12306,8 +12271,6 @@ void MegaClient::opensctable()
                 handleDbError(error);
             }));
 
-            pendingsccommit = false;
-
             if (sctable)
             {
                 DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
@@ -15869,7 +15832,6 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             fnstats.timeToResult = fnstats.timeToCached;
 
             statecurrent = false;
-            pendingsccommit = false;
 
             // allow sc requests to start
             scsn.setScsn(cachedscsn);
@@ -16025,8 +15987,6 @@ void MegaClient::resetScForFetchnodes()
     // we wait until this moment, because when `f` is queued, there may be
     // other commands queued ahead of it, and those may need sc responses in order
     // to fully complete, and so we can't reset these members at that time.
-
-    pendingsccommit = false;
 
     // prevent the processing of previous sc requests
     pendingsc.reset();
