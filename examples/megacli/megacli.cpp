@@ -40,6 +40,7 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -1392,6 +1393,11 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         if (type == ATTR_ED25519_PUBK)
         {
             cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
+        }
+
+        if (type == mega::ATTR_S4_CONTAINER)
+        {
+            cout << "S4 container: " << client->mS4Container << endl;
         }
     }
 
@@ -5446,6 +5452,14 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxloglinesize, sequence(text("setmaxloglinesize"), wholenumber(10000)));
+    p->Add(exec_setlogjson,
+           sequence(text("setlogjson"),
+                    repeat(either(flag("-chunk-received"),
+                                  flag("-chunk-processing"),
+                                  flag("-chunk-consumed"),
+                                  flag("-sending"),
+                                  flag("-nonchunk-received")))));
+    p->Add(exec_getlogjson, sequence(text("getlogjson")));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
     p->Add(exec_showattrs, sequence(text("showattrs"), opt(either(text("on"), text("off")))));
@@ -7194,7 +7208,6 @@ void exec_open(autocomplete::ACState& s)
                                NULL,
 #endif
                                gfx,
-                               "Gk8DyQBS",
                                "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
                                    MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION),
                                2,
@@ -9507,8 +9520,38 @@ void exec_setmaxloglinesize(autocomplete::ACState& s)
 {
     if (s.words.size() > 1)
     {
-        SimpleLogger::setMaxPayloadLogSize(atoll(s.words[1].s.c_str()));
+        SimpleLogger::setMaxPayloadLogSize(static_cast<size_t>(std::stoul(s.words[1].s)));
     }
+}
+
+static void printLogJson()
+{
+    const uint32_t value = JSONLog::get();
+    std::ios_base::fmtflags f(cout.flags());
+    cout << "Current JSON log settings: 0x" << std::hex << value << "\n";
+    cout << "-chunk-received: " << ((value & JSONLog::CHUNK_RECEIVED) ? "on" : "off") << "\n";
+    cout << "-chunk-processing: " << ((value & JSONLog::CHUNK_PROCESSING) ? "on" : "off") << "\n";
+    cout << "-chunk-consumed: " << ((value & JSONLog::CHUNK_CONSUMED) ? "on" : "off") << "\n";
+    cout << "-sending:  " << ((value & JSONLog::SENDING) ? "on" : "off") << "\n";
+    cout << "-nonchunk-received: " << ((value & JSONLog::NONCHUNK_RECEIVED) ? "on" : "off") << "\n";
+    cout.flags(f);
+}
+
+void exec_setlogjson(autocomplete::ACState& s)
+{
+    uint32_t newValue = JSONLog::NONE;
+    newValue |= s.extractflag("-chunk-received") ? JSONLog::CHUNK_RECEIVED : 0;
+    newValue |= s.extractflag("-chunk-processing") ? JSONLog::CHUNK_PROCESSING : 0;
+    newValue |= s.extractflag("-chunk-consumed") ? JSONLog::CHUNK_CONSUMED : 0;
+    newValue |= s.extractflag("-sending") ? JSONLog::SENDING : 0;
+    newValue |= s.extractflag("-nonchunk-received") ? JSONLog::NONCHUNK_RECEIVED : 0;
+    JSONLog::set(newValue);
+    printLogJson();
+}
+
+void exec_getlogjson(autocomplete::ACState&)
+{
+    printLogJson();
 }
 
 void exec_drivemonitor([[maybe_unused]] autocomplete::ACState& s)
@@ -11518,7 +11561,6 @@ int main(int argc, char* argv[])
                             httpIO,
                             dbAccess,
                             gfx,
-                            "Gk8DyQBS",
                             megacliUserAgent.c_str(),
                             2,
                             clientType);

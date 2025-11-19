@@ -1156,8 +1156,7 @@ public:
      * - `API_EACCESS`:
      *      + `INVALID_LOCAL_TYPE` if the path is not a directory.
      */
-    SyncErrorInfo isValidLocalSyncRoot(const LocalPath& rootPath,
-                                       const handle backupIdToExclude) const;
+    SyncErrorInfo isValidLocalSyncRoot(const LocalPath& rootPath, const handle backupIdToExclude);
 
     /**
      * @brief Check if a SyncConfig could be used to create a sync
@@ -1382,9 +1381,6 @@ public:
 
     // SDK version
     const char* version();
-
-    // get the last available version of the app
-    void getlastversion(const char *appKey);
 
     // get a local ssl certificate for communications with the webclient
     void getlocalsslcertificate();
@@ -2118,9 +2114,6 @@ public:
     // key protecting non-shareable GPS coordinates in nodes (currently used only by CUv2 in iOS)
     string unshareablekey;
 
-    // application key
-    char appkey[16];
-
     // incoming shares to be attached to a corresponding node
     newshare_list newshares;
 
@@ -2256,6 +2249,12 @@ public:
 
     // server-client request sequence number
     SCSN scsn;
+
+    // status of S4
+    std::atomic<bool> mIsS4Enabled;
+
+    // node's handle of S4 container
+    std::atomic<NodeHandle> mS4Container;
 
     // process an array of users from the API server
     bool readusers(JSON*, bool actionpackets);
@@ -2817,7 +2816,14 @@ public:
         PASSWORD_MANAGER,
     };
 
-    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount, ClientType clientType = ClientType::DEFAULT);
+    MegaClient(MegaApp*,
+               shared_ptr<Waiter>,
+               HttpIO*,
+               DbAccess*,
+               GfxProc*,
+               const char*,
+               unsigned workerThreadCount,
+               ClientType clientType = ClientType::DEFAULT);
     ~MegaClient();
 
 struct MyAccountData

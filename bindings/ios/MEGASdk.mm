@@ -2069,6 +2069,18 @@ using namespace mega;
     }
 }
 
+#pragma mark - S4 Attributes Requests
+
+- (BOOL)isS4Enabled {
+    if (self.megaApi == nil) return NO;
+    return self.megaApi->isS4Enabled();
+}
+
+- (MEGAHandle)getS4ContainerHandle {
+    if (self.megaApi == nil) return ::mega::INVALID_HANDLE;
+    return self.megaApi->getS4Container();
+}
+
 #pragma mark - Account management Requests
 
 - (void)getAccountDetailsWithDelegate:(id<MEGARequestDelegate>)delegate {
@@ -3202,17 +3214,17 @@ using namespace mega;
                         page:(nullable MEGASearchPage *)page
                  cancelToken:(MEGACancelToken *)cancelToken {
     if (self.megaApi == nil) return nil;
-
+    
     auto cppFilter = [self generateSearchFilterFrom:filter];
     auto cppPage   = [self generateSearchPageFrom:page];
-
+    
     MegaNodeList *nodeList = self.megaApi->search(
-        cppFilter.get(),
-        static_cast<int>(orderType),
-        cancelToken.getCPtr,
-        cppPage.get()
-    );
-
+                                                  cppFilter.get(),
+                                                  static_cast<int>(orderType),
+                                                  cancelToken.getCPtr,
+                                                  cppPage.get()
+                                                  );
+    
     return [MEGANodeList.alloc initWithNodeList:nodeList cMemoryOwn:YES];
 }
 
@@ -3221,17 +3233,17 @@ using namespace mega;
                                       page:(nullable MEGASearchPage *)page
                                cancelToken:(MEGACancelToken *)cancelToken {
     if (self.megaApi == nil) return nil;
-
+    
     auto cppFilter = [self generateSearchFilterFrom:filter];
     auto cppPage   = [self generateSearchPageFrom:page];
-
+    
     MegaNodeList *nodeList = self.megaApi->getChildren(
-        cppFilter.get(),
-        static_cast<int>(orderType),
-        cancelToken.getCPtr,
-        cppPage.get()
-    );
-
+                                                       cppFilter.get(),
+                                                       static_cast<int>(orderType),
+                                                       cancelToken.getCPtr,
+                                                       cppPage.get()
+                                                       );
+    
     return [MEGANodeList.alloc initWithNodeList:nodeList cMemoryOwn:YES];
 }
 

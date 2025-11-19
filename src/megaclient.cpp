@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "mega/hashcash.h"
 #include "mega/heartbeats.h"
+#include "mega/logging.h"
 #include "mega/mediafileattribute.h"
 #include "mega/network_connectivity_test.h"
 #include "mega/scoped_helpers.h"
@@ -132,6 +133,9 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
+
+// How many bytes to logging at most
+static constexpr size_t CONSUMED_CHUNK_MAX_LOGGING = 20;
 
 // -- JourneyID constructor and methods --
 MegaClient::JourneyID::JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, const LocalPath& rootPath) :
@@ -1870,6 +1874,8 @@ void MegaClient::init()
     statecurrent = false;
     actionpacketsCurrent = false;
     totalNodes.store(0);
+    mIsS4Enabled.store(0);
+    mS4Container.store(NodeHandle());
     faretrying = false;
 
 #ifdef ENABLE_SYNC
@@ -1929,7 +1935,6 @@ MegaClient::MegaClient(MegaApp* a,
                        HttpIO* h,
                        DbAccess* d,
                        GfxProc* g,
-                       const char* k,
                        const char* u,
                        unsigned workerThreadCount,
                        ClientType clientType):
@@ -2069,8 +2074,6 @@ MegaClient::MegaClient(MegaApp* a,
 
     scsn.clear();
     cachedscsn = UNDEF;
-
-    snprintf(appkey, sizeof appkey, "&ak=%s", k);
 
     // initialize useragent
     useragent = u;
@@ -2646,9 +2649,13 @@ void MegaClient::exec()
                                 if (pendingcs->mChunked)
                                 {
                                     size_t consumedBytes = reqs.serverChunk(pendingcs->data(), this);
-                                    LOG_verbose << "Consumed a chunk of " << consumedBytes << " bytes. "
-                                                << "Total: " << reqs.chunkedProgress() << " of "
-                                                << pendingcs->contentlength;
+                                    JSON_CHUNK_CONSUMED
+                                        << "Consumed a chunk of " << consumedBytes << " bytes. "
+                                        << "Total: " << reqs.chunkedProgress() << " of "
+                                        << pendingcs->contentlength << ". "
+                                        << MaxDirectMessage(pendingcs->data(),
+                                                            consumedBytes,
+                                                            CONSUMED_CHUNK_MAX_LOGGING);
                                     pendingcs->purge(consumedBytes);
                                 }
 
@@ -2701,7 +2708,12 @@ void MegaClient::exec()
                                     size_t consumedBytes = reqs.serverChunk(pendingcs->data(), this);
                                     if (consumedBytes)
                                     {
-                                        LOG_verbose << "Consumed the last chunk of " << consumedBytes << " bytes";
+                                        JSON_CHUNK_CONSUMED
+                                            << "Consumed the last chunk of " << consumedBytes
+                                            << " bytes. "
+                                            << MaxDirectMessage(pendingcs->data(),
+                                                                consumedBytes,
+                                                                CONSUMED_CHUNK_MAX_LOGGING);
                                     }
 
                                     // The requests should be already terminated
@@ -2929,7 +2941,6 @@ void MegaClient::exec()
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(idempotenceId);
                     pendingcs->posturl.append(getAuthURI());
-                    pendingcs->posturl.append(appkey);
                     pendingcs->posturl.append("&v=3");
 
                     if (lang.size())
@@ -3126,7 +3137,6 @@ void MegaClient::exec()
                     mPendingLocklessCS->posturl.append("cs?id=");
                     mPendingLocklessCS->posturl.append(idempotenceId);
                     mPendingLocklessCS->posturl.append(getAuthURI());
-                    mPendingLocklessCS->posturl.append(appkey);
                     mPendingLocklessCS->posturl.append("&v=3");
 
                     if (lang.size())
@@ -5358,11 +5368,6 @@ const char *MegaClient::version()
             "." TOSTRING(MEGA_MICRO_VERSION);
 }
 
-void MegaClient::getlastversion(const char *appKey)
-{
-    reqs.add(new CommandGetVersion(this, appKey));
-}
-
 void MegaClient::getlocalsslcertificate()
 {
     reqs.add(new CommandGetLocalSSLCertificate(this));
@@ -7545,6 +7550,8 @@ void MegaClient::sc_userattr()
                                         [[fallthrough]];
 
                                     // some attributes should be fetched upon invalidation
+                                    case ATTR_S4:
+                                    case ATTR_S4_CONTAINER:
                                     case ATTR_KEYS:
                                     case ATTR_AUTHRING:
                                     case ATTR_AUTHCU255:
@@ -10002,7 +10009,13 @@ error MegaClient::checkmove(Node* fn, Node* tn)
         tn = tn->parent.get();
     }
 
-    // condition #6: fn and tn must be in the same tree (same ultimate parent
+    // condition #6: fn cannot be the S4 container if S4 is enabled
+    if (mIsS4Enabled && fn->nodeHandle().eq(mS4Container))
+    {
+        return API_EACCESS;
+    }
+
+    // condition #7: fn and tn must be in the same tree (same ultimate parent
     // node or shared by the same user)
     for (;;)
     {
@@ -10337,6 +10350,12 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
     if (ststatus == STORAGE_PAYWALL)
     {
         return API_EPAYWALL;
+    }
+
+    // S4 container cannot be deleted if S4 is enabled
+    if (mIsS4Enabled && n->nodeHandle().eq(mS4Container))
+    {
+        return API_EACCESS;
     }
 
     bool kv = (keepversions && n->type == FILENODE);
@@ -14386,6 +14405,12 @@ error MegaClient::exportnode(
         return API_EACCESS;
     }
 
+    // the link associated to the S4 container cannot be deleted if S4 is enabled
+    if (mIsS4Enabled && n->nodeHandle().eq(mS4Container))
+    {
+        return API_EACCESS;
+    }
+
     // export node
     switch (n->type)
     {
@@ -17544,7 +17569,7 @@ std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& new
 }
 
 SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
-                                               const handle backupIdToExclude) const
+                                               const handle backupIdToExclude)
 {
     if (!localPath.isAbsolute() && !localPath.isURI())
         return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
@@ -17569,6 +17594,12 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
     if (!fsaccess->issyncsupported(rootPathWithoutEndingSeparator, isnetwork, auxSErr, syncWarning))
     {
         LOG_warn << "Unsupported filesystem";
+
+        if (isnetwork)
+        {
+            sendevent(800035, "Detected an attempt to setup a sync involving a network drive");
+        }
+
         return {API_EFAILED, UNSUPPORTED_FILE_SYSTEM, syncWarning};
     }
 
@@ -19204,8 +19235,6 @@ std::string MegaClient::getAuthURI(bool supressSID, bool supressAuthKey)
 void MegaClient::userfeedbackstore(const char *message)
 {
     string type = "feedback.";
-    type.append(&(appkey[4]));
-    type.append(".");
 
     string base64userAgent;
     base64userAgent.resize(useragent.size() * 4 / 3 + 4);

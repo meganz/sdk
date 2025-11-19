@@ -3644,8 +3644,18 @@ struct MegaRequestSyncFolderParams
 class MegaApiImpl : public MegaApp
 {
     public:
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
+        MegaApiImpl(MegaApi* api,
+                    MegaGfxProcessor* processor,
+                    const char* basePath,
+                    const char* userAgent,
+                    unsigned workerThreadCount,
+                    int clientType);
+        MegaApiImpl(MegaApi* api,
+                    MegaGfxProvider* provider,
+                    const char* basePath,
+                    const char* userAgent,
+                    unsigned workerThreadCount,
+                    int clientType);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -3772,11 +3782,13 @@ class MegaApiImpl : public MegaApp
         void resetCredentials(MegaUser* user, MegaRequestListener* listener = NULL);
         void setLogExtraForModules(bool networking, bool syncs);
         static void setLogLevel(int logLevel);
-        static void setMaxPayloadLogSize(long long maxSize);
+        static void setMaxPayloadLogSize(size_t maxSize);
         static void addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void removeLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void setLogToConsole(bool enable);
         static void setLogJSONContent(bool enable);
+        static void setLogJSON(uint32_t value);
+        static uint32_t getLogJSON();
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
 
@@ -3851,6 +3863,8 @@ class MegaApiImpl : public MegaApp
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeS4(MegaNode* node, const char* value, MegaRequestListener* listener = NULL);
+        bool isS4Enabled();
+        MegaHandle getS4Container();
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
@@ -4332,8 +4346,7 @@ public:
 
         const char *getVersion();
         char *getOperatingSystemVersion();
-        void getLastAvailableVersion(const char* anyAppKey,
-                                     MegaRequestListener* listener = nullptr);
+        void getLastAvailableVersion(const char*, MegaRequestListener* listener = nullptr);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
         void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
@@ -4687,7 +4700,6 @@ public:
 
     private:
         void init(MegaApi* publicApi,
-                  const char* newAppKey,
                   std::unique_ptr<GfxProc> gfxproc,
                   const char* newBasePath /*= NULL*/,
                   const char* userAgent /*= NULL*/,
@@ -4803,8 +4815,7 @@ public:
         retryreason_t waitingRequest;
         mutable std::recursive_timed_mutex sdkMutex;
         using SdkMutexGuard = std::unique_lock<std::recursive_timed_mutex>;   // (equivalent to typedef)
-        MegaTransferPrivate *currentTransfer;
-        string appKey;
+        MegaTransferPrivate* currentTransfer;
 
         std::unique_ptr<MegaPushNotificationSettingsPrivate> getMegaPushNotificationSetting(); // returns lastest-seen settings (to be able to filter notifications)
 

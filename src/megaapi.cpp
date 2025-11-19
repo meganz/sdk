@@ -2001,14 +2001,28 @@ MegaTreeProcessor::~MegaTreeProcessor()
 
 /* BEGIN MEGAAPI */
 
-MegaApi::MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
+MegaApi::MegaApi(const char* /*appKey*/,
+                 MegaGfxProvider* provider,
+                 const char* basePath,
+                 const char* userAgent,
+                 unsigned workerThreadCount,
+                 int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, provider, basePath, userAgent, workerThreadCount, clientType);
+    pImpl = new MegaApiImpl(this, provider, basePath, userAgent, workerThreadCount, clientType);
 }
 
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
+MegaApi::MegaApi(const char* /*appKey*/,
+                 const char* basePath,
+                 const char* userAgent,
+                 unsigned workerThreadCount,
+                 int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, static_cast<MegaGfxProcessor*>(nullptr), basePath, userAgent, workerThreadCount, clientType);
+    pImpl = new MegaApiImpl(this,
+                            static_cast<MegaGfxProcessor*>(nullptr),
+                            basePath,
+                            userAgent,
+                            workerThreadCount,
+                            clientType);
 }
 
 #ifdef HAVE_MEGAAPI_RPC
@@ -2174,7 +2188,7 @@ void MegaApi::setLogExtraForModules(bool networking, bool syncs)
     return pImpl->setLogExtraForModules(networking, syncs);
 }
 
-void MegaApi::setMaxPayloadLogSize(long long maxSize)
+void MegaApi::setMaxPayloadLogSize(size_t maxSize)
 {
     MegaApiImpl::setMaxPayloadLogSize(maxSize);
 }
@@ -2187,6 +2201,16 @@ void MegaApi::setLogToConsole(bool enable)
 void MegaApi::setLogJSONContent(bool enable)
 {
     MegaApiImpl::setLogJSONContent(enable);
+}
+
+void MegaApi::setLogJSON(uint32_t value)
+{
+    MegaApiImpl::setLogJSON(value);
+}
+
+uint32_t MegaApi::getLogJSON()
+{
+    return MegaApiImpl::getLogJSON();
 }
 
 void MegaApi::addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
@@ -2952,6 +2976,16 @@ void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const
 void MegaApi::setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener)
 {
     pImpl->setNodeS4(node, value, listener);
+}
+
+bool MegaApi::isS4Enabled()
+{
+    return pImpl->isS4Enabled();
+}
+
+MegaHandle MegaApi::getS4Container()
+{
+    return pImpl->getS4Container();
 }
 
 void MegaApi::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)

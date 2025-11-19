@@ -123,6 +123,8 @@ const unordered_map<attr_t, const UserAttributeDefinition>&
         {ATTR_ENABLE_TEST_SURVEYS, {"^!tsur", "ENABLE_TEST_SURVEYS", DISABLE_VERSIONING}},
         {ATTR_WELCOME_PDF_COPIED, {"^!welpdf", "WELCOME_PDF_COPIED"}},
         {ATTR_SYNC_DESIRED_STATE, {"*!sds", "DEVICE_CENTER_SDS"}},
+        {ATTR_S4, {"s4", "S4", MAKE_PRIVATE}},
+        {ATTR_S4_CONTAINER, {"s4c", "S4_CONTAINER", MAKE_PRIVATE}},
     };
 
     return defs;

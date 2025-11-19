@@ -54,7 +54,9 @@ protected:
     bool mRead = false;// if json has already been read
 
     bool loadIpsFromJson(std::vector<string>& ips, JSON& json);
-    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips);
+    void cacheresolvedurls(const std::string& command,
+                           const std::vector<string>& urls,
+                           const std::vector<string>& ips);
 
     // True if the command can be sent to the API lockless CS channel
     // Updated internally by each command.
@@ -1215,14 +1217,6 @@ public:
     bool procresult(Result, JSON&) override;
 
     CommandConfirmEmailLink(MegaClient*, const char*, const char *, const byte *, bool);
-};
-
-class MEGA_API CommandGetVersion : public Command
-{
-public:
-    bool procresult(Result, JSON&) override;
-
-    CommandGetVersion(MegaClient*, const char*);
 };
 
 class MEGA_API CommandGetLocalSSLCertificate : public Command

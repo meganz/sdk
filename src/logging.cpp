@@ -35,7 +35,6 @@ Logger *SimpleLogger::logger = &g_externalLogger;
 
 // by the default, display logs with level equal or less than logInfo
 std::atomic<LogLevel> SimpleLogger::logCurrentLevel{logInfo};
-long long SimpleLogger::maxPayloadLogSize  = 10240;
 
 #ifndef ENABLE_LOG_PERFORMANCE
 std::string SimpleLogger::getTime()

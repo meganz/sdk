@@ -628,7 +628,7 @@ int main (int argc, char *argv[])
 
     SimpleLogger::setLogLevel(logVerbose);
     SimpleLogger::setOutputClass(&megaLogger);
-
+    MegaApi::setLogJSON(MegaApi::getLogJSON() | MegaApi::JSON_LOG_CHUNK_RECEIVED);
     // delete old test folders, created during previous runs
     TestFS testFS;
     testFS.ClearProcessFolder();

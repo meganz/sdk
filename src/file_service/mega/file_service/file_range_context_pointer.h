@@ -9,7 +9,7 @@ namespace mega
 namespace file_service
 {
 
-using FileRangeContextPtr = std::unique_ptr<FileRangeContext>;
+using FileRangeContextPtr = std::shared_ptr<FileRangeContext>;
 
 } // file_service
 } // mega

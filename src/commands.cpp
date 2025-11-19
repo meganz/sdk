@@ -178,10 +178,7 @@ bool CommandPutFA::procresult(Result r, JSON& json)
                         std::vector<string> urls(1, posturl);
                         std::vector<string> ipsCopy = ips;
 
-                        if(!cacheresolvedurls(urls, std::move(ips)))
-                        {
-                            LOG_err << "Unpaired IPs received for URLs in `ufa` command. URLs: " << urls.size() << " IPs: " << ips.size();
-                        }
+                        cacheresolvedurls("ufa", urls, std::move(ips));
 
                         mCompletion(API_OK, posturl, ipsCopy);
                     }
@@ -271,12 +268,9 @@ bool CommandGetFA::procresult(Result r, JSON& json)
                     {
                         JSON::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
-                        size_t ipCount = ips.size();
-                        if (!cacheresolvedurls({it->second->posturl}, std::move(ips)))
-                        {
-                            LOG_err << "Unpaired IPs received for URLs in `ufa` command. "
-                                    << ipCount << " IPs for one URL.";
-                        }
+
+                        cacheresolvedurls("ufa", {it->second->posturl}, std::move(ips));
+
                         it->second->dispatch();
                     }
                     else
@@ -486,10 +480,7 @@ bool CommandPutFile::procresult(Result r, JSON& json)
 
                 if (tempurls.size() == 1)
                 {
-                    if(!cacheresolvedurls(tempurls, std::move(tempips)))
-                    {
-                        LOG_err << "Unpaired IPs received for URLs in `u` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
-                    }
+                    cacheresolvedurls("u", tempurls, std::move(tempips));
 
                     tslot->transfer->tempurls = tempurls;
                     tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
@@ -893,13 +884,12 @@ bool CommandGetFile::procresult(Result r, JSON& json)
             {
                 // defer code that steals the ips <move(tempips)> and stores them in the cache
                 // thus we can use them before going out of scope
-                std::shared_ptr<void> deferThis(nullptr, [this, &tempurls, &tempips](...)
-                {
-                    if(!cacheresolvedurls(tempurls, std::move(tempips)))
+                std::shared_ptr<void> deferThis(
+                    nullptr,
+                    [this, &tempurls, &tempips](...)
                     {
-                        LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
-                    }
-                });
+                        cacheresolvedurls("g", tempurls, std::move(tempips));
+                    });
 
                 if (canceled) //do not proceed: SymmCipher may no longer exist
                 {
@@ -3861,6 +3851,29 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                            "CommandGetUA: Storage status is unknown or invalid");
                                 }
                             }
+                            else if (at == ATTR_S4)
+                            {
+                                bool enabled = (value == "1");
+                                LOG_info << "S4 is " << (enabled ? "enabled" : "disabled");
+                                client->mIsS4Enabled.store(enabled);
+                            }
+                            else if (at == ATTR_S4_CONTAINER)
+                            {
+                                if (value.empty()) // it's been disabled
+                                {
+                                    assert(client->mIsS4Enabled == false);
+
+                                    client->mS4Container.store(NodeHandle());
+                                }
+                                else
+                                {
+                                    assert(client->mIsS4Enabled == true);
+                                    assert(value.size() == MegaClient::NODEHANDLE);
+
+                                    NodeHandle h = toNodeHandle(&value);
+                                    client->mS4Container.store(h);
+                                }
+                            }
                             break;
                         }
                         default: // legacy attributes without explicit scope or unknown attribute
@@ -4345,6 +4358,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string pwmh, pwmhVersion;
     vector<uint32_t> notifs;
     std::string sds, sdsVersion;
+    string s4, s4Version;
+    string s4container, s4containerVersion;
 
     bool uspw = false;
     string userStorageLevel, versionUserStorageLevel;
@@ -4742,6 +4757,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
         case makeNameid("*!sds"):
         {
             parseUserAttribute(json, sds, sdsVersion);
+            break;
+        }
+
+        case makeNameid("s4"):
+        {
+            parseUserAttribute(json, s4, s4Version);
+            break;
+        }
+
+        case makeNameid("s4c"):
+        {
+            parseUserAttribute(json, s4container, s4containerVersion);
             break;
         }
 
@@ -5198,6 +5225,37 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_debug << "[CommandGetUserData] userStorageLevel is empty";
+                }
+
+                if (!s4.empty() && !s4Version.empty())
+                {
+                    changes |= u->updateAttributeIfDifferentVersion(ATTR_S4, s4, s4Version);
+
+                    bool enabled = (s4 == "1");
+                    client->mIsS4Enabled.store(enabled);
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_S4);
+                    client->mIsS4Enabled.store(false);
+                }
+
+                if (!s4container.empty() && !s4containerVersion.empty())
+                {
+                    changes |= u->updateAttributeIfDifferentVersion(ATTR_S4_CONTAINER,
+                                                                    s4container,
+                                                                    s4containerVersion);
+
+                    assert(client->mIsS4Enabled == true);
+                    assert(s4container.size() == MegaClient::NODEHANDLE);
+
+                    NodeHandle h = toNodeHandle(&s4container);
+                    client->mS4Container.store(h);
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_S4_CONTAINER);
+                    client->mS4Container.store(NodeHandle());
                 }
 
                 if (changes)
@@ -7988,52 +8046,6 @@ bool CommandConfirmEmailLink::procresult(Result r, JSON&)
 
     client->app->confirmemaillink_result(r.errorOrOK());
     return r.wasErrorOrOK();
-}
-
-CommandGetVersion::CommandGetVersion(MegaClient *client, const char *appKey)
-{
-    this->client = client;
-    cmd("lv");
-    arg("a", appKey);
-    tag = client->reqtag;
-}
-
-bool CommandGetVersion::procresult(Result r, JSON& json)
-{
-    int versioncode = 0;
-    string versionstring;
-
-    if (r.wasErrorOrOK())
-    {
-        client->app->getversion_result(0, NULL, r.errorOrOK());
-        return r.wasErrorOrOK();
-    }
-
-    assert(r.hasJsonObject());
-    for (;;)
-    {
-        switch (json.getnameid())
-        {
-            case makeNameid("c"):
-                versioncode = int(json.getint());
-                break;
-
-            case makeNameid("s"):
-                json.storeobject(&versionstring);
-                break;
-
-            case EOO:
-                client->app->getversion_result(versioncode, versionstring.c_str(), API_OK);
-                return true;
-
-            default:
-                if (!json.storeobject())
-                {
-                    client->app->getversion_result(0, NULL, API_EINTERNAL);
-                    return false;
-                }
-        }
-    }
 }
 
 CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)

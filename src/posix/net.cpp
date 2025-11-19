@@ -24,10 +24,24 @@
 #include "mega/logging.h"
 #include "mega/posix/meganet.h"
 #include "mega/testhooks.h"
+#include "mega/utils.h"
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN // Reduce content pulled in by Windows.h -> speed up compile time
+#include <In6addr.h>
+#include <Inaddr.h>
+
+#include <ws2tcpip.h>
+#else // _WIN32
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#endif // ! _WIN32
 
 #if defined(USE_OPENSSL)
 #include <openssl/err.h>
 #endif
+
+#include <string_view>
 
 #define MAX_SPEED_CONTROL_TIMEOUT_MS 500
 
@@ -37,7 +51,6 @@ std::atomic<bool> g_netLoggingOn{false};
 
 #define NET_verbose if (g_netLoggingOn) LOG_verbose
 #define NET_debug if (g_netLoggingOn) LOG_debug
-
 
 #if defined(_WIN32)
 
@@ -643,31 +656,58 @@ m_off_t CurlHttpIO::getmaxuploadspeed()
     return maxspeed[PUT];
 }
 
-bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
+int CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, const std::vector<string>& ips)
 {
-    // for each URL there should be 2 IPs (IPv4 first, IPv6 second)
-    if (urls.empty() || urls.size() * 2 != ips.size())
+    // Each URI should be associated with an IPv4 and an IPv6 address.
+    if (ips.size() != urls.size() * 2)
+        return -1;
+
+    // Assume all IPs are valid.
+    auto result = 0;
+
+    // Add URLs with a valid IPv4 address to the cache.
+    for (auto i = 0u; i < urls.size(); ++i)
     {
-        LOG_err << "Resolved URLs to be cached did not match with an IPv4 and IPv6 each";
-        return false;
+        // Get a copy of this URI's IPv4 and IPv6 addresses.
+        auto ipv4 = ips[i * 2];
+        auto ipv6 = ips[i * 2 + 1];
+
+        // URI doesn't have a valid IPv4 address.
+        if (!isValidIPv4Address(ipv4))
+        {
+            ipv4.clear();
+            ++result;
+        }
+
+        // URI doesn't have a valid IPv6 address.
+        if (!isValidIPv6Address(ipv6))
+        {
+            ipv6.clear();
+            ++result;
+        }
+
+        std::string host;
+        std::string scheme;
+        int port;
+
+        // Couldn't extract the URI's host name.
+        if (!crackURI(urls[i], scheme, host, port) || host.empty())
+            continue;
+
+        // URI isn't in the cache and has no valid IP addresses.
+        if (ipv4.empty() && ipv6.empty() && !dnscache.count(host))
+            continue;
+
+        // Add a DNS cache entry for this host.
+        auto& entry = dnscache[host];
+
+        // Update the host's IP addresses.
+        entry.ipv4 = std::move(ipv4);
+        entry.ipv6 = std::move(ipv6);
     }
 
-    for (std::vector<string>::size_type i = 0; i < urls.size(); ++i)
-    {
-        // get host name from each URL
-        string host, dummyscheme;
-        int dummyPort;
-        const string& url = urls[i]; // this is "free" and helps with debugging
-
-        crackurl(&url, &dummyscheme, &host, &dummyPort);
-
-        // add resolved host name to cache, or replace the previous one
-        CurlDNSEntry& dnsEntry = dnscache[host];
-        dnsEntry.ipv4 = std::move(ips[2 * i]);
-        dnsEntry.ipv6 = std::move(ips[2 * i + 1]);
-    }
-
-    return true;
+    // Let our caller know the cache was updated.
+    return result;
 }
 
 // wake up from cURL I/O
@@ -807,23 +847,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (gLogJSONRequests || req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
-        {
-            LOG_debug << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
-                      << DirectMessage(req->out->c_str(), req->out->size())
-                      << " (at ds: " << Waiter::ds << ")";
-        }
-        else
-        {
-            LOG_debug
-                << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
-                << DirectMessage(req->out->c_str(),
-                                 static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
-                << " [...] "
-                << DirectMessage(req->out->c_str() + req->out->size() -
-                                     SimpleLogger::getMaxPayloadLogSize() / 2,
-                                 static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
-        }
+        JSON_SENDING << httpctx->req->getLogName() << "Sending " << req->out->size() << ": "
+                     << MaxDirectMessage(req->out->c_str(),
+                                         req->out->size(),
+                                         SimpleLogger::getMaxPayloadLogSize())
+                     << " (at ds: " << Waiter::ds << ")";
     }
 
     req->outpos = 0;
@@ -1010,16 +1038,23 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
             if (it != httpio->dnscache.end())
             {
-                std::string addrs = it->second.ipv4; // must be non-empty
+                std::ostringstream ostream;
+
+                if (!it->second.ipv4.empty())
+                    ostream << it->second.ipv4;
+
                 if (!it->second.ipv6.empty())
                 {
-                    addrs += ",[" + it->second.ipv6 + "]";
+                    if (ostream.tellp() > 0)
+                        ostream << ",";
+
+                    ostream << "[" << it->second.ipv6 << "]";
                 }
 
                 httpio->addDnsResolution(curl,
                                          httpctx->mCurlDnsList,
                                          httpctx->hostname,
-                                         addrs,
+                                         ostream.str(),
                                          httpctx->port);
             }
         }
@@ -1052,147 +1087,23 @@ void CurlHttpIO::request_proxy_ip()
     }
 }
 
-bool CurlHttpIO::crackurl(const string* url, string* schema, string* hostname, int* port)
-{
-    if (!url || !url->size() || !schema || !hostname || !port)
-    {
-        return false;
-    }
-
-    *port = 0;
-    schema->clear();
-    hostname->clear();
-
-    size_t starthost, endhost = 0, startport, endport;
-
-    starthost = url->find("://");
-
-    if (starthost != string::npos)
-    {
-        *schema = url->substr(0, starthost);
-        starthost += 3;
-    }
-    else
-    {
-        starthost = 0;
-    }
-
-    if ((*url)[starthost] == '[' && url->size() > 0)
-    {
-        starthost++;
-    }
-
-    startport = url->find("]:", starthost);
-
-    if (startport == string::npos)
-    {
-        startport = url->find(":", starthost);
-
-        if (startport != string::npos)
-        {
-            endhost = startport;
-        }
-    }
-    else
-    {
-        endhost = startport;
-        startport++;
-    }
-
-    if (startport != string::npos)
-    {
-        startport++;
-
-        endport = url->find("/", startport);
-
-        if (endport == string::npos)
-        {
-            endport = url->size();
-        }
-
-        if (endport <= startport || endport - startport > 5)
-        {
-            *port = -1;
-        }
-        else
-        {
-            for (size_t i = startport; i < endport; i++)
-            {
-                int c = url->data()[i];
-
-                if (c < '0' || c > '9')
-                {
-                    *port = -1;
-                    break;
-                }
-            }
-        }
-
-        if (!*port)
-        {
-            *port = atoi(url->data() + startport);
-
-            if (*port > 65535)
-            {
-                *port = -1;
-            }
-        }
-    }
-    else
-    {
-        endhost = url->find("]/", starthost);
-
-        if (endhost == string::npos)
-        {
-            endhost = url->find("/", starthost);
-
-            if (endhost == string::npos)
-            {
-                endhost = url->size();
-            }
-        }
-    }
-
-    if (!*port)
-    {
-        if (!schema->compare("https"))
-        {
-            *port = 443;
-        }
-        else if (!schema->compare("http"))
-        {
-            *port = 80;
-        }
-        else if (!schema->compare(0, 5, "socks"))
-        {
-            *port = 1080;
-        }
-        else
-        {
-            *port = -1;
-        }
-    }
-
-    *hostname = url->substr(starthost, endhost - starthost);
-
-    if (*port <= 0 || starthost == string::npos || starthost >= endhost)
-    {
-        *port = 0;
-        schema->clear();
-        hostname->clear();
-        return false;
-    }
-
-    return true;
-}
-
 int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void* debugdata)
 {
-    if (type == CURLINFO_TEXT && size)
+    std::string_view dataView(data, size);
+    while (!dataView.empty() && (dataView.back() == '\r' || dataView.back() == '\n')) // Trim
     {
-        data[size - 1] = 0;
+        dataView.remove_suffix(1);
+    }
+
+    if (dataView.empty())
+    {
+        return 0;
+    }
+
+    if (type == CURLINFO_TEXT)
+    {
         std::string errnoInfo;
-        if (strstr(data, "SSL_ERROR_SYSCALL"))
+        if (dataView.find("SSL_ERROR_SYSCALL") != std::string_view::npos)
         {
             // This function is called quite early by curl code, and hopefully no other call would have
             // modified errno in the meantime.
@@ -1203,15 +1114,15 @@ int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t siz
                         ")";
         }
         NET_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->getLogName() : string())
-                    << "cURL: " << data << errnoInfo;
+                    << "cURL: " << dataView << errnoInfo;
     }
-    else if (type == CURLINFO_HEADER_IN && size)
+    else if (type == CURLINFO_HEADER_IN)
     {
-        NET_verbose << "CURL incoming header: " << std::string(data, size);
+        NET_verbose << "CURL incoming header: " << dataView;
     }
-    else if (type == CURLINFO_HEADER_OUT && size)
+    else if (type == CURLINFO_HEADER_OUT)
     {
-        NET_verbose << "CURL outgoing header: " << std::string(data, size);
+        NET_verbose << "CURL outgoing header: " << dataView;
     }
     return 0;
 }
@@ -1232,7 +1143,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     bool validrequest = true;
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
         || (validrequest =
-                crackurl(&req->posturl, &httpctx->schema, &httpctx->hostname, &httpctx->port)) !=
+                crackURI(req->posturl, httpctx->schema, httpctx->hostname, httpctx->port)) !=
                true) // invalid request
     {
         if (validrequest)
@@ -1323,7 +1234,7 @@ void CurlHttpIO::setproxy(const Proxy& proxy)
 
     LOG_debug << "Setting proxy: " << proxyurl;
 
-    if (!crackurl(&proxyurl, &proxyschema, &proxyhost, &proxyport))
+    if (!crackURI(proxyurl, proxyschema, proxyhost, proxyport))
     {
         LOG_err << "Malformed proxy string: " << proxyurl;
 
@@ -1575,33 +1486,20 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                                   << (req->buf ? req->bufpos : (int)req->in.size())
                                   << " bytes of raw data]";
                     }
-                    else if (req->mChunked && static_cast<size_t>(req->bufpos) != req->in.size())
+                    else if (req->mChunked)
                     {
-                        LOG_debug << req->getLogName() << "[received " << req->bufpos
-                                  << " bytes of chunked data]";
+                        // Chunked data logging is handled in write_data callback to avoid
+                        // duplicate logging. The 'in' field may contain previously received
+                        // data that would be logged multiple times if printed here.
                     }
                     else
                     {
-                        if (gLogJSONRequests ||
-                            req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
-                        {
-                            LOG_debug << req->getLogName() << "Received " << req->in.size() << ": "
-                                      << DirectMessage(req->in.c_str(), req->in.size())
-                                      << " (at ds: " << Waiter::ds << ")";
-                        }
-                        else
-                        {
-                            LOG_debug
-                                << req->getLogName() << "Received " << req->in.size() << ": "
-                                << DirectMessage(req->in.c_str(),
-                                                 static_cast<size_t>(
-                                                     SimpleLogger::getMaxPayloadLogSize() / 2))
-                                << " [...] "
-                                << DirectMessage(req->in.c_str() + req->in.size() -
-                                                     SimpleLogger::getMaxPayloadLogSize() / 2,
-                                                 static_cast<size_t>(
-                                                     SimpleLogger::getMaxPayloadLogSize() / 2));
-                        }
+                        JSON_NONCHUNK_RECEIVED
+                            << req->getLogName() << "Received " << req->in.size() << ": "
+                            << MaxDirectMessage(req->in.c_str(),
+                                                req->in.size(),
+                                                SimpleLogger::getMaxPayloadLogSize())
+                            << " (at ds: " << Waiter::ds << ")";
                     }
                 }
 
@@ -1846,6 +1744,16 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
         if (len)
         {
             req->put(ptr, static_cast<unsigned>(len), true);
+            // Chunked data is logged here when written since chunks are not
+            // consumed immediately upon receipt, avoiding duplicate logging.
+            if (req->mChunked)
+            {
+                JSON_CHUNK_RECEIVED << req->getLogName() << "Received chunk " << len << ": "
+                                    << MaxDirectMessage(static_cast<const char*>(ptr),
+                                                        static_cast<size_t>(len),
+                                                        SimpleLogger::getMaxPayloadLogSize())
+                                    << " (at ds: " << Waiter::ds << ")";
+            }
         }
 
         httpio->lastdata = Waiter::ds;
@@ -2288,6 +2196,164 @@ void CurlHttpIO::addDnsResolution(
     dnsList.reset(curl_slist_append(dnsList.release(), curlListEntry.c_str()));
 
     curl_easy_setopt(curl, CURLOPT_RESOLVE, dnsList.get());
+}
+
+bool crackURI(const string& uri, string& scheme, string& host, int& port)
+{
+    if (uri.empty())
+        return false;
+
+    port = 0;
+    scheme.clear();
+    host.clear();
+
+    size_t starthost, endhost = 0, startport, endport;
+
+    starthost = uri.find("://");
+
+    if (starthost != string::npos)
+    {
+        scheme = uri.substr(0, starthost);
+        starthost += 3;
+    }
+    else
+    {
+        starthost = 0;
+    }
+
+    if (uri[starthost] == '[' && uri.size() > 0)
+    {
+        starthost++;
+    }
+
+    startport = uri.find("]:", starthost);
+
+    if (startport == string::npos)
+    {
+        startport = uri.find(":", starthost);
+
+        if (startport != string::npos)
+        {
+            endhost = startport;
+        }
+    }
+    else
+    {
+        endhost = startport;
+        startport++;
+    }
+
+    if (startport != string::npos)
+    {
+        startport++;
+
+        endport = uri.find("/", startport);
+
+        if (endport == string::npos)
+        {
+            endport = uri.size();
+        }
+
+        if (endport <= startport || endport - startport > 5)
+        {
+            port = -1;
+        }
+        else
+        {
+            for (size_t i = startport; i < endport; i++)
+            {
+                int c = uri.data()[i];
+
+                if (c < '0' || c > '9')
+                {
+                    port = -1;
+                    break;
+                }
+            }
+        }
+
+        if (!port)
+        {
+            port = atoi(uri.data() + startport);
+
+            if (port > 65535)
+            {
+                port = -1;
+            }
+        }
+    }
+    else
+    {
+        endhost = uri.find("]/", starthost);
+
+        if (endhost == string::npos)
+        {
+            endhost = uri.find("/", starthost);
+
+            if (endhost == string::npos)
+            {
+                endhost = uri.size();
+            }
+        }
+    }
+
+    if (!port)
+    {
+        if (!scheme.compare("https"))
+        {
+            port = 443;
+        }
+        else if (!scheme.compare("http"))
+        {
+            port = 80;
+        }
+        else if (!scheme.compare(0, 5, "socks"))
+        {
+            port = 1080;
+        }
+        else
+        {
+            port = -1;
+        }
+    }
+
+    host = uri.substr(starthost, endhost - starthost);
+
+    if (port <= 0 || starthost == string::npos || starthost >= endhost)
+    {
+        port = 0;
+        scheme.clear();
+        host.clear();
+        return false;
+    }
+
+    return true;
+}
+
+static bool isValidIPAddress(const std::string& string, int type)
+{
+    // Sanity.
+    assert(type == AF_INET || type == AF_INET6);
+
+    // Throwaway buffer: Necessary for parsing.
+    union
+    {
+        struct in_addr inaddr;
+        struct in6_addr in6addr;
+    } buffer;
+
+    // Try and parse the provided address string.
+    return inet_pton(type, string.data(), &buffer) > 0;
+}
+
+bool isValidIPv4Address(const std::string& string)
+{
+    return isValidIPAddress(string, AF_INET);
+}
+
+bool isValidIPv6Address(const std::string& string)
+{
+    return isValidIPAddress(string, AF_INET6);
 }
 
 } // namespace
