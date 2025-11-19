@@ -284,27 +284,56 @@ void clientUpload(MegaClient& mc,
     assert(!upload->wasStarted);
     upload->wasStarted = true;
 
-    // If we found a node to clone with a valid key, call putNodesToCloneNode.
+    // Helper lambda for fallback to normal upload
+    auto fallbackToNormalUpload = [&](const std::string& reason) {
+        LOG_debug << "Fallback to normal upload: " << reason << " for " << upload->sourceLocalname;
+        upload->tag = mc.nextreqtag();
+        upload->selfKeepAlive = upload;
+        mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo, nullptr, upload->tag);
+    };
+
+    // Try to find a clone node candidate
     if (auto cloneNode = findCloneNodeCandidate(mc, *upload); cloneNode)
     {
         const auto displayPath = cloneNode->displaypath();
-        LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for "
-                  << upload->sourceLocalname << " (ovHandleIfShortcut: "
-                  << Base64Str<MegaClient::NODEHANDLE>(ovHandleIfShortcut.as8byte()) << ")"
-                  << " found cloneNode (handle): "
-                  << Base64Str<MegaClient::NODEHANDLE>(cloneNode->nodeHandle().as8byte()) << ")";
 
-        // completion function is supplied to putNodes command
-        upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNode);
-        upload->putnodesStarted = true;
-        upload->wasCompleted = true;
-        return;
+        // Get local file access
+        auto localfa = mc.fsaccess->newfileaccess();
+
+        if (!localfa)
+        {
+            LOG_warn << "Failed to create file access for cloning: " << upload->sourceLocalname;
+            fallbackToNormalUpload("File access creation failed");
+            return;
+        }
+
+        // Try to open the file
+        if (!localfa->fopen(upload->sourceLocalname, true, false, FSLogging::logExceptFileNotFound))
+        {
+            LOG_warn << "Failed to open file: " << upload->sourceLocalname;
+            fallbackToNormalUpload("File open failed");
+            return;
+        }
+
+        // Compare local file's MAC with the clone node
+        if (CompareLocalFileMetaMacWithNode(localfa.get(), cloneNode))
+        {
+            LOG_debug << "Cloning node instead of uploading: " << displayPath
+                      << " for " << upload->sourceLocalname
+                      << " (ovHandleIfShortcut: "
+                      << Base64Str<MegaClient::NODEHANDLE>(ovHandleIfShortcut.as8byte()) << ")"
+                      << " found cloneNode (handle): "
+                      << Base64Str<MegaClient::NODEHANDLE>(cloneNode->nodeHandle().as8byte())
+                      << ")";
+            upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNode);
+            upload->putnodesStarted = true;
+            upload->wasCompleted = true;
+            return;
+        }
     }
 
-    // Otherwise, proceed with the normal upload.
-    upload->tag = mc.nextreqtag();
-    upload->selfKeepAlive = upload;
-    mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo, nullptr, upload->tag);
+    // Proceed with normal upload if no clone node is found
+    fallbackToNormalUpload("No suitable clone node found");
 }
 
 } // namespace mega
