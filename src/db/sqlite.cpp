@@ -2695,12 +2695,6 @@ void SqliteAccountState::getFingerprintExcludingMtime(sqlite3_context* context,
         return;
     }
 
-    if (!input || len < 33)
-    {
-        sqlite3_result_null(context);
-        return;
-    }
-
     std::array<uint8_t, 25> result;
     std::copy_n(input, 8, result.begin()); // Copy size
     std::copy_n(input + 16, 16, result.begin() + 8); // Ignore mtime and copy CRC
