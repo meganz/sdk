@@ -5672,6 +5672,8 @@ bool MegaClient::procsc()
 
         if (insca)
         {
+            bool moveOperation = false; // true if "d" packet has "m":1
+
             auto actionpacketStart = jsonsc.pos;
             if (jsonsc.enterobject())
             {
@@ -5719,23 +5721,21 @@ bool MegaClient::procsc()
 
                             case makeNameid("t"):
                             {
-                                bool isMoveOperation = false;
                                 // node addition
                                 {
                                     if (!loggedIntoFolder())
                                         useralerts.beginNotingSharedNodes();
-                                    handle originatingUser = sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode.get(), isMoveOperation);
+                                    handle originatingUser = sc_newnodes();
                                     mergenewshares(1);
                                     if (!loggedIntoFolder())
                                         useralerts.convertNotedSharedNodes(true, originatingUser);
                                 }
-                                lastAPDeletedNode = nullptr;
                             }
                             break;
 
                             case name_id::d:
                                 // node deletion
-                                lastAPDeletedNode = sc_deltree();
+                                lastAPDeletedNode = sc_deltree(moveOperation);
                                 break;
 
                             case makeNameid("s"):
@@ -5898,13 +5898,14 @@ bool MegaClient::procsc()
                                 break;
                         }
                     }
-                    else
-                    {
-                        lastAPDeletedNode = nullptr;
-                    }
                 }
 
                 jsonsc.leaveobject();
+
+                if (!moveOperation)
+                {
+                    lastAPDeletedNode.reset();
+                }
             }
             else
             {
@@ -6925,7 +6926,7 @@ CacheableStatus *MegaClient::CacheableStatusMap::getPtr(CacheableStatus::Type ty
 }
 
 // read tree object (nodes and users)
-void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& firstHandleMatchesDelete)
+void MegaClient::readtree(JSON* j)
 {
     if (j->enterobject())
     {
@@ -6942,13 +6943,11 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                                   putnodesCmd->source,
                                   &putnodesCmd->nn,
                                   putnodesCmd->tag != 0,
-                                  true,
-                                  priorActionpacketDeletedNode,
-                                  &firstHandleMatchesDelete);
+                                  true);
                     }
                     else
                     {
-                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false, priorActionpacketDeletedNode, &firstHandleMatchesDelete);
+                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false);
                     }
                     break;
 
@@ -6961,13 +6960,11 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                                   putnodesCmd->source,
                                   &putnodesCmd->nn,
                                   putnodesCmd->tag != 0,
-                                  true,
-                                  nullptr,
-                                  nullptr);
+                                  true);
                     }
                     else
                     {
-                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false, nullptr, nullptr);
+                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false);
                     }
                     break;
 
@@ -6990,7 +6987,7 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
 }
 
 // server-client newnodes processing
-handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMatchesDelete)
+handle MegaClient::sc_newnodes()
 {
     handle originatingUser = UNDEF;
     for (;;)
@@ -6998,7 +6995,7 @@ handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHa
         switch (jsonsc.getnameid())
         {
             case makeNameid("t"):
-                readtree(&jsonsc, priorActionpacketDeletedNode, firstHandleMatchesDelete);
+                readtree(&jsonsc);
                 break;
 
             case name_id::u:
@@ -9383,7 +9380,7 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
 }
 
 // server-client deletion
-std::shared_ptr<Node> MegaClient::sc_deltree()
+std::shared_ptr<Node> MegaClient::sc_deltree(bool& moveOperation)
 {
     std::shared_ptr<Node> n;
     handle originatingUser = UNDEF;
@@ -9399,6 +9396,10 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                 {
                     n = nodebyhandle(h);
                 }
+                break;
+
+            case makeNameid("m"):
+                moveOperation = jsonsc.getbool();
                 break;
 
             case makeNameid("ou"):
@@ -9437,7 +9438,7 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                     }
                 }
 
-                return n;
+                return moveOperation ? n : nullptr;
 
             default:
                 if (!jsonsc.storeobject())
@@ -10500,7 +10501,12 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array g
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMatchesDelete)
+int MegaClient::readnodes(JSON* j,
+                          int notify,
+                          putsource_t source,
+                          vector<NewNode>* nn,
+                          bool modifiedByThisClient,
+                          bool applykeys)
 {
     if (!j->enterarray())
     {
@@ -10514,13 +10520,19 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 #endif
 
     NodeManager::MissingParentNodes missingParentNodes;
-    while (int e = readnode(j, notify, source, nn, modifiedByThisClient, applykeys, missingParentNodes, previousHandleForAlert,
+    while (int e = readnode(j,
+                            notify,
+                            source,
+                            nn,
+                            modifiedByThisClient,
+                            applykeys,
+                            missingParentNodes,
+                            previousHandleForAlert,
 #ifdef ENABLE_SYNC
-                            &allParents,
+                            &allParents))
 #else
-                            nullptr,
+                            nullptr))
 #endif
-                            priorActionpacketDeletedNode, firstHandleMatchesDelete))
     {
         if (e != 1)
         {
@@ -10550,9 +10562,7 @@ int MegaClient::readnode(JSON* j,
                          bool applykeys,
                          mega::NodeManager::MissingParentNodes& missingParentNodes,
                          handle& previousHandleForAlert,
-                         set<NodeHandle>* allParents,
-                         Node* priorActionpacketDeletedNode,
-                         bool* firstHandleMatchesDelete)
+                         set<NodeHandle>* allParents)
 {
     std::shared_ptr<Node> n;
 
@@ -10577,11 +10587,6 @@ int MegaClient::readnode(JSON* j,
             {
                 case makeNameid("h"): // new node: handle
                     h = j->gethandle();
-                    if (priorActionpacketDeletedNode && firstHandleMatchesDelete)
-                    {
-                        *firstHandleMatchesDelete = h == priorActionpacketDeletedNode->nodehandle;
-                        priorActionpacketDeletedNode = nullptr;
-                    }
                     break;
 
                 case makeNameid("p"): // parent node
