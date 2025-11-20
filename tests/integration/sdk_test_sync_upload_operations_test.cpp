@@ -19,21 +19,55 @@ using namespace sdk_test;
 using namespace testing;
 
 /**
+ * @struct SyncUploadOperationsTracker
+ * @brief Tracks SyncListener callbacks for a specific local file.
+ */
+struct SyncUploadOperationsTracker
+{
+    std::string absolutePathStr;
+    std::atomic<bool> actionCompleted;
+    std::unique_ptr<std::promise<int>> actionCompletedPms;
+    std::unique_ptr<std::future<int>> actionCompletedFut;
+
+    SyncUploadOperationsTracker(const std::string& p):
+        absolutePathStr(p),
+        actionCompleted(false),
+        actionCompletedPms(new std::promise<int>()),
+        actionCompletedFut(new std::future<int>(actionCompletedPms->get_future()))
+    {}
+};
+
+/**
+ * @struct SyncUploadOperationsTransferTracker
+ * @brief Tracks Transfer listener callbacks for a specific local file.
+ */
+struct SyncUploadOperationsTransferTracker: public SyncUploadOperationsTracker
+{
+    std::atomic<int> transferStartCount;
+
+    SyncUploadOperationsTransferTracker(const std::string& p):
+        SyncUploadOperationsTracker(p),
+        transferStartCount(0)
+    {}
+};
+
+/**
  * @class SdkTestSyncUploadOperations
  * @brief Test fixture designed to test operations involving sync uploads.
  */
 class SdkTestSyncUploadsOperations: public SdkTestSyncNodesOperations
 {
 protected:
+    // [TODO] SDK-5629. Check Lifetime of listeners in this test suite once this ticket has been
+    // resolved
     std::unique_ptr<NiceMock<MockTransferListener>> mMtl;
     std::unique_ptr<NiceMock<MockSyncListener>> mMsl;
-    std::unique_ptr<std::promise<int>> mFileUploadPms;
-    std::unique_ptr<std::future<int>> mFileUploadFut;
-    std::atomic<bool> mCreatedFile{false};
     bool mCleanupFunctionSet{false};
     const std::string SYNC_REMOTE_PATH{"localSyncedDir"};
     std::vector<shared_ptr<sdk_test::LocalTempFile>> mLocalFiles;
     std::unique_ptr<FSACCESS_CLASS> mFsAccess;
+    std::vector<std::shared_ptr<SyncUploadOperationsTracker>> mSyncListenerTrackers;
+    std::vector<std::shared_ptr<SyncUploadOperationsTransferTracker>> mTransferListenerTrackers;
 
     /**
      * @brief Creates a local file and waits until onSyncFileStateChanged with STATE_SYNCED is
@@ -52,38 +86,19 @@ protected:
                                       const std::string_view contents,
                                       std::optional<fs::file_time_type> customMtime)
     {
-        EXPECT_CALL(*mMsl.get(), onSyncFileStateChanged(_, _, _, _))
-            .WillRepeatedly(
-                [this, localFilePathStr = localFilePathAbs.string()](MegaApi*,
-                                                                     MegaSync* sync,
-                                                                     std::string* localPath,
-                                                                     int newState)
-                {
-                    if (sync && sync->getBackupId() == getBackupId() &&
-                        newState == MegaApi::STATE_SYNCED && localPath &&
-                        *localPath == localFilePathStr && !mCreatedFile)
-                    {
-                        mCreatedFile = true;
-                        mFileUploadPms->set_value(newState);
-                    }
-                });
+        auto st = addSyncListenerTracker(localFilePathAbs.string());
+        if (!st)
+        {
+            return {false, nullptr};
+        }
+
         auto localFile =
             std::make_shared<sdk_test::LocalTempFile>(localFilePathAbs, contents, customMtime);
-        const auto succeeded =
-            mFileUploadFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
-        resetLocalFileEnv();
-        return {succeeded, localFile};
-    }
 
-    /**
-     * @brief Resets related variables that tracks when a local file is created
-     */
-    void resetLocalFileEnv()
-    {
-        testing::Mock::VerifyAndClearExpectations(mMsl.get());
-        mFileUploadPms.reset(new std::promise<int>());
-        mFileUploadFut.reset(new std::future<int>(mFileUploadPms->get_future()));
-        mCreatedFile = false;
+        const auto succeeded =
+            st->actionCompletedFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready &&
+            st->actionCompletedFut->get() == API_OK;
+        return {succeeded, localFile};
     }
 
     /**
@@ -104,35 +119,110 @@ protected:
                                 const bool isFullUploadExpected)
     {
         ASSERT_TRUE(mMtl) << "createTestFileInternal: Invalid transfer listener";
-        std::shared_ptr<std::promise<int>> fileUploadPms = std::make_shared<std::promise<int>>();
-        std::unique_ptr<std::future<int>> fut(new std::future<int>(fileUploadPms->get_future()));
+        std::shared_ptr<SyncUploadOperationsTransferTracker> tt;
         if (isFullUploadExpected)
         {
-            EXPECT_CALL(*mMtl, onTransferStart).Times(1);
-            EXPECT_CALL(*mMtl, onTransferFinish)
-                .Times(1)
-                .WillOnce(
-                    [fileUploadPms](::mega::MegaApi*, ::mega::MegaTransfer*, ::mega::MegaError* e)
-                    {
-                        fileUploadPms->set_value(e->getErrorCode());
-                    });
+            tt = addTransferListenerTracker(localFilePathAbs.string());
+            ASSERT_TRUE(tt) << "Cannot add TransferListenerTracker for: "
+                            << localFilePathAbs.string();
         }
 
         auto [res1, localFile1] =
             createLocalFileAndWaitForSync(localFilePathAbs, fileContent, customMtime);
-        ASSERT_TRUE(res1);
+        ASSERT_TRUE(res1) << "createLocalFileAndWaitForSync (Unexpected result)";
         mLocalFiles.emplace_back(localFile1);
         ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 
         if (isFullUploadExpected)
         {
-            ASSERT_EQ(fut->wait_for(COMMON_TIMEOUT), std::future_status::ready);
-            ASSERT_EQ(fut->get(), API_OK) << "Transfer failed (" << localFilePathAbs << ")";
+            ASSERT_TRUE(tt->actionCompletedFut->wait_for(COMMON_TIMEOUT) ==
+                        std::future_status::ready)
+                << "onTransferFinish not received for: " << localFilePathAbs;
+            ASSERT_EQ(tt->actionCompletedFut->get(), API_OK)
+                << "Transfer failed (" << localFilePathAbs << ")";
         }
-        testing::Mock::VerifyAndClearExpectations(mMtl.get());
     }
 
 public:
+    /**
+     * @brief Registers a new sync listener tracker for a given absolute file path.
+     *
+     * Creates and stores a SyncUploadOperationsTracker instance that will be used to
+     * monitor sync-related state changes (such as STATE_SYNCED) for the specified path.
+     *
+     * @param p Absolute filesystem path string whose sync events will be tracked.
+     * @return A shared pointer to the newly created tracker.
+     */
+    std::shared_ptr<SyncUploadOperationsTracker> addSyncListenerTracker(const std::string& p)
+    {
+        auto sf = std::make_shared<SyncUploadOperationsTracker>(p);
+        mSyncListenerTrackers.emplace_back(sf);
+        return sf;
+    }
+
+    /**
+     * @brief Retrieves a sync listener tracker associated with the given path.
+     *
+     * @param p Absolute filesystem path used to locate the tracker.
+     * @return A shared pointer to the matching tracker, or nullptr if none exists.
+     */
+    std::shared_ptr<SyncUploadOperationsTracker> getSyncListenerTrackerByPath(const std::string& p)
+    {
+        std::shared_ptr<SyncUploadOperationsTracker> result;
+        std::for_each(mSyncListenerTrackers.begin(),
+                      mSyncListenerTrackers.end(),
+                      [&](const std::shared_ptr<SyncUploadOperationsTracker>& sf)
+                      {
+                          if (sf && sf->absolutePathStr == p)
+                          {
+                              result = sf;
+                          }
+                      });
+
+        return result;
+    }
+
+    /**
+     * @brief Registers a new transfer listener tracker for a given absolute file path.
+     *
+     * Creates and stores a SyncUploadOperationsTransferTracker instance used to track
+     * transfer-level callbacks (e.g., onTransferStart/onTransferFinish) related to the
+     * specified file path.
+     *
+     * @param p Absolute filesystem path whose transfer events should be tracked.
+     * @return A shared pointer to the newly created transfer tracker.
+     */
+    std::shared_ptr<SyncUploadOperationsTransferTracker>
+        addTransferListenerTracker(const std::string& p)
+    {
+        auto sf = std::make_shared<SyncUploadOperationsTransferTracker>(p);
+        mTransferListenerTrackers.emplace_back(sf);
+        return sf;
+    }
+
+    /**
+     * @brief Retrieves a transfer listener tracker associated with a given path.
+     *
+     * @param p Absolute filesystem path used to find the tracker.
+     * @return A shared pointer to the matching transfer tracker, or nullptr if no tracker exists.
+     */
+    std::shared_ptr<SyncUploadOperationsTransferTracker>
+        getTransferListenerTrackerByPath(const std::string& p)
+    {
+        std::shared_ptr<SyncUploadOperationsTransferTracker> result;
+        std::for_each(mTransferListenerTrackers.begin(),
+                      mTransferListenerTrackers.end(),
+                      [&](const std::shared_ptr<SyncUploadOperationsTransferTracker>& sf)
+                      {
+                          if (sf && sf->absolutePathStr == p)
+                          {
+                              result = sf;
+                          }
+                      });
+
+        return result;
+    }
+
     void SetUp() override
     {
         SdkTestNodesSetUp::SetUp();
@@ -143,11 +233,63 @@ public:
                 initiateSync(getLocalTmpDirU8string(), SYNC_REMOTE_PATH, mBackupId));
             ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
         }
+
         mMtl.reset(new NiceMock<MockTransferListener>(megaApi[0].get()));
+        EXPECT_CALL(*mMtl, onTransferStart)
+            .WillRepeatedly(
+                [this](::mega::MegaApi*, ::mega::MegaTransfer* t)
+                {
+                    if (!t || !t->getPath())
+                    {
+                        return;
+                    }
+
+                    auto element = getTransferListenerTrackerByPath(t->getPath());
+                    if (!element)
+                        return;
+
+                    ASSERT_EQ(++element->transferStartCount, 1)
+                        << "Unexpected times onTransferStart has been called: " << t->getPath();
+                });
+
+        EXPECT_CALL(*mMtl, onTransferFinish)
+            .WillRepeatedly(
+                [this](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError* e)
+                {
+                    if (!t || !t->getPath())
+                    {
+                        return;
+                    }
+
+                    auto element = getTransferListenerTrackerByPath(t->getPath());
+                    if (!element || !e)
+                        return;
+
+                    ASSERT_TRUE(!element->actionCompleted)
+                        << "onTransferFinish has been previously received: " << t->getPath();
+                    element->actionCompleted.store(true);
+                    element->actionCompletedPms->set_value(e->getErrorCode());
+                });
+
         megaApi[0]->addListener(mMtl.get());
 
         mMsl.reset(new NiceMock<MockSyncListener>(megaApi[0].get()));
-        resetLocalFileEnv();
+        EXPECT_CALL(*mMsl.get(), onSyncFileStateChanged(_, _, _, _))
+            .WillRepeatedly(
+                [this](MegaApi*, MegaSync* sync, std::string* localPath, int newState)
+                {
+                    //[TODO] -> Complete this
+                    if (sync && sync->getBackupId() == getBackupId() &&
+                        newState == MegaApi::STATE_SYNCED && localPath)
+                    {
+                        auto element = getSyncListenerTrackerByPath(*localPath);
+                        if (!element || element->actionCompleted)
+                            return;
+
+                        element->actionCompleted.store(true);
+                        element->actionCompletedPms->set_value(API_OK);
+                    }
+                });
         megaApi[0]->addListener(mMsl.get());
     }
 
