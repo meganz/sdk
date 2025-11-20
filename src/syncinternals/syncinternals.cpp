@@ -445,8 +445,8 @@ std::tuple<node_comparison_result, int64_t, int64_t>
 
     // IMPORTANT: To avoid performance issues in this method, we will consider FsNode and
     // CloudNode equal if their fingerprints fully match (CRC, size, isValid, mtime), although there
-    // could be collisions. We don't want to compute the METAMAC unless strictly necessary because
-    // it is expensive in terms of performance, so we will compute it only if the
+    // could be collisions. We don't want to compute the METAMAC unless is strictly necessary
+    // because it is expensive in terms of performance, so we will compute it only if the
     // fingerprints differ only in mtime.
     if (fs.fingerprint.mtime == cn.fingerprint.mtime)
         return {NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
