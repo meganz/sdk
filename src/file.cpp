@@ -370,16 +370,32 @@ void File::completed(Transfer* t, putsource_t source)
 
     if (t->type == PUT)
     {
-        sendPutnodesOfUpload(t->client,
-                             t->uploadhandle,
-                             "",
-                             *t->ultoken,
-                             t->filekey,
-                             source,
-                             NodeHandle(),
-                             nullptr,
-                             nullptr,
-                             false);
+        // If we found a node to clone with a valid key, call putNodesToCloneNode.
+        if (auto cloneNode = findCloneFileCandidate(*t->client, *this); cloneNode)
+        {
+            const auto displayPath = cloneNode->displaypath();
+            LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for " << name;
+            t->client->sendevent(99485, "Cloning node for upload");
+            sendPutnodesToCloneNode(t->client,
+                                      cloneNode,
+                                      source,
+                                      NodeHandle(),
+                                      nullptr,
+                                      false);
+        }
+        else
+        {
+            sendPutnodesOfUpload(t->client,
+                                 t->uploadhandle,
+                                 "",
+                                 *t->ultoken,
+                                 t->filekey,
+                                 source,
+                                 NodeHandle(),
+                                 nullptr,
+                                 nullptr,
+                                 false);
+        }
     }
 }
 
@@ -949,4 +965,103 @@ bool SyncDownload_inClient::failed(error e, MegaClient* mc)
 
 
 #endif
+
+/**
+ * @struct FindNodeByFilePredicate
+ * @brief Predicate for identifying a suitable node based on a given File.
+ *
+ * This struct encapsulates the logic required to determine if a Node in the cloud
+ * matches the Fingerprint and Meta Mac of a given File. It is used in conjunction
+ * with std::find_if to search for matching nodes in a collection of nodes.
+ */
+struct FindNodeByFilePredicate
+{
+    /**
+     * @brief Reference to the MegaClient managing the synchronization process.
+     */
+    MegaClient& mClient;
+
+    /**
+     * @brief Const reference to the File being processed.
+     */
+    const File& mFile;
+
+    /**
+     * @brief Flag indicating if a candidate node with a zero key was found.
+     *
+     * If true, the predicate encountered a candidate node that matches the file
+     * but has an invalid key, which can be used to prevent it from being selected.
+     */
+    bool mFoundCandidateHasZeroKey{false};
+
+    /**
+     * @brief Constructs a FindNodeByFilePredicate instance.
+     *
+     * @param client Reference to the MegaClient managing synchronization.
+     * @param file Const reference to the File being processed.
+     */
+    FindNodeByFilePredicate(MegaClient& client, const File& file)
+        : mClient(client), mFile(file)
+    {}
+
+    /**
+     * @brief Evaluates if the provided Node is a suitable match for the File.
+     *
+     * Checks if the node matches the file in terms of Fingerprint and Meta Mac.
+     * If a match is found but the node has a zero key, it returns true but logs a warning
+     * and updates the mFoundCandidateHasZeroKey flag accordingly.
+     *
+     * @param node The cloud node to evaluate.
+     * @return True if a match is found, otherwise false.
+     */
+    bool operator()(const Node& node)
+    {
+        if (!mFile.isvalid || !node.isvalid())
+        {
+            LOG_warn << "Invalid File or Node encountered during comparison.";
+            return false;
+        }
+
+        if (const auto [compRes, _] = CompareLocalFileWithNodeFpAndMac(mClient,
+                                                                       mFile.getLocalname(),
+                                                                       mFile,
+                                                                       &node,
+                                                                       false /*debugMode*/);
+            compRes == NODE_COMP_EQUAL)
+        {
+            // Found a candidate that matches content
+            if (node.hasZeroKey())
+            {
+                LOG_warn << "Node with handle " << node.nodeHandle()
+                         << " has a zero key. File: " << mFile.getLocalname();
+                mClient.sendevent(99486, "Node has a zerokey");
+                mFoundCandidateHasZeroKey = true;
+            }
+            return true; // Done searching (zero key or valid node)
+        }
+        return false; // Keep searching
+    }
+
+    /**
+     * @brief Overloaded operator() to check the validity of a shared_ptr to a Node.
+     */
+    bool operator()(const std::shared_ptr<Node>& node)
+    {
+        return node && operator()(*node);
+    }
+};
+
+Node* findCloneFileCandidate(MegaClient& mc, const File& file)
+{
+    FindNodeByFilePredicate predicate{mc, file};
+    const auto candidates = mc.mNodeManager.getNodesByFingerprint(file);
+
+    if (const auto it = std::find_if(begin(candidates), end(candidates), predicate);
+        (it != std::end(candidates) && !predicate.mFoundCandidateHasZeroKey))
+    {
+        return it->get();
+    }
+
+    return nullptr;
+}
 } // namespace

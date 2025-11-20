@@ -330,6 +330,8 @@ struct DelayedSyncUpload
     {}
 };
 
-} // namespace
+Node* findCloneFileCandidate(MegaClient& mc, const File& file);
+
+} // namespace mega
 
 #endif
