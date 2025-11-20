@@ -16,11 +16,7 @@ class SdkTestBackupUploadsOperations: public SdkTestBackup
 {
 public:
     static constexpr auto COMMON_TIMEOUT = 3min;
-    std::unique_ptr<NiceMock<MockTransferListener>> mMtl;
-    std::unique_ptr<NiceMock<MockSyncListener>> mMsl;
-    std::unique_ptr<NiceMock<MockSyncListener>> mMslFiles;
-    std::unique_ptr<std::promise<int>> mFileUploadPms;
-    std::unique_ptr<std::future<int>> mFileUploadFut;
+    std::unique_ptr<FSACCESS_CLASS> mFsAccess;
 
     /**
      * @brief Sets the cleanup function to be executed during TearDown.
@@ -56,24 +52,29 @@ public:
             return std::make_unique<MrProper>(
                 [this]()
                 {
-                    if (mMtl)
-                    {
-                        megaApi[0]->removeListener(mMtl.get());
-                        mMtl.reset();
-                    }
-
-                    if (mMsl)
-                    {
-                        megaApi[0]->removeListener(mMsl.get());
-                        mMsl.reset();
-                    }
-
-                    if (mMslFiles)
-                    {
-                        megaApi[0]->removeListener(mMslFiles.get());
-                        mMslFiles.reset();
-                    }
+                    cleanDefaultListeners();
                 });
+        }
+    }
+
+    void cleanDefaultListeners()
+    {
+        if (mMtl)
+        {
+            megaApi[0]->removeListener(mMtl.get());
+            mMtl.reset();
+        }
+
+        if (mMslStats)
+        {
+            megaApi[0]->removeListener(mMslStats.get());
+            mMslStats.reset();
+        }
+
+        if (mMslFiles)
+        {
+            megaApi[0]->removeListener(mMslFiles.get());
+            mMslFiles.reset();
         }
     }
 
@@ -98,11 +99,6 @@ public:
      * @brief Resets local variables that tracks when backup sync is up-to-date.
      */
     void resetOnSyncStatsUpdated();
-
-    /**
-     * @brief Resets related variables that tracks when a local file is created
-     */
-    void resetLocalFileEnv();
 
     /**
      * @brief Waits until the backup sync is up-to-date state.
@@ -158,17 +154,18 @@ protected:
                         std::optional<fs::file_time_type> customMtime);
 
 private:
+    std::unique_ptr<NiceMock<MockTransferListener>> mMtl;
+    std::unique_ptr<NiceMock<MockSyncListener>> mMslStats;
+    std::unique_ptr<NiceMock<MockSyncListener>> mMslFiles;
+    SyncItemTrackerManager<SyncUploadOperationsTracker> mSyncListenerTrackers;
+    SyncItemTrackerManager<SyncUploadOperationsTransferTracker> mTransferListenerTrackers;
     MegaHandle mBackupRootHandle{INVALID_HANDLE};
     MegaHandle mCloudArchiveBackupFolderHandle{INVALID_HANDLE};
     const fs::path mCloudArchiveBackupFolderName{"BackupArchive"};
     std::atomic<bool> mIsUpToDate{false};
-    std::atomic<bool> mCreatedFile{false};
     std::shared_ptr<std::promise<void>> mSyncUpToDatePms;
     std::unique_ptr<std::future<void>> mSyncFut;
     bool mCleanupFunctionSet{false};
-
-public:
-    std::unique_ptr<FSACCESS_CLASS> mFsAccess;
 }; // class SdkTestBackupUploadsOperations
 
 std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
@@ -177,25 +174,59 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
         const std::string_view contents,
         std::optional<fs::file_time_type> customMtime)
 {
-    EXPECT_CALL(*mMslFiles.get(), onSyncFileStateChanged(_, _, _, _))
-        .WillRepeatedly(
-            [this, localFilePathStr = localFilePathAbs.string()](MegaApi*,
-                                                                 MegaSync* sync,
-                                                                 std::string* localPath,
-                                                                 int newState)
-            {
-                if (sync && sync->getBackupId() == getBackupId() &&
-                    newState == MegaApi::STATE_SYNCED && localPath &&
-                    *localPath == localFilePathStr && !mCreatedFile)
-                {
-                    mCreatedFile = true;
-                    mFileUploadPms->set_value(newState);
-                }
-            });
+    if (!mMtl)
+    {
+        LOG_err << "createLocalFileAndWaitForSync: invalid transfer listener";
+        return {false, nullptr};
+    }
+
+    if (!mMslFiles)
+    {
+        LOG_err << "createLocalFileAndWaitForSync: invalid transfer listener";
+        return {false, nullptr};
+    }
+
+    std::shared_ptr<SyncUploadOperationsTransferTracker> tt;
+    if (tt = mTransferListenerTrackers.add(localFilePathAbs.string()); !tt)
+    {
+        LOG_err << "Cannot add TransferListenerTracker for: " << localFilePathAbs.string();
+        return {false, nullptr};
+    }
+
+    auto st = mSyncListenerTrackers.add(localFilePathAbs.string());
+    if (!st)
+    {
+        return {false, nullptr};
+    }
+
     auto localFile = createLocalFile(localFilePathAbs, contents, customMtime);
-    const auto succeeded = mFileUploadFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
-    resetLocalFileEnv();
-    return {succeeded, localFile};
+    auto [stFutStatus, stErrCode] = st->waitForCompletion(COMMON_TIMEOUT);
+    if (stFutStatus != std::future_status::ready)
+    {
+        LOG_err << "onTransferFinish not received for: " << localFilePathAbs;
+        return {false, nullptr};
+    }
+
+    if (stErrCode != API_OK)
+    {
+        LOG_err << "Transfer failed (" << localFilePathAbs << ")";
+        return {false, nullptr};
+    }
+
+    auto [ttFutStatus, ttErrCode] = tt->waitForCompletion(COMMON_TIMEOUT);
+    if (ttFutStatus != std::future_status::ready)
+    {
+        LOG_err << "onTransferFinish not received for: " << localFilePathAbs;
+        return {false, nullptr};
+    }
+
+    if (ttErrCode != API_OK)
+    {
+        LOG_err << "Transfer failed (" << localFilePathAbs << ")";
+        return {false, nullptr};
+    }
+
+    return {true, localFile};
 }
 
 void SdkTestBackupUploadsOperations::moveDeconfiguredBackupNodesToCloud()
@@ -215,16 +246,10 @@ void SdkTestBackupUploadsOperations::resetOnSyncStatsUpdated()
     mIsUpToDate = false;
 }
 
-void SdkTestBackupUploadsOperations::resetLocalFileEnv()
-{
-    testing::Mock::VerifyAndClearExpectations(mMslFiles.get());
-    mFileUploadPms.reset(new std::promise<int>());
-    mFileUploadFut.reset(new std::future<int>(mFileUploadPms->get_future()));
-    mCreatedFile = false;
-}
-
 bool SdkTestBackupUploadsOperations::waitForBackupSyncUpToDate() const
 {
+    if (!mMslStats)
+        return false;
     return mSyncFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
 }
 
@@ -250,11 +275,46 @@ void SdkTestBackupUploadsOperations::SetUp()
 
     // add transfer listener
     mMtl.reset(new NiceMock<MockTransferListener>(megaApi[0].get()));
+    EXPECT_CALL(*mMtl, onTransferStart)
+        .WillRepeatedly(
+            [this](::mega::MegaApi*, ::mega::MegaTransfer* t)
+            {
+                if (!t || !t->getPath())
+                {
+                    return;
+                }
+
+                auto element = mTransferListenerTrackers.getByPath(t->getPath());
+                if (!element)
+                    return;
+
+                ASSERT_EQ(++element->transferStartCount, 1)
+                    << "Unexpected times onTransferStart has been called: " << t->getPath();
+            });
+
+    EXPECT_CALL(*mMtl, onTransferFinish)
+        .WillRepeatedly(
+            [this](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError* e)
+            {
+                if (!t || !t->getPath())
+                {
+                    return;
+                }
+
+                auto element = mTransferListenerTrackers.getByPath(t->getPath());
+                if (!element || !e)
+                    return;
+
+                ASSERT_TRUE(!element->getActionCompleted())
+                    << "onTransferFinish has been previously received: " << t->getPath();
+                element->setActionCompleted();
+                element->setActionCompletedPms(e->getErrorCode());
+            });
     megaApi[0]->addListener(mMtl.get());
 
     // add sync listener and add EXPECT(S)
-    mMsl.reset(new NiceMock<MockSyncListener>(megaApi[0].get()));
-    EXPECT_CALL(*mMsl.get(), onSyncStatsUpdated(_, _))
+    mMslStats.reset(new NiceMock<MockSyncListener>(megaApi[0].get()));
+    EXPECT_CALL(*mMslStats.get(), onSyncStatsUpdated(_, _))
         .WillRepeatedly(
             [this](MegaApi*, MegaSyncStats* stats)
             {
@@ -265,10 +325,24 @@ void SdkTestBackupUploadsOperations::SetUp()
                     mSyncUpToDatePms->set_value();
                 }
             });
-    megaApi[0]->addListener(mMsl.get());
+    megaApi[0]->addListener(mMslStats.get());
 
     mMslFiles.reset(new NiceMock<MockSyncListener>(megaApi[0].get()));
-    resetLocalFileEnv();
+    EXPECT_CALL(*mMslFiles.get(), onSyncFileStateChanged(_, _, _, _))
+        .WillRepeatedly(
+            [this](MegaApi*, MegaSync* sync, std::string* localPath, int newState)
+            {
+                if (sync && sync->getBackupId() == getBackupId() &&
+                    newState == MegaApi::STATE_SYNCED && localPath)
+                {
+                    auto element = mSyncListenerTrackers.getByPath(*localPath);
+                    if (!element || element->getActionCompleted())
+                        return;
+
+                    element->setActionCompleted();
+                    element->setActionCompletedPms(API_OK);
+                }
+            });
     megaApi[0]->addListener(mMslFiles.get());
 }
 
@@ -280,8 +354,8 @@ void SdkTestBackupUploadsOperations::TearDown()
 
     ASSERT_TRUE(!mMtl) << getLogPrefix()
                        << "(TearDown). Transfer listener has not been unregistered yet";
-    ASSERT_TRUE(!mMsl) << getLogPrefix()
-                       << "(TearDown). Sync listener has not been unregistered yet";
+    ASSERT_TRUE(!mMslStats) << getLogPrefix()
+                            << "(TearDown). Sync listener has not been unregistered yet";
     removeBackupSync();
     SdkTestBackup::TearDown();
 }
@@ -376,11 +450,6 @@ TEST_F(SdkTestBackupUploadsOperations, BasicTest)
     // Add cleanup function to unregister listeners as soon as test fail/finish
     const auto cleanup = setCleanupFunction();
 
-    // Set expectation for number of expected calls to MockTransferListener callbacks
-    testing::Mock::VerifyAndClearExpectations(mMtl.get());
-    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
-    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
-
     // Reset MockSyncListener related promise/future
     resetOnSyncStatsUpdated();
 
@@ -411,11 +480,20 @@ TEST_F(SdkTestBackupUploadsOperations, BasicTest)
  */
 TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
 {
+    std::shared_ptr<NiceMock<MockTransferListener>> auxMtl;
     static const auto logPre{getLogPrefix()};
     LOG_verbose << logPre << "#### Test body started ####";
 
     // Add cleanup function to unregister listeners as soon as test fail/finish
-    const auto cleanup = setCleanupFunction();
+    const auto cleanup = setCleanupFunction(
+        [this, auxMtl]()
+        {
+            cleanDefaultListeners();
+            if (auxMtl)
+            {
+                megaApi[0]->removeListener(auxMtl.get());
+            }
+        });
 
     constexpr unsigned numFiles{3};
     auto localBasePath{fs::absolute(getLocalFolderPath())};
@@ -424,11 +502,6 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
     auto mtime = fs::file_time_type::clock::now();
     for (unsigned i = 1; i <= numFiles; ++i)
     {
-        // Set TransferListener expectations
-        testing::Mock::VerifyAndClearExpectations(mMtl.get());
-        EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
-        EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
-
         auto auxMtime = mtime + std::chrono::seconds(MIN_ALLOW_MTIME_DIFFERENCE * i);
         std::string filename = "file" + std::to_string(i);
         LOG_debug << logPre << "#### TC " << std::to_string(i) << "Creating local file `"
@@ -453,11 +526,11 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
     createBackupSync();
     resetOnSyncStatsUpdated();
 
-    // Reset TransferListener expectations => files already exist in Cloud drive, SDK must perform
     // Clone Put nodes (no transfer is created)
-    testing::Mock::VerifyAndClearExpectations(mMtl.get());
-    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(0);
-    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(0);
+    auxMtl.reset(new NiceMock<MockTransferListener>(megaApi[0].get()));
+    EXPECT_CALL(*auxMtl.get(), onTransferStart).Times(0);
+    EXPECT_CALL(*auxMtl.get(), onTransferFinish).Times(0);
+    megaApi[0]->addListener(auxMtl.get());
 
     LOG_debug << logPre << "#### TC8 resuming sync ####";
     ASSERT_NO_FATAL_FAILURE(resumeBackupSync());
@@ -486,11 +559,6 @@ TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
     LOG_verbose << logPre << "#### Test body started ####";
     // Add cleanup function to unregister listeners as soon as test fail/finish
     const auto cleanup = setCleanupFunction();
-
-    // Set expectation for number of expected calls to MockTransferListener callbacks
-    testing::Mock::VerifyAndClearExpectations(mMtl.get());
-    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
-    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
 
     // Reset MockSyncListener related promise/future
     resetOnSyncStatsUpdated();
@@ -580,11 +648,6 @@ TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
     auto mtime{fs::file_time_type::clock::now()};
     for (unsigned i = 1; i <= numFiles; ++i)
     {
-        // Set TransferListener expectations
-        testing::Mock::VerifyAndClearExpectations(mMtl.get());
-        EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
-        EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
-
         const auto auxMtime{mtime + std::chrono::seconds(MIN_ALLOW_MTIME_DIFFERENCE * i)};
         std::string fn = "file" + std::to_string(i);
         filenames.emplace_back(fn);

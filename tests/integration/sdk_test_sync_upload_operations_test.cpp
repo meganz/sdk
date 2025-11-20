@@ -33,9 +33,6 @@ protected:
     const std::string SYNC_REMOTE_PATH{"localSyncedDir"};
     std::vector<shared_ptr<sdk_test::LocalTempFile>> mLocalFiles;
     std::unique_ptr<FSACCESS_CLASS> mFsAccess;
-    // std::vector<std::shared_ptr<SyncUploadOperationsTracker>> mSyncListenerTrackers;
-    // std::vector<std::shared_ptr<SyncUploadOperationsTransferTracker>> mTransferListenerTrackers;
-
     SyncItemTrackerManager<SyncUploadOperationsTracker> mSyncListenerTrackers;
     SyncItemTrackerManager<SyncUploadOperationsTransferTracker> mTransferListenerTrackers;
 
@@ -167,7 +164,6 @@ public:
             .WillRepeatedly(
                 [this](MegaApi*, MegaSync* sync, std::string* localPath, int newState)
                 {
-                    //[TODO] -> Complete this
                     if (sync && sync->getBackupId() == getBackupId() &&
                         newState == MegaApi::STATE_SYNCED && localPath)
                     {
