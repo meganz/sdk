@@ -3,8 +3,10 @@
 
 #include "stdfs.h"
 
+#include <atomic>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <optional>
 #include <set>
 #include <thread>
@@ -391,5 +393,118 @@ std::vector<std::string>
     getLocalFirstChildrenNames_if(const std::filesystem::path& localPath,
                                   std::function<bool(const std::string&)> filter = nullptr);
 }
+
+/**
+ * @struct SyncUploadOperationsTracker
+ * @brief Tracks SyncListener callbacks for a specific local file.
+ */
+struct SyncUploadOperationsTracker
+{
+private:
+    std::string absolutePathStr;
+    std::atomic<bool> actionCompleted;
+    std::unique_ptr<std::promise<int>> actionCompletedPms;
+    std::unique_ptr<std::future<int>> actionCompletedFut;
+
+public:
+    SyncUploadOperationsTracker(const std::string& p):
+        absolutePathStr(p),
+        actionCompleted(false),
+        actionCompletedPms(new std::promise<int>()),
+        actionCompletedFut(new std::future<int>(actionCompletedPms->get_future()))
+    {}
+
+    const std::string& getPath() const
+    {
+        return absolutePathStr;
+    }
+
+    void setActionCompleted()
+    {
+        actionCompleted.store(true);
+    }
+
+    bool getActionCompleted()
+    {
+        return actionCompleted.load();
+    }
+
+    void setActionCompletedPms(const int v)
+    {
+        actionCompletedPms->set_value(v);
+    }
+
+    std::pair<std::future_status, int> waitForCompletion(std::chrono::milliseconds timeout)
+    {
+        auto status = actionCompletedFut->wait_for(timeout);
+        auto errCode =
+            status == std::future_status::ready ? actionCompletedFut->get() : -1 /*API_EINTERNAL*/;
+        return {status, errCode};
+    }
+};
+
+/**
+ * @struct SyncUploadOperationsTransferTracker
+ * @brief Tracks Transfer listener callbacks for a specific local file.
+ */
+struct SyncUploadOperationsTransferTracker: public SyncUploadOperationsTracker
+{
+    std::atomic<int> transferStartCount;
+
+    SyncUploadOperationsTransferTracker(const std::string& p):
+        SyncUploadOperationsTracker(p),
+        transferStartCount(0)
+    {}
+};
+
+/**
+ * @class SyncItemTrackerManager
+ * @brief Generic manager for any tracker type that provides absolutePathStr.
+ *
+ * @tparam T Tracker type (must contain std::string absolutePathStr).
+ */
+template<typename T>
+class SyncItemTrackerManager
+{
+public:
+    /**
+     * @brief Creates and stores a tracker of type T for the given absolute path.
+     *
+     * @param path Absolute filesystem path whose events should be tracked.
+     * @return A shared pointer to the created tracker.
+     */
+    std::shared_ptr<T> add(const std::string& path)
+    {
+        auto tracker = std::make_shared<T>(path);
+        mTrackers.emplace_back(tracker);
+        return tracker;
+    }
+
+    /**
+     * @brief Retrieves a tracker by its associated absolute path.
+     *
+     * @param path Absolute filesystem path used to locate the tracker.
+     * @return A shared pointer to the tracker, or nullptr if not found.
+     */
+    std::shared_ptr<T> getByPath(const std::string& path) const
+    {
+        std::shared_ptr<T> result;
+
+        std::for_each(mTrackers.begin(),
+                      mTrackers.end(),
+                      [&](const std::shared_ptr<T>& tracker)
+                      {
+                          if (tracker && tracker->getPath() == path)
+                          {
+                              result = tracker;
+                          }
+                      });
+
+        return result;
+    }
+
+private:
+    std::vector<std::shared_ptr<T>> mTrackers;
+};
 
 #endif // INCLUDE_TESTS_SDK_TEST_UTILS_H_

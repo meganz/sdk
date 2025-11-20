@@ -19,39 +19,6 @@ using namespace sdk_test;
 using namespace testing;
 
 /**
- * @struct SyncUploadOperationsTracker
- * @brief Tracks SyncListener callbacks for a specific local file.
- */
-struct SyncUploadOperationsTracker
-{
-    std::string absolutePathStr;
-    std::atomic<bool> actionCompleted;
-    std::unique_ptr<std::promise<int>> actionCompletedPms;
-    std::unique_ptr<std::future<int>> actionCompletedFut;
-
-    SyncUploadOperationsTracker(const std::string& p):
-        absolutePathStr(p),
-        actionCompleted(false),
-        actionCompletedPms(new std::promise<int>()),
-        actionCompletedFut(new std::future<int>(actionCompletedPms->get_future()))
-    {}
-};
-
-/**
- * @struct SyncUploadOperationsTransferTracker
- * @brief Tracks Transfer listener callbacks for a specific local file.
- */
-struct SyncUploadOperationsTransferTracker: public SyncUploadOperationsTracker
-{
-    std::atomic<int> transferStartCount;
-
-    SyncUploadOperationsTransferTracker(const std::string& p):
-        SyncUploadOperationsTracker(p),
-        transferStartCount(0)
-    {}
-};
-
-/**
  * @class SdkTestSyncUploadOperations
  * @brief Test fixture designed to test operations involving sync uploads.
  */
@@ -66,8 +33,11 @@ protected:
     const std::string SYNC_REMOTE_PATH{"localSyncedDir"};
     std::vector<shared_ptr<sdk_test::LocalTempFile>> mLocalFiles;
     std::unique_ptr<FSACCESS_CLASS> mFsAccess;
-    std::vector<std::shared_ptr<SyncUploadOperationsTracker>> mSyncListenerTrackers;
-    std::vector<std::shared_ptr<SyncUploadOperationsTransferTracker>> mTransferListenerTrackers;
+    // std::vector<std::shared_ptr<SyncUploadOperationsTracker>> mSyncListenerTrackers;
+    // std::vector<std::shared_ptr<SyncUploadOperationsTransferTracker>> mTransferListenerTrackers;
+
+    SyncItemTrackerManager<SyncUploadOperationsTracker> mSyncListenerTrackers;
+    SyncItemTrackerManager<SyncUploadOperationsTransferTracker> mTransferListenerTrackers;
 
     /**
      * @brief Creates a local file and waits until onSyncFileStateChanged with STATE_SYNCED is
@@ -86,7 +56,7 @@ protected:
                                       const std::string_view contents,
                                       std::optional<fs::file_time_type> customMtime)
     {
-        auto st = addSyncListenerTracker(localFilePathAbs.string());
+        auto st = mSyncListenerTrackers.add(localFilePathAbs.string());
         if (!st)
         {
             return {false, nullptr};
@@ -95,9 +65,8 @@ protected:
         auto localFile =
             std::make_shared<sdk_test::LocalTempFile>(localFilePathAbs, contents, customMtime);
 
-        const auto succeeded =
-            st->actionCompletedFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready &&
-            st->actionCompletedFut->get() == API_OK;
+        auto [futStatus, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        const auto succeeded = futStatus == std::future_status::ready && errCode == API_OK;
         return {succeeded, localFile};
     }
 
@@ -122,7 +91,7 @@ protected:
         std::shared_ptr<SyncUploadOperationsTransferTracker> tt;
         if (isFullUploadExpected)
         {
-            tt = addTransferListenerTracker(localFilePathAbs.string());
+            tt = mTransferListenerTrackers.add(localFilePathAbs.string());
             ASSERT_TRUE(tt) << "Cannot add TransferListenerTracker for: "
                             << localFilePathAbs.string();
         }
@@ -135,94 +104,14 @@ protected:
 
         if (isFullUploadExpected)
         {
-            ASSERT_TRUE(tt->actionCompletedFut->wait_for(COMMON_TIMEOUT) ==
-                        std::future_status::ready)
+            auto [futStatus, errCode] = tt->waitForCompletion(COMMON_TIMEOUT);
+            ASSERT_TRUE(futStatus == std::future_status::ready)
                 << "onTransferFinish not received for: " << localFilePathAbs;
-            ASSERT_EQ(tt->actionCompletedFut->get(), API_OK)
-                << "Transfer failed (" << localFilePathAbs << ")";
+            ASSERT_EQ(errCode, API_OK) << "Transfer failed (" << localFilePathAbs << ")";
         }
     }
 
 public:
-    /**
-     * @brief Registers a new sync listener tracker for a given absolute file path.
-     *
-     * Creates and stores a SyncUploadOperationsTracker instance that will be used to
-     * monitor sync-related state changes (such as STATE_SYNCED) for the specified path.
-     *
-     * @param p Absolute filesystem path string whose sync events will be tracked.
-     * @return A shared pointer to the newly created tracker.
-     */
-    std::shared_ptr<SyncUploadOperationsTracker> addSyncListenerTracker(const std::string& p)
-    {
-        auto sf = std::make_shared<SyncUploadOperationsTracker>(p);
-        mSyncListenerTrackers.emplace_back(sf);
-        return sf;
-    }
-
-    /**
-     * @brief Retrieves a sync listener tracker associated with the given path.
-     *
-     * @param p Absolute filesystem path used to locate the tracker.
-     * @return A shared pointer to the matching tracker, or nullptr if none exists.
-     */
-    std::shared_ptr<SyncUploadOperationsTracker> getSyncListenerTrackerByPath(const std::string& p)
-    {
-        std::shared_ptr<SyncUploadOperationsTracker> result;
-        std::for_each(mSyncListenerTrackers.begin(),
-                      mSyncListenerTrackers.end(),
-                      [&](const std::shared_ptr<SyncUploadOperationsTracker>& sf)
-                      {
-                          if (sf && sf->absolutePathStr == p)
-                          {
-                              result = sf;
-                          }
-                      });
-
-        return result;
-    }
-
-    /**
-     * @brief Registers a new transfer listener tracker for a given absolute file path.
-     *
-     * Creates and stores a SyncUploadOperationsTransferTracker instance used to track
-     * transfer-level callbacks (e.g., onTransferStart/onTransferFinish) related to the
-     * specified file path.
-     *
-     * @param p Absolute filesystem path whose transfer events should be tracked.
-     * @return A shared pointer to the newly created transfer tracker.
-     */
-    std::shared_ptr<SyncUploadOperationsTransferTracker>
-        addTransferListenerTracker(const std::string& p)
-    {
-        auto sf = std::make_shared<SyncUploadOperationsTransferTracker>(p);
-        mTransferListenerTrackers.emplace_back(sf);
-        return sf;
-    }
-
-    /**
-     * @brief Retrieves a transfer listener tracker associated with a given path.
-     *
-     * @param p Absolute filesystem path used to find the tracker.
-     * @return A shared pointer to the matching transfer tracker, or nullptr if no tracker exists.
-     */
-    std::shared_ptr<SyncUploadOperationsTransferTracker>
-        getTransferListenerTrackerByPath(const std::string& p)
-    {
-        std::shared_ptr<SyncUploadOperationsTransferTracker> result;
-        std::for_each(mTransferListenerTrackers.begin(),
-                      mTransferListenerTrackers.end(),
-                      [&](const std::shared_ptr<SyncUploadOperationsTransferTracker>& sf)
-                      {
-                          if (sf && sf->absolutePathStr == p)
-                          {
-                              result = sf;
-                          }
-                      });
-
-        return result;
-    }
-
     void SetUp() override
     {
         SdkTestNodesSetUp::SetUp();
@@ -244,7 +133,7 @@ public:
                         return;
                     }
 
-                    auto element = getTransferListenerTrackerByPath(t->getPath());
+                    auto element = mTransferListenerTrackers.getByPath(t->getPath());
                     if (!element)
                         return;
 
@@ -261,14 +150,14 @@ public:
                         return;
                     }
 
-                    auto element = getTransferListenerTrackerByPath(t->getPath());
+                    auto element = mTransferListenerTrackers.getByPath(t->getPath());
                     if (!element || !e)
                         return;
 
-                    ASSERT_TRUE(!element->actionCompleted)
+                    ASSERT_TRUE(!element->getActionCompleted())
                         << "onTransferFinish has been previously received: " << t->getPath();
-                    element->actionCompleted.store(true);
-                    element->actionCompletedPms->set_value(e->getErrorCode());
+                    element->setActionCompleted();
+                    element->setActionCompletedPms(e->getErrorCode());
                 });
 
         megaApi[0]->addListener(mMtl.get());
@@ -282,12 +171,12 @@ public:
                     if (sync && sync->getBackupId() == getBackupId() &&
                         newState == MegaApi::STATE_SYNCED && localPath)
                     {
-                        auto element = getSyncListenerTrackerByPath(*localPath);
-                        if (!element || element->actionCompleted)
+                        auto element = mSyncListenerTrackers.getByPath(*localPath);
+                        if (!element || element->getActionCompleted())
                             return;
 
-                        element->actionCompleted.store(true);
-                        element->actionCompletedPms->set_value(API_OK);
+                        element->setActionCompleted();
+                        element->setActionCompletedPms(API_OK);
                     }
                 });
         megaApi[0]->addListener(mMsl.get());
