@@ -49,7 +49,6 @@ public:
 
     void removeBackupSync()
     {
-        ASSERT_NE(mBackupID, INVALID_HANDLE) << "Cant't remove backup/sync. Invalid Backup ID";
         if (const std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByBackupId(mBackupID)}; sync)
         {
             ASSERT_TRUE(::removeSync(megaApi[0].get(), mBackupID))

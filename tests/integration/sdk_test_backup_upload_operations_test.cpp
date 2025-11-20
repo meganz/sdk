@@ -59,6 +59,8 @@ public:
 
     void cleanDefaultListeners()
     {
+        removeBackupSync();
+
         if (mMtl)
         {
             megaApi[0]->removeListener(mMtl.get());

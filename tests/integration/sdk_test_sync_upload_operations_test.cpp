@@ -226,18 +226,33 @@ public:
             return std::make_unique<MrProper>(
                 [this]()
                 {
-                    if (mMtl)
-                    {
-                        megaApi[0]->removeListener(mMtl.get());
-                        mMtl.reset();
-                    }
-
-                    if (mMsl)
-                    {
-                        megaApi[0]->removeListener(mMsl.get());
-                        mMsl.reset();
-                    }
+                    cleanDefaultListeners();
                 });
+        }
+    }
+
+    void removeTestSync()
+    {
+        if (mBackupId != UNDEF)
+        {
+            ASSERT_TRUE(removeSync(megaApi[0].get(), mBackupId));
+        }
+    }
+
+    void cleanDefaultListeners()
+    {
+        removeTestSync();
+
+        if (mMtl)
+        {
+            megaApi[0]->removeListener(mMtl.get());
+            mMtl.reset();
+        }
+
+        if (mMsl)
+        {
+            megaApi[0]->removeListener(mMsl.get());
+            mMsl.reset();
         }
     }
 
