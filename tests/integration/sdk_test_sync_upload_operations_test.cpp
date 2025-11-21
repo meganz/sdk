@@ -235,7 +235,12 @@ public:
     {
         if (mBackupId != UNDEF)
         {
-            ASSERT_TRUE(removeSync(megaApi[0].get(), mBackupId));
+            auto succeeded = removeSync(megaApi[0].get(), mBackupId);
+            if (succeeded)
+            {
+                mBackupId = UNDEF;
+            }
+            ASSERT_TRUE(succeeded);
         }
     }
 
