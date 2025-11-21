@@ -521,8 +521,10 @@ std::tuple<node_comparison_result, int64_t, int64_t>
                 return;
             }
 
-            auto [localMac, remoteMac] =
-                genLocalAndRemoteMetaMac(fa.get(), node->nodekey(), node->type);
+            auto [localMac, remoteMac] = genLocalAndRemoteMetaMac(fa.get(),
+                                                                  node->nodekey(),
+                                                                  node->type,
+                                                                  fsNodeFullPath.toPath(false));
 
             auto compRes = localMac == remoteMac ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
             pms->set_value({compRes, localMac, remoteMac});

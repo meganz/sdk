@@ -2447,28 +2447,25 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
     }
 }
 
-std::pair<bool, int64_t>
-    generateMetaMac(SymmCipher& cipher, FileAccess& ifAccess, const int64_t iv, const bool debug)
+std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
+                                         FileAccess& ifAccess,
+                                         const int64_t iv,
+                                         std::optional<std::string> pathStr)
 {
     using clock = std::chrono::steady_clock;
-    [[maybe_unused]] auto start = clock::now();
+    auto start = clock::now();
 
     FileInputStream isAccess(&ifAccess);
     auto res = generateMetaMac(cipher, isAccess, iv);
+    auto end = clock::now();
+    auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-    if (debug)
-    {
-        auto end = clock::now();
-        auto durationUs =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    double durationSec = static_cast<double>(durationUs) / 1'000'000.0;
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(6) << durationSec;
 
-        double durationSec = static_cast<double>(durationUs) / 1'000'000.0;
-        std::ostringstream oss;
-        oss << std::fixed << std::setprecision(6) << durationSec;
-
-        LOG_debug << "generateMetaMac: MAC computed in " << oss.str()
-                  << " (s) for: " << ifAccess.nonblocking_localname.toPath(true);
-    }
+    const std::string p = pathStr.has_value() ? (" for: " + pathStr.value()) : "";
+    LOG_debug << "generateMetaMac: MAC computed in " << oss.str() << " (s)" << p;
     return res;
 }
 
@@ -2505,32 +2502,35 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 
 std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
                                                             const std::string& nodeKey,
-                                                            int type)
+                                                            int type,
+                                                            std::optional<std::string> pathStr)
 {
     SymmCipher cipher;
     const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
     int64_t remoteIv = MemAccess::get<int64_t>(iva);
     int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     cipher.setkey((byte*)&nodeKey[0], type);
-    auto result = generateMetaMac(cipher, *fa, remoteIv, true /*debug*/);
+    auto result = generateMetaMac(cipher, *fa, remoteIv, pathStr);
     return {(result.first && result.second == remoteMac), result.second};
 }
 
 bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node)
 {
-    return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type).first;
+    return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type, node->displaypath())
+        .first;
 }
 
 std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
                                                      const std::string& nodeKey,
-                                                     int type)
+                                                     int type,
+                                                     std::optional<std::string> pathStr)
 {
     SymmCipher cipher;
     const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
     int64_t remoteIv = MemAccess::get<int64_t>(iva);
     int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     cipher.setkey((byte*)&nodeKey[0], type);
-    auto [succeeded, calcMac] = generateMetaMac(cipher, *fa, remoteIv, true /*debug*/);
+    auto [succeeded, calcMac] = generateMetaMac(cipher, *fa, remoteIv, pathStr);
     int64_t localMac = succeeded ? calcMac : INVALID_META_MAC;
     return {localMac, remoteMac};
 }
@@ -2634,8 +2634,10 @@ std::pair<node_comparison_result, int64_t>
     if (auto fa = client.fsaccess->newfileaccess();
         fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
     {
-        auto [areEqualMacs, mac] =
-            CompareLocalFileMetaMacWithNodeKey(fa.get(), node->nodekey(), node->type);
+        auto [areEqualMacs, mac] = CompareLocalFileMetaMacWithNodeKey(fa.get(),
+                                                                      node->nodekey(),
+                                                                      node->type,
+                                                                      path.toPath(false));
 
         auto sameMtime = fp.mtime == node->mtime;
         if (debugMode && sameMtime)

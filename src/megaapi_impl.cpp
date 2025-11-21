@@ -19023,7 +19023,12 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
         return false;
     }
 
-    return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType())
+    auto name =
+        fileNode->getName() ? fileNode->getName() : std::optional<std::string>(std::nullopt);
+    return CompareLocalFileMetaMacWithNodeKey(fa,
+                                              *fileNode->getNodeKey(),
+                                              fileNode->getType(),
+                                              name)
         .first;
 }
 

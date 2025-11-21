@@ -11712,7 +11712,8 @@ void DemoAppFolder::nodes_updated(sharedNode_vector* nodes, int count)
 
 void exec_metamac(autocomplete::ACState& s)
 {
-    std::shared_ptr<Node> node = nodebypath(s.words[2].s.c_str());
+    auto p = s.words[2].s.c_str();
+    std::shared_ptr<Node> node = nodebypath(p);
     if (!node || node->type != FILENODE)
     {
         cerr << s.words[2].s
@@ -11745,7 +11746,10 @@ void exec_metamac(autocomplete::ACState& s)
         remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     }
 
-    auto result = generateMetaMac(cipher, *ifAccess, remoteIv);
+    auto result = generateMetaMac(cipher,
+                                  *ifAccess,
+                                  remoteIv,
+                                  p ? p : std::optional<std::string>{std::nullopt});
     if (!result.first)
     {
         cerr << "Failed to generate metamac for: "

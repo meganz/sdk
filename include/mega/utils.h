@@ -613,13 +613,14 @@ static constexpr int64_t INVALID_META_MAC{0xFFFFFFFF};
 std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
                                          FileAccess& ifAccess,
                                          const int64_t iv,
-                                         const bool debug = false);
+                                         std::optional<std::string> pathStr);
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
 
 std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
                                                             const std::string& nodeKey,
-                                                            int type);
+                                                            int type,
+                                                            std::optional<std::string> pathStr);
 
 bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
 
@@ -632,7 +633,8 @@ bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
  */
 std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
                                                      const std::string& nodeKey,
-                                                     int type);
+                                                     int type,
+                                                     std::optional<std::string> pathStr);
 
 /**
  * @brief Compares two fingerprints (excluding mtime) and two METAMACs.
