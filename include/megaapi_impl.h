@@ -2233,6 +2233,8 @@ class MegaRequestPrivate : public MegaRequest
         const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const override;
         void setMegaCancelSubscriptionReasons(MegaCancelSubscriptionReasonList* cancelReasons);
 
+        static bool causesLocklessRequest(const int type);
+
     protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -4833,6 +4835,9 @@ public:
         std::atomic<bool> syncPathStateLockTimeout{ false };
         set<LocalPath> syncPathStateDeferredSet;
         mutex syncPathStateDeferredSetMutex;
+
+        // Track latest call to client->abortbackoff to avoid spamming.
+        dstime latestAbortBackoffs{0};
 
         int threadExit;
         void loop();
