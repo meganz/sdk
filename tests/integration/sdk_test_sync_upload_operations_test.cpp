@@ -35,6 +35,34 @@ protected:
     std::unique_ptr<FSACCESS_CLASS> mFsAccess;
     SyncItemTrackerManager<SyncUploadOperationsTracker> mSyncListenerTrackers;
     SyncItemTrackerManager<SyncUploadOperationsTransferTracker> mTransferListenerTrackers;
+    mutable std::recursive_timed_mutex trackerMutex;
+    using TestMutexGuard = std::unique_lock<std::recursive_timed_mutex>;
+
+    std::shared_ptr<SyncUploadOperationsTracker> addSyncListenerTracker(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mSyncListenerTrackers.add(s);
+    }
+
+    std::shared_ptr<SyncUploadOperationsTracker> getSyncListenerTrackerByPath(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mSyncListenerTrackers.getByPath(s);
+    }
+
+    std::shared_ptr<SyncUploadOperationsTransferTracker>
+        addTransferListenerTracker(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mTransferListenerTrackers.add(s);
+    }
+
+    std::shared_ptr<SyncUploadOperationsTransferTracker>
+        getTransferListenerTrackerByPath(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mTransferListenerTrackers.getByPath(s);
+    }
 
     /**
      * @brief Creates a local file and waits until onSyncFileStateChanged with STATE_SYNCED is
@@ -53,7 +81,7 @@ protected:
                                       const std::string_view contents,
                                       std::optional<fs::file_time_type> customMtime)
     {
-        auto st = mSyncListenerTrackers.add(localFilePathAbs.string());
+        auto st = addSyncListenerTracker(localFilePathAbs.string());
         if (!st)
         {
             return {false, nullptr};
@@ -88,7 +116,7 @@ protected:
         std::shared_ptr<SyncUploadOperationsTransferTracker> tt;
         if (isFullUploadExpected)
         {
-            tt = mTransferListenerTrackers.add(localFilePathAbs.string());
+            tt = addTransferListenerTracker(localFilePathAbs.string());
             ASSERT_TRUE(tt) << "Cannot add TransferListenerTracker for: "
                             << localFilePathAbs.string();
         }
@@ -130,7 +158,7 @@ public:
                         return;
                     }
 
-                    auto element = mTransferListenerTrackers.getByPath(t->getPath());
+                    auto element = getTransferListenerTrackerByPath(t->getPath());
                     if (!element)
                         return;
 
@@ -147,7 +175,7 @@ public:
                         return;
                     }
 
-                    auto element = mTransferListenerTrackers.getByPath(t->getPath());
+                    auto element = getTransferListenerTrackerByPath(t->getPath());
                     if (!element || !e)
                         return;
 
@@ -167,7 +195,7 @@ public:
                     if (sync && sync->getBackupId() == getBackupId() &&
                         newState == MegaApi::STATE_SYNCED && localPath)
                     {
-                        auto element = mSyncListenerTrackers.getByPath(*localPath);
+                        auto element = getSyncListenerTrackerByPath(*localPath);
                         if (!element || element->getActionCompleted())
                             return;
 

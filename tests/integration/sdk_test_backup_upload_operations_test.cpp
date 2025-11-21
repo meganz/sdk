@@ -113,6 +113,32 @@ public:
      */
     void confirmModels() const;
 
+    std::shared_ptr<SyncUploadOperationsTracker> addSyncListenerTracker(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mSyncListenerTrackers.add(s);
+    }
+
+    std::shared_ptr<SyncUploadOperationsTracker> getSyncListenerTrackerByPath(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mSyncListenerTrackers.getByPath(s);
+    }
+
+    std::shared_ptr<SyncUploadOperationsTransferTracker>
+        addTransferListenerTracker(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mTransferListenerTrackers.add(s);
+    }
+
+    std::shared_ptr<SyncUploadOperationsTransferTracker>
+        getTransferListenerTrackerByPath(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mTransferListenerTrackers.getByPath(s);
+    }
+
 protected:
     void SetUp() override;
     void TearDown() override;
@@ -156,6 +182,8 @@ protected:
                         std::optional<fs::file_time_type> customMtime);
 
 private:
+    mutable std::recursive_timed_mutex trackerMutex;
+    using TestMutexGuard = std::unique_lock<std::recursive_timed_mutex>;
     std::unique_ptr<NiceMock<MockTransferListener>> mMtl;
     std::unique_ptr<NiceMock<MockSyncListener>> mMslStats;
     std::unique_ptr<NiceMock<MockSyncListener>> mMslFiles;
@@ -189,13 +217,13 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
     }
 
     std::shared_ptr<SyncUploadOperationsTransferTracker> tt;
-    if (tt = mTransferListenerTrackers.add(localFilePathAbs.string()); !tt)
+    if (tt = addTransferListenerTracker(localFilePathAbs.string()); !tt)
     {
         LOG_err << "Cannot add TransferListenerTracker for: " << localFilePathAbs.string();
         return {false, nullptr};
     }
 
-    auto st = mSyncListenerTrackers.add(localFilePathAbs.string());
+    auto st = addSyncListenerTracker(localFilePathAbs.string());
     if (!st)
     {
         return {false, nullptr};
@@ -286,7 +314,7 @@ void SdkTestBackupUploadsOperations::SetUp()
                     return;
                 }
 
-                auto element = mTransferListenerTrackers.getByPath(t->getPath());
+                auto element = getTransferListenerTrackerByPath(t->getPath());
                 if (!element)
                     return;
 
@@ -303,7 +331,7 @@ void SdkTestBackupUploadsOperations::SetUp()
                     return;
                 }
 
-                auto element = mTransferListenerTrackers.getByPath(t->getPath());
+                auto element = getTransferListenerTrackerByPath(t->getPath());
                 if (!element || !e)
                     return;
 
@@ -337,7 +365,7 @@ void SdkTestBackupUploadsOperations::SetUp()
                 if (sync && sync->getBackupId() == getBackupId() &&
                     newState == MegaApi::STATE_SYNCED && localPath)
                 {
-                    auto element = mSyncListenerTrackers.getByPath(*localPath);
+                    auto element = getSyncListenerTrackerByPath(*localPath);
                     if (!element || element->getActionCompleted())
                         return;
 
