@@ -2629,14 +2629,8 @@ std::pair<node_comparison_result, int64_t>
         return {NODE_COMP_DIFFERS_FP, INVALID_META_MAC};
     }
 
-    // IMPORTANT: To avoid performance issues in this method, we will consider Local Fingerprint and
-    // Node equal if their fingerprints fully match (CRC, size, isValid, mtime), although there
-    // could be collisions. We don't want to compute the METAMAC unless is strictly necessary
-    // because it is expensive in terms of performance, so we will compute it only if the
-    // fingerprints differ only in mtime.
-    if (fp.mtime == node->mtime)
-        return {NODE_COMP_EQUAL, INVALID_META_MAC};
-
+    // IMPORTANT: we need to compare METAMACs even if entire Fingerprint Match (2 Items could differ
+    // just in few bytes, and FPs could match but METAMAC differ)
     if (auto fa = client.fsaccess->newfileaccess();
         fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
     {
@@ -2652,7 +2646,14 @@ std::pair<node_comparison_result, int64_t>
                                  "Node found with same Fp but different MAC than local file");
         }
 
-        auto compRes = areEqualMacs ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
+        if (!areEqualMacs)
+        {
+            // It doesn't matter that FPs are equal as METAMAC comparison show that they are
+            // different items
+            return {NODE_COMP_DIFFERS_MAC, mac};
+        }
+
+        auto compRes = sameMtime ? NODE_COMP_EQUAL : NODE_COMP_DIFFERS_MTIME;
         return {compRes, mac};
     }
 

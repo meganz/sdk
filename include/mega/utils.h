@@ -690,13 +690,13 @@ node_comparison_result CompareNodeWithProvidedMacAndFpExcludingMtime(const Node*
  *
  * @return A pair of {`node_comparison_result`, metamac}.
  *     `node_comparison_result` indicates:
- *      + NODE_COMP_EARGS: Invalid arguments
- *              + NODE_COMP_EREAD: Error reading the local file.
- *              + NODE_COMP_EQUAL: Fingerprints match including mtime
- *              + NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more
- than mtime (CRC, Size, isValid).
- *              + NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
- *              + NODE_COMP_DIFFERS_MAC: Fingerprints differ in mtime and METAMACs also differ.
+ *      - NODE_COMP_EARGS: Invalid arguments
+ *      - NODE_COMP_EREAD: Error reading the local file.
+ *      - NODE_COMP_EQUAL: Fingerprints (also mtime is equal) and METAMACs match
+ *      - NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more than
+ mtime (CRC, Size, isValid).
+ *      - NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
+ *      - NODE_COMP_DIFFERS_MAC: METAMACs differ.
  */
 std::pair<node_comparison_result, int64_t>
     CompareLocalFileWithNodeMacAndFpExludingMtime(MegaClient& client,
