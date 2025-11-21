@@ -8598,7 +8598,6 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
         case ATTR_PWM_BASE:
         case ATTR_LAST_READ_NOTIFICATION:
         case ATTR_LAST_ACTIONED_BANNER:
-        case ATTR_WELCOME_PDF_COPIED:
         // undocumented types, allowed only for testing:
         case ATTR_KEYS:
             getUserAttr(email_or_handle, type, nullptr, 0, listener);
@@ -8631,7 +8630,6 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
         case ATTR_VISIBLE_TERMS_OF_SERVICE:
         case ATTR_LAST_READ_NOTIFICATION:
         case ATTR_LAST_ACTIONED_BANNER:
-        case ATTR_WELCOME_PDF_COPIED:
         // undocumented types, allowed only for testing:
         case ATTR_ENABLE_TEST_NOTIFICATIONS:
         case ATTR_ENABLE_TEST_SURVEYS:
@@ -14853,7 +14851,6 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             {
                 case MegaClient::ClientType::DEFAULT:
                 {
-                    client->importWelcomePdfIfDelayed();
                     break;
                 }
 
@@ -14929,10 +14926,6 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             // Ephemeral++ don't have an email when account is created, so cannot send a signup link -> account is ready
             if (request->getParamType() == MegaApi::CREATE_EPLUSPLUS_ACCOUNT)   // creation of account E++
             {
-                // import the PDF silently... (not chained)
-                // Not for VPN and PWM clients
-                client->importOrDelayWelcomePdf();
-
                 // The session id cannot follow the same pattern, since no password is provided (yet)
                 // In consequence, the session resumption requires a regular session id (instead of the
                 // usual one with the user's handle and the pwd cipher)
@@ -16224,10 +16217,9 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
                           });
             return;
         }
-        else if ((request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
-                  && (request->getParamType() == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
-                  || request->getParamType() == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE
-                  || request->getParamType() == MegaApi::USER_ATTR_WELCOME_PDF_COPIED))
+        else if ((request->getType() == MegaRequest::TYPE_GET_ATTR_USER) &&
+                 (request->getParamType() == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG ||
+                  request->getParamType() == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE))
         {
             request->setFlag(true);
         }
@@ -16316,7 +16308,6 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         case MegaApi::USER_ATTR_NO_CALLKIT:
         case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
         case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
-        case MegaApi::USER_ATTR_WELCOME_PDF_COPIED:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
@@ -16328,14 +16319,11 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
                               "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG) == ATTR_VISIBLE_WELCOME_DIALOG, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE) == ATTR_VISIBLE_TERMS_OF_SERVICE, "User Attribute Enum Mismatch");
-                static_assert(int(MegaApi::USER_ATTR_WELCOME_PDF_COPIED) == ATTR_WELCOME_PDF_COPIED,
-                              "User Attribute Enum Mismatch");
 
-                if (int(type) == MegaApi::USER_ATTR_DISABLE_VERSIONS
-                        || int(type) == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
-                        || int(type) == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
-                        || int(type) == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE
-                        || static_cast<int>(type) == MegaApi::USER_ATTR_WELCOME_PDF_COPIED)
+                if (int(type) == MegaApi::USER_ATTR_DISABLE_VERSIONS ||
+                    int(type) == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION ||
+                    int(type) == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG ||
+                    int(type) == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE)
                 {
                     request->setFlag(str == "1");
                 }
@@ -17163,14 +17151,6 @@ void MegaApiImpl::sendsignuplink_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_SEND_SIGNUP_LINK))) return;
-
-    if ((request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
-            && (e == API_OK) && (request->getParamType() == MegaApi::CREATE_ACCOUNT))   // new account has been created
-    {
-        // import the PDF silently... (not chained)
-        // Not for VPN and PWM clients
-        client->importOrDelayWelcomePdf();
-    }
 
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
@@ -21986,12 +21966,10 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     getUserAttr(ownUser, type, request);
                     return API_OK;
                 }
-                else if ((type == ATTR_DISABLE_VERSIONS)
-                         || (type == ATTR_NO_CALLKIT)
-                         || (type == ATTR_CONTACT_LINK_VERIFICATION)
-                         || (type == ATTR_VISIBLE_WELCOME_DIALOG)
-                         || (type == ATTR_VISIBLE_TERMS_OF_SERVICE)
-                         || (type == ATTR_WELCOME_PDF_COPIED))
+                else if ((type == ATTR_DISABLE_VERSIONS) || (type == ATTR_NO_CALLKIT) ||
+                         (type == ATTR_CONTACT_LINK_VERIFICATION) ||
+                         (type == ATTR_VISIBLE_WELCOME_DIALOG) ||
+                         (type == ATTR_VISIBLE_TERMS_OF_SERVICE))
                 {
                     if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
                     {
@@ -28860,17 +28838,6 @@ void MegaApiImpl::enableTestSurveys(const MegaHandleList* surveyHandles,
 
     requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::setWelcomePdfCopied(bool copied, MegaRequestListener* listener)
-{
-    const string attributeValue{std::to_string(copied)};
-    setUserAttr(MegaApi::USER_ATTR_WELCOME_PDF_COPIED, attributeValue.c_str(), listener);
-}
-
-void MegaApiImpl::getWelcomePdfCopied(MegaRequestListener* listener)
-{
-    getUserAttr(nullptr, MegaApi::USER_ATTR_WELCOME_PDF_COPIED, nullptr, 0, listener);
 }
 
 void MegaApiImpl::getMyIp(MegaRequestListener* listener)

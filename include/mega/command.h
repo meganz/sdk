@@ -972,7 +972,7 @@ class MEGA_API CommandGetPH : public Command
 {
     handle ph;
     byte key[FILENODEKEYLENGTH];
-    int op; //  (op=0 -> download, op=1 fetch data, op=2 import welcomePDF)
+    int op; // (op=0 -> download, op=1 fetch data)
     bool havekey;
 
 public:
@@ -1443,15 +1443,6 @@ public:
 
     CommandGetMegaAchievements(MegaClient*, AchievementsDetails *details, bool registered_user = true);
 };
-
-class MEGA_API CommandGetWelcomePDF : public Command
-{
-public:
-    bool procresult(Result, JSON&) override;
-
-    CommandGetWelcomePDF(MegaClient*);
-};
-
 
 class MEGA_API CommandMediaCodecs : public Command
 {

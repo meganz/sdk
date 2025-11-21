@@ -137,9 +137,6 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 // change email link to be confirmed
 static string changeemail, changecode;
 
-// import welcome pdf at account creation
-static bool pdf_to_import = false;
-
 // public link information
 static string publiclink;
 
@@ -1203,7 +1200,6 @@ void DemoApp::fetchnodes_result(const Error& e)
         {
             cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
         }
-        pdf_to_import = false;
     }
     else
     {
@@ -1219,15 +1215,6 @@ void DemoApp::fetchnodes_result(const Error& e)
                 assert(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()));   // node is there, but cannot be decrypted
                 cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
             }
-        }
-
-        if (pdf_to_import)
-        {
-            client->importOrDelayWelcomePdf();
-        }
-        else if (client->shouldWelcomePdfImported())
-        {
-            client->importWelcomePdfIfDelayed();
         }
 
         if (client->ephemeralSessionPlusPlus)
@@ -1251,21 +1238,6 @@ void DemoApp::putnodes_result(const Error& e,
         {
             cout << "Success." << endl;
         }
-    }
-
-    if (pdf_to_import)   // putnodes from openfilelink_result()
-    {
-        if (!e)
-        {
-            cout << "Welcome PDF file has been imported successfully." << endl;
-        }
-        else
-        {
-            cout << "Failed to import Welcome PDF file" << endl;
-        }
-
-        pdf_to_import = false;
-        return;
     }
 
     if (e)
@@ -7354,8 +7326,6 @@ void exec_begin(autocomplete::ACState& s)
     if (s.words.size() == 1)
     {
         cout << "Creating ephemeral session..." << endl;
-
-        pdf_to_import = true;
         client->createephemeral();
     }
     else if (s.words.size() == 2)   // resume session
@@ -7384,7 +7354,6 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session plus plus..." << endl;
 
-        pdf_to_import = true;
         ephemeralFirstname = s.words[1].s;
         ephemeralLastName = s.words[2].s;
         client->createephemeralPlusPlus();
@@ -9958,7 +9927,6 @@ void DemoApp::ephemeral_result(error e)
     {
         cout << "Ephemeral session error (" << errorstring(e) << ")" << endl;
     }
-    pdf_to_import = false;
 }
 
 // signup link send request result
@@ -10349,24 +10317,15 @@ void DemoApp::openfilelink_result(const Error& e)
 {
     if (e)
     {
-        if (pdf_to_import) // import welcome pdf has failed
+        if (e == API_ETOOMANY && e.hasExtraInfo())
         {
-            cout << "Failed to import Welcome PDF file" << endl;
+            cout << "Failed to open link: " << getExtraInfoErrorString(e) << endl;
         }
         else
         {
-            if (e == API_ETOOMANY && e.hasExtraInfo())
-            {
-                cout << "Failed to open link: " << getExtraInfoErrorString(e) << endl;
-            }
-            else
-            {
-                cout << "Failed to open link: " << errorstring(e) << endl;
-            }
-
+            cout << "Failed to open link: " << errorstring(e) << endl;
         }
     }
-    pdf_to_import = false;
 }
 
 // the requested link was opened successfully - import to cwd
@@ -10378,7 +10337,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     if (!key)
     {
         cout << "File is valid, but no key was provided." << endl;
-        pdf_to_import = false;
         return;
     }
 
@@ -10396,23 +10354,13 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     if (!buf)
     {
         cout << "The file won't be imported, the provided key is invalid." << endl;
-        pdf_to_import = false;
     }
     else if (client->loggedin() != NOTLOGGEDIN)
     {
-        if (pdf_to_import)
-        {
-            n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
-        }
-        else
-        {
-            n = client->nodeByHandle(cwd);
-        }
-
+        n = client->nodeByHandle(cwd);
         if (!n)
         {
             cout << "Target folder not found." << endl;
-            pdf_to_import = false;
             delete [] buf;
             return;
         }
@@ -10459,7 +10407,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                         if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn.get())
                         {
                             cout << "Success. (identical node skipped)" << endl;
-                            pdf_to_import = false;
                             delete [] buf;
                             return;
                         }
@@ -10475,7 +10422,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     else
     {
         cout << "Need to be logged in to import file links." << endl;
-        pdf_to_import = false;
     }
 
     delete [] buf;
