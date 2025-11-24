@@ -29735,6 +29735,39 @@ int mega::MegaPricingPrivate::getLocalPrice(int productIndex)
     return 0;
 }
 
+bool MegaPricingPrivate::hasMobileOffers(int productIndex) const
+{
+    auto index = static_cast<size_t>(productIndex);
+    if (productIndex >= 0 && index < products.size())
+    {
+        return products[index].mobileOffer.has_value();
+    }
+
+    return false;
+}
+
+const char* mega::MegaPricingPrivate::getMobileOfferId(int productIndex) const
+{
+    auto index = static_cast<size_t>(productIndex);
+    if (productIndex >= 0 && index < products.size())
+    {
+        return products[index].mobileOffer ? products[index].mobileOffer->id.c_str() : nullptr;
+    }
+
+    return {};
+}
+
+bool mega::MegaPricingPrivate::getMobileOfferUat(int productIndex) const
+{
+    auto index = static_cast<size_t>(productIndex);
+    if (productIndex >= 0 && index < products.size())
+    {
+        return products[index].mobileOffer ? products[index].mobileOffer->uat : false;
+    }
+
+    return {};
+}
+
 const char *MegaPricingPrivate::getDescription(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())

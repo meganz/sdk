@@ -25379,6 +25379,48 @@ public:
      * @return Trial duration in days
      */
     virtual unsigned int getTrialDurationInDays(int productIndex) const = 0;
+
+    /**
+     * @brief Check whether the product has a mobile offer
+     *
+     * Determines if the specified product includes an associated mobile offer.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return True if the product has a mobile offer, false otherwise
+     */
+    virtual bool hasMobileOffers(int productIndex) const = 0;
+
+    /**
+     * @brief Get the mobile offer identifier
+     *
+     * Returns the identifier of the mobile offer associated with the given
+     * product.
+     *
+     * If the product does not have a mobile offer, this method returns nullptr.
+     *
+     * The caller does not take ownership of the returned const char*, which is
+     * valid as long as current instance is valid.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return A null-terminated string containing the mobile offer ID, or
+     * nullptr if unavailable
+     */
+    virtual const char* getMobileOfferId(int productIndex) const = 0;
+
+    /**
+     * @brief Check whether the mobile offer title should be used
+     *
+     * Possible values are:
+     *   - false: The mobile offer title should not be displayed.
+     *   - true: The mobile offer title should be displayed.
+     *
+     * If the product does not have a mobile offer, this method returns false.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return True if the mobile offer title should be displayed, false
+     * otherwise
+     */
+    virtual bool getMobileOfferUat(int productIndex) const = 0;
 };
 
 /**

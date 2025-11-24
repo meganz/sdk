@@ -2567,6 +2567,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
 
         unique_ptr<BusinessPlan> bizPlan;
         unique_ptr<CurrencyData> currencyData;
+        std::optional<MobileOffer> mobileOffer;
 
         bool finished = false;
         bool readingL = false;
@@ -2911,6 +2912,56 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     }
                 }
                 break;
+                case makeNameid("mo"):
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "entering `mobile offer` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    std::string moId;
+                    bool uat{false};
+
+                    bool readingMo{true};
+                    while (readingMo)
+                    {
+                        switch (json.getnameid())
+                        {
+                            case makeNameid("id"):
+                                moId = json.getname();
+                                break;
+                            case makeNameid("uat"):
+                                uat = json.getbool();
+                                break;
+                            case EOO:
+                                readingMo = false;
+                                mobileOffer = MobileOffer{moId, uat};
+                                break;
+                            default:
+                                if (!json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse mobile offer sub objects";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "leaving `mobile offer` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    break;
+                }
+                break;
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
@@ -2972,7 +3023,8 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                          android_id.c_str(),
                                          testCategory,
                                          std::move(bizPlan),
-                                         trialDays};
+                                         trialDays,
+                                         mobileOffer};
             client->app->enumeratequotaitems_result(productData);
         }
     }

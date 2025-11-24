@@ -10766,6 +10766,14 @@ void DemoApp::enumeratequotaitems_result(const Product& product)
         cout << "\tAndroid ID: " << product.androidid << "\n";
         cout << "\tTest Category: " << product.testCategory << "\n";
         cout << "\tTrial Days: " << product.trialDays << endl;
+
+        if (product.mobileOffer)
+        {
+            cout << "\tMobile offer"
+                 << "\n";
+            cout << "\t\tId: " << product.mobileOffer->id << "\n";
+            cout << "\t\tUat: " << product.mobileOffer->uat << "\n";
+        }
     }
     else // Business plan (type == 1)
     {

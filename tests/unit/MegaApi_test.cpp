@@ -239,7 +239,8 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                             "android id",
                             1,
                             std::make_unique<BusinessPlan>(),
-                            0});
+                            0,
+                            std::nullopt});
         pricing.addProduct({1000,
                             1000000,
                             static_cast<unsigned int>(proLevel),
@@ -255,7 +256,8 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                             "android id",
                             1,
                             std::make_unique<BusinessPlan>(),
-                            0});
+                            0,
+                            std::nullopt});
     };
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_LITE, 400, 499);
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_PROI, 2048, 999);
@@ -278,7 +280,8 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         "android id",
                         1,
                         std::make_unique<BusinessPlan>(),
-                        0}); // only monthly
+                        0,
+                        std::nullopt}); // only monthly
     pricing.addProduct({1000,
                         1000000,
                         MegaAccountDetails::ACCOUNT_TYPE_BASIC,
@@ -294,7 +297,8 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         "android id",
                         1,
                         std::make_unique<BusinessPlan>(),
-                        0});
+                        0,
+                        std::nullopt});
     pricing.addProduct({1000,
                         1000000,
                         MegaAccountDetails::ACCOUNT_TYPE_BASIC,
@@ -310,7 +314,8 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         "android id",
                         1,
                         std::make_unique<BusinessPlan>(),
-                        0});
+                        0,
+                        std::nullopt});
     pricing.addProduct({1000,
                         1000000,
                         MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL,
@@ -326,7 +331,8 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         "android id",
                         1,
                         std::make_unique<BusinessPlan>(),
-                        0});
+                        0,
+                        std::nullopt});
     Product testProduct = {
         1000,
         1000000,
@@ -343,7 +349,8 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
         "android id",
         1,
         std::make_unique<BusinessPlan>(BusinessPlan{20, 40, 3, 50, 60, 70, 80, 90, 100, 15, 10}),
-        0};
+        0,
+        std::nullopt};
     pricing.addProduct(testProduct);
     const int testProductIndex = pricing.getNumProducts() - 1;
 
@@ -486,6 +493,36 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
     ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROIII, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
     ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_BUSINESS, gb), MegaAccountDetails::ACCOUNT_TYPE_BUSINESS);
     ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, gb), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
+}
+
+TEST(MegaApi, MegaApiImpl_mobileOffer)
+{
+    std::string title{"Black-friday2025"};
+    bool uat{true};
+    Product testProduct = {
+        1000,
+        1000000,
+        MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL,
+        200,
+        200 * 12,
+        12,
+        3 * 12,
+        10,
+        100,
+        "yearly",
+        {},
+        "ios id",
+        "android id",
+        1,
+        std::make_unique<BusinessPlan>(BusinessPlan{20, 40, 3, 50, 60, 70, 80, 90, 100, 15, 10}),
+        0,
+        MobileOffer{title, uat}};
+    MegaPricingPrivate pricing;
+    pricing.addProduct(testProduct);
+    int index{0};
+    ASSERT_TRUE(pricing.hasMobileOffers(index));
+    ASSERT_EQ(title, pricing.getMobileOfferId(index));
+    ASSERT_EQ(uat, pricing.getMobileOfferUat(index));
 }
 
 TEST(MegaApi, UseCurrentPathIfNoBasePathIsGiven)
