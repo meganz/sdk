@@ -2893,7 +2893,6 @@ auto importNode(MegaApi& client, const std::string& link, const MegaNode& parent
  *
  * It tests the creation of a new account for a random user.
  *  - Create account
- *  - Check existence for Welcome pdf
  */
 TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
 {
@@ -2912,17 +2911,6 @@ TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
     {
         WaitMillisec(deltaMs);
     }
-
-    // Get children of rootnode
-    std::unique_ptr<MegaNodeList> children{ megaApi[0]->getChildren(rootnode.get()) };
-
-    // Test that there is only one file, with .pdf extension
-    EXPECT_EQ(megaApi[0]->getNumChildren(rootnode.get()), children->size()) << "Wrong number of child nodes";
-    ASSERT_EQ(1, children->size()) << "Wrong number of children nodes found";
-    const char* name = children->get(0)->getName();
-    size_t len = name ? strlen(name) : 0;
-    ASSERT_TRUE(len > 4 && !strcasecmp(name + len - 4, ".pdf"));
-    LOG_info << "Welcome pdf: " << name;
 
     // Logout from ephemeral plus plus session and resume session
     ASSERT_NO_FATAL_FAILURE(locallogout());
@@ -3566,7 +3554,6 @@ TEST_F(SdkTest, SdkTestExerciseOtherCommands)
     bool CommandChatLinkClose::procresult(Result r)
     bool CommandChatLinkJoin::procresult(Result r)
     bool CommandGetMegaAchievements::procresult(Result r)
-    bool CommandGetWelcomePDF::procresult(Result r)
     bool CommandMediaCodecs::procresult(Result r)
     bool CommandContactLinkCreate::procresult(Result r)
     bool CommandContactLinkQuery::procresult(Result r)

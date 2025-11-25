@@ -10676,7 +10676,7 @@ class MegaApi
             USER_ATTR_LAST_ACTIONED_BANNER = 45, // private - non-encrypted - char array - non-versioned
             USER_ATTR_ENABLE_TEST_SURVEYS =
                 46, // private - non-encrypted - char array in B64 - non-versioned
-            USER_ATTR_WELCOME_PDF_COPIED = 47, // private - non-encrypted - char array
+            // USER_ATTR_WELCOME_PDF_COPIED = 47, // (obsolete) private - non-encrypted - char array
             USER_ATTR_S4 = 48, // private - non-encrypted - char array
             USER_ATTR_S4_CONTAINER = 49, // private - non-encrypted - char array
         };
@@ -14144,8 +14144,6 @@ class MegaApi
          * Get last read notification (private)
          * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
          * Get last actioned banner (private)
-         * MegaApi::USER_ATTR_WELCOME_PDF_COPIED = 47
-         * Get whether welcome pdf has to be copied to cloud drive (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -14551,8 +14549,6 @@ class MegaApi
          * Set last read notification for the user (private)
          * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
          * Set last actioned banner for the user (private)
-         * MegaApi::USER_ATTR_WELCOME_PDF_COPIED = 47
-         * Set whether welcome pdf has to be copied to cloud drive (private)
          *
          * If the MEGA account is a sub-user business account, and the value of the parameter
          * type is equal to MegaApi::USER_ATTR_FIRSTNAME or MegaApi::USER_ATTR_LASTNAME
@@ -23913,38 +23909,6 @@ class MegaApi
                           const char* response,
                           const char* comment = nullptr,
                           MegaRequestListener* listener = nullptr);
-
-        /**
-         * @brief Tell if Welcome PDF has to be copied to Cloud drive
-         *
-         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER.
-         *
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns MegaApi::USER_ATTR_WELCOME_PDF_COPIED
-         *
-         * When the request finished with MegaError::API_OK, valid data in MegaRequest object is:
-         * - MegaRequest::getFlag - Returns true if Welcome PDF has to be copied to Cloud drive.
-         *
-         * If the corresponding user attribute was not set, the request will fail with error code
-         * MegaError::API_ENOENT and MegaRequest calls will return default values.
-         *
-         * @param listener A tracker for this request
-         */
-        void getWelcomePdfCopied(MegaRequestListener* listener = nullptr);
-
-        /**
-         * @brief Set whether Welcome PDF has to be copied to Cloud drive
-         *
-         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
-         *
-         * When the request finished with MegaError::API_OK, valid data in MegaRequest object is:
-         * - MegaRequest::getParamType - Returns the attribute type
-         * MegaApi::USER_ATTR_WELCOME_PDF_COPIED
-         *
-         * @param copied True to set the Welcome PDF to be copied, false otherwise
-         * @param listener A tracker for this request
-         */
-        void setWelcomePdfCopied(bool copied, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Gets the public IP address and country code.

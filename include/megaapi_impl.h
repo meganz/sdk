@@ -4701,8 +4701,6 @@ public:
                           const char* comment,
                           MegaRequestListener* listener);
 
-        void setWelcomePdfCopied(bool copied, MegaRequestListener* listener);
-        void getWelcomePdfCopied(MegaRequestListener* listener);
         void getMyIp(MegaRequestListener* listener);
         void runNetworkConnectivityTest(MegaRequestListener* listener);
         void getSubscriptionCancellationDetails(const char* originalTransactionId,

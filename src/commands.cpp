@@ -6445,24 +6445,7 @@ bool CommandGetPH::procresult(Result r, JSON& json)
                     a.resize(static_cast<size_t>(
                         Base64::atob(a.c_str(), (byte*)a.data(), int(a.size()))));
 
-                    if (op == 2)    // importing WelcomePDF for new account
-                    {
-                        assert(havekey);
-
-                        vector<NewNode> newnodes(1);
-                        auto newnode = &newnodes[0];
-
-                        // set up new node
-                        newnode->source = NEW_PUBLIC;
-                        newnode->type = FILENODE;
-                        newnode->nodehandle = ph;
-                        newnode->parenthandle = UNDEF;
-                        newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
-                        newnode->attrstring.reset(new string(a));
-
-                        client->putnodes(client->mNodeManager.getRootNodeFiles(), NoVersioning, std::move(newnodes), nullptr, 0, false);
-                    }
-                    else if (havekey)
+                    if (havekey)
                     {
                         client->app->openfilelink_result(ph, key, s, &a, &fa, op);
                     }
@@ -9381,64 +9364,6 @@ bool CommandGetMegaAchievements::procresult(Result r, JSON& json)
         }
     }
 }
-
-CommandGetWelcomePDF::CommandGetWelcomePDF(MegaClient *client)
-{
-    cmd("wpdf");
-
-    tag = client->reqtag;
-}
-
-bool CommandGetWelcomePDF::procresult(Result r, JSON& json)
-{
-    if (r.wasErrorOrOK())
-    {
-        LOG_err << "Unexpected response of 'wpdf' command: missing 'ph' and 'k'";
-        return true;
-    }
-
-    handle ph = UNDEF;
-    byte keybuf[FILENODEKEYLENGTH];
-    int len_key = 0;
-    string key;
-
-    for (;;)
-    {
-        switch (json.getnameid())
-        {
-            case makeNameid("ph"):
-                ph = json.gethandle(MegaClient::NODEHANDLE);
-                break;
-
-            case makeNameid("k"):
-                len_key = json.storebinary(keybuf, sizeof keybuf);
-                break;
-
-            case EOO:
-                if (ISUNDEF(ph) || len_key != FILENODEKEYLENGTH)
-                {
-                    LOG_err << "Failed to import welcome PDF: invalid response";
-                    return false;
-                }
-                key.assign((const char*)keybuf, static_cast<size_t>(len_key));
-                client->reqs.add(new CommandGetPH(client, ph, (const byte*) key.data(), 2));
-                if (client->wasWelcomePdfImportDelayed())
-                {
-                    client->setWelcomePdfNeedsDelayedImport(false);
-                }
-                return true;
-
-            default:
-                if (!json.storeobject())
-                {
-                    LOG_err << "Failed to parse welcome PDF response";
-                    return false;
-                }
-                break;
-        }
-    }
-}
-
 
 CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
 {
