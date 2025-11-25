@@ -2292,6 +2292,25 @@ TEST_F(FileServiceTests, read_succeeds)
     // We should have one 256KiB range in storage.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 256_KiB)));
 
+    // Make sure we correctly handle like identical reads.
+    waiter0 = read(*file, 256_KiB, 64_KiB);
+    waiter1 = read(*file, 256_KiB, 64_KiB);
+
+    // Wait for both reads to complete.
+    ASSERT_NE(waiter0.wait_for(mDefaultTimeout), timeout);
+    ASSERT_NE(waiter1.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure both reads succeeded.
+    result0 = waiter0.get();
+    result1 = waiter1.get();
+
+    EXPECT_EQ(result0.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    EXPECT_EQ(result1.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Make sure we read what we expected.
+    EXPECT_TRUE(compare(*result0, mFileContent, 256_KiB, 64_KiB));
+    EXPECT_TRUE(compare(*result1, mFileContent, 256_KiB, 64_KiB));
+
     // Latch the file's access time.
     accessed = file->info().accessed();
 
