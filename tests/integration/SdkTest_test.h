@@ -1322,6 +1322,8 @@ public:
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
 
+    void createPublicChat(MegaTextChatPeerList* peers, int timeout = maxTimeout);
+
     /**
      * @brief Creates a chat room from the mApi[creatorIndex] account waiting for all the events to
      * finish before returning. It uses EXPECT in the implementation to check everything finished
@@ -1340,6 +1342,11 @@ public:
                                     const std::vector<unsigned int>& invitedIndices,
                                     const bool group,
                                     const unsigned int timeout_sec = maxTimeout);
+
+    MegaHandle createPublicChatWithChecks(const unsigned int creatorIndex,
+                                          const std::vector<unsigned int>& invitedIndices,
+                                          const bool group,
+                                          const unsigned int timeout_sec = maxTimeout);
 #endif
 
     template<typename... requestArgs>
