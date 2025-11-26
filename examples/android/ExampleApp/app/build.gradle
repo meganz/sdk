@@ -7,7 +7,7 @@ android {
  
     defaultConfig {
         applicationId "nz.mega.android.bindingsample"
-        minSdkVersion 26 
+        minSdkVersion 28
         targetSdkVersion 35
         versionCode 1
         versionName "1.0"
