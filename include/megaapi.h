@@ -10676,9 +10676,10 @@ class MegaApi
             USER_ATTR_LAST_ACTIONED_BANNER = 45, // private - non-encrypted - char array - non-versioned
             USER_ATTR_ENABLE_TEST_SURVEYS =
                 46, // private - non-encrypted - char array in B64 - non-versioned
-            // USER_ATTR_WELCOME_PDF_COPIED = 47, // (obsolete) private - non-encrypted - char array
-            USER_ATTR_S4 = 48, // private - non-encrypted - char array
-            USER_ATTR_S4_CONTAINER = 49, // private - non-encrypted - char array
+            // USER_ATTR_WELCOME_PDF_COPIED = 47, // private - non-encrypted - char array
+            ATTR_SYNC_DESIRED_STATE = 48, // private - byte array - versioned
+            USER_ATTR_S4 = 49, // private - non-encrypted - char array
+            USER_ATTR_S4_CONTAINER = 50, // private - non-encrypted - char array
         };
 
         enum {
