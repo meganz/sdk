@@ -1651,6 +1651,24 @@ public:
      * @example calling this inside `TEST_F(SdkTest, Foo)` returns `"SdkTest_Foo_"`
      */
     std::string getFilePrefix() const;
+
+    /**
+     * @brief Set value for ^!devopt user attribute
+     *
+     * Format is a json, per example:
+     * {"utqamo":1}
+     *
+     * @param value
+     * @param index MegaApi instance index
+     */
+    void setDevOptUserAttribute(const std::string& value, uint32_t index) const;
+
+    /**
+     * @brief Get value for ^!devopt user attribute
+     * @param index MegaApi instance index
+     * @return {error, attribute value}
+     */
+    std::pair<int, std::optional<std::string>> getDevOptUserAttribute(uint32_t index) const;
 };
 
 /**
