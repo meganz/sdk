@@ -8612,6 +8612,7 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
         case ATTR_LAST_ACTIONED_BANNER:
         // undocumented types, allowed only for testing:
         case ATTR_KEYS:
+        case ATTR_DEV_OPT:
             getUserAttr(email_or_handle, type, nullptr, 0, listener);
             break;
         default:
@@ -8656,6 +8657,7 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
         case ATTR_SIG_RSA_PUBK:
         case ATTR_PWD_REMINDER:
         case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_DEV_OPT:
             setUserAttr(type, value, listener);
             break;
         default:
@@ -22051,6 +22053,22 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 else if (type == ATTR_ENABLE_TEST_SURVEYS)
                 {
                     performRequest_enableTestSurveys(request);
+                }
+                else if (type == ATTR_DEV_OPT)
+                {
+                    if (!value)
+                    {
+                        return API_EARGS;
+                    }
+
+                    client->putua(type,
+                                  (byte*)value,
+                                  unsigned(strlen(value)),
+                                  -1,
+                                  UNDEF,
+                                  0,
+                                  0,
+                                  std::move(putuaCompletion));
                 }
                 else
                 {

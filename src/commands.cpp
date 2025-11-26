@@ -4411,6 +4411,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     std::string sds, sdsVersion;
     string s4, s4Version;
     string s4container, s4containerVersion;
+    string devOpt, devOptVersion;
 
     bool uspw = false;
     string userStorageLevel, versionUserStorageLevel;
@@ -4578,6 +4579,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         case makeNameid("+sigPubk"):
             parseUserAttribute(json, sigPubk, versionSigPubk);
+            break;
+        case makeNameid("^!devopt"):
+            parseUserAttribute(json, devOpt, devOptVersion);
             break;
 
         case makeNameid("pf"): // Pro Flexi plan (similar to business)
@@ -5307,6 +5311,16 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     u->removeAttribute(ATTR_S4_CONTAINER);
                     client->mS4Container.store(NodeHandle());
+                }
+
+                if (devOpt.size() && devOptVersion.size())
+                {
+                    changes |=
+                        u->updateAttributeIfDifferentVersion(ATTR_DEV_OPT, devOpt, devOptVersion);
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_DEV_OPT);
                 }
 
                 if (changes)
