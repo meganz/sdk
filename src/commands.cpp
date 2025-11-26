@@ -2912,7 +2912,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     }
                 }
                 break;
-                case makeNameid("mo"):
+                case makeNameid("mo"): // mobile offer
                 {
                     if (!json.enterobject())
                     {
@@ -2922,7 +2922,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                         return false;
                     }
 
-                    std::string moId;
+                    std::string mobileOfferId;
                     bool uat{false};
 
                     bool readingMo{true};
@@ -2931,14 +2931,14 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                         switch (json.getnameid())
                         {
                             case makeNameid("id"):
-                                moId = json.getname();
+                                mobileOfferId = json.getname();
                                 break;
                             case makeNameid("uat"):
                                 uat = json.getbool();
                                 break;
                             case EOO:
                                 readingMo = false;
-                                mobileOffer = MobileOffer{moId, uat};
+                                mobileOffer = MobileOffer{mobileOfferId, uat};
                                 break;
                             default:
                                 if (!json.storeobject())
@@ -2961,7 +2961,6 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
 
                     break;
                 }
-                break;
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
@@ -3024,7 +3023,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                          testCategory,
                                          std::move(bizPlan),
                                          trialDays,
-                                         mobileOffer};
+                                         std::move(mobileOffer)};
             client->app->enumeratequotaitems_result(productData);
         }
     }
