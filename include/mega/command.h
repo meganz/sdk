@@ -78,7 +78,7 @@ public:
     bool mSeqtagArray = false;
 
     // filters for JSON parsing in streaming
-    std::map<std::string, std::function<bool(JSON *)>> mFilters;
+    std::map<std::string, std::function<JSONSplitter::CallbackResult(JSON*)>> mFilters;
 
     void cmd(const char*);
     void notself(MegaClient*);

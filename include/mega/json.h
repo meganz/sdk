@@ -194,6 +194,19 @@ public:
     // Reinitializes the object to start parsing a new JSON stream
     void clear();
 
+    enum CallbackResult
+    {
+        SPLITTER_SUCCESS = 0,
+        SPLITTER_ERROR = -1,
+        // In following filters, PAUSE is not supported and would be treated as ERROR
+        // "<": Every time processChunk started
+        // ">": Every time processChunk ended
+        // "": The first chunk in the stream
+        // "E": Failed to parse due to invalid format
+        // Also for pure number string ("-123 "), PAUSE is not supported
+        SPLITTER_PAUSE = 1,
+    };
+
     // Process a new chunk of JSON data and triggers callbacks in the filters map.
     // Returns the number of consumed bytes.
     //
@@ -226,7 +239,8 @@ public:
     // call, which is at "data" + consumed_bytes (the return value of the previous call).
     // It is allowed to pass a different buffer for the next call, but it must
     // start with the same data that was not consumed during the previous call.
-    m_off_t processChunk(std::map<std::string, std::function<bool(JSON *)>> *filters, const char* data);
+    m_off_t processChunk(std::map<std::string, std::function<CallbackResult(JSON*)>>* filters,
+                         const char* data);
 
     // Check if the parsing has finished
     bool hasFinished();
@@ -245,10 +259,14 @@ protected:
     int numEnd();
 
     // Called when there is a parsing error
-    void parseError(std::map<std::string, std::function<bool(JSON *)>> *filters);
+    void parseError(std::map<std::string, std::function<CallbackResult(JSON*)>>* filters);
 
     // Check if there are any pending filter markers indicating that processing failed
-    bool chunkProcessingFinishedSuccessfully(std::map<std::string, std::function<bool(JSON*)>>* filters);
+    bool chunkProcessingFinishedSuccessfully(
+        std::map<std::string, std::function<CallbackResult(JSON*)>>* filters);
+
+    // Store paused state
+    void processPaused(m_off_t offsetFromLastPos, const char startChar = '\0');
 
     // Position of the character being processed (not owned by this object)
     const char* mPos = nullptr;
@@ -282,6 +300,19 @@ protected:
 
     // the parsing has failed
     bool mFailed = false;
+
+    // parsing is paused
+    bool mPaused = false;
+
+    // Saved state when paused
+    // Note: Caller MUST purge/remove the consumed bytes before next processChunk call
+    std::string mPausedLastName;
+    std::vector<std::string> mPausedStack;
+    std::string mPausedCurrentPath;
+    int mPausedExpectValue = 0;
+
+    // Offset from mLastPos to mPos when paused
+    m_off_t mPausedProcessedBytes = 0;
 
 }; // JSONSplitter
 

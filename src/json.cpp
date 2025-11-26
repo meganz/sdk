@@ -1095,9 +1095,73 @@ void JSONSplitter::clear()
     mStarting = true;
     mFinished = false;
     mFailed = false;
+    mPaused = false;
+    mPausedLastName.clear();
+    mPausedStack.clear();
+    mPausedCurrentPath.clear();
+    mPausedExpectValue = 0;
+    mPausedProcessedBytes = 0;
 }
 
-m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)> > *filters, const char *data)
+static std::map<char, char> matchBrackets = {{']', '['}, {'}', '{'}};
+
+void JSONSplitter::processPaused(m_off_t offsetFromLastPos, const char startChar)
+{
+    mPaused = true;
+
+    // Save the complete parsing state to restore later
+    if (!startChar)
+    {
+        mPausedLastName = std::move(mLastName);
+        // Save full stack and path
+        mPausedStack = std::move(mStack);
+        mPausedCurrentPath = std::move(mCurrentPath);
+        mPausedExpectValue = mExpectValue;
+    }
+    else
+    {
+        mPausedLastName = "";
+        mPausedExpectValue = 1;
+        mPausedStack = std::move(mStack);
+        mPausedCurrentPath = std::move(mCurrentPath);
+        // We need to fallback to the last object/array
+        bool breakLoop = false;
+        for (int i = static_cast<int>(mPausedStack.size()) - 1; i >= 0; --i)
+        {
+            if (mPausedStack[static_cast<size_t>(i)][0] == startChar)
+            {
+                breakLoop = true;
+            }
+            mPausedStack.erase(mPausedStack.begin() + static_cast<int>(i));
+            mPausedCurrentPath.pop_back();
+            if (breakLoop)
+            {
+                break;
+            }
+        }
+    }
+
+    // Save the relative offset from mLastPos to mPos
+    // When resuming, caller will have purged consumed bytes (up to mLastPos),
+    // so the new data buffer starts at what was mLastPos.
+    // We need to skip mPausedProcessedBytes to get back to mPos position.
+    mPausedProcessedBytes = offsetFromLastPos;
+
+    LOG_debug << "====== Paused information =======";
+    LOG_debug << "JSON paused processed bytes: " << mPausedProcessedBytes;
+    LOG_debug << "JSON paused last name: " << mPausedLastName;
+    LOG_debug << "JSON paused expect value: " << mPausedExpectValue;
+    LOG_debug << "JSON paused current path: " << mPausedCurrentPath;
+    LOG_debug << "JSON paused stack: ";
+    for (const auto& path: mPausedStack)
+    {
+        LOG_debug << path;
+    }
+    LOG_debug << "================================";
+}
+
+m_off_t JSONSplitter::processChunk(std::map<string, std::function<CallbackResult(JSON*)>>* filters,
+                                   const char* data)
 {
     if (hasFailed() || hasFinished())
     {
@@ -1111,7 +1175,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
         {
             JSON jsonData("");
             auto& callback = filterit->second;
-            if (!callback(&jsonData))
+            if (CallbackResult::SPLITTER_SUCCESS != callback(&jsonData))
             {
                 LOG_err << "Error starting the processing of a chunk";
             }
@@ -1121,9 +1185,28 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
     mPos = data;
     mLastPos = data;
 
-    // Skip the data that was already processed during the previous call
-    mPos += mProcessedBytes;
-    mProcessedBytes = 0;
+    if (mPaused)
+    {
+        // Restore the complete parsing state
+        mLastName = std::move(mPausedLastName);
+        mStack = std::move(mPausedStack);
+        mCurrentPath = std::move(mPausedCurrentPath);
+        mExpectValue = mPausedExpectValue;
+
+        // Fast-forward mPos by the saved offset
+        // This puts us back at the element that caused the pause
+        mPos += mPausedProcessedBytes;
+
+        mPaused = false;
+        mPausedExpectValue = 0;
+        mPausedProcessedBytes = 0;
+    }
+    else
+    {
+        // Normal continuation: skip the data that was already processed during the previous call
+        mPos += mProcessedBytes;
+        mProcessedBytes = 0;
+    }
 
     if (mStarting)
     {
@@ -1134,7 +1217,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
             {
                 JSON jsonData("");
                 auto& callback = filterit->second;
-                if (!callback(&jsonData))
+                if (CallbackResult::SPLITTER_SUCCESS != callback(&jsonData))
                 {
                     LOG_err << "Parsing error processing first streaming filter"
                             << " Data: " << data;
@@ -1179,6 +1262,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
         }
         else if (c == ']' || c == '}')
         {
+            char closeChar = c;
             if (mExpectValue < 0)
             {
                 LOG_err << "Malformed JSON - premature closure";
@@ -1222,13 +1306,21 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
 
                     JSON jsonData(mLastPos);
                     auto& callback = filterit->second;
-                    if (!callback(&jsonData))
+                    auto result = callback(&jsonData);
+                    if (result == CallbackResult::SPLITTER_ERROR)
                     {
                         LOG_err << "Parsing error processing streaming filter: " << filter
                                 << " Data: "
                                 << std::string(mLastPos, static_cast<size_t>(mPos - mLastPos));
                         parseError(filters);
                         return 0;
+                    }
+                    else if (result == CallbackResult::SPLITTER_PAUSE)
+                    {
+                        LOG_debug << "JSON paused at path: " << mCurrentPath;
+                        auto consumedBytes = mLastPos - data;
+                        processPaused(0, matchBrackets[closeChar]);
+                        return consumedBytes;
                     }
 
                     // Callbacks should consume the exact amount of JSON, except the last one
@@ -1300,12 +1392,22 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
 
                         JSON jsonData(mPos);
                         auto& callback = filterit->second;
-                        if (!callback(&jsonData))
+                        auto result = callback(&jsonData);
+                        if (result == CallbackResult::SPLITTER_ERROR)
                         {
                             LOG_err << "Parsing error processing streaming filter: " << filter
                                     << " Data: " << std::string(mPos, static_cast<size_t>(t));
                             parseError(filters);
                             return 0;
+                        }
+                        else if (result == CallbackResult::SPLITTER_PAUSE)
+                        {
+                            LOG_debug << "JSON paused at path: " << mCurrentPath;
+                            // Return bytes up to elementStartPos (which is mLastPos)
+                            // Caller MUST purge these bytes before next call
+                            auto consumedBytes = mLastPos - data;
+                            processPaused(mPos - mLastPos);
+                            return consumedBytes;
                         }
 
                         mLastPos = mPos + t;
@@ -1385,7 +1487,8 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                             << " Data: " << std::string(mLastPos, static_cast<size_t>(j));
 
                         auto& callback = filterit->second;
-                        if (!callback(&jsonData))
+                        auto result = callback(&jsonData);
+                        if (result != CallbackResult::SPLITTER_SUCCESS)
                         {
                             LOG_err << "Parsing error processing error streaming filter"
                                     << " Data: " << std::string(mLastPos, static_cast<size_t>(j));
@@ -1481,7 +1584,7 @@ int JSONSplitter::numEnd()
     return -1;
 }
 
-void JSONSplitter::parseError(std::map<string, std::function<bool (JSON *)> > *filters)
+void JSONSplitter::parseError(std::map<string, std::function<CallbackResult(JSON*)>>* filters)
 {
     if (filters)
     {
@@ -1502,14 +1605,15 @@ void JSONSplitter::parseError(std::map<string, std::function<bool (JSON *)> > *f
     assert(false);
 }
 
-bool JSONSplitter::chunkProcessingFinishedSuccessfully(std::map<std::string, std::function<bool(JSON*)>>* filters)
+bool JSONSplitter::chunkProcessingFinishedSuccessfully(
+    std::map<std::string, std::function<CallbackResult(JSON*)>>* filters)
 {
     auto filterit = filters->find(">");
     if (filterit != filters->end())
     {
         JSON jsonData("");
         auto& callback = filterit->second;
-        if (!callback(&jsonData))
+        if (CallbackResult::SPLITTER_SUCCESS != callback(&jsonData))
         {
             return false;
         }
