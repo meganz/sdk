@@ -2575,7 +2575,7 @@ public:
     unsigned int getTestCategory(int productIndex) const override;
     unsigned int getTrialDurationInDays(int productIndex) const override;
     bool hasMobileOffers(int productIndex) const override;
-    const char* getMobileOfferId(int productIndex) const override;
+    const std::string getMobileOfferId(int productIndex) const override;
     bool getMobileOfferUat(int productIndex) const override;
     void addProduct(const Product& product);
 

@@ -29764,12 +29764,12 @@ bool MegaPricingPrivate::hasMobileOffers(int productIndex) const
     return false;
 }
 
-const char* mega::MegaPricingPrivate::getMobileOfferId(int productIndex) const
+const std::string mega::MegaPricingPrivate::getMobileOfferId(int productIndex) const
 {
     auto index = static_cast<size_t>(productIndex);
-    if (productIndex >= 0 && index < products.size())
+    if (productIndex >= 0 && index < products.size() && products[index].mobileOffer)
     {
-        return products[index].mobileOffer ? products[index].mobileOffer->id.c_str() : nullptr;
+        return products[index].mobileOffer->id;
     }
 
     return {};
@@ -29778,9 +29778,9 @@ const char* mega::MegaPricingPrivate::getMobileOfferId(int productIndex) const
 bool mega::MegaPricingPrivate::getMobileOfferUat(int productIndex) const
 {
     auto index = static_cast<size_t>(productIndex);
-    if (productIndex >= 0 && index < products.size())
+    if (productIndex >= 0 && index < products.size() && products[index].mobileOffer)
     {
-        return products[index].mobileOffer ? products[index].mobileOffer->uat : false;
+        return products[index].mobileOffer->uat;
     }
 
     return {};

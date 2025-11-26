@@ -22670,7 +22670,7 @@ TEST_F(SdkTest, SdkUtqaMobileOffer)
     auto pricing = getPricing(*megaApi[index]);
     ASSERT_EQ(::result(pricing), API_OK) << "Error at getPricing";
     auto& priceDetailRes = std::get<std::unique_ptr<MegaPricing>>(pricing);
-    ASSERT_TRUE(priceDetailRes) << "No princin objectes received";
+    ASSERT_TRUE(priceDetailRes) << "No princing objectes received";
 
     bool mobileOffer{false};
     std::string mobileOfferTitle;
@@ -22679,7 +22679,6 @@ TEST_F(SdkTest, SdkUtqaMobileOffer)
         // Found the user's plan.
         if (mobileOffer = priceDetailRes->hasMobileOffers(i); mobileOffer)
         {
-            ASSERT_TRUE(priceDetailRes->getMobileOfferId(i));
             mobileOfferTitle = priceDetailRes->getMobileOfferId(i);
             break;
         }

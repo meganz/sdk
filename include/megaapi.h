@@ -25398,7 +25398,8 @@ public:
      * Returns the identifier of the mobile offer associated with the given
      * product.
      *
-     * If the product does not have a mobile offer, this method returns nullptr.
+     * If the product does not have a mobile offer, this method returns a empty
+     * string.
      *
      * The caller does not take ownership of the returned const char*, which is
      * valid as long as current instance is valid.
@@ -25407,7 +25408,7 @@ public:
      * @return A null-terminated string containing the mobile offer ID, or
      * nullptr if unavailable
      */
-    virtual const char* getMobileOfferId(int productIndex) const = 0;
+    virtual const std::string getMobileOfferId(int productIndex) const = 0;
 
     /**
      * @brief Check whether the mobile offer title should be used
