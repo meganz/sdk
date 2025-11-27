@@ -196,6 +196,7 @@ pipeline {
                                     }
                                     sh "echo Running tests"
                                     sh """#!/bin/zsh
+                                    setopt nonomatch
                                     cd ${env.BUILD_DIR}
 
                                     ./tests/unit/test_unit &
