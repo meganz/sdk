@@ -144,6 +144,33 @@ TEST_F(SdkTestLocklessCSChannel, ImportFileLink)
     // Make sure import used the lockless CS channel.
     ASSERT_TRUE(usedLocklessChannel) << "Test file import didn't use the lockless CS channel";
 }
+
+TEST_F(SdkTestLocklessCSChannel, StreamFile)
+{
+    // Address our client more easily.
+    auto& client = *megaApi[0];
+
+    // Try and locate the node we want to stream.
+    auto node = getNodeByPath("remoteTestFile");
+    ASSERT_TRUE(node) << "Couldn't locate test file";
+
+    // So we know whether streaming below used the lockless CS channel.
+    auto usedLocklessChannel = false;
+
+    globalMegaTestHooks.interceptLocklessCSRequest = commandChecker("g", usedLocklessChannel);
+
+    // Try and stream some data from the node.
+    NiceMock<MockMegaTransferListener> listener;
+
+    client.startStreaming(node.get(), 0, 100, &listener);
+
+    // Wait for all of the data to be streamed.
+    ASSERT_TRUE(listener.waitForFinishOrTimeout(MAX_TIMEOUT))
+        << "Couldn't stream data from test file";
+
+    // Make sure streaming used the lockless CS channel.
+    ASSERT_TRUE(usedLocklessChannel) << "Test file stream didn't use the lockless CS channel";
+}
 #endif
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
