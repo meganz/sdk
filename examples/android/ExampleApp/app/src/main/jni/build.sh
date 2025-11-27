@@ -100,6 +100,13 @@ ARES_CONFIGURED=${CURL}/${ARES_SOURCE_FOLDER}/Makefile.inc
 ARES_DOWNLOAD_URL=https://github.com/c-ares/c-ares/releases/download/cares-${C_ARES_VERSION2}/${ARES_SOURCE_FILE}
 ARES_SHA1="99566278e4ed4b261891aa62c8b88227bf1a2823"
 
+CRASHLYTICS=crashlytics
+CRASHLYTICS_DOWNLOAD_URL=https://raw.githubusercontent.com/firebase/firebase-android-sdk/master/firebase-crashlytics-ndk/src/main/jni/libcrashlytics/include/crashlytics/external/crashlytics.h
+CRASHLYTICS_DOWNLOAD_URL_C=https://raw.githubusercontent.com/firebase/firebase-android-sdk/8f02834e94f8b24a7cf0f777562cad73c6b9a40f/firebase-crashlytics-ndk/src/main/jni/libcrashlytics/include/crashlytics/external/crashlytics.h
+CRASHLYTICS_SOURCE_FILE=crashlytics.h
+CRASHLYTICS_SOURCE_FILE_C=crashlyticsC.h
+CRASHLYTICS_DEST_PATH=mega/sdk/third_party
+
 OPENSSL=openssl
 OPENSSL_VERSION="3.1.1"
 OPENSSL_SOURCE_FILE=${OPENSSL}-${OPENSSL_VERSION}.tar.gz
@@ -303,6 +310,8 @@ if [ "$1" == "clean" ]; then
     rm -rf ${CURL}/ares
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FOLDER}
     rm -rf ${OPENSSL}/${OPENSSL}
+    rm -rf ${CRASHLYTICS_DEST_PATH}/${CRASHLYTICS_SOURCE_FILE}
+    rm -rf ${CRASHLYTICS_DEST_PATH}/${CRASHLYTICS_SOURCE_FILE_C}
     rm -rf ${SODIUM}/${SODIUM_SOURCE_FOLDER}
     rm -rf ${SODIUM}/${SODIUM}
     rm -rf ${LIBUV}/${LIBUV_SOURCE_FOLDER}
@@ -323,6 +332,7 @@ if [ "$1" == "clean" ]; then
     rm -rf ${CURL}/${ARES_SOURCE_FILE}
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}
 	  rm -rf ${CURL}/${CURL_SOURCE_FILE}.ready
+	  rm -rf ${CURL}/${CRASHLYTICS_SOURCE_FILE}.ready
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready
     rm -rf ${SODIUM}/${SODIUM_SOURCE_FILE}
     rm -rf ${SODIUM}/${SODIUM_SOURCE_FILE}.ready
@@ -462,6 +472,15 @@ if [ ! -f ${MEDIAINFO}/${MEDIAINFO_SOURCE_FILE}.ready ]; then
     touch ${MEDIAINFO}/${MEDIAINFO_SOURCE_FILE}.ready
 fi
 echo "* MediaInfo is ready"
+
+echo "* Setting up crashlytics"
+if [ ! -f ${CURL}/${CRASHLYTICS_SOURCE_FILE}.ready ]; then
+    wget ${CRASHLYTICS_DOWNLOAD_URL} -O ${CRASHLYTICS_DEST_PATH}/${CRASHLYTICS_SOURCE_FILE} &>> ${LOG_FILE}
+    wget ${CRASHLYTICS_DOWNLOAD_URL_C} -O  ${CRASHLYTICS_DEST_PATH}/${CRASHLYTICS_SOURCE_FILE_C} &>> ${LOG_FILE}
+
+    touch ${CURL}/${CRASHLYTICS_SOURCE_FILE}.ready
+fi
+echo "* crashlytics is ready"
 
 echo "* Setting up OpenSSL"
 if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
