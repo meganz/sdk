@@ -6467,10 +6467,13 @@ CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, int
 
     ph = cph;
     havekey = ckey ? true : false;
+
     if (havekey)
     {
         memcpy(key, ckey, sizeof key);
     }
+
+    mLockless = true;
     tag = client->reqtag;
     op = cop;
 }
