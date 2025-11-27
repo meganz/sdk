@@ -3497,6 +3497,12 @@ private:
 
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;
+
+public:
+    // Queue a CS command for transmission.
+    //
+    // This function takes ownership of its command parameter.
+    void queueCommand(Command* command);
 };
 
 } // namespace
