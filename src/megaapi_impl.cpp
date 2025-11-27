@@ -5421,6 +5421,8 @@ bool MegaRequestPrivate::causesLocklessRequest(const int type)
     switch (type)
     {
         case TYPE_GET_DOWNLOAD_URLS:
+        case TYPE_GET_PUBLIC_NODE:
+        case TYPE_IMPORT_LINK:
             return true;
         default:
             return false;
