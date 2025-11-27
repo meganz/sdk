@@ -4,6 +4,7 @@
  */
 
 #include "integration_test_utils.h"
+#include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
@@ -15,6 +16,11 @@ using namespace testing;
 class SdkTestLocklessCSChannel: public SdkTestNodesSetUp
 {
 public:
+    unsigned int getNumClients() const override
+    {
+        return 2;
+    }
+
     const std::string& getRootTestDir() const override
     {
         return rootTestDir;
@@ -38,6 +44,20 @@ private:
     const std::vector<NodeInfo> testNode{FileNodeInfo("remoteTestFile").setSize(100)};
 };
 
+// Returns a function that sets flag to true when a CS for a given command completes.
+auto commandChecker(const std::string& command, bool& flag)
+{
+    std::ostringstream ostream;
+
+    ostream << "\"a\":\"" << command << "\"";
+
+    return [&flag, pattern = ostream.str()](auto& request)
+    {
+        flag |= (request->status == REQ_FAILURE || request->status == REQ_SUCCESS) &&
+                request->out->find(pattern) != std::string::npos;
+    };
+}
+
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 /**
  * @brief Ensures that the lockless channel is correctly used when retrieving the download URL ("g")
@@ -51,18 +71,8 @@ TEST_F(SdkTestLocklessCSChannel, DownloadFile)
     ASSERT_TRUE(remoteNode) << "Failed to get the node to be downloaded";
 
     bool usedLocklessChannel{false};
-    auto checkCommand = [&usedLocklessChannel](std::unique_ptr<HttpReq>& locklessCSReq)
-    {
-        // Request finished and we can see that a "g" command has been sent.
-        // API can still return an error for the command, but the correct channel has been used.
-        if ((locklessCSReq->status == REQ_SUCCESS || locklessCSReq->status == REQ_FAILURE) &&
-            locklessCSReq->out->find("\"a\":\"g\"") != std::string::npos)
-        {
-            usedLocklessChannel = true;
-        }
-    };
 
-    globalMegaTestHooks.interceptLocklessCSRequest = checkCommand;
+    globalMegaTestHooks.interceptLocklessCSRequest = commandChecker("g", usedLocklessChannel);
 
     LOG_info << logPre
              << "Get the download URL. The \"g\" command should use the lockless channel.";
@@ -86,6 +96,53 @@ TEST_F(SdkTestLocklessCSChannel, DownloadFile)
     ASSERT_EQ(errCode, API_OK) << "Failed to download the remote node.";
     ASSERT_TRUE(usedLocklessChannel)
         << "The lockless channel was not used when downloading a node.";
+}
+
+TEST_F(SdkTestLocklessCSChannel, ImportFileLink)
+{
+    // Address our clients more easily.
+    auto& clientS = *megaApi[0];
+    auto& clientT = *megaApi[1];
+
+    // Try and locate the node we want to share.
+    auto source = getNodeByPath("remoteTestFile");
+    ASSERT_TRUE(source) << "Couldn't locate test file";
+
+    // Try and generate a public link for our node.
+    NiceMock<MockRequestListener> exportTracker(&clientS);
+
+    clientS.exportNode(source.get(), 0, false, false, &exportTracker);
+
+    ASSERT_TRUE(exportTracker.waitForFinishOrTimeout(MAX_TIMEOUT))
+        << "Couldn't generate public link for test file";
+
+    // Refresh the snapshot of our test file.
+    source = getNodeByPath("remoteTestFile");
+    ASSERT_TRUE(source) << "Couldn't locate test file";
+
+    // Retrieve our node's public link.
+    auto link = makeUniqueFrom(source->getPublicLink());
+    ASSERT_TRUE(link) << "Couldn't retrieve public link for test file";
+
+    // Get our hands on the target client's root node.
+    auto target = makeUniqueFrom(clientT.getRootNode());
+    ASSERT_TRUE(target) << "Couldn't get target client's root node";
+
+    // So we know whether the import below used the lockless CS channel.
+    auto usedLocklessChannel = false;
+
+    globalMegaTestHooks.interceptLocklessCSRequest = commandChecker("g", usedLocklessChannel);
+
+    // Try and import the node into our second client.
+    NiceMock<MockRequestListener> importTracker(&clientT);
+
+    clientT.importFileLink(link.get(), target.get(), &importTracker);
+
+    ASSERT_TRUE(importTracker.waitForFinishOrTimeout(MAX_TIMEOUT))
+        << "Couldn't import test file into target client";
+
+    // Make sure import used the lockless CS channel.
+    ASSERT_TRUE(usedLocklessChannel) << "Test file import didn't use the lockless CS channel";
 }
 #endif
 
