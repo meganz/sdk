@@ -603,6 +603,8 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     {
         arg("ssl", 2);
     }
+
+    mLockless = true;
 }
 
 void CommandDirectRead::cancel()
