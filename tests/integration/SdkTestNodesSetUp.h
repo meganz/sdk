@@ -32,6 +32,12 @@ private:
     std::unique_ptr<MegaNode> rootTestDirNode;
 
 public:
+    // How many clients do we want to log in?
+    virtual unsigned int getNumClients() const
+    {
+        return 1;
+    }
+
     virtual const std::string& getRootTestDir() const = 0;
 
     virtual const std::vector<sdk_test::NodeInfo>& getElements() const = 0;

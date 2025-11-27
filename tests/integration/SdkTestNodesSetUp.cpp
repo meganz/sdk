@@ -3,7 +3,7 @@
 void SdkTestNodesSetUp::SetUp()
 {
     SdkTest::SetUp();
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(getNumClients()));
     ASSERT_NO_FATAL_FAILURE(createRootTestDir());
     createNodes(getElements(), rootTestDirNode.get());
 }
