@@ -87,7 +87,8 @@ void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, const LocalP
         }
 
         LOG_debug << "Requesting code mappings";
-        client->reqs.add(new CommandMediaCodecs(client, &MediaFileInfo::onCodecMappingsReceiptStatic));
+        client->queueCommand(
+            new CommandMediaCodecs(client, &MediaFileInfo::onCodecMappingsReceiptStatic));
         mediaCodecsRequested = true;
     }
 }

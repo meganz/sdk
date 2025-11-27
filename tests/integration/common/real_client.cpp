@@ -541,7 +541,7 @@ void RealClient::get(GetCallback callback,
                                                               std::placeholders::_2));
 
     // Ask the client to execute this request.
-    mClient->reqs.add(request.get());
+    mClient->queueCommand(request.get());
 
     // Client now owns the request.
     request.release();

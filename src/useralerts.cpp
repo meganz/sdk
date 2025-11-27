@@ -2842,7 +2842,7 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
 void UserAlerts::acknowledgeAll()
 {
     // notify the API.  Eg. on when user closes the useralerts list
-    mc.reqs.add(new CommandSetLastAcknowledged(&mc));
+    mc.queueCommand(new CommandSetLastAcknowledged(&mc));
 }
 
 void UserAlerts::acknowledgeAllSucceeded()
