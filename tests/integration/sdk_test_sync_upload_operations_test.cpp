@@ -65,75 +65,125 @@ protected:
     }
 
     /**
-     * @brief Creates a local file and waits until onSyncFileStateChanged with STATE_SYNCED is
-     * received.
-     * @note It's important that localFilePathAbs is an absolute path, othwewise it won't match with
-     * received one in onSyncFileStateChanged
+     * @brief Waits for sync completion and verifies transfer behavior for a file operation.
      *
-     * @param localFilePathAbs Absolute filesystem path where the file will be created.
-     * @param contents The file contents to write.
-     * @param customMtime Optional custom modification time to apply to the file.
-     *                    If not provided, the current system clock time will be used.
-     * otherwise.
+     * This is the common logic for file creation and move operations.
+     * Call this AFTER setting up trackers and performing the file operation.
+     *
+     * @param localFilePathAbs Absolute path to the file being synced (for error messages).
+     * @param st The sync listener tracker for this file.
+     * @param tt The transfer listener tracker for this file.
+     * @param isFullUploadExpected If true, validates transfer completes with API_OK.
+     * If false, validates that NO transfer occurred (clone/setattr should be used instead).
      */
-    std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
-        createLocalFileAndWaitForSync(const fs::path& localFilePathAbs,
-                                      const std::string_view contents,
-                                      std::optional<fs::file_time_type> customMtime)
+    void waitForSyncAndVerifyTransfer(const fs::path& localFilePathAbs,
+                                      std::shared_ptr<SyncUploadOperationsTracker> st,
+                                      std::shared_ptr<SyncUploadOperationsTransferTracker> tt,
+                                      const bool isFullUploadExpected)
     {
-        auto st = addSyncListenerTracker(localFilePathAbs.string());
-        if (!st)
+        auto [syncStatus, syncErrCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        ASSERT_TRUE(syncStatus == std::future_status::ready)
+            << "Sync state change not received for: " << localFilePathAbs;
+        ASSERT_EQ(syncErrCode, API_OK) << "Sync completed with error for: " << localFilePathAbs;
+
+        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+        const auto transferTimeout =
+            isFullUploadExpected ? COMMON_TIMEOUT : std::chrono::seconds(30);
+        auto [transferStatus, transferErrCode] = tt->waitForCompletion(transferTimeout);
+
+        const auto expectedTransferStatus =
+            isFullUploadExpected ? std::future_status::ready : std::future_status::timeout;
+        ASSERT_EQ(transferStatus, expectedTransferStatus)
+            << "Unexpected transfer status for: " << localFilePathAbs
+            << " [isFullUploadExpected: " << isFullUploadExpected << "]";
+        const auto expectedTransferStartCount = isFullUploadExpected ? 1 : 0;
+
+        ASSERT_EQ(tt->transferStartCount.load(), expectedTransferStartCount)
+            << "Transfer started count mismatch for: " << localFilePathAbs
+            << " [isFullUploadExpected: " << isFullUploadExpected << "]";
+
+        if (isFullUploadExpected)
         {
-            return {false, nullptr};
+            ASSERT_EQ(transferErrCode, API_OK) << "Transfer failed (" << localFilePathAbs << ")";
         }
-
-        auto localFile =
-            std::make_shared<sdk_test::LocalTempFile>(localFilePathAbs, contents, customMtime);
-
-        auto [futStatus, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
-        const auto succeeded = futStatus == std::future_status::ready && errCode == API_OK;
-        return {succeeded, localFile};
     }
 
     /**
-     * @brief Creates a local test file and verifies sync completion (and transfer finish just for
-     * expected full upload operations).
+     * @brief Creates a local test file and verifies sync completion and transfer behavior.
      *
      * @param localFilePathAbs Absolute filesystem path where the test file will be created. Must be
      * an absolute path to match correctly with sync state change events.
      * @param fileContent The content to write to the test file.
      * @param customMtime Custom modification time to apply to the created file
-     * @param isFullUploadExpected If true, the function sets up expectations for transfer callbacks
-     * (onTransferStart and onTransferFinish) and validates that the upload completes with API_OK.
-     * If false, only sync state changes are verified
+     * @param isFullUploadExpected If true, validates that transfer completes with API_OK.
+     * If false, validates that NO transfer occurred (clone/setattr should be used instead).
      */
     void createTestFileInternal(const fs::path& localFilePathAbs,
                                 const std::string& fileContent,
                                 std::chrono::time_point<fs::file_time_type::clock> customMtime,
                                 const bool isFullUploadExpected)
     {
-        ASSERT_TRUE(mMtl) << "createTestFileInternal: Invalid transfer listener";
-        std::shared_ptr<SyncUploadOperationsTransferTracker> tt;
-        if (isFullUploadExpected)
+        static const std::string logPre{"createTestFileInternal: "};
+        ASSERT_TRUE(mMtl) << logPre << "Invalid transfer listener";
+
+        auto tt = addTransferListenerTracker(localFilePathAbs.string());
+        ASSERT_TRUE(tt) << logPre
+                        << "Cannot add TransferListenerTracker for: " << localFilePathAbs.string();
+        auto st = addSyncListenerTracker(localFilePathAbs.string());
+        ASSERT_TRUE(st) << logPre
+                        << "Cannot add SyncListenerTracker for: " << localFilePathAbs.string();
+
+        LOG_debug << logPre << "Creating local file: " << localFilePathAbs.string();
+        auto localFile =
+            std::make_shared<sdk_test::LocalTempFile>(localFilePathAbs, fileContent, customMtime);
+        mLocalFiles.emplace_back(localFile);
+
+        ASSERT_NO_FATAL_FAILURE(
+            waitForSyncAndVerifyTransfer(localFilePathAbs, st, tt, isFullUploadExpected));
+    }
+
+    /**
+     * @brief Moves a file into the sync and verifies sync completion and transfer behavior.
+     *
+     * @param sourcePath Absolute path to the source file (outside sync).
+     * @param targetPathInSync Absolute path where file will be moved (inside sync).
+     * @param isFullUploadExpected If true, validates transfer completes with API_OK.
+     * If false, validates that NO transfer occurred (clone/setattr should be used instead).
+     * @param expectedMtimeAfterMove Optional: if provided, verifies the moved file has this mtime.
+     */
+    void moveFileIntoSyncAndVerify(const fs::path& sourcePath,
+                                   const fs::path& targetPathInSync,
+                                   const bool isFullUploadExpected,
+                                   std::optional<m_time_t> expectedMtimeAfterMove = std::nullopt)
+    {
+        static const std::string logPre{"moveFileIntoSyncAndVerify: "};
+        ASSERT_TRUE(mMtl) << logPre << "Invalid transfer listener";
+
+        auto tt = addTransferListenerTracker(targetPathInSync.string());
+        ASSERT_TRUE(tt) << logPre
+                        << "Cannot add TransferListenerTracker for: " << targetPathInSync.string();
+        auto st = addSyncListenerTracker(targetPathInSync.string());
+        ASSERT_TRUE(st) << logPre
+                        << "Cannot add SyncListenerTracker for: " << targetPathInSync.string();
+
+        std::error_code renameError;
+        fs::rename(sourcePath, targetPathInSync, renameError);
+        ASSERT_FALSE(renameError) << logPre << "Failed to move file from " << sourcePath << " to "
+                                  << targetPathInSync << ": " << renameError.message();
+
+        if (expectedMtimeAfterMove.has_value())
         {
-            tt = addTransferListenerTracker(localFilePathAbs.string());
-            ASSERT_TRUE(tt) << "Cannot add TransferListenerTracker for: "
-                            << localFilePathAbs.string();
+            auto [getMtimeOk, movedFileMtime] =
+                mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(targetPathInSync.u8string()));
+            ASSERT_TRUE(getMtimeOk)
+                << logPre << "Failed to get mtime of moved file: " << targetPathInSync;
+            ASSERT_EQ(movedFileMtime, expectedMtimeAfterMove.value())
+                << logPre << "fs::rename should preserve mtime for: " << targetPathInSync;
         }
 
-        auto [res1, localFile1] =
-            createLocalFileAndWaitForSync(localFilePathAbs, fileContent, customMtime);
-        ASSERT_TRUE(res1) << "createLocalFileAndWaitForSync (Unexpected result)";
-        mLocalFiles.emplace_back(localFile1);
-        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
-
-        if (isFullUploadExpected)
-        {
-            auto [futStatus, errCode] = tt->waitForCompletion(COMMON_TIMEOUT);
-            ASSERT_TRUE(futStatus == std::future_status::ready)
-                << "onTransferFinish not received for: " << localFilePathAbs;
-            ASSERT_EQ(errCode, API_OK) << "Transfer failed (" << localFilePathAbs << ")";
-        }
+        ASSERT_NO_FATAL_FAILURE(
+            waitForSyncAndVerifyTransfer(targetPathInSync, st, tt, isFullUploadExpected));
     }
 
 public:
@@ -518,7 +568,7 @@ TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUpload)
  * 1. Create a new local file `file1` in `dir1` with given content and mtime `mt1`.
  *    - Expect a full upload.
  * 2. Create the same file `file1` in `dir2` with same content but different mtime `mt2`.
- *    - Expect another full upload since fingerprints differs (Fp = CRC + size + mtime).
+ *    - Expect a remote copy since fingerprints differs in mtime only, and MAC matches.
  * 3. Verify that local and remote models match
  */
 TEST_F(SdkTestSyncUploadsOperations, DuplicatedFilesUploadDifferentMtime)
@@ -721,5 +771,110 @@ TEST_F(SdkTestSyncUploadsOperations, updateLocalNodeMtime)
                          "MT1");
 
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+}
+
+/**
+ * @test SdkTestSyncUploadsOperations.CloneNodeWithDifferentMtime
+ *
+ * This test validates the clone node mechanism when a file with different mtime
+ * is moved into the sync. The clone should be found via NODE_COMP_DIFFERS_MTIME.
+ *
+ * 1. Create a random file (50MB) outside the sync local root (thread-safe path).
+ * 2. Upload it manually (not through sync) to a unique remote folder outside sync.
+ * 3. Change the mtime of the local file.
+ * 4. Set up expectations that no full transfer will occur.
+ * 5. Move/rename the file into the sync local root with a different name (preserving mtime).
+ * 6. Wait for sync - a clone node operation should occur (NODE_COMP_DIFFERS_MTIME).
+ * 7. Verify both local and remote files have the same mtime (the updated one from step 3).
+ */
+TEST_F(SdkTestSyncUploadsOperations, CloneNodeWithDifferentMtime)
+{
+    static const auto logPre = getLogPrefix();
+    const auto cleanup = setCleanupFunction();
+
+    const std::string originalFileName = "original_file_outside_sync.dat";
+    const std::string clonedFileName = "cloned_file_inside_sync.dat";
+    const size_t fileSize = 50 * 1024 * 1024; // 50MB
+
+    LOG_debug << logPre << "1. Prepare unique remote folder outside sync";
+    const std::string threadSuffix = "_" + getThisThreadIdStr();
+    const std::string uniqueRemoteFolderName = "clone_mtime_test_folder" + threadSuffix;
+
+    const fs::path outsideLocalDir =
+        getLocalTmpDir().parent_path() / ("clone_mtime_test_dir" + threadSuffix);
+    LocalTempDir outsideDirCleanup(outsideLocalDir);
+    const fs::path outsideLocalPath = outsideLocalDir / originalFileName;
+
+    LOG_debug << logPre << "1b. Creating random file outside sync at: " << outsideLocalPath;
+    createRandomFile(outsideLocalPath, fileSize);
+
+    LOG_debug << logPre << "2. Creating unique remote folder to manually upload the file: "
+              << uniqueRemoteFolderName;
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << "Cannot get backup sync node";
+
+    std::unique_ptr<MegaNode> rootTestNode(
+        megaApi[0]->getNodeByHandle(backupNode->getParentHandle()));
+    ASSERT_TRUE(rootTestNode) << "Cannot get parent node of sync remote root";
+
+    auto uploadTargetHandle = createFolder(0, uniqueRemoteFolderName.c_str(), rootTestNode.get());
+    ASSERT_NE(uploadTargetHandle, UNDEF) << "Failed to create unique remote folder";
+
+    std::unique_ptr<MegaNode> uploadTargetNode(megaApi[0]->getNodeByHandle(uploadTargetHandle));
+    ASSERT_TRUE(uploadTargetNode) << "Cannot get created remote folder node";
+
+    LOG_debug << logPre << "2b. Uploading file manually to cloud at the unique remote folder: "
+              << uniqueRemoteFolderName;
+    auto uploadedNode = uploadFile(megaApi[0].get(), outsideLocalPath, uploadTargetNode.get());
+    ASSERT_TRUE(uploadedNode) << "Manual upload failed";
+
+    const int64_t originalMtime = uploadedNode->getModificationTime();
+    LOG_debug << logPre << "2c. Original uploaded file mtime: " << originalMtime;
+
+    const m_time_t newMtimeTimeT = m_time(nullptr) + MIN_ALLOW_MTIME_DIFFERENCE;
+    LOG_debug << logPre << "3. Changing local file mtime to: " << newMtimeTimeT;
+    ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(outsideLocalPath.u8string()),
+                                         newMtimeTimeT))
+        << "Failed to set mtime on file outside sync";
+
+    const fs::path insideSyncPath = fs::absolute(getLocalTmpDir() / clonedFileName);
+    LOG_debug << logPre << "4. Moving file into sync and waiting for sync (no transfer expected)";
+    ASSERT_NO_FATAL_FAILURE(moveFileIntoSyncAndVerify(outsideLocalPath,
+                                                      insideSyncPath,
+                                                      false /*isFullUploadExpected*/,
+                                                      newMtimeTimeT /*expectedMtimeAfterMove*/));
+
+    LOG_debug << logPre << "5. Verifying mtime of cloned node";
+    std::unique_ptr<MegaNode> clonedNode(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), clonedFileName.c_str(), FILENODE));
+    ASSERT_TRUE(clonedNode) << "Cloned node not found in cloud";
+
+    ASSERT_EQ(clonedNode->getModificationTime(), newMtimeTimeT)
+        << "Cloned remote node mtime should match the updated local mtime";
+
+    LOG_debug << logPre << "6. Verifying mtime of local file";
+    {
+        auto [getMtimeSucceeded, currentLocalMtimeTimeT] =
+            mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(insideSyncPath.u8string()));
+        ASSERT_TRUE(getMtimeSucceeded) << "Failed to get local file mtime";
+        ASSERT_EQ(currentLocalMtimeTimeT, newMtimeTimeT)
+            << "Local file mtime should still be the updated value";
+    }
+
+    LOG_debug << logPre << "7. Verifying mtime of original uploaded node";
+    {
+        std::unique_ptr<MegaNode> refreshedUploadedNode(
+            megaApi[0]->getNodeByHandle(uploadedNode->getHandle()));
+        ASSERT_TRUE(refreshedUploadedNode) << "Cannot get refreshed original uploaded node";
+
+        ASSERT_EQ(refreshedUploadedNode->getModificationTime(), originalMtime)
+            << "Original uploaded node mtime should remain unchanged";
+    }
+
+    LOG_debug << logPre << "8. Cleanup: removing remote test folder";
+    ASSERT_EQ(API_OK, doDeleteNode(0, uploadTargetNode.get()))
+        << "Failed to cleanup remote test folder";
+
+    LOG_debug << logPre << "Test completed successfully";
 }
 #endif // ENABLE_SYNC

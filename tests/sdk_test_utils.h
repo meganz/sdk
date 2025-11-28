@@ -3,6 +3,7 @@
 
 #include "stdfs.h"
 
+#include <algorithm>
 #include <atomic>
 #include <fstream>
 #include <functional>
