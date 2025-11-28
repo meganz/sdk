@@ -5678,7 +5678,7 @@ bool MegaClient::procsc()
             if (jsonsc.enterobject())
             {
                 // Check if it is ok to process the current action packet.
-                if (!sc_checkActionPacket(lastAPDeletedNode.get()))
+                if (!sc_checkActionPacket(jsonsc, lastAPDeletedNode.get()))
                 {
                     // We can't continue actionpackets until we know the next mCurrentSeqtag to match against, wait for the CS request to deliver it.
                     assert(reqs.cmdsInflight());
@@ -5716,7 +5716,7 @@ bool MegaClient::procsc()
                         {
                             case name_id::u:
                                 // node update
-                                sc_updatenode();
+                                sc_updatenode(jsonsc);
                                 break;
 
                             case makeNameid("t"):
@@ -5725,7 +5725,7 @@ bool MegaClient::procsc()
                                 {
                                     if (!loggedIntoFolder())
                                         useralerts.beginNotingSharedNodes();
-                                    handle originatingUser = sc_newnodes();
+                                    handle originatingUser = sc_newnodes(jsonsc);
                                     mergenewshares(1);
                                     if (!loggedIntoFolder())
                                         useralerts.convertNotedSharedNodes(true, originatingUser);
@@ -5735,13 +5735,13 @@ bool MegaClient::procsc()
 
                             case name_id::d:
                                 // node deletion
-                                lastAPDeletedNode = sc_deltree(moveOperation);
+                                lastAPDeletedNode = sc_deltree(jsonsc, moveOperation);
                                 break;
 
                             case makeNameid("s"):
                             case makeNameid("s2"):
                                 // share addition/update/revocation
-                                if (sc_shares())
+                                if (sc_shares(jsonsc))
                                 {
                                     int creqtag = reqtag;
                                     reqtag = 0;
@@ -5752,23 +5752,23 @@ bool MegaClient::procsc()
 
                             case name_id::c:
                                 // contact addition/update
-                                sc_contacts();
+                                sc_contacts(jsonsc);
                                 break;
 
                             case makeNameid("fa"):
                                 // file attribute update
-                                sc_fileattr();
+                                sc_fileattr(jsonsc);
                                 break;
 
                             case makeNameid("ua"):
                                 // user attribute update
-                                sc_userattr();
+                                sc_userattr(jsonsc);
                                 break;
 
                             case name_id::psts:
                             case name_id::psts_v2:
                             case makeNameid("ftr"):
-                                if (sc_upgrade(name))
+                                if (sc_upgrade(jsonsc, name))
                                 {
                                     app->account_updated();
                                     abortbackoff(true);
@@ -5776,37 +5776,37 @@ bool MegaClient::procsc()
                                 break;
 
                             case name_id::pses:
-                                sc_paymentreminder();
+                                sc_paymentreminder(jsonsc);
                                 break;
 
                             case name_id::ipc:
                                 // incoming pending contact request (to us)
-                                sc_ipc();
+                                sc_ipc(jsonsc);
                                 break;
 
                             case makeNameid("opc"):
                                 // outgoing pending contact request (from us)
-                                sc_opc();
+                                sc_opc(jsonsc);
                                 break;
 
                             case name_id::upci:
                                 // incoming pending contact request update (accept/deny/ignore)
-                                sc_upc(true);
+                                sc_upc(jsonsc, true);
                                 break;
 
                             case name_id::upco:
                                 // outgoing pending contact request update (from them, accept/deny/ignore)
-                                sc_upc(false);
+                                sc_upc(jsonsc, false);
                                 break;
 
                             case makeNameid("ph"):
                                 // public links handles
-                                sc_ph();
+                                sc_ph(jsonsc);
                                 break;
 
                             case makeNameid("se"):
                                 // set email
-                                sc_se();
+                                sc_se(jsonsc);
                                 break;
 #ifdef ENABLE_CHAT
                             case makeNameid("mcpc"):
@@ -5815,72 +5815,72 @@ bool MegaClient::procsc()
                             } // fall-through
                             case makeNameid("mcc"):
                                 // chat creation / peer's invitation / peer's removal
-                                sc_chatupdate(readingPublicChat);
+                                sc_chatupdate(jsonsc, readingPublicChat);
                                 break;
 
                             case makeNameid("mcfpc"): // fall-through
                             case makeNameid("mcfc"):
                                 // chat flags update
-                                sc_chatflags();
+                                sc_chatflags(jsonsc);
                                 break;
 
                             case makeNameid("mcpna"): // fall-through
                             case makeNameid("mcna"):
                                 // granted / revoked access to a node
-                                sc_chatnode();
+                                sc_chatnode(jsonsc);
                                 break;
 
                             case name_id::mcsmp:
                                 // scheduled meetings updates
-                                sc_scheduledmeetings();
+                                sc_scheduledmeetings(jsonsc);
                                 break;
 
                             case name_id::mcsmr:
                                 // scheduled meetings removal
-                                sc_delscheduledmeeting();
+                                sc_delscheduledmeeting(jsonsc);
                                 break;
 #endif
                             case makeNameid("uac"):
-                                sc_uac();
+                                sc_uac(jsonsc);
                                 break;
 
                             case makeNameid("la"):
                                 // last acknowledged
-                                sc_la();
+                                sc_la(jsonsc);
                                 break;
 
                             case makeNameid("ub"):
                                 // business account update
-                                sc_ub();
+                                sc_ub(jsonsc);
                                 break;
 
                             case makeNameid("sqac"):
                                 // storage quota allowance changed
-                                sc_sqac();
+                                sc_sqac(jsonsc);
                                 break;
 
                             case makeNameid("asp"):
                                 // new/update of a Set
-                                sc_asp();
+                                sc_asp(jsonsc);
                                 break;
 
                             case makeNameid("ass"):
-                                sc_ass();
+                                sc_ass(jsonsc);
                                 break;
 
                             case makeNameid("asr"):
                                 // removal of a Set
-                                sc_asr();
+                                sc_asr(jsonsc);
                                 break;
 
                             case makeNameid("aep"):
                                 // new/update of a Set Element
-                                sc_aep();
+                                sc_aep(jsonsc);
                                 break;
 
                             case makeNameid("aer"):
                                 // removal of a Set Element
-                                sc_aer();
+                                sc_aer(jsonsc);
                                 break;
                             case makeNameid("pk"):
                                 // pending keys
@@ -5889,7 +5889,7 @@ bool MegaClient::procsc()
 
                             case makeNameid("uec"):
                                 // User Email Confirm (uec)
-                                sc_uec();
+                                sc_uec(jsonsc);
                                 break;
 
                             case makeNameid("cce"):
@@ -6708,26 +6708,26 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
 // this action packet or if we have to wait.
 // True: Action Packet can be processed.
 // False: Stop processing Action Packets, wait for cs response.
-bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
+bool MegaClient::sc_checkActionPacket(JSON& json, Node* lastAPDeletedNode)
 {
     nameid cmd = 0;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("a"): // action referred by the packet
-            cmd = jsonsc.getnameid();
+            cmd = json.getnameid();
             break;
 
         case makeNameid("i"): // id of the client who made the action triggering this packet
-            jsonsc.storeobject();
+            json.storeobject();
             break;
 
         case makeNameid("st"): // sequence tag
         {
             string tag;
-            jsonsc.storeobject(&tag);
+            json.storeobject(&tag);
             return sc_checkSequenceTag(tag);
         }
 
@@ -6752,7 +6752,7 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
 
 
 // server-client node update processing
-void MegaClient::sc_updatenode()
+void MegaClient::sc_updatenode(JSON& json)
 {
     handle h = UNDEF;
     handle u = 0;
@@ -6761,22 +6761,22 @@ void MegaClient::sc_updatenode()
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("n"):
-                h = jsonsc.gethandle();
+                h = json.gethandle();
                 break;
 
             case name_id::u:
-                u = jsonsc.gethandle(USERHANDLE);
+                u = json.gethandle(USERHANDLE);
                 break;
 
             case makeNameid("at"):
-                a = jsonsc.getvalue();
+                a = json.getvalue();
                 break;
 
             case makeNameid("ts"):
-                ts = jsonsc.getint();
+                ts = json.getint();
                 break;
 
             case EOO:
@@ -6837,7 +6837,7 @@ void MegaClient::sc_updatenode()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -6932,7 +6932,7 @@ void MegaClient::readtree(JSON* j)
     {
         for (;;)
         {
-            switch (jsonsc.getnameid())
+            switch (j->getnameid())
             {
                 case makeNameid("f"):
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
@@ -6977,7 +6977,7 @@ void MegaClient::readtree(JSON* j)
                     return;
 
                 default:
-                    if (!jsonsc.storeobject())
+                    if (!j->storeobject())
                     {
                         return;
                     }
@@ -6987,30 +6987,30 @@ void MegaClient::readtree(JSON* j)
 }
 
 // server-client newnodes processing
-handle MegaClient::sc_newnodes()
+handle MegaClient::sc_newnodes(JSON& json)
 {
     handle originatingUser = UNDEF;
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("t"):
-                readtree(&jsonsc);
+                readtree(&json);
                 break;
 
             case name_id::u:
-                readusers(&jsonsc, true);
+                readusers(&json, true);
                 break;
 
             case makeNameid("ou"):
-                originatingUser = jsonsc.gethandle(USERHANDLE);
+                originatingUser = json.gethandle(USERHANDLE);
                 break;
 
             case EOO:
                 return originatingUser;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return originatingUser;
                 }
@@ -7023,7 +7023,7 @@ handle MegaClient::sc_newnodes()
 // - n/o/u[/okd] (share deletion)
 // - n/o/u/k/r/ts[/ok][/ha] (share addition) (k can be asymmetric)
 // returns 0 in case of a share addition or error, 1 otherwise
-bool MegaClient::sc_shares()
+bool MegaClient::sc_shares(JSON& json)
 {
     handle h = UNDEF;
     handle oh = UNDEF;
@@ -7043,10 +7043,10 @@ bool MegaClient::sc_shares()
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("p"): // Pending contact request handle for an s2 packet
-                p = jsonsc.gethandle(PCRHANDLE);
+                p = json.gethandle(PCRHANDLE);
                 break;
 
             case makeNameid("op"):
@@ -7054,43 +7054,43 @@ bool MegaClient::sc_shares()
                 break;
 
             case makeNameid("n"): // share node
-                h = jsonsc.gethandle();
+                h = json.gethandle();
                 break;
 
             case makeNameid("o"): // owner user
-                oh = jsonsc.gethandle(USERHANDLE);
+                oh = json.gethandle(USERHANDLE);
                 break;
 
             case name_id::u: // target user
-                uh = jsonsc.is(EXPORTEDLINK) ? 0 : jsonsc.gethandle(USERHANDLE);
+                uh = json.is(EXPORTEDLINK) ? 0 : json.gethandle(USERHANDLE);
                 break;
 
             case makeNameid("ou"):
-                ou = jsonsc.gethandle(USERHANDLE);
+                ou = json.gethandle(USERHANDLE);
                 break;
 
             case makeNameid("ok"): // owner key
-                ok = jsonsc.getvalue();
+                ok = json.getvalue();
                 break;
 
             case makeNameid("okd"):
-                okremoved = (jsonsc.getint() == 1); // owner key removed
+                okremoved = (json.getint() == 1); // owner key removed
                 break;
 
             case makeNameid("ha"): // outgoing share signature
-                have_ha = Base64::atob(jsonsc.getvalue(), ha, sizeof ha) == sizeof ha;
+                have_ha = Base64::atob(json.getvalue(), ha, sizeof ha) == sizeof ha;
                 break;
 
             case makeNameid("r"): // share access level
-                r = (accesslevel_t)jsonsc.getint();
+                r = (accesslevel_t)json.getint();
                 break;
 
             case makeNameid("ts"): // share timestamp
-                ts = jsonsc.getint();
+                ts = json.getint();
                 break;
 
             case makeNameid("k"): // share key
-                sk = jsonsc.getvalue();
+                sk = json.getvalue();
                 break;
 
             case EOO:
@@ -7246,7 +7246,7 @@ bool MegaClient::sc_shares()
                 return false;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return false;
                 }
@@ -7254,7 +7254,7 @@ bool MegaClient::sc_shares()
     }
 }
 
-bool MegaClient::sc_upgrade(nameid paymentType)
+bool MegaClient::sc_upgrade(JSON& json, nameid paymentType)
 {
     string result;
     bool success = false;
@@ -7263,18 +7263,18 @@ bool MegaClient::sc_upgrade(nameid paymentType)
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("it"):
-                itemclass = int(jsonsc.getint()); // itemclass,  0=Pro, 1=Business, 2=Feature
+                itemclass = int(json.getint()); // itemclass,  0=Pro, 1=Business, 2=Feature
                 break;
 
             case makeNameid("p"):
-                proNumber = int(jsonsc.getint()); // Account level
+                proNumber = int(json.getint()); // Account level
                 break;
 
             case makeNameid("r"):
-                jsonsc.storeobject(&result);
+                json.storeobject(&result);
                 if (result == "s")
                 {
                    success = true;
@@ -7291,7 +7291,7 @@ bool MegaClient::sc_upgrade(nameid paymentType)
                 return success;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return false;
                 }
@@ -7299,16 +7299,16 @@ bool MegaClient::sc_upgrade(nameid paymentType)
     }
 }
 
-void MegaClient::sc_paymentreminder()
+void MegaClient::sc_paymentreminder(JSON& json)
 {
     m_time_t expiryts = 0;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("ts"):
-            expiryts = int(jsonsc.getint()); // timestamp
+            expiryts = int(json.getint()); // timestamp
             break;
 
         case EOO:
@@ -7319,7 +7319,7 @@ void MegaClient::sc_paymentreminder()
             return;
 
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 return;
             }
@@ -7329,21 +7329,21 @@ void MegaClient::sc_paymentreminder()
 
 // user/contact updates come in the following format:
 // u:[{c/m/ts}*] - Add/modify user/contact
-void MegaClient::sc_contacts()
+void MegaClient::sc_contacts(JSON& json)
 {
     handle ou = UNDEF;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case name_id::u:
                 useralerts.startprovisional();
-                readusers(&jsonsc, true);
+                readusers(&json, true);
                 break;
 
             case makeNameid("ou"):
-                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                ou = json.gethandle(MegaClient::USERHANDLE);
                 break;
 
             case EOO:
@@ -7351,7 +7351,7 @@ void MegaClient::sc_contacts()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7360,22 +7360,22 @@ void MegaClient::sc_contacts()
 }
 
 // server-client file attribute update
-void MegaClient::sc_fileattr()
+void MegaClient::sc_fileattr(JSON& json)
 {
     std::shared_ptr<Node> n = NULL;
     const char* fa = NULL;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("fa"):
-                fa = jsonsc.getvalue();
+                fa = json.getvalue();
                 break;
 
             case makeNameid("n"):
                 handle h;
-                if (!ISUNDEF(h = jsonsc.gethandle()))
+                if (!ISUNDEF(h = json.gethandle()))
                 {
                     n = nodebyhandle(h);
                 }
@@ -7391,7 +7391,7 @@ void MegaClient::sc_fileattr()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7400,7 +7400,7 @@ void MegaClient::sc_fileattr()
 }
 
 // server-client user attribute update notification
-void MegaClient::sc_userattr()
+void MegaClient::sc_userattr(JSON& json)
 {
     handle uh = UNDEF;
     User *u = NULL;
@@ -7412,31 +7412,31 @@ void MegaClient::sc_userattr()
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case name_id::u:
-                uh = jsonsc.gethandle(USERHANDLE);
+                uh = json.gethandle(USERHANDLE);
                 break;
 
             case makeNameid("ua"):
-                if (jsonsc.enterarray())
+                if (json.enterarray())
                 {
-                    while (jsonsc.storeobject(&ua))
+                    while (json.storeobject(&ua))
                     {
                         ualist.push_back(ua);
                     }
-                    jsonsc.leavearray();
+                    json.leavearray();
                 }
                 break;
 
             case makeNameid("v"):
-                if (jsonsc.enterarray())
+                if (json.enterarray())
                 {
-                    while (jsonsc.storeobject(&uav))
+                    while (json.storeobject(&uav))
                     {
                         uavlist.push_back(uav);
                     }
-                    jsonsc.leavearray();
+                    json.leavearray();
                 }
                 break;
 
@@ -7583,7 +7583,7 @@ void MegaClient::sc_userattr()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7592,7 +7592,7 @@ void MegaClient::sc_userattr()
 }
 
 // Incoming pending contact additions or updates, always triggered by the creator (reminders, deletes, etc)
-void MegaClient::sc_ipc()
+void MegaClient::sc_ipc(JSON& json)
 {
     // fields: m, ts, uts, rts, dts, msg, p, ps
     m_time_t ts = 0;
@@ -7608,31 +7608,31 @@ void MegaClient::sc_ipc()
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("m"):
-                m = jsonsc.getvalue();
+                m = json.getvalue();
                 break;
             case makeNameid("ts"):
-                ts = jsonsc.getint();
+                ts = json.getint();
                 break;
             case makeNameid("uts"):
-                uts = jsonsc.getint();
+                uts = json.getint();
                 break;
             case makeNameid("rts"):
-                rts = jsonsc.getint();
+                rts = json.getint();
                 break;
             case makeNameid("dts"):
-                dts = jsonsc.getint();
+                dts = json.getint();
                 break;
             case makeNameid("msg"):
-                msg = jsonsc.getvalue();
+                msg = json.getvalue();
                 break;
             case makeNameid("clv"):
-                clv = jsonsc.getint();
+                clv = json.getint();
                 break;
             case makeNameid("p"):
-                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                p = json.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
                 done = true;
@@ -7700,7 +7700,7 @@ void MegaClient::sc_ipc()
 
                 break;
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7709,7 +7709,7 @@ void MegaClient::sc_ipc()
 }
 
 // Outgoing pending contact additions or updates, always triggered by the creator (reminders, deletes, etc)
-void MegaClient::sc_opc()
+void MegaClient::sc_opc(JSON& json)
 {
     // fields: e, m, ts, uts, rts, dts, msg, p
     m_time_t ts = 0;
@@ -7725,31 +7725,31 @@ void MegaClient::sc_opc()
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("e"):
-                e = jsonsc.getvalue();
+                e = json.getvalue();
                 break;
             case makeNameid("m"):
-                m = jsonsc.getvalue();
+                m = json.getvalue();
                 break;
             case makeNameid("ts"):
-                ts = jsonsc.getint();
+                ts = json.getint();
                 break;
             case makeNameid("uts"):
-                uts = jsonsc.getint();
+                uts = json.getint();
                 break;
             case makeNameid("rts"):
-                rts = jsonsc.getint();
+                rts = json.getint();
                 break;
             case makeNameid("dts"):
-                dts = jsonsc.getint();
+                dts = json.getint();
                 break;
             case makeNameid("msg"):
-                msg = jsonsc.getvalue();
+                msg = json.getvalue();
                 break;
             case makeNameid("p"):
-                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                p = json.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
                 done = true;
@@ -7798,7 +7798,7 @@ void MegaClient::sc_opc()
 
                 break;
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7807,7 +7807,7 @@ void MegaClient::sc_opc()
 }
 
 // Incoming pending contact request updates, always triggered by the receiver of the request (accepts, denies, etc)
-void MegaClient::sc_upc(bool incoming)
+void MegaClient::sc_upc(JSON& json, bool incoming)
 {
     // fields: p, uts, s, m
     m_time_t uts = 0;
@@ -7819,22 +7819,22 @@ void MegaClient::sc_upc(bool incoming)
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("m"):
-                m = jsonsc.getvalue();
+                m = json.getvalue();
                 break;
             case makeNameid("uts"):
-                uts = jsonsc.getint();
+                uts = json.getint();
                 break;
             case makeNameid("s"):
-                s = int(jsonsc.getint());
+                s = int(json.getint());
                 break;
             case makeNameid("p"):
-                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                p = json.gethandle(MegaClient::PCRHANDLE);
                 break;
             case makeNameid("ou"):
-                ou = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                ou = json.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
                 done = true;
@@ -7901,7 +7901,7 @@ void MegaClient::sc_upc(bool incoming)
 
                 break;
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7909,7 +7909,7 @@ void MegaClient::sc_upc(bool incoming)
     }
 }
 // Public links updates
-void MegaClient::sc_ph()
+void MegaClient::sc_ph(JSON& json)
 {
     // fields: h, ph, d, n, ets
     handle h = UNDEF;
@@ -7927,38 +7927,38 @@ void MegaClient::sc_ph()
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("h"):
-            h = jsonsc.gethandle(MegaClient::NODEHANDLE);
+            h = json.gethandle(MegaClient::NODEHANDLE);
             break;
         case makeNameid("ph"):
-            ph = jsonsc.gethandle(MegaClient::NODEHANDLE);
+            ph = json.gethandle(MegaClient::NODEHANDLE);
             break;
         case makeNameid("w"):
-            static_cast<void>(jsonsc.storeobject(&authKey));
+            static_cast<void>(json.storeobject(&authKey));
             break;
         case name_id::d:
-            deleted = (jsonsc.getint() == 1);
+            deleted = (json.getint() == 1);
             break;
         case makeNameid("n"):
-            created = (jsonsc.getint() == 1);
+            created = (json.getint() == 1);
             break;
         case name_id::u:
-            updated = (jsonsc.getint() == 1);
+            updated = (json.getint() == 1);
             break;
         case makeNameid("down"):
             {
-                int down = int(jsonsc.getint());
+                int down = int(json.getint());
                 takendown = (down == 1);
                 reinstated = (down == 0);
             }
             break;
         case makeNameid("ets"):
-            ets = jsonsc.getint();
+            ets = json.getint();
             break;
         case makeNameid("ts"):
-            cts = jsonsc.getint();
+            cts = json.getint();
             break;
         case EOO:
             done = true;
@@ -8010,7 +8010,7 @@ void MegaClient::sc_ph()
 
             break;
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 return;
             }
@@ -8018,7 +8018,7 @@ void MegaClient::sc_ph()
     }
 }
 
-void MegaClient::sc_se()
+void MegaClient::sc_se(JSON& json)
 {
     // fields: e, s
     string email;
@@ -8029,16 +8029,16 @@ void MegaClient::sc_se()
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("e"):
-            jsonsc.storeobject(&email);
+            json.storeobject(&email);
             break;
         case name_id::u:
-            uh = jsonsc.gethandle(USERHANDLE);
+            uh = json.gethandle(USERHANDLE);
             break;
         case makeNameid("s"):
-            status = int(jsonsc.getint());
+            status = int(json.getint());
             break;
         case EOO:
             done = true;
@@ -8081,7 +8081,7 @@ void MegaClient::sc_se()
 
             break;
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 return;
             }
@@ -8090,7 +8090,7 @@ void MegaClient::sc_se()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::sc_chatupdate(bool readingPublicChat)
+void MegaClient::sc_chatupdate(JSON& json, bool readingPublicChat)
 {
     // fields: id, u, cs, n, g, ou, ct, ts, m, ck
     handle chatid = UNDEF;
@@ -8113,65 +8113,65 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("id"):
-                chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                chatid = json.gethandle(MegaClient::CHATHANDLE);
                 break;
 
             case name_id::u: // list of users participating in the chat (+privileges)
-                userpriv = readuserpriv(&jsonsc);
+                userpriv = readuserpriv(&json);
                 break;
 
             case makeNameid("cs"):
-                shard = int(jsonsc.getint());
+                shard = int(json.getint());
                 break;
 
             case makeNameid("n"): // the new user, for notification purposes (not used)
-                upnotif = readuserpriv(&jsonsc);
+                upnotif = readuserpriv(&json);
                 break;
 
             case makeNameid("g"):
-                group = jsonsc.getbool();
+                group = json.getbool();
                 break;
 
             case makeNameid("ou"):
-                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                ou = json.gethandle(MegaClient::USERHANDLE);
                 break;
 
             case makeNameid("ct"):
-                jsonsc.storeobject(&title);
+                json.storeobject(&title);
                 break;
 
             case makeNameid("ts"): // actual creation timestamp
-                ts = jsonsc.getint();
+                ts = json.getint();
                 break;
 
             case makeNameid("m"):
                 assert(readingPublicChat);
-                publicchat = jsonsc.getbool();
+                publicchat = json.getbool();
                 break;
 
             case makeNameid("ck"):
                 assert(readingPublicChat);
-                jsonsc.storeobject(&unifiedkey);
+                json.storeobject(&unifiedkey);
                 break;
 
             case makeNameid("mr"):
                 assert(readingPublicChat);
-                meeting = jsonsc.getbool();
+                meeting = json.getbool();
                 break;
 
             case makeNameid("w"): // waiting room
-                waitingRoom = jsonsc.getbool();
+                waitingRoom = json.getbool();
                 break;
 
             case makeNameid("sr"): // speak request
-                speakRequest = jsonsc.getbool();
+                speakRequest = json.getbool();
                 break;
 
             case makeNameid("oi"): // open invite
-                openInvite = jsonsc.getbool();
+                openInvite = json.getbool();
                 break;
 
             case EOO:
@@ -8302,7 +8302,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 break;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     delete upnotif;
                     return;
@@ -8311,7 +8311,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     }
 }
 
-void MegaClient::sc_chatnode()
+void MegaClient::sc_chatnode(JSON& json)
 {
     handle chatid = UNDEF;
     handle h = UNDEF;
@@ -8321,28 +8321,28 @@ void MegaClient::sc_chatnode()
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("g") :
                 // access granted
-                g = jsonsc.getbool();
+                g = json.getbool();
                 break;
 
             case makeNameid("r"):
                 // access revoked
-                r = jsonsc.getbool();
+                r = json.getbool();
                 break;
 
             case makeNameid("id"):
-                chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                chatid = json.gethandle(MegaClient::CHATHANDLE);
                 break;
 
             case makeNameid("n"):
-                h = jsonsc.gethandle(MegaClient::NODEHANDLE);
+                h = json.gethandle(MegaClient::NODEHANDLE);
                 break;
 
             case name_id::u:
-                uh = jsonsc.gethandle(MegaClient::USERHANDLE);
+                uh = json.gethandle(MegaClient::USERHANDLE);
                 break;
 
             case EOO:
@@ -8387,7 +8387,7 @@ void MegaClient::sc_chatnode()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -8395,21 +8395,21 @@ void MegaClient::sc_chatnode()
     }
 }
 
-void MegaClient::sc_chatflags()
+void MegaClient::sc_chatflags(JSON& json)
 {
     bool done = false;
     handle chatid = UNDEF;
     byte flags = 0;
     while(!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("id"):
-                chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                chatid = json.gethandle(MegaClient::CHATHANDLE);
                 break;
 
             case makeNameid("f"):
-                flags = byte(jsonsc.getint());
+                flags = byte(json.getint());
                 break;
 
             case EOO:
@@ -8434,7 +8434,7 @@ void MegaClient::sc_chatflags()
             }
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -8444,7 +8444,7 @@ void MegaClient::sc_chatflags()
 }
 
 // process mcsmr action packet
-void MegaClient::sc_delscheduledmeeting()
+void MegaClient::sc_delscheduledmeeting(JSON& json)
 {
     bool done = false;
     handle schedId = UNDEF;
@@ -8452,14 +8452,14 @@ void MegaClient::sc_delscheduledmeeting()
 
     while(!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("id"):
-                schedId = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                schedId = json.gethandle(MegaClient::CHATHANDLE);
                 break;
 
             case makeNameid("ou"):
-                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                ou = json.gethandle(MegaClient::USERHANDLE);
                 break;
 
             case EOO:
@@ -8493,7 +8493,7 @@ void MegaClient::sc_delscheduledmeeting()
             }
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -8503,14 +8503,15 @@ void MegaClient::sc_delscheduledmeeting()
 }
 
 // process mcsmp action packet (parse just 1 scheduled meeting per AP)
-void MegaClient::sc_scheduledmeetings()
+void MegaClient::sc_scheduledmeetings(JSON& json)
 {
     handle ou = UNDEF;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     UserAlert::UpdatedScheduledMeeting::Changeset cs;
     handle_set childMeetingsDeleted;
 
-    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs, &childMeetingsDeleted);
+    error e =
+        parseScheduledMeetings(schedMeetings, false, &json, true, &ou, &cs, &childMeetingsDeleted);
     if (e != API_OK)
     {
         LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
@@ -8609,15 +8610,15 @@ void MegaClient::createUpdatedSMAlert(const handle& ou, handle chatid, handle sm
 
 #endif
 
-void MegaClient::sc_uac()
+void MegaClient::sc_uac(JSON& json)
 {
     string email;
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("m"):
-                jsonsc.storeobject(&email);
+                json.storeobject(&email);
                 break;
 
             case EOO:
@@ -8632,7 +8633,7 @@ void MegaClient::sc_uac()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     LOG_warn << "Failed to parse `uac` action packet";
                     return;
@@ -8641,21 +8642,21 @@ void MegaClient::sc_uac()
     }
 }
 
-void MegaClient::sc_uec()
+void MegaClient::sc_uec(JSON& json)
 {
     handle u = UNDEF;
     string email;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("m"):
-                jsonsc.storeobject(&email);
+                json.storeobject(&email);
                 break;
 
             case name_id::u:
-                u = jsonsc.gethandle(USERHANDLE);
+                u = json.gethandle(USERHANDLE);
                 break;
 
             case EOO:
@@ -8675,7 +8676,7 @@ void MegaClient::sc_uec()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     LOG_warn << "Failed to parse `uec` action packet";
                     return;
@@ -8684,15 +8685,15 @@ void MegaClient::sc_uec()
     }
 }
 
-void MegaClient::sc_sqac()
+void MegaClient::sc_sqac(JSON& json)
 {
     m_off_t gb = -1;
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("gb"):
-                gb = jsonsc.getint(); // should there be a notification about this?
+                gb = json.getint(); // should there be a notification about this?
                 break;
 
             case EOO:
@@ -8708,7 +8709,7 @@ void MegaClient::sc_sqac()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     LOG_warn << "Failed to parse `sqac` action packet";
                     return;
@@ -8794,18 +8795,18 @@ void MegaClient::sc_cce()
     app->notify_creditCardExpiry();
 }
 
-void MegaClient::sc_la()
+void MegaClient::sc_la(JSON& json)
 {
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case EOO:
             useralerts.onAcknowledgeReceived();
             return;
 
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 LOG_warn << "Failed to parse `la` action packet";
                 return;
@@ -8837,7 +8838,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
     }
 }
 
-void MegaClient::sc_ub()
+void MegaClient::sc_ub(JSON& json)
 {
     BizStatus status = BIZ_STATUS_UNKNOWN;
     BizMode mode = BIZ_MODE_UNKNOWN;
@@ -8845,14 +8846,14 @@ void MegaClient::sc_ub()
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("s"):
-                status = BizStatus(jsonsc.getint());
+                status = BizStatus(json.getint());
                 break;
 
             case makeNameid("m"):
-                mode = BizMode(jsonsc.getint());
+                mode = BizMode(json.getint());
                 break;
 
             case EOO:
@@ -8896,7 +8897,7 @@ void MegaClient::sc_ub()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     LOG_warn << "Failed to parse `ub` action packet";
                     return;
@@ -9380,30 +9381,30 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
 }
 
 // server-client deletion
-std::shared_ptr<Node> MegaClient::sc_deltree(bool& moveOperation)
+std::shared_ptr<Node> MegaClient::sc_deltree(JSON& json, bool& moveOperation)
 {
     std::shared_ptr<Node> n;
     handle originatingUser = UNDEF;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("n"):
                 handle h;
 
-                if (!ISUNDEF((h = jsonsc.gethandle())))
+                if (!ISUNDEF((h = json.gethandle())))
                 {
                     n = nodebyhandle(h);
                 }
                 break;
 
             case makeNameid("m"):
-                moveOperation = jsonsc.getbool();
+                moveOperation = json.getbool();
                 break;
 
             case makeNameid("ou"):
-                originatingUser = jsonsc.gethandle(USERHANDLE);
+                originatingUser = json.gethandle(USERHANDLE);
                 break;
 
             case EOO:
@@ -9441,7 +9442,7 @@ std::shared_ptr<Node> MegaClient::sc_deltree(bool& moveOperation)
                 return moveOperation ? n : nullptr;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return NULL;
                 }
@@ -21320,10 +21321,10 @@ const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
     return &added;
 }
 
-void MegaClient::sc_asp()
+void MegaClient::sc_asp(JSON& json)
 {
     Set s;
-    error e = readSet(jsonsc, s);
+    error e = readSet(json, s);
     if (e != API_OK)
     {
         LOG_err << "Sets: Failed to parse `asp` action packet";
@@ -21363,17 +21364,17 @@ void MegaClient::sc_asp()
     }
 }
 
-void MegaClient::sc_asr()
+void MegaClient::sc_asr(JSON& json)
 {
     handle setId = UNDEF;
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("id"):
             {
-            setId = jsonsc.gethandle(MegaClient::SETHANDLE);
-            break;
+                setId = json.gethandle(MegaClient::SETHANDLE);
+                break;
             }
 
         case EOO:
@@ -21385,7 +21386,7 @@ void MegaClient::sc_asr()
             return;
 
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 LOG_warn << "Sets: Failed to parse `asr` action packet";
                 return;
@@ -21394,10 +21395,10 @@ void MegaClient::sc_asr()
     }
 }
 
-void MegaClient::sc_aep()
+void MegaClient::sc_aep(JSON& json)
 {
     SetElement el;
-    if (readElement(jsonsc, el) != API_OK)
+    if (readElement(json, el) != API_OK)
     {
         LOG_err << "Sets: `aep` action packet: failed to parse data";
         return;
@@ -21425,21 +21426,21 @@ void MegaClient::sc_aep()
     addOrUpdateSetElement(std::move(el));
 }
 
-void MegaClient::sc_aer()
+void MegaClient::sc_aer(JSON& json)
 {
     handle elemId = UNDEF;
     handle setId = UNDEF;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("id"):
-            elemId = jsonsc.gethandle(MegaClient::SETELEMENTHANDLE);
+            elemId = json.gethandle(MegaClient::SETELEMENTHANDLE);
             break;
 
         case makeNameid("s"):
-            setId = jsonsc.gethandle(MegaClient::SETHANDLE);
+            setId = json.gethandle(MegaClient::SETHANDLE);
             break;
 
           case EOO:
@@ -21451,7 +21452,7 @@ void MegaClient::sc_aer()
             return;
 
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 LOG_warn << "Sets: Failed to parse `aer` action packet";
                 return;
@@ -21469,7 +21470,7 @@ error MegaClient::readExportedSet(JSON& j, Set& s)
     bool isDown = false;
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (j.getnameid())
         {
         case makeNameid("s"):
             s.setId(j.gethandle(MegaClient::SETHANDLE));
@@ -21626,10 +21627,10 @@ error MegaClient::readSetsPublicHandles(JSON& j, map<handle, Set>& sets)
     return e;
 }
 
-void MegaClient::sc_ass()
+void MegaClient::sc_ass(JSON& json)
 {
     Set s;
-    const error e = readExportedSet(jsonsc, s);
+    const error e = readExportedSet(json, s);
 
     if (e != API_OK)
     {
