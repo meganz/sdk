@@ -25,6 +25,7 @@
             "inherits": "unix",
             "cacheVariables": {
                 "CMAKE_SYSTEM_NAME": "Android",
+                "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
                 "ENABLE_SDKLIB_ANDROID_DYNAMIC_LIBRARY": "ON"
             }
         },

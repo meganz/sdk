@@ -21,7 +21,10 @@ set_osx_deployment_target(
 )
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Android")
-    # Ensure that compatibility with Android devices that use a 16KiB page size is enabled
-    set(ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES ON)
-    set(CMAKE_SYSTEM_VERSION 28)
+    # Support for 16 KB devices. Needed if the NDK version is < r28
+    set(ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES ON) # Variable for the Android toolchain.
+    if (NOT ANDROID_PLATFORM)
+        message(WARNING "Android API level not set. It defaults to 28.")
+        set(ANDROID_PLATFORM 28) # Variable for the Android toolchain.
+    endif()
 endif()
