@@ -2592,6 +2592,10 @@ node_comparison_result CompareNodeWithProvidedMacAndFpExcludingMtime(const Node*
     const char* iva = &node->nodekey()[SymmCipher::KEYLENGTH];
     const int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     auto areEqualMacs = precalcMetamac == remoteMac;
+    const auto areEqualMtimes = fp.mtime == node->mtime;
+    LOG_debug << "[CompareNodeWithProvidedMacAndFpExcludingMtime] areEqualMacs = " << areEqualMacs
+              << ", areEqualMtimes = " << areEqualMtimes;
+
     if (!areEqualMacs)
     {
         // It doesn't matter that FPs are equal as METAMAC comparison show that they are
@@ -2634,12 +2638,16 @@ std::pair<node_comparison_result, int64_t>
     if (auto fa = client.fsaccess->newfileaccess();
         fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
     {
+        LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs BEGIN...";
         auto [areEqualMacs, mac] = CompareLocalFileMetaMacWithNodeKey(fa.get(),
                                                                       node->nodekey(),
                                                                       node->type,
                                                                       path.toPath(false));
 
         auto sameMtime = fp.mtime == node->mtime;
+        LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs END... [sameMtime = "
+                  << sameMtime << "]";
+
         if (debugMode && sameMtime)
         {
             areEqualMacs ?

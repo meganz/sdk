@@ -234,22 +234,45 @@ struct FindCloneNodeCandidatePredicate
     /**
      * @brief Evaluates if the provided Node is a suitable clone candidate.
      *
-     * Checks if the node matches the local file in terms of Fingerprint and Meta Mac.
-     * If a match is found but the node has a zero key, it returns true but it logs a warning
-     * and updates the mFoundCandidateHasZeroKey flag accordingly.
+     * Checks if the node matches the local file in terms of Fingerprint, and Meta Mac if
+     * fingerprints only differs in mtime. If a match is found but the node has a zero key, it
+     * returns true but it logs a warning and updates the mFoundCandidateHasZeroKey flag
+     * accordingly.
      *
      * @param node The cloud node to evaluate.
      * @return True if a match is found, otherwise false.
      */
     bool operator()(const Node& node)
     {
+        const auto compRes_toStr = [](node_comparison_result cRes) -> std::string
+        {
+            switch (cRes)
+            {
+                case NODE_COMP_EQUAL:
+                    return "NODE_COMP_EQUAL";
+                case NODE_COMP_DIFFERS_MTIME:
+                    return "NODE_COMP_DIFFERS_MTIME";
+                case NODE_COMP_DIFFERS_MAC:
+                    return "NODE_COMP_DIFFERS_MAC";
+                case NODE_COMP_EARGS:
+                    return "NODE_COMP_EARGS";
+                default:
+                    return "UNKNOWN_RESULT";
+            }
+        };
+        const auto nodePath = node.displayname();
         node_comparison_result compRes = NODE_COMP_EQUAL;
+        std::string compResStr;
         if (mUpload.mMetaMac.has_value() && mUpload.mMetaMac.value() != INVALID_META_MAC)
         {
             // Avoid calculating metamac again by using precalculated one
             compRes =
                 CompareNodeWithProvidedMacAndFpExcludingMtime(&node, mUpload, *mUpload.mMetaMac);
+            compResStr = compRes_toStr(compRes);
+            LOG_debug << "[FindCloneCandidate] CompareNodeWithProvidedMacAndFpExcludingMtime res: "
+                      << compResStr << " [path = " << nodePath << "]";
         }
+
         else
         {
             const auto [auxRes, _] =
@@ -260,9 +283,12 @@ struct FindCloneNodeCandidatePredicate
                                                               false /*debugMode*/);
 
             compRes = auxRes;
+            compResStr = compRes_toStr(compRes);
+            LOG_debug << "[FindCloneCandidate] CompareLocalFileWithNodeMacAndFpExcludingMtime res: "
+                      << compResStr << " [path = " << nodePath << "]";
         }
 
-        if (compRes == NODE_COMP_EQUAL)
+        if (compRes == NODE_COMP_EQUAL || compRes == NODE_COMP_DIFFERS_MTIME)
         {
             // Found a candidate that matches content
             if (node.hasZeroKey())
@@ -273,8 +299,12 @@ struct FindCloneNodeCandidatePredicate
                 mClient.sendevent(99486, "Node has a zerokey");
                 mFoundCandidateHasZeroKey = true;
             }
+            LOG_debug << "[FindCloneCandidate] " << compResStr
+                      << " -> return true [path = " << nodePath << "]";
             return true; // Done searching (zero key or valid node)
         }
+        LOG_debug << "[FindCloneCandidate] " << compResStr
+                  << " -> return false [path = " << nodePath << "]";
         return false; // keep searching
     }
 
