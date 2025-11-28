@@ -1388,6 +1388,20 @@ bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlre
     return r;
 }
 
+std::pair<bool, m_time_t> PosixFileSystemAccess::getmtimelocal(const LocalPath& name)
+{
+    AdjustBasePathResult nameStr = adjustBasePath(name);
+    struct stat statbuf;
+    if (stat(nameStr.c_str(), &statbuf) != 0)
+    {
+        transient_error = isTransient(errno);
+        LOG_err << "Error getting file stats for mtime: " << nameStr << " errno: " << errno
+                << " [isTransient: " << transient_error << "]";
+        return {false, 0};
+    }
+    return {true, static_cast<m_time_t>(statbuf.st_mtime)};
+}
+
 bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
 {
     AdjustBasePathResult nameStr = adjustBasePath(name);
@@ -1397,8 +1411,9 @@ bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
     bool success = !utime(nameStr.c_str(), &times);
     if (!success)
     {
-        LOG_err << "Error setting mtime: " << nameStr <<" mtime: "<< mtime << " errno: " << errno;
         transient_error = isTransient(errno);
+        LOG_err << "Error setting mtime: " << nameStr << " mtime: " << mtime << " errno: " << errno
+                << " [isTransient: " << transient_error << "]";
     }
 
     return success;

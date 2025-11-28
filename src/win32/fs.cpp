@@ -1281,6 +1281,40 @@ bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, boo
     return r;
 }
 
+std::pair<bool, m_time_t> WinFileSystemAccess::getmtimelocal(const LocalPath& namePath)
+{
+    assert(namePath.isAbsolute());
+    FILETIME lwt;
+    HANDLE hFile;
+    hFile = CreateFileW(namePath.asPlatformEncoded(false).data(),
+                        FILE_WRITE_ATTRIBUTES,
+                        FILE_SHARE_WRITE,
+                        NULL,
+                        OPEN_EXISTING,
+                        0,
+                        NULL);
+
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        DWORD e = GetLastError();
+        transient_error = istransient(e);
+        LOG_warn << "Error opening file to get mtime: " << namePath << " error: " << e;
+        return {false, 0};
+    }
+
+    if (!GetFileTime(hFile, NULL, NULL, &lwt))
+    {
+        DWORD e = GetLastError();
+        transient_error = istransient(e);
+        LOG_warn << "Error getting file mtime: " << namePath << " error: " << e;
+        return {false, 0};
+    }
+
+    CloseHandle(hFile);
+
+    return {true, FileTime_to_POSIX(&lwt)};
+}
+
 bool WinFileSystemAccess::setmtimelocal(const LocalPath& namePath, m_time_t mtime)
 {
     assert(namePath.isAbsolute());

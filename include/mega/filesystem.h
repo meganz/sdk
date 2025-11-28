@@ -729,6 +729,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set mtime
     virtual bool setmtimelocal(const LocalPath&, m_time_t) = 0;
 
+    // get mtime
+    virtual std::pair<bool, m_time_t> getmtimelocal(const LocalPath&) = 0;
+
     // change working directory
     virtual bool chdirlocal(LocalPath&) const = 0;
 

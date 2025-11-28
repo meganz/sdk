@@ -95,6 +95,7 @@ public:
     bool unlinklocal(const LocalPath&) override;
     bool rmdirlocal(const LocalPath&) override;
     bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
+    std::pair<bool, m_time_t> getmtimelocal(const LocalPath&) override;
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
