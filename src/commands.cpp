@@ -2922,8 +2922,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                         return false;
                     }
 
-                    std::string mobileOfferId;
-                    bool uat{false};
+                    MobileOffer temporalMobileOffer;
 
                     bool readingMo{true};
                     while (readingMo)
@@ -2931,14 +2930,14 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                         switch (json.getnameid())
                         {
                             case makeNameid("id"):
-                                mobileOfferId = json.getname();
+                                temporalMobileOffer.id = json.getname();
                                 break;
                             case makeNameid("uat"):
-                                uat = json.getbool();
+                                temporalMobileOffer.uat = json.getbool();
                                 break;
                             case EOO:
                                 readingMo = false;
-                                mobileOffer = MobileOffer{mobileOfferId, uat};
+                                mobileOffer = std::move(temporalMobileOffer);
                                 break;
                             default:
                                 if (!json.storeobject())

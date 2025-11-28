@@ -1663,12 +1663,13 @@ public:
      */
     void setDevOptUserAttribute(const std::string& value, uint32_t index) const;
 
+    using GetDevOptAttrResult = std::pair<int, std::optional<std::string>>;
     /**
      * @brief Get value for ^!devopt user attribute
      * @param index MegaApi instance index
      * @return {error, attribute value}
      */
-    std::pair<int, std::optional<std::string>> getDevOptUserAttribute(uint32_t index) const;
+    GetDevOptAttrResult getDevOptUserAttribute(uint32_t index) const;
 };
 
 /**

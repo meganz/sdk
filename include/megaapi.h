@@ -10676,7 +10676,7 @@ class MegaApi
             USER_ATTR_LAST_ACTIONED_BANNER = 45, // private - non-encrypted - char array - non-versioned
             USER_ATTR_ENABLE_TEST_SURVEYS =
                 46, // private - non-encrypted - char array in B64 - non-versioned
-            // USER_ATTR_WELCOME_PDF_COPIED = 47, // private - non-encrypted - char array
+            // USER_ATTR_WELCOME_PDF_COPIED = 47, // (obsolete) private - non-encrypted - char array
             ATTR_SYNC_DESIRED_STATE = 48, // private - byte array - versioned
             USER_ATTR_S4 = 49, // private - non-encrypted - char array
             USER_ATTR_S4_CONTAINER = 50, // private - non-encrypted - char array
@@ -25401,14 +25401,10 @@ public:
      * If the product does not have a mobile offer, this method returns a empty
      * string.
      *
-     * The caller does not take ownership of the returned const char*, which is
-     * valid as long as current instance is valid.
-     *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return A null-terminated string containing the mobile offer ID, or
-     * nullptr if unavailable
+     * @return A null-terminated string containing the mobile offer ID
      */
-    virtual const std::string getMobileOfferId(int productIndex) const = 0;
+    virtual std::string getMobileOfferId(int productIndex) const = 0;
 
     /**
      * @brief Check whether the mobile offer title should be used
@@ -25423,7 +25419,7 @@ public:
      * @return True if the mobile offer title should be displayed, false
      * otherwise
      */
-    virtual bool getMobileOfferUat(int productIndex) const = 0;
+    virtual bool hasMobileOfferUat(int productIndex) const = 0;
 };
 
 /**

@@ -22669,7 +22669,7 @@ TEST_F(SdkTest, SdkUtqaMobileOffer)
 
     auto pricing = getPricing(*megaApi[index]);
     ASSERT_EQ(::result(pricing), API_OK) << "Error at getPricing";
-    auto& priceDetailRes = std::get<std::unique_ptr<MegaPricing>>(pricing);
+    auto& priceDetailRes = ::value(pricing);
     ASSERT_TRUE(priceDetailRes) << "No princing objectes received";
 
     bool mobileOffer{false};
@@ -22735,11 +22735,11 @@ void SdkTest::setDevOptUserAttribute(const string& value, uint32_t index) const
         << "Not possible set User attribute USER_ATTR_DEV_OPT";
 }
 
-std::pair<int, std::optional<std::string>> SdkTest::getDevOptUserAttribute(uint32_t index) const
+SdkTest::GetDevOptAttrResult SdkTest::getDevOptUserAttribute(uint32_t index) const
 {
     using namespace testing;
     NiceMock<MockRequestListener> rlGetUserAttribute{megaApi[index].get()};
-    std::promise<std::pair<int, std::optional<std::string>>> getUserAttributeRequest;
+    std::promise<GetDevOptAttrResult> getUserAttributeRequest;
     EXPECT_CALL(rlGetUserAttribute, onRequestFinish)
         .Times(1)
         .WillOnce(
@@ -22769,7 +22769,7 @@ std::pair<int, std::optional<std::string>> SdkTest::getDevOptUserAttribute(uint3
         return {LOCAL_ETIMEOUT, std::nullopt};
     }
 
-    auto [error, value] = resultGetUserAttributeRequest.get();
+    const auto& [error, value] = resultGetUserAttributeRequest.get();
 
     EXPECT_TRUE(error == API_OK || error == API_ENOENT);
 

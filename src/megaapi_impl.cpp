@@ -22062,8 +22062,8 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     }
 
                     client->putua(type,
-                                  (byte*)value,
-                                  unsigned(strlen(value)),
+                                  reinterpret_cast<const byte*>(value),
+                                  static_cast<unsigned>(strlen(value)),
                                   -1,
                                   UNDEF,
                                   0,
@@ -29755,8 +29755,7 @@ int mega::MegaPricingPrivate::getLocalPrice(int productIndex)
 
 bool MegaPricingPrivate::hasMobileOffers(int productIndex) const
 {
-    auto index = static_cast<size_t>(productIndex);
-    if (productIndex >= 0 && index < products.size())
+    if (auto index = static_cast<size_t>(productIndex); index < products.size())
     {
         return products[index].mobileOffer.has_value();
     }
@@ -29764,10 +29763,10 @@ bool MegaPricingPrivate::hasMobileOffers(int productIndex) const
     return false;
 }
 
-const std::string mega::MegaPricingPrivate::getMobileOfferId(int productIndex) const
+std::string mega::MegaPricingPrivate::getMobileOfferId(int productIndex) const
 {
-    auto index = static_cast<size_t>(productIndex);
-    if (productIndex >= 0 && index < products.size() && products[index].mobileOffer)
+    if (auto index = static_cast<size_t>(productIndex);
+        index < products.size() && products[index].mobileOffer.has_value())
     {
         return products[index].mobileOffer->id;
     }
@@ -29775,10 +29774,10 @@ const std::string mega::MegaPricingPrivate::getMobileOfferId(int productIndex) c
     return {};
 }
 
-bool mega::MegaPricingPrivate::getMobileOfferUat(int productIndex) const
+bool mega::MegaPricingPrivate::hasMobileOfferUat(int productIndex) const
 {
-    auto index = static_cast<size_t>(productIndex);
-    if (productIndex >= 0 && index < products.size() && products[index].mobileOffer)
+    if (auto index = static_cast<size_t>(productIndex);
+        index < products.size() && products[index].mobileOffer.has_value())
     {
         return products[index].mobileOffer->uat;
     }

@@ -522,7 +522,7 @@ TEST(MegaApi, MegaApiImpl_mobileOffer)
     int index{0};
     ASSERT_TRUE(pricing.hasMobileOffers(index));
     ASSERT_EQ(title, pricing.getMobileOfferId(index));
-    ASSERT_EQ(uat, pricing.getMobileOfferUat(index));
+    ASSERT_EQ(uat, pricing.hasMobileOfferUat(index));
 }
 
 TEST(MegaApi, UseCurrentPathIfNoBasePathIsGiven)
