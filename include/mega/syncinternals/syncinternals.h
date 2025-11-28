@@ -494,32 +494,55 @@ void clientDownload(MegaClient& mc,
 \********************/
 
 /**
- * @brief Compares a fsNode with a cloudNode based on fingerprint (Excluding mtime) and METAMAC.
+ * @brief Result type for fingerprint/MAC comparisons.
  *
- * @param mc Reference to the MegaClient
- * @param cn CloudNode representing the remote node.
- * @param fs FSNode representing the local filesystem node.
- * @param fsNodeFullPath Full local path to the filesystem node.
- * @return `std::tuple<node_comparison_result, int64_t, int64_t>` where:
- *         - The first element is a `node_comparison_result` indicating:
- *              + NODE_COMP_EARGS: Invalid arguments
- *              + NODE_COMP_EREAD: Error reading the local file.
- *              + NODE_COMP_EQUAL: Fingerprints match including mtime
- *              + NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more
- * than mtime (CRC, Size, isValid).
- *              + NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
- *              + NODE_COMP_DIFFERS_MAC: Fingerprints differ in mtime and METAMACs also differ.
- *         - The second element is the local MetaMAC, or INVALID_META_MAC if not computed.
- *         - The third element is the remote MetaMAC, or INVALID_META_MAC if not computed.
- *
- * @note METAMACs are only computed and compared if both fingerprints only differs in mtime to avoid
- * performance issues
+ * Returns `std::tuple<node_comparison_result, int64_t, int64_t>` where:
+ *  - The first element is a `node_comparison_result` indicating:
+ *       + NODE_COMP_EARGS: Invalid arguments
+ *       + NODE_COMP_EREAD: Error reading the local file.
+ *       + NODE_COMP_PENDING: MAC computation initiated but not yet complete (async mode only)
+ *       + NODE_COMP_EQUAL: Fingerprints match including mtime
+ *       + NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more
+ *                               than mtime (CRC, Size, isValid).
+ *       + NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
+ *       + NODE_COMP_DIFFERS_MAC: Fingerprints differ in mtime and METAMACs also differ.
+ *  - The second element is the local MetaMAC, or INVALID_META_MAC if not computed.
+ *  - The third element is the remote MetaMAC, or INVALID_META_MAC if not computed.
  */
-std::tuple<node_comparison_result, int64_t, int64_t>
-    syncEqualFsCloudExcludingMtime(MegaClient& mc,
-                                   const CloudNode& cn,
-                                   const FSNode& fs,
-                                   const LocalPath& fsNodeFullPath);
+using FsCloudComparisonResult = std::tuple<node_comparison_result, int64_t, int64_t>;
+
+/**
+ * @brief Compares fsNode with cloudNode using async MAC computation.
+ *
+ * For synced files that have a LocalNode. If fingerprints match or differ in more than mtime,
+ * returns immediately. If only mtime differs, initiates or checks async MAC computation
+ * stored in LocalNode::RareFields.
+ *
+ * @param syncNode Reference to the LocalNode for storing async MAC computation state.
+ * @return Comparison result. Returns NODE_COMP_PENDING if MAC computation in progress.
+ *
+ * @note METAMACs are only computed if fingerprints differ only in mtime.
+ */
+FsCloudComparisonResult syncEqualFsCloudExcludingMtimeAsync(MegaClient& mc,
+                                                            const CloudNode& cn,
+                                                            const FSNode& fs,
+                                                            const LocalPath& fsNodeFullPath,
+                                                            LocalNode& syncNode);
+
+/**
+ * @brief Compares fsNode with cloudNode using blocking MAC computation.
+ *
+ * For unsynced files without a LocalNode. If fingerprints match or differ in more than mtime,
+ * returns immediately. If only mtime differs, performs blocking MAC computation.
+ *
+ * @return Comparison result. Never returns NODE_COMP_PENDING (blocks until complete).
+ *
+ * @note METAMACs are only computed if fingerprints differ only in mtime.
+ */
+FsCloudComparisonResult syncEqualFsCloudExcludingMtimeSync(MegaClient& mc,
+                                                           const CloudNode& cn,
+                                                           const FSNode& fs,
+                                                           const LocalPath& fsNodeFullPath);
 } // namespace mega
 
 #endif // ENABLE_SYNC

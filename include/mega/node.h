@@ -29,7 +29,9 @@
 #include "filefingerprint.h"
 #include "syncfilter.h"
 #include "syncinternals/syncuploadthrottlingfile.h"
+#include "utils.h"
 
+#include <atomic>
 #include <bitset>
 
 namespace mega {
@@ -893,6 +895,96 @@ struct MEGA_API LocalNode
             LocalNode* sourcePtr = nullptr;
         };
 
+        /**
+         * @brief Tracks an ongoing asynchronous MAC (Message Authentication Code) computation.
+         *
+         * When comparing local and cloud files that differ only in mtime, we need to compute
+         * the MetaMAC to determine if contents actually match. This computation can be slow
+         * for large files (20-80+ seconds), so it runs asynchronously on the client thread.
+         *
+         * Thread safety:
+         * - Context fields are immutable after construction
+         * - Result fields are written by client thread before setting completed=true (release)
+         * - Sync thread reads result fields only after completed=true (acquire)
+         * - The release/acquire ordering ensures proper visibility
+         *
+         * Lifetime:
+         * - Sync thread holds shared_ptr in RareFields
+         * - Client thread captures weak_ptr in lambda
+         * - If LocalNode is deleted, weak_ptr.lock() returns nullptr and computation is abandoned
+         */
+        struct MacComputationInProgress
+        {
+            // Atomic completion flag - uses release/acquire semantics for thread safety
+            std::atomic<bool> completed{false};
+
+            // Result fields - only valid after completed.load(acquire) returns true
+            node_comparison_result result{NODE_COMP_EQUAL};
+            int64_t localMac{INVALID_META_MAC};
+            int64_t remoteMac{INVALID_META_MAC};
+
+            // Validation context (immutable after construction)
+            const FileFingerprint localFp;
+            const FileFingerprint cloudFp;
+            const NodeHandle cloudHandle;
+            const handle fsid;
+
+            MacComputationInProgress(const FileFingerprint& localFp_,
+                                     const FileFingerprint& cloudFp_,
+                                     const NodeHandle cloudHandle_,
+                                     const handle fsid_):
+                localFp(localFp_),
+                cloudFp(cloudFp_),
+                cloudHandle(cloudHandle_),
+                fsid(fsid_)
+            {}
+
+            /**
+             * @brief Thread-safe: called by client thread when computation is done.
+             *
+             * Uses memory_order_release to ensure all prior writes to result fields
+             * are visible to any thread that subsequently reads completed with acquire.
+             */
+            void setResult(const node_comparison_result res,
+                           const int64_t localM,
+                           const int64_t remoteM)
+            {
+                result = res;
+                localMac = localM;
+                remoteMac = remoteM;
+                completed.store(true, std::memory_order_release);
+            }
+
+            /**
+             * @brief Thread-safe: called by sync thread to check if result is ready.
+             *
+             * Uses memory_order_acquire to ensure all writes before the corresponding
+             * release are visible after this returns true.
+             */
+            bool isReady() const
+            {
+                return completed.load(std::memory_order_acquire);
+            }
+
+            /**
+             * @brief Check if the stored context still matches the current row state.
+             *
+             * If context doesn't match, the computation result is invalid and should be discarded.
+             * This handles cases where the file was moved, deleted, or modified while computing.
+             */
+            bool contextMatches(const handle currentFsid,
+                                const NodeHandle currentCloudHandle,
+                                const FileFingerprint& currentLocalFp,
+                                const FileFingerprint& currentCloudFp) const
+            {
+                return currentFsid == fsid && currentCloudHandle == cloudHandle &&
+                       currentLocalFp.equalExceptMtime(localFp) &&
+                       currentCloudFp.equalExceptMtime(cloudFp);
+            }
+        };
+
+        shared_ptr<MacComputationInProgress> macComputation;
+
         weak_ptr<MovePending> movePendingFrom;
         shared_ptr<MovePending> movePendingTo;
 
@@ -1217,6 +1309,16 @@ private:
      */
     UploadThrottlingFile mUploadThrottling;
 
+    /**
+     * @brief Timestamp of last completed mtime-only sync operation (upload or download).
+     *
+     * Used to throttle MAC computations for files with frequently changing mtime.
+     * Files like .eml on Windows can have mtime updates every few seconds, causing
+     * repeated expensive MAC computations. This timestamp allows us to skip MAC
+     * computation if a recent mtime-only operation just completed.
+     */
+    std::chrono::steady_clock::time_point mLastMtimeOnlyOpTime{};
+
 public:
     /**
      * @brief Sets the mUploadThrottling flag to bypass throttling.
@@ -1249,6 +1351,44 @@ public:
     unsigned uploadCounter() const
     {
         return mUploadThrottling.uploadCounter();
+    }
+
+    /**
+     * @brief Records that an mtime-only sync operation completed.
+     *
+     * Called after successful mtime-only upload (clone/setattr) or download.
+     * This timestamp is used to throttle MAC computations for files with
+     * frequently changing mtime.
+     */
+    void recordMtimeOnlyOperation()
+    {
+        mLastMtimeOnlyOpTime = std::chrono::steady_clock::now();
+    }
+
+    /**
+     * @brief Checks if MAC computation should be throttled due to recent mtime-only operation.
+     *
+     * @param throttleWindow Time window to throttle after last mtime-only operation.
+     * @return true if MAC computation should be skipped for now (too recent).
+     */
+    bool shouldThrottleMacComputation(std::chrono::seconds throttleWindow) const
+    {
+        if (mLastMtimeOnlyOpTime == std::chrono::steady_clock::time_point{})
+        {
+            return false;
+        }
+        auto elapsed = std::chrono::steady_clock::now() - mLastMtimeOnlyOpTime;
+        return elapsed < throttleWindow;
+    }
+
+    /**
+     * @brief Clears the mtime-only operation timestamp.
+     *
+     * Called when actual content (not just mtime) changes, to reset throttling.
+     */
+    void clearMtimeOnlyOpTime()
+    {
+        mLastMtimeOnlyOpTime = {};
     }
 };
 

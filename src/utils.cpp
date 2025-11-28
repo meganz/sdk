@@ -2535,6 +2535,29 @@ std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
     return {localMac, remoteMac};
 }
 
+std::string nodeComparisonResultToStr(const node_comparison_result result)
+{
+    switch (result)
+    {
+        case NODE_COMP_EREAD:
+            return "NODE_COMP_EREAD";
+        case NODE_COMP_EARGS:
+            return "NODE_COMP_EARGS";
+        case NODE_COMP_PENDING:
+            return "NODE_COMP_PENDING";
+        case NODE_COMP_EQUAL:
+            return "NODE_COMP_EQUAL";
+        case NODE_COMP_DIFFERS_FP:
+            return "NODE_COMP_DIFFERS_FP";
+        case NODE_COMP_DIFFERS_MAC:
+            return "NODE_COMP_DIFFERS_MAC";
+        case NODE_COMP_DIFFERS_MTIME:
+            return "NODE_COMP_DIFFERS_MTIME";
+        default:
+            return "NODE_COMP_UNKNOWN";
+    }
+}
+
 node_comparison_result CompareMacAndFpExcludingMtime(const FileFingerprint& fp1,
                                                      const FileFingerprint& fp2,
                                                      const int64_t metamac1,

@@ -3011,6 +3011,12 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row,
         row.syncNode->setSyncedNodeHandle(upload->upsyncResultHandle);
         statecacheadd(row.syncNode);
 
+        // Record mtime-only operation to throttle future MAC computations
+        if (upload->wasJustMtimeChanged)
+        {
+            row.syncNode->recordMtimeOnlyOperation();
+        }
+
         // void going into syncItem() in case we only just got the cloud Node
         // and we are iterating that very directory already, in which case we won't have
         // the cloud side node, and we would create an extra upload
@@ -9037,6 +9043,7 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         row.syncNode->realScannedFingerprint = row.fsNode->fingerprint;
 
         statecacheadd(row.syncNode);
+        row.syncNode->recordMtimeOnlyOperation(); // Throttle future MAC computations
         assert(downloadPtr.use_count() == 1); // Sanity
         return true;
     }
@@ -9617,11 +9624,20 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             resolve_checkMoveDownloadComplete(row, fullPath);
 
             // all three exist; compare
+            // Use async MAC computation for mtime-only differences (non-blocking)
             auto [fsCloudEqualRes, fcMacLocal, fcMacRemote] =
-                syncEqualFsCloudExcludingMtime(syncs.mClient,
-                                               *row.cloudNode,
-                                               *row.fsNode,
-                                               fullPath.localPath);
+                syncEqualFsCloudExcludingMtimeAsync(syncs.mClient,
+                                                    *row.cloudNode,
+                                                    *row.fsNode,
+                                                    fullPath.localPath,
+                                                    *row.syncNode);
+
+            if (fsCloudEqualRes == NODE_COMP_PENDING)
+            {
+                // MAC computation is in progress, come back later
+                row.syncNode->setSyncAgain(true, false, false);
+                return false;
+            }
 
             if (fsCloudEqualRes == NODE_COMP_EREAD)
             {
@@ -9876,11 +9892,12 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
         }
 
+        // Use blocking MAC computation for CXF case (no LocalNode for async state)
         auto [fsCloudEqualRes, fcMacLocal, fcMacRemote] =
-            syncEqualFsCloudExcludingMtime(syncs.mClient,
-                                           *row.cloudNode,
-                                           *row.fsNode,
-                                           fullPath.localPath);
+            syncEqualFsCloudExcludingMtimeSync(syncs.mClient,
+                                               *row.cloudNode,
+                                               *row.fsNode,
+                                               fullPath.localPath);
 
         if (fsCloudEqualRes == NODE_COMP_EREAD)
         {
@@ -9888,12 +9905,33 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             return false;
         }
 
-        // Item exists locally and remotely but we haven't synced them previously
-        // If they are equal then join them with a Localnode. Othewise report to user.
+        // Item exists locally and remotely but we haven't synced them previously.
         if (fsCloudEqualRes == NODE_COMP_EQUAL)
         {
-            // In both cases we create the sync node from local to do the upsync later
+            // If they are equal then join them with a Localnode
             return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+        }
+        else if (fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME)
+        {
+            // They differ in mtime, so we pick the one with newer mtime for reference
+            // We create the sync node from the one with older mtime, so the sync will take the
+            // change from the different side.
+            if (const bool prepareSyncNodeForSyncDownload =
+                    row.fsNode->fingerprint.mtime < row.cloudNode->fingerprint.mtime;
+                prepareSyncNodeForSyncDownload)
+            {
+                LOG_verbose << "CXF case with mtime only difference, remote one has newer mtime: "
+                               "prepare sync node for resolve downsync"
+                            << logTriplet(row, fullPath);
+                return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+            }
+            else
+            {
+                LOG_verbose << "CXF case with mtime only difference, local one has newer mtime: "
+                               "prepare sync node for resolve upsync"
+                            << logTriplet(row, fullPath);
+                return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
+            }
         }
         else
         {
@@ -10769,6 +10807,12 @@ bool Sync::resolve_upsync(SyncRow& row,
                     << syncname
                     << "Putnodes complete. Detaching upload in resolve_upsync. [Num uploads: "
                     << row.syncNode->uploadCounter() << "]" << logTriplet(row, fullPath);
+
+                // Record mtime-only operation to throttle future MAC computations
+                if (existingUpload->wasJustMtimeChanged)
+                {
+                    row.syncNode->recordMtimeOnlyOperation();
+                }
             }
 
             row.syncNode->resetTransfer(nullptr);

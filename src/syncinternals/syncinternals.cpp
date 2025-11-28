@@ -6,10 +6,9 @@
 #include "mega/base64.h"
 #ifdef ENABLE_SYNC
 
-#include "mega/syncinternals/syncinternals.h"
-
 #include "mega/megaclient.h"
 #include "mega/sync.h"
+#include "mega/syncinternals/syncinternals.h"
 #include "mega/syncinternals/syncinternals_logging.h"
 #include "mega/utils.h"
 
@@ -244,22 +243,7 @@ struct FindCloneNodeCandidatePredicate
      */
     bool operator()(const Node& node)
     {
-        const auto compRes_toStr = [](node_comparison_result cRes) -> std::string
-        {
-            switch (cRes)
-            {
-                case NODE_COMP_EQUAL:
-                    return "NODE_COMP_EQUAL";
-                case NODE_COMP_DIFFERS_MTIME:
-                    return "NODE_COMP_DIFFERS_MTIME";
-                case NODE_COMP_DIFFERS_MAC:
-                    return "NODE_COMP_DIFFERS_MAC";
-                case NODE_COMP_EARGS:
-                    return "NODE_COMP_EARGS";
-                default:
-                    return "UNKNOWN_RESULT";
-            }
-        };
+        static const std::string logPre{"FindCloneCandidate: "};
         const auto nodePath = node.displayname();
         node_comparison_result compRes = NODE_COMP_EQUAL;
         std::string compResStr;
@@ -268,11 +252,11 @@ struct FindCloneNodeCandidatePredicate
             // Avoid calculating metamac again by using precalculated one
             compRes =
                 CompareNodeWithProvidedMacAndFpExcludingMtime(&node, mUpload, *mUpload.mMetaMac);
-            compResStr = compRes_toStr(compRes);
-            LOG_debug << "[FindCloneCandidate] CompareNodeWithProvidedMacAndFpExcludingMtime res: "
-                      << compResStr << " [path = " << nodePath << "]";
+            compResStr = nodeComparisonResultToStr(compRes);
+            LOG_debug << logPre
+                      << "CompareNodeWithProvidedMacAndFpExcludingMtime res: " << compResStr
+                      << " [path = " << nodePath << "]";
         }
-
         else
         {
             const auto [auxRes, _] =
@@ -283,9 +267,10 @@ struct FindCloneNodeCandidatePredicate
                                                               false /*debugMode*/);
 
             compRes = auxRes;
-            compResStr = compRes_toStr(compRes);
-            LOG_debug << "[FindCloneCandidate] CompareLocalFileWithNodeMacAndFpExcludingMtime res: "
-                      << compResStr << " [path = " << nodePath << "]";
+            compResStr = nodeComparisonResultToStr(compRes);
+            LOG_debug << logPre
+                      << "CompareLocalFileWithNodeMacAndFpExcludingMtime res: " << compResStr
+                      << " [path = " << nodePath << "]";
         }
 
         if (compRes == NODE_COMP_EQUAL || compRes == NODE_COMP_DIFFERS_MTIME)
@@ -299,12 +284,10 @@ struct FindCloneNodeCandidatePredicate
                 mClient.sendevent(99486, "Node has a zerokey");
                 mFoundCandidateHasZeroKey = true;
             }
-            LOG_debug << "[FindCloneCandidate] " << compResStr
-                      << " -> return true [path = " << nodePath << "]";
+            LOG_debug << logPre << compResStr << " -> return true [path = " << nodePath << "]";
             return true; // Done searching (zero key or valid node)
         }
-        LOG_debug << "[FindCloneCandidate] " << compResStr
-                  << " -> return false [path = " << nodePath << "]";
+        LOG_debug << logPre << compResStr << " -> return false [path = " << nodePath << "]";
         return false; // keep searching
     }
 
@@ -502,81 +485,258 @@ void clientDownload(MegaClient& mc,
     LOG_debug << "clientDownload: regular download started";
 }
 
-std::tuple<node_comparison_result, int64_t, int64_t>
-    syncEqualFsCloudExcludingMtime(MegaClient& mc,
-                                   const CloudNode& cn,
-                                   const FSNode& fs,
-                                   const LocalPath& fsNodeFullPath)
+/*************************************\
+*  SYNC COMPARISONS - IMPLEMENTATION  *
+\*************************************/
+
+namespace
 {
+
+// Default throttle window for mtime-only MAC computations.
+// Files with frequent mtime changes (like .eml on Windows) benefit from this delay.
+constexpr std::chrono::seconds MAC_THROTTLE_WINDOW{30};
+
+/**
+ * @brief Quick fingerprint comparison without MAC computation.
+ *
+ * Compares type, size, CRC, and mtime. If all match except mtime, returns std::nullopt
+ * to indicate that MAC computation is needed.
+ */
+std::optional<FsCloudComparisonResult> quickFingerprintComparison(const CloudNode& cn,
+                                                                  const FSNode& fs)
+{
+    static const std::string logPre{"quickFingerprintComparison: "};
+
+    // Different types -> cannot be equal
     if (cn.type != fs.type)
-        return {NODE_COMP_DIFFERS_FP, INVALID_META_MAC, INVALID_META_MAC};
+    {
+        return FsCloudComparisonResult{NODE_COMP_DIFFERS_FP, INVALID_META_MAC, INVALID_META_MAC};
+    }
 
+    // Folders don't need MAC comparison
     if (cn.type != FILENODE)
-        return {NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
+    {
+        return FsCloudComparisonResult{NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
+    }
 
+    // Check fingerprint (CRC, size, isValid) excluding mtime
     if (!fs.fingerprint.equalExceptMtime(cn.fingerprint))
     {
         if (!fs.fingerprint.isvalid || !cn.fingerprint.isvalid)
         {
-            LOG_warn << "syncEqualFsCloudExcludingMtime: fs isValid (" << fs.fingerprint.isvalid
-                     << "), cn isValid (" << cn.fingerprint.isvalid << ")";
+            LOG_warn << logPre << "fs isValid (" << fs.fingerprint.isvalid << "), cn isValid ("
+                     << cn.fingerprint.isvalid << ")";
             assert(fs.fingerprint.isvalid && cn.fingerprint.isvalid);
         }
-        return {NODE_COMP_DIFFERS_FP, INVALID_META_MAC, INVALID_META_MAC};
+        return FsCloudComparisonResult{NODE_COMP_DIFFERS_FP, INVALID_META_MAC, INVALID_META_MAC};
     }
 
-    // IMPORTANT: To avoid performance issues in this method, we will consider FsNode and
-    // CloudNode equal if their fingerprints fully match (CRC, size, isValid, mtime), although there
-    // could be collisions. We don't want to compute the METAMAC unless strictly necessary because
-    // it is expensive in terms of performance, so we will compute it only if the
-    // fingerprints differ only in mtime.
+    // Full fingerprint match including mtime -> equal
+    // IMPORTANT: We accept fingerprint collision risk here to avoid expensive MAC computation
     if (fs.fingerprint.mtime == cn.fingerprint.mtime)
-        return {NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
+    {
+        return FsCloudComparisonResult{NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
+    }
 
-    auto pms =
-        std::make_shared<std::promise<std::tuple<node_comparison_result, int64_t, int64_t>>>();
+    // mtime differs but everything else matches -> MAC computation needed
+    return std::nullopt;
+}
+
+/**
+ * @brief Shared MAC computation logic used by both async and blocking paths.
+ *
+ * This function runs on the client thread and performs the actual MAC computation.
+ */
+FsCloudComparisonResult computeMacOnClientThread(MegaClient& mc,
+                                                 const NodeHandle cloudNodeHandle,
+                                                 const LocalPath& fsNodeFullPath,
+                                                 const std::string& logPrefix)
+{
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto fsNFP = fsNodeFullPath.toPath(false);
+
+    LOG_debug << logPrefix << "msMacStartGetNode [path = '" << fsNFP << "']";
+    auto node = mc.nodeByHandle(cloudNodeHandle);
+    if (!node || node->type != FILENODE || node->nodekey().empty())
+    {
+        LOG_debug << logPrefix << "NODE_COMP_EARGS [path = '" << fsNFP << "']";
+        return {NODE_COMP_EARGS, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    LOG_debug << logPrefix << "msMacStartGetFA [path = '" << fsNFP << "']";
+    auto fa = mc.fsaccess->newfileaccess();
+    if (!fa || !fa->fopen(fsNodeFullPath, true, false, FSLogging::logOnError))
+    {
+        LOG_debug << logPrefix << "NODE_COMP_EREAD [path = '" << fsNFP << "']";
+        return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    LOG_debug << logPrefix << "msMacStartGenMAC [path = '" << fsNFP << "']";
+    auto [localMac, remoteMac] =
+        genLocalAndRemoteMetaMac(fa.get(), node->nodekey(), node->type, fsNFP);
+
+    auto compRes = localMac == remoteMac ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
+
+    const auto t1 = std::chrono::steady_clock::now();
+    const auto msMac = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    LOG_debug << logPrefix << "msMac: " << msMac << " ms"
+              << " [res: " << nodeComparisonResultToStr(compRes) << "] [path = '" << fsNFP << "']";
+
+    return {compRes, localMac, remoteMac};
+}
+
+/**
+ * @brief Initiates async MAC computation for a synced file.
+ *
+ * If a computation is already in progress, checks its status. If complete, returns the result.
+ * If still pending, returns NODE_COMP_PENDING. If no computation exists, initiates one.
+ */
+FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
+                                            const CloudNode& cn,
+                                            const FSNode& fs,
+                                            const LocalPath& fsNodeFullPath,
+                                            LocalNode& syncNode)
+{
+    static const std::string logPre{"asyncMacComputation: "};
+    using MacComp = LocalNode::RareFields::MacComputationInProgress;
+
+    // Check throttling first - skip MAC computation if a recent mtime-only op just completed.
+    // This prevents expensive repeated MAC computations for files with frequently changing mtime.
+    if (syncNode.shouldThrottleMacComputation(MAC_THROTTLE_WINDOW))
+    {
+        LOG_verbose << logPre << "Throttled (recent mtime-only op): " << fsNodeFullPath;
+        return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    // Check for existing computation
+    if (syncNode.hasRare() && syncNode.rareRO().macComputation)
+    {
+        auto& macComp = syncNode.rare().macComputation;
+
+        // Validate context is still current (handles moves, deletes, content changes)
+        if (!macComp->contextMatches(fs.fsid, cn.handle, fs.fingerprint, cn.fingerprint))
+        {
+            LOG_debug << logPre << "Context invalid, discarding: " << fsNodeFullPath;
+            macComp.reset();
+            syncNode.trimRareFields();
+            // Fall through to initiate new computation
+        }
+        else if (macComp->isReady())
+        {
+            // Computation complete - extract result and clean up
+            auto result = macComp->result;
+            auto localMac = macComp->localMac;
+            auto remoteMac = macComp->remoteMac;
+
+            LOG_debug << logPre << "Complete: " << nodeComparisonResultToStr(result) << " [path = '"
+                      << fsNodeFullPath << "']";
+
+            macComp.reset();
+            syncNode.trimRareFields();
+            return {result, localMac, remoteMac};
+        }
+        else
+        {
+            // Still computing - return pending
+            LOG_verbose << logPre << "Still in progress: " << fsNodeFullPath;
+            return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
+        }
+    }
+
+    // No existing computation (or just invalidated) - initiate new one
+    auto macComp = std::make_shared<MacComp>(fs.fingerprint, cn.fingerprint, cn.handle, fs.fsid);
+    syncNode.rare().macComputation = macComp;
+
+    // Capture weak_ptr for safe access from client thread
+    std::weak_ptr<MacComp> weakMac = macComp;
+
+    LOG_debug << logPre << "Initiating: " << fsNodeFullPath;
+
+    mc.syncs.queueClient(
+        [cloudNodeHandle = cn.handle, fsNodeFullPath, weakMac](MegaClient& mc, TransferDbCommitter&)
+        {
+            static const std::string asyncLogPre{"asyncMacComputation (client): "};
+
+            // Check if computation is still needed
+            auto macComp = weakMac.lock();
+            if (!macComp)
+            {
+                LOG_debug << asyncLogPre << "Abandoned (LocalNode gone): " << fsNodeFullPath;
+                return;
+            }
+
+            auto [result, localMac, remoteMac] =
+                computeMacOnClientThread(mc, cloudNodeHandle, fsNodeFullPath, asyncLogPre);
+
+            // Final check and set result
+            macComp = weakMac.lock();
+            if (macComp)
+            {
+                macComp->setResult(result, localMac, remoteMac);
+            }
+            else
+            {
+                LOG_debug << asyncLogPre << "Result discarded (LocalNode gone): " << fsNodeFullPath;
+            }
+        });
+
+    return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
+}
+
+/**
+ * @brief Blocking MAC computation for unsynced files.
+ *
+ * Queues the computation on the client thread and blocks until complete.
+ */
+FsCloudComparisonResult blockingMacComputation(MegaClient& mc,
+                                               const CloudNode& cn,
+                                               const LocalPath& fsNodeFullPath)
+{
+    auto pms = std::make_shared<std::promise<FsCloudComparisonResult>>();
     auto fut = pms->get_future();
 
     mc.syncs.queueClient(
         [cloudNodeHandle = cn.handle, fsNodeFullPath, pms](MegaClient& mc, TransferDbCommitter&)
         {
-            const auto t0 = std::chrono::steady_clock::now();
-            const auto fsNFP = fsNodeFullPath.toPath(false);
-            LOG_debug << "msMacStartGetNode [path = '" << fsNFP << "']";
-            auto node = mc.nodeByHandle(cloudNodeHandle);
-            if (!node || node->type != FILENODE || node->nodekey().empty())
-            {
-                pms->set_value({NODE_COMP_EARGS, INVALID_META_MAC, INVALID_META_MAC});
-                return;
-            }
-
-            LOG_debug << "msMacStartGetFA [path = '" << fsNFP << "']";
-            auto fa = mc.fsaccess->newfileaccess();
-            if (!fa || !fa->fopen(fsNodeFullPath, true, false, FSLogging::logOnError))
-            {
-                pms->set_value({NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC});
-                return;
-            }
-
-            LOG_debug << "msMacStartGenMAC [path = '" << fsNFP << "']";
-            auto [localMac, remoteMac] = genLocalAndRemoteMetaMac(fa.get(),
-                                                                  node->nodekey(),
-                                                                  node->type,
-                                                                  fsNodeFullPath.toPath(false));
-
-            auto compRes = localMac == remoteMac ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
-            const auto t1 = std::chrono::steady_clock::now();
-            const auto msMac =
-                std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-            const auto compResStr =
-                std::string(compRes == NODE_COMP_DIFFERS_MAC ? "NODE_COMP_DIFFERS_MAC" :
-                                                               "NODE_COMP_DIFFERS_MTIME");
-            LOG_debug << "msMac: " << msMac << " ms"
-                      << " [res: " << compResStr << "] [path = '" << fsNFP << "']";
-            pms->set_value({compRes, localMac, remoteMac});
+            static const std::string blockingLogPre{"blockingMacComputation: "};
+            pms->set_value(
+                computeMacOnClientThread(mc, cloudNodeHandle, fsNodeFullPath, blockingLogPre));
         });
 
     return fut.get();
+}
+
+} // anonymous namespace
+
+FsCloudComparisonResult syncEqualFsCloudExcludingMtimeAsync(MegaClient& mc,
+                                                            const CloudNode& cn,
+                                                            const FSNode& fs,
+                                                            const LocalPath& fsNodeFullPath,
+                                                            LocalNode& syncNode)
+{
+    // Quick fingerprint comparison (no MAC needed if conclusive)
+    if (auto quickResult = quickFingerprintComparison(cn, fs))
+    {
+        return *quickResult;
+    }
+
+    // mtime differs - need async MAC computation
+    return asyncMacComputation(mc, cn, fs, fsNodeFullPath, syncNode);
+}
+
+FsCloudComparisonResult syncEqualFsCloudExcludingMtimeSync(MegaClient& mc,
+                                                           const CloudNode& cn,
+                                                           const FSNode& fs,
+                                                           const LocalPath& fsNodeFullPath)
+{
+    // Quick fingerprint comparison (no MAC needed if conclusive)
+    if (auto quickResult = quickFingerprintComparison(cn, fs))
+    {
+        return *quickResult;
+    }
+
+    // mtime differs - need blocking MAC computation
+    return blockingMacComputation(mc, cn, fsNodeFullPath);
 }
 } // namespace mega
 

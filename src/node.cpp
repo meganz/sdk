@@ -2250,18 +2250,12 @@ void LocalNode::trimRareFields()
     {
         if (!scanInProgress) rareFields->scanRequest.reset();
 
-        if (!rareFields->scanBlocked &&
-            !rareFields->scanRequest &&
-            rareFields->movePendingFrom.expired() &&
-            !rareFields->movePendingTo &&
-            !rareFields->moveFromHere &&
-            !rareFields->moveToHere &&
-            !rareFields->filterChain &&
-            !rareFields->badlyFormedIgnoreFilePath &&
-            !rareFields->createFolderHere &&
-            !rareFields->removeNodeHere &&
-            rareFields->unlinkHere.expired() &&
-            rareFields->localFSRenamedToThisName.empty())
+        if (!rareFields->scanBlocked && !rareFields->scanRequest &&
+            rareFields->movePendingFrom.expired() && !rareFields->movePendingTo &&
+            !rareFields->moveFromHere && !rareFields->moveToHere && !rareFields->filterChain &&
+            !rareFields->badlyFormedIgnoreFilePath && !rareFields->createFolderHere &&
+            !rareFields->removeNodeHere && rareFields->unlinkHere.expired() &&
+            rareFields->localFSRenamedToThisName.empty() && !rareFields->macComputation)
         {
             rareFields.reset();
         }
