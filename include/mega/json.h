@@ -194,18 +194,23 @@ public:
     // Reinitializes the object to start parsing a new JSON stream
     void clear();
 
-    enum CallbackResult
+    enum class CallbackResult
     {
-        SPLITTER_SUCCESS = 0,
-        SPLITTER_ERROR = -1,
-        // In following filters, PAUSE is not supported and would be treated as ERROR
+        SUCCESS = 0,
+        FAILED = -1,
+        // In following filters, PAUSED is not supported and would be treated as FAILED
         // "<": Every time processChunk started
         // ">": Every time processChunk ended
         // "": The first chunk in the stream
         // "E": Failed to parse due to invalid format
-        // Also for pure number string ("-123 "), PAUSE is not supported
-        SPLITTER_PAUSE = 1,
+        // Also for pure number string ("-123 "), PAUSED is not supported
+        PAUSED = 1,
     };
+
+    inline static CallbackResult ResultFromBool(bool result)
+    {
+        return result ? CallbackResult::SUCCESS : CallbackResult::FAILED;
+    }
 
     // Process a new chunk of JSON data and triggers callbacks in the filters map.
     // Returns the number of consumed bytes.
@@ -268,6 +273,9 @@ protected:
     // Store paused state
     void processPaused(m_off_t offsetFromLastPos, const char startChar = '\0');
 
+    // Restore paused state
+    void restorePausedState();
+
     // Position of the character being processed (not owned by this object)
     const char* mPos = nullptr;
 
@@ -301,18 +309,34 @@ protected:
     // the parsing has failed
     bool mFailed = false;
 
-    // parsing is paused
-    bool mPaused = false;
+    struct PausedState
+    {
+        // Parsing is paused
+        bool mPaused = false;
+        // Name of the last JSON attribute name processed
+        std::string lastName;
+        // Stack with accessed paths in the JSON stream
+        std::vector<std::string> stack;
+        // Current path in the processing of the JSON stream
+        std::string currentPath;
+        // Value expected before paused state
+        int expectValue = 0;
+        // Offset from mLastPos to mPos when paused
+        m_off_t processedBytes = 0;
+
+        void clear()
+        {
+            mPaused = false;
+            lastName.clear();
+            stack.clear();
+            currentPath.clear();
+            expectValue = 0;
+            processedBytes = 0;
+        }
+    };
 
     // Saved state when paused
-    // Note: Caller MUST purge/remove the consumed bytes before next processChunk call
-    std::string mPausedLastName;
-    std::vector<std::string> mPausedStack;
-    std::string mPausedCurrentPath;
-    int mPausedExpectValue = 0;
-
-    // Offset from mLastPos to mPos when paused
-    m_off_t mPausedProcessedBytes = 0;
+    PausedState mPausedState;
 
 }; // JSONSplitter
 

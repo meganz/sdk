@@ -24,6 +24,7 @@
 #include "mega/command.h"
 #include "mega/fileattributefetch.h"
 #include "mega/heartbeats.h"
+#include "mega/json.h"
 #include "mega/mediafileattribute.h"
 #include "mega/megaapp.h"
 #include "mega/testhooks.h"
@@ -6918,7 +6919,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
             assert(!mNodeTreeIsChanging.owns_lock());
             mNodeTreeIsChanging = std::unique_lock<recursive_mutex>(client->nodeTreeMutex);
         }
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Parsing of chunk finished
@@ -6927,7 +6928,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                      {
                          assert(mNodeTreeIsChanging.owns_lock());
                          mNodeTreeIsChanging.unlock();
-                         return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+                         return JSONSplitter::CallbackResult::SUCCESS;
                      });
 
     // Node objects (one by one)
@@ -6947,10 +6948,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                                  // does nothing when MegaClient::fetchingnodes is true
                                  ) != 1)
             {
-                return JSONSplitter::CallbackResult::SPLITTER_ERROR;
+                return JSONSplitter::CallbackResult::FAILED;
             }
-            return json->leaveobject() ? JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                         JSONSplitter::CallbackResult::SPLITTER_ERROR;
+            return JSONSplitter::ResultFromBool(json->leaveobject());
         });
 
     // Node versions (one by one)
@@ -6974,8 +6974,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         // character ']' and this call doesn't have any effect.
         json->enterarray();
 
-        return json->leavearray() ? JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                    JSONSplitter::CallbackResult::SPLITTER_ERROR;
+        return JSONSplitter::ResultFromBool(json->leavearray());
     });
 
     // End of node versions array
@@ -6986,12 +6985,11 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     {
         if (!json->enterobject())
         {
-            return JSONSplitter::CallbackResult::SPLITTER_ERROR;
+            return JSONSplitter::CallbackResult::FAILED;
         }
 
         client->readokelement(json);
-        return json->leaveobject() ? JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                     JSONSplitter::CallbackResult::SPLITTER_ERROR;
+        return JSONSplitter::ResultFromBool(json->leaveobject());
     });
 
     // Outgoing shares (one by one)
@@ -6999,12 +6997,11 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     {
         if (!json->enterobject())
         {
-            return JSONSplitter::CallbackResult::SPLITTER_ERROR;
+            return JSONSplitter::CallbackResult::FAILED;
         }
 
         client->readoutshareelement(json);
-        return json->leaveobject() ? JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                     JSONSplitter::CallbackResult::SPLITTER_ERROR;
+        return JSONSplitter::ResultFromBool(json->leaveobject());
     });
 
     // Pending shares (one by one)
@@ -7016,8 +7013,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         client->mergenewshares(0);
 
         json->enterarray();
-        return json->leavearray() ? JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                    JSONSplitter::CallbackResult::SPLITTER_ERROR;
+        return JSONSplitter::ResultFromBool(json->leavearray());
     });
 
     // End of pending shares array
@@ -7028,10 +7024,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     {
         if (client->readuser(json, false) != 1)
         {
-            return JSONSplitter::CallbackResult::SPLITTER_ERROR;
+            return JSONSplitter::CallbackResult::FAILED;
         }
-        return json->leaveobject() ? JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                     JSONSplitter::CallbackResult::SPLITTER_ERROR;
+        return JSONSplitter::ResultFromBool(json->leaveobject());
     });
 
     // sn tag
@@ -7041,32 +7036,29 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                          // Not applying the scsn until the end of the parsing
                          // because it could arrive before nodes
                          // (despite at the moment it is arriving at the end)
-                         return (json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn) ?
-                                    JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                    JSONSplitter::CallbackResult::SPLITTER_ERROR;
+                         return JSONSplitter::ResultFromBool(
+                             json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn);
                      });
 
     // st tag
     mFilters.emplace("{\"st",
                      [this](JSON* json)
                      {
-                         return json->storeobject(&mSt) ?
-                                    JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                    JSONSplitter::CallbackResult::SPLITTER_ERROR;
+                         return JSONSplitter::ResultFromBool(json->storeobject(&mSt));
                      });
 
     // Incoming contact requests
     mFilters.emplace("{[ipc", [client](JSON *json)
     {
         client->readipc(json);
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Outgoing contact requests
     mFilters.emplace("{[opc", [client](JSON *json)
     {
         client->readopc(json);
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Public links (one by one)
@@ -7076,14 +7068,14 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         {
             json->leaveobject();
         }
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Sets and Elements
     mFilters.emplace("{{aesp", [client](JSON *json)
     {
         client->procaesp(*json); // continue even if it failed, it's not critical
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Parsing finished
@@ -7104,8 +7096,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
             client->mScDbStateRecord.seqTag = mSt;
         }
 
-        return parsingFinished() ? JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                   JSONSplitter::CallbackResult::SPLITTER_ERROR;
+        return JSONSplitter::ResultFromBool(parsingFinished());
     });
 
     // Numeric error, either a number or an error object {"err":XXX}
@@ -7120,7 +7111,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         checkError(e, *json);
         client->fetchingnodes = false;
         client->app->fetchnodes_result(e);
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Parsing error
@@ -7134,7 +7125,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                          client->fetchingnodes = false;
                          client->mNodeManager.cleanNodes();
                          client->app->fetchnodes_result(API_EINTERNAL);
-                         return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+                         return JSONSplitter::CallbackResult::SUCCESS;
                      });
 
 #ifdef ENABLE_CHAT
@@ -7143,14 +7134,14 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     {
         // List of chatrooms
         client->procmcf(json);
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     f = mFilters.emplace("{[mcpna", [client](JSON *json)
     {
         // nodes shared in chatrooms
         client->procmcna(json);
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
     mFilters.emplace("{[mcna", f.first->second);
 
@@ -7158,7 +7149,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     {
         // scheduled meetings
         client->procmcsm(json);
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 #endif
 }

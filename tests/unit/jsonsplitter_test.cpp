@@ -25,18 +25,6 @@
 
 using namespace mega;
 
-// Keep in mind, this unit test is added after the JSONSplitter has served well for a long time.
-// So this test is for the supported scenarios, and new features, not for the edge cases.
-// Because JSONSplitter is intended for specific scenarios like streaming parsing the well formed
-// JSONs from API Server. But it's harmless to record those unexpected cases.
-// 1. Numbers: {"int": 123, "float": 3.14, "negative": -123}
-// 2. Booleans and Null values: {"bool": true, "null": null}
-// 3. Arrays: ["a", "b", "c"]
-// 4. Spaces:
-//        before the end of first chunk: R"({"key1": "value1", )" and R"("key2": "value2"})"
-//        before the number:{"err": -1}
-//        before the string: {"key": "value"}
-
 class JSONSplitterTest: public ::testing::Test
 {
 protected:
@@ -63,10 +51,9 @@ protected:
         {
             if (json && json->pos)
             {
-                return json->storeobject(&output) ? JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                                    JSONSplitter::CallbackResult::SPLITTER_ERROR;
+                return JSONSplitter::ResultFromBool(json->storeobject(&output));
             }
-            return JSONSplitter::CallbackResult::SPLITTER_ERROR;
+            return JSONSplitter::CallbackResult::FAILED;
         };
     }
 
@@ -83,10 +70,10 @@ protected:
                 if (json->storeobject(&temp))
                 {
                     output.emplace_back(temp);
-                    return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+                    return JSONSplitter::CallbackResult::SUCCESS;
                 }
             }
-            return JSONSplitter::CallbackResult::SPLITTER_ERROR;
+            return JSONSplitter::CallbackResult::FAILED;
         };
     }
 };
@@ -132,11 +119,10 @@ TEST_F(JSONSplitterTest, ProcessErrorResponse)
         if (json && json->pos)
         {
             TestCommand cmd;
-            return cmd.checkError(err, *json) ? JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                                JSONSplitter::CallbackResult::SPLITTER_ERROR;
+            return JSONSplitter::ResultFromBool(cmd.checkError(err, *json));
         }
 
-        return JSONSplitter::CallbackResult::SPLITTER_ERROR;
+        return JSONSplitter::CallbackResult::FAILED;
     };
 
     auto consumed = splitter.processChunk(&filters, testJson.c_str());
@@ -159,7 +145,7 @@ TEST_F(JSONSplitterTest, ProcessSimpleObjectNumber)
             capturedData = json->getint();
         }
 
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     };
 
     auto consumed = splitter.processChunk(&filters, testJson.c_str());
@@ -265,7 +251,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromStart)
         if (first)
         {
             first = false;
-            return JSONSplitter::CallbackResult::SPLITTER_PAUSE;
+            return JSONSplitter::CallbackResult::PAUSED;
         }
 
         else
@@ -274,7 +260,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromStart)
             json->storeobject(&output);
             capturedData.emplace_back(output);
         }
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     };
 
     auto consumed = splitter.processChunk(&filters, testJson.c_str());
@@ -303,7 +289,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromMiddle)
         std::string output;
         json->storeobject(&output);
         capturedData.emplace_back(output);
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     };
 
     filters["{[a{\"b"] = [&first, &capturedData](JSON* json) -> JSONSplitter::CallbackResult
@@ -311,7 +297,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromMiddle)
         if (first)
         {
             first = false;
-            return JSONSplitter::CallbackResult::SPLITTER_PAUSE;
+            return JSONSplitter::CallbackResult::PAUSED;
         }
 
         else
@@ -320,7 +306,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromMiddle)
             json->storeobject(&output);
             capturedData.emplace_back(output);
         }
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     };
 
     auto consumed = splitter.processChunk(&filters, testJson.c_str());
@@ -352,7 +338,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseAtObjectClosure)
         if (firstObject)
         {
             firstObject = false;
-            return JSONSplitter::CallbackResult::SPLITTER_PAUSE;
+            return JSONSplitter::CallbackResult::PAUSED;
         }
 
         else
@@ -361,7 +347,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseAtObjectClosure)
             json->storeobject(&output);
             capturedObjects.emplace_back(output);
         }
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     };
 
     auto consumed = splitter.processChunk(&filters, testJson.c_str());
@@ -394,13 +380,13 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseAtStringValue)
         callCount++;
         if (callCount <= 2)
         {
-            return JSONSplitter::CallbackResult::SPLITTER_PAUSE;
+            return JSONSplitter::CallbackResult::PAUSED;
         }
 
         std::string output;
         json->storeobject(&output);
         capturedValues.emplace_back(output);
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     };
 
     filters["{\"key2"] = [&capturedValues](JSON* json) -> JSONSplitter::CallbackResult
@@ -408,7 +394,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseAtStringValue)
         std::string output;
         json->storeobject(&output);
         capturedValues.emplace_back(output);
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     };
 
     filters["{\"key3"] = [&capturedValues](JSON* json) -> JSONSplitter::CallbackResult
@@ -416,7 +402,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseAtStringValue)
         std::string output;
         json->storeobject(&output);
         capturedValues.emplace_back(output);
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     };
 
     // First call should pause at key1's string value
@@ -453,16 +439,15 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseAtErrorNumber)
         callCount++;
         if (callCount == 1)
         {
-            return JSONSplitter::CallbackResult::SPLITTER_PAUSE;
+            return JSONSplitter::CallbackResult::PAUSED;
         }
 
         if (json && json->pos)
         {
             TestCommand cmd;
-            return cmd.checkError(err, *json) ? JSONSplitter::CallbackResult::SPLITTER_SUCCESS :
-                                                JSONSplitter::CallbackResult::SPLITTER_ERROR;
+            return JSONSplitter::ResultFromBool(cmd.checkError(err, *json));
         }
-        return JSONSplitter::CallbackResult::SPLITTER_SUCCESS;
+        return JSONSplitter::CallbackResult::SUCCESS;
     };
 
     // First call should pause at the error number
@@ -479,3 +464,196 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseAtErrorNumber)
     EXPECT_FALSE(splitter.hasFailed());
     EXPECT_EQ(ErrorCodes::API_EINTERNAL, err);
 }
+
+// Keep in mind, this unit test is added after the JSONSplitter has served well for a long time.
+// So this test is for the supported scenarios, and new features, not for the edge cases.
+// Because JSONSplitter is intended for specific scenarios like streaming parsing the well formed
+// JSONs from API Server. But it's harmless to record those unexpected cases.
+// 1. Numbers: {"int": 123, "float": 3.14, "negative": -123}
+// 2. Booleans and Null values: {"bool": true, "null": null}
+// 3. Arrays: ["a", "b", "c"]
+// 4. Spaces:
+//        before the end of first chunk: R"({"key1": "value1", )" and R"("key2": "value2"})"
+//        before the number:{"err": -1}
+//        before the string: {"key": "value"}
+
+// The assert(false) in prodution code can prevent unexpected scenarios,
+// and they are playing a critical role in the stability of the SDK.
+// Here's some cases will trigger asserts, and might replace some of them when streaming parsing is
+// appllied.
+
+// Note: All following cases will trigger asserts, but not all of them need to be applied.
+
+/*
+TEST_F(JSONSplitterTest, ProcessNull)
+{
+    // This may return a nameid of 0?
+    std::string testJson = R"({"key":null})";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessDeepEnbeddedObjectWithoutConsuming)
+{
+    std::string testJson = R"({"outer":{"inner":{“deep":"value"}}})";
+    bool result = false;
+
+    filters["{{outer{"] = [&result](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        if (json && json->pos)
+        {
+            result = true;
+            return JSONSplitter::CallbackResult::SUCCESS;
+        }
+        return JSONSplitter::CallbackResult::FAILED;
+    };
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_TRUE(result);
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedObject)
+{
+    std::string testJson = R"({"key":"value"{}})";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessEndEarly)
+{
+    std::string testJson = R"({"key":})";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedBracket1)
+{
+    std::string testJson = R"({"key":[})";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedBracket2)
+{
+    std::string testJson = R"({"key":{])";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedBracket3)
+{
+    // segmentfault
+    std::string testJson = "}";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessNormalFailure)
+{
+    std::string testJson = R"({"key1": "value1", "key2": "value2"})";
+
+    filters["{\"key2"] = [](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        return JSONSplitter::CallbackResult::FAILED;
+    };
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 18);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedComma)
+{
+    std::string testJson = R"({"arr":[,1]})";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessNoColon)
+{
+    std::string testJson = R"({"key""value"})";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedNumber)
+{
+    std::string testJson = R"({"key":"value"123})";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedCharacter)
+{
+    std::string testJson = R"({"key":@})";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedFailure)
+{
+    std::string testJson = R"({"err":-1})";
+
+    filters["#"] = [](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        return JSONSplitter::CallbackResult::FAILED;
+    };
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedFailure2)
+{
+    std::string testJson = R"({"key":"value"})";
+
+    filters[""] = [](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        return JSONSplitter::CallbackResult::FAILED;
+    };
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+*/
