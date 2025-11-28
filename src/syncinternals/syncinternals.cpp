@@ -540,6 +540,9 @@ std::tuple<node_comparison_result, int64_t, int64_t>
     mc.syncs.queueClient(
         [cloudNodeHandle = cn.handle, fsNodeFullPath, pms](MegaClient& mc, TransferDbCommitter&)
         {
+            const auto t0 = std::chrono::steady_clock::now();
+            const auto fsNFP = fsNodeFullPath.toPath(false);
+            LOG_debug << "msMacStartGetNode [path = '" << fsNFP << "']";
             auto node = mc.nodeByHandle(cloudNodeHandle);
             if (!node || node->type != FILENODE || node->nodekey().empty())
             {
@@ -547,6 +550,7 @@ std::tuple<node_comparison_result, int64_t, int64_t>
                 return;
             }
 
+            LOG_debug << "msMacStartGetFA [path = '" << fsNFP << "']";
             auto fa = mc.fsaccess->newfileaccess();
             if (!fa || !fa->fopen(fsNodeFullPath, true, false, FSLogging::logOnError))
             {
@@ -554,12 +558,21 @@ std::tuple<node_comparison_result, int64_t, int64_t>
                 return;
             }
 
+            LOG_debug << "msMacStartGenMAC [path = '" << fsNFP << "']";
             auto [localMac, remoteMac] = genLocalAndRemoteMetaMac(fa.get(),
                                                                   node->nodekey(),
                                                                   node->type,
                                                                   fsNodeFullPath.toPath(false));
 
             auto compRes = localMac == remoteMac ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
+            const auto t1 = std::chrono::steady_clock::now();
+            const auto msMac =
+                std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+            const auto compResStr =
+                std::string(compRes == NODE_COMP_DIFFERS_MAC ? "NODE_COMP_DIFFERS_MAC" :
+                                                               "NODE_COMP_DIFFERS_MTIME");
+            LOG_debug << "msMac: " << msMac << " ms"
+                      << " [res: " << compResStr << "] [path = '" << fsNFP << "']";
             pms->set_value({compRes, localMac, remoteMac});
         });
 
