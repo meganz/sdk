@@ -3226,11 +3226,11 @@ void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download, 
 {
     resetTransfer(download);
     sync->syncs.queueClient(
-        [syncUpload = std::move(download), queueFirst](MegaClient& mc,
-                                                       TransferDbCommitter& committer)
+        [syncDownload = std::move(download), queueFirst](MegaClient& mc,
+                                                         TransferDbCommitter& committer)
         {
-            syncUpload->selfKeepAlive = syncUpload;
-            clientDownload(mc, committer, std::move(syncUpload), queueFirst);
+            syncDownload->selfKeepAlive = syncDownload;
+            clientDownload(mc, committer, std::move(syncDownload), queueFirst);
         });
 }
 

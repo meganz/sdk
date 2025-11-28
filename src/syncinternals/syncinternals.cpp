@@ -437,8 +437,9 @@ void clientDownload(MegaClient& mc,
         {
             if (mc.fsaccess->setmtimelocal(download->getLocalname(), cloudNode->mtime))
             {
+                download->completed(nullptr, PUTNODES_SYNC);
                 download->wasDistributed = true;
-                download->wasFileTransferCompleted.store(true);
+                LOG_debug << "clientDownload: setmtimelocal change only";
                 return;
             }
 
@@ -467,6 +468,8 @@ void clientDownload(MegaClient& mc,
                  NoVersioning,
                  nullptr,
                  mc.nextreqtag());
+
+    LOG_debug << "clientDownload: regular download started";
 }
 
 std::tuple<node_comparison_result, int64_t, int64_t>

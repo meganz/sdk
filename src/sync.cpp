@@ -9005,6 +9005,42 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         downloadPtr->terminatedReasonAlreadyKnown = true;
         return keepSyncItem;
     }
+
+    if (downloadPtr->wasFileTransferCompleted && downloadPtr->wasDistributed)
+    {
+        SYNC_verbose << syncname << "Download setmtime change only at "
+                     << logTriplet(row, fullPath);
+
+        // mtime change only
+        assert(row.syncNode->syncedFingerprint.size == row.fsNode->fingerprint.size);
+        assert(row.syncNode->syncedFingerprint.crc == row.fsNode->fingerprint.crc);
+        assert(row.syncNode->syncedFingerprint.mtime != row.fsNode->fingerprint.mtime);
+        assert(row.syncNode->realScannedFingerprint == row.syncNode->scannedFingerprint);
+        assert(row.syncNode->syncedFingerprint.equalExceptMtime(row.syncNode->scannedFingerprint));
+        assert(row.fsNode->fingerprint.equalExceptMtime(*downloadPtr));
+
+        auto& fsAccess = *syncs.fsaccess;
+        auto& targetPath = fullPath.localPath;
+
+        assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, targetPath, *downloadPtr));
+
+        SYNC_verbose
+            << syncname
+            << "Download complete (setmtime change only), file completed in final destination."
+            << logTriplet(row, fullPath);
+
+        row.syncNode->resetTransfer(nullptr);
+
+        row.fsNode->fingerprint.mtime = downloadPtr->mtime;
+        row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
+        row.syncNode->scannedFingerprint = row.fsNode->fingerprint;
+        row.syncNode->realScannedFingerprint = row.fsNode->fingerprint;
+
+        statecacheadd(row.syncNode);
+        assert(downloadPtr.use_count() == 1); // Sanity
+        return true;
+    }
+
     if (downloadPtr->wasFileTransferCompleted)
     {
         assert(downloadPtr->downloadDistributor);
