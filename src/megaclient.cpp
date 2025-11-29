@@ -3230,7 +3230,7 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (!jsonsc.pos && !pendingscUserAlerts && pendingsc)
+        if (!mIsScJsonParsedDone && !pendingscUserAlerts && pendingsc)
         {
             #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
                 if (globalMegaTestHooks.interceptSCRequest)
@@ -3253,34 +3253,47 @@ void MegaClient::exec()
                     break;
                 }
 
-                if (*pendingsc->in.c_str() == '{')
-                {
-                    insca = false;
-                    insca_notlast = false;
-                    jsonsc.begin(pendingsc->in.c_str());
-                    jsonsc.enterobject();
-                    app->notify_network_activity(NetworkActivityChannel::SC,
-                                                 NetworkActivityType::REQUEST_RECEIVED,
-                                                 API_OK);
-                    break;
-                }
-                else
-                {
-                    error e = (error)atoi(pendingsc->in.c_str());
-                    if ((e == API_ESID) || (e == API_ENOENT && loggedIntoFolder()))
+                    if (mIsScResponseSplitted)
                     {
-                        app->request_error(e);
-                        scsn.stopScsn();
+                        jsonsc.begin(pendingsc->in.c_str() + mScJsonConsumedBytes);
+                        procscByChunk(pendingsc->in.data());
                         app->notify_network_activity(NetworkActivityChannel::SC,
                                                      NetworkActivityType::REQUEST_RECEIVED,
-                                                     e);
+                                                     API_OK);
+                        mIsScResponseSplitted = false;
+                        break;
                     }
-                    else if (e == API_ETOOMANY)
+                    else if (*pendingsc->in.c_str() == '{')
                     {
-                        LOG_warn << "Too many pending updates - reloading local state";
+                        insca = false;
+                        insca_notlast = false;
+                        mIsScJsonParsedDone = true;
+                        
+                        jsonsc.begin(pendingsc->in.c_str());
+                        jsonsc.enterobject();
+                        procsc();
                         app->notify_network_activity(NetworkActivityChannel::SC,
                                                      NetworkActivityType::REQUEST_RECEIVED,
-                                                     e);
+                                                     API_OK);
+                        break;
+                    }
+                    else
+                    {
+                        error e = (error)atoi(pendingsc->in.c_str());
+                        if ((e == API_ESID) || (e == API_ENOENT && loggedIntoFolder()))
+                        {
+                            app->request_error(e);
+                            scsn.stopScsn();
+                            app->notify_network_activity(NetworkActivityChannel::SC,
+                                                         NetworkActivityType::REQUEST_RECEIVED,
+                                                         e);
+                        }
+                        else if (e == API_ETOOMANY)
+                        {
+                            LOG_warn << "Too many pending updates - reloading local state";
+                            app->notify_network_activity(NetworkActivityChannel::SC,
+                                                         NetworkActivityType::REQUEST_RECEIVED,
+                                                         e);
 
                         // Stop the sc channel to prevent the reception of multiple
                         // API_ETOOMANY errors causing multiple consecutive reloads
@@ -3394,31 +3407,56 @@ void MegaClient::exec()
                 }
                 break;
 
-            case REQ_INFLIGHT:
-                if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
-                {
-                    LOG_debug << clientname << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
-                    // In almost all cases the server won't take more than SCREQUESTTIMEOUT seconds.  But if it does, break the cycle of endless requests for the same thing
-                    pendingscTimedOut = true;
-                    pendingsc.reset();
-                    btsc.reset();
-                }
-                break;
-            default:
-                break;
+                case REQ_INFLIGHT:
+                    if (!pendingscTimedOut &&
+                        Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
+                    {
+                        LOG_debug << clientname << "sc timeout expired at ds: " << Waiter::ds
+                                  << " and lastdata ds: " << pendingsc->lastdata;
+                        // In almost all cases the server won't take more than SCREQUESTTIMEOUT
+                        // seconds.  But if it does, break the cycle of endless requests for the
+                        // same thing
+                        pendingscTimedOut = true;
+                        pendingsc.reset();
+                        btsc.reset();
+                        
+                    }
+
+                    if (pendingsc->bufpos > pendingsc->notifiedbufpos)
+                    {
+                        mIsScResponseSplitted = true;
+                        if (!jsonsc.pos)
+                        {
+                            insca = false;
+                            insca_notlast = false;
+                        }
+                        jsonsc.begin(pendingsc->in.c_str() + mScJsonConsumedBytes);
+                        procscByChunk(pendingsc->in.data());
+                        std::cout << "pendingsc receive part of data from service." << std::endl;
+                        pendingsc->notifiedbufpos = pendingsc->bufpos;
+                    }
+                    
+                    break;
+
+                default:
+                    break;
             }
         }
 
-        if (!scpaused && jsonsc.pos)
+
+        
+
+        if (!scpaused && jsonsc.pos && mIsScJsonParsedDone)
         {
             // FIXME: reload in case of bad JSON
-            if (procsc())
+            //if (procsc())
             {
                 // completed - initiate next SC request
                 jsonsc.pos = nullptr;
                 pendingsc.reset();
                 btsc.reset();
-
+                mScJsonConsumedBytes = 0;
+                mIsScJsonParsedDone = false;
                 // upon reception of action packets, if the cs request is waiting for a retry
                 // and it failed due to -3 or -4 error from API, we can abort the backoff
                 if (reqs.retryReasonIsApi())
@@ -3480,9 +3518,10 @@ void MegaClient::exec()
                 {
                     pendingsc->posturl.append(getPartialAPs());
                 }
-
+                pendingsc->mChunked = !isClientType(ClientType::VPN);
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
+                std::cout << "pendingsc send request. "<<std::endl;
                 app->notify_network_activity(NetworkActivityChannel::SC,
                                              NetworkActivityType::REQUEST_SENT,
                                              API_OK);
@@ -5456,9 +5495,198 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
     }
 }
 
-// process server-client request
-bool MegaClient::procsc()
+
+
+bool MegaClient::procscByChunk(const char* pData) 
 {
+    std::cout << "MegaClient::procscByChunk is called with consumed bytes is "
+              << mScJsonConsumedBytes<<std::endl;
+    if (nullptr == pData)
+    {
+        return false;
+    }
+
+    pData += mScJsonConsumedBytes;
+    const char* pOriginalData = pData;
+    if (*pOriginalData == ',')
+    {
+        ++pOriginalData;
+        mScJsonConsumedBytes++;
+    }
+
+    pJsonCurrentEnd = pData;
+    static std::vector<char> bracketStack;
+    
+    while (*pData)
+    {
+        if (mIsInScJsonArray)
+        {
+            processVectorData(pData);
+        }
+        else
+        {
+            char c = *pData;
+            if (c == '{')
+            {
+                if (!mIsScJsonParseStarted)
+                {
+                    pOriginalData++;
+                    mScJsonConsumedBytes++;
+                    jsonsc.enterobject();
+                    mIsScJsonParseStarted = true;
+                }
+                pData++;
+            }
+            else if (c == '}')
+            {
+                // we have parsed all the Json
+                if (bracketStack.empty())
+                {
+                    pJsonCurrentEnd = pData;
+                }
+
+                mIsScJsonParsedDone = true;
+                mIsScJsonParseStarted = false;
+                mIsInScJsonArray = false;
+                break;
+            }
+            else if (c == ',')
+            {
+                if (bracketStack.empty())
+                {
+                    pJsonCurrentEnd = pData;
+                }
+
+                pData++;
+            }
+            else if (c == '"')
+            {
+                int t = strEnd(pData);
+                if (t < 0)
+                {
+                    break;
+                }
+
+                if (!pData[t])
+                {
+                    break;
+                }
+
+                if (pData[t] == ':')
+                {
+                    std::string attrName = std::string(pData + 1, static_cast<size_t>(t - 2));
+                    pData += t + 1;
+                    if (attrName == "a")
+                    {
+                        mIsInScJsonArray = true;
+                        if (!processVectorData(pData))
+                        {
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    pData += t;
+                }
+            }
+            else
+            {
+                pData++;
+            }
+        }
+    }
+
+    if (!mIsScJsonParsedDone && !mIsInScJsonArray)
+    {
+        // json string is not complete, move pJsonCurrentEnd to the next char after ","
+        if (*(pJsonCurrentEnd + 1))
+        {
+            pJsonCurrentEnd++;
+        }
+    }
+
+    mScJsonConsumedBytes += (pJsonCurrentEnd - pOriginalData + 1);
+
+    if (mIsScJsonParsedDone)
+    {
+        pJsonCurrentEnd = nullptr;
+    }
+    return procsc(pJsonCurrentEnd - pOriginalData);
+}
+
+bool MegaClient::processVectorData(const char*& pData) {
+    std::vector<char> bracketVec;
+    while (*pData)
+    {
+        char c = *pData;
+        if (c == '{')
+        {
+            bracketVec.push_back(c);
+            pData++;
+        }
+        else if (c == '}')
+        {
+            bracketVec.pop_back();
+            if (bracketVec.empty())
+            {
+                pJsonCurrentEnd = pData;
+            }
+            pData++;
+        }
+        else if (c == ']')
+        {
+            pData++;
+            if (bracketVec.empty())
+            {
+                pJsonCurrentEnd = pData;
+                mIsInScJsonArray = false;
+                return true;
+            }
+        }
+        else if (c == '"')
+        {
+            int t = strEnd(pData);
+            if (t < 0)
+            {
+                break;
+            }
+            pData += t;
+        }
+        else
+        {
+            pData++;
+        }
+    }
+
+    return false;
+
+}
+
+int MegaClient::strEnd(const char* pPos)
+{
+    const char* ptr = pPos;
+    while ((ptr = strchr(ptr + 1, '"')) != nullptr)
+    {
+        const char* e = ptr;
+        while (*(--e) == '\\')
+        {
+            // noop
+        }
+
+        if ((ptr - e) & 1)
+        {
+            return int(ptr + 1 - pPos);
+        }
+    }
+
+    return -1;
+}
+
+// process server-client request
+bool MegaClient::procsc(const m_off_t validJsonBytes)
+{
+    const char* pOriginalPos = jsonsc.pos;
     // prevent the sync thread from looking things up while we change the tree
     std::unique_lock<recursive_mutex> nodeTreeIsChanging(nodeTreeMutex);
 
@@ -5957,6 +6185,13 @@ bool MegaClient::procsc()
                     }
                 }
 
+                m_off_t count = jsonsc.pos - pOriginalPos;
+
+                if (validJsonBytes >0 && count == validJsonBytes) // we have processed expected json
+                                                           // string, so we need return here.
+                {
+                    return false;
+                }
                 jsonsc.leaveobject();
             }
             else
@@ -5967,6 +6202,7 @@ bool MegaClient::procsc()
                 // with the latest AP processed here.
                 sc_checkSequenceTag(string());
                 jsonsc.leavearray();
+                std::cout << "Received action packets amount is  " << fnstats.actionPackets<< std::endl;
                 insca = false;
             }
         }

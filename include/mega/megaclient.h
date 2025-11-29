@@ -2475,7 +2475,19 @@ public:
 
     void handleauth(handle, byte*);
 
-    bool procsc();
+    bool procsc(const m_off_t validJsonBytes = 0);
+    bool procscByChunk(const char* pData);
+    bool processVectorData(const char*& pData);
+    int  strEnd(const char* pPos);
+
+    bool    mIsScResponseSplitted = false;
+    bool    mIsScJsonParseStarted = false;
+    const   char* pJsonCurrentEnd = nullptr;
+    m_off_t mScJsonConsumedBytes = 0;
+    bool    mIsScJsonParsedDone = false;
+    bool    mIsInScJsonArray = false;
+
+
     size_t procreqstat();
 
     // API warnings
