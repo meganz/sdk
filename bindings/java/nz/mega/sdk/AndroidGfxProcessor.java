@@ -44,6 +44,21 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         }
     }
 
+    // Return file extensions for all supported formats: images,videos,pdf and etc, must end with .
+    public String supportedImageFormats() {
+        return ".jpg.png.bmp.jpeg.cut.dds.g3.gif.hdr.ico.iff.ilbm" +
+                ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pds.raw.3fr.ari" +
+                ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw" +
+                ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga" +
+                ".xbm.xpm.jp2.j2k.jpf.jpx.webp" +
+                ".cur.heic.jc2.pnm.psd.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.jxl.avif.pdf.";
+    }
+
+    // Return null to skip extra checking
+    public String supportedVideoFormats() {
+        return null;
+    }
+
     public static boolean isVideoFile(String path) {
         try {
             String mimeType = URLConnection.guessContentTypeFromName(path);
