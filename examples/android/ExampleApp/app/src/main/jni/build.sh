@@ -92,14 +92,6 @@ CURL_SOURCE_FOLDER=curl-${CURL_VERSION}
 CURL_DOWNLOAD_URL=http://curl.haxx.se/download/${CURL_SOURCE_FILE}
 CURL_SHA1="5ff2ecaa4a68ecc06434644ce76d9837e99e7d1d"
 
-C_ARES_VERSION=1.19.1
-C_ARES_VERSION2=1_19_1
-ARES_SOURCE_FILE=c-ares-${C_ARES_VERSION}.tar.gz
-ARES_SOURCE_FOLDER=c-ares-${C_ARES_VERSION}
-ARES_CONFIGURED=${CURL}/${ARES_SOURCE_FOLDER}/Makefile.inc
-ARES_DOWNLOAD_URL=https://github.com/c-ares/c-ares/releases/download/cares-${C_ARES_VERSION2}/${ARES_SOURCE_FILE}
-ARES_SHA1="99566278e4ed4b261891aa62c8b88227bf1a2823"
-
 CRASHLYTICS=crashlytics
 CRASHLYTICS_DOWNLOAD_URL=https://raw.githubusercontent.com/firebase/firebase-android-sdk/master/firebase-crashlytics-ndk/src/main/jni/libcrashlytics/include/crashlytics/external/crashlytics.h
 CRASHLYTICS_DOWNLOAD_URL_C=https://raw.githubusercontent.com/firebase/firebase-android-sdk/8f02834e94f8b24a7cf0f777562cad73c6b9a40f/firebase-crashlytics-ndk/src/main/jni/libcrashlytics/include/crashlytics/external/crashlytics.h
@@ -306,8 +298,6 @@ if [ "$1" == "clean" ]; then
     rm -rf ${SQLITE_SOURCE_FOLDER} ${SQLITE}/${SQLITE_BASE_NAME}
     rm -rf ${CURL}/${CURL_SOURCE_FOLDER}
     rm -rf ${CURL}/${CURL}
-    rm -rf ${CURL}/${ARES_SOURCE_FOLDER}
-    rm -rf ${CURL}/ares
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FOLDER}
     rm -rf ${OPENSSL}/${OPENSSL}
     rm -rf ${CRASHLYTICS_DEST_PATH}/${CRASHLYTICS_SOURCE_FILE}
@@ -329,10 +319,9 @@ if [ "$1" == "clean" ]; then
     rm -rf ${SQLITE}/${SQLITE_SOURCE_FILE}
     rm -rf ${SQLITE}/${SQLITE_SOURCE_FILE}.ready
     rm -rf ${CURL}/${CURL_SOURCE_FILE}
-    rm -rf ${CURL}/${ARES_SOURCE_FILE}
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}
-	  rm -rf ${CURL}/${CURL_SOURCE_FILE}.ready
-	  rm -rf ${CURL}/${CRASHLYTICS_SOURCE_FILE}.ready
+    rm -rf ${CURL}/${CURL_SOURCE_FILE}.ready
+    rm -rf ${CURL}/${CRASHLYTICS_SOURCE_FILE}.ready
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready
     rm -rf ${SODIUM}/${SODIUM_SOURCE_FILE}
     rm -rf ${SODIUM}/${SODIUM_SOURCE_FILE}.ready
@@ -553,32 +542,20 @@ if [ ! -f ${CURL}/${CURL_SOURCE_FILE}.ready ]; then
     downloadCheckAndUnpack ${CURL_DOWNLOAD_URL} ${CURL}/${CURL_SOURCE_FILE} ${CURL_SHA1} ${CURL}
     ln -sf ${CURL_SOURCE_FOLDER} ${CURL}/${CURL}
 
-    echo "* Setting up c-ares"
-    downloadCheckAndUnpack ${ARES_DOWNLOAD_URL} ${CURL}/${ARES_SOURCE_FILE} ${ARES_SHA1} ${CURL}
-    ln -sf ${ARES_SOURCE_FOLDER} ${CURL}/ares
-
     for ABI in ${BUILD_ARCHS}; do
         echo "* Prebuilding cURL for ${ABI}"
 
         setupEnv "${ABI}"
 
-	    if [ "${ABI}" == "armeabi-v7a" ]; then
-	        SSL_SUFFIX="openssl-android-armeabi-v7a"
-	    elif [ "${ABI}" == "arm64-v8a" ]; then
-	        SSL_SUFFIX="openssl-android-arm64-v8a"
-	    elif [ "${ABI}" == "x86_64" ]; then
-	        SSL_SUFFIX="openssl-android-x86_64"
-	    else
-	        SSL_SUFFIX="openssl-android-x86"
-	    fi
-
-
-        pushd ${CURL}/ares &>> ${LOG_FILE}
-        LDFLAGS+="-Wl,-z,max-page-size=16384" ./configure --host "${TARGET_HOST}" --with-pic --disable-shared --prefix="${BASE_PATH}/${CURL}"/ares/ares-android-${ABI} &>> ${LOG_FILE}
-        make clean &>> ${LOG_FILE}
-        make -j${JOBS} &>> ${LOG_FILE}
-        make install &>> ${LOG_FILE}
-        popd &>> ${LOG_FILE}
+        if [ "${ABI}" == "armeabi-v7a" ]; then
+            SSL_SUFFIX="openssl-android-armeabi-v7a"
+        elif [ "${ABI}" == "arm64-v8a" ]; then
+            SSL_SUFFIX="openssl-android-arm64-v8a"
+        elif [ "${ABI}" == "x86_64" ]; then
+            SSL_SUFFIX="openssl-android-x86_64"
+        else
+            SSL_SUFFIX="openssl-android-x86"
+        fi
 
         pushd ${CURL}/${CURL} &>> ${LOG_FILE}
 
