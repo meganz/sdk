@@ -127,7 +127,7 @@ To run the example app `megacli`, go to the `examples/megacli` directory in the 
 
 ### Android
 
-- Android 8.0
+- Android 9.0
 
 ### DMS
 
