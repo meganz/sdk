@@ -2892,7 +2892,7 @@ public:
         --stack->filesLeft;
         if (!stack->empty())
         {
-            client->reqs.add(new FileFindCommand(stack, client));
+            client->queueCommand(new FileFindCommand(stack, client));
         }
         else if (!stack->filesLeft)
         {
@@ -2947,7 +2947,7 @@ void exec_find(autocomplete::ACState& s)
             {
                 for (int i = 0; i < 25 && !q->empty(); ++i)
                 {
-                    client->reqs.add(new FileFindCommand(q, client));
+                    client->queueCommand(new FileFindCommand(q, client));
                 }
             }
         }
@@ -4115,14 +4115,17 @@ void exec_backupcentre(autocomplete::ACState& s)
                 {
                     if (purgeFlag)
                     {
-                        client->reqs.add(new CommandBackupRemove(client, d.backupId,[&](Error e)
-                        {
-                            if (e)
+                        client->queueCommand(new CommandBackupRemove(
+                            client,
+                            d.backupId,
+                            [&](Error e)
                             {
-                                cout << "Backup Center - failed to purge id: " << toHandle(d.backupId) << endl;
-                            }
-                        }));
-
+                                if (e)
+                                {
+                                    cout << "Backup Center - failed to purge id: "
+                                         << toHandle(d.backupId) << endl;
+                                }
+                            }));
                     }
                     else
                     {
@@ -6580,7 +6583,7 @@ void exec_get(autocomplete::ACState& s)
         {
             cout << "Checking link..." << endl;
 
-            client->mReqsLockless.add(new CommandGetFile(
+            client->queueCommand(new CommandGetFile(
                 client,
                 key,
                 FILENODEKEYLENGTH,
@@ -11873,13 +11876,13 @@ void exec_banner(autocomplete::ACState& s)
     {
         cout << "Retrieving banner info..." << endl;
 
-        client->reqs.add(new CommandGetBanners(client));
+        client->queueCommand(new CommandGetBanners(client));
     }
     else if (s.words.size() == 3 && s.words[1].s == "dismiss")
     {
         cout << "Dismissing banner with id " << s.words[2].s << "..." << endl;
 
-        client->reqs.add(new CommandDismissBanner(client, stoi(s.words[2].s), m_time(nullptr)));
+        client->queueCommand(new CommandDismissBanner(client, stoi(s.words[2].s), m_time(nullptr)));
     }
 }
 

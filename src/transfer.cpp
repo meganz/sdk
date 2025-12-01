@@ -1353,7 +1353,7 @@ void DirectReadNode::dispatch()
         if (!pendingcmd)
         {
             pendingcmd = new CommandDirectRead(client, this);
-            client->reqs.add(pendingcmd);
+            client->queueCommand(pendingcmd);
         }
     }
 }

@@ -281,7 +281,7 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
         syncs.queueClient(
             [currentInfo](MegaClient& mc, DBTableTransactionCommitter&)
             {
-                mc.reqs.add(new CommandBackupPut(&mc, currentInfo, nullptr));
+                mc.queueCommand(new CommandBackupPut(&mc, currentInfo, nullptr));
             });
     }
     us.mBackupInfo = std::make_unique<BackupInfoSync>(currentInfo);
@@ -379,18 +379,18 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         syncs.queueClient(
             [=](MegaClient& mc, DBTableTransactionCommitter&)
             {
-                mc.reqs.add(new CommandBackupPutHeartBeat(&mc,
-                                                          backupId,
-                                                          status,
-                                                          static_cast<int8_t>(progress),
-                                                          pendingUps,
-                                                          pendingDowns,
-                                                          lastAction,
-                                                          lastItemUpdated,
-                                                          [hbs](Error)
-                                                          {
-                                                              hbs->mSending = false;
-                                                          }));
+                mc.queueCommand(new CommandBackupPutHeartBeat(&mc,
+                                                              backupId,
+                                                              status,
+                                                              static_cast<int8_t>(progress),
+                                                              pendingUps,
+                                                              pendingDowns,
+                                                              lastAction,
+                                                              lastItemUpdated,
+                                                              [hbs](Error)
+                                                              {
+                                                                  hbs->mSending = false;
+                                                              }));
             });
 
         if (progress >= 100)

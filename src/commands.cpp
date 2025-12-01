@@ -603,6 +603,8 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     {
         arg("ssl", 2);
     }
+
+    mLockless = true;
 }
 
 void CommandDirectRead::cancel()
@@ -6467,10 +6469,13 @@ CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, int
 
     ph = cph;
     havekey = ckey ? true : false;
+
     if (havekey)
     {
         memcpy(key, ckey, sizeof key);
     }
+
+    mLockless = true;
     tag = client->reqtag;
     op = cop;
 }

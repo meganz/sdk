@@ -3411,6 +3411,11 @@ public:
         unsigned int gatewayId,
         CommandGetSubscriptionCancellationDetails::CompletionCallback&& completion);
 
+    // Queue a CS command for transmission.
+    //
+    // This function takes ownership of its command parameter.
+    void queueCommand(Command* command);
+
     // Client adapter.
     common::ClientAdapter mClientAdapter;
 

@@ -5686,7 +5686,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
             // Create and initiate request.
             auto* request = new CommandBackupPut(&client, info, std::move(completion));
-            client.reqs.add(request);
+            client.queueCommand(request);
         }
 
         static void putComplete(ContextPtr context, Error result, handle backupID)
@@ -5716,7 +5716,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                 for ( ; i != j; ++i)
                 {
                     auto* request = new CommandBackupRemove(&client, i->mBackupId, nullptr);
-                    client.reqs.add(request);
+                    client.queueCommand(request);
                     // don't wait for the cleanup to notify the client about failure of import
                     // (error/success of cleanup is irrelevant for the app)
                 }
@@ -6971,10 +6971,15 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
     }
 
     // use queueClient since we are not certain to be locked on client thread
-    queueClient([backupId, completion, this, clientRemoveSdsEntryFunction](MegaClient& mc, TransferDbCommitter&){
-
-        mc.reqs.add(new CommandBackupRemove(&mc, backupId,
-                [backupId, completion, this, clientRemoveSdsEntryFunction](Error e){
+    queueClient(
+        [backupId, completion, this, clientRemoveSdsEntryFunction](MegaClient& mc,
+                                                                   TransferDbCommitter&)
+        {
+            mc.queueCommand(new CommandBackupRemove(
+                &mc,
+                backupId,
+                [backupId, completion, this, clientRemoveSdsEntryFunction](Error e)
+                {
                     if (e)
                     {
                         // de-registering is not critical - we continue anyway
@@ -6990,8 +6995,8 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
                         },
                         "deregisterThenRemoveSync");
                 }));
-    }, true);
-
+        },
+        true);
 }
 
 void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
@@ -7097,13 +7102,13 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
             queueClient(
                 [backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter&)
                 {
-                    mc.reqs.add(new CommandBackupRemove(&mc,
-                                                        backupId,
-                                                        [onFinalDeregister](Error)
-                                                        {
-                                                            if (onFinalDeregister)
-                                                                onFinalDeregister();
-                                                        }));
+                    mc.queueCommand(new CommandBackupRemove(&mc,
+                                                            backupId,
+                                                            [onFinalDeregister](Error)
+                                                            {
+                                                                if (onFinalDeregister)
+                                                                    onFinalDeregister();
+                                                            }));
                 });
         }
     }
