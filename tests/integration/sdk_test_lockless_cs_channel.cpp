@@ -3,6 +3,7 @@
  * @brief This file defines tests for the lockless CS channel
  */
 
+#include "env_var_accounts.h"
 #include "integration_test_utils.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
@@ -16,11 +17,6 @@ using namespace testing;
 class SdkTestLocklessCSChannel: public SdkTestNodesSetUp
 {
 public:
-    unsigned int getNumClients() const override
-    {
-        return 2;
-    }
-
     const std::string& getRootTestDir() const override
     {
         return rootTestDir;
@@ -100,18 +96,17 @@ TEST_F(SdkTestLocklessCSChannel, DownloadFile)
 
 TEST_F(SdkTestLocklessCSChannel, ImportFileLink)
 {
-    // Address our clients more easily.
-    auto& clientS = *megaApi[0];
-    auto& clientT = *megaApi[1];
+    // Convenience.
+    auto& client = *megaApi[0];
 
     // Try and locate the node we want to share.
     auto source = getNodeByPath("remoteTestFile");
     ASSERT_TRUE(source) << "Couldn't locate test file";
 
     // Try and generate a public link for our node.
-    NiceMock<MockRequestListener> exportTracker(&clientS);
+    NiceMock<MockRequestListener> exportTracker(&client);
 
-    clientS.exportNode(source.get(), 0, false, false, &exportTracker);
+    client.exportNode(source.get(), 0, false, false, &exportTracker);
 
     ASSERT_TRUE(exportTracker.waitForFinishOrTimeout(MAX_TIMEOUT))
         << "Couldn't generate public link for test file";
@@ -124,8 +119,20 @@ TEST_F(SdkTestLocklessCSChannel, ImportFileLink)
     auto link = makeUniqueFrom(source->getPublicLink());
     ASSERT_TRUE(link) << "Couldn't retrieve public link for test file";
 
+    // Log our client into a different account so we can import the link.
+    ASSERT_NO_FATAL_FAILURE(locallogout(0));
+
+    auto [username, password] = getEnvVarAccounts().getVarValues(1);
+    ASSERT_FALSE(username.empty());
+    ASSERT_FALSE(password.empty());
+
+    auto loginTracker = asyncRequestLogin(0, username.c_str(), password.c_str());
+    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Couldn't log in client as " << username;
+
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
     // Get our hands on the target client's root node.
-    auto target = makeUniqueFrom(clientT.getRootNode());
+    auto target = makeUniqueFrom(client.getRootNode());
     ASSERT_TRUE(target) << "Couldn't get target client's root node";
 
     // So we know whether the import below used the lockless CS channel.
@@ -134,9 +141,9 @@ TEST_F(SdkTestLocklessCSChannel, ImportFileLink)
     globalMegaTestHooks.interceptLocklessCSRequest = commandChecker("g", usedLocklessChannel);
 
     // Try and import the node into our second client.
-    NiceMock<MockRequestListener> importTracker(&clientT);
+    NiceMock<MockRequestListener> importTracker(&client);
 
-    clientT.importFileLink(link.get(), target.get(), &importTracker);
+    client.importFileLink(link.get(), target.get(), &importTracker);
 
     ASSERT_TRUE(importTracker.waitForFinishOrTimeout(MAX_TIMEOUT))
         << "Couldn't import test file into target client";
