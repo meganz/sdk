@@ -24870,6 +24870,19 @@ void MegaClient::getSubscriptionCancellationDetails(
                                                                std::move(completion)));
 }
 
+void MegaClient::queueCommand(Command* command)
+{
+    // Sanity.
+    assert(command);
+
+    // Transmit lockless commands on the lockless CS channel.
+    if (command->isLockless())
+        return mReqsLockless.add(command);
+
+    // Transmit lockfull commands on the standard CS channel.
+    reqs.add(command);
+}
+
 void MegaClient::processHashcashSendevent()
 {
     const auto retryGencash = retryGencashData();
@@ -24927,19 +24940,6 @@ void MegaClient::setMegaURL(const std::string& url)
 {
     std::unique_lock lock(megaUrlMutex);
     MEGAURL = url;
-}
-
-void MegaClient::queueCommand(Command* command)
-{
-    // Sanity.
-    assert(command);
-
-    // Transmit lockless commands on the lockless CS channel.
-    if (command->isLockless())
-        return mReqsLockless.add(command);
-
-    // Transmit lockfull commands on the standard CS channel.
-    reqs.add(command);
 }
 
 } // namespace
