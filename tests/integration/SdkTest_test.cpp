@@ -1028,21 +1028,193 @@ void SdkTest::cleanupChatrooms(const unsigned int nApi)
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
+void SdkTest::createChat(bool group, MegaTextChatPeerList* peers, bool isPublicChat, int timeout)
 {
     size_t apiIndex = 0;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
-    megaApi[0]->createChat(group, peers);
-    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE],
+    PerApi& target = mApi[apiIndex];
+    target.requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
+
+    if (!isPublicChat)
+    {
+        megaApi[apiIndex]->createChat(group, peers);
+    }
+    else
+    {
+        const std::unique_ptr<MegaStringMap> userKeyMap(MegaStringMap::createInstance());
+
+        const std::unique_ptr<char[]> ownHandleB64{megaApi[apiIndex]->getMyUserHandle()};
+        userKeyMap->set(ownHandleB64.get(), Base64::btoa("dummy_owner_key").data());
+
+        const auto peerHandleB64 = Base64Str<MegaClient::USERHANDLE>(peers->getPeerHandle(0));
+        userKeyMap->set(peerHandleB64, Base64::btoa("dummy_peer_key").data());
+
+        megaApi[apiIndex]->createPublicChat(peers, userKeyMap.get());
+    }
+
+    waitForResponse(&target.requestFlags[MegaRequest::TYPE_CHAT_CREATE],
                     static_cast<unsigned>(timeout));
     if (timeout)
     {
-        ASSERT_TRUE(mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE])
+        ASSERT_TRUE(target.requestFlags[MegaRequest::TYPE_CHAT_CREATE])
             << "Chat creation not finished after " << timeout << " seconds";
     }
 
-    ASSERT_EQ(API_OK, mApi[apiIndex].lastError)
+    ASSERT_EQ(API_OK, target.lastError)
         << "Chat creation failed (error: " << mApi[static_cast<size_t>(apiIndex)].lastError << ")";
+}
+
+void SdkTest::testChat(bool isPublicChat)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // --- Send a new contact request ---
+
+    string message = "Hi contact. This is a testing message";
+
+    mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(
+        inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(
+        waitForResponse(&mApi[1].contactRequestUpdated)) // at the target side (auxiliar account)
+        << "Contact request update not received after " << maxTimeout << " seconds";
+    // if there were too many invitations within a short period of time, the invitation can be
+    // rejected by the API with `API_EOVERQUOTA = -17` as counter spamming meassure (+500 invites in
+    // the last 50 days)
+
+    // --- Accept a contact invitation ---
+
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
+
+    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(
+        replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_TRUE(
+        waitForResponse(&mApi[1].contactRequestUpdated)) // at the target side (auxiliar account)
+        << "Contact request update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(
+        waitForResponse(&mApi[0].contactRequestUpdated)) // at the target side (main account)
+        << "Contact request update not received after " << maxTimeout << " seconds";
+
+    mApi[1].cr.reset();
+
+    // --- Check list of available chats --- (fetch is done at SetUp())
+
+    size_t numChats =
+        mApi[0].chats.size(); // permanent chats cannot be deleted, so they're kept forever
+
+    // --- Create a group chat ---
+
+    handle h = megaApi[1]->getMyUserHandleBinary();
+    MegaTextChatPeerList* peers =
+        MegaTextChatPeerList::createInstance(); // new MegaTextChatPeerListPrivate();
+    peers->addPeer(h, PRIV_STANDARD);
+    bool group = true;
+
+    mApi[1].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
+    ASSERT_NO_FATAL_FAILURE(createChat(group, peers, isPublicChat));
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]))
+        << "Cannot create a new chat";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Chat creation failed (error: " << mApi[0].lastError << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[1].chatUpdated)) // at the target side (auxiliar account)
+        << "Chat update not received after " << maxTimeout << " seconds";
+
+    MegaHandle chatid = mApi[0].chatid; // set at onRequestFinish() of chat creation request
+
+    delete peers;
+
+    // check the new chat information
+    ASSERT_EQ(mApi[0].chats.size(), ++numChats) << "Unexpected received number of chats";
+    ASSERT_TRUE(mApi[1].chatUpdated) << "The peer didn't receive notification of the chat creation";
+
+    // --- Remove a peer from the chat ---
+
+    mApi[1].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_REMOVE] = false;
+    megaApi[0]->removeFromChat(chatid, h);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_REMOVE]))
+        << "Chat remove failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Removal of chat peer failed (error: " << mApi[0].lastError << ")";
+    int numpeers =
+        mApi[0].chats[chatid]->getPeerList() ? mApi[0].chats[chatid]->getPeerList()->size() : 0;
+    ASSERT_EQ(numpeers, 0) << "Wrong number of peers in the list of peers";
+    ASSERT_TRUE(waitForResponse(&mApi[1].chatUpdated)) // at the target side (auxiliar account)
+        << "Didn't receive notification of the peer removal after " << maxTimeout << " seconds";
+
+    // --- Invite a contact to a chat ---
+
+    mApi[1].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_INVITE] = false;
+
+    if (!isPublicChat)
+    {
+        megaApi[0]->inviteToChat(chatid, h, PRIV_STANDARD);
+    }
+    else
+    {
+        megaApi[0]->inviteToPublicChat(chatid, h, PRIV_STANDARD, "test_key");
+    }
+
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_INVITE]))
+        << "Chat invitation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Invitation of chat peer failed (error: " << mApi[0].lastError << ")";
+    numpeers =
+        mApi[0].chats[chatid]->getPeerList() ? mApi[0].chats[chatid]->getPeerList()->size() : 0;
+    ASSERT_EQ(numpeers, 1) << "Wrong number of peers in the list of peers";
+    ASSERT_TRUE(waitForResponse(&mApi[1].chatUpdated)) // at the target side (auxiliar account)
+        << "The peer didn't receive notification of the invitation after " << maxTimeout
+        << " seconds";
+
+    // --- Get the user-specific URL for the chat ---
+
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_URL] = false;
+    megaApi[0]->getUrlChat(chatid);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_URL]))
+        << "Retrieval of chat URL failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Retrieval of chat URL failed (error: " << mApi[0].lastError << ")";
+
+    // --- Update Permissions of an existing peer in the chat
+
+    mApi[1].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS] = false;
+    megaApi[0]->updateChatPermissions(chatid, h, PRIV_RO);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS]))
+        << "Update chat permissions failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Update of chat permissions failed (error: " << mApi[0].lastError << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[1].chatUpdated)) // at the target side (auxiliar account)
+        << "The peer didn't receive notification of the invitation after " << maxTimeout
+        << " seconds";
+
+    // --- Archive the chat
+
+    mApi[0].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_ARCHIVE] = false;
+    ASSERT_NO_FATAL_FAILURE(megaApi[0]->archiveChat(chatid, 1));
+    ASSERT_EQ(API_OK, mApi[0].lastError) << "Archive failed (error: " << mApi[0].lastError << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_ARCHIVE]))
+        << "Cannot archive a chat";
+    ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated))
+        << "Chat update not received after " << maxTimeout << " seconds";
+
+    if (!isPublicChat)
+    {
+        // --- Create 1on1 chat with self
+        megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
+        mApi[0].chatUpdated = false;
+        mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
+        ASSERT_NO_FATAL_FAILURE(createChat(false, nullptr));
+        ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]))
+            << "Cannot create a new chat with self";
+        ASSERT_EQ(API_OK, mApi[0].lastError)
+            << "Chat-with-self creation failed (error: " << mApi[0].lastError << ")";
+        ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated)) // at the target side (auxiliar account)
+            << "Chat update not received after " << maxTimeout << " seconds";
+    }
 }
 
 /**
@@ -1061,6 +1233,7 @@ static std::set<MegaHandle> peerListToHandleSet(const MegaTextChatPeerList *peer
 MegaHandle SdkTest::createChatWithChecks(const unsigned int creatorIndex,
                                          const std::vector<unsigned int>& invitedIndices,
                                          const bool group,
+                                         const bool isPublicChat,
                                          const unsigned int timeout_sec)
 {
     std::unique_ptr<MegaTextChatPeerList> invitedPeers(MegaTextChatPeerList::createInstance());
@@ -1118,7 +1291,24 @@ MegaHandle SdkTest::createChatWithChecks(const unsigned int creatorIndex,
 
     // Check that the chatid is properly set in the onRequestFinish callback. Set initial value
     mApi[creatorIndex].chatid = INVALID_HANDLE;
-    megaApi[creatorIndex]->createChat(group, invitedPeers.get());
+
+    if (!isPublicChat)
+    {
+        megaApi[creatorIndex]->createChat(group, invitedPeers.get());
+    }
+    else
+    {
+        const std::unique_ptr<MegaStringMap> userKeyMap(MegaStringMap::createInstance());
+
+        const std::unique_ptr<char[]> ownHandleB64{megaApi[creatorIndex]->getMyUserHandle()};
+        userKeyMap->set(ownHandleB64.get(), Base64::btoa("dummy_owner_key").data());
+
+        const auto peerHandleB64 =
+            Base64Str<MegaClient::USERHANDLE>(invitedPeers->getPeerHandle(0));
+        userKeyMap->set(peerHandleB64, Base64::btoa("dummy_peer_key").data());
+
+        megaApi[creatorIndex]->createPublicChat(invitedPeers.get(), userKeyMap.get());
+    }
 
     bool hasRequestFinished = waitForEvent(
         [this, creatorIndex]()
@@ -1144,9 +1334,83 @@ MegaHandle SdkTest::createChatWithChecks(const unsigned int creatorIndex,
     }
     return mApi[creatorIndex].chatid;
 }
+
+MegaHandle SdkTest::getCommander()
+{
+    MegaHandle handle;
+
+    // In open chats the access is granted to a special user (API_USER / COMMANDER = gTxFhlOd_LQ) in
+    // order to allow any current/future participant and/or any previewer to access to the node.
+    std::string commander{"gTxFhlOd_LQ"};
+    commander = Base64::atob(commander);
+    memcpy(&handle, commander.data(), sizeof(handle));
+
+    return handle;
+}
+
+void SdkTest::testGiveRemoveChatAccess(bool isPublicChat)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    const unsigned int host = 0;
+    const unsigned int guest = 1;
+    mApi[host].chats.clear();
+    mApi[guest].chats.clear();
+
+    // Send and accept a new contact request
+    string message = "Hi contact. This is a testing message";
+    inviteTestAccount(host, guest, message);
+
+    // Create chat between new contacts
+    MegaHandle chatId = createChatWithChecks(0, {1}, true, isPublicChat);
+    ASSERT_NE(chatId, INVALID_HANDLE) << "Something went wrong when creating the group chat room";
+
+    // Update test file
+
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
+    std::unique_ptr<MegaNode> rootnode{megaApi[host]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr);
+    MegaHandle fileHandle = UNDEF;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(host,
+                            &fileHandle,
+                            PUBLICFILE.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
+    std::unique_ptr<MegaNode> fileNode(megaApi[host]->getNodeByHandle(fileHandle));
+
+    // Grant access to guest
+
+    MegaHandle targetUserHandle =
+        isPublicChat ? getCommander() : megaApi[guest]->getMyUser()->getHandle();
+
+    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, targetUserHandle));
+    RequestTracker requestTrackerGrantAccess(megaApi[host].get());
+    megaApi[host]->grantAccessInChat(chatId,
+                                     fileNode.get(),
+                                     targetUserHandle,
+                                     &requestTrackerGrantAccess);
+    ASSERT_EQ(API_OK, requestTrackerGrantAccess.waitForResult());
+    ASSERT_TRUE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, targetUserHandle));
+
+    // Remove access to guest
+
+    RequestTracker requestTrackerRemoveAccess(megaApi[host].get());
+    megaApi[host]->removeAccessInChat(chatId,
+                                      fileNode.get(),
+                                      targetUserHandle,
+                                      &requestTrackerRemoveAccess);
+    ASSERT_EQ(API_OK, requestTrackerRemoveAccess.waitForResult());
+    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, targetUserHandle));
+}
 #endif
 
-void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
+void SdkTest::onEvent(MegaApi* s, MegaEvent* event)
 {
     int index = getApiIndex(s);
     if (index >= 0) // it can be -1 when tests are being destroyed
@@ -3267,7 +3531,6 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(uploadedNode));
     ASSERT_TRUE(!!n1) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
-
 
     // ___ also try upload with the overload that specifies an mtime ___
 
@@ -7682,7 +7945,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2asomething immediately after", 8, syntax, true);
-        std::vector<std::string> e{ "dir2a/" };
+        std::vector<std::string> e{"dir2a/"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2a/something immediately after");
@@ -7690,7 +7953,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2/", std::string::npos, syntax, true);
-        std::vector<std::string> e{ "dir2/sub21/", "dir2/sub22/" };
+        std::vector<std::string> e{"dir2/sub21/", "dir2/sub22/"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/sub2");
@@ -7701,7 +7964,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2/./", std::string::npos, syntax, true);
-        std::vector<std::string> e{ "dir2/./sub21/", "dir2/./sub22/" };
+        std::vector<std::string> e{"dir2/./sub21/", "dir2/./sub22/"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/./sub2");
@@ -7709,7 +7972,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2/..", std::string::npos, syntax, true);
-        std::vector<std::string> e{ "dir2/../" };
+        std::vector<std::string> e{"dir2/../"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../");
@@ -7717,7 +7980,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2/../", std::string::npos, syntax, true);
-        std::vector<std::string> e{ "dir2/../dir1/", "dir2/../dir2/", "dir2/../dir2a/" };
+        std::vector<std::string> e{"dir2/../dir1/", "dir2/../dir2/", "dir2/../dir2a/"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir");
@@ -7725,7 +7988,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2/../", std::string::npos, syntax, true);
-        std::vector<std::string> e{ "dir2/../dir1/", "dir2/../dir2/", "dir2/../dir2a/" };
+        std::vector<std::string> e{"dir2/../dir1/", "dir2/../dir2/", "dir2/../dir2a/"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir");
@@ -7765,7 +8028,6 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
     }
 
     fs::current_path(old_cwd);
-
 }
 #endif
 
@@ -7789,124 +8051,16 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
  */
 TEST_F(SdkTest, SdkTestChat)
 {
-    LOG_info << "___TEST Chat___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    CASE_info << "started";
+    testChat(false);
+    CASE_info << "finished";
+}
 
-    // --- Send a new contact request ---
-
-    string message = "Hi contact. This is a testing message";
-
-    mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
-            << "Contact request update not received after " << maxTimeout << " seconds";
-    // if there were too many invitations within a short period of time, the invitation can be rejected by
-    // the API with `API_EOVERQUOTA = -17` as counter spamming meassure (+500 invites in the last 50 days)
-
-    // --- Accept a contact invitation ---
-
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
-
-    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
-            << "Contact request update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the target side (main account)
-            << "Contact request update not received after " << maxTimeout << " seconds";
-
-    mApi[1].cr.reset();
-
-
-    // --- Check list of available chats --- (fetch is done at SetUp())
-
-    size_t numChats = mApi[0].chats.size();      // permanent chats cannot be deleted, so they're kept forever
-
-
-    // --- Create a group chat ---
-
-    handle h = megaApi[1]->getMyUserHandleBinary();
-    MegaTextChatPeerList* peers =
-        MegaTextChatPeerList::createInstance(); // new MegaTextChatPeerListPrivate();
-    peers->addPeer(h, PRIV_STANDARD);
-    bool group = true;
-
-    mApi[1].chatUpdated = false;
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
-    ASSERT_NO_FATAL_FAILURE( createChat(group, peers) );
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]) )
-            << "Cannot create a new chat";
-    ASSERT_EQ(API_OK, mApi[0].lastError) << "Chat creation failed (error: " << mApi[0].lastError << ")";
-    ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated ))   // at the target side (auxiliar account)
-            << "Chat update not received after " << maxTimeout << " seconds";
-
-    MegaHandle chatid = mApi[0].chatid;   // set at onRequestFinish() of chat creation request
-
-    delete peers;
-
-    // check the new chat information
-    ASSERT_EQ(mApi[0].chats.size(), ++numChats) << "Unexpected received number of chats";
-    ASSERT_TRUE(mApi[1].chatUpdated) << "The peer didn't receive notification of the chat creation";
-
-
-    // --- Remove a peer from the chat ---
-
-    mApi[1].chatUpdated = false;
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_REMOVE] = false;
-    megaApi[0]->removeFromChat(chatid, h);
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_REMOVE]) )
-            << "Chat remove failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(API_OK, mApi[0].lastError) << "Removal of chat peer failed (error: " << mApi[0].lastError << ")";
-    int numpeers = mApi[0].chats[chatid]->getPeerList() ? mApi[0].chats[chatid]->getPeerList()->size() : 0;
-    ASSERT_EQ(numpeers, 0) << "Wrong number of peers in the list of peers";
-    ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated) )   // at the target side (auxiliar account)
-            << "Didn't receive notification of the peer removal after " << maxTimeout << " seconds";
-
-
-    // --- Invite a contact to a chat ---
-
-    mApi[1].chatUpdated = false;
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_INVITE] = false;
-    megaApi[0]->inviteToChat(chatid, h, PRIV_STANDARD);
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_INVITE]) )
-            << "Chat invitation failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(API_OK, mApi[0].lastError) << "Invitation of chat peer failed (error: " << mApi[0].lastError << ")";
-    numpeers = mApi[0].chats[chatid]->getPeerList() ? mApi[0].chats[chatid]->getPeerList()->size() : 0;
-    ASSERT_EQ(numpeers, 1) << "Wrong number of peers in the list of peers";
-    ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated) )   // at the target side (auxiliar account)
-            << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
-
-
-    // --- Get the user-specific URL for the chat ---
-
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_URL] = false;
-    megaApi[0]->getUrlChat(chatid);
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_URL]) )
-            << "Retrieval of chat URL failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(API_OK, mApi[0].lastError) << "Retrieval of chat URL failed (error: " << mApi[0].lastError << ")";
-
-
-    // --- Update Permissions of an existing peer in the chat
-
-    mApi[1].chatUpdated = false;
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS] = false;
-    megaApi[0]->updateChatPermissions(chatid, h, PRIV_RO);
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS]) )
-            << "Update chat permissions failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(API_OK, mApi[0].lastError) << "Update of chat permissions failed (error: " << mApi[0].lastError << ")";
-    ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated) )   // at the target side (auxiliar account)
-            << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
-
-    // --- Create 1on1 chat with self
-    megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
-    mApi[0].chatUpdated = false;
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
-    ASSERT_NO_FATAL_FAILURE(createChat(false, nullptr));
-    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]))
-        << "Cannot create a new chat with self";
-    ASSERT_EQ(API_OK, mApi[0].lastError)
-        << "Chat-with-self creation failed (error: " << mApi[0].lastError << ")";
-    ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated)) // at the target side (auxiliar account)
-        << "Chat update not received after " << maxTimeout << " seconds";
+TEST_F(SdkTest, SdkTestPublicChat)
+{
+    CASE_info << "started";
+    testChat(true);
+    CASE_info << "finished";
 }
 #endif
 
@@ -20299,54 +20453,22 @@ TEST_F(SdkTest, SetGetVisibleTermsOfService)
 /**
  * @brief Give and remove access to download a file from a chat
  */
-TEST_F(SdkTest, GiveRemoveChatAccess)
+TEST_F(SdkTest, SdkTestGiveRemoveChatAccess)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
-    const unsigned int host = 0;
-    const unsigned int guest = 1;
-    mApi[host].chats.clear();
-    mApi[guest].chats.clear();
-
-    // Send and accept a new contact request
-    string message = "Hi contact. This is a testing message";
-    inviteTestAccount(host, guest, message);
-
-    // Create chat between new contacts
-    MegaHandle chatId = createChatWithChecks(0, {1}, true);
-    ASSERT_NE(chatId, INVALID_HANDLE) << "Something went wrong when creating the group chat room";
-
-    // Update test file
-
-    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
-    std::unique_ptr<MegaNode> rootnode{megaApi[host]->getRootNode()};
-    ASSERT_NE(rootnode.get(), nullptr);
-    MegaHandle fileHandle = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(host, &fileHandle, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               nullptr /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
-    std::unique_ptr<MegaNode> fileNode(megaApi[host]->getNodeByHandle(fileHandle));
-
-    // Grant access to guest
-
-    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
-    RequestTracker requestTrackerGrantAccess(megaApi[host].get());
-    megaApi[host]->grantAccessInChat(chatId, fileNode.get(), megaApi[guest]->getMyUser()->getHandle(), &requestTrackerGrantAccess);
-    ASSERT_EQ(API_OK, requestTrackerGrantAccess.waitForResult());
-    ASSERT_TRUE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
-
-    // Remove access to guest
-
-    RequestTracker requestTrackerRemoveAccess(megaApi[host].get());
-    megaApi[host]->removeAccessInChat(chatId, fileNode.get(), megaApi[guest]->getMyUser()->getHandle(), &requestTrackerRemoveAccess);
-    ASSERT_EQ(API_OK, requestTrackerRemoveAccess.waitForResult());
-    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
+    CASE_info << "started";
+    testGiveRemoveChatAccess(false);
+    CASE_info << "finished";
 }
 
+/**
+ * @brief Give and remove access to download a file from a public chat
+ */
+TEST_F(SdkTest, SdkTestGiveRemovePublicChatAccess)
+{
+    CASE_info << "started";
+    testGiveRemoveChatAccess(true);
+    CASE_info << "finished";
+}
 #endif
 
 TEST_F(SdkTest, GetFileFromArtifactorySuccessfully)

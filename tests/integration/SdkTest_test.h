@@ -1320,7 +1320,10 @@ public:
     void synchronousMediaUploadIncomplete(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, std::string& fingerprint, std::string& string64UploadToken, std::string& string64FileKey);
 
 #ifdef ENABLE_CHAT
-    void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
+    void createChat(bool group,
+                    MegaTextChatPeerList* peers,
+                    bool isPublicChat = false,
+                    int timeout = maxTimeout);
 
     /**
      * @brief Creates a chat room from the mApi[creatorIndex] account waiting for all the events to
@@ -1339,7 +1342,14 @@ public:
     MegaHandle createChatWithChecks(const unsigned int creatorIndex,
                                     const std::vector<unsigned int>& invitedIndices,
                                     const bool group,
+                                    const bool isPublicChat,
                                     const unsigned int timeout_sec = maxTimeout);
+
+    MegaHandle getCommander();
+
+    void testChat(bool isPublicChat);
+
+    void testGiveRemoveChatAccess(bool isPublicChat);
 #endif
 
     template<typename... requestArgs>
