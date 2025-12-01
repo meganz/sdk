@@ -30652,50 +30652,30 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
 {
     if (allocated)
     {
-        NewNode* t = &nn[--nc];
-
-        // copy key (if file) or generate new key (if folder)
-        if (n->getType() == FILENODE)
-        {
-            t->nodekey = *(n->getNodeKey());
-        }
-        else
-        {
-            byte buf[FOLDERNODEKEYLENGTH];
-            client->rng.genblock(buf,sizeof buf);
-            t->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
-        }
-
-        t->attrstring.reset(new string);
-        if (n->isPublic())
-        {
-            t->source = NEW_PUBLIC;
-        }
-        else
-        {
-            t->source = NEW_NODE;
-        }
-
-        SymmCipher key;
+        // prepare map of attributes
         AttrMap attrs;
-
-        key.setkey((const byte*)t->nodekey.data(),n->getType());
-        string sname = n->getName();
-        LocalPath::utf8_normalize(&sname);
-        attrs.map['n'] = sname;
-
+        {
+            string sname = n->getName();
+            LocalPath::utf8_normalize(&sname);
+            attrs.map['n'] = sname;
+        }
         {
             string sfp = MegaNodePrivate::removeAppPrefixFromFingerprint(n->getFingerprint());
-            if (!sfp.empty()) attrs.map['c'] = std::move(sfp);
+            if (!sfp.empty())
+            {
+                attrs.map['c'] = std::move(sfp);
+            }
         }
 
-        string attrstring;
-        attrs.getjson(&attrstring);
-        client->makeattr(&key, t->attrstring, attrstring.c_str());
-
-        t->nodehandle = n->getHandle();
-        t->type = (nodetype_t)n->getType();
-        t->parenthandle = n->getParentHandle() ? n->getParentHandle() : UNDEF;
+        client->putnodes_prepareCopy(nn,
+                                     nc,
+                                     static_cast<nodetype_t>(n->getType()),
+                                     n->getHandle(),
+                                     n->getParentHandle() ? n->getParentHandle() : UNDEF,
+                                     *n->getNodeKey(),
+                                     attrs,
+                                     false,
+                                     n->isPublic());
     }
     else
     {

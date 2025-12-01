@@ -923,6 +923,17 @@ public:
     // static version to be used from worker threads, which cannot rely on the MegaClient::tmpnodecipher as SymCipher (not thread-safe))
     static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher &tmpnodecipher, bool canChangeVault, std::function<void(AttrMap&)> addAttrs = nullptr);
 
+    // helper function for preparing a putnodes call for copy operations
+    void putnodes_prepareCopy(std::vector<NewNode>& nn,
+                              unsigned& nc,
+                              const nodetype_t type,
+                              const handle nodehandle,
+                              const handle parenthandle,
+                              const string& nodekey,
+                              const AttrMap& attrs,
+                              const bool resetSensitive,
+                              const bool isPublic);
+
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
     void putnodes(NodeHandle,
