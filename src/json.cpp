@@ -1080,8 +1080,7 @@ string JSONWriter::escape(const char* data, size_t length) const
     return result;
 }
 
-JSONSplitter::JSONSplitter():
-    mPausedState()
+JSONSplitter::JSONSplitter()
 {
     clear();
 }
@@ -1098,40 +1097,30 @@ void JSONSplitter::clear()
     mStarting = true;
     mFinished = false;
     mFailed = false;
-    mPausedState.clear();
+    mPaused = false;
 }
 
 static std::map<char, char> matchBrackets = {{']', '['}, {'}', '{'}};
 
 void JSONSplitter::processPaused(m_off_t offsetFromLastPos, const char startChar)
 {
-    mPausedState.mPaused = true;
+    mPaused = true;
 
     // Save the complete parsing state to restore later
-    if (!startChar)
+    if (startChar)
     {
-        mPausedState.lastName = std::move(mLastName);
-        // Save full stack and path
-        mPausedState.stack = std::move(mStack);
-        mPausedState.currentPath = std::move(mCurrentPath);
-        mPausedState.expectValue = mExpectValue;
-    }
-    else
-    {
-        mPausedState.lastName = "";
-        mPausedState.expectValue = 1;
-        mPausedState.stack = std::move(mStack);
-        mPausedState.currentPath = std::move(mCurrentPath);
+        mLastName = "";
+        mExpectValue = 1;
         // We need to fallback to the last object/array
         bool breakLoop = false;
-        for (int i = static_cast<int>(mPausedState.stack.size()) - 1; i >= 0; --i)
+        for (int i = static_cast<int>(mStack.size()) - 1; i >= 0; --i)
         {
-            if (mPausedState.stack[static_cast<size_t>(i)][0] == startChar)
+            if (mStack[static_cast<size_t>(i)][0] == startChar)
             {
                 breakLoop = true;
             }
-            mPausedState.stack.erase(mPausedState.stack.begin() + static_cast<int>(i));
-            mPausedState.currentPath.pop_back();
+            mStack.erase(mStack.begin() + static_cast<int>(i));
+            mCurrentPath.pop_back();
             if (breakLoop)
             {
                 break;
@@ -1139,40 +1128,19 @@ void JSONSplitter::processPaused(m_off_t offsetFromLastPos, const char startChar
         }
     }
 
-    // Save the relative offset from mLastPos to mPos
-    // When resuming, caller will have purged consumed bytes (up to mLastPos),
-    // so the new data buffer starts at what was mLastPos.
-    // We need to skip mPausedState.processedBytes to get back to mPos position.
-    mPausedState.processedBytes = offsetFromLastPos;
+    mProcessedBytes = offsetFromLastPos;
 
-    std::string stackStr = std::accumulate(mPausedState.stack.begin(),
-                                           mPausedState.stack.end(),
+    std::string stackStr = std::accumulate(mStack.begin(),
+                                           mStack.end(),
                                            std::string(),
                                            [](const std::string& total, const std::string& current)
                                            {
                                                return total.empty() ? current : total + current;
                                            });
-
-    LOG_debug << "JSON paused state -- processed bytes: [" << mPausedState.processedBytes
-              << "], JSON paused last name: [" << mPausedState.lastName
-              << "], JSON paused expect value: [" << mPausedState.expectValue
-              << "], JSON paused current path: [" << mPausedState.currentPath
+    LOG_debug << "JSON after PAUSED state -- processed bytes: [" << mProcessedBytes
+              << "], JSON paused last name: [" << mLastName << "], JSON paused expect value: ["
+              << mExpectValue << "], JSON paused current path: [" << mCurrentPath
               << "], JSON paused stack: [" << stackStr << "]";
-}
-
-void JSONSplitter::restorePausedState()
-{
-    // Restore the complete parsing state
-    mLastName = std::move(mPausedState.lastName);
-    mStack = std::move(mPausedState.stack);
-    mCurrentPath = std::move(mPausedState.currentPath);
-    mExpectValue = mPausedState.expectValue;
-
-    // Fast-forward mPos by the saved offset
-    // This puts us back at the element that caused the pause
-    mPos += mPausedState.processedBytes;
-
-    mPausedState.clear();
 }
 
 m_off_t JSONSplitter::processChunk(std::map<string, std::function<CallbackResult(JSON*)>>* filters,
@@ -1200,9 +1168,11 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<CallbackResult
     mPos = data;
     mLastPos = data;
 
-    if (mPausedState.mPaused)
+    if (mPaused)
     {
-        restorePausedState();
+        mPos += mProcessedBytes;
+        mPaused = false;
+        mProcessedBytes = 0;
     }
     else
     {

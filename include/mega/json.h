@@ -273,9 +273,6 @@ protected:
     // Store paused state
     void processPaused(m_off_t offsetFromLastPos, const char startChar = '\0');
 
-    // Restore paused state
-    void restorePausedState();
-
     // Position of the character being processed (not owned by this object)
     const char* mPos = nullptr;
 
@@ -309,34 +306,8 @@ protected:
     // the parsing has failed
     bool mFailed = false;
 
-    struct PausedState
-    {
-        // Parsing is paused
-        bool mPaused = false;
-        // Name of the last JSON attribute name processed
-        std::string lastName;
-        // Stack with accessed paths in the JSON stream
-        std::vector<std::string> stack;
-        // Current path in the processing of the JSON stream
-        std::string currentPath;
-        // Value expected before paused state
-        int expectValue = 0;
-        // Offset from mLastPos to mPos when paused
-        m_off_t processedBytes = 0;
-
-        void clear()
-        {
-            mPaused = false;
-            lastName.clear();
-            stack.clear();
-            currentPath.clear();
-            expectValue = 0;
-            processedBytes = 0;
-        }
-    };
-
-    // Saved state when paused
-    PausedState mPausedState;
+    // Parsing is paused
+    bool mPaused = false;
 
 }; // JSONSplitter
 
