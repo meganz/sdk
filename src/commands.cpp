@@ -2567,6 +2567,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
 
         unique_ptr<BusinessPlan> bizPlan;
         unique_ptr<CurrencyData> currencyData;
+        std::optional<MobileOffer> mobileOffer;
 
         bool finished = false;
         bool readingL = false;
@@ -2911,6 +2912,54 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     }
                 }
                 break;
+                case makeNameid("mo"): // mobile offer
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "entering `mobile offer` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    MobileOffer temporalMobileOffer;
+
+                    bool readingMo{true};
+                    while (readingMo)
+                    {
+                        switch (json.getnameid())
+                        {
+                            case makeNameid("id"):
+                                temporalMobileOffer.id = json.getname();
+                                break;
+                            case makeNameid("uat"):
+                                temporalMobileOffer.uat = json.getbool();
+                                break;
+                            case EOO:
+                                readingMo = false;
+                                mobileOffer = std::move(temporalMobileOffer);
+                                break;
+                            default:
+                                if (!json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse mobile offer sub objects";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "leaving `mobile offer` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    break;
+                }
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
@@ -2972,7 +3021,8 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                          android_id.c_str(),
                                          testCategory,
                                          std::move(bizPlan),
-                                         trialDays};
+                                         trialDays,
+                                         std::move(mobileOffer)};
             client->app->enumeratequotaitems_result(productData);
         }
     }
@@ -4359,6 +4409,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     std::string sds, sdsVersion;
     string s4, s4Version;
     string s4container, s4containerVersion;
+    string devOpt, devOptVersion;
 
     bool uspw = false;
     string userStorageLevel, versionUserStorageLevel;
@@ -4526,6 +4577,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         case makeNameid("+sigPubk"):
             parseUserAttribute(json, sigPubk, versionSigPubk);
+            break;
+        case makeNameid("^!devopt"):
+            parseUserAttribute(json, devOpt, devOptVersion);
             break;
 
         case makeNameid("pf"): // Pro Flexi plan (similar to business)
@@ -5255,6 +5309,16 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     u->removeAttribute(ATTR_S4_CONTAINER);
                     client->mS4Container.store(NodeHandle());
+                }
+
+                if (devOpt.size() && devOptVersion.size())
+                {
+                    changes |=
+                        u->updateAttributeIfDifferentVersion(ATTR_DEV_OPT, devOpt, devOptVersion);
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_DEV_OPT);
                 }
 
                 if (changes)

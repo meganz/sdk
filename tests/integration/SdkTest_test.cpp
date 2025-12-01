@@ -22758,3 +22758,142 @@ TEST_F(SdkTest, SdkTransferCopyRemote)
         },
         timeOut));
 }
+
+/**
+ * @test SdkUtqaMobileOffer
+ * @brief Verify mobile offer are received
+ *
+ * Steps:
+ *  - Set value at devOpt user attribute (In staging API add mobile offert at
+ * utqa command)
+ *  - Get pricing (utqa command)
+ *  - Check if some product has mobile offers
+ */
+TEST_F(SdkTest, SdkUtqaMobileOffer)
+{
+    CASE_info << " Start";
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_FALSE(email.empty() || pass.empty());
+    megaApi.resize(1);
+    mApi.resize(1);
+    uint32_t index = 0;
+    configureTestInstance(index, email, pass, true, MegaApi::CLIENT_TYPE_DEFAULT);
+    megaApi[index]->changeApiUrl("https://staging.api.mega.co.nz/");
+    std::unique_ptr<RequestTracker> tracker;
+    tracker = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to login to account " << email;
+
+    ASSERT_NO_FATAL_FAILURE(fetchNodesForAccountsSequentially(1));
+
+    using namespace testing;
+    std::string attributeValue{"{\"utqamo\":1}"};
+    ASSERT_NO_FATAL_FAILURE(setDevOptUserAttribute(attributeValue, index));
+
+    auto pricing = getPricing(*megaApi[index]);
+    ASSERT_EQ(::result(pricing), API_OK) << "Error at getPricing";
+    auto& priceDetailRes = ::value(pricing);
+    ASSERT_TRUE(priceDetailRes) << "No princing objectes received";
+
+    bool mobileOffer{false};
+    std::string mobileOfferTitle;
+    for (int i = 0, j = priceDetailRes->getNumProducts(); i < j; ++i)
+    {
+        // Found the user's plan.
+        if (mobileOffer = priceDetailRes->hasMobileOffers(i); mobileOffer)
+        {
+            mobileOfferTitle = priceDetailRes->getMobileOfferId(i);
+            break;
+        }
+    }
+
+    ASSERT_TRUE(mobileOffer) << "Received at least one mobile offer";
+    ASSERT_TRUE(mobileOfferTitle.size()) << "Title has contain";
+
+    CASE_info << " Finished";
+}
+
+void SdkTest::setDevOptUserAttribute(const string& value, uint32_t index) const
+{
+    using namespace testing;
+    NiceMock<MockRequestListener> rlSetUserAttribute{megaApi[index].get()};
+    std::promise<bool> setUserAttributeRequest;
+
+    // Check if it has correct value to avoid to set it again
+    auto [_, v] = getDevOptUserAttribute(index);
+    ASSERT_FALSE(HasNonfatalFailure());
+    if (v && v.value() == value)
+    {
+        return;
+    }
+
+    EXPECT_CALL(rlSetUserAttribute, onRequestFinish)
+        .Times(1)
+        .WillOnce(
+            [&setUserAttributeRequest](::mega::MegaApi*,
+                                       ::mega::MegaRequest* req,
+                                       ::mega::MegaError* err)
+            {
+                EXPECT_TRUE(req) << "Null MegaRequest";
+                EXPECT_TRUE(err) << "Null MegaError";
+                if (err && err->getErrorCode() == API_OK)
+                {
+                    setUserAttributeRequest.set_value(true);
+                    return;
+                }
+
+                setUserAttributeRequest.set_value(false);
+            });
+
+    megaApi[index]->setUserAttribute(MegaApi::USER_ATTR_DEV_OPT,
+                                     value.c_str(),
+                                     &rlSetUserAttribute);
+
+    auto resultsetUserAttributeRequest = setUserAttributeRequest.get_future();
+    ASSERT_EQ(resultsetUserAttributeRequest.wait_for(sdk_test::MAX_TIMEOUT),
+              std::future_status::ready)
+        << "Attribute not received ";
+
+    ASSERT_TRUE(resultsetUserAttributeRequest.get())
+        << "Not possible set User attribute USER_ATTR_DEV_OPT";
+}
+
+SdkTest::GetDevOptAttrResult SdkTest::getDevOptUserAttribute(uint32_t index) const
+{
+    using namespace testing;
+    NiceMock<MockRequestListener> rlGetUserAttribute{megaApi[index].get()};
+    std::promise<GetDevOptAttrResult> getUserAttributeRequest;
+    EXPECT_CALL(rlGetUserAttribute, onRequestFinish)
+        .Times(1)
+        .WillOnce(
+            [&getUserAttributeRequest](::mega::MegaApi*,
+                                       ::mega::MegaRequest* req,
+                                       ::mega::MegaError* err)
+            {
+                EXPECT_TRUE(req) << "Null MegaRequest";
+                EXPECT_TRUE(err) << "Null MegaError";
+                auto error = err->getErrorCode();
+                if (err && req && error == API_OK)
+                {
+                    std::string text{Base64::atob(req->getText())};
+                    getUserAttributeRequest.set_value({error, text});
+                    return;
+                }
+
+                getUserAttributeRequest.set_value({error, std::nullopt});
+            });
+
+    megaApi[index]->getUserAttribute(MegaApi::USER_ATTR_DEV_OPT, &rlGetUserAttribute);
+    auto resultGetUserAttributeRequest = getUserAttributeRequest.get_future();
+    auto status = resultGetUserAttributeRequest.wait_for(sdk_test::MAX_TIMEOUT);
+    if (status != future_status::ready)
+    {
+        EXPECT_EQ(status, std::future_status::ready);
+        return {LOCAL_ETIMEOUT, std::nullopt};
+    }
+
+    const auto& [error, value] = resultGetUserAttributeRequest.get();
+
+    EXPECT_TRUE(error == API_OK || error == API_ENOENT);
+
+    return {error, value};
+}

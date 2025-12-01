@@ -8612,6 +8612,7 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
         case ATTR_LAST_ACTIONED_BANNER:
         // undocumented types, allowed only for testing:
         case ATTR_KEYS:
+        case ATTR_DEV_OPT:
             getUserAttr(email_or_handle, type, nullptr, 0, listener);
             break;
         default:
@@ -8656,6 +8657,7 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
         case ATTR_SIG_RSA_PUBK:
         case ATTR_PWD_REMINDER:
         case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_DEV_OPT:
             setUserAttr(type, value, listener);
             break;
         default:
@@ -22052,6 +22054,22 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 {
                     performRequest_enableTestSurveys(request);
                 }
+                else if (type == ATTR_DEV_OPT)
+                {
+                    if (!value)
+                    {
+                        return API_EARGS;
+                    }
+
+                    client->putua(type,
+                                  reinterpret_cast<const byte*>(value),
+                                  static_cast<unsigned>(strlen(value)),
+                                  -1,
+                                  UNDEF,
+                                  0,
+                                  0,
+                                  std::move(putuaCompletion));
+                }
                 else
                 {
                     return API_EARGS;
@@ -29733,6 +29751,38 @@ int mega::MegaPricingPrivate::getLocalPrice(int productIndex)
     }
 
     return 0;
+}
+
+bool MegaPricingPrivate::hasMobileOffers(int productIndex) const
+{
+    if (auto index = static_cast<size_t>(productIndex); index < products.size())
+    {
+        return products[index].mobileOffer.has_value();
+    }
+
+    return false;
+}
+
+std::string mega::MegaPricingPrivate::getMobileOfferId(int productIndex) const
+{
+    if (auto index = static_cast<size_t>(productIndex);
+        index < products.size() && products[index].mobileOffer.has_value())
+    {
+        return products[index].mobileOffer->id;
+    }
+
+    return {};
+}
+
+bool mega::MegaPricingPrivate::hasMobileOfferUat(int productIndex) const
+{
+    if (auto index = static_cast<size_t>(productIndex);
+        index < products.size() && products[index].mobileOffer.has_value())
+    {
+        return products[index].mobileOffer->uat;
+    }
+
+    return {};
 }
 
 const char *MegaPricingPrivate::getDescription(int productIndex)

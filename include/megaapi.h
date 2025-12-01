@@ -10677,8 +10677,10 @@ class MegaApi
             USER_ATTR_ENABLE_TEST_SURVEYS =
                 46, // private - non-encrypted - char array in B64 - non-versioned
             // USER_ATTR_WELCOME_PDF_COPIED = 47, // (obsolete) private - non-encrypted - char array
-            USER_ATTR_S4 = 48, // private - non-encrypted - char array
-            USER_ATTR_S4_CONTAINER = 49, // private - non-encrypted - char array
+            ATTR_SYNC_DESIRED_STATE = 48, // private - byte array - versioned
+            USER_ATTR_S4 = 49, // private - non-encrypted - char array
+            USER_ATTR_S4_CONTAINER = 50, // private - non-encrypted - char array
+            USER_ATTR_DEV_OPT = 51, // private - encrypted - byte array
         };
 
         enum {
@@ -25379,6 +25381,45 @@ public:
      * @return Trial duration in days
      */
     virtual unsigned int getTrialDurationInDays(int productIndex) const = 0;
+
+    /**
+     * @brief Check whether the product has a mobile offer
+     *
+     * Determines if the specified product includes an associated mobile offer.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return True if the product has a mobile offer, false otherwise
+     */
+    virtual bool hasMobileOffers(int productIndex) const = 0;
+
+    /**
+     * @brief Get the mobile offer identifier
+     *
+     * Returns the identifier of the mobile offer associated with the given
+     * product.
+     *
+     * If the product does not have a mobile offer, this method returns a empty
+     * string.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return A null-terminated string containing the mobile offer ID
+     */
+    virtual std::string getMobileOfferId(int productIndex) const = 0;
+
+    /**
+     * @brief Check whether the mobile offer title should be used
+     *
+     * Possible values are:
+     *   - false: The mobile offer title should not be displayed.
+     *   - true: The mobile offer title should be displayed.
+     *
+     * If the product does not have a mobile offer, this method returns false.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return True if the mobile offer title should be displayed, false
+     * otherwise
+     */
+    virtual bool hasMobileOfferUat(int productIndex) const = 0;
 };
 
 /**
