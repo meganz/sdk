@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include "mega/common/badge.h"
 #include "mega/hashcash.h"
 #include "mega/heartbeats.h"
 #include "mega/logging.h"
@@ -24872,15 +24873,18 @@ void MegaClient::getSubscriptionCancellationDetails(
 
 void MegaClient::queueCommand(Command* command)
 {
+    // Convenience.
+    using common::Badge;
+
     // Sanity.
     assert(command);
 
     // Transmit lockless commands on the lockless CS channel.
     if (command->isLockless())
-        return mReqsLockless.add(command);
+        return mReqsLockless.add({}, command);
 
     // Transmit lockfull commands on the standard CS channel.
-    reqs.add(command);
+    reqs.add({}, command);
 }
 
 void MegaClient::processHashcashSendevent()
