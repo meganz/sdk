@@ -1097,15 +1097,12 @@ void JSONSplitter::clear()
     mStarting = true;
     mFinished = false;
     mFailed = false;
-    mPaused = false;
 }
 
 static std::map<char, char> matchBrackets = {{']', '['}, {'}', '{'}};
 
 void JSONSplitter::processPaused(m_off_t offsetFromLastPos, const char startChar)
 {
-    mPaused = true;
-
     // Save the complete parsing state to restore later
     if (startChar)
     {
@@ -1168,18 +1165,9 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<CallbackResult
     mPos = data;
     mLastPos = data;
 
-    if (mPaused)
-    {
-        mPos += mProcessedBytes;
-        mPaused = false;
-        mProcessedBytes = 0;
-    }
-    else
-    {
-        // Normal continuation: skip the data that was already processed during the previous call
-        mPos += mProcessedBytes;
-        mProcessedBytes = 0;
-    }
+    // Normal continuation: skip the data that was already processed during the previous call
+    mPos += mProcessedBytes;
+    mProcessedBytes = 0;
 
     if (mStarting)
     {

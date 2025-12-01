@@ -306,9 +306,6 @@ protected:
     // the parsing has failed
     bool mFailed = false;
 
-    // Parsing is paused
-    bool mPaused = false;
-
 }; // JSONSplitter
 
 } // namespace
