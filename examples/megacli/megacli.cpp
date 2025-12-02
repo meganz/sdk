@@ -2401,43 +2401,15 @@ public:
     {
         if (populated)
         {
-            string attrstring;
-            SymmCipher key;
-            NewNode* t = &nn[--nc];
-
-            // copy node
-            t->source = NEW_NODE;
-            t->type = n->type;
-            t->nodehandle = n->nodehandle;
-            t->parenthandle = n->parent ? n->parent->nodehandle : UNDEF;
-
-            // copy key (if file) or generate new key (if folder)
-            if (n->type == FILENODE)
-            {
-                t->nodekey = n->nodekey();
-            }
-            else
-            {
-                byte buf[FOLDERNODEKEYLENGTH];
-                mc->rng.genblock(buf, sizeof buf);
-                t->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
-            }
-
-            key.setkey((const byte*) t->nodekey.data(), n->type);
-
-            AttrMap tattrs;
-            tattrs.map = n->attrs.map;
-            nameid rrname = AttrMap::string2nameid("rr");
-            attr_map::iterator it = tattrs.map.find(rrname);
-            if (it != tattrs.map.end())
-            {
-                LOG_debug << "Removing rr attribute";
-                tattrs.map.erase(it);
-            }
-
-            t->attrstring.reset(new string);
-            tattrs.getjson(&attrstring);
-            mc->makeattr(&key, t->attrstring, attrstring.c_str());
+            mc->putnodes_prepareCopy(nn,
+                                     nc,
+                                     n->type,
+                                     n->nodehandle,
+                                     n->parent ? n->parent->nodehandle : UNDEF,
+                                     n->nodekey(),
+                                     n->attrs,
+                                     false,
+                                     false);
         }
         else
         {

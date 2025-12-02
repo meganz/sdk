@@ -9846,6 +9846,60 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     makeattr(&tmpnodecipher, newnode->attrstring, attrstring.c_str());
 }
 
+void MegaClient::putnodes_prepareCopy(std::vector<NewNode>& nn,
+                                      unsigned& nc,
+                                      const nodetype_t type,
+                                      const handle nodehandle,
+                                      const handle parenthandle,
+                                      const string& nodekey,
+                                      const AttrMap& attrs,
+                                      const bool resetSensitive,
+                                      const bool isPublic)
+{
+    assert(nc > 0);
+    NewNode* t = &nn[--nc];
+
+    // copy node
+    t->source = isPublic ? NEW_PUBLIC : NEW_NODE;
+    t->type = type;
+    t->nodehandle = nodehandle;
+    t->parenthandle = parenthandle;
+
+    // copy key (if file) or generate new key (if folder)
+    if (type == FILENODE)
+    {
+        t->nodekey = nodekey;
+    }
+    else
+    {
+        byte buf[FOLDERNODEKEYLENGTH];
+        rng.genblock(buf, sizeof buf);
+        t->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
+    }
+
+    AttrMap tattrs;
+    tattrs.map = attrs.map;
+    nameid rrname = AttrMap::string2nameid("rr");
+    attr_map::iterator it = tattrs.map.find(rrname);
+    if (it != tattrs.map.end())
+    {
+        LOG_debug << "Removing rr attribute";
+        tattrs.map.erase(it);
+    }
+    if (resetSensitive && tattrs.map.erase(AttrMap::string2nameid("sen")))
+    {
+        LOG_debug << "Removing sen attribute";
+    }
+
+    string attrstring;
+    t->attrstring.reset(new string);
+    tattrs.getjson(&attrstring);
+
+    SymmCipher cipher;
+    cipher.setkey((const byte*)t->nodekey.data(), type);
+    makeattr(&cipher, t->attrstring, attrstring.c_str());
+}
+
 // send new nodes to API for processing
 void MegaClient::putnodes(NodeHandle h,
                           VersioningOption vo,
