@@ -152,6 +152,13 @@ public:
      */
     void appendData(const std::string_view contentsToAppend) const;
 
+    /**
+     * @brief Move/rename the file to the given path.
+     * File path is updated on success.
+     * @return std::error_code The error code if the operation failed.
+     */
+    std::error_code move(const fs::path& newPath);
+
 private:
     fs::path mFilePath;
 };

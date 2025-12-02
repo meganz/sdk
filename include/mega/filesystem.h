@@ -473,6 +473,14 @@ struct MEGA_API FileAccess
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
     bool fopen(const LocalPath&, FSLogging);
 
+    // Open for MAC computation - allows file to be moved/deleted while open (FILE_SHARE_DELETE on
+    // Windows). Returns true if file was successfully opened for reading. Default implementation
+    // calls regular fopen. Windows overrides with FILE_SHARE_DELETE.
+    virtual bool fopenForMacRead(const LocalPath& path, FSLogging fsl)
+    {
+        return fopen(path, true, false, fsl);
+    }
+
     // check if a local path is a folder
     bool isfolder(const LocalPath& path);
 

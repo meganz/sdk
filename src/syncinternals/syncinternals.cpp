@@ -543,54 +543,148 @@ std::optional<FsCloudComparisonResult> quickFingerprintComparison(const CloudNod
 }
 
 /**
- * @brief Shared MAC computation logic used by both async and blocking paths.
+ * @brief Initialize MAC computation state from cloud node.
  *
- * This function runs on the client thread and performs the actual MAC computation.
+ * Extracts cipher key, IV, and expected MAC from the node key.
+ * Returns false if node is invalid or inaccessible.
+ *
+ * THREAD SAFETY: This function runs on the sync thread and must hold
+ * nodeTreeMutex when accessing node data to prevent races with the client thread.
  */
-FsCloudComparisonResult computeMacOnClientThread(MegaClient& mc,
-                                                 const NodeHandle cloudNodeHandle,
-                                                 const LocalPath& fsNodeFullPath,
-                                                 const std::string& logPrefix)
+bool initMacComputationFromNode(MegaClient& mc,
+                                const NodeHandle cloudNodeHandle,
+                                LocalNode::RareFields::MacComputationInProgress& macComp,
+                                const std::string& logPrefix)
 {
-    const auto t0 = std::chrono::steady_clock::now();
-    const auto fsNFP = fsNodeFullPath.toPath(false);
+    // Lock the node tree to safely access node data from the sync thread.
+    // The node key and type could change if the client thread is processing updates.
+    std::lock_guard<std::recursive_mutex> g(mc.nodeTreeMutex);
 
-    LOG_debug << logPrefix << "msMacStartGetNode [path = '" << fsNFP << "']";
     auto node = mc.nodeByHandle(cloudNodeHandle);
     if (!node || node->type != FILENODE || node->nodekey().empty())
     {
-        LOG_debug << logPrefix << "NODE_COMP_EARGS [path = '" << fsNFP << "']";
-        return {NODE_COMP_EARGS, INVALID_META_MAC, INVALID_META_MAC};
+        LOG_debug << logPrefix << "Invalid cloud node";
+        return false;
     }
 
-    LOG_debug << logPrefix << "msMacStartGetFA [path = '" << fsNFP << "']";
-    auto fa = mc.fsaccess->newfileaccess();
-    if (!fa || !fa->fopen(fsNodeFullPath, true, false, FSLogging::logOnError))
-    {
-        LOG_debug << logPrefix << "NODE_COMP_EREAD [path = '" << fsNFP << "']";
-        return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
-    }
+    const auto& nodeKey = node->nodekey();
 
-    LOG_debug << logPrefix << "msMacStartGenMAC [path = '" << fsNFP << "']";
-    auto [localMac, remoteMac] =
-        genLocalAndRemoteMetaMac(fa.get(), node->nodekey(), node->type, fsNFP);
+    // Extract cipher key (first 16 bytes, XORed with second 16 bytes)
+    memcpy(macComp.transferkey.data(), nodeKey.data(), SymmCipher::KEYLENGTH);
+    SymmCipher::xorblock((const byte*)nodeKey.data() + SymmCipher::KEYLENGTH,
+                         macComp.transferkey.data());
 
-    auto compRes = localMac == remoteMac ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
+    // Extract IV and expected MAC from key
+    const char* iva = nodeKey.data() + SymmCipher::KEYLENGTH;
+    macComp.ctriv = MemAccess::get<int64_t>(iva);
+    macComp.expectedMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
 
-    const auto t1 = std::chrono::steady_clock::now();
-    const auto msMac = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-    LOG_debug << logPrefix << "msMac: " << msMac << " ms"
-              << " [res: " << nodeComparisonResultToStr(compRes) << "] [path = '" << fsNFP << "']";
-
-    return {compRes, localMac, remoteMac};
+    return true;
 }
 
 /**
- * @brief Initiates async MAC computation for a synced file.
+ * @brief Process one chunk of MAC computation on worker thread.
  *
- * If a computation is already in progress, checks its status. If complete, returns the result.
- * If still pending, returns NODE_COMP_PENDING. If no computation exists, initiates one.
+ * Reads a chunk from the file buffer, computes chunk MACs, and updates state.
+ * Called from mAsyncQueue worker thread.
  */
+void processChunkOnWorkerThread(
+    std::weak_ptr<LocalNode::RareFields::MacComputationInProgress> weakMac,
+    m_off_t chunkStart,
+    m_off_t chunkEnd,
+    std::shared_ptr<byte[]> chunkData,
+    const std::string& logPrefix)
+{
+    auto macComp = weakMac.lock();
+    if (!macComp)
+    {
+        LOG_debug << logPrefix << "Abandoned (LocalNode gone)";
+        return;
+    }
+
+    // Create cipher and compute chunk MACs
+    SymmCipher cipher;
+    cipher.setkey(macComp->transferkey.data());
+
+    chunkmac_map chunkMacs;
+
+    // Process using the MEGA chunk boundaries (128KB-1MB chunks)
+    m_off_t pos = chunkStart;
+    byte* bufPtr = chunkData.get();
+
+    while (pos < chunkEnd)
+    {
+        m_off_t chunkBoundary = ChunkedHash::chunkceil(pos, macComp->totalSize);
+        m_off_t thisChunkEnd = std::min(chunkBoundary, chunkEnd);
+        unsigned chunkSize = static_cast<unsigned>(thisChunkEnd - pos);
+
+        // Compute MAC for this chunk
+        m_off_t chunkId = ChunkedHash::chunkfloor(pos);
+        bool finishesChunk =
+            (thisChunkEnd == chunkBoundary) || (thisChunkEnd == macComp->totalSize);
+
+        chunkMacs
+            .ctr_encrypt(chunkId, &cipher, bufPtr, chunkSize, pos, macComp->ctriv, finishesChunk);
+
+        bufPtr += chunkSize;
+        pos = thisChunkEnd;
+    }
+
+    // Check if this was the last chunk
+    if (chunkEnd >= macComp->totalSize)
+    {
+        // Compute final MAC
+        {
+            std::lock_guard<std::mutex> g(macComp->macsMutex);
+            chunkMacs.copyEntriesTo(macComp->partialMacs);
+        }
+
+        int64_t localMac = macComp->partialMacs.macsmac(&cipher);
+        int64_t remoteMac = macComp->expectedMac;
+
+        auto compRes = (localMac == remoteMac) ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
+
+        LOG_debug << logPrefix << "Complete: " << nodeComparisonResultToStr(compRes)
+                  << " [localMac=" << localMac << ", remoteMac=" << remoteMac << "]";
+
+        macComp->setComplete(compRes, localMac, remoteMac);
+    }
+    else
+    {
+        // More chunks to process
+        macComp->addChunkMacs(std::move(chunkMacs), chunkEnd);
+        macComp->chunkInProgress.store(false, std::memory_order_release);
+
+        LOG_verbose << logPrefix << "Chunk done, progress: " << chunkEnd << "/"
+                    << macComp->totalSize;
+    }
+}
+
+/**
+ * @brief Initiates incremental async MAC computation for a synced file.
+ *
+ * Uses a transfer-like pattern:
+ * 1. Sync thread reads file in large chunks (10-20MB) with FILE_SHARE_DELETE
+ * 2. Worker thread (mAsyncQueue) computes MACs for chunks
+ * 3. Progress tracked across sync iterations
+ * 4. File opened/closed per chunk to minimize lock duration
+ */
+/**
+ * @brief Helper to release throttle slot when macComp is being cleaned up.
+ */
+void releaseMacComputationThrottle(MegaClient& mc,
+                                   LocalNode::RareFields::MacComputationInProgress* macComp)
+{
+    if (macComp && macComp->throttleSlotAcquired)
+    {
+        mc.syncs.mMacComputationThrottle.releaseFile();
+        macComp->throttleSlotAcquired = false;
+        LOG_verbose << "asyncMacComputation: Released throttle slot for " << macComp->filePath
+                    << " [files=" << mc.syncs.mMacComputationThrottle.currentFiles()
+                    << ", chunks=" << mc.syncs.mMacComputationThrottle.currentChunks() << "]";
+    }
+}
+
 FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
                                             const CloudNode& cn,
                                             const FSNode& fs,
@@ -601,7 +695,6 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
     using MacComp = LocalNode::RareFields::MacComputationInProgress;
 
     // Check throttling first - skip MAC computation if a recent mtime-only op just completed.
-    // This prevents expensive repeated MAC computations for files with frequently changing mtime.
     if (syncNode.shouldThrottleMacComputation(MAC_THROTTLE_WINDOW))
     {
         LOG_verbose << logPre << "Throttled (recent mtime-only op): " << fsNodeFullPath;
@@ -617,9 +710,19 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
         if (!macComp->contextMatches(fs.fsid, cn.handle, fs.fingerprint, cn.fingerprint))
         {
             LOG_debug << logPre << "Context invalid, discarding: " << fsNodeFullPath;
+            releaseMacComputationThrottle(mc, macComp.get());
             macComp.reset();
             syncNode.trimRareFields();
             // Fall through to initiate new computation
+        }
+        else if (macComp->hasFailed())
+        {
+            // Computation failed - return error and clean up
+            LOG_debug << logPre << "Failed: " << fsNodeFullPath;
+            releaseMacComputationThrottle(mc, macComp.get());
+            macComp.reset();
+            syncNode.trimRareFields();
+            return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
         }
         else if (macComp->isReady())
         {
@@ -631,54 +734,160 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
             LOG_debug << logPre << "Complete: " << nodeComparisonResultToStr(result) << " [path = '"
                       << fsNodeFullPath << "']";
 
+            releaseMacComputationThrottle(mc, macComp.get());
             macComp.reset();
             syncNode.trimRareFields();
             return {result, localMac, remoteMac};
         }
+        else if (macComp->isChunkInProgress())
+        {
+            // Worker still processing - return pending
+            LOG_verbose << logPre << "Chunk in progress: " << fsNodeFullPath;
+            return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
+        }
         else
         {
-            // Still computing - return pending
-            LOG_verbose << logPre << "Still in progress: " << fsNodeFullPath;
-            return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
+            // Ready for next chunk - fall through to read and queue
         }
     }
 
-    // No existing computation (or just invalidated) - initiate new one
-    auto macComp = std::make_shared<MacComp>(fs.fingerprint, cn.fingerprint, cn.handle, fs.fsid);
-    syncNode.rare().macComputation = macComp;
+    // Initialize or continue computation
+    std::shared_ptr<MacComp> macComp;
 
-    // Capture weak_ptr for safe access from client thread
-    std::weak_ptr<MacComp> weakMac = macComp;
-
-    LOG_debug << logPre << "Initiating: " << fsNodeFullPath;
-
-    mc.syncs.queueClient(
-        [cloudNodeHandle = cn.handle, fsNodeFullPath, weakMac](MegaClient& mc, TransferDbCommitter&)
+    if (syncNode.hasRare() && syncNode.rareRO().macComputation)
+    {
+        macComp = syncNode.rare().macComputation;
+    }
+    else
+    {
+        // Check global throttle before starting new file computation
+        if (!mc.syncs.mMacComputationThrottle.tryAcquireFile())
         {
-            static const std::string asyncLogPre{"asyncMacComputation (client): "};
+            LOG_verbose << logPre << "Throttle full (files), deferring: " << fsNodeFullPath
+                        << " [files=" << mc.syncs.mMacComputationThrottle.currentFiles()
+                        << ", chunks=" << mc.syncs.mMacComputationThrottle.currentChunks() << "]";
+            return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
+        }
 
-            // Check if computation is still needed
-            auto macComp = weakMac.lock();
-            if (!macComp)
-            {
-                LOG_debug << asyncLogPre << "Abandoned (LocalNode gone): " << fsNodeFullPath;
-                return;
-            }
+        // Create new computation state
+        const m_off_t fileSize = fs.fingerprint.size;
+        macComp = std::make_shared<MacComp>(fs.fingerprint,
+                                            cn.fingerprint,
+                                            cn.handle,
+                                            fs.fsid,
+                                            fileSize,
+                                            fsNodeFullPath);
+        macComp->throttleSlotAcquired = true; // Mark that we've acquired a throttle slot
+        syncNode.rare().macComputation = macComp;
 
-            auto [result, localMac, remoteMac] =
-                computeMacOnClientThread(mc, cloudNodeHandle, fsNodeFullPath, asyncLogPre);
+        // Initialize cipher params from cloud node (must be done on sync thread with node access)
+        if (!initMacComputationFromNode(mc, cn.handle, *macComp, logPre))
+        {
+            releaseMacComputationThrottle(mc, macComp.get());
+            macComp.reset();
+            syncNode.rare().macComputation.reset();
+            syncNode.trimRareFields();
+            return {NODE_COMP_EARGS, INVALID_META_MAC, INVALID_META_MAC};
+        }
 
-            // Final check and set result
-            macComp = weakMac.lock();
-            if (macComp)
-            {
-                macComp->setResult(result, localMac, remoteMac);
-            }
-            else
-            {
-                LOG_debug << asyncLogPre << "Result discarded (LocalNode gone): " << fsNodeFullPath;
-            }
-        });
+        LOG_debug << logPre << "Initiating: " << fsNodeFullPath << " [size=" << macComp->totalSize
+                  << ", files=" << mc.syncs.mMacComputationThrottle.currentFiles()
+                  << ", chunks=" << mc.syncs.mMacComputationThrottle.currentChunks()
+                  << ", maxMemory=" << mc.syncs.mMacComputationThrottle.limits().maxMemoryUsage()
+                  << "]";
+    }
+
+    // Read next chunk from file (with FILE_SHARE_DELETE)
+    // IMPORTANT: We must align reads to MEGA chunk boundaries because ctr_encrypt
+    // requires starting at chunk boundaries. The MEGA chunking scheme has variable
+    // chunk sizes (128KB-1MB), so we round down readEnd to ensure complete chunks.
+    m_off_t readStart = macComp->currentPosition; // Always at a MEGA chunk boundary
+    m_off_t tentativeEnd = std::min(readStart + MacComp::BUFFER_SIZE, macComp->totalSize);
+
+    // Round down to nearest MEGA chunk boundary (unless it's the file end)
+    m_off_t readEnd;
+    if (tentativeEnd >= macComp->totalSize)
+    {
+        readEnd = macComp->totalSize; // Read to end of file
+    }
+    else
+    {
+        // Find the start of the MEGA chunk containing tentativeEnd
+        // This is where our next read should start from
+        readEnd = ChunkedHash::chunkfloor(tentativeEnd);
+        if (readEnd <= readStart)
+        {
+            // Buffer too small for even one chunk - extend to next chunk boundary
+            readEnd = ChunkedHash::chunkceil(readStart, macComp->totalSize);
+        }
+    }
+
+    m_off_t readSize = readEnd - readStart;
+
+    if (readSize <= 0)
+    {
+        // Should not happen - computation should have completed
+        LOG_err << logPre << "Invalid read size: " << readSize;
+        macComp->setFailed();
+        return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    // Open file briefly with FILE_SHARE_DELETE
+    auto fa = mc.fsaccess->newfileaccess();
+    if (!fa || !fa->fopenForMacRead(fsNodeFullPath, FSLogging::logOnError))
+    {
+        LOG_debug << logPre << "Cannot open file: " << fsNodeFullPath;
+        macComp->setFailed();
+        return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    // Verify file size matches expected
+    if (fa->size != macComp->totalSize)
+    {
+        LOG_debug << logPre << "File size changed: expected " << macComp->totalSize << ", got "
+                  << fa->size;
+        fa->fclose();
+        macComp.reset();
+        syncNode.rare().macComputation.reset();
+        syncNode.trimRareFields();
+        // File changed - let sync re-evaluate
+        return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    // Read chunk into buffer (use shared_ptr for std::function compatibility)
+    auto chunkData =
+        std::shared_ptr<byte[]>(new byte[static_cast<size_t>(readSize) + SymmCipher::BLOCKSIZE]);
+    memset(chunkData.get() + readSize, 0, SymmCipher::BLOCKSIZE); // Pad for cipher
+
+    bool readOk = fa->frawread(chunkData.get(),
+                               static_cast<unsigned>(readSize),
+                               readStart,
+                               true,
+                               FSLogging::logOnError);
+    fa->fclose(); // Release file immediately
+
+    if (!readOk)
+    {
+        LOG_debug << logPre << "Read failed at " << readStart << ": " << fsNodeFullPath;
+        macComp->setFailed();
+        return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    // Mark chunk in progress and queue to worker thread
+    macComp->chunkInProgress.store(true, std::memory_order_release);
+
+    std::weak_ptr<MacComp> weakMac = macComp;
+    const std::string workerLogPre = "asyncMacComputation (worker): ";
+
+    mc.mAsyncQueue.push(
+        [weakMac, readStart, readEnd, chunkData, workerLogPre](SymmCipher&)
+        {
+            processChunkOnWorkerThread(weakMac, readStart, readEnd, chunkData, workerLogPre);
+        },
+        true); // discardable - if client shutting down, don't block
+
+    LOG_verbose << logPre << "Queued chunk [" << readStart << "-" << readEnd
+                << "]: " << fsNodeFullPath;
 
     return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
 }
@@ -686,24 +895,47 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
 /**
  * @brief Blocking MAC computation for unsynced files.
  *
- * Queues the computation on the client thread and blocks until complete.
+ * Performs full MAC computation in one go (not incremental).
+ * Used for SRT_CXF case where there's no LocalNode to store state.
  */
 FsCloudComparisonResult blockingMacComputation(MegaClient& mc,
                                                const CloudNode& cn,
                                                const LocalPath& fsNodeFullPath)
 {
-    auto pms = std::make_shared<std::promise<FsCloudComparisonResult>>();
-    auto fut = pms->get_future();
+    static const std::string logPre{"blockingMacComputation: "};
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto fsNFP = fsNodeFullPath.toPath(false);
 
-    mc.syncs.queueClient(
-        [cloudNodeHandle = cn.handle, fsNodeFullPath, pms](MegaClient& mc, TransferDbCommitter&)
-        {
-            static const std::string blockingLogPre{"blockingMacComputation: "};
-            pms->set_value(
-                computeMacOnClientThread(mc, cloudNodeHandle, fsNodeFullPath, blockingLogPre));
-        });
+    LOG_debug << logPre << "Starting: " << fsNFP;
 
-    return fut.get();
+    auto node = mc.nodeByHandle(cn.handle);
+    if (!node || node->type != FILENODE || node->nodekey().empty())
+    {
+        LOG_debug << logPre << "NODE_COMP_EARGS: " << fsNFP;
+        return {NODE_COMP_EARGS, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    // Open with FILE_SHARE_DELETE
+    auto fa = mc.fsaccess->newfileaccess();
+    if (!fa || !fa->fopenForMacRead(fsNodeFullPath, FSLogging::logOnError))
+    {
+        LOG_debug << logPre << "NODE_COMP_EREAD: " << fsNFP;
+        return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
+    }
+
+    auto [localMac, remoteMac] =
+        genLocalAndRemoteMetaMac(fa.get(), node->nodekey(), node->type, fsNFP);
+
+    fa->fclose();
+
+    auto compRes = (localMac == remoteMac) ? NODE_COMP_DIFFERS_MTIME : NODE_COMP_DIFFERS_MAC;
+
+    const auto t1 = std::chrono::steady_clock::now();
+    const auto msMac = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    LOG_debug << logPre << "Complete in " << msMac << " ms: " << nodeComparisonResultToStr(compRes)
+              << " [path = '" << fsNFP << "']";
+
+    return {compRes, localMac, remoteMac};
 }
 
 } // anonymous namespace

@@ -764,12 +764,37 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, FSLogging fsl,
                           DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
-    fopenSucceeded = fopen_impl(name, read, write, fsl, false, iteratingDir, ignoreAttributes, skipcasecheck, actualLeafNameIfDifferent);
+    fopenSucceeded = fopen_impl(name,
+                                read,
+                                write,
+                                fsl,
+                                false,
+                                iteratingDir,
+                                ignoreAttributes,
+                                skipcasecheck,
+                                actualLeafNameIfDifferent,
+                                false);
     return fopenSucceeded;
 }
 
-bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, FSLogging fsl,
-                               bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
+bool WinFileAccess::fopenForMacRead(const LocalPath& path, FSLogging fsl)
+{
+    // Open with FILE_SHARE_DELETE to allow the file to be moved/deleted while we're computing MAC
+    fopenSucceeded =
+        fopen_impl(path, true, false, fsl, false, nullptr, false, false, nullptr, true);
+    return fopenSucceeded;
+}
+
+bool WinFileAccess::fopen_impl(const LocalPath& namePath,
+                               bool read,
+                               bool write,
+                               FSLogging fsl,
+                               bool async,
+                               DirAccess* iteratingDir,
+                               bool ignoreAttributes,
+                               bool skipcasecheck,
+                               LocalPath* actualLeafNameIfDifferent,
+                               bool shareDelete)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
@@ -891,9 +916,15 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
 
     // (race condition between GetFileAttributesEx()/FindFirstFile() possible -
     // fixable with the current Win32 API?)
+    DWORD shareMode = FILE_SHARE_WRITE | FILE_SHARE_READ;
+    if (shareDelete)
+    {
+        shareMode |= FILE_SHARE_DELETE; // Allow file to be moved/deleted while open (used for MAC
+                                        // computation)
+    }
     hFile = CreateFileW(namePath.asPlatformEncoded(false).c_str(),
                         desiredAccess,
-                        FILE_SHARE_WRITE | FILE_SHARE_READ,
+                        shareMode,
                         NULL,
                         !write ? OPEN_EXISTING : OPEN_ALWAYS,
                         (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS :

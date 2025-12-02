@@ -1846,6 +1846,10 @@ public:
     // by setting this flag
     bool mBackupRestrictionsEnabled = true;
 
+    // Throttle for MAC computation to prevent resource exhaustion
+    // Limits concurrent MAC computations and total data in flight
+    MacComputationThrottle mMacComputationThrottle;
+
     std::atomic<int> completedPassCount{0};
 
 private:

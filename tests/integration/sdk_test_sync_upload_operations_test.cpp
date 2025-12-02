@@ -877,4 +877,395 @@ TEST_F(SdkTestSyncUploadsOperations, CloneNodeWithDifferentMtime)
 
     LOG_debug << logPre << "Test completed successfully";
 }
+
+/**
+ * @brief Tests that async MAC computation doesn't block small files.
+ *
+ * Creates 3 files (2 small, 1 large ~10MB), syncs them, then updates mtimes for all 3.
+ * Verifies that the small files complete their mtime-only sync quickly, even while
+ * the large file's MAC computation may be in progress.
+ *
+ * This validates the non-blocking MAC computation implementation for SRT_CSF cases.
+ */
+TEST_F(SdkTestSyncUploadsOperations, AsyncMacComputationDoesNotBlockSmallFiles)
+{
+    static const std::string logPre{"AsyncMacComputationDoesNotBlockSmallFiles: "};
+    auto cleanup = setCleanupFunction();
+    LOG_debug << logPre << "Test started";
+
+    // File sizes
+    static constexpr size_t SMALL_FILE_SIZE =
+        (5 * 1024 * 1024) + (126 * 1024) + 17; // 5MB + 126KB + 17 bytes
+    static constexpr size_t LARGE_FILE_SIZE =
+        (100 * 1024 * 1024) + (212 * 1024) + 2; // 100MB + 212KB + 2 bytes
+
+    const fs::path smallFile1Path = fs::absolute(getLocalTmpDir() / "small_file1.dat");
+    const fs::path smallFile2Path = fs::absolute(getLocalTmpDir() / "small_file2.dat");
+    const fs::path largeFilePath = fs::absolute(getLocalTmpDir() / "large_file.dat");
+
+    LOG_debug << logPre << "1. Creating test files (2 small, 1 large)";
+
+    // Create small file 1
+    {
+        auto st = addSyncListenerTracker(smallFile1Path.string());
+        ASSERT_TRUE(st);
+        auto localFile = std::make_shared<sdk_test::LocalTempFile>(smallFile1Path, SMALL_FILE_SIZE);
+        mLocalFiles.emplace_back(localFile);
+        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        ASSERT_EQ(status, std::future_status::ready) << "Small file 1 sync timed out";
+        ASSERT_EQ(errCode, API_OK) << "Small file 1 sync failed";
+    }
+
+    // Create small file 2
+    {
+        auto st = addSyncListenerTracker(smallFile2Path.string());
+        ASSERT_TRUE(st);
+        auto localFile = std::make_shared<sdk_test::LocalTempFile>(smallFile2Path, SMALL_FILE_SIZE);
+        mLocalFiles.emplace_back(localFile);
+        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        ASSERT_EQ(status, std::future_status::ready) << "Small file 2 sync timed out";
+        ASSERT_EQ(errCode, API_OK) << "Small file 2 sync failed";
+    }
+
+    // Create large file
+    {
+        auto st = addSyncListenerTracker(largeFilePath.string());
+        ASSERT_TRUE(st);
+        auto localFile = std::make_shared<sdk_test::LocalTempFile>(largeFilePath, LARGE_FILE_SIZE);
+        mLocalFiles.emplace_back(localFile);
+        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        ASSERT_EQ(status, std::future_status::ready) << "Large file sync timed out";
+        ASSERT_EQ(errCode, API_OK) << "Large file sync failed";
+    }
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+    LOG_debug << logPre << "2. All files synced, now updating mtimes";
+
+    // Update mtimes for all files
+    const m_time_t newMtime = m_time(nullptr) + MIN_ALLOW_MTIME_DIFFERENCE;
+
+    auto stSmall1 = addSyncListenerTracker(smallFile1Path.string());
+    auto stSmall2 = addSyncListenerTracker(smallFile2Path.string());
+    auto stLarge = addSyncListenerTracker(largeFilePath.string());
+    ASSERT_TRUE(stSmall1 && stSmall2 && stLarge);
+
+    // Update all mtimes at once
+    LOG_debug << logPre << "3. Updating mtimes for all 3 files";
+    ASSERT_TRUE(
+        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(smallFile1Path.u8string()), newMtime));
+    ASSERT_TRUE(
+        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(smallFile2Path.u8string()), newMtime));
+    ASSERT_TRUE(
+        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(largeFilePath.u8string()), newMtime));
+
+    LOG_debug << logPre << "4. Waiting for all files to sync and tracking completion order";
+
+    // Track completion times to verify small files don't wait for large file
+    using clock = std::chrono::steady_clock;
+    std::atomic<clock::time_point> small1CompleteTime{clock::time_point::max()};
+    std::atomic<clock::time_point> small2CompleteTime{clock::time_point::max()};
+    std::atomic<clock::time_point> largeCompleteTime{clock::time_point::max()};
+    std::atomic<bool> small1Done{false};
+    std::atomic<bool> small2Done{false};
+    std::atomic<bool> largeDone{false};
+
+    // Wait for all completions in parallel threads to capture accurate timestamps
+    std::thread waitSmall1(
+        [&]()
+        {
+            auto [status, err] = stSmall1->waitForCompletion(std::chrono::seconds(60));
+            if (status == std::future_status::ready && err == API_OK)
+            {
+                small1CompleteTime = clock::now();
+                small1Done = true;
+                LOG_debug << logPre << "Small file 1 mtime sync completed";
+            }
+        });
+
+    std::thread waitSmall2(
+        [&]()
+        {
+            auto [status, err] = stSmall2->waitForCompletion(std::chrono::seconds(60));
+            if (status == std::future_status::ready && err == API_OK)
+            {
+                small2CompleteTime = clock::now();
+                small2Done = true;
+                LOG_debug << logPre << "Small file 2 mtime sync completed";
+            }
+        });
+
+    std::thread waitLarge(
+        [&]()
+        {
+            auto [status, err] = stLarge->waitForCompletion(std::chrono::seconds(180));
+            if (status == std::future_status::ready && err == API_OK)
+            {
+                largeCompleteTime = clock::now();
+                largeDone = true;
+                LOG_debug << logPre << "Large file mtime sync completed";
+            }
+        });
+
+    waitSmall1.join();
+    waitSmall2.join();
+    waitLarge.join();
+
+    // Verify all files completed
+    ASSERT_TRUE(small1Done) << "Small file 1 mtime sync failed or timed out";
+    ASSERT_TRUE(small2Done) << "Small file 2 mtime sync failed or timed out";
+    ASSERT_TRUE(largeDone) << "Large file mtime sync failed or timed out";
+
+    LOG_debug << logPre << "5. Verifying completion order";
+
+    // The key assertion: small files should complete BEFORE the large file
+    // This proves the async MAC computation doesn't block small files
+    auto small1Time = small1CompleteTime.load();
+    auto small2Time = small2CompleteTime.load();
+    auto largeTime = largeCompleteTime.load();
+
+    LOG_debug
+        << logPre << "Completion times (relative to large file):"
+        << " small1="
+        << std::chrono::duration_cast<std::chrono::milliseconds>(small1Time - largeTime).count()
+        << "ms"
+        << " small2="
+        << std::chrono::duration_cast<std::chrono::milliseconds>(small2Time - largeTime).count()
+        << "ms";
+
+    // Small files should complete before large file
+    // (negative time difference means small file completed first)
+    EXPECT_LT(small1Time, largeTime)
+        << "Small file 1 should complete before large file - async MAC computation may be blocking";
+    EXPECT_LT(small2Time, largeTime)
+        << "Small file 2 should complete before large file - async MAC computation may be blocking";
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+    LOG_debug << logPre << "Test completed successfully";
+}
+
+/**
+ * @brief Tests blocking MAC computation for SRT_CXF case (local logout/relog).
+ *
+ * This exercises the scenario where LocalNodes are lost (logout/relog) but files
+ * remain in sync folder. Upon re-sync, files with mtime-only differences use
+ * blocking MAC computation as there's no LocalNode to store async state.
+ *
+ * The test verifies that the sync eventually completes correctly even with blocking
+ * MAC computation.
+ */
+TEST_F(SdkTestSyncUploadsOperations, BlockingMacComputationForCxfCase)
+{
+    static const std::string logPre{"BlockingMacComputationForCxfCase: "};
+    auto cleanup = setCleanupFunction();
+    LOG_debug << logPre << "Test started";
+
+    // Create a moderately sized file to test blocking MAC
+    static constexpr size_t FILE_SIZE = (5 * 1024 * 1024) + (2 * 1024) + 3; // 5MB + 2KB + 3 bytes
+    const fs::path testFilePath = fs::absolute(getLocalTmpDir() / "test_file_cxf.dat");
+
+    LOG_debug << logPre << "1. Creating test file";
+    {
+        auto st = addSyncListenerTracker(testFilePath.string());
+        ASSERT_TRUE(st);
+        auto localFile = std::make_shared<sdk_test::LocalTempFile>(testFilePath, FILE_SIZE);
+        mLocalFiles.emplace_back(localFile);
+        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        ASSERT_EQ(status, std::future_status::ready) << "File sync timed out";
+        ASSERT_EQ(errCode, API_OK) << "File sync failed";
+    }
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    // Record original mtime
+    auto [getMtimeOk, originalMtime] =
+        mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(testFilePath.u8string()));
+    ASSERT_TRUE(getMtimeOk) << "Failed to get original mtime";
+
+    LOG_debug << logPre << "2. Updating file mtime";
+    const m_time_t newMtime = originalMtime + MIN_ALLOW_MTIME_DIFFERENCE;
+    ASSERT_TRUE(
+        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(testFilePath.u8string()), newMtime));
+
+    LOG_debug << logPre << "3. Removing sync (simulating logout without file deletion)";
+    removeTestSync();
+
+    LOG_debug << logPre << "4. Re-adding sync (SRT_CXF case - no LocalNodes exist)";
+    ASSERT_NO_FATAL_FAILURE(initiateSync(getLocalTmpDirU8string(), SYNC_REMOTE_PATH, mBackupId));
+
+    LOG_debug << logPre << "5. Waiting for sync to complete with blocking MAC computation";
+    {
+        auto st = addSyncListenerTracker(testFilePath.string());
+        ASSERT_TRUE(st);
+        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        ASSERT_EQ(status, std::future_status::ready) << "File sync timed out";
+        ASSERT_EQ(errCode, API_OK) << "File sync failed";
+    }
+
+    // Verify the cloud node has the updated mtime
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << "Backup node not found";
+
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), "test_file_cxf.dat", FILENODE));
+    ASSERT_TRUE(cloudNode) << "Cloud node not found after re-sync";
+
+    ASSERT_EQ(cloudNode->getModificationTime(), newMtime)
+        << "Cloud node mtime should match the updated local mtime after CXF sync";
+
+    LOG_debug << logPre << "Test completed successfully";
+}
+
+/**
+ * @brief Tests MAC computation obsolescence when file is deleted during computation.
+ *
+ * Creates a large file, triggers mtime update to start MAC computation, then
+ * deletes the file while computation may be pending. The sync should handle
+ * this gracefully without errors.
+ */
+TEST_F(SdkTestSyncUploadsOperations, MacComputationObsolescenceOnDelete)
+{
+    static const std::string logPre{"MacComputationObsolescenceOnDelete: "};
+    auto cleanup = setCleanupFunction();
+    LOG_debug << logPre << "Test started";
+
+    // Use a large file to increase chance of pending MAC computation
+    static constexpr size_t LARGE_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    const fs::path largeFilePath = fs::absolute(getLocalTmpDir() / "large_file_delete_test.dat");
+
+    LOG_debug << logPre << "1. Creating large test file";
+    {
+        auto st = addSyncListenerTracker(largeFilePath.string());
+        ASSERT_TRUE(st);
+        auto localFile = std::make_shared<sdk_test::LocalTempFile>(largeFilePath, LARGE_FILE_SIZE);
+        mLocalFiles.emplace_back(localFile);
+        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        ASSERT_EQ(status, std::future_status::ready) << "Large file sync timed out";
+        ASSERT_EQ(errCode, API_OK) << "Large file sync failed";
+    }
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    LOG_debug << logPre << "2. Updating mtime to trigger MAC computation";
+    const m_time_t newMtime = m_time(nullptr) + MIN_ALLOW_MTIME_DIFFERENCE;
+    ASSERT_TRUE(
+        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(largeFilePath.u8string()), newMtime));
+
+    // Brief delay to let sync start processing
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    LOG_debug << logPre << "3. Deleting the file while MAC computation may be pending";
+    mLocalFiles.clear();
+
+    LOG_debug << logPre << "4. Waiting for sync to stabilize (file should be removed from cloud)";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    // Verify the cloud node is gone
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << "Backup node not found";
+
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), "large_file_delete_test.dat", FILENODE));
+    ASSERT_FALSE(cloudNode) << "Cloud node should have been deleted";
+
+    LOG_debug << logPre << "Test completed successfully";
+}
+
+/**
+ * @brief Tests MAC computation obsolescence when file is moved during computation.
+ *
+ * Creates a large file, triggers mtime update to start MAC computation, then
+ * moves the file to another directory while computation may be pending.
+ * The sync should handle this gracefully, completing the move correctly.
+ */
+TEST_F(SdkTestSyncUploadsOperations, MacComputationObsolescenceOnMove)
+{
+    static const std::string logPre{"MacComputationObsolescenceOnMove: "};
+    auto cleanup = setCleanupFunction();
+    LOG_debug << logPre << "Test started";
+
+    // Sync is already created during SetUp()
+
+    // Use a large file to increase chance of pending MAC computation
+    static constexpr size_t LARGE_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    const fs::path largeFilePath = fs::absolute(getLocalTmpDir() / "large_file_move_test.dat");
+    const fs::path destDir = fs::absolute(getLocalTmpDir() / "dir1");
+    const fs::path destFilePath = destDir / "large_file_move_test.dat";
+
+    LOG_debug << logPre << "1. Creating large test file";
+    {
+        auto st = addSyncListenerTracker(largeFilePath.string());
+        ASSERT_TRUE(st);
+        auto localFile = std::make_shared<sdk_test::LocalTempFile>(largeFilePath, LARGE_FILE_SIZE);
+        mLocalFiles.emplace_back(localFile);
+        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        ASSERT_EQ(status, std::future_status::ready) << "Large file sync timed out";
+        ASSERT_EQ(errCode, API_OK) << "Large file sync failed";
+    }
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    LOG_debug << logPre << "2. Updating mtime to trigger MAC computation";
+    const m_time_t newMtime = m_time(nullptr) + MIN_ALLOW_MTIME_DIFFERENCE;
+    ASSERT_TRUE(
+        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(largeFilePath.u8string()), newMtime));
+
+    // Brief delay to let sync start processing
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+
+    LOG_debug << logPre << "3. Moving file to dir1 while MAC computation may be pending";
+    {
+        auto st = addSyncListenerTracker(destFilePath.string());
+        ASSERT_TRUE(st);
+
+        // On Windows, if MAC computation has the file open, the move will fail.
+        // Retry a few times with delays to handle this platform limitation.
+        std::error_code ec;
+        static constexpr int MAX_MOVE_RETRIES = 10;
+        static constexpr auto RETRY_DELAY = std::chrono::seconds(3);
+        for (int attempt = 0; attempt < MAX_MOVE_RETRIES; ++attempt)
+        {
+            ec = mLocalFiles.back()->move(destFilePath);
+            if (!ec)
+            {
+                LOG_debug << logPre << "File moved successfully on attempt " << (attempt + 1);
+                break;
+            }
+            LOG_debug << logPre << "Move attempt " << (attempt + 1) << " failed: " << ec.message()
+                      << ". Retrying...";
+            std::this_thread::sleep_for(RETRY_DELAY);
+        }
+        ASSERT_FALSE(ec) << "Failed to move large file after " << MAX_MOVE_RETRIES
+                         << " attempts: " << ec.message();
+
+        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        ASSERT_EQ(status, std::future_status::ready) << "Large file sync timed out";
+        ASSERT_EQ(errCode, API_OK) << "Large file sync failed";
+    }
+
+    LOG_debug << logPre << "4. Waiting for sync to complete the move";
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    // Verify the cloud node is in the new location
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << "Backup node not found";
+
+    std::unique_ptr<MegaNode> dir1Node(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), "dir1", FOLDERNODE));
+    ASSERT_TRUE(dir1Node) << "dir1 not found in cloud";
+
+    std::unique_ptr<MegaNode> movedNode(
+        megaApi[0]->getChildNodeOfType(dir1Node.get(), "large_file_move_test.dat", FILENODE));
+    ASSERT_TRUE(movedNode) << "Moved file not found in dir1";
+
+    // Original location should be empty
+    std::unique_ptr<MegaNode> oldLocationNode(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), "large_file_move_test.dat", FILENODE));
+    ASSERT_FALSE(oldLocationNode) << "File should not exist at original location";
+
+    // Verify the mtime of the moved file
+    ASSERT_EQ(movedNode->getModificationTime(), newMtime)
+        << "Moved file should have the updated mtime";
+
+    LOG_debug << logPre << "Test completed successfully";
+}
 #endif // ENABLE_SYNC

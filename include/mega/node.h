@@ -33,6 +33,7 @@
 
 #include <atomic>
 #include <bitset>
+#include <mutex>
 
 namespace mega {
 
@@ -896,81 +897,137 @@ struct MEGA_API LocalNode
         };
 
         /**
-         * @brief Tracks an ongoing asynchronous MAC (Message Authentication Code) computation.
+         * @brief Tracks an ongoing incremental MAC (Message Authentication Code) computation.
          *
          * When comparing local and cloud files that differ only in mtime, we need to compute
          * the MetaMAC to determine if contents actually match. This computation can be slow
-         * for large files (20-80+ seconds), so it runs asynchronously on the client thread.
+         * for large files, so it runs incrementally across sync iterations using worker threads.
+         *
+         * Architecture:
+         * - Sync thread reads file in large chunks (10-20MB) with FILE_SHARE_DELETE
+         * - Worker thread (mAsyncQueue) computes MACs for chunks
+         * - Progress tracked across sync iterations
+         * - File opened/closed per chunk to minimize lock duration
          *
          * Thread safety:
          * - Context fields are immutable after construction
-         * - Result fields are written by client thread before setting completed=true (release)
-         * - Sync thread reads result fields only after completed=true (acquire)
-         * - The release/acquire ordering ensures proper visibility
+         * - chunkInProgress flag: sync thread sets true before queueing, worker clears when done
+         * - completed flag: worker sets when all chunks processed
+         * - partialMacs protected by mutex (worker writes, sync reads only when !chunkInProgress)
          *
          * Lifetime:
          * - Sync thread holds shared_ptr in RareFields
-         * - Client thread captures weak_ptr in lambda
+         * - Worker thread captures weak_ptr in lambda
          * - If LocalNode is deleted, weak_ptr.lock() returns nullptr and computation is abandoned
          */
         struct MacComputationInProgress
         {
-            // Atomic completion flag - uses release/acquire semantics for thread safety
-            std::atomic<bool> completed{false};
-
-            // Result fields - only valid after completed.load(acquire) returns true
-            node_comparison_result result{NODE_COMP_EQUAL};
-            int64_t localMac{INVALID_META_MAC};
-            int64_t remoteMac{INVALID_META_MAC};
-
             // Validation context (immutable after construction)
             const FileFingerprint localFp;
             const FileFingerprint cloudFp;
             const NodeHandle cloudHandle;
             const handle fsid;
 
+            // File info
+            const m_off_t totalSize;
+            const LocalPath filePath;
+
+            // Cipher params (copied from cloud node, safe for any thread)
+            std::array<byte, SymmCipher::KEYLENGTH> transferkey{};
+            int64_t ctriv = 0;
+            int64_t expectedMac = 0;
+
+            // Progress tracking
+            m_off_t currentPosition = 0;
+
+            // Accumulated chunk MACs - protected by mutex
+            mutable std::mutex macsMutex;
+            chunkmac_map partialMacs;
+
+            // Buffer size for reading chunks (10MB)
+            static constexpr m_off_t BUFFER_SIZE = 10 * 1024 * 1024;
+
+            // State flags (atomic for thread safety)
+            std::atomic<bool> chunkInProgress{false}; // True while worker processing
+            std::atomic<bool> completed{false}; // True when all chunks done
+            std::atomic<bool> failed{false}; // True if read/compute error
+
+            // Throttle tracking - true if we've acquired a slot from MacComputationThrottle
+            bool throttleSlotAcquired{false};
+
+            // Result fields - valid after completed=true
+            node_comparison_result result{NODE_COMP_PENDING};
+            int64_t localMac{INVALID_META_MAC};
+            int64_t remoteMac{INVALID_META_MAC};
+
             MacComputationInProgress(const FileFingerprint& localFp_,
                                      const FileFingerprint& cloudFp_,
                                      const NodeHandle cloudHandle_,
-                                     const handle fsid_):
+                                     const handle fsid_,
+                                     const m_off_t totalSize_,
+                                     const LocalPath& filePath_):
                 localFp(localFp_),
                 cloudFp(cloudFp_),
                 cloudHandle(cloudHandle_),
-                fsid(fsid_)
+                fsid(fsid_),
+                totalSize(totalSize_),
+                filePath(filePath_)
             {}
 
             /**
-             * @brief Thread-safe: called by client thread when computation is done.
-             *
-             * Uses memory_order_release to ensure all prior writes to result fields
-             * are visible to any thread that subsequently reads completed with acquire.
+             * @brief Thread-safe: called by worker thread when chunk MAC is computed.
              */
-            void setResult(const node_comparison_result res,
-                           const int64_t localM,
-                           const int64_t remoteM)
+            void addChunkMacs(chunkmac_map&& chunkMacs, m_off_t newPosition)
+            {
+                std::lock_guard<std::mutex> g(macsMutex);
+                chunkMacs.copyEntriesTo(partialMacs);
+                currentPosition = newPosition;
+            }
+
+            /**
+             * @brief Thread-safe: called by worker thread when computation completes.
+             */
+            void setComplete(const node_comparison_result res,
+                             const int64_t localM,
+                             const int64_t remoteM)
             {
                 result = res;
                 localMac = localM;
                 remoteMac = remoteM;
+                chunkInProgress.store(false, std::memory_order_release);
                 completed.store(true, std::memory_order_release);
             }
 
             /**
-             * @brief Thread-safe: called by sync thread to check if result is ready.
-             *
-             * Uses memory_order_acquire to ensure all writes before the corresponding
-             * release are visible after this returns true.
+             * @brief Thread-safe: called by worker thread on error.
              */
+            void setFailed()
+            {
+                result = NODE_COMP_EREAD;
+                chunkInProgress.store(false, std::memory_order_release);
+                failed.store(true, std::memory_order_release);
+            }
+
+            /**
+             * @brief Thread-safe: check if ready for next chunk or complete.
+             */
+            bool isChunkInProgress() const
+            {
+                return chunkInProgress.load(std::memory_order_acquire);
+            }
+
             bool isReady() const
             {
                 return completed.load(std::memory_order_acquire);
             }
 
+            bool hasFailed() const
+            {
+                return failed.load(std::memory_order_acquire);
+            }
+
             /**
              * @brief Check if the stored context still matches the current row state.
-             *
-             * If context doesn't match, the computation result is invalid and should be discarded.
-             * This handles cases where the file was moved, deleted, or modified while computing.
              */
             bool contextMatches(const handle currentFsid,
                                 const NodeHandle currentCloudHandle,

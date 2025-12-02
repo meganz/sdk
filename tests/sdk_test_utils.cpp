@@ -155,6 +155,22 @@ void LocalTempFile::appendData(const std::string_view contentsToAppend) const
     appendToFile(mFilePath, contentsToAppend);
 }
 
+std::error_code LocalTempFile::move(const fs::path& newPath)
+{
+    std::error_code ec;
+    fs::rename(mFilePath, newPath, ec);
+    if (!ec)
+    {
+        mFilePath = newPath;
+    }
+    else
+    {
+        LOG_err << "Failed to move file from " << mFilePath << " to " << newPath
+                << ". Error: " << ec.message();
+    }
+    return ec;
+}
+
 LocalTempFile::~LocalTempFile()
 {
     fs::remove(mFilePath);
