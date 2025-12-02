@@ -137,9 +137,6 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 // change email link to be confirmed
 static string changeemail, changecode;
 
-// import welcome pdf at account creation
-static bool pdf_to_import = false;
-
 // public link information
 static string publiclink;
 
@@ -164,7 +161,6 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions);
 
-
 static std::string USAGE = R"(
 Mega command line
 Usage:
@@ -174,12 +170,12 @@ Usage:
   -v                   Verbose
   -c=arg               Client type. default|vpn|password_manager (default: default))"
 #if defined(ENABLE_ISOLATED_GFX)
-R"(
+                           R"(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
   -n=arg               Endpoint name (default: mega_gfxworker_megacli)
 )"
 #endif
-;
+    ;
 struct Config
 {
     std::string executable;
@@ -1204,7 +1200,6 @@ void DemoApp::fetchnodes_result(const Error& e)
         {
             cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
         }
-        pdf_to_import = false;
     }
     else
     {
@@ -1220,15 +1215,6 @@ void DemoApp::fetchnodes_result(const Error& e)
                 assert(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()));   // node is there, but cannot be decrypted
                 cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
             }
-        }
-
-        if (pdf_to_import)
-        {
-            client->importOrDelayWelcomePdf();
-        }
-        else if (client->shouldWelcomePdfImported())
-        {
-            client->importWelcomePdfIfDelayed();
         }
 
         if (client->ephemeralSessionPlusPlus)
@@ -1252,21 +1238,6 @@ void DemoApp::putnodes_result(const Error& e,
         {
             cout << "Success." << endl;
         }
-    }
-
-    if (pdf_to_import)   // putnodes from openfilelink_result()
-    {
-        if (!e)
-        {
-            cout << "Welcome PDF file has been imported successfully." << endl;
-        }
-        else
-        {
-            cout << "Failed to import Welcome PDF file" << endl;
-        }
-
-        pdf_to_import = false;
-        return;
     }
 
     if (e)
@@ -5385,16 +5356,23 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
 #endif
-    p->Add(exec_alerts,
+    p->Add(exec_alerts, text("alerts"));
+    p->Add(exec_alerts_new, sequence(text("alerts"), text("new")));
+    p->Add(exec_alerts_old, sequence(text("alerts"), text("old")));
+    p->Add(exec_alerts_number, sequence(text("alerts"), wholenumber(10)));
+    p->Add(exec_alerts_notify, sequence(text("alerts"), text("notify")));
+    p->Add(exec_alerts_seen, sequence(text("alerts"), text("seen")));
+    p->Add(exec_alerts_test_reminder, sequence(text("alerts"), text("test_reminder")));
+    p->Add(exec_alerts_test_payment, sequence(text("alerts"), text("test_payment")));
+    p->Add(exec_alerts_test_payment_v2, sequence(text("alerts"), text("test_payment_v2")));
+    p->Add(exec_alerts_add_reminder,
            sequence(text("alerts"),
-                    opt(either(text("new"),
-                               text("old"),
-                               wholenumber(10),
-                               text("notify"),
-                               text("seen"),
-                               text("test_reminder"),
-                               text("test_payment"),
-                               text("test_payment_v2")))));
+                    text("add_reminder"),
+                    param("timestamp_offset"),
+                    param("expiry_offset")));
+    p->Add(
+        exec_alerts_add_payment,
+        sequence(text("alerts"), text("add_payment"), param("timestamp_offset"), param("result")));
     p->Add(exec_recentactions,
            sequence(text("recentactions"),
                     param("hours"),
@@ -7332,8 +7310,8 @@ void exec_login(autocomplete::ACState& s)
         else
         {
             cout << "      login email [password]" << endl
-                << "      login exportedfolderurl#key [authKey]" << endl
-                << "      login session" << endl;
+                 << "      login exportedfolderurl#key [authKey]" << endl
+                 << "      login session" << endl;
         }
     }
     else
@@ -7348,8 +7326,6 @@ void exec_begin(autocomplete::ACState& s)
     if (s.words.size() == 1)
     {
         cout << "Creating ephemeral session..." << endl;
-
-        pdf_to_import = true;
         client->createephemeral();
     }
     else if (s.words.size() == 2)   // resume session
@@ -7378,7 +7354,6 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session plus plus..." << endl;
 
-        pdf_to_import = true;
         ephemeralFirstname = s.words[1].s;
         ephemeralLastName = s.words[2].s;
         client->createephemeralPlusPlus();
@@ -8938,67 +8913,17 @@ void exec_cancel(autocomplete::ACState& s)
     }
 }
 
-void exec_alerts(autocomplete::ACState& s)
+static void print_alerts(bool showNew, bool showOld, size_t showN)
 {
-    bool shownew = false, showold = false;
-    size_t showN = 0;
-    if (s.words.size() == 1)
-    {
-        shownew = showold = true;
-    }
-    else if (s.words.size() == 2)
-    {
-        if (s.words[1].s == "seen")
-        {
-            client->useralerts.acknowledgeAll();
-            return;
-        }
-        else if (s.words[1].s == "notify")
-        {
-            notifyAlerts = !notifyAlerts;
-            cout << "notification of alerts is now " << (notifyAlerts ? "on" : "off") << endl;
-            return;
-        }
-        else if (s.words[1].s == "old")
-        {
-            showold = true;
-        }
-        else if (s.words[1].s == "new")
-        {
-            shownew = true;
-        }
-        else if (s.words[1].s == "test_reminder")
-        {
-            client->useralerts.add(new UserAlert::PaymentReminder(time(NULL) - 86000*3 /2, client->useralerts.nextId()));
-        }
-        else if (s.words[1].s == "test_payment")
-        {
-            client->useralerts.add(new UserAlert::Payment(true,
-                                                          1,
-                                                          time(NULL) + 86000 * 1,
-                                                          client->useralerts.nextId(),
-                                                          name_id::psts));
-        }
-        else if (s.words[1].s == "test_payment_v2")
-        {
-            client->useralerts.add(new UserAlert::Payment(true,
-                                                          1,
-                                                          time(NULL) + 86000 * 1,
-                                                          client->useralerts.nextId(),
-                                                          name_id::psts_v2));
-        }
-        else if (atoi(s.words[1].s.c_str()) > 0)
-        {
-            showN = static_cast<size_t>(atoi(s.words[1].s.c_str()));
-        }
-    }
-    if (showold || shownew || showN > 0)
+    if (showOld || showNew || showN > 0)
     {
         UserAlerts::Alerts::const_iterator i = client->useralerts.alerts.begin();
         if (showN)
         {
             size_t n = 0;
-            for (UserAlerts::Alerts::const_reverse_iterator j = client->useralerts.alerts.rbegin(); j != client->useralerts.alerts.rend(); ++j, ++n)
+            for (UserAlerts::Alerts::const_reverse_iterator j = client->useralerts.alerts.rbegin();
+                 j != client->useralerts.alerts.rend();
+                 ++j, ++n)
             {
                 if (!(*j)->removed())
                 {
@@ -9012,13 +8937,153 @@ void exec_alerts(autocomplete::ACState& s)
         {
             if ((*i)->relevant() && !(*i)->removed())
             {
-                if (--n < showN || (shownew && !(*i)->seen()) || (showold && (*i)->seen()))
+                if (--n < showN || (showNew && !(*i)->seen()) || (showOld && (*i)->seen()))
                 {
                     printAlert(**i);
                 }
             }
         }
     }
+    return;
+}
+
+void exec_alerts(autocomplete::ACState&)
+{
+    return print_alerts(true, true, 0);
+}
+
+void exec_alerts_new(autocomplete::ACState&)
+{
+    return print_alerts(true, false, 0);
+}
+
+void exec_alerts_old(autocomplete::ACState&)
+{
+    return print_alerts(false, true, 0);
+}
+
+void exec_alerts_number(autocomplete::ACState& s)
+{
+    return print_alerts(false, false, static_cast<size_t>(atoi(s.words[1].s.c_str())));
+}
+
+void exec_alerts_notify(autocomplete::ACState&)
+{
+    notifyAlerts = !notifyAlerts;
+    cout << "notification of alerts is now " << (notifyAlerts ? "on" : "off") << endl;
+    return;
+}
+
+void exec_alerts_seen(autocomplete::ACState&)
+{
+    client->useralerts.acknowledgeAll();
+    return;
+}
+
+void exec_alerts_test_reminder(autocomplete::ACState&)
+{
+    client->useralerts.add(
+        new UserAlert::PaymentReminder(time(NULL) - 86000 * 3 / 2, client->useralerts.nextId()));
+}
+
+void exec_alerts_test_payment(autocomplete::ACState&)
+{
+    client->useralerts.add(new UserAlert::Payment(true,
+                                                  1,
+                                                  time(NULL) + 86000 * 1,
+                                                  client->useralerts.nextId(),
+                                                  name_id::psts));
+}
+
+void exec_alerts_test_payment_v2(autocomplete::ACState&)
+{
+    client->useralerts.add(new UserAlert::Payment(true,
+                                                  1,
+                                                  time(NULL) + 86000 * 1,
+                                                  client->useralerts.nextId(),
+                                                  name_id::psts_v2));
+}
+
+void exec_alerts_add_reminder(autocomplete::ACState& s)
+{
+    // Parameterized command to add payment reminder
+    // Usage: alerts add_reminder <timestamp_offset> <expiry_offset>
+
+    if (s.words.size() < 4)
+    {
+        cout << "Usage: alerts add_reminder <timestamp_offset> <expiry_offset>" << endl;
+        cout << "  timestamp_offset: seconds from now (e.g., -86400 = 1 day ago)" << endl;
+        cout << "  expiry_offset: seconds from now for expiry (e.g., 2592000 = 30 days)" << endl;
+        cout << "Examples:" << endl;
+        cout << "  alerts add_reminder \"-86400\" 2592000 # Created 1 day ago, expires in 30 "
+                "days"
+             << endl;
+        cout << "  alerts add_reminder 0 604800  # Created now, expires in 7 days" << endl;
+        return;
+    }
+
+    m_time_t now = time(NULL);
+    int64_t timestampOffset = std::stoll(s.words[2].s);
+    int64_t expiryOffset = std::stoll(s.words[3].s);
+
+    // if you want to persist this alert
+    // you can upload a file after, using command 'put [FILE]'
+    client->useralerts.add(new UserAlert::PaymentReminder(now + timestampOffset,
+                                                          now + expiryOffset,
+                                                          client->useralerts.nextId()));
+
+    cout << "Added payment reminder" << endl;
+    cout << "  - Expected timestamp: " << now + timestampOffset << " (" << timestampOffset
+         << "s from now)" << endl;
+    cout << "  - Expires at: " << now + expiryOffset << " (" << expiryOffset << "s from now)"
+         << endl;
+    if (!client->useralerts.alerts.empty())
+    {
+        cout << "  - Actual timestamp: " << client->useralerts.alerts.back()->ts() << endl;
+    }
+    cout << "  - Total alerts in memory: " << client->useralerts.alerts.size() << endl;
+    return;
+}
+
+void exec_alerts_add_payment(autocomplete::ACState& s)
+{
+    // Parameterized command to add payment alert
+    // Usage: alerts add_payment <timestamp_offset> <success|failed>
+
+    if (s.words.size() < 3)
+    {
+        cout << "Usage: alerts add_payment <timestamp_offset> <success|failed>" << endl;
+        cout << "  timestamp_offset: seconds from now (e.g., 0 = now, -86400 = 1 day ago)" << endl;
+        cout << "  success|failed: payment result" << endl;
+        cout << "Examples:" << endl;
+        cout << "  alerts add_payment 0 success            # Payment succeeded now," << endl;
+        cout << "  alerts add_payment \"-172800\" failed   # Payment failed 2 days ago" << endl;
+        return;
+    }
+
+    m_time_t now = time(NULL);
+    int64_t timestampOffset = std::stoll(s.words[2].s);
+    string result = s.words[3].s;
+
+    if (result != "success" && result != "failed")
+    {
+        cout << "Error: result must be 'success' or 'failed'" << endl;
+        return;
+    }
+
+    // if you want to persist this alert
+    // you can upload a file after, using command 'put [FILE]'
+    client->useralerts.add(new UserAlert::Payment(result == "success" ? true : false,
+                                                  1,
+                                                  now + timestampOffset,
+                                                  client->useralerts.nextId(),
+                                                  name_id::psts_v2));
+
+    cout << "Added payment " << result << endl;
+    cout << "  - Timestamp: " << now + timestampOffset << " (" << timestampOffset << "s from now)"
+         << endl;
+    cout << "  - Total alerts in memory: " << client->useralerts.alerts.size() << endl;
+    return;
 }
 
 void exec_lmkdir(autocomplete::ACState& s)
@@ -9862,7 +9927,6 @@ void DemoApp::ephemeral_result(error e)
     {
         cout << "Ephemeral session error (" << errorstring(e) << ")" << endl;
     }
-    pdf_to_import = false;
 }
 
 // signup link send request result
@@ -10253,24 +10317,15 @@ void DemoApp::openfilelink_result(const Error& e)
 {
     if (e)
     {
-        if (pdf_to_import) // import welcome pdf has failed
+        if (e == API_ETOOMANY && e.hasExtraInfo())
         {
-            cout << "Failed to import Welcome PDF file" << endl;
+            cout << "Failed to open link: " << getExtraInfoErrorString(e) << endl;
         }
         else
         {
-            if (e == API_ETOOMANY && e.hasExtraInfo())
-            {
-                cout << "Failed to open link: " << getExtraInfoErrorString(e) << endl;
-            }
-            else
-            {
-                cout << "Failed to open link: " << errorstring(e) << endl;
-            }
-
+            cout << "Failed to open link: " << errorstring(e) << endl;
         }
     }
-    pdf_to_import = false;
 }
 
 // the requested link was opened successfully - import to cwd
@@ -10282,7 +10337,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     if (!key)
     {
         cout << "File is valid, but no key was provided." << endl;
-        pdf_to_import = false;
         return;
     }
 
@@ -10300,23 +10354,13 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     if (!buf)
     {
         cout << "The file won't be imported, the provided key is invalid." << endl;
-        pdf_to_import = false;
     }
     else if (client->loggedin() != NOTLOGGEDIN)
     {
-        if (pdf_to_import)
-        {
-            n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
-        }
-        else
-        {
-            n = client->nodeByHandle(cwd);
-        }
-
+        n = client->nodeByHandle(cwd);
         if (!n)
         {
             cout << "Target folder not found." << endl;
-            pdf_to_import = false;
             delete [] buf;
             return;
         }
@@ -10363,7 +10407,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                         if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn.get())
                         {
                             cout << "Success. (identical node skipped)" << endl;
-                            pdf_to_import = false;
                             delete [] buf;
                             return;
                         }
@@ -10379,7 +10422,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     else
     {
         cout << "Need to be logged in to import file links." << endl;
-        pdf_to_import = false;
     }
 
     delete [] buf;

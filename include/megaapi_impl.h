@@ -1600,6 +1600,7 @@ public:
 private:
     static Result check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option);
     static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
+    static bool fingerprintEqualRelaxed(const FileFingerprint& lhs, const FileFingerprint& rhs);
 };
 
 class MegaTransferPrivate : public MegaTransfer, public Cacheable
@@ -1725,6 +1726,14 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         MegaNode* getNodeToUndelete() const;
 
         LocalPath getLocalPath() const;
+
+        /**
+         * @brief This method checks if the transfer destination corresponds to an Inbox upload
+         *
+         * @return std::optional<std::string> The Inbox target path if the transfer
+         *         corresponds to an Inbox; otherwise, std::nullopt.
+         */
+        std::optional<std::string> getInboxTarget();
 
         // for uploads, we fingerprint the file before queueing
         // as that way, it can be done without the main mutex locked
@@ -2223,6 +2232,8 @@ class MegaRequestPrivate : public MegaRequest
 
         const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const override;
         void setMegaCancelSubscriptionReasons(MegaCancelSubscriptionReasonList* cancelReasons);
+
+        static bool causesLocklessRequest(const int type);
 
     protected:
         std::shared_ptr<AccountDetails> accountDetails;
@@ -4690,8 +4701,6 @@ public:
                           const char* comment,
                           MegaRequestListener* listener);
 
-        void setWelcomePdfCopied(bool copied, MegaRequestListener* listener);
-        void getWelcomePdfCopied(MegaRequestListener* listener);
         void getMyIp(MegaRequestListener* listener);
         void runNetworkConnectivityTest(MegaRequestListener* listener);
         void getSubscriptionCancellationDetails(const char* originalTransactionId,
@@ -4824,6 +4833,9 @@ public:
         std::atomic<bool> syncPathStateLockTimeout{ false };
         set<LocalPath> syncPathStateDeferredSet;
         mutex syncPathStateDeferredSetMutex;
+
+        // Track latest call to client->abortbackoff to avoid spamming.
+        dstime latestAbortBackoffs{0};
 
         int threadExit;
         void loop();
@@ -4976,7 +4988,8 @@ public:
         void transfer_complete(Transfer *) override;
         void transfer_removed(Transfer *) override;
 
-        File* file_resume(string*, direction_t* type, uint32_t) override;
+        void
+            file_resume(string* d, direction_t* type, uint32_t dbid, FileResumeData& data) override;
 
         void transfer_prepare(Transfer*) override;
         void transfer_failed(Transfer*, const Error& error, dstime timeleft) override;
@@ -5122,6 +5135,10 @@ public:
         void sendPendingRequests();
         unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr, m_off_t availableDiskSpace = 0);
         void updateBackups();
+
+        MegaFilePut* createMegaFileForRemoteCopyTransfer(MegaTransferPrivate& megaTransfer,
+                                                         std::shared_ptr<Node> prevNodeSameName,
+                                                         TransferDbCommitter& committer);
 
         void notify_network_activity(int networkActivityChannel,
                                      int networkActivityType,

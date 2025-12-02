@@ -1977,7 +1977,6 @@ MegaClient::MegaClient(MegaApp* a,
 
     mNodeManager.reset();
     sctable.reset();
-    pendingsccommit = false;
     tctable = NULL;
     statusTable = nullptr;
     me = UNDEF;
@@ -2726,14 +2725,6 @@ void MegaClient::exec()
                                 pendingcs = NULL;
 
                                 notifypurge();
-                                if (sctable && pendingsccommit && !reqs.readyToSend() && scsn.ready())
-                                {
-                                    LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
-                                    sctable->commit();
-                                    sctable->begin();
-                                    app->notify_dbcommit();
-                                    pendingsccommit = false;
-                                }
 
                                 if (auto completion = std::move(mOnCSCompletion))
                                 {
@@ -5161,7 +5152,6 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
 
     sctable.reset();
     mNodeManager.setTable(nullptr);
-    pendingsccommit = false;
 
     statusTable.reset();
 
@@ -5349,7 +5339,6 @@ void MegaClient::removeCaches()
         mNodeManager.setTable(nullptr);
         sctable->remove();
         sctable.reset();
-        pendingsccommit = false;
     }
 
     if (statusTable)
@@ -5494,19 +5483,11 @@ bool MegaClient::procsc()
                     notifypurge();
                     if (sctable)
                     {
-                        if (!pendingcs && !csretrying && !reqs.readyToSend())
-                        {
-                            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
-                            sctable->commit();
-                            sctable->begin();
-                            app->notify_dbcommit();
-                            pendingsccommit = false;
-                        }
-                        else
-                        {
-                            LOG_debug << "Postponing DB commit until cs requests finish";
-                            pendingsccommit = true;
-                        }
+                        LOG_debug << "DB transaction COMMIT (sessionid: "
+                                  << string(sessionid, sizeof(sessionid)) << ")";
+                        sctable->commit();
+                        sctable->begin();
+                        app->notify_dbcommit();
                     }
                     break;
 
@@ -5533,7 +5514,6 @@ bool MegaClient::procsc()
                                 LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                 sctable->commit();
                                 sctable->begin();
-                                pendingsccommit = false;
                             }
 
                             WAIT_CLASS::bumpds();
@@ -5597,26 +5577,7 @@ bool MegaClient::procsc()
 #endif
                         if (tctable && cachedfiles.size())
                         {
-                            TransferDbCommitter committer(tctable);
-                            for (unsigned int i = 0; i < cachedfiles.size(); i++)
-                            {
-                                direction_t type = NONE;
-                                File* file = app->file_resume(&cachedfiles.at(i),
-                                                              &type,
-                                                              cachedfilesdbids.at(i));
-                                if (!file || (type != GET && type != PUT))
-                                {
-                                    tctable->del(cachedfilesdbids.at(i));
-                                    continue;
-                                }
-                                if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag, nullptr, nextreqtag()))  // TODO: should we have serialized these flags and restored them?
-                                {
-                                    tctable->del(cachedfilesdbids.at(i));
-                                    continue;
-                                }
-                            }
-                            cachedfiles.clear();
-                            cachedfilesdbids.clear();
+                            resumeTransferFromDB();
                         }
 
                         WAIT_CLASS::bumpds();
@@ -5686,20 +5647,6 @@ bool MegaClient::procsc()
                         }
                     }
 
-                    if (pendingsccommit && sctable && !reqs.cmdsInflight() && scsn.ready())
-                    {
-                        LOG_debug << "Executing postponed DB commit 1";
-                        sctable->commit();
-                        sctable->begin();
-                        app->notify_dbcommit();
-                        pendingsccommit = false;
-                    }
-
-                    if (pendingsccommit)
-                    {
-                        LOG_debug << "Postponing DB commit until cs requests finish (spoonfeeding)";
-                    }
-
 #ifdef ENABLE_SYNC
                     syncs.waiter->notify();
 #endif
@@ -5725,6 +5672,8 @@ bool MegaClient::procsc()
 
         if (insca)
         {
+            bool moveOperation = false; // true if "d" packet has "m":1
+
             auto actionpacketStart = jsonsc.pos;
             if (jsonsc.enterobject())
             {
@@ -5772,23 +5721,21 @@ bool MegaClient::procsc()
 
                             case makeNameid("t"):
                             {
-                                bool isMoveOperation = false;
                                 // node addition
                                 {
                                     if (!loggedIntoFolder())
                                         useralerts.beginNotingSharedNodes();
-                                    handle originatingUser = sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode.get(), isMoveOperation);
+                                    handle originatingUser = sc_newnodes();
                                     mergenewshares(1);
                                     if (!loggedIntoFolder())
                                         useralerts.convertNotedSharedNodes(true, originatingUser);
                                 }
-                                lastAPDeletedNode = nullptr;
                             }
                             break;
 
                             case name_id::d:
                                 // node deletion
-                                lastAPDeletedNode = sc_deltree();
+                                lastAPDeletedNode = sc_deltree(moveOperation);
                                 break;
 
                             case makeNameid("s"):
@@ -5951,13 +5898,14 @@ bool MegaClient::procsc()
                                 break;
                         }
                     }
-                    else
-                    {
-                        lastAPDeletedNode = nullptr;
-                    }
                 }
 
                 jsonsc.leaveobject();
+
+                if (!moveOperation)
+                {
+                    lastAPDeletedNode.reset();
+                }
             }
             else
             {
@@ -6175,7 +6123,6 @@ void MegaClient::initsc()
             LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
             sctable->commit();
             sctable->begin();
-            pendingsccommit = false;
         }
     }
 }
@@ -6979,7 +6926,7 @@ CacheableStatus *MegaClient::CacheableStatusMap::getPtr(CacheableStatus::Type ty
 }
 
 // read tree object (nodes and users)
-void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& firstHandleMatchesDelete)
+void MegaClient::readtree(JSON* j)
 {
     if (j->enterobject())
     {
@@ -6996,13 +6943,11 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                                   putnodesCmd->source,
                                   &putnodesCmd->nn,
                                   putnodesCmd->tag != 0,
-                                  true,
-                                  priorActionpacketDeletedNode,
-                                  &firstHandleMatchesDelete);
+                                  true);
                     }
                     else
                     {
-                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false, priorActionpacketDeletedNode, &firstHandleMatchesDelete);
+                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false);
                     }
                     break;
 
@@ -7015,13 +6960,11 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                                   putnodesCmd->source,
                                   &putnodesCmd->nn,
                                   putnodesCmd->tag != 0,
-                                  true,
-                                  nullptr,
-                                  nullptr);
+                                  true);
                     }
                     else
                     {
-                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false, nullptr, nullptr);
+                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false);
                     }
                     break;
 
@@ -7044,7 +6987,7 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
 }
 
 // server-client newnodes processing
-handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMatchesDelete)
+handle MegaClient::sc_newnodes()
 {
     handle originatingUser = UNDEF;
     for (;;)
@@ -7052,7 +6995,7 @@ handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHa
         switch (jsonsc.getnameid())
         {
             case makeNameid("t"):
-                readtree(&jsonsc, priorActionpacketDeletedNode, firstHandleMatchesDelete);
+                readtree(&jsonsc);
                 break;
 
             case name_id::u:
@@ -9437,7 +9380,7 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
 }
 
 // server-client deletion
-std::shared_ptr<Node> MegaClient::sc_deltree()
+std::shared_ptr<Node> MegaClient::sc_deltree(bool& moveOperation)
 {
     std::shared_ptr<Node> n;
     handle originatingUser = UNDEF;
@@ -9453,6 +9396,10 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                 {
                     n = nodebyhandle(h);
                 }
+                break;
+
+            case makeNameid("m"):
+                moveOperation = jsonsc.getbool();
                 break;
 
             case makeNameid("ou"):
@@ -9491,7 +9438,7 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                     }
                 }
 
-                return n;
+                return moveOperation ? n : nullptr;
 
             default:
                 if (!jsonsc.storeobject())
@@ -10554,7 +10501,12 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array g
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMatchesDelete)
+int MegaClient::readnodes(JSON* j,
+                          int notify,
+                          putsource_t source,
+                          vector<NewNode>* nn,
+                          bool modifiedByThisClient,
+                          bool applykeys)
 {
     if (!j->enterarray())
     {
@@ -10568,13 +10520,19 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 #endif
 
     NodeManager::MissingParentNodes missingParentNodes;
-    while (int e = readnode(j, notify, source, nn, modifiedByThisClient, applykeys, missingParentNodes, previousHandleForAlert,
+    while (int e = readnode(j,
+                            notify,
+                            source,
+                            nn,
+                            modifiedByThisClient,
+                            applykeys,
+                            missingParentNodes,
+                            previousHandleForAlert,
 #ifdef ENABLE_SYNC
-                            &allParents,
+                            &allParents))
 #else
-                            nullptr,
+                            nullptr))
 #endif
-                            priorActionpacketDeletedNode, firstHandleMatchesDelete))
     {
         if (e != 1)
         {
@@ -10604,9 +10562,7 @@ int MegaClient::readnode(JSON* j,
                          bool applykeys,
                          mega::NodeManager::MissingParentNodes& missingParentNodes,
                          handle& previousHandleForAlert,
-                         set<NodeHandle>* allParents,
-                         Node* priorActionpacketDeletedNode,
-                         bool* firstHandleMatchesDelete)
+                         set<NodeHandle>* allParents)
 {
     std::shared_ptr<Node> n;
 
@@ -10631,11 +10587,6 @@ int MegaClient::readnode(JSON* j,
             {
                 case makeNameid("h"): // new node: handle
                     h = j->gethandle();
-                    if (priorActionpacketDeletedNode && firstHandleMatchesDelete)
-                    {
-                        *firstHandleMatchesDelete = h == priorActionpacketDeletedNode->nodehandle;
-                        priorActionpacketDeletedNode = nullptr;
-                    }
                     break;
 
                 case makeNameid("p"): // parent node
@@ -12324,8 +12275,6 @@ void MegaClient::opensctable()
             {
                 handleDbError(error);
             }));
-
-            pendingsccommit = false;
 
             if (sctable)
             {
@@ -15428,24 +15377,7 @@ void MegaClient::enabletransferresumption()
     // postpone the resumption until the filesystem is updated
     if ((!sid.size() && !loggedIntoFolder()) || statecurrent)
     {
-        TransferDbCommitter committer(tctable);
-        for (unsigned int i = 0; i < cachedfiles.size(); i++)
-        {
-            direction_t type = NONE;
-            File* file = app->file_resume(&cachedfiles.at(i), &type, cachedfilesdbids.at(i));
-            if (!file || (type != GET && type != PUT))
-            {
-                tctable->del(cachedfilesdbids.at(i));
-                continue;
-            }
-            if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag, nullptr, nextreqtag()))  // TODO: should we have serialized these flags and reused them here?
-            {
-                tctable->del(cachedfilesdbids.at(i));
-                continue;
-            }
-        }
-        cachedfiles.clear();
-        cachedfilesdbids.clear();
+        resumeTransferFromDB();
     }
 }
 
@@ -15521,6 +15453,108 @@ string MegaClient::getTransferDBName()
     }
 
     return dbname;
+}
+
+void MegaClient::resumeTransferFromDB()
+{
+    TransferDbCommitter committer(tctable);
+    for (unsigned int i = 0; i < cachedfiles.size(); i++)
+    {
+        direction_t type = NONE;
+        MegaApp::FileResumeData data;
+        app->file_resume(&cachedfiles.at(i), &type, cachedfilesdbids.at(i), data);
+
+        File* file = data.file;
+        if (!file || (type != GET && type != PUT))
+        {
+            tctable->del(cachedfilesdbids.at(i));
+            continue;
+        }
+
+        bool requiredStatxfer{true};
+
+        const int tag = nextreqtag();
+        if (!data.sameNodeHandle.isUndef())
+        {
+            assert(type == PUT);
+            auto [start, end] = multi_cachedtransfers[type].equal_range(file);
+            Transfer* t{nullptr};
+            for (auto& it = start; it != end;)
+            {
+                requiredStatxfer = false;
+                t = it->second;
+                assert(t->localfilename == file->getLocalname());
+                it = multi_cachedtransfers[type].erase(it);
+                t->tag = tag;
+                file->tag = tag;
+
+                file->file_it = t->files.insert(t->files.end(), file);
+                file->transfer = t;
+                auto parent = mNodeManager.getNodeByHandle(data.parentHandle);
+                if (!parent)
+                {
+                    LOG_err << "Error resuming transfer via copy remote - No parent";
+                    // file is auto removed
+                    t->removeTransferFile(API_ENOENT, file, &committer);
+                    t->removeAndDeleteSelf(transferstate_t::TRANSFERSTATE_FAILED);
+                    continue;
+                }
+
+                auto remoteCopyNode = mNodeManager.getNodeByHandle(data.sameNodeHandle);
+                // It should be valid, obtained in file_resume
+                assert(remoteCopyNode);
+                transferRemoteCopy(file,
+                                   remoteCopyNode,
+                                   data.remoteName,
+                                   parent,
+                                   tag,
+                                   data.inboxTarget);
+                break;
+            }
+        }
+
+        // Transfer download GET
+        // Transfer upload PUT
+        //    - Upload file
+        //    - The node with fingerprint match was been removed, initiating a new transfer
+        if (requiredStatxfer)
+        {
+            error e;
+            // TODO: should we have serialized these flags and restored them?
+            if (!startxfer(type,
+                           file,
+                           committer,
+                           false,
+                           false,
+                           false,
+                           UseLocalVersioningFlag,
+                           &e,
+                           tag))
+            {
+                LOG_err << "Error resuming transfer - launching new transfer";
+                tctable->del(cachedfilesdbids.at(i));
+                auto t = file->transfer;
+                // file is auto removed
+                if (t)
+                {
+                    t->removeTransferFile(e, file, &committer);
+                    t->removeAndDeleteSelf(transferstate_t::TRANSFERSTATE_FAILED);
+                }
+                else
+                {
+                    filecachedel(file, &committer);
+                    app->file_removed(file, e);
+                    file->terminated(e);
+                }
+                continue;
+            }
+        }
+    }
+
+    purgeOrphanTransfers(true);
+
+    cachedfiles.clear();
+    cachedfilesdbids.clear();
 }
 
 void MegaClient::handleDbError(DBError error)
@@ -15803,7 +15837,6 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             fnstats.timeToResult = fnstats.timeToCached;
 
             statecurrent = false;
-            pendingsccommit = false;
 
             // allow sc requests to start
             scsn.setScsn(cachedscsn);
@@ -15959,8 +15992,6 @@ void MegaClient::resetScForFetchnodes()
     // we wait until this moment, because when `f` is queued, there may be
     // other commands queued ahead of it, and those may need sc responses in order
     // to fully complete, and so we can't reset these members at that time.
-
-    pendingsccommit = false;
 
     // prevent the processing of previous sc requests
     pendingsc.reset();
@@ -18794,6 +18825,78 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, TransferDbComm
 #endif
 }
 
+error MegaClient::transferRemoteCopy(File* file,
+                                     std::shared_ptr<Node> sameNode,
+                                     const string& name,
+                                     std::shared_ptr<Node> parent,
+                                     int tag,
+                                     std::optional<std::string> inboxTarget)
+{
+    assert(file);
+    TreeProcCopy tc;
+    proctree(sameNode, &tc, false, true);
+    tc.allocnodes();
+    proctree(sameNode, &tc, false, true);
+    tc.nn[0].parenthandle = UNDEF;
+
+    SymmCipher nodeKey;
+    AttrMap attrs;
+    string attrstring;
+    nodeKey.setkey((const byte*)tc.nn[0].nodekey.data(), sameNode->type);
+    string sname = name;
+    LocalPath::utf8_normalize(&sname);
+    attrs.map['n'] = sname;
+    attrs.map['c'] = sameNode->attrs.map['c'];
+    attrs.getjson(&attrstring);
+    makeattr(&nodeKey, tc.nn[0].attrstring, attrstring.c_str());
+
+    if (tc.nn[0].type == FILENODE)
+    {
+        if (std::shared_ptr<Node> ovn = getovnode(parent.get(), &sname))
+        {
+            tc.nn[0].ovhandle = ovn->nodeHandle();
+        }
+    }
+
+    if (inboxTarget.has_value())
+    {
+        putnodes(inboxTarget.value().c_str(), std::move(tc.nn), tag);
+    }
+    else
+    {
+        if (!parent)
+        {
+            LOG_err << "SendPendingTransfers(upload): invalid parent for " << sname;
+            assert(false && "SendPendingTransfers(upload): invalid parent");
+            return API_EARGS;
+        }
+
+        putnodes(parent->nodeHandle(),
+                 UseLocalVersioningFlag,
+                 std::move(tc.nn),
+                 nullptr,
+                 tag,
+                 false);
+    }
+
+    // Delete Transfer and File
+    // Notify data transfer complete, pending putnodes
+    Transfer* t = file->transfer;
+    vector<uint32_t>& ids = pendingtcids[tag];
+    assert(t->files.size() == 1);
+    ids.push_back(file->dbid);
+    ids.push_back(t->dbid);
+    app->file_complete(file);
+    file->transfer = NULL;
+    delete file;
+    t->files.clear();
+
+    app->transfer_complete(t);
+    delete t;
+
+    return API_OK;
+}
+
 void MegaClient::setmaxconnections(direction_t d, int num)
 {
     if (num > 0)
@@ -19968,85 +20071,6 @@ void MegaClient::getaccountachievements(AchievementsDetails *details)
 void MegaClient::getmegaachievements(AchievementsDetails *details)
 {
     reqs.add(new CommandGetMegaAchievements(this, details, false));
-}
-
-void MegaClient::importOrDelayWelcomePdf()
-{
-    if (shouldWelcomePdfImported())
-    {
-        getwelcomepdf();
-    }
-    else
-    {
-        setWelcomePdfNeedsDelayedImport(true);
-    }
-}
-
-void MegaClient::importWelcomePdfIfDelayed()
-{
-    assert(shouldWelcomePdfImported());
-    User* u = ownuser();
-    if (!u)
-        return;
-    assert(!mNodeManager.getRootNodeFiles().isUndef());
-
-    getua(
-        u,
-        ATTR_WELCOME_PDF_COPIED,
-        -1,
-        [](error e)
-        {
-            if (e != API_ENOENT)
-            {
-                LOG_err << "Failed to get user attribute "
-                        << User::attr2string(ATTR_WELCOME_PDF_COPIED) << ", error " << e;
-            }
-        },
-        [this](byte*, unsigned, attr_t)
-        {
-            if (wasWelcomePdfImportDelayed())
-            {
-                getwelcomepdf();
-            }
-        });
-}
-
-void MegaClient::getwelcomepdf()
-{
-    assert(mClientType != ClientType::VPN && mClientType != ClientType::PASSWORD_MANAGER);
-    reqs.add(new CommandGetWelcomePDF(this));
-}
-
-void MegaClient::setWelcomePdfNeedsDelayedImport(bool requestImport)
-{
-    byte importedAlready = requestImport ? '0' : '1';
-    putua(ATTR_WELCOME_PDF_COPIED,
-          &importedAlready,
-          1,
-          -1,
-          UNDEF,
-          0,
-          0,
-          [importedAlready](Error e)
-          {
-              if (!e)
-              {
-                  LOG_debug << "Successfully set " << User::attr2string(ATTR_WELCOME_PDF_COPIED)
-                            << " user attribute to " << importedAlready;
-              }
-              else
-              {
-                  LOG_err << "Failed to set " << User::attr2string(ATTR_WELCOME_PDF_COPIED)
-                          << " user attribute to " << importedAlready;
-              }
-          });
-}
-
-bool MegaClient::wasWelcomePdfImportDelayed()
-{
-    const User* u = ownuser();
-    const UserAttribute* attribute = u ? u->getAttribute(ATTR_WELCOME_PDF_COPIED) : nullptr;
-    return attribute && attribute->isValid() && attribute->value() == "0";
 }
 
 bool MegaClient::startDriveMonitor()

@@ -2893,7 +2893,6 @@ auto importNode(MegaApi& client, const std::string& link, const MegaNode& parent
  *
  * It tests the creation of a new account for a random user.
  *  - Create account
- *  - Check existence for Welcome pdf
  */
 TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
 {
@@ -2912,17 +2911,6 @@ TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
     {
         WaitMillisec(deltaMs);
     }
-
-    // Get children of rootnode
-    std::unique_ptr<MegaNodeList> children{ megaApi[0]->getChildren(rootnode.get()) };
-
-    // Test that there is only one file, with .pdf extension
-    EXPECT_EQ(megaApi[0]->getNumChildren(rootnode.get()), children->size()) << "Wrong number of child nodes";
-    ASSERT_EQ(1, children->size()) << "Wrong number of children nodes found";
-    const char* name = children->get(0)->getName();
-    size_t len = name ? strlen(name) : 0;
-    ASSERT_TRUE(len > 4 && !strcasecmp(name + len - 4, ".pdf"));
-    LOG_info << "Welcome pdf: " << name;
 
     // Logout from ephemeral plus plus session and resume session
     ASSERT_NO_FATAL_FAILURE(locallogout());
@@ -3566,7 +3554,6 @@ TEST_F(SdkTest, SdkTestExerciseOtherCommands)
     bool CommandChatLinkClose::procresult(Result r)
     bool CommandChatLinkJoin::procresult(Result r)
     bool CommandGetMegaAchievements::procresult(Result r)
-    bool CommandGetWelcomePDF::procresult(Result r)
     bool CommandMediaCodecs::procresult(Result r)
     bool CommandContactLinkCreate::procresult(Result r)
     bool CommandContactLinkQuery::procresult(Result r)
@@ -3763,9 +3750,10 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     delete n5;
 }
 
+class SdkTestDownload: public SdkTest
+{};
+
 /**
- * @brief TEST_F SdkTestDownloadConflictFolderExistingName
- *
  * This test tries to download a File node into a local folder, that already contains a folder with
  * the same name as downloaded file.
  *
@@ -3773,9 +3761,10 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  * collisionResolution(COLLISION_RESOLUTION_OVERWRITE), so transfer will be retried sometimes by SDK
  * and finally will fail with API_EWRITE.
  */
-TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
+TEST_F(SdkTestDownload, ConflictFolderExistingName)
 {
-    LOG_info << "___TEST SdkTestDownloadConflictFolderExistingName___";
+    CASE_info << "started";
+
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << cwd();
 
@@ -3805,6 +3794,61 @@ TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
     ASSERT_TRUE(errCode.has_value()) << "test_utils(downloadFile) has returned nullopt";
     ASSERT_EQ(*errCode, API_EWRITE)
         << "test_utils(downloadFile) has returned unexpected errorCode: " << errCode.has_value();
+
+    CASE_info << "finished";
+}
+
+/**
+ * This test tries to download a File node into a local folder, that already contains a file with
+ * the same name as downloaded file.
+ *
+ * We download with collisionCheck(COLLISION_CHECK_FINGERPRINT) and
+ * collisionResolution(COLLISION_RESOLUTION_NEW_WITH_N), so transfer will completed successfully
+ * with skipping download as fingerprints match.
+ */
+TEST_F(SdkTestDownload, ConflictFileExistingName)
+{
+    CASE_info << "started";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string itemName{"testItem"};
+    const fs::path basePath = fs::current_path();
+
+    LOG_debug << "#### TEST1: Create Folder and File in local FS " << basePath.u8string() << "####";
+    constexpr long long FILE_SIZE = 1;
+    const sdk_test::LocalTempDir d{basePath / itemName};
+    const sdk_test::LocalTempFile f{basePath / itemName / itemName, static_cast<size_t>(FILE_SIZE)};
+
+    LOG_debug << "#### TEST2: Create File in cloud drive ####";
+    const std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    const auto newNode = sdk_test::uploadFile(megaApi[0].get(), f.getPath(), rootNode.get());
+    ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
+
+    LOG_debug << "#### TEST3: Download file at dir with a file with same name ####";
+    std::shared_ptr<MegaTransfer> transfer;
+    auto onTransferFinish =
+        [&transfer](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError*)
+    {
+        if (t)
+            transfer.reset(t->copy());
+    };
+    const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
+                                                newNode.get(),
+                                                basePath / itemName,
+                                                true,
+                                                180s /*timeout*/,
+                                                MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                                MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                                onTransferFinish);
+    ASSERT_EQ(*errCode, API_OK);
+    ASSERT_THAT(transfer, ::testing::NotNull());
+    ASSERT_EQ(transfer->getState(), MegaTransfer::STATE_COMPLETED);
+    ASSERT_EQ(transfer->getTotalBytes(), FILE_SIZE);
+    // Check transferred bytes to confirm download is skipped
+    ASSERT_EQ(transfer->getTransferredBytes(), 0);
+
+    CASE_info << "finished";
 }
 
 /**
@@ -22431,4 +22475,164 @@ TEST_F(SdkTest, EstablishContactRelationshipAutomatically)
 
     // Make sure that invitation fails: there's already an incoming PCR
     ASSERT_EQ(invitation1Sent, API_EEXIST);
+}
+
+/**
+ * @test SdkTransferCopyRemote
+ * @brief Verifies that remote copy transfers are correctly handled,
+ *
+ * Steps:
+ * 1. Create a temporary 50 MB file locally.
+ * 2. Upload the file to a remote folder using MegaApi::startUpload().
+ * 3. Repeat the upload with a different name to verify multiple transfer handling.
+ * 4. Perform a local logout while an upload is in progress, then log in again.
+ * 5. Confirm that pending or completed transfers are properly finalized or resumed.
+ *
+ * Expected Results:
+ * - At the end of the test, three nodes are present in the target folder,
+ *   confirming that all transfer recovery paths have completed successfully.
+ */
+TEST_F(SdkTest, SdkTransferCopyRemote)
+{
+    LOG_info << "___TEST SdkTransferCopyRemote___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    static const size_t kFileSize = 50ull * 1024 * 1024; // 50 MB
+
+    // Create local random file
+    fs::path filePath = fs::current_path() / PUBLICFILE;
+    sdk_test::LocalTempFile localFile(filePath, kFileSize);
+
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+
+    auto [errCode, fh] = createRemoteFolder(0, "Folder", rootnode.get());
+    ASSERT_EQ(errCode, API_OK) << "Unexpected ErrCode upon creating Folder: ";
+
+    std::unique_ptr<MegaNode> folderNode{megaApi[0]->getNodeByHandle(fh)};
+
+    auto uploadFile =
+        [filePath, &folderNode, this](const char* uploadName = nullptr, bool localLogout = false)
+    {
+        testing::NiceMock<MockTransferListener> mockGlobalListener{megaApi[0].get()};
+        const MrProper cleanUp(
+            [&mockGlobalListener, this]()
+            {
+                ::testing::Mock::VerifyAndClearExpectations(&mockGlobalListener);
+                megaApi[0]->removeListener(&mockGlobalListener);
+            });
+
+        // --- Setup a global listener to capture dbid and tag on next transfer ---
+        std::promise<uint32_t> dbidAndTagOnStart;
+        EXPECT_CALL(mockGlobalListener, onTransferStart)
+            .WillOnce(
+                [&dbidAndTagOnStart](MegaApi*, MegaTransfer* transfer)
+                {
+                    dbidAndTagOnStart.set_value({transfer->getUniqueId()});
+                });
+
+        std::promise<void> transferFinishPromise;
+        EXPECT_CALL(mockGlobalListener, onTransferFinish)
+            .WillOnce(
+                [&transferFinishPromise](MegaApi*, MegaTransfer*, MegaError*)
+                {
+                    transferFinishPromise.set_value();
+                });
+
+        megaApi[0]->addListener(&mockGlobalListener);
+
+        mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
+        megaApi[0]->startUpload(filePath.u8string().c_str(),
+                                folderNode.get(),
+                                uploadName,
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/,
+                                nullptr); /*MegaTransferListener*/
+
+        // --- Get dbid and tag of first transfer since started listening ---
+        auto startTransferListerResult = dbidAndTagOnStart.get_future();
+        ASSERT_EQ(startTransferListerResult.wait_for(std::chrono::seconds(maxTimeout)),
+                  std::future_status::ready)
+            << "Timeout for the start upload";
+        const auto transferUniqueId = startTransferListerResult.get();
+        ASSERT_NE(transferUniqueId, 0)
+            << "Missing transferUniqueId param for onTransferStart event";
+
+        if (localLogout)
+        {
+            string session = unique_ptr<char[]>(dumpSession()).get();
+            locallogout(0);
+
+            PerApi& target = mApi[0];
+            target.resetlastEvent();
+            auto tracker = asyncRequestFastLogin(0, session.c_str());
+            ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session";
+
+            ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+            // make sure that client is up to date (upon logout, recent changes might not be
+            // committed to DB)
+            ASSERT_TRUE(WaitFor(
+                [&target]()
+                {
+                    return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT);
+                },
+                10000))
+                << "Timeout expired to receive actionpackets";
+        }
+
+        auto finishTransferListerResult = transferFinishPromise.get_future();
+        ASSERT_EQ(finishTransferListerResult.wait_for(std::chrono::seconds(maxTimeout)),
+                  std::future_status::ready)
+            << "Timeout for the finish upload";
+    };
+
+    int numFiles = 1;
+    ASSERT_NO_FATAL_FAILURE(uploadFile());
+    std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(folderNode.get())};
+    ASSERT_TRUE(children);
+    ASSERT_EQ(children->size(), numFiles);
+
+    ASSERT_NO_FATAL_FAILURE(uploadFile("NewName"));
+
+    numFiles = 2;
+    children.reset(megaApi[0]->getChildren(folderNode.get()));
+    ASSERT_TRUE(children);
+    ASSERT_EQ(children->size(), numFiles);
+
+    ASSERT_NO_FATAL_FAILURE(uploadFile("NewNewName", true));
+
+    // When a local logout is executed, all unfinished transfers are notified
+    // through an onTransferFinish callback with error -11. In this situation,
+    // there are three possible scenarios:
+    //
+    // 1. The logout occurs after the transfer has completed successfully.
+    //    The onTransferFinish event is received normally.
+    //
+    // 2. The logout occurs after the PUT command has been sent, but before
+    //    receiving the server response. On the next login, the SDK will
+    //    receive the action package notifying the creation of the new node,
+    //    and the pending transfer will be discarded.
+    //
+    // 3. The logout occurs before the PUT command is sent. On the next login,
+    //    the SDK will issue the PUT command again, and the transfer will
+    //    complete normally.
+    //
+    // The simplest way to verify that everything has been executed correctly
+    // is to check that there are three resulting items at the end of the process.
+    unsigned int timeOut = 30;
+    numFiles = 3;
+    ASSERT_TRUE(waitForEvent(
+        [this, numFiles, &folderNode]() -> bool
+        {
+            std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(folderNode.get())};
+            if (children)
+            {
+                return children->size() == numFiles;
+            }
+
+            return false;
+        },
+        timeOut));
 }

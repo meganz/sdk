@@ -8,6 +8,12 @@ If (-Not ((Test-Path Env:BUILD_ID) -Or (Test-Path Env:APIURL_TO_TEST))) {
   exit 1
 }
 
+# Build directory should be "build_dir" for amd64 and "build_dir_x86" for x86
+# If not defined it will be "build_dir"
+If (-Not (Test-Path Env:BUILD_DIR)) {
+  $Env:BUILD_DIR = "build_dir"
+}
+
 $procdump = "C:\Tools\procdump.exe"
 $cdb = "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe"
 $dumpDir = "dumps"
@@ -40,8 +46,8 @@ Start-job -Name "childrenMonitor" -ScriptBlock {
 
 
 # Start the tests with a unique name, based on BUILD_ID, so we can monitor their PIDs
-cp build_dir\tests\integration\Debug\test_integration.exe build_dir\tests\integration\Debug\test_integration_$Env:BUILD_ID.exe
-$testProcess = Start-Process "build_dir\tests\integration\Debug\test_integration_$Env:BUILD_ID.exe" -PassThru -NoNewWindow -Wait -ArgumentList "--FREEACCOUNTS --CI --USERAGENT:$Env:USER_AGENT_TESTS_SDK --APIURL:$Env:APIURL_TO_TEST $Env:GTEST_FILTER $Env:GTEST_REPEAT $Env:TESTS_PARALLEL"
+cp $Env:BUILD_DIR\tests\integration\Debug\test_integration.exe $Env:BUILD_DIR\tests\integration\Debug\test_integration_$Env:BUILD_ID.exe
+$testProcess = Start-Process "$Env:BUILD_DIR\tests\integration\Debug\test_integration_$Env:BUILD_ID.exe" -PassThru -NoNewWindow -Wait -ArgumentList "--FREEACCOUNTS --CI --USERAGENT:$Env:USER_AGENT_TESTS_SDK --APIURL:$Env:APIURL_TO_TEST $Env:GTEST_FILTER $Env:GTEST_REPEAT $Env:TESTS_PARALLEL"
 $testResult = $testProcess.ExitCode
 
 # Stop monitoring child processes

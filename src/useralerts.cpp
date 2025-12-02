@@ -1188,6 +1188,12 @@ UserAlert::PaymentReminder::PaymentReminder(m_time_t expiryts, unsigned int id):
     expiryTime = expiryts;
 }
 
+UserAlert::PaymentReminder::PaymentReminder(m_time_t creation, m_time_t expiry, unsigned int id):
+    Base(name_id::pses, UNDEF, "", creation, id)
+{
+    expiryTime = expiry;
+}
+
 void UserAlert::PaymentReminder::text(string& header, string& title, MegaClient* mc)
 {
     updateEmail(mc);
@@ -2197,14 +2203,13 @@ void UserAlerts::add(UserAlert::Base* unb)
         // if a successful payment is made then hide/remove any reminders received
         for (auto& a: alerts)
         {
-            if (a->type == name_id::pses &&
-                static_cast<UserAlert::PaymentReminder*>(a)->expiryTime < unb->ts())
+            if (a->type == name_id::pses && a->ts() <= unb->ts())
             {
                 a->setRelevant(false);
                 a->setRemoved();
-                useralertnotify.erase(
-                    std::remove(useralertnotify.begin(), useralertnotify.end(), a),
-                    useralertnotify.end());
+                // add it into useralertnotify for purgescalerts to process later
+                // so it can be actually removed
+                notifyAlert(a, a->seen(), 0);
             }
         }
     }
@@ -2216,8 +2221,7 @@ void UserAlerts::add(UserAlert::Base* unb)
         for (auto& a: alerts)
         {
             if ((a->type == name_id::psts || a->type == name_id::psts_v2) &&
-                static_cast<UserAlert::Payment*>(a)->success &&
-                a->ts() > static_cast<UserAlert::PaymentReminder*>(unb)->expiryTime)
+                static_cast<UserAlert::Payment*>(a)->success && a->ts() >= unb->ts())
             {
                 delete unb;
                 return;

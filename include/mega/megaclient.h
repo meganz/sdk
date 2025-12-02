@@ -818,14 +818,6 @@ public:
     error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
 
-    // Returns true if welcome pdf should be imported
-    // It's depend on client type (true for ClientType::DEFAULT)
-    bool shouldWelcomePdfImported() const
-    {
-        return getClientType() != MegaClient::ClientType::VPN &&
-               getClientType() != MegaClient::ClientType::PASSWORD_MANAGER;
-    }
-
 public:
     // check node access level
     int checkaccess(Node*, accesslevel_t);
@@ -860,6 +852,13 @@ public:
     bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag, m_off_t availableDiskSpace = 0);
     void stopxfer(File* f, TransferDbCommitter* committer);
     void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
+
+    error transferRemoteCopy(File* file,
+                             std::shared_ptr<Node> sameNode,
+                             const string& name,
+                             std::shared_ptr<Node> parent,
+                             int tag,
+                             std::optional<std::string> inboxTarget);
 
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 100;
@@ -1544,15 +1543,6 @@ public:
     // get mega achievements list (for advertising for unregistered users)
     void getmegaachievements(AchievementsDetails *details);
 
-    // get welcome pdf
-    void importOrDelayWelcomePdf();
-    bool wasWelcomePdfImportDelayed();
-    void importWelcomePdfIfDelayed();
-    void setWelcomePdfNeedsDelayedImport(bool requestImport);
-
-private:
-    void getwelcomepdf();
-
 public:
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
@@ -1857,8 +1847,8 @@ public:
     bool sc_checkActionPacket(Node* lastAPDeletedNode);
 
     void sc_updatenode();
-    std::shared_ptr<Node> sc_deltree();
-    handle sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete);
+    std::shared_ptr<Node> sc_deltree(bool& moveOperation);
+    handle sc_newnodes();
     void sc_contacts();
     void sc_fileattr();
     void sc_userattr();
@@ -1900,7 +1890,7 @@ public:
     unsigned addnode(sharedNode_vector* v, std::shared_ptr<Node> n) const;
 
     // read node tree from JSON object
-    void readtree(JSON*, Node* priorActionpacketDeletedNode, bool& firstHandleMatchedDelete);
+    void readtree(JSON*);
 
     // converts UTF-8 to 32-bit word array
     static char* utf8_to_a32forjs(const char*, int*);
@@ -1954,6 +1944,7 @@ public:
     void disabletransferresumption();
 
     void resumeTransfersForNotLoggedInInstance();
+    void resumeTransferFromDB();
 
     // application callbacks
     struct MegaApp* app;
@@ -1983,9 +1974,6 @@ public:
     NodeManager mNodeManager;
 
     recursive_mutex nodeTreeMutex;
-
-    // there is data to commit to the database when possible
-    bool pendingsccommit;
 
     // transfer cache table
     unique_ptr<DbTable> tctable;
@@ -2437,16 +2425,27 @@ public:
 #endif
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMismatchedDelete);
+    int readnodes(JSON*,
+                  int,
+                  putsource_t,
+                  vector<NewNode>*,
+                  bool modifiedByThisClient,
+                  bool applykeys);
 
     // process a JSON node object
     // possible results:
     // 0 -> no object found
     // 1 -> successful parsing
     // any other number -> parsing error
-    int readnode(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys,
-                 NodeManager::MissingParentNodes& missingParentNodes, handle &previousHandleForAlert, set<NodeHandle> *allParents,
-                 Node *priorActionpacketDeletedNode, bool *firstHandleMatchesDelete);
+    int readnode(JSON*,
+                 int,
+                 putsource_t,
+                 vector<NewNode>*,
+                 bool modifiedByThisClient,
+                 bool applykeys,
+                 NodeManager::MissingParentNodes& missingParentNodes,
+                 handle& previousHandleForAlert,
+                 set<NodeHandle>* allParents);
 
     void readok(JSON*);
     void readokelement(JSON*);

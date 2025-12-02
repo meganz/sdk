@@ -692,6 +692,8 @@ public:
     SdkTestTransferStats onTransferFinish_transferStats{};
 
 protected:
+#define CASE_info LOG_info << getLogPrefix()
+
     void SetUp() override;
     void TearDown() override;
 

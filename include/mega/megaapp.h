@@ -318,10 +318,32 @@ struct MEGA_API MegaApp
 
     virtual void file_complete(File*) {}
 
-    virtual File* file_resume(string*, direction_t*, uint32_t)
+    struct FileResumeData
     {
-        return NULL;
-    }
+        File* file{nullptr};
+        NodeHandle sameNodeHandle;
+        std::string remoteName;
+        NodeHandle parentHandle;
+        std::optional<std::string> inboxTarget;
+    };
+
+    /**
+     * Restores a transfer from serialized data stored in the transfer database.
+     *
+     * This extended version of `file_resume` provides additional metadata through the
+     * `FileResumeData` structure, allowing the client to determine whether the transfer
+     * should be resumed normally or completed via a remote copy operation (when a node
+     * with the same fingerprint already exists in the cloud).
+     * Implementations are expected to:
+     *  - Deserialize the File object and its associated transfer information.
+     *  - Populate the `FileResumeData` fields (including `sameNodeHandle`, `remoteName`,
+     *    and `parentHandle` when a remote copy applies).
+     * @param data     Serialized record of the file/transfer from DB.
+     * @param type     Output parameter: transfer direction (GET or PUT).
+     * @param dbid     Database ID of the serialized entry.
+     * @param outData  Structure that receives the reconstructed File and metadata.
+     */
+    virtual void file_resume(string*, direction_t*, uint32_t, FileResumeData&) {}
 
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
