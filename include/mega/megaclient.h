@@ -2474,7 +2474,7 @@ public:
 
     void handleauth(handle, byte*);
 
-    bool procsc();
+    bool procsc(JSON& json);
     size_t procreqstat();
 
     // API warnings

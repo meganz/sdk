@@ -3403,7 +3403,7 @@ void MegaClient::exec()
         if (!scpaused && jsonsc.pos)
         {
             // FIXME: reload in case of bad JSON
-            if (procsc())
+            if (procsc(jsonsc))
             {
                 // completed - initiate next SC request
                 jsonsc.pos = nullptr;
@@ -5446,7 +5446,7 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 }
 
 // process server-client request
-bool MegaClient::procsc()
+bool MegaClient::procsc(JSON& json)
 {
     // prevent the sync thread from looking things up while we change the tree
     std::unique_lock<recursive_mutex> nodeTreeIsChanging(nodeTreeMutex);
@@ -5463,20 +5463,20 @@ bool MegaClient::procsc()
     {
         if (!insca)
         {
-            switch (jsonsc.getnameid())
+            switch (json.getnameid())
             {
                 case makeNameid("w"):
-                    jsonsc.storeobject(&scnotifyurl);
+                    json.storeobject(&scnotifyurl);
                     break;
 
                 case makeNameid("ir"):
                     // when spoonfeeding is in action, there may still be more actionpackets to be delivered.
-                    insca_notlast = jsonsc.getint() == 1;
+                    insca_notlast = json.getint() == 1;
                     break;
 
                 case makeNameid("sn"):
                     // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
-                    scsn.setScsn(&jsonsc);
+                    scsn.setScsn(&json);
                     // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
                     // when action package is processed and the seq tag matches with mCurrentSeqtag
                     assert(!mCurrentSeqtagSeen);
@@ -5654,7 +5654,7 @@ bool MegaClient::procsc()
                     return true;
 
                 case makeNameid("a"):
-                    if (jsonsc.enterarray())
+                    if (json.enterarray())
                     {
                         LOG_debug << "Processing action packets for " << string(sessionid, sizeof(sessionid));
                         insca = true;
@@ -5662,7 +5662,7 @@ bool MegaClient::procsc()
                     }
                     // fall through
                 default:
-                    if (!jsonsc.storeobject())
+                    if (!json.storeobject())
                     {
                         LOG_err << "Error parsing sc request";
                         return true;
@@ -5674,38 +5674,38 @@ bool MegaClient::procsc()
         {
             bool moveOperation = false; // true if "d" packet has "m":1
 
-            auto actionpacketStart = jsonsc.pos;
-            if (jsonsc.enterobject())
+            auto actionpacketStart = json.pos;
+            if (json.enterobject())
             {
                 // Check if it is ok to process the current action packet.
-                if (!sc_checkActionPacket(jsonsc, lastAPDeletedNode.get()))
+                if (!sc_checkActionPacket(json, lastAPDeletedNode.get()))
                 {
                     // We can't continue actionpackets until we know the next mCurrentSeqtag to match against, wait for the CS request to deliver it.
                     assert(reqs.cmdsInflight());
-                    jsonsc.pos = actionpacketStart;
+                    json.pos = actionpacketStart;
                     return false;
                 }
             }
-            jsonsc.pos = actionpacketStart;
+            json.pos = actionpacketStart;
 
-            if (jsonsc.enterobject())
+            if (json.enterobject())
             {
                 // the "a" attribute is guaranteed to be the first in the object
-                if (jsonsc.getnameid() == makeNameid("a"))
+                if (json.getnameid() == makeNameid("a"))
                 {
                     if (!statecurrent)
                     {
                         fnstats.actionPackets++;
                     }
 
-                    name = jsonsc.getnameidvalue();
+                    name = json.getnameidvalue();
 
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
                     // "a" element if present)
-                    if (fetchingnodes || !Utils::startswith(jsonsc.pos, "\"i\":\"") ||
-                        memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid) ||
-                        jsonsc.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
+                    if (fetchingnodes || !Utils::startswith(json.pos, "\"i\":\"") ||
+                        memcmp(json.pos + 5, sessionid, sizeof sessionid) ||
+                        json.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
                         name == 't') // we still set 'i' on move commands to produce backward
                                      // compatible actionpackets, so don't skip those here
                     {
@@ -5716,7 +5716,7 @@ bool MegaClient::procsc()
                         {
                             case name_id::u:
                                 // node update
-                                sc_updatenode(jsonsc);
+                                sc_updatenode(json);
                                 break;
 
                             case makeNameid("t"):
@@ -5725,7 +5725,7 @@ bool MegaClient::procsc()
                                 {
                                     if (!loggedIntoFolder())
                                         useralerts.beginNotingSharedNodes();
-                                    handle originatingUser = sc_newnodes(jsonsc);
+                                    handle originatingUser = sc_newnodes(json);
                                     mergenewshares(1);
                                     if (!loggedIntoFolder())
                                         useralerts.convertNotedSharedNodes(true, originatingUser);
@@ -5735,13 +5735,13 @@ bool MegaClient::procsc()
 
                             case name_id::d:
                                 // node deletion
-                                lastAPDeletedNode = sc_deltree(jsonsc, moveOperation);
+                                lastAPDeletedNode = sc_deltree(json, moveOperation);
                                 break;
 
                             case makeNameid("s"):
                             case makeNameid("s2"):
                                 // share addition/update/revocation
-                                if (sc_shares(jsonsc))
+                                if (sc_shares(json))
                                 {
                                     int creqtag = reqtag;
                                     reqtag = 0;
@@ -5752,23 +5752,23 @@ bool MegaClient::procsc()
 
                             case name_id::c:
                                 // contact addition/update
-                                sc_contacts(jsonsc);
+                                sc_contacts(json);
                                 break;
 
                             case makeNameid("fa"):
                                 // file attribute update
-                                sc_fileattr(jsonsc);
+                                sc_fileattr(json);
                                 break;
 
                             case makeNameid("ua"):
                                 // user attribute update
-                                sc_userattr(jsonsc);
+                                sc_userattr(json);
                                 break;
 
                             case name_id::psts:
                             case name_id::psts_v2:
                             case makeNameid("ftr"):
-                                if (sc_upgrade(jsonsc, name))
+                                if (sc_upgrade(json, name))
                                 {
                                     app->account_updated();
                                     abortbackoff(true);
@@ -5776,37 +5776,37 @@ bool MegaClient::procsc()
                                 break;
 
                             case name_id::pses:
-                                sc_paymentreminder(jsonsc);
+                                sc_paymentreminder(json);
                                 break;
 
                             case name_id::ipc:
                                 // incoming pending contact request (to us)
-                                sc_ipc(jsonsc);
+                                sc_ipc(json);
                                 break;
 
                             case makeNameid("opc"):
                                 // outgoing pending contact request (from us)
-                                sc_opc(jsonsc);
+                                sc_opc(json);
                                 break;
 
                             case name_id::upci:
                                 // incoming pending contact request update (accept/deny/ignore)
-                                sc_upc(jsonsc, true);
+                                sc_upc(json, true);
                                 break;
 
                             case name_id::upco:
                                 // outgoing pending contact request update (from them, accept/deny/ignore)
-                                sc_upc(jsonsc, false);
+                                sc_upc(json, false);
                                 break;
 
                             case makeNameid("ph"):
                                 // public links handles
-                                sc_ph(jsonsc);
+                                sc_ph(json);
                                 break;
 
                             case makeNameid("se"):
                                 // set email
-                                sc_se(jsonsc);
+                                sc_se(json);
                                 break;
 #ifdef ENABLE_CHAT
                             case makeNameid("mcpc"):
@@ -5815,72 +5815,72 @@ bool MegaClient::procsc()
                             } // fall-through
                             case makeNameid("mcc"):
                                 // chat creation / peer's invitation / peer's removal
-                                sc_chatupdate(jsonsc, readingPublicChat);
+                                sc_chatupdate(json, readingPublicChat);
                                 break;
 
                             case makeNameid("mcfpc"): // fall-through
                             case makeNameid("mcfc"):
                                 // chat flags update
-                                sc_chatflags(jsonsc);
+                                sc_chatflags(json);
                                 break;
 
                             case makeNameid("mcpna"): // fall-through
                             case makeNameid("mcna"):
                                 // granted / revoked access to a node
-                                sc_chatnode(jsonsc);
+                                sc_chatnode(json);
                                 break;
 
                             case name_id::mcsmp:
                                 // scheduled meetings updates
-                                sc_scheduledmeetings(jsonsc);
+                                sc_scheduledmeetings(json);
                                 break;
 
                             case name_id::mcsmr:
                                 // scheduled meetings removal
-                                sc_delscheduledmeeting(jsonsc);
+                                sc_delscheduledmeeting(json);
                                 break;
 #endif
                             case makeNameid("uac"):
-                                sc_uac(jsonsc);
+                                sc_uac(json);
                                 break;
 
                             case makeNameid("la"):
                                 // last acknowledged
-                                sc_la(jsonsc);
+                                sc_la(json);
                                 break;
 
                             case makeNameid("ub"):
                                 // business account update
-                                sc_ub(jsonsc);
+                                sc_ub(json);
                                 break;
 
                             case makeNameid("sqac"):
                                 // storage quota allowance changed
-                                sc_sqac(jsonsc);
+                                sc_sqac(json);
                                 break;
 
                             case makeNameid("asp"):
                                 // new/update of a Set
-                                sc_asp(jsonsc);
+                                sc_asp(json);
                                 break;
 
                             case makeNameid("ass"):
-                                sc_ass(jsonsc);
+                                sc_ass(json);
                                 break;
 
                             case makeNameid("asr"):
                                 // removal of a Set
-                                sc_asr(jsonsc);
+                                sc_asr(json);
                                 break;
 
                             case makeNameid("aep"):
                                 // new/update of a Set Element
-                                sc_aep(jsonsc);
+                                sc_aep(json);
                                 break;
 
                             case makeNameid("aer"):
                                 // removal of a Set Element
-                                sc_aer(jsonsc);
+                                sc_aer(json);
                                 break;
                             case makeNameid("pk"):
                                 // pending keys
@@ -5889,7 +5889,7 @@ bool MegaClient::procsc()
 
                             case makeNameid("uec"):
                                 // User Email Confirm (uec)
-                                sc_uec(jsonsc);
+                                sc_uec(json);
                                 break;
 
                             case makeNameid("cce"):
@@ -5900,7 +5900,7 @@ bool MegaClient::procsc()
                     }
                 }
 
-                jsonsc.leaveobject();
+                json.leaveobject();
 
                 if (!moveOperation)
                 {
@@ -5914,7 +5914,7 @@ bool MegaClient::procsc()
                 // It will also process the latest command response associated (by the Sequence Tag)
                 // with the latest AP processed here.
                 sc_checkSequenceTag(string());
-                jsonsc.leavearray();
+                json.leavearray();
                 insca = false;
             }
         }
