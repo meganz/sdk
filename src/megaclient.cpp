@@ -5480,7 +5480,6 @@ bool MegaClient::procsc(JSON& json)
     actionpacketsCurrent = false;
 
     CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
-    nameid name;
 
     std::shared_ptr<Node> lastAPDeletedNode;
 
@@ -5501,181 +5500,11 @@ bool MegaClient::procsc(JSON& json)
 
                 case makeNameid("sn"):
                     // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
-                    scsn.setScsn(&json);
-                    // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
-                    // when action package is processed and the seq tag matches with mCurrentSeqtag
-                    assert(!mCurrentSeqtagSeen);
-                    notifypurge();
-                    if (sctable)
-                    {
-                        LOG_debug << "DB transaction COMMIT (sessionid: "
-                                  << string(sessionid, sizeof(sessionid)) << ")";
-                        sctable->commit();
-                        sctable->begin();
-                        app->notify_dbcommit();
-                    }
+                    sc_storeSn(json);
                     break;
 
                 case EOO:
-                    if (!useralerts.isDeletedSharedNodesStashEmpty())
-                    {
-			useralerts.purgeNodeVersionsFromStash();
-                        useralerts.convertStashedDeletedSharedNodes();
-                    }
-
-
-                    LOG_debug << "Processing of action packets for " << string(sessionid, sizeof(sessionid)) << " finished.  More to follow: " << insca_notlast;
-                    mergenewshares(1);
-                    applykeys();
-                    mNewKeyRepository.clear();
-
-                    if (!statecurrent && !insca_notlast)   // with actionpacket spoonfeeding, just finishing a batch does not mean we are up to date yet - keep going while "ir":1
-                    {
-                        if (fetchingnodes)
-                        {
-                            notifypurge();
-                            if (sctable)
-                            {
-                                LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
-                                sctable->commit();
-                                sctable->begin();
-                            }
-
-                            WAIT_CLASS::bumpds();
-                            fnstats.timeToResult = Waiter::ds - fnstats.startTime;
-                            fnstats.timeToCurrent = fnstats.timeToResult;
-
-                            fetchingnodes = false;
-                            restag = fetchnodestag;
-                            fetchnodestag = 0;
-
-                            if (!mBlockedSet && mCachedStatus.lookup(CacheableStatus::STATUS_BLOCKED, 0)) //block state not received in this execution, and cached says we were blocked last time
-                            {
-                                LOG_debug << "cached blocked states reports blocked, and no block state has been received before, issuing whyamiblocked";
-                                whyamiblocked();// lets query again, to trigger transition and restoreSyncs
-                            }
-
-                            enabletransferresumption();
-                            app->fetchnodes_result(API_OK);
-                            app->notify_dbcommit();
-                            fetchnodesAlreadyCompletedThisSession = true;
-
-                            WAIT_CLASS::bumpds();
-                            fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
-
-                            if (!loggedIntoFolder())
-                            {
-                                // historic user alerts are not supported for public folders
-                                // now that we have fetched everything and caught up actionpackets since that state,
-                                // our next sc request can be for useralerts
-                                useralerts.begincatchup = true;
-                            }
-                        }
-                        else
-                        {
-                            WAIT_CLASS::bumpds();
-                            fnstats.timeToCurrent = Waiter::ds - fnstats.startTime;
-                        }
-                        uint64_t numNodes = mNodeManager.getNodeCount();
-                        fnstats.nodesCurrent = static_cast<long long>(numNodes);
-
-                        if (mKeyManager.generation())
-                        {
-                            // Clear in-use bit if needed for the shared nodes in ^!keys.
-                            mKeyManager.syncSharekeyInUseBit();
-                        }
-
-                        statecurrent = true;
-                        app->nodes_current();
-                        mFuseService.current();
-                        LOG_debug << "Cloud node tree up to date";
-
-#ifdef ENABLE_SYNC
-                        // Don't start sync activity until `statecurrent` as it could take actions based on old state
-                        // The reworked sync code can figure out what to do once fully up to date.
-                        nodeTreeIsChanging.unlock();
-                        if (!syncsAlreadyLoadedOnStatecurrent)
-                        {
-                            syncs.resumeSyncsOnStateCurrent();
-                            syncsAlreadyLoadedOnStatecurrent = true;
-                        }
-#endif
-                        if (tctable && cachedfiles.size())
-                        {
-                            resumeTransferFromDB();
-                        }
-
-                        WAIT_CLASS::bumpds();
-                        fnstats.timeToTransfersResumed = Waiter::ds - fnstats.startTime;
-
-                        string report;
-                        fnstats.toJsonArray(&report);
-
-                        sendevent(99426, report.c_str(), 0);    // Treeproc performance log
-
-                        // NULL vector: "notify all elements"
-                        app->nodes_updated(NULL, int(numNodes));
-                        app->users_updated(NULL, int(users.size()));
-                        app->pcrs_updated(NULL, int(pcrindex.size()));
-                        app->sets_updated(nullptr, int(mSets.size()));
-                        app->setelements_updated(nullptr, int(mSetElements.size()));
-#ifdef ENABLE_CHAT
-                        app->chats_updated(NULL, int(chats.size()));
-#endif
-                        app->useralerts_updated(nullptr, int(useralerts.alerts.size()));
-                        mNodeManager.removeChanges();
-
-                        // if ^!keys doesn't exist yet -> migrate the private keys from legacy attrs to ^!keys
-                        if (loggedin() == FULLACCOUNT)
-                        {
-                            if (!mKeyManager.generation())
-                            {
-                                assert(!mKeyManager.getPostRegistration());
-                                app->upgrading_security();
-                            }
-                            else
-                            {
-                                fetchContactsKeys();
-                                sc_pk();
-                            }
-                        }
-                    }
-
-                    {
-                        // In case a fetchnodes() occurs mid-session.  We should not allow
-                        // the syncs to see the new tree unless we've caught up to at least
-                        // the same scsn/seqTag as we were at before.  ir:1 is not always reliable
-                        bool scTagNotCaughtUp =  !mScDbStateRecord.seqTag.empty() &&
-                                                 !mLargestEverSeenScSeqTag.empty() &&
-                                                 (mScDbStateRecord.seqTag.size() < mLargestEverSeenScSeqTag.size() ||
-                                                  (mScDbStateRecord.seqTag.size() == mLargestEverSeenScSeqTag.size() &&
-                                                  mScDbStateRecord.seqTag < mLargestEverSeenScSeqTag));
-
-                        bool ac = statecurrent && !insca_notlast && !scTagNotCaughtUp;
-
-                        if (!originalAC && ac)
-                        {
-                            LOG_debug << clientname << "actionpacketsCurrent is true again";
-
-                        }
-                        actionpacketsCurrent = ac;
-                    }
-
-                    if (!insca_notlast)
-                    {
-                        if (mReceivingCatchUp)
-                        {
-                            mReceivingCatchUp = false;
-                            mPendingCatchUps--;
-                            LOG_debug << "catchup complete. Still pending: " << mPendingCatchUps;
-                            app->catchup_result();
-                        }
-                    }
-
-#ifdef ENABLE_SYNC
-                    syncs.waiter->notify();
-#endif
-
+                    sc_procEoo(nodeTreeIsChanging, originalAC);
                     return true;
 
                 case makeNameid("a"):
@@ -5697,242 +5526,12 @@ bool MegaClient::procsc(JSON& json)
 
         if (insca)
         {
-            bool moveOperation = false; // true if "d" packet has "m":1
-
-            auto actionpacketStart = json.pos;
-            if (json.enterobject())
+            if (!sc_checkActionPacketPreservePos(json, lastAPDeletedNode.get()))
             {
-                // Check if it is ok to process the current action packet.
-                if (!sc_checkActionPacket(json, lastAPDeletedNode.get()))
-                {
-                    // We can't continue actionpackets until we know the next mCurrentSeqtag to match against, wait for the CS request to deliver it.
-                    assert(reqs.cmdsInflight());
-                    json.pos = actionpacketStart;
-                    return false;
-                }
+                return false;
             }
-            json.pos = actionpacketStart;
 
-            if (json.enterobject())
-            {
-                // the "a" attribute is guaranteed to be the first in the object
-                if (json.getnameid() == makeNameid("a"))
-                {
-                    if (!statecurrent)
-                    {
-                        fnstats.actionPackets++;
-                    }
-
-                    name = json.getnameidvalue();
-
-                    // only process server-client request if not marked as
-                    // self-originating ("i" marker element guaranteed to be following
-                    // "a" element if present)
-                    if (fetchingnodes || !Utils::startswith(json.pos, "\"i\":\"") ||
-                        memcmp(json.pos + 5, sessionid, sizeof sessionid) ||
-                        json.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
-                        name == 't') // we still set 'i' on move commands to produce backward
-                                     // compatible actionpackets, so don't skip those here
-                    {
-#ifdef ENABLE_CHAT
-                        bool readingPublicChat = false;
-#endif
-                        switch (name)
-                        {
-                            case name_id::u:
-                                // node update
-                                sc_updatenode(json);
-                                break;
-
-                            case makeNameid("t"):
-                            {
-                                // node addition
-                                {
-                                    if (!loggedIntoFolder())
-                                        useralerts.beginNotingSharedNodes();
-                                    handle originatingUser = sc_newnodes(json);
-                                    mergenewshares(1);
-                                    if (!loggedIntoFolder())
-                                        useralerts.convertNotedSharedNodes(true, originatingUser);
-                                }
-                            }
-                            break;
-
-                            case name_id::d:
-                                // node deletion
-                                lastAPDeletedNode = sc_deltree(json, moveOperation);
-                                break;
-
-                            case makeNameid("s"):
-                            case makeNameid("s2"):
-                                // share addition/update/revocation
-                                if (sc_shares(json))
-                                {
-                                    int creqtag = reqtag;
-                                    reqtag = 0;
-                                    mergenewshares(1);
-                                    reqtag = creqtag;
-                                }
-                                break;
-
-                            case name_id::c:
-                                // contact addition/update
-                                sc_contacts(json);
-                                break;
-
-                            case makeNameid("fa"):
-                                // file attribute update
-                                sc_fileattr(json);
-                                break;
-
-                            case makeNameid("ua"):
-                                // user attribute update
-                                sc_userattr(json);
-                                break;
-
-                            case name_id::psts:
-                            case name_id::psts_v2:
-                            case makeNameid("ftr"):
-                                if (sc_upgrade(json, name))
-                                {
-                                    app->account_updated();
-                                    abortbackoff(true);
-                                }
-                                break;
-
-                            case name_id::pses:
-                                sc_paymentreminder(json);
-                                break;
-
-                            case name_id::ipc:
-                                // incoming pending contact request (to us)
-                                sc_ipc(json);
-                                break;
-
-                            case makeNameid("opc"):
-                                // outgoing pending contact request (from us)
-                                sc_opc(json);
-                                break;
-
-                            case name_id::upci:
-                                // incoming pending contact request update (accept/deny/ignore)
-                                sc_upc(json, true);
-                                break;
-
-                            case name_id::upco:
-                                // outgoing pending contact request update (from them, accept/deny/ignore)
-                                sc_upc(json, false);
-                                break;
-
-                            case makeNameid("ph"):
-                                // public links handles
-                                sc_ph(json);
-                                break;
-
-                            case makeNameid("se"):
-                                // set email
-                                sc_se(json);
-                                break;
-#ifdef ENABLE_CHAT
-                            case makeNameid("mcpc"):
-                            {
-                                readingPublicChat = true;
-                            } // fall-through
-                            case makeNameid("mcc"):
-                                // chat creation / peer's invitation / peer's removal
-                                sc_chatupdate(json, readingPublicChat);
-                                break;
-
-                            case makeNameid("mcfpc"): // fall-through
-                            case makeNameid("mcfc"):
-                                // chat flags update
-                                sc_chatflags(json);
-                                break;
-
-                            case makeNameid("mcpna"): // fall-through
-                            case makeNameid("mcna"):
-                                // granted / revoked access to a node
-                                sc_chatnode(json);
-                                break;
-
-                            case name_id::mcsmp:
-                                // scheduled meetings updates
-                                sc_scheduledmeetings(json);
-                                break;
-
-                            case name_id::mcsmr:
-                                // scheduled meetings removal
-                                sc_delscheduledmeeting(json);
-                                break;
-#endif
-                            case makeNameid("uac"):
-                                sc_uac(json);
-                                break;
-
-                            case makeNameid("la"):
-                                // last acknowledged
-                                sc_la(json);
-                                break;
-
-                            case makeNameid("ub"):
-                                // business account update
-                                sc_ub(json);
-                                break;
-
-                            case makeNameid("sqac"):
-                                // storage quota allowance changed
-                                sc_sqac(json);
-                                break;
-
-                            case makeNameid("asp"):
-                                // new/update of a Set
-                                sc_asp(json);
-                                break;
-
-                            case makeNameid("ass"):
-                                sc_ass(json);
-                                break;
-
-                            case makeNameid("asr"):
-                                // removal of a Set
-                                sc_asr(json);
-                                break;
-
-                            case makeNameid("aep"):
-                                // new/update of a Set Element
-                                sc_aep(json);
-                                break;
-
-                            case makeNameid("aer"):
-                                // removal of a Set Element
-                                sc_aer(json);
-                                break;
-                            case makeNameid("pk"):
-                                // pending keys
-                                sc_pk();
-                                break;
-
-                            case makeNameid("uec"):
-                                // User Email Confirm (uec)
-                                sc_uec(json);
-                                break;
-
-                            case makeNameid("cce"):
-                                // credit card for this user is potentially expiring soon or new card is registered
-                                sc_cce();
-                                break;
-                        }
-                    }
-                }
-
-                json.leaveobject();
-
-                if (!moveOperation)
-                {
-                    lastAPDeletedNode.reset();
-                }
-            }
-            else
+            if (!sc_procActionPacket(json, lastAPDeletedNode))
             {
                 // No more Actions Packets. Force it to advance and process all the remaining
                 // command responses until a new "st" is found, if any.
@@ -5944,6 +5543,387 @@ bool MegaClient::procsc(JSON& json)
             }
         }
     }
+}
+
+void MegaClient::sc_storeSn(JSON& json)
+{
+    scsn.setScsn(&json);
+    // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
+    // when action package is processed and the seq tag matches with mCurrentSeqtag
+    assert(!mCurrentSeqtagSeen);
+    notifypurge();
+    if (sctable)
+    {
+        LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid))
+                  << ")";
+        sctable->commit();
+        sctable->begin();
+        app->notify_dbcommit();
+    }
+}
+
+void MegaClient::sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChanging, bool originalAC)
+{
+    if (!useralerts.isDeletedSharedNodesStashEmpty())
+    {
+        useralerts.purgeNodeVersionsFromStash();
+        useralerts.convertStashedDeletedSharedNodes();
+    }
+    LOG_debug << "Processing of action packets for " << string(sessionid, sizeof(sessionid))
+              << " finished.  More to follow: " << insca_notlast;
+    mergenewshares(1);
+    applykeys();
+    mNewKeyRepository.clear();
+    // with actionpacket spoonfeeding, just finishing a batch does not mean we
+    // are up to date yet - keep going while "ir":1
+    if (!statecurrent && !insca_notlast)
+    {
+        if (fetchingnodes)
+        {
+            notifypurge();
+            if (sctable)
+            {
+                LOG_debug << "DB transaction COMMIT (sessionid: "
+                          << string(sessionid, sizeof(sessionid)) << ")";
+                sctable->commit();
+                sctable->begin();
+            }
+            WAIT_CLASS::bumpds();
+            fnstats.timeToResult = Waiter::ds - fnstats.startTime;
+            fnstats.timeToCurrent = fnstats.timeToResult;
+            fetchingnodes = false;
+            restag = fetchnodestag;
+            fetchnodestag = 0;
+            // block state not received in this execution, and cached
+            // says we were blocked last time
+            if (!mBlockedSet && mCachedStatus.lookup(CacheableStatus::STATUS_BLOCKED, 0))
+            {
+                LOG_debug << "cached blocked states reports blocked, and no block state has been "
+                             "received before, issuing whyamiblocked";
+                whyamiblocked(); // lets query again, to trigger transition and restoreSyncs
+            }
+            enabletransferresumption();
+            app->fetchnodes_result(API_OK);
+            app->notify_dbcommit();
+            fetchnodesAlreadyCompletedThisSession = true;
+            WAIT_CLASS::bumpds();
+            fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+            if (!loggedIntoFolder())
+            {
+                // historic user alerts are not supported for public folders
+                // now that we have fetched everything and caught up actionpackets since that state,
+                // our next sc request can be for useralerts
+                useralerts.begincatchup = true;
+            }
+        }
+        else
+        {
+            WAIT_CLASS::bumpds();
+            fnstats.timeToCurrent = Waiter::ds - fnstats.startTime;
+        }
+        uint64_t numNodes = mNodeManager.getNodeCount();
+        fnstats.nodesCurrent = static_cast<long long>(numNodes);
+        if (mKeyManager.generation())
+        {
+            // Clear in-use bit if needed for the shared nodes in ^!keys.
+            mKeyManager.syncSharekeyInUseBit();
+        }
+        statecurrent = true;
+        app->nodes_current();
+        mFuseService.current();
+        LOG_debug << "Cloud node tree up to date";
+#ifdef ENABLE_SYNC
+        // Don't start sync activity until `statecurrent` as it could take actions based on old
+        // state The reworked sync code can figure out what to do once fully up to date.
+        nodeTreeIsChanging.unlock();
+        if (!syncsAlreadyLoadedOnStatecurrent)
+        {
+            syncs.resumeSyncsOnStateCurrent();
+            syncsAlreadyLoadedOnStatecurrent = true;
+        }
+#endif
+        if (tctable && cachedfiles.size())
+        {
+            resumeTransferFromDB();
+        }
+        WAIT_CLASS::bumpds();
+        fnstats.timeToTransfersResumed = Waiter::ds - fnstats.startTime;
+        string report;
+        fnstats.toJsonArray(&report);
+        sendevent(99426, report.c_str(), 0); // Treeproc performance log
+        // NULL vector: "notify all elements"
+        app->nodes_updated(NULL, int(numNodes));
+        app->users_updated(NULL, int(users.size()));
+        app->pcrs_updated(NULL, int(pcrindex.size()));
+        app->sets_updated(nullptr, int(mSets.size()));
+        app->setelements_updated(nullptr, int(mSetElements.size()));
+#ifdef ENABLE_CHAT
+        app->chats_updated(NULL, int(chats.size()));
+#endif
+        app->useralerts_updated(nullptr, int(useralerts.alerts.size()));
+        mNodeManager.removeChanges();
+        // if ^!keys doesn't exist yet -> migrate the private keys from legacy attrs to ^!keys
+        if (loggedin() == FULLACCOUNT)
+        {
+            if (!mKeyManager.generation())
+            {
+                assert(!mKeyManager.getPostRegistration());
+                app->upgrading_security();
+            }
+            else
+            {
+                fetchContactsKeys();
+                sc_pk();
+            }
+        }
+    }
+    {
+        // In case a fetchnodes() occurs mid-session.  We should not allow
+        // the syncs to see the new tree unless we've caught up to at least
+        // the same scsn/seqTag as we were at before.  ir:1 is not always reliable
+        bool scTagNotCaughtUp =
+            !mScDbStateRecord.seqTag.empty() && !mLargestEverSeenScSeqTag.empty() &&
+            (mScDbStateRecord.seqTag.size() < mLargestEverSeenScSeqTag.size() ||
+             (mScDbStateRecord.seqTag.size() == mLargestEverSeenScSeqTag.size() &&
+              mScDbStateRecord.seqTag < mLargestEverSeenScSeqTag));
+        bool ac = statecurrent && !insca_notlast && !scTagNotCaughtUp;
+        if (!originalAC && ac)
+        {
+            LOG_debug << clientname << "actionpacketsCurrent is true again";
+        }
+        actionpacketsCurrent = ac;
+    }
+    if (!insca_notlast)
+    {
+        if (mReceivingCatchUp)
+        {
+            mReceivingCatchUp = false;
+            mPendingCatchUps--;
+            LOG_debug << "catchup complete. Still pending: " << mPendingCatchUps;
+            app->catchup_result();
+        }
+    }
+#ifdef ENABLE_SYNC
+    syncs.waiter->notify();
+#endif
+}
+
+bool MegaClient::sc_checkActionPacketPreservePos(JSON& json, Node* lastAPDeletedNode)
+{
+    auto actionpacketStart = json.pos;
+    if (json.enterobject())
+    {
+        // Check if it is ok to process the current action packet.
+        if (!sc_checkActionPacket(json, lastAPDeletedNode))
+        {
+            // We can't continue actionpackets until we know the next mCurrentSeqtag to match
+            // against, wait for the CS request to deliver it.
+            assert(reqs.cmdsInflight());
+            json.pos = actionpacketStart;
+            return false;
+        }
+    }
+    json.pos = actionpacketStart;
+    return true;
+}
+
+bool MegaClient::sc_procActionPacket(JSON& json, std::shared_ptr<Node>& lastAPDeletedNode)
+{
+    bool moveOperation = false; // true if "d" packet has "m":1
+    if (json.enterobject())
+    {
+        // the "a" attribute is guaranteed to be the first in the object
+        if (json.getnameid() == makeNameid("a"))
+        {
+            if (!statecurrent)
+            {
+                fnstats.actionPackets++;
+            }
+            nameid name = json.getnameidvalue();
+            // only process server-client request if not marked as
+            // self-originating ("i" marker element guaranteed to be following
+            // "a" element if present)
+            if (fetchingnodes || !Utils::startswith(json.pos, "\"i\":\"") ||
+                memcmp(json.pos + 5, sessionid, sizeof sessionid) ||
+                json.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
+                name == 't') // we still set 'i' on move commands to produce backward
+                             // compatible actionpackets, so don't skip those here
+            {
+#ifdef ENABLE_CHAT
+                bool readingPublicChat = false;
+#endif
+                switch (name)
+                {
+                    case name_id::u:
+                        // node update
+                        sc_updatenode(json);
+                        break;
+                    case makeNameid("t"):
+                    {
+                        // node addition
+                        {
+                            if (!loggedIntoFolder())
+                                useralerts.beginNotingSharedNodes();
+                            handle originatingUser = sc_newnodes(json);
+                            mergenewshares(1);
+                            if (!loggedIntoFolder())
+                                useralerts.convertNotedSharedNodes(true, originatingUser);
+                        }
+                    }
+                    break;
+                    case name_id::d:
+                        // node deletion
+                        lastAPDeletedNode = sc_deltree(json, moveOperation);
+                        break;
+                    case makeNameid("s"):
+                    case makeNameid("s2"):
+                        // share addition/update/revocation
+                        if (sc_shares(json))
+                        {
+                            int creqtag = reqtag;
+                            reqtag = 0;
+                            mergenewshares(1);
+                            reqtag = creqtag;
+                        }
+                        break;
+                    case name_id::c:
+                        // contact addition/update
+                        sc_contacts(json);
+                        break;
+                    case makeNameid("fa"):
+                        // file attribute update
+                        sc_fileattr(json);
+                        break;
+                    case makeNameid("ua"):
+                        // user attribute update
+                        sc_userattr(json);
+                        break;
+                    case name_id::psts:
+                    case name_id::psts_v2:
+                    case makeNameid("ftr"):
+                        if (sc_upgrade(json, name))
+                        {
+                            app->account_updated();
+                            abortbackoff(true);
+                        }
+                        break;
+                    case name_id::pses:
+                        sc_paymentreminder(json);
+                        break;
+                    case name_id::ipc:
+                        // incoming pending contact request (to us)
+                        sc_ipc(json);
+                        break;
+                    case makeNameid("opc"):
+                        // outgoing pending contact request (from us)
+                        sc_opc(json);
+                        break;
+                    case name_id::upci:
+                        // incoming pending contact request update (accept/deny/ignore)
+                        sc_upc(json, true);
+                        break;
+                    case name_id::upco:
+                        // outgoing pending contact request update (from them, accept/deny/ignore)
+                        sc_upc(json, false);
+                        break;
+                    case makeNameid("ph"):
+                        // public links handles
+                        sc_ph(json);
+                        break;
+                    case makeNameid("se"):
+                        // set email
+                        sc_se(json);
+                        break;
+#ifdef ENABLE_CHAT
+                    case makeNameid("mcpc"):
+                    {
+                        readingPublicChat = true;
+                    } // fall-through
+                    case makeNameid("mcc"):
+                        // chat creation / peer's invitation / peer's removal
+                        sc_chatupdate(json, readingPublicChat);
+                        break;
+                    case makeNameid("mcfpc"): // fall-through
+                    case makeNameid("mcfc"):
+                        // chat flags update
+                        sc_chatflags(json);
+                        break;
+                    case makeNameid("mcpna"): // fall-through
+                    case makeNameid("mcna"):
+                        // granted / revoked access to a node
+                        sc_chatnode(json);
+                        break;
+                    case name_id::mcsmp:
+                        // scheduled meetings updates
+                        sc_scheduledmeetings(json);
+                        break;
+                    case name_id::mcsmr:
+                        // scheduled meetings removal
+                        sc_delscheduledmeeting(json);
+                        break;
+#endif
+                    case makeNameid("uac"):
+                        sc_uac(json);
+                        break;
+                    case makeNameid("la"):
+                        // last acknowledged
+                        sc_la(json);
+                        break;
+                    case makeNameid("ub"):
+                        // business account update
+                        sc_ub(json);
+                        break;
+                    case makeNameid("sqac"):
+                        // storage quota allowance changed
+                        sc_sqac(json);
+                        break;
+                    case makeNameid("asp"):
+                        // new/update of a Set
+                        sc_asp(json);
+                        break;
+                    case makeNameid("ass"):
+                        sc_ass(json);
+                        break;
+                    case makeNameid("asr"):
+                        // removal of a Set
+                        sc_asr(json);
+                        break;
+                    case makeNameid("aep"):
+                        // new/update of a Set Element
+                        sc_aep(json);
+                        break;
+                    case makeNameid("aer"):
+                        // removal of a Set Element
+                        sc_aer(json);
+                        break;
+                    case makeNameid("pk"):
+                        // pending keys
+                        sc_pk();
+                        break;
+                    case makeNameid("uec"):
+                        // User Email Confirm (uec)
+                        sc_uec(json);
+                        break;
+                    case makeNameid("cce"):
+                        // credit card for this user is potentially expiring soon or new card is
+                        // registered
+                        sc_cce();
+                        break;
+                }
+            }
+        }
+        json.leaveobject();
+        if (!moveOperation)
+        {
+            lastAPDeletedNode.reset();
+        }
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
 }
 
 size_t MegaClient::procreqstat()
