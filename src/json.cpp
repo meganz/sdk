@@ -1247,13 +1247,10 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
             if (filters && filters->find(mCurrentPath) != filters->end())
             {
                 // a filter is configured for this path
-                // Only update mLastPos if there's no outer filter waiting
-                if (mFilterLevelStack.empty())
-                {
-                    mLastPos = mPos;
-                }
+                // Always update mLastPos for normal processing flow
+                mLastPos = mPos;
 
-                // Push this level onto the filter stack
+                // Push this level onto the filter stack (needed for PAUSED scenario tracking)
                 FilterLevelInfo levelInfo;
                 levelInfo.path = mCurrentPath;
                 levelInfo.startOffset = mPos - data;
@@ -1313,12 +1310,11 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                 {
                     if (!shouldSkip(filter, mPos - data))
                     {
-                        // Find the start position for this filter
+                        // Always use mLastPos as the start position for this filter.
+                        // In normal flow, mLastPos points to this filter's start.
+                        // In PAUSED resume flow, inner filters are skipped but mLastPos
+                        // is still updated, so the callback receives only the remaining data.
                         const char* filterStartPos = mLastPos;
-                        if (!mFilterLevelStack.empty() && mFilterLevelStack.back().path == filter)
-                        {
-                            filterStartPos = data + mFilterLevelStack.back().startOffset;
-                        }
 
                         JSON_CHUNK_PROCESSING
                             << "JSON object/array callback for path: " << filter << " Data: "
@@ -1349,9 +1345,16 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                                 // Collect all processed inner filters from this level
                                 // Offsets are relative to currentLevel's start
                                 mSkipFilters = std::move(currentLevel.processedInnerFilters);
+
+                                // For PAUSED, return to this filter's start position using
+                                // startOffset, so it will be reprocessed on resume
+                                auto consumedBytes = currentLevel.startOffset;
+                                processPaused(0, matchBrackets[closeChar]);
+                                return consumedBytes;
                             }
 
-                            // Calculate consumed bytes up to this filter's start
+                            // No filter level stack (shouldn't happen for normal object/array
+                            // filters) For # filter, the mFilterLevelStack might be empty
                             auto consumedBytes = filterStartPos - data;
                             processPaused(0, matchBrackets[closeChar]);
                             return consumedBytes;
@@ -1360,6 +1363,10 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                         // Callbacks should consume the exact amount of JSON, except the last one
                         if (mCurrentPath != "{" && jsonData.pos != mPos)
                         {
+                            // I'm not aborting the parsing here because no errors were detected
+                            // during the processing, so probably the callback just ignored some
+                            // data that it didn't need. Anyway it would be good to check this when
+                            // it happens to fix it.
                             LOG_warn
                                 << (mPos - jsonData.pos)
                                 << " bytes were not processed by the following streaming filter: "
@@ -1380,14 +1387,13 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                         }
                     }
 
-                    // Only update mLastPos if there's no outer filter waiting
-                    if (mFilterLevelStack.empty())
+                    // Always update mLastPos for normal processing flow
+                    mLastPos = mPos;
+
+                    // Record this filter as processed in the outer level (for potential PAUSED
+                    // scenarios)
+                    if (!mFilterLevelStack.empty())
                     {
-                        mLastPos = mPos;
-                    }
-                    else
-                    {
-                        // Record this filter as processed in the outer level
                         recordProcessedFilter(filter, mPos - data);
                     }
                 }
@@ -1502,17 +1508,16 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                                 return consumedBytes;
                             }
 
-                            // Only update mLastPos if there's no outer filter waiting
-                            if (mFilterLevelStack.empty())
+                            // Record this filter as processed in the outer level (for potential
+                            // PAUSED scenarios)
+                            if (!mFilterLevelStack.empty())
                             {
-                                mLastPos = mPos + t;
-                            }
-                            else
-                            {
-                                // Record this filter as processed in the current filter level
                                 recordProcessedFilter(filter, (mPos + t) - data);
                             }
                         }
+
+                        // Always update mLastPos (whether callback was called or skipped)
+                        mLastPos = mPos + t;
                     }
                 }
 

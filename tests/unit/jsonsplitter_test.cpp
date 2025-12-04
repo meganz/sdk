@@ -132,6 +132,43 @@ TEST_F(JSONSplitterTest, ProcessErrorResponse)
     EXPECT_EQ(ErrorCodes::API_EINTERNAL, err);
 }
 
+TEST_F(JSONSplitterTest, ProcessErrorResponseWithPause)
+{
+    std::string testJson = R"({"err":-1})";
+    Error err(ErrorCodes::API_OK);
+    bool first = true;
+
+    filters["#"] = [&first, &err](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        if (json && json->pos)
+        {
+            if (first)
+            {
+                first = false;
+                return JSONSplitter::CallbackResult::PAUSED;
+            }
+
+            TestCommand cmd;
+            return JSONSplitter::ResultFromBool(cmd.checkError(err, *json));
+        }
+
+        return JSONSplitter::CallbackResult::FAILED;
+    };
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_EQ(ErrorCodes::API_OK, err);
+
+    consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
+    EXPECT_TRUE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_EQ(ErrorCodes::API_EINTERNAL, err);
+}
+
 TEST_F(JSONSplitterTest, ProcessSimpleObjectNumber)
 {
     std::string testJson = "-1,"; // Can not be a number without any suffix?
@@ -470,13 +507,13 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtOuterObject)
     // Filters: {{a (outer object), {{a"i (inner string), {"c (outer string)
     // Scenario: inner "i" filter triggers first and succeeds,
     //           then outer "a" object filter triggers and returns PAUSED,
-    //           on resume, "a" should get complete object and "i" should be skipped
+    //           on resume, inner "i" should be SKIPPED,
+    //           outer "a" receives only remaining data (closing brace)
     std::string testJson = R"({"a":{"b":"d","i":"abc"},"c":"d"})";
     bool firstOuterCall = true;
     int innerCallCount = 0;
     int outerCallCount = 0;
     std::vector<std::string> capturedInnerValues;
-    std::vector<std::string> capturedOuterObjects;
     std::vector<std::string> capturedCValues;
 
     // Inner filter for "i" string value
@@ -491,8 +528,8 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtOuterObject)
     };
 
     // Outer filter for "a" object - pause on first call
-    filters["{{a"] = [&firstOuterCall, &outerCallCount, &capturedOuterObjects](
-                         JSON* json) -> JSONSplitter::CallbackResult
+    // On resume, receives only the closing brace (inner already skipped)
+    filters["{{a"] = [&firstOuterCall, &outerCallCount](JSON* json) -> JSONSplitter::CallbackResult
     {
         outerCallCount++;
         if (firstOuterCall)
@@ -500,10 +537,8 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtOuterObject)
             firstOuterCall = false;
             return JSONSplitter::CallbackResult::PAUSED;
         }
-        std::string output;
-        json->storeobject(&output);
-        capturedOuterObjects.emplace_back(output);
-        return JSONSplitter::CallbackResult::SUCCESS;
+        // On resume, just consume the closing brace
+        return JSONSplitter::ResultFromBool(json->leaveobject());
     };
 
     // Filter for "c" string value
@@ -526,7 +561,6 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtOuterObject)
     EXPECT_EQ(1, innerCallCount); // Inner "i" was processed once
     EXPECT_EQ(1, outerCallCount); // Outer "a" was called and paused
     EXPECT_THAT(capturedInnerValues, testing::ElementsAre("abc"));
-    EXPECT_EQ(0, capturedOuterObjects.size()); // Outer object not captured yet (paused)
     EXPECT_EQ(0, capturedCValues.size()); // "c" not processed yet
 
     // Purge consumed bytes
@@ -534,7 +568,7 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtOuterObject)
 
     // Second call: should resume from "a" object
     // Inner "i" should be SKIPPED (already processed)
-    // Outer "a" should get complete object this time
+    // Outer "a" handles the closure
     consumed = splitter.processChunk(&filters, testJson.c_str());
 
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
@@ -542,20 +576,102 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtOuterObject)
     EXPECT_FALSE(splitter.hasFailed());
     EXPECT_EQ(1, innerCallCount); // Inner "i" should NOT be called again (skipped)
     EXPECT_EQ(2, outerCallCount); // Outer "a" called second time
-    EXPECT_THAT(capturedOuterObjects, testing::ElementsAre(R"({"b":"d","i":"abc"})"));
+    EXPECT_THAT(capturedCValues, testing::ElementsAre("d"));
+}
+
+TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtOuterObjectAndLeftMoreData)
+{
+    // Test case: {"a":{"b":"d","b2":"abc","x":"y"},"c":"d"}
+    // Filters: {{a (outer object), {{a"b2 (inner string), {"c (outer string)
+    // Scenario: inner "b2" filter triggers first and succeeds,
+    //           then outer "a" object filter triggers and returns PAUSED,
+    //           on resume, inner "b2" should be SKIPPED,
+    //           outer "a" receives only remaining data (,"x":"y"})
+    std::string testJson = R"({"a":{"b":"d","b2":"abc","x":"y"},"c":"d"})";
+    bool firstOuterCall = true;
+    int innerCallCount = 0;
+    int outerCallCount = 0;
+    std::vector<std::string> capturedInnerValues;
+    std::vector<std::string> capturedCValues;
+
+    // Inner filter for "i" string value
+    filters["{{a\"b2"] = [&innerCallCount,
+                          &capturedInnerValues](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        innerCallCount++;
+        std::string output;
+        json->storeobject(&output);
+        capturedInnerValues.emplace_back(output);
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    // Outer filter for "a" object - pause on first call
+    // On resume, receives the remaining data
+    filters["{{a"] = [&firstOuterCall, &outerCallCount](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        outerCallCount++;
+        if (firstOuterCall)
+        {
+            firstOuterCall = false;
+            return JSONSplitter::CallbackResult::PAUSED;
+        }
+        // "x":"y"},"c":"d"}
+        // We should process "x":"y", and leave JSON at the first }
+        std::string key, value;
+        EXPECT_TRUE(json->storeKeyValueFromObject(key, value));
+        EXPECT_EQ(key, "x");
+        EXPECT_EQ(value, "y");
+        return JSONSplitter::ResultFromBool(json->leaveobject());
+    };
+
+    // Filter for "c" string value
+    filters["{\"c"] = [&capturedCValues](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        std::string output;
+        json->storeobject(&output);
+        capturedCValues.emplace_back(output);
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    // First call: should process until outer "a" object pauses
+    // Inner "i" should be processed before outer "a" pauses
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+
+    // Consumed should be at the position where outer filter starts at the "a" object
+    EXPECT_EQ(consumed, 5); // {"a":
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_EQ(1, innerCallCount); // Inner "i" was processed once
+    EXPECT_EQ(1, outerCallCount); // Outer "a" was called and paused
+    EXPECT_THAT(capturedInnerValues, testing::ElementsAre("abc"));
+    EXPECT_EQ(0, capturedCValues.size()); // "c" not processed yet
+
+    // Purge consumed bytes
+    testJson.erase(0, static_cast<size_t>(consumed));
+
+    // Second call: should resume from "a" object
+    // Inner "i" should be SKIPPED (already processed)
+    // Outer "a" handles remaining data and the closure
+    consumed = splitter.processChunk(&filters, testJson.c_str());
+
+    EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
+    EXPECT_TRUE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_EQ(1, innerCallCount); // Inner "i" should NOT be called again (skipped)
+    EXPECT_EQ(2, outerCallCount); // Outer "a" called second time
     EXPECT_THAT(capturedCValues, testing::ElementsAre("d"));
 }
 
 TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
 {
     // Test case: Inner string filter pauses, but there's an outer object filter
-    // On resume, inner filter should work, and outer filter should get complete object
+    // On resume, inner filter should work, and outer filter receives the remaining data
+    // (just the closing brace, since inner content was already processed by inner filter)
     std::string testJson = R"({"a":{"b":"d","i":"abc"}})";
     bool firstInnerCall = true;
     int innerCallCount = 0;
     int outerCallCount = 0;
     std::vector<std::string> capturedInnerValues;
-    std::vector<std::string> capturedOuterObjects;
 
     // Inner filter for "i" - pause on first call
     filters["{{a\"i"] = [&firstInnerCall, &innerCallCount, &capturedInnerValues](
@@ -573,15 +689,12 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
         return JSONSplitter::CallbackResult::SUCCESS;
     };
 
-    // Outer filter for "a" object
-    filters["{{a"] = [&outerCallCount,
-                      &capturedOuterObjects](JSON* json) -> JSONSplitter::CallbackResult
+    // Outer filter for "a" object - receives only the remaining part (closing brace)
+    filters["{{a"] = [&outerCallCount](JSON* json) -> JSONSplitter::CallbackResult
     {
         outerCallCount++;
-        std::string output;
-        json->storeobject(&output);
-        capturedOuterObjects.emplace_back(output);
-        return JSONSplitter::CallbackResult::SUCCESS;
+        // Similar to fetchnodes {[f filter, just consume the closing brace
+        return JSONSplitter::ResultFromBool(json->leaveobject());
     };
 
     // First call: inner "i" pauses
@@ -597,7 +710,7 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
     // Purge consumed bytes
     testJson.erase(0, static_cast<size_t>(consumed));
 
-    // Second call: resume, inner succeeds, outer should get complete object
+    // Second call: resume, inner succeeds, outer handles closure
     consumed = splitter.processChunk(&filters, testJson.c_str());
 
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
@@ -606,18 +719,18 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
     EXPECT_EQ(2, innerCallCount); // Inner called again
     EXPECT_EQ(1, outerCallCount); // Outer called
     EXPECT_THAT(capturedInnerValues, testing::ElementsAre("abc"));
-    EXPECT_THAT(capturedOuterObjects, testing::ElementsAre(R"({"b":"d","i":"abc"})"));
 }
 
 TEST_F(JSONSplitterTest, ProcessNestedFilterWithMultiplePauses)
 {
     // Test multiple pause/resume cycles with nested filters
+    // When outer filter pauses, inner filter is already processed and will be skipped on resume.
+    // Outer filter receives only the remaining data (closing brace).
     std::string testJson = R"({"a":{"i":"abc"}})";
     int pauseCount = 0;
     int innerCallCount = 0;
     int outerCallCount = 0;
     std::vector<std::string> capturedInnerValues;
-    std::vector<std::string> capturedOuterObjects;
 
     // Inner filter
     filters["{{a\"i"] = [&innerCallCount,
@@ -631,8 +744,7 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithMultiplePauses)
     };
 
     // Outer filter - pause twice
-    filters["{{a"] = [&pauseCount, &outerCallCount, &capturedOuterObjects](
-                         JSON* json) -> JSONSplitter::CallbackResult
+    filters["{{a"] = [&pauseCount, &outerCallCount](JSON* json) -> JSONSplitter::CallbackResult
     {
         outerCallCount++;
         if (pauseCount < 2)
@@ -640,10 +752,7 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithMultiplePauses)
             pauseCount++;
             return JSONSplitter::CallbackResult::PAUSED;
         }
-        std::string output;
-        json->storeobject(&output);
-        capturedOuterObjects.emplace_back(output);
-        return JSONSplitter::CallbackResult::SUCCESS;
+        return JSONSplitter::ResultFromBool(json->leaveobject());
     };
 
     // First call
@@ -666,7 +775,7 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithMultiplePauses)
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_EQ(1, innerCallCount); // Inner still skipped
     EXPECT_EQ(3, outerCallCount);
-    EXPECT_THAT(capturedOuterObjects, testing::ElementsAre(R"({"i":"abc"})"));
+    EXPECT_THAT(capturedInnerValues, testing::ElementsAre("abc")); // Inner value was captured
 }
 
 // Keep in mind, this unit test is added after the JSONSplitter has served well for a long time.
