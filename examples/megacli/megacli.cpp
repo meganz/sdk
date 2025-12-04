@@ -164,6 +164,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions);
 
+void copyFile(const char* pSrc, const char* pDst);
 
 static std::string USAGE = R"(
 Mega command line
@@ -6775,6 +6776,172 @@ void exec_more(autocomplete::ACState& s)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions);
 
+
+void copyFile(const char* pSrc, const char* pDst)
+{
+    std::shared_ptr<Node> n, tn;
+    string targetuser;
+    string newname;
+    error e;
+
+    VersioningOption vo = UseLocalVersioningFlag;
+    bool allowDuplicateVersions = true;
+
+    if ((n = nodebypath(pSrc)))
+    {
+        if ((tn = nodebypath(pDst, &targetuser, &newname)))
+        {
+            if (!client->checkaccess(tn.get(), RDWR))
+            {
+                cout << "Write access denied" << endl;
+
+                return;
+            }
+
+            if (tn->type == FILENODE)
+            {
+                if (n->type == FILENODE)
+                {
+                    // overwrite target if source and taret are files
+
+                    // (there should never be any orphaned filenodes)
+                    if (!tn->parent)
+                    {
+                        return;
+                    }
+
+                    // ...delete target...
+                    e = client->unlink(tn.get(), false, 0, false);
+
+                    if (e)
+                    {
+                        cout << "Cannot delete existing file (" << errorstring(e) << ")" << endl;
+                    }
+
+                    // ...and set target to original target's parent
+                    tn = tn->parent;
+                }
+                else
+                {
+                    cout << "Cannot overwrite file with folder" << endl;
+                    return;
+                }
+            }
+        }
+
+        TreeProcCopy_mcli tc;
+        NodeHandle ovhandle;
+
+        if (!n->keyApplied())
+        {
+            cout << "Cannot copy a node without key" << endl;
+            return;
+        }
+
+        if (n->attrstring)
+        {
+            n->applykey();
+            n->setattr();
+            if (n->attrstring)
+            {
+                cout << "Cannot copy undecryptable node" << endl;
+                return;
+            }
+        }
+
+        string sname;
+        if (newname.size())
+        {
+            sname = newname;
+            LocalPath::utf8_normalize(&sname);
+        }
+        else
+        {
+            attr_map::iterator it = n->attrs.map.find('n');
+            if (it != n->attrs.map.end())
+            {
+                sname = it->second;
+            }
+        }
+
+        if (tn && n->type == FILENODE && !allowDuplicateVersions)
+        {
+            std::shared_ptr<Node> ovn = client->childnodebyname(tn.get(), sname.c_str(), true);
+            if (ovn)
+            {
+                if (n->isvalid && ovn->isvalid &&
+                    *(FileFingerprint*)n.get() == *(FileFingerprint*)ovn.get())
+                {
+                    cout << "Skipping identical node" << endl;
+                    return;
+                }
+
+                ovhandle = ovn->nodeHandle();
+            }
+        }
+
+        // determine number of nodes to be copied
+        client->proctree(n, &tc, false, !ovhandle.isUndef());
+
+        tc.allocnodes();
+
+        // build new nodes array
+        client->proctree(n, &tc, false, !ovhandle.isUndef());
+
+        // if specified target is a filename, use it
+        if (newname.size())
+        {
+            SymmCipher key;
+            string attrstring;
+
+            // copy source attributes and rename
+            AttrMap attrs;
+
+            attrs.map = n->attrs.map;
+            attrs.map['n'] = sname;
+
+            key.setkey((const byte*)tc.nn[0].nodekey.data(), tc.nn[0].type);
+
+            // JSON-encode object and encrypt attribute string
+            attrs.getjson(&attrstring);
+            tc.nn[0].attrstring.reset(new string);
+            client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+        }
+
+        // tree root: no parent
+        tc.nn[0].parenthandle = UNDEF;
+        tc.nn[0].ovhandle = ovhandle;
+
+        if (tn)
+        {
+            // add the new nodes
+            client->putnodes(tn->nodeHandle(),
+                             vo,
+                             std::move(tc.nn),
+                             nullptr,
+                             gNextClientTag++,
+                             false);
+        }
+        else
+        {
+            if (targetuser.size())
+            {
+                cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
+
+                client->putnodes(targetuser.c_str(), std::move(tc.nn), gNextClientTag++);
+            }
+            else
+            {
+                cout << pDst << ": No such file or directory" << endl;
+            }
+        }
+    }
+    else
+    {
+        cout <<pSrc<< ": No such file or directory" << endl;
+    }
+}
+
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions)
@@ -6803,6 +6970,32 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
                 else
                 {
                     cout << "Can't upload file over the top of a folder with the same name: " << name << endl;
+                    return;
+                }
+
+                SymmCipher cipher;
+                int64_t remoteIv;
+                int64_t remoteMac;
+
+                {
+                    std::string remoteKey = previousNode->nodekey();
+                    const char* iva = &remoteKey[SymmCipher::KEYLENGTH];
+
+                    cipher.setkey((byte*)&remoteKey[0], previousNode->type);
+                    remoteIv = MemAccess::get<int64_t>(iva);
+                    remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+                }
+
+                auto result = generateMetaMac(cipher, *fa, remoteIv);
+
+                if (parent && allowDuplicateVersions && fp.isvalid && previousNode->isvalid &&
+                    fp == *((FileFingerprint*)previousNode.get()) &&
+                    (uint64_t)remoteMac == (uint64_t)result.second)
+                {
+                    // we will do copy here but not reupload
+                    copyFile(previousNode->displaypath().c_str(), parent->displaypath().c_str());
+                    cout << "Copy file " << name << " to " << parent->displaypath()<<endl;
+                    fa.reset();
                     return;
                 }
             }
