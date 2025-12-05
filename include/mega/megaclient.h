@@ -818,14 +818,6 @@ public:
     error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
 
-    // Returns true if welcome pdf should be imported
-    // It's depend on client type (true for ClientType::DEFAULT)
-    bool shouldWelcomePdfImported() const
-    {
-        return getClientType() != MegaClient::ClientType::VPN &&
-               getClientType() != MegaClient::ClientType::PASSWORD_MANAGER;
-    }
-
 public:
     // check node access level
     int checkaccess(Node*, accesslevel_t);
@@ -860,6 +852,13 @@ public:
     bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag, m_off_t availableDiskSpace = 0);
     void stopxfer(File* f, TransferDbCommitter* committer);
     void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
+
+    error transferRemoteCopy(File* file,
+                             std::shared_ptr<Node> sameNode,
+                             const string& name,
+                             std::shared_ptr<Node> parent,
+                             int tag,
+                             std::optional<std::string> inboxTarget);
 
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 100;
@@ -923,6 +922,17 @@ public:
 
     // static version to be used from worker threads, which cannot rely on the MegaClient::tmpnodecipher as SymCipher (not thread-safe))
     static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher &tmpnodecipher, bool canChangeVault, std::function<void(AttrMap&)> addAttrs = nullptr);
+
+    // helper function for preparing a putnodes call for copy operations
+    void putnodes_prepareCopy(std::vector<NewNode>& nn,
+                              unsigned& nc,
+                              const nodetype_t type,
+                              const handle nodehandle,
+                              const handle parenthandle,
+                              const string& nodekey,
+                              const AttrMap& attrs,
+                              const bool resetSensitive,
+                              const bool isPublic);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
@@ -1156,8 +1166,7 @@ public:
      * - `API_EACCESS`:
      *      + `INVALID_LOCAL_TYPE` if the path is not a directory.
      */
-    SyncErrorInfo isValidLocalSyncRoot(const LocalPath& rootPath,
-                                       const handle backupIdToExclude) const;
+    SyncErrorInfo isValidLocalSyncRoot(const LocalPath& rootPath, const handle backupIdToExclude);
 
     /**
      * @brief Check if a SyncConfig could be used to create a sync
@@ -1383,9 +1392,6 @@ public:
     // SDK version
     const char* version();
 
-    // get the last available version of the app
-    void getlastversion(const char *appKey);
-
     // get a local ssl certificate for communications with the webclient
     void getlocalsslcertificate();
 
@@ -1547,15 +1553,6 @@ public:
 
     // get mega achievements list (for advertising for unregistered users)
     void getmegaachievements(AchievementsDetails *details);
-
-    // get welcome pdf
-    void importOrDelayWelcomePdf();
-    bool wasWelcomePdfImportDelayed();
-    void importWelcomePdfIfDelayed();
-    void setWelcomePdfNeedsDelayedImport(bool requestImport);
-
-private:
-    void getwelcomepdf();
 
 public:
     // report an event to the API logger
@@ -1858,28 +1855,28 @@ public:
 
     // server-client command processing
     bool sc_checkSequenceTag(const string& tag);
-    bool sc_checkActionPacket(Node* lastAPDeletedNode);
+    bool sc_checkActionPacket(JSON& json, Node* lastAPDeletedNode);
 
-    void sc_updatenode();
-    std::shared_ptr<Node> sc_deltree();
-    handle sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete);
-    void sc_contacts();
-    void sc_fileattr();
-    void sc_userattr();
-    bool sc_shares();
-    bool sc_upgrade(nameid paymentType);
-    void sc_paymentreminder();
-    void sc_opc();
-    void sc_ipc();
-    void sc_upc(bool incoming);
-    void sc_ph();
-    void sc_se();
+    void sc_updatenode(JSON& json);
+    std::shared_ptr<Node> sc_deltree(JSON& json, bool& moveOperation);
+    handle sc_newnodes(JSON& json);
+    void sc_contacts(JSON& json);
+    void sc_fileattr(JSON& json);
+    void sc_userattr(JSON& json);
+    bool sc_shares(JSON& json);
+    bool sc_upgrade(JSON& json, nameid paymentType);
+    void sc_paymentreminder(JSON& json);
+    void sc_opc(JSON& json);
+    void sc_ipc(JSON& json);
+    void sc_upc(JSON& json, bool incoming);
+    void sc_ph(JSON& json);
+    void sc_se(JSON& json);
 #ifdef ENABLE_CHAT
-    void sc_chatupdate(bool readingPublicChat);
-    void sc_chatnode();
-    void sc_chatflags();
-    void sc_scheduledmeetings();
-    void sc_delscheduledmeeting();
+    void sc_chatupdate(JSON& json, bool readingPublicChat);
+    void sc_chatnode(JSON& json);
+    void sc_chatflags(JSON& json);
+    void sc_scheduledmeetings(JSON& json);
+    void sc_delscheduledmeeting(JSON& json);
     void createNewSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId, m_time_t startDateTime);
     void createDeletedSMAlert(const handle&, handle chatid, handle schedId);
     void createUpdatedSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId,
@@ -1887,11 +1884,11 @@ public:
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
     void clearSchedOccurrences(TextChat& chat);
 #endif
-    void sc_uac();
-    void sc_uec();
-    void sc_la();
-    void sc_ub();
-    void sc_sqac();
+    void sc_uac(JSON& json);
+    void sc_uec(JSON& json);
+    void sc_la(JSON& json);
+    void sc_ub(JSON& json);
+    void sc_sqac(JSON& json);
     void sc_pk();
     void sc_cce();
 
@@ -1904,7 +1901,7 @@ public:
     unsigned addnode(sharedNode_vector* v, std::shared_ptr<Node> n) const;
 
     // read node tree from JSON object
-    void readtree(JSON*, Node* priorActionpacketDeletedNode, bool& firstHandleMatchedDelete);
+    void readtree(JSON*);
 
     // converts UTF-8 to 32-bit word array
     static char* utf8_to_a32forjs(const char*, int*);
@@ -1958,6 +1955,7 @@ public:
     void disabletransferresumption();
 
     void resumeTransfersForNotLoggedInInstance();
+    void resumeTransferFromDB();
 
     // application callbacks
     struct MegaApp* app;
@@ -1987,9 +1985,6 @@ public:
     NodeManager mNodeManager;
 
     recursive_mutex nodeTreeMutex;
-
-    // there is data to commit to the database when possible
-    bool pendingsccommit;
 
     // transfer cache table
     unique_ptr<DbTable> tctable;
@@ -2117,9 +2112,6 @@ public:
 
     // key protecting non-shareable GPS coordinates in nodes (currently used only by CUv2 in iOS)
     string unshareablekey;
-
-    // application key
-    char appkey[16];
 
     // incoming shares to be attached to a corresponding node
     newshare_list newshares;
@@ -2256,6 +2248,12 @@ public:
 
     // server-client request sequence number
     SCSN scsn;
+
+    // status of S4
+    std::atomic<bool> mIsS4Enabled;
+
+    // node's handle of S4 container
+    std::atomic<NodeHandle> mS4Container;
 
     // process an array of users from the API server
     bool readusers(JSON*, bool actionpackets);
@@ -2438,16 +2436,27 @@ public:
 #endif
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMismatchedDelete);
+    int readnodes(JSON*,
+                  int,
+                  putsource_t,
+                  vector<NewNode>*,
+                  bool modifiedByThisClient,
+                  bool applykeys);
 
     // process a JSON node object
     // possible results:
     // 0 -> no object found
     // 1 -> successful parsing
     // any other number -> parsing error
-    int readnode(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys,
-                 NodeManager::MissingParentNodes& missingParentNodes, handle &previousHandleForAlert, set<NodeHandle> *allParents,
-                 Node *priorActionpacketDeletedNode, bool *firstHandleMatchesDelete);
+    int readnode(JSON*,
+                 int,
+                 putsource_t,
+                 vector<NewNode>*,
+                 bool modifiedByThisClient,
+                 bool applykeys,
+                 NodeManager::MissingParentNodes& missingParentNodes,
+                 handle& previousHandleForAlert,
+                 set<NodeHandle>* allParents);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -2476,7 +2485,7 @@ public:
 
     void handleauth(handle, byte*);
 
-    bool procsc();
+    bool procsc(JSON& json);
     size_t procreqstat();
 
     // API warnings
@@ -2817,7 +2826,14 @@ public:
         PASSWORD_MANAGER,
     };
 
-    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount, ClientType clientType = ClientType::DEFAULT);
+    MegaClient(MegaApp*,
+               shared_ptr<Waiter>,
+               HttpIO*,
+               DbAccess*,
+               GfxProc*,
+               const char*,
+               unsigned workerThreadCount,
+               ClientType clientType = ClientType::DEFAULT);
     ~MegaClient();
 
 struct MyAccountData
@@ -3020,11 +3036,11 @@ private:
     bool decryptAttrs(const string& attrs, const string& decrKey, string_map& output);
     string encryptAttrs(const string_map& attrs, const string& encryptionKey);
 
-    void sc_asp(); // AP after new or updated Set
-    void sc_asr(); // AP after removed Set
-    void sc_aep(); // AP after new or updated Set Element
-    void sc_aer(); // AP after removed Set Element
-    void sc_ass(); // AP after exported set update
+    void sc_asp(JSON& json); // AP after new or updated Set
+    void sc_asr(JSON& json); // AP after removed Set
+    void sc_aep(JSON& json); // AP after new or updated Set Element
+    void sc_aer(JSON& json); // AP after removed Set Element
+    void sc_ass(JSON& json); // AP after exported set update
 
     bool initscsets();
     bool fetchscset(string* data, uint32_t id);
@@ -3405,6 +3421,11 @@ public:
         const char* originalTransactionId,
         unsigned int gatewayId,
         CommandGetSubscriptionCancellationDetails::CompletionCallback&& completion);
+
+    // Queue a CS command for transmission.
+    //
+    // This function takes ownership of its command parameter.
+    void queueCommand(Command* command);
 
     // Client adapter.
     common::ClientAdapter mClientAdapter;

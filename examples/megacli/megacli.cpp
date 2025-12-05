@@ -40,6 +40,7 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -136,9 +137,6 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 // change email link to be confirmed
 static string changeemail, changecode;
 
-// import welcome pdf at account creation
-static bool pdf_to_import = false;
-
 // public link information
 static string publiclink;
 
@@ -163,7 +161,6 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions);
 
-
 static std::string USAGE = R"(
 Mega command line
 Usage:
@@ -173,12 +170,12 @@ Usage:
   -v                   Verbose
   -c=arg               Client type. default|vpn|password_manager (default: default))"
 #if defined(ENABLE_ISOLATED_GFX)
-R"(
+                           R"(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
   -n=arg               Endpoint name (default: mega_gfxworker_megacli)
 )"
 #endif
-;
+    ;
 struct Config
 {
     std::string executable;
@@ -1203,7 +1200,6 @@ void DemoApp::fetchnodes_result(const Error& e)
         {
             cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
         }
-        pdf_to_import = false;
     }
     else
     {
@@ -1219,15 +1215,6 @@ void DemoApp::fetchnodes_result(const Error& e)
                 assert(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()));   // node is there, but cannot be decrypted
                 cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
             }
-        }
-
-        if (pdf_to_import)
-        {
-            client->importOrDelayWelcomePdf();
-        }
-        else if (client->shouldWelcomePdfImported())
-        {
-            client->importWelcomePdfIfDelayed();
         }
 
         if (client->ephemeralSessionPlusPlus)
@@ -1251,21 +1238,6 @@ void DemoApp::putnodes_result(const Error& e,
         {
             cout << "Success." << endl;
         }
-    }
-
-    if (pdf_to_import)   // putnodes from openfilelink_result()
-    {
-        if (!e)
-        {
-            cout << "Welcome PDF file has been imported successfully." << endl;
-        }
-        else
-        {
-            cout << "Failed to import Welcome PDF file" << endl;
-        }
-
-        pdf_to_import = false;
-        return;
     }
 
     if (e)
@@ -1392,6 +1364,11 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         if (type == ATTR_ED25519_PUBK)
         {
             cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
+        }
+
+        if (type == mega::ATTR_S4_CONTAINER)
+        {
+            cout << "S4 container: " << client->mS4Container << endl;
         }
     }
 
@@ -2424,43 +2401,15 @@ public:
     {
         if (populated)
         {
-            string attrstring;
-            SymmCipher key;
-            NewNode* t = &nn[--nc];
-
-            // copy node
-            t->source = NEW_NODE;
-            t->type = n->type;
-            t->nodehandle = n->nodehandle;
-            t->parenthandle = n->parent ? n->parent->nodehandle : UNDEF;
-
-            // copy key (if file) or generate new key (if folder)
-            if (n->type == FILENODE)
-            {
-                t->nodekey = n->nodekey();
-            }
-            else
-            {
-                byte buf[FOLDERNODEKEYLENGTH];
-                mc->rng.genblock(buf, sizeof buf);
-                t->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
-            }
-
-            key.setkey((const byte*) t->nodekey.data(), n->type);
-
-            AttrMap tattrs;
-            tattrs.map = n->attrs.map;
-            nameid rrname = AttrMap::string2nameid("rr");
-            attr_map::iterator it = tattrs.map.find(rrname);
-            if (it != tattrs.map.end())
-            {
-                LOG_debug << "Removing rr attribute";
-                tattrs.map.erase(it);
-            }
-
-            t->attrstring.reset(new string);
-            tattrs.getjson(&attrstring);
-            mc->makeattr(&key, t->attrstring, attrstring.c_str());
+            mc->putnodes_prepareCopy(nn,
+                                     nc,
+                                     n->type,
+                                     n->nodehandle,
+                                     n->parent ? n->parent->nodehandle : UNDEF,
+                                     n->nodekey(),
+                                     n->attrs,
+                                     false,
+                                     false);
         }
         else
         {
@@ -2915,7 +2864,7 @@ public:
         --stack->filesLeft;
         if (!stack->empty())
         {
-            client->reqs.add(new FileFindCommand(stack, client));
+            client->queueCommand(new FileFindCommand(stack, client));
         }
         else if (!stack->filesLeft)
         {
@@ -2970,7 +2919,7 @@ void exec_find(autocomplete::ACState& s)
             {
                 for (int i = 0; i < 25 && !q->empty(); ++i)
                 {
-                    client->reqs.add(new FileFindCommand(q, client));
+                    client->queueCommand(new FileFindCommand(q, client));
                 }
             }
         }
@@ -4138,14 +4087,17 @@ void exec_backupcentre(autocomplete::ACState& s)
                 {
                     if (purgeFlag)
                     {
-                        client->reqs.add(new CommandBackupRemove(client, d.backupId,[&](Error e)
-                        {
-                            if (e)
+                        client->queueCommand(new CommandBackupRemove(
+                            client,
+                            d.backupId,
+                            [&](Error e)
                             {
-                                cout << "Backup Center - failed to purge id: " << toHandle(d.backupId) << endl;
-                            }
-                        }));
-
+                                if (e)
+                                {
+                                    cout << "Backup Center - failed to purge id: "
+                                         << toHandle(d.backupId) << endl;
+                                }
+                            }));
                     }
                     else
                     {
@@ -5379,16 +5331,23 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
 #endif
-    p->Add(exec_alerts,
+    p->Add(exec_alerts, text("alerts"));
+    p->Add(exec_alerts_new, sequence(text("alerts"), text("new")));
+    p->Add(exec_alerts_old, sequence(text("alerts"), text("old")));
+    p->Add(exec_alerts_number, sequence(text("alerts"), wholenumber(10)));
+    p->Add(exec_alerts_notify, sequence(text("alerts"), text("notify")));
+    p->Add(exec_alerts_seen, sequence(text("alerts"), text("seen")));
+    p->Add(exec_alerts_test_reminder, sequence(text("alerts"), text("test_reminder")));
+    p->Add(exec_alerts_test_payment, sequence(text("alerts"), text("test_payment")));
+    p->Add(exec_alerts_test_payment_v2, sequence(text("alerts"), text("test_payment_v2")));
+    p->Add(exec_alerts_add_reminder,
            sequence(text("alerts"),
-                    opt(either(text("new"),
-                               text("old"),
-                               wholenumber(10),
-                               text("notify"),
-                               text("seen"),
-                               text("test_reminder"),
-                               text("test_payment"),
-                               text("test_payment_v2")))));
+                    text("add_reminder"),
+                    param("timestamp_offset"),
+                    param("expiry_offset")));
+    p->Add(
+        exec_alerts_add_payment,
+        sequence(text("alerts"), text("add_payment"), param("timestamp_offset"), param("result")));
     p->Add(exec_recentactions,
            sequence(text("recentactions"),
                     param("hours"),
@@ -5446,6 +5405,14 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxloglinesize, sequence(text("setmaxloglinesize"), wholenumber(10000)));
+    p->Add(exec_setlogjson,
+           sequence(text("setlogjson"),
+                    repeat(either(flag("-chunk-received"),
+                                  flag("-chunk-processing"),
+                                  flag("-chunk-consumed"),
+                                  flag("-sending"),
+                                  flag("-nonchunk-received")))));
+    p->Add(exec_getlogjson, sequence(text("getlogjson")));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
     p->Add(exec_showattrs, sequence(text("showattrs"), opt(either(text("on"), text("off")))));
@@ -6588,7 +6555,7 @@ void exec_get(autocomplete::ACState& s)
         {
             cout << "Checking link..." << endl;
 
-            client->mReqsLockless.add(new CommandGetFile(
+            client->queueCommand(new CommandGetFile(
                 client,
                 key,
                 FILENODEKEYLENGTH,
@@ -7194,7 +7161,6 @@ void exec_open(autocomplete::ACState& s)
                                NULL,
 #endif
                                gfx,
-                               "Gk8DyQBS",
                                "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION) "." TOSTRING(
                                    MEGA_MINOR_VERSION) "." TOSTRING(MEGA_MICRO_VERSION),
                                2,
@@ -7319,8 +7285,8 @@ void exec_login(autocomplete::ACState& s)
         else
         {
             cout << "      login email [password]" << endl
-                << "      login exportedfolderurl#key [authKey]" << endl
-                << "      login session" << endl;
+                 << "      login exportedfolderurl#key [authKey]" << endl
+                 << "      login session" << endl;
         }
     }
     else
@@ -7335,8 +7301,6 @@ void exec_begin(autocomplete::ACState& s)
     if (s.words.size() == 1)
     {
         cout << "Creating ephemeral session..." << endl;
-
-        pdf_to_import = true;
         client->createephemeral();
     }
     else if (s.words.size() == 2)   // resume session
@@ -7365,7 +7329,6 @@ void exec_begin(autocomplete::ACState& s)
     {
         cout << "Creating ephemeral session plus plus..." << endl;
 
-        pdf_to_import = true;
         ephemeralFirstname = s.words[1].s;
         ephemeralLastName = s.words[2].s;
         client->createephemeralPlusPlus();
@@ -8925,67 +8888,17 @@ void exec_cancel(autocomplete::ACState& s)
     }
 }
 
-void exec_alerts(autocomplete::ACState& s)
+static void print_alerts(bool showNew, bool showOld, size_t showN)
 {
-    bool shownew = false, showold = false;
-    size_t showN = 0;
-    if (s.words.size() == 1)
-    {
-        shownew = showold = true;
-    }
-    else if (s.words.size() == 2)
-    {
-        if (s.words[1].s == "seen")
-        {
-            client->useralerts.acknowledgeAll();
-            return;
-        }
-        else if (s.words[1].s == "notify")
-        {
-            notifyAlerts = !notifyAlerts;
-            cout << "notification of alerts is now " << (notifyAlerts ? "on" : "off") << endl;
-            return;
-        }
-        else if (s.words[1].s == "old")
-        {
-            showold = true;
-        }
-        else if (s.words[1].s == "new")
-        {
-            shownew = true;
-        }
-        else if (s.words[1].s == "test_reminder")
-        {
-            client->useralerts.add(new UserAlert::PaymentReminder(time(NULL) - 86000*3 /2, client->useralerts.nextId()));
-        }
-        else if (s.words[1].s == "test_payment")
-        {
-            client->useralerts.add(new UserAlert::Payment(true,
-                                                          1,
-                                                          time(NULL) + 86000 * 1,
-                                                          client->useralerts.nextId(),
-                                                          name_id::psts));
-        }
-        else if (s.words[1].s == "test_payment_v2")
-        {
-            client->useralerts.add(new UserAlert::Payment(true,
-                                                          1,
-                                                          time(NULL) + 86000 * 1,
-                                                          client->useralerts.nextId(),
-                                                          name_id::psts_v2));
-        }
-        else if (atoi(s.words[1].s.c_str()) > 0)
-        {
-            showN = static_cast<size_t>(atoi(s.words[1].s.c_str()));
-        }
-    }
-    if (showold || shownew || showN > 0)
+    if (showOld || showNew || showN > 0)
     {
         UserAlerts::Alerts::const_iterator i = client->useralerts.alerts.begin();
         if (showN)
         {
             size_t n = 0;
-            for (UserAlerts::Alerts::const_reverse_iterator j = client->useralerts.alerts.rbegin(); j != client->useralerts.alerts.rend(); ++j, ++n)
+            for (UserAlerts::Alerts::const_reverse_iterator j = client->useralerts.alerts.rbegin();
+                 j != client->useralerts.alerts.rend();
+                 ++j, ++n)
             {
                 if (!(*j)->removed())
                 {
@@ -8999,13 +8912,153 @@ void exec_alerts(autocomplete::ACState& s)
         {
             if ((*i)->relevant() && !(*i)->removed())
             {
-                if (--n < showN || (shownew && !(*i)->seen()) || (showold && (*i)->seen()))
+                if (--n < showN || (showNew && !(*i)->seen()) || (showOld && (*i)->seen()))
                 {
                     printAlert(**i);
                 }
             }
         }
     }
+    return;
+}
+
+void exec_alerts(autocomplete::ACState&)
+{
+    return print_alerts(true, true, 0);
+}
+
+void exec_alerts_new(autocomplete::ACState&)
+{
+    return print_alerts(true, false, 0);
+}
+
+void exec_alerts_old(autocomplete::ACState&)
+{
+    return print_alerts(false, true, 0);
+}
+
+void exec_alerts_number(autocomplete::ACState& s)
+{
+    return print_alerts(false, false, static_cast<size_t>(atoi(s.words[1].s.c_str())));
+}
+
+void exec_alerts_notify(autocomplete::ACState&)
+{
+    notifyAlerts = !notifyAlerts;
+    cout << "notification of alerts is now " << (notifyAlerts ? "on" : "off") << endl;
+    return;
+}
+
+void exec_alerts_seen(autocomplete::ACState&)
+{
+    client->useralerts.acknowledgeAll();
+    return;
+}
+
+void exec_alerts_test_reminder(autocomplete::ACState&)
+{
+    client->useralerts.add(
+        new UserAlert::PaymentReminder(time(NULL) - 86000 * 3 / 2, client->useralerts.nextId()));
+}
+
+void exec_alerts_test_payment(autocomplete::ACState&)
+{
+    client->useralerts.add(new UserAlert::Payment(true,
+                                                  1,
+                                                  time(NULL) + 86000 * 1,
+                                                  client->useralerts.nextId(),
+                                                  name_id::psts));
+}
+
+void exec_alerts_test_payment_v2(autocomplete::ACState&)
+{
+    client->useralerts.add(new UserAlert::Payment(true,
+                                                  1,
+                                                  time(NULL) + 86000 * 1,
+                                                  client->useralerts.nextId(),
+                                                  name_id::psts_v2));
+}
+
+void exec_alerts_add_reminder(autocomplete::ACState& s)
+{
+    // Parameterized command to add payment reminder
+    // Usage: alerts add_reminder <timestamp_offset> <expiry_offset>
+
+    if (s.words.size() < 4)
+    {
+        cout << "Usage: alerts add_reminder <timestamp_offset> <expiry_offset>" << endl;
+        cout << "  timestamp_offset: seconds from now (e.g., -86400 = 1 day ago)" << endl;
+        cout << "  expiry_offset: seconds from now for expiry (e.g., 2592000 = 30 days)" << endl;
+        cout << "Examples:" << endl;
+        cout << "  alerts add_reminder \"-86400\" 2592000 # Created 1 day ago, expires in 30 "
+                "days"
+             << endl;
+        cout << "  alerts add_reminder 0 604800  # Created now, expires in 7 days" << endl;
+        return;
+    }
+
+    m_time_t now = time(NULL);
+    int64_t timestampOffset = std::stoll(s.words[2].s);
+    int64_t expiryOffset = std::stoll(s.words[3].s);
+
+    // if you want to persist this alert
+    // you can upload a file after, using command 'put [FILE]'
+    client->useralerts.add(new UserAlert::PaymentReminder(now + timestampOffset,
+                                                          now + expiryOffset,
+                                                          client->useralerts.nextId()));
+
+    cout << "Added payment reminder" << endl;
+    cout << "  - Expected timestamp: " << now + timestampOffset << " (" << timestampOffset
+         << "s from now)" << endl;
+    cout << "  - Expires at: " << now + expiryOffset << " (" << expiryOffset << "s from now)"
+         << endl;
+    if (!client->useralerts.alerts.empty())
+    {
+        cout << "  - Actual timestamp: " << client->useralerts.alerts.back()->ts() << endl;
+    }
+    cout << "  - Total alerts in memory: " << client->useralerts.alerts.size() << endl;
+    return;
+}
+
+void exec_alerts_add_payment(autocomplete::ACState& s)
+{
+    // Parameterized command to add payment alert
+    // Usage: alerts add_payment <timestamp_offset> <success|failed>
+
+    if (s.words.size() < 3)
+    {
+        cout << "Usage: alerts add_payment <timestamp_offset> <success|failed>" << endl;
+        cout << "  timestamp_offset: seconds from now (e.g., 0 = now, -86400 = 1 day ago)" << endl;
+        cout << "  success|failed: payment result" << endl;
+        cout << "Examples:" << endl;
+        cout << "  alerts add_payment 0 success            # Payment succeeded now," << endl;
+        cout << "  alerts add_payment \"-172800\" failed   # Payment failed 2 days ago" << endl;
+        return;
+    }
+
+    m_time_t now = time(NULL);
+    int64_t timestampOffset = std::stoll(s.words[2].s);
+    string result = s.words[3].s;
+
+    if (result != "success" && result != "failed")
+    {
+        cout << "Error: result must be 'success' or 'failed'" << endl;
+        return;
+    }
+
+    // if you want to persist this alert
+    // you can upload a file after, using command 'put [FILE]'
+    client->useralerts.add(new UserAlert::Payment(result == "success" ? true : false,
+                                                  1,
+                                                  now + timestampOffset,
+                                                  client->useralerts.nextId(),
+                                                  name_id::psts_v2));
+
+    cout << "Added payment " << result << endl;
+    cout << "  - Timestamp: " << now + timestampOffset << " (" << timestampOffset << "s from now)"
+         << endl;
+    cout << "  - Total alerts in memory: " << client->useralerts.alerts.size() << endl;
+    return;
 }
 
 void exec_lmkdir(autocomplete::ACState& s)
@@ -9507,8 +9560,38 @@ void exec_setmaxloglinesize(autocomplete::ACState& s)
 {
     if (s.words.size() > 1)
     {
-        SimpleLogger::setMaxPayloadLogSize(atoll(s.words[1].s.c_str()));
+        SimpleLogger::setMaxPayloadLogSize(static_cast<size_t>(std::stoul(s.words[1].s)));
     }
+}
+
+static void printLogJson()
+{
+    const uint32_t value = JSONLog::get();
+    std::ios_base::fmtflags f(cout.flags());
+    cout << "Current JSON log settings: 0x" << std::hex << value << "\n";
+    cout << "-chunk-received: " << ((value & JSONLog::CHUNK_RECEIVED) ? "on" : "off") << "\n";
+    cout << "-chunk-processing: " << ((value & JSONLog::CHUNK_PROCESSING) ? "on" : "off") << "\n";
+    cout << "-chunk-consumed: " << ((value & JSONLog::CHUNK_CONSUMED) ? "on" : "off") << "\n";
+    cout << "-sending:  " << ((value & JSONLog::SENDING) ? "on" : "off") << "\n";
+    cout << "-nonchunk-received: " << ((value & JSONLog::NONCHUNK_RECEIVED) ? "on" : "off") << "\n";
+    cout.flags(f);
+}
+
+void exec_setlogjson(autocomplete::ACState& s)
+{
+    uint32_t newValue = JSONLog::NONE;
+    newValue |= s.extractflag("-chunk-received") ? JSONLog::CHUNK_RECEIVED : 0;
+    newValue |= s.extractflag("-chunk-processing") ? JSONLog::CHUNK_PROCESSING : 0;
+    newValue |= s.extractflag("-chunk-consumed") ? JSONLog::CHUNK_CONSUMED : 0;
+    newValue |= s.extractflag("-sending") ? JSONLog::SENDING : 0;
+    newValue |= s.extractflag("-nonchunk-received") ? JSONLog::NONCHUNK_RECEIVED : 0;
+    JSONLog::set(newValue);
+    printLogJson();
+}
+
+void exec_getlogjson(autocomplete::ACState&)
+{
+    printLogJson();
 }
 
 void exec_drivemonitor([[maybe_unused]] autocomplete::ACState& s)
@@ -9819,7 +9902,6 @@ void DemoApp::ephemeral_result(error e)
     {
         cout << "Ephemeral session error (" << errorstring(e) << ")" << endl;
     }
-    pdf_to_import = false;
 }
 
 // signup link send request result
@@ -10210,24 +10292,15 @@ void DemoApp::openfilelink_result(const Error& e)
 {
     if (e)
     {
-        if (pdf_to_import) // import welcome pdf has failed
+        if (e == API_ETOOMANY && e.hasExtraInfo())
         {
-            cout << "Failed to import Welcome PDF file" << endl;
+            cout << "Failed to open link: " << getExtraInfoErrorString(e) << endl;
         }
         else
         {
-            if (e == API_ETOOMANY && e.hasExtraInfo())
-            {
-                cout << "Failed to open link: " << getExtraInfoErrorString(e) << endl;
-            }
-            else
-            {
-                cout << "Failed to open link: " << errorstring(e) << endl;
-            }
-
+            cout << "Failed to open link: " << errorstring(e) << endl;
         }
     }
-    pdf_to_import = false;
 }
 
 // the requested link was opened successfully - import to cwd
@@ -10239,7 +10312,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     if (!key)
     {
         cout << "File is valid, but no key was provided." << endl;
-        pdf_to_import = false;
         return;
     }
 
@@ -10257,23 +10329,13 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     if (!buf)
     {
         cout << "The file won't be imported, the provided key is invalid." << endl;
-        pdf_to_import = false;
     }
     else if (client->loggedin() != NOTLOGGEDIN)
     {
-        if (pdf_to_import)
-        {
-            n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
-        }
-        else
-        {
-            n = client->nodeByHandle(cwd);
-        }
-
+        n = client->nodeByHandle(cwd);
         if (!n)
         {
             cout << "Target folder not found." << endl;
-            pdf_to_import = false;
             delete [] buf;
             return;
         }
@@ -10320,7 +10382,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                         if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn.get())
                         {
                             cout << "Success. (identical node skipped)" << endl;
-                            pdf_to_import = false;
                             delete [] buf;
                             return;
                         }
@@ -10336,7 +10397,6 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     else
     {
         cout << "Need to be logged in to import file links." << endl;
-        pdf_to_import = false;
     }
 
     delete [] buf;
@@ -10681,6 +10741,14 @@ void DemoApp::enumeratequotaitems_result(const Product& product)
         cout << "\tAndroid ID: " << product.androidid << "\n";
         cout << "\tTest Category: " << product.testCategory << "\n";
         cout << "\tTrial Days: " << product.trialDays << endl;
+
+        if (product.mobileOffer)
+        {
+            cout << "\tMobile offer"
+                 << "\n";
+            cout << "\t\tId: " << product.mobileOffer->id << "\n";
+            cout << "\t\tUat: " << product.mobileOffer->uat << "\n";
+        }
     }
     else // Business plan (type == 1)
     {
@@ -11518,7 +11586,6 @@ int main(int argc, char* argv[])
                             httpIO,
                             dbAccess,
                             gfx,
-                            "Gk8DyQBS",
                             megacliUserAgent.c_str(),
                             2,
                             clientType);
@@ -11781,13 +11848,13 @@ void exec_banner(autocomplete::ACState& s)
     {
         cout << "Retrieving banner info..." << endl;
 
-        client->reqs.add(new CommandGetBanners(client));
+        client->queueCommand(new CommandGetBanners(client));
     }
     else if (s.words.size() == 3 && s.words[1].s == "dismiss")
     {
         cout << "Dismissing banner with id " << s.words[2].s << "..." << endl;
 
-        client->reqs.add(new CommandDismissBanner(client, stoi(s.words[2].s), m_time(nullptr)));
+        client->queueCommand(new CommandDismissBanner(client, stoi(s.words[2].s), m_time(nullptr)));
     }
 }
 

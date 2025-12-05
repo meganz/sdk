@@ -22,8 +22,10 @@
 #ifndef MEGA_REQUEST_H
 #define MEGA_REQUEST_H 1
 
-#include "types.h"
 #include "json.h"
+#include "types.h"
+
+#include <mega/common/badge_forward.h>
 
 namespace mega {
 
@@ -95,7 +97,7 @@ public:
     RequestDispatcher(PrnGen&);
 
     // Queue a command to be send to MEGA. Some commands must go in their own batch (in case other commands fail the whole batch), determined by the Command's `batchSeparately` field.
-    void add(Command*);
+    void add(common::Badge<MegaClient> badge, Command*);
 
     // Commands are waiting and could be sent (could be a retry if connection failed etc) (they are not already sent, not awaiting response)
     bool readyToSend() const;

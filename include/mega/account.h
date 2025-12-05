@@ -222,6 +222,12 @@ struct MEGA_API CurrencyData
     std::string localCurrencyName;      // ie. NZD
 };
 
+struct MEGA_API MobileOffer
+{
+    std::string id; // The ID for the offer
+    bool uat{false}; // If true, the mobile offer title should be displayed
+};
+
 struct MEGA_API Product
 {
     unsigned int planType = ~(unsigned)0;
@@ -240,6 +246,7 @@ struct MEGA_API Product
     unsigned int testCategory = 0;
     std::shared_ptr<BusinessPlan> businessPlan;
     unsigned int trialDays = 0;
+    std::optional<MobileOffer> mobileOffer;
 };
 
 } // namespace

@@ -19,7 +19,7 @@ struct FileReadRequestLess
     bool operator()(std::uint64_t lhs, const FileReadRequest& rhs) const;
 }; // FileReadRequestLess
 
-using FileReadRequestSet = std::set<FileReadRequest, FileReadRequestLess>;
+using FileReadRequestSet = std::multiset<FileReadRequest, FileReadRequestLess>;
 
 } // file_service
 } // mega

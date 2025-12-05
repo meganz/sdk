@@ -464,17 +464,17 @@ void File::sendPutnodesOfUpload(MegaClient* client,
             }
         }
 
-        client->reqs.add(new CommandPutNodes(client,
-                                             th,
-                                             NULL,
-                                             mVersioningOption,
-                                             std::move(newnodes),
-                                             tag,
-                                             source,
-                                             nullptr,
-                                             std::move(completion),
-                                             canChangeVault,
-                                             {})); // customerIpPort
+        client->queueCommand(new CommandPutNodes(client,
+                                                 th,
+                                                 NULL,
+                                                 mVersioningOption,
+                                                 std::move(newnodes),
+                                                 tag,
+                                                 source,
+                                                 nullptr,
+                                                 std::move(completion),
+                                                 canChangeVault,
+                                                 {})); // customerIpPort
     }
 }
 
@@ -529,17 +529,17 @@ void File::sendPutnodesToCloneNode(MegaClient* client,
         NodeHandle th = h;
         assert(syncxfer);
         newnode->ovhandle = ovHandle;
-        client->reqs.add(new CommandPutNodes(client,
-                                             th,
-                                             NULL,
-                                             UseLocalVersioningFlag,
-                                             std::move(newnodes),
-                                             tag,
-                                             source,
-                                             nullptr,
-                                             std::move(completion),
-                                             canChangeVault,
-                                             {})); // customerIpPort
+        client->queueCommand(new CommandPutNodes(client,
+                                                 th,
+                                                 NULL,
+                                                 UseLocalVersioningFlag,
+                                                 std::move(newnodes),
+                                                 tag,
+                                                 source,
+                                                 nullptr,
+                                                 std::move(completion),
+                                                 canChangeVault,
+                                                 {})); // customerIpPort
     }
 }
 

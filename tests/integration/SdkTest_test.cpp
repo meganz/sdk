@@ -1028,21 +1028,193 @@ void SdkTest::cleanupChatrooms(const unsigned int nApi)
     LOG_debug << "# " << prefix << (localCleanupSuccess ? ": OK" : ": Finished with errors");
 }
 
-void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
+void SdkTest::createChat(bool group, MegaTextChatPeerList* peers, bool isPublicChat, int timeout)
 {
     size_t apiIndex = 0;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
-    megaApi[0]->createChat(group, peers);
-    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE],
+    PerApi& target = mApi[apiIndex];
+    target.requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
+
+    if (!isPublicChat)
+    {
+        megaApi[apiIndex]->createChat(group, peers);
+    }
+    else
+    {
+        const std::unique_ptr<MegaStringMap> userKeyMap(MegaStringMap::createInstance());
+
+        const std::unique_ptr<char[]> ownHandleB64{megaApi[apiIndex]->getMyUserHandle()};
+        userKeyMap->set(ownHandleB64.get(), Base64::btoa("dummy_owner_key").data());
+
+        const auto peerHandleB64 = Base64Str<MegaClient::USERHANDLE>(peers->getPeerHandle(0));
+        userKeyMap->set(peerHandleB64, Base64::btoa("dummy_peer_key").data());
+
+        megaApi[apiIndex]->createPublicChat(peers, userKeyMap.get());
+    }
+
+    waitForResponse(&target.requestFlags[MegaRequest::TYPE_CHAT_CREATE],
                     static_cast<unsigned>(timeout));
     if (timeout)
     {
-        ASSERT_TRUE(mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE])
+        ASSERT_TRUE(target.requestFlags[MegaRequest::TYPE_CHAT_CREATE])
             << "Chat creation not finished after " << timeout << " seconds";
     }
 
-    ASSERT_EQ(API_OK, mApi[apiIndex].lastError)
+    ASSERT_EQ(API_OK, target.lastError)
         << "Chat creation failed (error: " << mApi[static_cast<size_t>(apiIndex)].lastError << ")";
+}
+
+void SdkTest::testChat(bool isPublicChat)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // --- Send a new contact request ---
+
+    string message = "Hi contact. This is a testing message";
+
+    mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(
+        inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(
+        waitForResponse(&mApi[1].contactRequestUpdated)) // at the target side (auxiliar account)
+        << "Contact request update not received after " << maxTimeout << " seconds";
+    // if there were too many invitations within a short period of time, the invitation can be
+    // rejected by the API with `API_EOVERQUOTA = -17` as counter spamming meassure (+500 invites in
+    // the last 50 days)
+
+    // --- Accept a contact invitation ---
+
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
+
+    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(
+        replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_TRUE(
+        waitForResponse(&mApi[1].contactRequestUpdated)) // at the target side (auxiliar account)
+        << "Contact request update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(
+        waitForResponse(&mApi[0].contactRequestUpdated)) // at the target side (main account)
+        << "Contact request update not received after " << maxTimeout << " seconds";
+
+    mApi[1].cr.reset();
+
+    // --- Check list of available chats --- (fetch is done at SetUp())
+
+    size_t numChats =
+        mApi[0].chats.size(); // permanent chats cannot be deleted, so they're kept forever
+
+    // --- Create a group chat ---
+
+    handle h = megaApi[1]->getMyUserHandleBinary();
+    MegaTextChatPeerList* peers =
+        MegaTextChatPeerList::createInstance(); // new MegaTextChatPeerListPrivate();
+    peers->addPeer(h, PRIV_STANDARD);
+    bool group = true;
+
+    mApi[1].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
+    ASSERT_NO_FATAL_FAILURE(createChat(group, peers, isPublicChat));
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]))
+        << "Cannot create a new chat";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Chat creation failed (error: " << mApi[0].lastError << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[1].chatUpdated)) // at the target side (auxiliar account)
+        << "Chat update not received after " << maxTimeout << " seconds";
+
+    MegaHandle chatid = mApi[0].chatid; // set at onRequestFinish() of chat creation request
+
+    delete peers;
+
+    // check the new chat information
+    ASSERT_EQ(mApi[0].chats.size(), ++numChats) << "Unexpected received number of chats";
+    ASSERT_TRUE(mApi[1].chatUpdated) << "The peer didn't receive notification of the chat creation";
+
+    // --- Remove a peer from the chat ---
+
+    mApi[1].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_REMOVE] = false;
+    megaApi[0]->removeFromChat(chatid, h);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_REMOVE]))
+        << "Chat remove failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Removal of chat peer failed (error: " << mApi[0].lastError << ")";
+    int numpeers =
+        mApi[0].chats[chatid]->getPeerList() ? mApi[0].chats[chatid]->getPeerList()->size() : 0;
+    ASSERT_EQ(numpeers, 0) << "Wrong number of peers in the list of peers";
+    ASSERT_TRUE(waitForResponse(&mApi[1].chatUpdated)) // at the target side (auxiliar account)
+        << "Didn't receive notification of the peer removal after " << maxTimeout << " seconds";
+
+    // --- Invite a contact to a chat ---
+
+    mApi[1].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_INVITE] = false;
+
+    if (!isPublicChat)
+    {
+        megaApi[0]->inviteToChat(chatid, h, PRIV_STANDARD);
+    }
+    else
+    {
+        megaApi[0]->inviteToPublicChat(chatid, h, PRIV_STANDARD, "test_key");
+    }
+
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_INVITE]))
+        << "Chat invitation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Invitation of chat peer failed (error: " << mApi[0].lastError << ")";
+    numpeers =
+        mApi[0].chats[chatid]->getPeerList() ? mApi[0].chats[chatid]->getPeerList()->size() : 0;
+    ASSERT_EQ(numpeers, 1) << "Wrong number of peers in the list of peers";
+    ASSERT_TRUE(waitForResponse(&mApi[1].chatUpdated)) // at the target side (auxiliar account)
+        << "The peer didn't receive notification of the invitation after " << maxTimeout
+        << " seconds";
+
+    // --- Get the user-specific URL for the chat ---
+
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_URL] = false;
+    megaApi[0]->getUrlChat(chatid);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_URL]))
+        << "Retrieval of chat URL failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Retrieval of chat URL failed (error: " << mApi[0].lastError << ")";
+
+    // --- Update Permissions of an existing peer in the chat
+
+    mApi[1].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS] = false;
+    megaApi[0]->updateChatPermissions(chatid, h, PRIV_RO);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS]))
+        << "Update chat permissions failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, mApi[0].lastError)
+        << "Update of chat permissions failed (error: " << mApi[0].lastError << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[1].chatUpdated)) // at the target side (auxiliar account)
+        << "The peer didn't receive notification of the invitation after " << maxTimeout
+        << " seconds";
+
+    // --- Archive the chat
+
+    mApi[0].chatUpdated = false;
+    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_ARCHIVE] = false;
+    ASSERT_NO_FATAL_FAILURE(megaApi[0]->archiveChat(chatid, 1));
+    ASSERT_EQ(API_OK, mApi[0].lastError) << "Archive failed (error: " << mApi[0].lastError << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_ARCHIVE]))
+        << "Cannot archive a chat";
+    ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated))
+        << "Chat update not received after " << maxTimeout << " seconds";
+
+    if (!isPublicChat)
+    {
+        // --- Create 1on1 chat with self
+        megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
+        mApi[0].chatUpdated = false;
+        mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
+        ASSERT_NO_FATAL_FAILURE(createChat(false, nullptr));
+        ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]))
+            << "Cannot create a new chat with self";
+        ASSERT_EQ(API_OK, mApi[0].lastError)
+            << "Chat-with-self creation failed (error: " << mApi[0].lastError << ")";
+        ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated)) // at the target side (auxiliar account)
+            << "Chat update not received after " << maxTimeout << " seconds";
+    }
 }
 
 /**
@@ -1061,6 +1233,7 @@ static std::set<MegaHandle> peerListToHandleSet(const MegaTextChatPeerList *peer
 MegaHandle SdkTest::createChatWithChecks(const unsigned int creatorIndex,
                                          const std::vector<unsigned int>& invitedIndices,
                                          const bool group,
+                                         const bool isPublicChat,
                                          const unsigned int timeout_sec)
 {
     std::unique_ptr<MegaTextChatPeerList> invitedPeers(MegaTextChatPeerList::createInstance());
@@ -1118,7 +1291,24 @@ MegaHandle SdkTest::createChatWithChecks(const unsigned int creatorIndex,
 
     // Check that the chatid is properly set in the onRequestFinish callback. Set initial value
     mApi[creatorIndex].chatid = INVALID_HANDLE;
-    megaApi[creatorIndex]->createChat(group, invitedPeers.get());
+
+    if (!isPublicChat)
+    {
+        megaApi[creatorIndex]->createChat(group, invitedPeers.get());
+    }
+    else
+    {
+        const std::unique_ptr<MegaStringMap> userKeyMap(MegaStringMap::createInstance());
+
+        const std::unique_ptr<char[]> ownHandleB64{megaApi[creatorIndex]->getMyUserHandle()};
+        userKeyMap->set(ownHandleB64.get(), Base64::btoa("dummy_owner_key").data());
+
+        const auto peerHandleB64 =
+            Base64Str<MegaClient::USERHANDLE>(invitedPeers->getPeerHandle(0));
+        userKeyMap->set(peerHandleB64, Base64::btoa("dummy_peer_key").data());
+
+        megaApi[creatorIndex]->createPublicChat(invitedPeers.get(), userKeyMap.get());
+    }
 
     bool hasRequestFinished = waitForEvent(
         [this, creatorIndex]()
@@ -1144,9 +1334,83 @@ MegaHandle SdkTest::createChatWithChecks(const unsigned int creatorIndex,
     }
     return mApi[creatorIndex].chatid;
 }
+
+MegaHandle SdkTest::getCommander()
+{
+    MegaHandle handle;
+
+    // In open chats the access is granted to a special user (API_USER / COMMANDER = gTxFhlOd_LQ) in
+    // order to allow any current/future participant and/or any previewer to access to the node.
+    std::string commander{"gTxFhlOd_LQ"};
+    commander = Base64::atob(commander);
+    memcpy(&handle, commander.data(), sizeof(handle));
+
+    return handle;
+}
+
+void SdkTest::testGiveRemoveChatAccess(bool isPublicChat)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    const unsigned int host = 0;
+    const unsigned int guest = 1;
+    mApi[host].chats.clear();
+    mApi[guest].chats.clear();
+
+    // Send and accept a new contact request
+    string message = "Hi contact. This is a testing message";
+    inviteTestAccount(host, guest, message);
+
+    // Create chat between new contacts
+    MegaHandle chatId = createChatWithChecks(0, {1}, true, isPublicChat);
+    ASSERT_NE(chatId, INVALID_HANDLE) << "Something went wrong when creating the group chat room";
+
+    // Update test file
+
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
+    std::unique_ptr<MegaNode> rootnode{megaApi[host]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr);
+    MegaHandle fileHandle = UNDEF;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(host,
+                            &fileHandle,
+                            PUBLICFILE.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
+    std::unique_ptr<MegaNode> fileNode(megaApi[host]->getNodeByHandle(fileHandle));
+
+    // Grant access to guest
+
+    MegaHandle targetUserHandle =
+        isPublicChat ? getCommander() : megaApi[guest]->getMyUser()->getHandle();
+
+    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, targetUserHandle));
+    RequestTracker requestTrackerGrantAccess(megaApi[host].get());
+    megaApi[host]->grantAccessInChat(chatId,
+                                     fileNode.get(),
+                                     targetUserHandle,
+                                     &requestTrackerGrantAccess);
+    ASSERT_EQ(API_OK, requestTrackerGrantAccess.waitForResult());
+    ASSERT_TRUE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, targetUserHandle));
+
+    // Remove access to guest
+
+    RequestTracker requestTrackerRemoveAccess(megaApi[host].get());
+    megaApi[host]->removeAccessInChat(chatId,
+                                      fileNode.get(),
+                                      targetUserHandle,
+                                      &requestTrackerRemoveAccess);
+    ASSERT_EQ(API_OK, requestTrackerRemoveAccess.waitForResult());
+    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, targetUserHandle));
+}
 #endif
 
-void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
+void SdkTest::onEvent(MegaApi* s, MegaEvent* event)
 {
     int index = getApiIndex(s);
     if (index >= 0) // it can be -1 when tests are being destroyed
@@ -2893,7 +3157,6 @@ auto importNode(MegaApi& client, const std::string& link, const MegaNode& parent
  *
  * It tests the creation of a new account for a random user.
  *  - Create account
- *  - Check existence for Welcome pdf
  */
 TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
 {
@@ -2912,17 +3175,6 @@ TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
     {
         WaitMillisec(deltaMs);
     }
-
-    // Get children of rootnode
-    std::unique_ptr<MegaNodeList> children{ megaApi[0]->getChildren(rootnode.get()) };
-
-    // Test that there is only one file, with .pdf extension
-    EXPECT_EQ(megaApi[0]->getNumChildren(rootnode.get()), children->size()) << "Wrong number of child nodes";
-    ASSERT_EQ(1, children->size()) << "Wrong number of children nodes found";
-    const char* name = children->get(0)->getName();
-    size_t len = name ? strlen(name) : 0;
-    ASSERT_TRUE(len > 4 && !strcasecmp(name + len - 4, ".pdf"));
-    LOG_info << "Welcome pdf: " << name;
 
     // Logout from ephemeral plus plus session and resume session
     ASSERT_NO_FATAL_FAILURE(locallogout());
@@ -3280,7 +3532,6 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(uploadedNode));
     ASSERT_TRUE(!!n1) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
 
-
     // ___ also try upload with the overload that specifies an mtime ___
 
     auto test_mtime = m_time() - 3600; // one hour ago
@@ -3566,7 +3817,6 @@ TEST_F(SdkTest, SdkTestExerciseOtherCommands)
     bool CommandChatLinkClose::procresult(Result r)
     bool CommandChatLinkJoin::procresult(Result r)
     bool CommandGetMegaAchievements::procresult(Result r)
-    bool CommandGetWelcomePDF::procresult(Result r)
     bool CommandMediaCodecs::procresult(Result r)
     bool CommandContactLinkCreate::procresult(Result r)
     bool CommandContactLinkQuery::procresult(Result r)
@@ -3763,9 +4013,10 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     delete n5;
 }
 
+class SdkTestDownload: public SdkTest
+{};
+
 /**
- * @brief TEST_F SdkTestDownloadConflictFolderExistingName
- *
  * This test tries to download a File node into a local folder, that already contains a folder with
  * the same name as downloaded file.
  *
@@ -3773,9 +4024,10 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  * collisionResolution(COLLISION_RESOLUTION_OVERWRITE), so transfer will be retried sometimes by SDK
  * and finally will fail with API_EWRITE.
  */
-TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
+TEST_F(SdkTestDownload, ConflictFolderExistingName)
 {
-    LOG_info << "___TEST SdkTestDownloadConflictFolderExistingName___";
+    CASE_info << "started";
+
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << cwd();
 
@@ -3805,6 +4057,61 @@ TEST_F(SdkTest, SdkTestDownloadConflictFolderExistingName)
     ASSERT_TRUE(errCode.has_value()) << "test_utils(downloadFile) has returned nullopt";
     ASSERT_EQ(*errCode, API_EWRITE)
         << "test_utils(downloadFile) has returned unexpected errorCode: " << errCode.has_value();
+
+    CASE_info << "finished";
+}
+
+/**
+ * This test tries to download a File node into a local folder, that already contains a file with
+ * the same name as downloaded file.
+ *
+ * We download with collisionCheck(COLLISION_CHECK_FINGERPRINT) and
+ * collisionResolution(COLLISION_RESOLUTION_NEW_WITH_N), so transfer will completed successfully
+ * with skipping download as fingerprints match.
+ */
+TEST_F(SdkTestDownload, ConflictFileExistingName)
+{
+    CASE_info << "started";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string itemName{"testItem"};
+    const fs::path basePath = fs::current_path();
+
+    LOG_debug << "#### TEST1: Create Folder and File in local FS " << basePath.u8string() << "####";
+    constexpr long long FILE_SIZE = 1;
+    const sdk_test::LocalTempDir d{basePath / itemName};
+    const sdk_test::LocalTempFile f{basePath / itemName / itemName, static_cast<size_t>(FILE_SIZE)};
+
+    LOG_debug << "#### TEST2: Create File in cloud drive ####";
+    const std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    const auto newNode = sdk_test::uploadFile(megaApi[0].get(), f.getPath(), rootNode.get());
+    ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
+
+    LOG_debug << "#### TEST3: Download file at dir with a file with same name ####";
+    std::shared_ptr<MegaTransfer> transfer;
+    auto onTransferFinish =
+        [&transfer](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError*)
+    {
+        if (t)
+            transfer.reset(t->copy());
+    };
+    const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
+                                                newNode.get(),
+                                                basePath / itemName,
+                                                true,
+                                                180s /*timeout*/,
+                                                MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                                MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                                onTransferFinish);
+    ASSERT_EQ(*errCode, API_OK);
+    ASSERT_THAT(transfer, ::testing::NotNull());
+    ASSERT_EQ(transfer->getState(), MegaTransfer::STATE_COMPLETED);
+    ASSERT_EQ(transfer->getTotalBytes(), FILE_SIZE);
+    // Check transferred bytes to confirm download is skipped
+    ASSERT_EQ(transfer->getTransferredBytes(), 0);
+
+    CASE_info << "finished";
 }
 
 /**
@@ -7638,7 +7945,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2asomething immediately after", 8, syntax, true);
-        std::vector<std::string> e{ "dir2a/" };
+        std::vector<std::string> e{"dir2a/"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2a/something immediately after");
@@ -7646,7 +7953,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2/", std::string::npos, syntax, true);
-        std::vector<std::string> e{ "dir2/sub21/", "dir2/sub22/" };
+        std::vector<std::string> e{"dir2/sub21/", "dir2/sub22/"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/sub2");
@@ -7657,7 +7964,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2/./", std::string::npos, syntax, true);
-        std::vector<std::string> e{ "dir2/./sub21/", "dir2/./sub22/" };
+        std::vector<std::string> e{"dir2/./sub21/", "dir2/./sub22/"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/./sub2");
@@ -7665,7 +7972,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2/..", std::string::npos, syntax, true);
-        std::vector<std::string> e{ "dir2/../" };
+        std::vector<std::string> e{"dir2/../"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../");
@@ -7673,7 +7980,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2/../", std::string::npos, syntax, true);
-        std::vector<std::string> e{ "dir2/../dir1/", "dir2/../dir2/", "dir2/../dir2a/" };
+        std::vector<std::string> e{"dir2/../dir1/", "dir2/../dir2/", "dir2/../dir2a/"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir");
@@ -7681,7 +7988,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     {
         auto r = autoComplete("ls dir2/../", std::string::npos, syntax, true);
-        std::vector<std::string> e{ "dir2/../dir1/", "dir2/../dir2/", "dir2/../dir2a/" };
+        std::vector<std::string> e{"dir2/../dir1/", "dir2/../dir2/", "dir2/../dir2a/"};
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir");
@@ -7721,7 +8028,6 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
     }
 
     fs::current_path(old_cwd);
-
 }
 #endif
 
@@ -7745,124 +8051,16 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
  */
 TEST_F(SdkTest, SdkTestChat)
 {
-    LOG_info << "___TEST Chat___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    CASE_info << "started";
+    testChat(false);
+    CASE_info << "finished";
+}
 
-    // --- Send a new contact request ---
-
-    string message = "Hi contact. This is a testing message";
-
-    mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
-            << "Contact request update not received after " << maxTimeout << " seconds";
-    // if there were too many invitations within a short period of time, the invitation can be rejected by
-    // the API with `API_EOVERQUOTA = -17` as counter spamming meassure (+500 invites in the last 50 days)
-
-    // --- Accept a contact invitation ---
-
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
-
-    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
-            << "Contact request update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the target side (main account)
-            << "Contact request update not received after " << maxTimeout << " seconds";
-
-    mApi[1].cr.reset();
-
-
-    // --- Check list of available chats --- (fetch is done at SetUp())
-
-    size_t numChats = mApi[0].chats.size();      // permanent chats cannot be deleted, so they're kept forever
-
-
-    // --- Create a group chat ---
-
-    handle h = megaApi[1]->getMyUserHandleBinary();
-    MegaTextChatPeerList* peers =
-        MegaTextChatPeerList::createInstance(); // new MegaTextChatPeerListPrivate();
-    peers->addPeer(h, PRIV_STANDARD);
-    bool group = true;
-
-    mApi[1].chatUpdated = false;
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
-    ASSERT_NO_FATAL_FAILURE( createChat(group, peers) );
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]) )
-            << "Cannot create a new chat";
-    ASSERT_EQ(API_OK, mApi[0].lastError) << "Chat creation failed (error: " << mApi[0].lastError << ")";
-    ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated ))   // at the target side (auxiliar account)
-            << "Chat update not received after " << maxTimeout << " seconds";
-
-    MegaHandle chatid = mApi[0].chatid;   // set at onRequestFinish() of chat creation request
-
-    delete peers;
-
-    // check the new chat information
-    ASSERT_EQ(mApi[0].chats.size(), ++numChats) << "Unexpected received number of chats";
-    ASSERT_TRUE(mApi[1].chatUpdated) << "The peer didn't receive notification of the chat creation";
-
-
-    // --- Remove a peer from the chat ---
-
-    mApi[1].chatUpdated = false;
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_REMOVE] = false;
-    megaApi[0]->removeFromChat(chatid, h);
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_REMOVE]) )
-            << "Chat remove failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(API_OK, mApi[0].lastError) << "Removal of chat peer failed (error: " << mApi[0].lastError << ")";
-    int numpeers = mApi[0].chats[chatid]->getPeerList() ? mApi[0].chats[chatid]->getPeerList()->size() : 0;
-    ASSERT_EQ(numpeers, 0) << "Wrong number of peers in the list of peers";
-    ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated) )   // at the target side (auxiliar account)
-            << "Didn't receive notification of the peer removal after " << maxTimeout << " seconds";
-
-
-    // --- Invite a contact to a chat ---
-
-    mApi[1].chatUpdated = false;
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_INVITE] = false;
-    megaApi[0]->inviteToChat(chatid, h, PRIV_STANDARD);
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_INVITE]) )
-            << "Chat invitation failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(API_OK, mApi[0].lastError) << "Invitation of chat peer failed (error: " << mApi[0].lastError << ")";
-    numpeers = mApi[0].chats[chatid]->getPeerList() ? mApi[0].chats[chatid]->getPeerList()->size() : 0;
-    ASSERT_EQ(numpeers, 1) << "Wrong number of peers in the list of peers";
-    ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated) )   // at the target side (auxiliar account)
-            << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
-
-
-    // --- Get the user-specific URL for the chat ---
-
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_URL] = false;
-    megaApi[0]->getUrlChat(chatid);
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_URL]) )
-            << "Retrieval of chat URL failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(API_OK, mApi[0].lastError) << "Retrieval of chat URL failed (error: " << mApi[0].lastError << ")";
-
-
-    // --- Update Permissions of an existing peer in the chat
-
-    mApi[1].chatUpdated = false;
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS] = false;
-    megaApi[0]->updateChatPermissions(chatid, h, PRIV_RO);
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS]) )
-            << "Update chat permissions failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(API_OK, mApi[0].lastError) << "Update of chat permissions failed (error: " << mApi[0].lastError << ")";
-    ASSERT_TRUE( waitForResponse(&mApi[1].chatUpdated) )   // at the target side (auxiliar account)
-            << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
-
-    // --- Create 1on1 chat with self
-    megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
-    mApi[0].chatUpdated = false;
-    mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE] = false;
-    ASSERT_NO_FATAL_FAILURE(createChat(false, nullptr));
-    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHAT_CREATE]))
-        << "Cannot create a new chat with self";
-    ASSERT_EQ(API_OK, mApi[0].lastError)
-        << "Chat-with-self creation failed (error: " << mApi[0].lastError << ")";
-    ASSERT_TRUE(waitForResponse(&mApi[0].chatUpdated)) // at the target side (auxiliar account)
-        << "Chat update not received after " << maxTimeout << " seconds";
+TEST_F(SdkTest, SdkTestPublicChat)
+{
+    CASE_info << "started";
+    testChat(true);
+    CASE_info << "finished";
 }
 #endif
 
@@ -20255,54 +20453,22 @@ TEST_F(SdkTest, SetGetVisibleTermsOfService)
 /**
  * @brief Give and remove access to download a file from a chat
  */
-TEST_F(SdkTest, GiveRemoveChatAccess)
+TEST_F(SdkTest, SdkTestGiveRemoveChatAccess)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
-    const unsigned int host = 0;
-    const unsigned int guest = 1;
-    mApi[host].chats.clear();
-    mApi[guest].chats.clear();
-
-    // Send and accept a new contact request
-    string message = "Hi contact. This is a testing message";
-    inviteTestAccount(host, guest, message);
-
-    // Create chat between new contacts
-    MegaHandle chatId = createChatWithChecks(0, {1}, true);
-    ASSERT_NE(chatId, INVALID_HANDLE) << "Something went wrong when creating the group chat room";
-
-    // Update test file
-
-    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
-    std::unique_ptr<MegaNode> rootnode{megaApi[host]->getRootNode()};
-    ASSERT_NE(rootnode.get(), nullptr);
-    MegaHandle fileHandle = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(host, &fileHandle, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               nullptr /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
-    std::unique_ptr<MegaNode> fileNode(megaApi[host]->getNodeByHandle(fileHandle));
-
-    // Grant access to guest
-
-    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
-    RequestTracker requestTrackerGrantAccess(megaApi[host].get());
-    megaApi[host]->grantAccessInChat(chatId, fileNode.get(), megaApi[guest]->getMyUser()->getHandle(), &requestTrackerGrantAccess);
-    ASSERT_EQ(API_OK, requestTrackerGrantAccess.waitForResult());
-    ASSERT_TRUE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
-
-    // Remove access to guest
-
-    RequestTracker requestTrackerRemoveAccess(megaApi[host].get());
-    megaApi[host]->removeAccessInChat(chatId, fileNode.get(), megaApi[guest]->getMyUser()->getHandle(), &requestTrackerRemoveAccess);
-    ASSERT_EQ(API_OK, requestTrackerRemoveAccess.waitForResult());
-    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
+    CASE_info << "started";
+    testGiveRemoveChatAccess(false);
+    CASE_info << "finished";
 }
 
+/**
+ * @brief Give and remove access to download a file from a public chat
+ */
+TEST_F(SdkTest, SdkTestGiveRemovePublicChatAccess)
+{
+    CASE_info << "started";
+    testGiveRemoveChatAccess(true);
+    CASE_info << "finished";
+}
 #endif
 
 TEST_F(SdkTest, GetFileFromArtifactorySuccessfully)
@@ -22431,4 +22597,303 @@ TEST_F(SdkTest, EstablishContactRelationshipAutomatically)
 
     // Make sure that invitation fails: there's already an incoming PCR
     ASSERT_EQ(invitation1Sent, API_EEXIST);
+}
+
+/**
+ * @test SdkTransferCopyRemote
+ * @brief Verifies that remote copy transfers are correctly handled,
+ *
+ * Steps:
+ * 1. Create a temporary 50 MB file locally.
+ * 2. Upload the file to a remote folder using MegaApi::startUpload().
+ * 3. Repeat the upload with a different name to verify multiple transfer handling.
+ * 4. Perform a local logout while an upload is in progress, then log in again.
+ * 5. Confirm that pending or completed transfers are properly finalized or resumed.
+ *
+ * Expected Results:
+ * - At the end of the test, three nodes are present in the target folder,
+ *   confirming that all transfer recovery paths have completed successfully.
+ */
+TEST_F(SdkTest, SdkTransferCopyRemote)
+{
+    LOG_info << "___TEST SdkTransferCopyRemote___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    static const size_t kFileSize = 50ull * 1024 * 1024; // 50 MB
+
+    // Create local random file
+    fs::path filePath = fs::current_path() / PUBLICFILE;
+    sdk_test::LocalTempFile localFile(filePath, kFileSize);
+
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+
+    auto [errCode, fh] = createRemoteFolder(0, "Folder", rootnode.get());
+    ASSERT_EQ(errCode, API_OK) << "Unexpected ErrCode upon creating Folder: ";
+
+    std::unique_ptr<MegaNode> folderNode{megaApi[0]->getNodeByHandle(fh)};
+
+    auto uploadFile =
+        [filePath, &folderNode, this](const char* uploadName = nullptr, bool localLogout = false)
+    {
+        testing::NiceMock<MockTransferListener> mockGlobalListener{megaApi[0].get()};
+        const MrProper cleanUp(
+            [&mockGlobalListener, this]()
+            {
+                ::testing::Mock::VerifyAndClearExpectations(&mockGlobalListener);
+                megaApi[0]->removeListener(&mockGlobalListener);
+            });
+
+        // --- Setup a global listener to capture dbid and tag on next transfer ---
+        std::promise<uint32_t> dbidAndTagOnStart;
+        EXPECT_CALL(mockGlobalListener, onTransferStart)
+            .WillOnce(
+                [&dbidAndTagOnStart](MegaApi*, MegaTransfer* transfer)
+                {
+                    dbidAndTagOnStart.set_value({transfer->getUniqueId()});
+                });
+
+        std::promise<void> transferFinishPromise;
+        EXPECT_CALL(mockGlobalListener, onTransferFinish)
+            .WillOnce(
+                [&transferFinishPromise](MegaApi*, MegaTransfer*, MegaError*)
+                {
+                    transferFinishPromise.set_value();
+                });
+
+        megaApi[0]->addListener(&mockGlobalListener);
+
+        mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
+        megaApi[0]->startUpload(filePath.u8string().c_str(),
+                                folderNode.get(),
+                                uploadName,
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/,
+                                nullptr); /*MegaTransferListener*/
+
+        // --- Get dbid and tag of first transfer since started listening ---
+        auto startTransferListerResult = dbidAndTagOnStart.get_future();
+        ASSERT_EQ(startTransferListerResult.wait_for(std::chrono::seconds(maxTimeout)),
+                  std::future_status::ready)
+            << "Timeout for the start upload";
+        const auto transferUniqueId = startTransferListerResult.get();
+        ASSERT_NE(transferUniqueId, 0)
+            << "Missing transferUniqueId param for onTransferStart event";
+
+        if (localLogout)
+        {
+            string session = unique_ptr<char[]>(dumpSession()).get();
+            locallogout(0);
+
+            PerApi& target = mApi[0];
+            target.resetlastEvent();
+            auto tracker = asyncRequestFastLogin(0, session.c_str());
+            ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session";
+
+            ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+            // make sure that client is up to date (upon logout, recent changes might not be
+            // committed to DB)
+            ASSERT_TRUE(WaitFor(
+                [&target]()
+                {
+                    return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT);
+                },
+                10000))
+                << "Timeout expired to receive actionpackets";
+        }
+
+        auto finishTransferListerResult = transferFinishPromise.get_future();
+        ASSERT_EQ(finishTransferListerResult.wait_for(std::chrono::seconds(maxTimeout)),
+                  std::future_status::ready)
+            << "Timeout for the finish upload";
+    };
+
+    int numFiles = 1;
+    ASSERT_NO_FATAL_FAILURE(uploadFile());
+    std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(folderNode.get())};
+    ASSERT_TRUE(children);
+    ASSERT_EQ(children->size(), numFiles);
+
+    ASSERT_NO_FATAL_FAILURE(uploadFile("NewName"));
+
+    numFiles = 2;
+    children.reset(megaApi[0]->getChildren(folderNode.get()));
+    ASSERT_TRUE(children);
+    ASSERT_EQ(children->size(), numFiles);
+
+    ASSERT_NO_FATAL_FAILURE(uploadFile("NewNewName", true));
+
+    // When a local logout is executed, all unfinished transfers are notified
+    // through an onTransferFinish callback with error -11. In this situation,
+    // there are three possible scenarios:
+    //
+    // 1. The logout occurs after the transfer has completed successfully.
+    //    The onTransferFinish event is received normally.
+    //
+    // 2. The logout occurs after the PUT command has been sent, but before
+    //    receiving the server response. On the next login, the SDK will
+    //    receive the action package notifying the creation of the new node,
+    //    and the pending transfer will be discarded.
+    //
+    // 3. The logout occurs before the PUT command is sent. On the next login,
+    //    the SDK will issue the PUT command again, and the transfer will
+    //    complete normally.
+    //
+    // The simplest way to verify that everything has been executed correctly
+    // is to check that there are three resulting items at the end of the process.
+    unsigned int timeOut = 30;
+    numFiles = 3;
+    ASSERT_TRUE(waitForEvent(
+        [this, numFiles, &folderNode]() -> bool
+        {
+            std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(folderNode.get())};
+            if (children)
+            {
+                return children->size() == numFiles;
+            }
+
+            return false;
+        },
+        timeOut));
+}
+
+/**
+ * @test SdkUtqaMobileOffer
+ * @brief Verify mobile offer are received
+ *
+ * Steps:
+ *  - Set value at devOpt user attribute (In staging API add mobile offert at
+ * utqa command)
+ *  - Get pricing (utqa command)
+ *  - Check if some product has mobile offers
+ */
+TEST_F(SdkTest, SdkUtqaMobileOffer)
+{
+    CASE_info << " Start";
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_FALSE(email.empty() || pass.empty());
+    megaApi.resize(1);
+    mApi.resize(1);
+    uint32_t index = 0;
+    configureTestInstance(index, email, pass, true, MegaApi::CLIENT_TYPE_DEFAULT);
+    megaApi[index]->changeApiUrl("https://staging.api.mega.co.nz/");
+    std::unique_ptr<RequestTracker> tracker;
+    tracker = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to login to account " << email;
+
+    ASSERT_NO_FATAL_FAILURE(fetchNodesForAccountsSequentially(1));
+
+    using namespace testing;
+    std::string attributeValue{"{\"utqamo\":1}"};
+    ASSERT_NO_FATAL_FAILURE(setDevOptUserAttribute(attributeValue, index));
+
+    auto pricing = getPricing(*megaApi[index]);
+    ASSERT_EQ(::result(pricing), API_OK) << "Error at getPricing";
+    auto& priceDetailRes = ::value(pricing);
+    ASSERT_TRUE(priceDetailRes) << "No princing objectes received";
+
+    bool mobileOffer{false};
+    std::string mobileOfferTitle;
+    for (int i = 0, j = priceDetailRes->getNumProducts(); i < j; ++i)
+    {
+        // Found the user's plan.
+        if (mobileOffer = priceDetailRes->hasMobileOffers(i); mobileOffer)
+        {
+            mobileOfferTitle = priceDetailRes->getMobileOfferId(i);
+            break;
+        }
+    }
+
+    ASSERT_TRUE(mobileOffer) << "Received at least one mobile offer";
+    ASSERT_TRUE(mobileOfferTitle.size()) << "Title has contain";
+
+    CASE_info << " Finished";
+}
+
+void SdkTest::setDevOptUserAttribute(const string& value, uint32_t index) const
+{
+    using namespace testing;
+    NiceMock<MockRequestListener> rlSetUserAttribute{megaApi[index].get()};
+    std::promise<bool> setUserAttributeRequest;
+
+    // Check if it has correct value to avoid to set it again
+    auto [_, v] = getDevOptUserAttribute(index);
+    ASSERT_FALSE(HasNonfatalFailure());
+    if (v && v.value() == value)
+    {
+        return;
+    }
+
+    EXPECT_CALL(rlSetUserAttribute, onRequestFinish)
+        .Times(1)
+        .WillOnce(
+            [&setUserAttributeRequest](::mega::MegaApi*,
+                                       ::mega::MegaRequest* req,
+                                       ::mega::MegaError* err)
+            {
+                EXPECT_TRUE(req) << "Null MegaRequest";
+                EXPECT_TRUE(err) << "Null MegaError";
+                if (err && err->getErrorCode() == API_OK)
+                {
+                    setUserAttributeRequest.set_value(true);
+                    return;
+                }
+
+                setUserAttributeRequest.set_value(false);
+            });
+
+    megaApi[index]->setUserAttribute(MegaApi::USER_ATTR_DEV_OPT,
+                                     value.c_str(),
+                                     &rlSetUserAttribute);
+
+    auto resultsetUserAttributeRequest = setUserAttributeRequest.get_future();
+    ASSERT_EQ(resultsetUserAttributeRequest.wait_for(sdk_test::MAX_TIMEOUT),
+              std::future_status::ready)
+        << "Attribute not received ";
+
+    ASSERT_TRUE(resultsetUserAttributeRequest.get())
+        << "Not possible set User attribute USER_ATTR_DEV_OPT";
+}
+
+SdkTest::GetDevOptAttrResult SdkTest::getDevOptUserAttribute(uint32_t index) const
+{
+    using namespace testing;
+    NiceMock<MockRequestListener> rlGetUserAttribute{megaApi[index].get()};
+    std::promise<GetDevOptAttrResult> getUserAttributeRequest;
+    EXPECT_CALL(rlGetUserAttribute, onRequestFinish)
+        .Times(1)
+        .WillOnce(
+            [&getUserAttributeRequest](::mega::MegaApi*,
+                                       ::mega::MegaRequest* req,
+                                       ::mega::MegaError* err)
+            {
+                EXPECT_TRUE(req) << "Null MegaRequest";
+                EXPECT_TRUE(err) << "Null MegaError";
+                auto error = err->getErrorCode();
+                if (err && req && error == API_OK)
+                {
+                    std::string text{Base64::atob(req->getText())};
+                    getUserAttributeRequest.set_value({error, text});
+                    return;
+                }
+
+                getUserAttributeRequest.set_value({error, std::nullopt});
+            });
+
+    megaApi[index]->getUserAttribute(MegaApi::USER_ATTR_DEV_OPT, &rlGetUserAttribute);
+    auto resultGetUserAttributeRequest = getUserAttributeRequest.get_future();
+    auto status = resultGetUserAttributeRequest.wait_for(sdk_test::MAX_TIMEOUT);
+    if (status != future_status::ready)
+    {
+        EXPECT_EQ(status, std::future_status::ready);
+        return {LOCAL_ETIMEOUT, std::nullopt};
+    }
+
+    const auto& [error, value] = resultGetUserAttributeRequest.get();
+
+    EXPECT_TRUE(error == API_OK || error == API_ENOENT);
+
+    return {error, value};
 }

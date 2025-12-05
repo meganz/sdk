@@ -178,10 +178,7 @@ bool CommandPutFA::procresult(Result r, JSON& json)
                         std::vector<string> urls(1, posturl);
                         std::vector<string> ipsCopy = ips;
 
-                        if(!cacheresolvedurls(urls, std::move(ips)))
-                        {
-                            LOG_err << "Unpaired IPs received for URLs in `ufa` command. URLs: " << urls.size() << " IPs: " << ips.size();
-                        }
+                        cacheresolvedurls("ufa", urls, std::move(ips));
 
                         mCompletion(API_OK, posturl, ipsCopy);
                     }
@@ -271,12 +268,9 @@ bool CommandGetFA::procresult(Result r, JSON& json)
                     {
                         JSON::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
-                        size_t ipCount = ips.size();
-                        if (!cacheresolvedurls({it->second->posturl}, std::move(ips)))
-                        {
-                            LOG_err << "Unpaired IPs received for URLs in `ufa` command. "
-                                    << ipCount << " IPs for one URL.";
-                        }
+
+                        cacheresolvedurls("ufa", {it->second->posturl}, std::move(ips));
+
                         it->second->dispatch();
                     }
                     else
@@ -486,10 +480,7 @@ bool CommandPutFile::procresult(Result r, JSON& json)
 
                 if (tempurls.size() == 1)
                 {
-                    if(!cacheresolvedurls(tempurls, std::move(tempips)))
-                    {
-                        LOG_err << "Unpaired IPs received for URLs in `u` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
-                    }
+                    cacheresolvedurls("u", tempurls, std::move(tempips));
 
                     tslot->transfer->tempurls = tempurls;
                     tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
@@ -612,6 +603,8 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     {
         arg("ssl", 2);
     }
+
+    mLockless = true;
 }
 
 void CommandDirectRead::cancel()
@@ -893,13 +886,12 @@ bool CommandGetFile::procresult(Result r, JSON& json)
             {
                 // defer code that steals the ips <move(tempips)> and stores them in the cache
                 // thus we can use them before going out of scope
-                std::shared_ptr<void> deferThis(nullptr, [this, &tempurls, &tempips](...)
-                {
-                    if(!cacheresolvedurls(tempurls, std::move(tempips)))
+                std::shared_ptr<void> deferThis(
+                    nullptr,
+                    [this, &tempurls, &tempips](...)
                     {
-                        LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
-                    }
-                });
+                        cacheresolvedurls("g", tempurls, std::move(tempips));
+                    });
 
                 if (canceled) //do not proceed: SymmCipher may no longer exist
                 {
@@ -1923,7 +1915,6 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         client->sctable->remove();
                         client->sctable.reset();
                         client->mNodeManager.reset();
-                        client->pendingsccommit = false;
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
 
@@ -2578,6 +2569,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
 
         unique_ptr<BusinessPlan> bizPlan;
         unique_ptr<CurrencyData> currencyData;
+        std::optional<MobileOffer> mobileOffer;
 
         bool finished = false;
         bool readingL = false;
@@ -2922,6 +2914,54 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     }
                 }
                 break;
+                case makeNameid("mo"): // mobile offer
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "entering `mobile offer` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    MobileOffer temporalMobileOffer;
+
+                    bool readingMo{true};
+                    while (readingMo)
+                    {
+                        switch (json.getnameid())
+                        {
+                            case makeNameid("id"):
+                                temporalMobileOffer.id = json.getname();
+                                break;
+                            case makeNameid("uat"):
+                                temporalMobileOffer.uat = json.getbool();
+                                break;
+                            case EOO:
+                                readingMo = false;
+                                mobileOffer = std::move(temporalMobileOffer);
+                                break;
+                            default:
+                                if (!json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse mobile offer sub objects";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "leaving `mobile offer` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    break;
+                }
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
@@ -2983,7 +3023,8 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                          android_id.c_str(),
                                          testCategory,
                                          std::move(bizPlan),
-                                         trialDays};
+                                         trialDays,
+                                         std::move(mobileOffer)};
             client->app->enumeratequotaitems_result(productData);
         }
     }
@@ -3861,6 +3902,29 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                                            "CommandGetUA: Storage status is unknown or invalid");
                                 }
                             }
+                            else if (at == ATTR_S4)
+                            {
+                                bool enabled = (value == "1");
+                                LOG_info << "S4 is " << (enabled ? "enabled" : "disabled");
+                                client->mIsS4Enabled.store(enabled);
+                            }
+                            else if (at == ATTR_S4_CONTAINER)
+                            {
+                                if (value.empty()) // it's been disabled
+                                {
+                                    assert(client->mIsS4Enabled == false);
+
+                                    client->mS4Container.store(NodeHandle());
+                                }
+                                else
+                                {
+                                    assert(client->mIsS4Enabled == true);
+                                    assert(value.size() == MegaClient::NODEHANDLE);
+
+                                    NodeHandle h = toNodeHandle(&value);
+                                    client->mS4Container.store(h);
+                                }
+                            }
                             break;
                         }
                         default: // legacy attributes without explicit scope or unknown attribute
@@ -4345,6 +4409,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string pwmh, pwmhVersion;
     vector<uint32_t> notifs;
     std::string sds, sdsVersion;
+    string s4, s4Version;
+    string s4container, s4containerVersion;
+    string devOpt, devOptVersion;
 
     bool uspw = false;
     string userStorageLevel, versionUserStorageLevel;
@@ -4512,6 +4579,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         case makeNameid("+sigPubk"):
             parseUserAttribute(json, sigPubk, versionSigPubk);
+            break;
+        case makeNameid("^!devopt"):
+            parseUserAttribute(json, devOpt, devOptVersion);
             break;
 
         case makeNameid("pf"): // Pro Flexi plan (similar to business)
@@ -4742,6 +4812,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
         case makeNameid("*!sds"):
         {
             parseUserAttribute(json, sds, sdsVersion);
+            break;
+        }
+
+        case makeNameid("s4"):
+        {
+            parseUserAttribute(json, s4, s4Version);
+            break;
+        }
+
+        case makeNameid("s4c"):
+        {
+            parseUserAttribute(json, s4container, s4containerVersion);
             break;
         }
 
@@ -5198,6 +5280,47 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_debug << "[CommandGetUserData] userStorageLevel is empty";
+                }
+
+                if (!s4.empty() && !s4Version.empty())
+                {
+                    changes |= u->updateAttributeIfDifferentVersion(ATTR_S4, s4, s4Version);
+
+                    bool enabled = (s4 == "1");
+                    client->mIsS4Enabled.store(enabled);
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_S4);
+                    client->mIsS4Enabled.store(false);
+                }
+
+                if (!s4container.empty() && !s4containerVersion.empty())
+                {
+                    changes |= u->updateAttributeIfDifferentVersion(ATTR_S4_CONTAINER,
+                                                                    s4container,
+                                                                    s4containerVersion);
+
+                    assert(client->mIsS4Enabled == true);
+                    assert(s4container.size() == MegaClient::NODEHANDLE);
+
+                    NodeHandle h = toNodeHandle(&s4container);
+                    client->mS4Container.store(h);
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_S4_CONTAINER);
+                    client->mS4Container.store(NodeHandle());
+                }
+
+                if (devOpt.size() && devOptVersion.size())
+                {
+                    changes |=
+                        u->updateAttributeIfDifferentVersion(ATTR_DEV_OPT, devOpt, devOptVersion);
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_DEV_OPT);
                 }
 
                 if (changes)
@@ -6346,10 +6469,13 @@ CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, int
 
     ph = cph;
     havekey = ckey ? true : false;
+
     if (havekey)
     {
         memcpy(key, ckey, sizeof key);
     }
+
+    mLockless = true;
     tag = client->reqtag;
     op = cop;
 }
@@ -6388,24 +6514,7 @@ bool CommandGetPH::procresult(Result r, JSON& json)
                     a.resize(static_cast<size_t>(
                         Base64::atob(a.c_str(), (byte*)a.data(), int(a.size()))));
 
-                    if (op == 2)    // importing WelcomePDF for new account
-                    {
-                        assert(havekey);
-
-                        vector<NewNode> newnodes(1);
-                        auto newnode = &newnodes[0];
-
-                        // set up new node
-                        newnode->source = NEW_PUBLIC;
-                        newnode->type = FILENODE;
-                        newnode->nodehandle = ph;
-                        newnode->parenthandle = UNDEF;
-                        newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
-                        newnode->attrstring.reset(new string(a));
-
-                        client->putnodes(client->mNodeManager.getRootNodeFiles(), NoVersioning, std::move(newnodes), nullptr, 0, false);
-                    }
-                    else if (havekey)
+                    if (havekey)
                     {
                         client->app->openfilelink_result(ph, key, s, &a, &fa, op);
                     }
@@ -6869,7 +6978,6 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                 client->sctable->truncate();
                 client->sctable->commit();
                 client->sctable->begin();
-                client->pendingsccommit = false;
             }
 
             mFirstChunkProcessed = true;
@@ -6892,18 +7000,26 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                      });
 
     // Node objects (one by one)
-    auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
-    {
-        if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true,
-                             mMissingParentNodes, mPreviousHandleForAlert,
-                             nullptr, // allParents disabled because Syncs::triggerSync
-                             // does nothing when MegaClient::fetchingnodes is true
-                             nullptr, nullptr) != 1)
+    auto f = mFilters.emplace(
+        "{[f{",
+        [this, client](JSON* json)
         {
-            return false;
-        }
-        return json->leaveobject();
-    });
+            if (client->readnode(json,
+                                 0,
+                                 PUTNODES_APP,
+                                 nullptr,
+                                 false,
+                                 true,
+                                 mMissingParentNodes,
+                                 mPreviousHandleForAlert,
+                                 nullptr // allParents disabled because Syncs::triggerSync
+                                 // does nothing when MegaClient::fetchingnodes is true
+                                 ) != 1)
+            {
+                return false;
+            }
+            return json->leaveobject();
+        });
 
     // Node versions (one by one)
     mFilters.emplace("{[f2{", f.first->second);
@@ -7154,7 +7270,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         client->sctable->truncate();
         client->sctable->commit();
         client->sctable->begin();
-        client->pendingsccommit = false;
     }
 
     for (;;)
@@ -7163,7 +7278,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         {
             case makeNameid("f"):
                 // nodes
-                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true, nullptr, nullptr))
+                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true))
                 {
                     client->fetchingnodes = false;
                     client->mNodeManager.cleanNodes();
@@ -7174,7 +7289,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
 
             case makeNameid("f2"):
                 // old versions
-                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true, nullptr, nullptr))
+                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true))
                 {
                     client->fetchingnodes = false;
                     client->mNodeManager.cleanNodes();
@@ -7294,7 +7409,6 @@ bool CommandFetchNodes::parsingFinished()
     client->mNodeManager.initCompleted();  // (nodes already written into DB)
 
     client->initsc();
-    client->pendingsccommit = false;
     client->fetchnodestag = tag;
 
     WAIT_CLASS::bumpds();
@@ -7988,52 +8102,6 @@ bool CommandConfirmEmailLink::procresult(Result r, JSON&)
 
     client->app->confirmemaillink_result(r.errorOrOK());
     return r.wasErrorOrOK();
-}
-
-CommandGetVersion::CommandGetVersion(MegaClient *client, const char *appKey)
-{
-    this->client = client;
-    cmd("lv");
-    arg("a", appKey);
-    tag = client->reqtag;
-}
-
-bool CommandGetVersion::procresult(Result r, JSON& json)
-{
-    int versioncode = 0;
-    string versionstring;
-
-    if (r.wasErrorOrOK())
-    {
-        client->app->getversion_result(0, NULL, r.errorOrOK());
-        return r.wasErrorOrOK();
-    }
-
-    assert(r.hasJsonObject());
-    for (;;)
-    {
-        switch (json.getnameid())
-        {
-            case makeNameid("c"):
-                versioncode = int(json.getint());
-                break;
-
-            case makeNameid("s"):
-                json.storeobject(&versionstring);
-                break;
-
-            case EOO:
-                client->app->getversion_result(versioncode, versionstring.c_str(), API_OK);
-                return true;
-
-            default:
-                if (!json.storeobject())
-                {
-                    client->app->getversion_result(0, NULL, API_EINTERNAL);
-                    return false;
-                }
-        }
-    }
 }
 
 CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)
@@ -9365,64 +9433,6 @@ bool CommandGetMegaAchievements::procresult(Result r, JSON& json)
         }
     }
 }
-
-CommandGetWelcomePDF::CommandGetWelcomePDF(MegaClient *client)
-{
-    cmd("wpdf");
-
-    tag = client->reqtag;
-}
-
-bool CommandGetWelcomePDF::procresult(Result r, JSON& json)
-{
-    if (r.wasErrorOrOK())
-    {
-        LOG_err << "Unexpected response of 'wpdf' command: missing 'ph' and 'k'";
-        return true;
-    }
-
-    handle ph = UNDEF;
-    byte keybuf[FILENODEKEYLENGTH];
-    int len_key = 0;
-    string key;
-
-    for (;;)
-    {
-        switch (json.getnameid())
-        {
-            case makeNameid("ph"):
-                ph = json.gethandle(MegaClient::NODEHANDLE);
-                break;
-
-            case makeNameid("k"):
-                len_key = json.storebinary(keybuf, sizeof keybuf);
-                break;
-
-            case EOO:
-                if (ISUNDEF(ph) || len_key != FILENODEKEYLENGTH)
-                {
-                    LOG_err << "Failed to import welcome PDF: invalid response";
-                    return false;
-                }
-                key.assign((const char*)keybuf, static_cast<size_t>(len_key));
-                client->reqs.add(new CommandGetPH(client, ph, (const byte*) key.data(), 2));
-                if (client->wasWelcomePdfImportDelayed())
-                {
-                    client->setWelcomePdfNeedsDelayedImport(false);
-                }
-                return true;
-
-            default:
-                if (!json.storeobject())
-                {
-                    LOG_err << "Failed to parse welcome PDF response";
-                    return false;
-                }
-                break;
-        }
-    }
-}
-
 
 CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
 {

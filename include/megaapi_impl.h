@@ -1600,6 +1600,7 @@ public:
 private:
     static Result check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option);
     static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
+    static bool fingerprintEqualRelaxed(const FileFingerprint& lhs, const FileFingerprint& rhs);
 };
 
 class MegaTransferPrivate : public MegaTransfer, public Cacheable
@@ -1725,6 +1726,14 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         MegaNode* getNodeToUndelete() const;
 
         LocalPath getLocalPath() const;
+
+        /**
+         * @brief This method checks if the transfer destination corresponds to an Inbox upload
+         *
+         * @return std::optional<std::string> The Inbox target path if the transfer
+         *         corresponds to an Inbox; otherwise, std::nullopt.
+         */
+        std::optional<std::string> getInboxTarget();
 
         // for uploads, we fingerprint the file before queueing
         // as that way, it can be done without the main mutex locked
@@ -2224,6 +2233,8 @@ class MegaRequestPrivate : public MegaRequest
         const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const override;
         void setMegaCancelSubscriptionReasons(MegaCancelSubscriptionReasonList* cancelReasons);
 
+        static bool causesLocklessRequest(const int type);
+
     protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -2563,6 +2574,9 @@ public:
     MegaStringIntegerMap* getFeatures(int productIndex) const override;
     unsigned int getTestCategory(int productIndex) const override;
     unsigned int getTrialDurationInDays(int productIndex) const override;
+    bool hasMobileOffers(int productIndex) const override;
+    std::string getMobileOfferId(int productIndex) const override;
+    bool hasMobileOfferUat(int productIndex) const override;
     void addProduct(const Product& product);
 
 private:
@@ -3644,8 +3658,18 @@ struct MegaRequestSyncFolderParams
 class MegaApiImpl : public MegaApp
 {
     public:
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
+        MegaApiImpl(MegaApi* api,
+                    MegaGfxProcessor* processor,
+                    const char* basePath,
+                    const char* userAgent,
+                    unsigned workerThreadCount,
+                    int clientType);
+        MegaApiImpl(MegaApi* api,
+                    MegaGfxProvider* provider,
+                    const char* basePath,
+                    const char* userAgent,
+                    unsigned workerThreadCount,
+                    int clientType);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -3772,11 +3796,13 @@ class MegaApiImpl : public MegaApp
         void resetCredentials(MegaUser* user, MegaRequestListener* listener = NULL);
         void setLogExtraForModules(bool networking, bool syncs);
         static void setLogLevel(int logLevel);
-        static void setMaxPayloadLogSize(long long maxSize);
+        static void setMaxPayloadLogSize(size_t maxSize);
         static void addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void removeLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void setLogToConsole(bool enable);
         static void setLogJSONContent(bool enable);
+        static void setLogJSON(uint32_t value);
+        static uint32_t getLogJSON();
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
 
@@ -3851,6 +3877,8 @@ class MegaApiImpl : public MegaApp
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeS4(MegaNode* node, const char* value, MegaRequestListener* listener = NULL);
+        bool isS4Enabled();
+        MegaHandle getS4Container();
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
@@ -4332,8 +4360,7 @@ public:
 
         const char *getVersion();
         char *getOperatingSystemVersion();
-        void getLastAvailableVersion(const char* anyAppKey,
-                                     MegaRequestListener* listener = nullptr);
+        void getLastAvailableVersion(const char*, MegaRequestListener* listener = nullptr);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
         void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
@@ -4677,8 +4704,6 @@ public:
                           const char* comment,
                           MegaRequestListener* listener);
 
-        void setWelcomePdfCopied(bool copied, MegaRequestListener* listener);
-        void getWelcomePdfCopied(MegaRequestListener* listener);
         void getMyIp(MegaRequestListener* listener);
         void runNetworkConnectivityTest(MegaRequestListener* listener);
         void getSubscriptionCancellationDetails(const char* originalTransactionId,
@@ -4687,7 +4712,6 @@ public:
 
     private:
         void init(MegaApi* publicApi,
-                  const char* newAppKey,
                   std::unique_ptr<GfxProc> gfxproc,
                   const char* newBasePath /*= NULL*/,
                   const char* userAgent /*= NULL*/,
@@ -4803,8 +4827,7 @@ public:
         retryreason_t waitingRequest;
         mutable std::recursive_timed_mutex sdkMutex;
         using SdkMutexGuard = std::unique_lock<std::recursive_timed_mutex>;   // (equivalent to typedef)
-        MegaTransferPrivate *currentTransfer;
-        string appKey;
+        MegaTransferPrivate* currentTransfer;
 
         std::unique_ptr<MegaPushNotificationSettingsPrivate> getMegaPushNotificationSetting(); // returns lastest-seen settings (to be able to filter notifications)
 
@@ -4813,6 +4836,9 @@ public:
         std::atomic<bool> syncPathStateLockTimeout{ false };
         set<LocalPath> syncPathStateDeferredSet;
         mutex syncPathStateDeferredSetMutex;
+
+        // Track latest call to client->abortbackoff to avoid spamming.
+        dstime latestAbortBackoffs{0};
 
         int threadExit;
         void loop();
@@ -4965,7 +4991,8 @@ public:
         void transfer_complete(Transfer *) override;
         void transfer_removed(Transfer *) override;
 
-        File* file_resume(string*, direction_t* type, uint32_t) override;
+        void
+            file_resume(string* d, direction_t* type, uint32_t dbid, FileResumeData& data) override;
 
         void transfer_prepare(Transfer*) override;
         void transfer_failed(Transfer*, const Error& error, dstime timeleft) override;
@@ -5111,6 +5138,10 @@ public:
         void sendPendingRequests();
         unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr, m_off_t availableDiskSpace = 0);
         void updateBackups();
+
+        MegaFilePut* createMegaFileForRemoteCopyTransfer(MegaTransferPrivate& megaTransfer,
+                                                         std::shared_ptr<Node> prevNodeSameName,
+                                                         TransferDbCommitter& committer);
 
         void notify_network_activity(int networkActivityChannel,
                                      int networkActivityType,

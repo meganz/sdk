@@ -54,7 +54,9 @@ protected:
     bool mRead = false;// if json has already been read
 
     bool loadIpsFromJson(std::vector<string>& ips, JSON& json);
-    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips);
+    void cacheresolvedurls(const std::string& command,
+                           const std::vector<string>& urls,
+                           const std::vector<string>& ips);
 
     // True if the command can be sent to the API lockless CS channel
     // Updated internally by each command.
@@ -970,7 +972,7 @@ class MEGA_API CommandGetPH : public Command
 {
     handle ph;
     byte key[FILENODEKEYLENGTH];
-    int op; //  (op=0 -> download, op=1 fetch data, op=2 import welcomePDF)
+    int op; // (op=0 -> download, op=1 fetch data)
     bool havekey;
 
 public:
@@ -1217,14 +1219,6 @@ public:
     CommandConfirmEmailLink(MegaClient*, const char*, const char *, const byte *, bool);
 };
 
-class MEGA_API CommandGetVersion : public Command
-{
-public:
-    bool procresult(Result, JSON&) override;
-
-    CommandGetVersion(MegaClient*, const char*);
-};
-
 class MEGA_API CommandGetLocalSSLCertificate : public Command
 {
 public:
@@ -1449,15 +1443,6 @@ public:
 
     CommandGetMegaAchievements(MegaClient*, AchievementsDetails *details, bool registered_user = true);
 };
-
-class MEGA_API CommandGetWelcomePDF : public Command
-{
-public:
-    bool procresult(Result, JSON&) override;
-
-    CommandGetWelcomePDF(MegaClient*);
-};
-
 
 class MEGA_API CommandMediaCodecs : public Command
 {

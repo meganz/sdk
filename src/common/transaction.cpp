@@ -26,35 +26,44 @@ Transaction::Transaction(Badge<Database>, Database& database)
   : mDB(&database)
   , mInProgress(false)
 {
-    auto message = mDB->execute({}, "savepoint txn");
+    try
+    {
+        // Instantiate a query so we can manipulate the database.
+        auto query = database.query();
 
-    if (!message.empty())
-        throw LogErrorF(logger(),
-                        "Unable to start transaction: %s",
-                         message.c_str());
+        // Try and start a new transaction.
+        query = "savepoint txn";
+        query.execute();
 
-    mInProgress = true;
+        // Transaction's now in progress.
+        mInProgress = true;
 
-    LogDebug1(logger(), "Transaction started");
+        // Let debuggers know the transaction was started.
+        LogDebug1(logger(), "Transaction started");
+    }
+    catch (std::runtime_error& exception)
+    {
+        // Log the reason why we couldn't start a transaction.
+        throw LogErrorF(logger(), "Unable to start transaction: %s", exception.what());
+    }
 }
 
-Transaction::Transaction(Transaction&& other)
-  : mDB(std::move(other.mDB))
-  , mInProgress(other.mInProgress)
-{
-    other.mDB = nullptr;
-    other.mInProgress = false;
-}
+Transaction::Transaction(Transaction&& other):
+    mDB(std::exchange(other.mDB, nullptr)),
+    mInProgress(std::exchange(other.mInProgress, false))
+{}
 
 Transaction::~Transaction()
 {
     try
     {
+        // Try and roll back any transction in progress.
         if (mInProgress)
             rollback();
     }
     catch (std::runtime_error&)
     {
+        // Any exception would've been logged in rollback().
     }
 }
 
@@ -68,22 +77,33 @@ Transaction& Transaction::operator=(Transaction&& rhs)
 }
 
 void Transaction::commit()
+try
 {
+    // Sanity.
     assert(mDB);
 
+    // Can't commit a transaction that hasn't been started.
     if (!mInProgress)
         throw LogError1(logger(), "Can't commit an inactive transaction");
 
-    auto message = mDB->execute({}, "release savepoint txn");
+    // So we can manipulate the database.
+    auto query = mDB->query();
 
-    if (!message.empty())
-        throw LogErrorF(logger(),
-                        "Unable to commit transaction: %s",
-                         message.c_str());
+    // Try and release the transaction.
+    query = "release savepoint txn";
+    query.execute();
 
-    LogDebug1(logger(), "Transaction committed");
-
+    // Transaction's been committed.
     mInProgress = false;
+
+    // Let debuggers know the transaction was committed.
+    LogDebug1(logger(), "Transaction committed");
+}
+
+catch (std::runtime_error& exception)
+{
+    // Let debuggers know why we couldn't commit the transaction.
+    throw LogErrorF(logger(), "Unable to commit transaction: %s", exception.what());
 }
 
 bool Transaction::inProgress() const
@@ -100,8 +120,10 @@ Logger& Transaction::logger() const
 
 Query Transaction::Transaction::query()
 {
+    // Sanity.
     assert(mDB);
 
+    // Queries must be guarded by a transaction.
     if (!mInProgress)
         throw LogError1(logger(), "Queries require an active transaction");
 
@@ -110,8 +132,10 @@ Query Transaction::Transaction::query()
 
 ScopedQuery Transaction::query(Query& query)
 {
+    // Sanity.
     assert(mDB);
 
+    // Queries must be guarded by a transaction.
     if (!mInProgress)
         throw LogError1(logger(), "Queries require an active transaction");
 
@@ -119,25 +143,36 @@ ScopedQuery Transaction::query(Query& query)
 }
 
 void Transaction::rollback()
+try
 {
+    // Sanity.
     assert(mDB);
 
+    // Can't roll back a transaction that never began.
     if (!mInProgress)
         throw LogError1(logger(), "Can't rollback an inactive transaction");
 
-    auto message = mDB->execute({}, "rollback transaction to savepoint txn");
+    auto query = mDB->query();
 
-    if (message.empty())
-        message = mDB->execute({}, "release savepoint txn");
+    // Try and roll back the transaction.
+    query = "rollback transaction to savepoint txn";
+    query.execute();
 
-    if (!message.empty())
-        throw LogErrorF(logger(),
-                        "Unable to rollback transaction: %s",
-                        message.c_str());
+    // Try and release the transaction.
+    query = "release savepoint txn";
+    query.execute();
 
-    LogDebug1(logger(), "Transaction rolled back");
-
+    // Transaction's been rolled back.
     mInProgress = false;
+
+    // Let debuggers know the transaction was rolled back.
+    LogDebug1(logger(), "Transaction rolled back");
+}
+
+catch (std::runtime_error& exception)
+{
+    // Let debuggers know why we couldn't roll back the transaction.
+    throw LogErrorF(logger(), "Unable to rollback transaction: %s", exception.what());
 }
 
 void Transaction::swap(Transaction& other)

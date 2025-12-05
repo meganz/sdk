@@ -80,7 +80,6 @@ CMD ["sh", "-c", "\
     su - me -w 'ANDROID_NDK_HOME,PATH,JAVA_HOME,ANDROID_ARCH,VCPKG_BINARY_SOURCES,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_ENDPOINT_URL' -c ' \
     cmake --preset mega-android -B buildAndroid -S sdk \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DCMAKE_ANDROID_ARCH_ABI=${ANDROID_ARCH} \
-        -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} && \
+        -DANDROID_ABI=${ANDROID_ARCH} && \
     cmake --build buildAndroid' && \
     exec /bin/bash"]

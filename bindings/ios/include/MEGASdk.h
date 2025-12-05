@@ -146,6 +146,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeAppsPreferences         = 38, // private - byte array - versioned (apps preferences)
     MEGAUserAttributeContentConsumptionPreferences = 39, // private - byte array - versioned (content consumption preferences)
     MEGAUserAttributeLastReadNotification    = 44, // private - char array
+    MEGAUserAttributeS4                      = 48, // private - non-encrypted - char array
+    MEGAUserAttributeS4Container             = 49  // private - non-encrypted - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -5230,6 +5232,32 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * @param handle Handle of the contact
  */
 - (void)setUserAlias:(nullable NSString *)alias forHandle:(uint64_t)handle;
+
+
+#pragma mark - S4 Attributes Requests
+
+/**
+ * @brief Returns true if S4 object storage is enabled
+ *
+ * This method doesn't need to block the SDK mutex: do not cache the value in the app.
+ *
+ * @return True if enabled, false if disabled
+ */
+- (BOOL)isS4Enabled;
+
+/**
+ * @brief Returns the node's handle of the S4 container
+ *
+ * S4 requires a folder in the root of the Cloud Drive to operate.
+ * This method returns the handle of the related node, or INVALID_HANDLE if the
+ * S4 service is disabled.
+ *
+ * This method doesn't need to block the SDK mutex: do not cache the value in the app.
+ *
+ * @return The node's handle, or INVALID_HANDLE if not set.
+ */
+
+- (MEGAHandle)getS4ContainerHandle;
 
 #pragma mark - Account management Requests
 

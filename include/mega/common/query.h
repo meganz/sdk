@@ -168,6 +168,8 @@ private:
 
     sqlite3* database() const;
 
+    bool execute(const char* prefix);
+
     Database* mDB;
     bool mHasNext;
     std::map<std::string, int> mFields;

@@ -1353,7 +1353,7 @@ void DirectReadNode::dispatch()
         if (!pendingcmd)
         {
             pendingcmd = new CommandDirectRead(client, this);
-            client->reqs.add(pendingcmd);
+            client->queueCommand(pendingcmd);
         }
     }
 }
@@ -2115,10 +2115,13 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
 
         if (transferMeanspeed < minTransferspeed)
         {
-            LOG_debug << "watchOverDirectReadPerformance: slowConns empty and transferMeanspeed: "
-                      << transferMeanspeed << " B/s < "
-                      << " minTransferspeed: " << minTransferspeed << " B/s";
-            assert(false && "slowConns empty and transferMeanspeed < minTransferspeed");
+            LOG_warn << "watchOverDirectReadPerformance: "
+                     << (!isRaidedTransfer() ? "Non Raided Transfer" :
+                                               "Raided transfer, slowConns empty")
+                     << ", transferMeanspeed: " << transferMeanspeed << " B/s < "
+                     << " minTransferspeed: " << minTransferspeed << " B/s";
+            assert(!isRaidedTransfer() &&
+                   "Raided transfer slowConns empty and transferMeanspeed < minTransferspeed");
             retryEntireTransfer(API_EAGAIN);
             return true;
         }

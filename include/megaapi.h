@@ -7640,7 +7640,7 @@ public:
         FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
         FILESYSTEM_ID_UNAVAILABLE = 46,         // Could not get the filesystem's id
         UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
-        LOCAL_PATH_MOUNTED = 48,                // The local path is a FUSE mount.
+        LOCAL_PATH_MOUNTED = 48, // The local path is a FUSE mount.
     };
 
     enum Warning
@@ -10676,7 +10676,11 @@ class MegaApi
             USER_ATTR_LAST_ACTIONED_BANNER = 45, // private - non-encrypted - char array - non-versioned
             USER_ATTR_ENABLE_TEST_SURVEYS =
                 46, // private - non-encrypted - char array in B64 - non-versioned
-            USER_ATTR_WELCOME_PDF_COPIED = 47, // private - non-encrypted - char array
+            // USER_ATTR_WELCOME_PDF_COPIED = 47, // (obsolete) private - non-encrypted - char array
+            ATTR_SYNC_DESIRED_STATE = 48, // private - byte array - versioned
+            USER_ATTR_S4 = 49, // private - non-encrypted - char array
+            USER_ATTR_S4_CONTAINER = 50, // private - non-encrypted - char array
+            USER_ATTR_DEV_OPT = 51, // private - encrypted - byte array
         };
 
         enum {
@@ -10902,15 +10906,22 @@ class MegaApi
             PWM_NODE_TYPE_CREDIT_CARD = 2,
         };
 
+        enum
+        {
+            JSON_LOG_NONE = 0,
+            JSON_LOG_CHUNK_RECEIVED = 1,
+            JSON_LOG_CHUNK_PROCESSING = 1 << 1,
+            JSON_LOG_CHUNK_CONSUMED = 1 << 2,
+            JSON_LOG_SENDING = 1 << 3,
+            JSON_LOG_NONCHUNK_RECEIVED = 1 << 4,
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
         static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
 
         /**
          * @brief Constructor suitable for most applications
-         * @param appKey AppKey of your application
-         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer
-         * required.
          *
          * @param basePath Base path to store the local cache
          * If you pass NULL to this parameter, the SDK will use the current working directory.
@@ -10926,7 +10937,11 @@ class MegaApi
          * differently
          *
          */
-        MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
+        MegaApi(const char* appKey,
+                const char* basePath = NULL,
+                const char* userAgent = NULL,
+                unsigned workerThreadCount = 1,
+                int clientType = CLIENT_TYPE_DEFAULT);
 
         /**
          * @brief MegaApi Constructor that uses a given GFX provider
@@ -10934,10 +10949,6 @@ class MegaApi
          * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs
          * a graphics provider.
          * @see MegaGfxProvider
-         *
-         * @param appKey AppKey of your application
-         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer
-         * required.
          *
          * @param provider Graphics processing provider. The SDK will use it to generate previews
          * and thumbnails. Once MegaApi returns, the provider couldn't be reused and the caller
@@ -10957,9 +10968,14 @@ class MegaApi
          * differently
          *
          */
-        MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
+        MegaApi(const char* appKey,
+                MegaGfxProvider* provider,
+                const char* basePath = NULL,
+                const char* userAgent = NULL,
+                unsigned workerThreadCount = 1,
+                int clientType = CLIENT_TYPE_DEFAULT);
 
-        #ifdef HAVE_MEGAAPI_RPC
+#ifdef HAVE_MEGAAPI_RPC
         MegaApi();
 #endif
         virtual ~MegaApi();
@@ -12930,12 +12946,17 @@ class MegaApi
         void setLogExtraForModules(bool networking, bool syncs);
 
         /**
-         * @brief Set the limit of size to requests payload
+         * @brief Set the maximum size limit for request payload logging
          *
-         * This functions sets the max size that will be allowed for requests payload
-         * If the payload exceeds that, the line will be truncated in the midle with [...] in between
+         * This function controls the maximum size of request payloads that will be logged
+         * in full. When a payload exceeds this limit, it will be truncated in the middle
+         * with "[...]" inserted between the first and last portions to indicate truncation.
+         *
+         * @param maxSize Maximum payload size in bytes that will be logged without truncation.
+         *                Use 0 to use the max size limit.
+         *
          */
-        static void setMaxPayloadLogSize(long long maxSize);
+        static void setMaxPayloadLogSize(size_t maxSize);
 
         /**
          * @brief Enable log to console
@@ -12962,8 +12983,65 @@ class MegaApi
          * the content is less than the logger's maximum payload size.
          *
          * @see MegaApi::setMaxPayloadLogSize
+         * @see MegaApi::setLogJSON
+         *
+         * @deprecated This function is deprecated and will be removed in future releases. Use
+         * setLogJSON and setMaxPlayloadLogSize instead.
          */
+        MEGA_DEPRECATED
         static void setLogJSONContent(bool enable);
+
+        /**
+         * @brief Configure JSON request and response logging options
+         *
+         * This function controls how JSON requests and responses are logged by the SDK.
+         * Use bitwise OR to combine multiple logging options.
+         *
+         * Available logging flags:
+         * - MegaApi::JSON_LOG_NONE = 0
+         *   Disable all JSON logging if no other flags are set
+         *
+         * - MegaApi::JSON_LOG_CHUNK_RECEIVED = 1
+         *   Enable logging of received JSON chunked data
+         *   @see MegaApi::setMaxPayloadLogSize for size limits
+         *
+         * - MegaApi::JSON_LOG_CHUNK_PROCESSING = 2
+         *   Enable logging of JSON chunked data during processing
+         *
+         * - MegaApi::JSON_LOG_CHUNK_CONSUMED = 4
+         *   Enable logging of consumed JSON chunked data (enabled by default)
+         *
+         * - MegaApi::JSON_LOG_SENDING = 8
+         *   Enable logging of JSON data being sent to the server (enabled by default)
+         *
+         * - MegaApi::JSON_LOG_NONCHUNK_RECEIVED = 16
+         *   Enable logging of received non-chunked JSON data (enabled by default)
+         *
+         * @param value Bitwise combination of logging flags
+         *
+         * Example usage:
+         * @code
+         * // Enable received and consumed logging
+         * MegaApi::setLogJSON(MegaApi::JSON_LOG_CHUNK_RECEIVED | MegaApi::JSON_LOG_CHUNK_CONSUMED);
+         *
+         * // Disable all JSON logging
+         * MegaApi::setLogJSON(MegaApi::JSON_LOG_NONE);
+         * @endcode
+         */
+        static void setLogJSON(uint32_t value);
+
+        /**
+         * @brief Get the current JSON logging configuration settings
+         *
+         * This function retrieves the currently active JSON logging flags that control
+         * how JSON requests and responses are logged by the SDK.
+         *
+         * @return Current JSON logging configuration as a bitwise combination of flags
+         *
+         * @see MegaApi::setLogJSON for configuring these settings
+         * @see MegaApi::setMaxPayloadLogSize for controlling log size limits
+         */
+        static uint32_t getLogJSON();
 
         /**
          * @brief Add a MegaLogger implementation to receive SDK logs
@@ -14068,8 +14146,6 @@ class MegaApi
          * Get last read notification (private)
          * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
          * Get last actioned banner (private)
-         * MegaApi::USER_ATTR_WELCOME_PDF_COPIED = 47
-         * Get whether welcome pdf has to be copied to cloud drive (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -14475,8 +14551,6 @@ class MegaApi
          * Set last read notification for the user (private)
          * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
          * Set last actioned banner for the user (private)
-         * MegaApi::USER_ATTR_WELCOME_PDF_COPIED = 47
-         * Set whether welcome pdf has to be copied to cloud drive (private)
          *
          * If the MEGA account is a sub-user business account, and the value of the parameter
          * type is equal to MegaApi::USER_ATTR_FIRSTNAME or MegaApi::USER_ATTR_LASTNAME
@@ -14577,6 +14651,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener);
+
+        /**
+         * @brief Returns true if S4 object storage is enabled
+         *
+         * This method doesn't need to block the SDK mutex: do not cache the value in the app.
+         *
+         * @return True if enabled, false if disabled
+         */
+        bool isS4Enabled();
+
+        /**
+         * @brief Returns the node's handle of the S4 container
+         *
+         * S4 requires a folder in the root of the Cloud Drive to operate.
+         * This method returns the handle of the related node, or INVALID_HANDLE if the
+         * S4 service is disabled.
+         *
+         * This method doesn't need to block the SDK mutex: do not cache the value in the app.
+         *
+         * @return The node's handle, or INVALID_HANDLE if not set.
+         */
+        MegaHandle getS4Container();
 
         /**
          * @brief Set node label as a node attribute.
@@ -19733,26 +19829,9 @@ class MegaApi
         char *getOperatingSystemVersion();
 
         /**
-         * @brief Get the last available version of the app
-         *
-         * It returns the last available version corresponding to an app token
-         *
-         * The associated request type with this request is MegaRequest::TYPE_APP_VERSION
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getText - Returns the app token
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Returns the last available version code of the app
-         * - MegaRequest::getName - Returns the last available version string of the app
-         *
-         * Usually, the version code is used to internally control updates, and the version
-         * string is intended to be shown to final users.
-         *
-         * @param appKey Token of the app to check or NULL to use the same value as in the
-         * initialization of the MegaApi object
-         * @param listener MegaRequestListener to track this request
+         * @deprecated
          */
+        MEGA_DEPRECATED
         void getLastAvailableVersion(const char *appKey = NULL, MegaRequestListener *listener = NULL);
 
         /**
@@ -23834,38 +23913,6 @@ class MegaApi
                           MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Tell if Welcome PDF has to be copied to Cloud drive
-         *
-         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER.
-         *
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns MegaApi::USER_ATTR_WELCOME_PDF_COPIED
-         *
-         * When the request finished with MegaError::API_OK, valid data in MegaRequest object is:
-         * - MegaRequest::getFlag - Returns true if Welcome PDF has to be copied to Cloud drive.
-         *
-         * If the corresponding user attribute was not set, the request will fail with error code
-         * MegaError::API_ENOENT and MegaRequest calls will return default values.
-         *
-         * @param listener A tracker for this request
-         */
-        void getWelcomePdfCopied(MegaRequestListener* listener = nullptr);
-
-        /**
-         * @brief Set whether Welcome PDF has to be copied to Cloud drive
-         *
-         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
-         *
-         * When the request finished with MegaError::API_OK, valid data in MegaRequest object is:
-         * - MegaRequest::getParamType - Returns the attribute type
-         * MegaApi::USER_ATTR_WELCOME_PDF_COPIED
-         *
-         * @param copied True to set the Welcome PDF to be copied, false otherwise
-         * @param listener A tracker for this request
-         */
-        void setWelcomePdfCopied(bool copied, MegaRequestListener* listener = nullptr);
-
-        /**
          * @brief Gets the public IP address and country code.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_MY_IP.
@@ -25334,6 +25381,45 @@ public:
      * @return Trial duration in days
      */
     virtual unsigned int getTrialDurationInDays(int productIndex) const = 0;
+
+    /**
+     * @brief Check whether the product has a mobile offer
+     *
+     * Determines if the specified product includes an associated mobile offer.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return True if the product has a mobile offer, false otherwise
+     */
+    virtual bool hasMobileOffers(int productIndex) const = 0;
+
+    /**
+     * @brief Get the mobile offer identifier
+     *
+     * Returns the identifier of the mobile offer associated with the given
+     * product.
+     *
+     * If the product does not have a mobile offer, this method returns a empty
+     * string.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return A null-terminated string containing the mobile offer ID
+     */
+    virtual std::string getMobileOfferId(int productIndex) const = 0;
+
+    /**
+     * @brief Check whether the mobile offer title should be used
+     *
+     * Possible values are:
+     *   - false: The mobile offer title should not be displayed.
+     *   - true: The mobile offer title should be displayed.
+     *
+     * If the product does not have a mobile offer, this method returns false.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return True if the mobile offer title should be displayed, false
+     * otherwise
+     */
+    virtual bool hasMobileOfferUat(int productIndex) const = 0;
 };
 
 /**

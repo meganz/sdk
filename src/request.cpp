@@ -20,11 +20,16 @@
  */
 
 #include "mega/request.h"
+
 #include "mega/command.h"
+#include "mega/common/badge.h"
 #include "mega/logging.h"
 #include "mega/megaclient.h"
 
 namespace mega {
+
+// Convenience.
+using common::Badge;
 
 bool Request::isFetchNodes() const
 {
@@ -406,7 +411,7 @@ void RequestDispatcher::sendDeferred()
 }
 #endif
 
-void RequestDispatcher::add(Command *c)
+void RequestDispatcher::add(Badge<MegaClient>, Command* c)
 {
 #if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
     if (deferRequests && deferRequests(c))

@@ -585,7 +585,7 @@ TEST_F(FileServiceTests, append_succeeds)
     ASSERT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_parent_removed)
+TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
 {
     // Create a tree we can mess with.
     auto d0 = mClient->makeDirectory(randomName(), mRootHandle);
@@ -647,7 +647,7 @@ TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_parent_removed)
     EXPECT_THAT(expected.service, UnorderedElementsAreArray(serviceObserver.events()));
 }
 
-TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_removed_in_cloud)
+TEST_F(FileServiceTests, cloud_file_removed_when_removed_in_cloud)
 {
     // What events do we expect to receive?
     FileEventVector expected;
@@ -684,7 +684,7 @@ TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_removed_in_cloud)
     EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_replaced_by_cloud_add)
+TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_cloud_add)
 {
     // So we have a stable name.
     auto name = randomName();
@@ -724,7 +724,7 @@ TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_replaced_by_cloud_add)
     EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, DISABLED_cloud_file_removed_when_replaced_by_new_version)
+TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_new_version)
 {
     // So we have a stable name.
     auto name = randomName();
@@ -1052,6 +1052,54 @@ TEST_F(FileServiceTests, fetch_succeeds)
 
     // We should now have a single range.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 1_MiB)));
+}
+
+TEST_F(FileServiceTests, file_destroyed_on_client_thread_during_read_callback_succeeds)
+{
+    // Open our test file for reading.
+    auto file = mClient->fileOpen(mFileHandle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure readahead is disabled.
+    mClient->fileService().options(DisableReadahead);
+
+    // Make sure the client doesn't complete the download in one hit.
+    mClient->setDownloadSpeed(8192);
+
+    // Try and read all of the file's data.
+    auto waiter = [file = std::move(*file)]() mutable
+    {
+        // Transmits read result to our waiter.
+        auto notifier = makeSharedPromise<FileResult>();
+
+        // Try and read all of the file's data.
+        //
+        // Note that our callback will only be executed once.
+        file.read(
+            [file, notifier](auto&& result) mutable
+            {
+                // Called to notify our waiter on the client's thread.
+                auto notify = [](auto&, auto& notifier, auto result, auto&)
+                {
+                    notifier->set_value(result);
+                }; // notify
+
+                // Notify our waiter from the client's thread.
+                mClient->execute(std::bind(std::move(notify),
+                                           std::move(file),
+                                           std::move(notifier),
+                                           result.errorOr(FILE_SUCCESS),
+                                           std::placeholders::_1));
+            },
+            0,
+            mFileContent.size());
+
+        // Return a waiter to our caller.
+        return notifier->get_future();
+    }();
+
+    // Wait for the read (and destruction of file) to complete.
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
 }
 
 TEST_F(FileServiceTests, flush_cancel_on_client_logout_succeeds)
@@ -1389,7 +1437,7 @@ TEST_F(FileServiceTests, foreign_files_are_read_only)
     EXPECT_EQ(execute(flush, *file), FILE_SUCCESS);
 }
 
-TEST_F(FileServiceTests, DISABLED_inactive_file_moved)
+TEST_F(FileServiceTests, inactive_file_moved)
 {
     // For later reference.
     auto name0 = randomName();
@@ -1444,7 +1492,7 @@ TEST_F(FileServiceTests, DISABLED_inactive_file_moved)
     EXPECT_TRUE(observer.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, DISABLED_inactive_file_removed)
+TEST_F(FileServiceTests, inactive_file_removed)
 {
     // Create a file that we can remove.
     auto handle = mClient->upload(randomBytes(512), randomName(), mRootHandle);
@@ -1480,7 +1528,7 @@ TEST_F(FileServiceTests, DISABLED_inactive_file_removed)
     EXPECT_TRUE(observer.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, DISABLED_inactive_file_replaced)
+TEST_F(FileServiceTests, inactive_file_replaced)
 {
     // For later reference.
     auto name0 = randomName();
@@ -1567,7 +1615,7 @@ TEST_F(FileServiceTests, info_succeeds)
     ASSERT_EQ(info->accessed(), accessed);
 }
 
-TEST_F(FileServiceTests, DISABLED_local_file_removed_when_parent_removed)
+TEST_F(FileServiceTests, local_file_removed_when_parent_removed)
 {
     // Create a directory tree for us to play with.
     auto d0 = mClient->makeDirectory(randomName(), mRootHandle);
@@ -1640,7 +1688,7 @@ TEST_F(FileServiceTests, DISABLED_local_file_removed_when_parent_removed)
     EXPECT_TRUE(fileObserver1.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, DISABLED_local_file_removed_when_replaced_by_cloud_add)
+TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_add)
 {
     // Generate a name for our file.
     auto name = randomName();
@@ -1683,7 +1731,7 @@ TEST_F(FileServiceTests, DISABLED_local_file_removed_when_replaced_by_cloud_add)
     EXPECT_TRUE(serviceObserver.match(expected, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, DISABLED_local_file_removed_when_replaced_by_cloud_move)
+TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_move)
 {
     // So we have a stable name.
     auto fileName0 = randomName();
@@ -1750,7 +1798,7 @@ TEST_F(FileServiceTests, DISABLED_local_file_removed_when_replaced_by_cloud_move
     EXPECT_TRUE(serviceObserver.match(expected.service, mDefaultTimeout));
 }
 
-TEST_F(FileServiceTests, DISABLED_location_updated_when_moved_in_cloud)
+TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
 {
     // Generate a name for our file.
     auto name = randomName();
@@ -2243,6 +2291,25 @@ TEST_F(FileServiceTests, read_succeeds)
 
     // We should have one 256KiB range in storage.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 256_KiB)));
+
+    // Make sure we correctly handle like identical reads.
+    waiter0 = read(*file, 256_KiB, 64_KiB);
+    waiter1 = read(*file, 256_KiB, 64_KiB);
+
+    // Wait for both reads to complete.
+    ASSERT_NE(waiter0.wait_for(mDefaultTimeout), timeout);
+    ASSERT_NE(waiter1.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure both reads succeeded.
+    result0 = waiter0.get();
+    result1 = waiter1.get();
+
+    EXPECT_EQ(result0.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    EXPECT_EQ(result1.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Make sure we read what we expected.
+    EXPECT_TRUE(compare(*result0, mFileContent, 256_KiB, 64_KiB));
+    EXPECT_TRUE(compare(*result1, mFileContent, 256_KiB, 64_KiB));
 
     // Latch the file's access time.
     accessed = file->info().accessed();

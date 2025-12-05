@@ -541,7 +541,7 @@ void RealClient::get(GetCallback callback,
                                                               std::placeholders::_2));
 
     // Ask the client to execute this request.
-    mClient->reqs.add(request.get());
+    mClient->queueCommand(request.get());
 
     // Client now owns the request.
     request.release();
@@ -647,7 +647,6 @@ RealClient::RealClient(const std::string& clientName,
                                  mHTTPIO.get(),
                                  new DBACCESS_CLASS(databasePath),
                                  mGfxProc.get(),
-                                 "N9tSBJDC",
                                  USER_AGENT.c_str(),
                                  THREADS_PER_MEGACLIENT));
 

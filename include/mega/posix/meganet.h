@@ -33,6 +33,26 @@ namespace mega {
 
 extern std::atomic<bool> g_netLoggingOn;
 
+// Represents a DNS entry for a particular URI.
+struct DNSEntry
+{
+    bool operator==(const DNSEntry& rhs) const
+    {
+        return ipv4 == rhs.ipv4 && ipv6 == rhs.ipv6;
+    }
+
+    bool operator!=(const DNSEntry& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    // The URI's IPv4 address.
+    std::string ipv4;
+
+    // The URI's IPv6 address, if any.
+    std::string ipv6;
+}; // DNSEntry
+
 struct MEGA_API SockInfo
 {
     enum
@@ -77,7 +97,6 @@ private:
 #endif
 };
 
-struct MEGA_API CurlDNSEntry;
 struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
@@ -98,7 +117,7 @@ protected:
     string proxypassword;
     int proxyinflight;
     std::queue<CurlHttpContext *> pendingrequests;
-    std::map<string, CurlDNSEntry> dnscache;
+    std::map<string, DNSEntry> dnscache;
     int pkpErrors;
 
     void send_pending_requests();
@@ -140,7 +159,6 @@ protected:
     static void send_request(CurlHttpContext*);
     void request_proxy_ip();
     static struct curl_slist* clone_curl_slist(struct curl_slist*);
-    static bool crackurl(const string*, string*, string*, int*);
     static int debug_callback(CURL*, curl_infotype, char*, size_t, void*);
     const char* pubkeyForUrl(const char* url) const;
 
@@ -203,7 +221,7 @@ public:
     // get max upload speed
     m_off_t getmaxuploadspeed() override;
 
-    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips) override;
+    int cacheresolvedurls(const std::vector<string>& urls, const std::vector<string>& ips) override;
     void addDnsResolution(CURL* curl,
                           std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)>& dnsList,
                           const string& host,
@@ -217,6 +235,12 @@ public:
     HANDLE mSocketsWaitEvent;
     bool mSocketsWaitEvent_curl_call_needed = false;
 #endif
+
+    // Retrieve a reference to this instance's cached DNS entries.
+    const auto& getCachedDNSEntries() const
+    {
+        return dnscache;
+    }
 
 private:
     static int instanceCount;
@@ -247,10 +271,29 @@ struct MEGA_API CurlHttpContext
                                                                              curl_slist_free_all};
 };
 
-struct MEGA_API CurlDNSEntry
-{
-    string ipv4;
-    string ipv6;
-};
+// Separate a URI into its constituent pieces.
+bool crackURI(const string& uri, string& scheme, string& host, int& port);
+
+// True if string is a valid IPv4 address.
+bool isValidIPv4Address(const std::string& string);
+
+// True if string is a valid IPv6 address.
+bool isValidIPv6Address(const std::string& string);
+
+// Populates the specified DNS cache based on the provided URI and IPs.
+//
+// This function expects each URI to be associated with an IPv4 and an IPv6
+// address.
+//
+// Entries will be added to the cache if and only if a URI is associated
+// with a valid IPv4 address.
+//
+// This function returns:
+// <0 - Too few or too many IPs vs. URIs.
+//  0 - Cache updated.
+// >0 - Cache updated but an invalid IP was detected.
+int populateDNSCache(std::map<std::string, DNSEntry>& cache,
+                     const std::vector<std::string>& ips,
+                     const std::vector<std::string>& uris);
 
 } // namespace

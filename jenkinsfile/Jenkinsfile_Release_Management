@@ -80,6 +80,8 @@ pipeline {
                 dir ("dockerfile") {
                     sh """
                         docker build \
+                            --build-arg USER_ID=\$(id -u) \
+                            --build-arg GROUP_ID=\$(id -g) \
                             -f release-management.dockerfile \
                             -t meganz/sdk-release-management:${env.BUILD_NUMBER} \
                             .

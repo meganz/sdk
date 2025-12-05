@@ -298,8 +298,6 @@ if [ "$1" == "clean" ]; then
     rm -rf ${SQLITE_SOURCE_FOLDER} ${SQLITE}/${SQLITE_BASE_NAME}
     rm -rf ${CURL}/${CURL_SOURCE_FOLDER}
     rm -rf ${CURL}/${CURL}
-    rm -rf ${CURL}/${ARES_SOURCE_FOLDER}
-    rm -rf ${CURL}/ares
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FOLDER}
     rm -rf ${OPENSSL}/${OPENSSL}
     rm -rf ${CRASHLYTICS_DEST_PATH}/${CRASHLYTICS_SOURCE_FILE}
@@ -321,9 +319,8 @@ if [ "$1" == "clean" ]; then
     rm -rf ${SQLITE}/${SQLITE_SOURCE_FILE}
     rm -rf ${SQLITE}/${SQLITE_SOURCE_FILE}.ready
     rm -rf ${CURL}/${CURL_SOURCE_FILE}
-    rm -rf ${CURL}/${ARES_SOURCE_FILE}
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}
-	rm -rf ${CURL}/${CURL_SOURCE_FILE}.ready
+    rm -rf ${CURL}/${CURL_SOURCE_FILE}.ready
     rm -rf ${CURL}/${CRASHLYTICS_SOURCE_FILE}.ready
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready
     rm -rf ${SODIUM}/${SODIUM_SOURCE_FILE}
@@ -550,15 +547,15 @@ if [ ! -f ${CURL}/${CURL_SOURCE_FILE}.ready ]; then
 
         setupEnv "${ABI}"
 
-	    if [ "${ABI}" == "armeabi-v7a" ]; then
-	        SSL_SUFFIX="openssl-android-armeabi-v7a"
-	    elif [ "${ABI}" == "arm64-v8a" ]; then
-	        SSL_SUFFIX="openssl-android-arm64-v8a"
-	    elif [ "${ABI}" == "x86_64" ]; then
-	        SSL_SUFFIX="openssl-android-x86_64"
-	    else
-	        SSL_SUFFIX="openssl-android-x86"
-	    fi
+        if [ "${ABI}" == "armeabi-v7a" ]; then
+            SSL_SUFFIX="openssl-android-armeabi-v7a"
+        elif [ "${ABI}" == "arm64-v8a" ]; then
+            SSL_SUFFIX="openssl-android-arm64-v8a"
+        elif [ "${ABI}" == "x86_64" ]; then
+            SSL_SUFFIX="openssl-android-x86_64"
+        else
+            SSL_SUFFIX="openssl-android-x86"
+        fi
 
         pushd ${CURL}/${CURL} &>> ${LOG_FILE}
 

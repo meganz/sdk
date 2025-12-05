@@ -282,7 +282,8 @@ namespace UserAlert
     {
         m_time_t expiryTime;
         PaymentReminder(UserAlertRaw& un, unsigned int id);
-        PaymentReminder(m_time_t timestamp, unsigned int id);
+        PaymentReminder(m_time_t expiry, unsigned int id);
+        PaymentReminder(m_time_t creation, m_time_t expiry, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
         bool serialize(string*) const override;

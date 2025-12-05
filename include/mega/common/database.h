@@ -29,10 +29,16 @@ struct LockableTraits<Database>
 class Database
   : public Lockable<Database>
 {
+    // See execute below.
     std::string execute(const char* statement);
 
+    // The database's SQL context.
     sqlite3* mDB;
+
+    // The databse's logger instance.
     Logger* mLogger;
+
+    // The database file this instance is accessing.
     std::string mPath;
 
 public:
@@ -42,15 +48,16 @@ public:
 
     ~Database();
 
-    std::string execute(Badge<Transaction> badge, const char* statement);
-
+    // Retrieve a reference to this database's SQL context.
     sqlite3* get(Badge<Query> badge);
-    sqlite3* get(Badge<Transaction> badge);
 
+    // Retrieve a reference to this database's logger.
     Logger& logger() const;
 
+    // Return a new query that references this database.
     Query query();
 
+    // Return a new transaction that references this database.
     Transaction transaction();
 }; // Database
 

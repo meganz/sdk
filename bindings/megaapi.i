@@ -2,6 +2,10 @@
 %{
 #include "megaapi.h"
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif // __ANDROID__
+
 #ifdef SWIGJAVA
 #include <jni.h>
 
@@ -16,6 +20,29 @@ extern jclass arrayListClass;
 
 namespace megajni
 {
+
+// Clear any pending Java exception; return true if there was one.
+static inline bool megajni_clear_pending_exception(JNIEnv* env, const char* where = nullptr) {
+    if (!env) return false;
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe(); // useful during bring-up; remove if too chatty
+        env->ExceptionClear();
+        // You can also log `where` to your native logger if desired.
+        return true;
+    }
+    return false;
+}
+
+// After making *any* JNI call (NewObject, CallObjectMethod, FindClass, etc.)
+#define MEGAJNI_CHECK(env, where) do { megajni::megajni_clear_pending_exception((env), (where)); } while(0)
+
+// Optional: safely create a global ref (returns nullptr on failure, with exception cleared)
+static inline jclass megajni_new_global_ref_class(JNIEnv* env, jclass local, const char* where) {
+    if (!env || !local) return nullptr;
+    jclass g = (jclass)env->NewGlobalRef(local);
+    MEGAJNI_CHECK(env, where);
+    return g;
+}
 
 jint on_load(JavaVM *jvm, void *reserved)
 {
@@ -39,8 +66,8 @@ jint on_load(JavaVM *jvm, void *reserved)
         jenv->ExceptionClear();
     }
 
-    fileWrapper = (jclass)jenv->NewGlobalRef(localfileWrapper);
-    jenv->DeleteLocalRef(localfileWrapper);
+    fileWrapper = megajni_new_global_ref_class(jenv, localfileWrapper, "global ref FileWrapper");
+    if (localfileWrapper) jenv->DeleteLocalRef(localfileWrapper);
 
     jclass localIntegerClass = jenv->FindClass("java/lang/Integer");
     if (!localIntegerClass)
@@ -49,8 +76,8 @@ jint on_load(JavaVM *jvm, void *reserved)
         jenv->ExceptionClear();
     }
 
-    integerClass = (jclass)jenv->NewGlobalRef(localIntegerClass);
-    jenv->DeleteLocalRef(localIntegerClass);
+    integerClass = megajni_new_global_ref_class(jenv, localIntegerClass, "global ref Integer");
+    if (localIntegerClass) jenv->DeleteLocalRef(localIntegerClass);
 
     jclass localArrayListClass = jenv->FindClass("java/util/ArrayList");
     if (!localArrayListClass)
@@ -59,8 +86,8 @@ jint on_load(JavaVM *jvm, void *reserved)
         jenv->ExceptionClear();
     }
 
-    arrayListClass = (jclass)jenv->NewGlobalRef(localArrayListClass);
-    jenv->DeleteLocalRef(localArrayListClass);
+    arrayListClass = megajni_new_global_ref_class(jenv, localArrayListClass, "global ref ArrayList");
+    if (localArrayListClass) jenv->DeleteLocalRef(localArrayListClass);
 
     return JNI_VERSION_1_6;
 }
@@ -111,6 +138,22 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     }
 %}
 
+%exception {
+  // If a Java exception is already pending when entering native, clear it so JNI is usable.
+  megajni::megajni_clear_pending_exception(jenv, "pre-native-entry");
+
+  try {
+    $action
+  } catch (const std::exception& e) {
+    jclass ex = jenv->FindClass("java/lang/RuntimeException");
+    if (ex) jenv->ThrowNew(ex, e.what());
+    // leave with a Java exception pending; JNI will return safely to JVM
+  } catch (...) {
+    jclass ex = jenv->FindClass("java/lang/RuntimeException");
+    if (ex) jenv->ThrowNew(ex, "Native code threw an unknown exception");
+  }
+}
+
 //Use compilation-time constants in Java
 %javaconst(1);
 
@@ -130,39 +173,53 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 %typemap(out) char*
 %{
-    if ($1)
-    {
-        int len = strlen($1);
+    if ($1) {
+        int len = (int)strlen($1);
         jbyteArray $1_array = jenv->NewByteArray(len);
-        jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
-        $result = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
-        jenv->DeleteLocalRef($1_array);
+        MEGAJNI_CHECK(jenv, "out char* NewByteArray");
+        if ($1_array) {
+            jenv->SetByteArrayRegion($1_array, 0, len, (const jbyte*)$1);
+            MEGAJNI_CHECK(jenv, "out char* SetByteArrayRegion");
+            $result = (jstring) jenv->NewObject(clsString, ctorString, $1_array, strEncodeUTF8);
+            MEGAJNI_CHECK(jenv, "out char* NewObject(String)");
+            jenv->DeleteLocalRef($1_array);
+            MEGAJNI_CHECK(jenv, "out char* DeleteLocalRef");
+        } else {
+            $result = nullptr; // OOM or pending exception just cleared
+        }
+    } else {
+        $result = nullptr;
     }
 %}
 
 %typemap(in) char*
 %{
-    jbyteArray $1_array;
+    jbyteArray $1_array = 0;
     $1 = 0;
-    if ($input)
-    {
+    if ($input) {
         $1_array = (jbyteArray) jenv->CallObjectMethod($input, getBytes, strEncodeUTF8);
-        jsize $1_size = jenv->GetArrayLength($1_array);
-        $1 = new char[$1_size + 1];
-        if ($1_size)
-        {
-            jenv->GetByteArrayRegion($1_array, 0, $1_size, (jbyte*)$1);
-        }
-        $1[$1_size] = '\0';
+        MEGAJNI_CHECK(jenv, "in char* String.getBytes");
+        if ($1_array) {
+            jsize $1_size = jenv->GetArrayLength($1_array);
+            MEGAJNI_CHECK(jenv, "in char* GetArrayLength");
+            $1 = new char[$1_size + 1];
+            if ($1 && $1_size) {
+                jenv->GetByteArrayRegion($1_array, 0, $1_size, (jbyte*)$1);
+                MEGAJNI_CHECK(jenv, "in char* GetByteArrayRegion");
+            }
+            if ($1) $1[$1_size] = '\0';
+        } // else: exception cleared; $1 remains null
     }
 %}
 
 %typemap(freearg) char*
 %{
-    if ($1)
-    {
+    if ($1) {
         delete [] $1;
+    }
+    if ($1_array) {
         jenv->DeleteLocalRef($1_array);
+        MEGAJNI_CHECK(jenv, "freearg char* DeleteLocalRef");
     }
 %}
 
@@ -196,6 +253,107 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %javamethodmodifiers copy ""
 
 #endif
+
+%feature("director:before") {
+    jenv->PushLocalFrame(32); // adjust number based on expected refs per callback
+}
+
+%feature("director:after") {
+    jenv->PopLocalFrame(nullptr);
+    MEGAJNI_CHECK(jenv, "director PopLocalFrame");
+}
+
+#ifdef __ANDROID__
+%feature("director:except") {
+    if (jenv->ExceptionCheck()) {
+        jthrowable pending = jenv->ExceptionOccurred();
+        jenv->ExceptionClear();
+
+        // Use the app's class loader to reliably find the Kotlin class on any thread
+        jclass reporterClass = nullptr;
+        jclass activityThread = jenv->FindClass("android/app/ActivityThread");
+        if (activityThread) {
+            jmethodID currentApp = jenv->GetStaticMethodID(
+                activityThread,
+                "currentApplication",
+                "()Landroid/app/Application;"
+            );
+            jobject app = jenv->CallStaticObjectMethod(activityThread, currentApp);
+            if (app) {
+                jclass appClass = jenv->GetObjectClass(app);
+                jmethodID getClassLoader = jenv->GetMethodID(
+                    appClass,
+                    "getClassLoader",
+                    "()Ljava/lang/ClassLoader;"
+                );
+                jobject loader = jenv->CallObjectMethod(app, getClassLoader);
+                if (loader) {
+                    jclass loaderClass = jenv->FindClass("java/lang/ClassLoader");
+                    jmethodID loadClass = jenv->GetMethodID(
+                        loaderClass,
+                        "loadClass",
+                        "(Ljava/lang/String;)Ljava/lang/Class;"
+                    );
+                    jstring className = jenv->NewStringUTF("mega.privacy.android.app.jni.JniExceptionReporter");
+                    reporterClass = (jclass) jenv->CallObjectMethod(loader, loadClass, className);
+
+                    jenv->DeleteLocalRef(className);
+                    jenv->DeleteLocalRef(loaderClass);
+                    jenv->DeleteLocalRef(loader);
+                }
+                jenv->DeleteLocalRef(appClass);
+                jenv->DeleteLocalRef(app);
+            }
+            jenv->DeleteLocalRef(activityThread);
+        }
+
+        __android_log_print(ANDROID_LOG_ERROR, "MEGAJNI",
+            "JniExceptionReporter class %sfound", reporterClass ? "" : "NOT ");
+
+        if (reporterClass) {
+            jfieldID handlerField = jenv->GetStaticFieldID(
+                reporterClass, "handler", "Lmega/privacy/android/app/jni/JniExceptionHandler;"
+            );
+            jobject handler = jenv->GetStaticObjectField(reporterClass, handlerField);
+            if (handler) {
+                jclass handlerClass = jenv->GetObjectClass(handler);
+                jmethodID onException = jenv->GetMethodID(
+                    handlerClass,
+                    "onJniException",
+                    "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"
+                );
+
+                if (onException) {
+                    jclass throwableClass = jenv->GetObjectClass(pending);
+                    jmethodID getMessage = jenv->GetMethodID(throwableClass, "getMessage", "()Ljava/lang/String;");
+                    jmethodID toString = jenv->GetMethodID(throwableClass, "toString", "()Ljava/lang/String;");
+                    jstring jmsg = (jstring) jenv->CallObjectMethod(pending, getMessage);
+                    jstring jstack = (jstring) jenv->CallObjectMethod(pending, toString);
+
+                    jstring jlocation = jenv->NewStringUTF("$action");
+
+                    jenv->CallVoidMethod(handler, onException, jlocation, jmsg, jstack);
+
+                    jenv->DeleteLocalRef(jlocation);
+                    jenv->DeleteLocalRef(jmsg);
+                    jenv->DeleteLocalRef(jstack);
+                    jenv->DeleteLocalRef(throwableClass);
+                }
+
+                jenv->DeleteLocalRef(handlerClass);
+                jenv->DeleteLocalRef(handler);
+            }
+
+            jenv->DeleteLocalRef(reporterClass);
+        }
+
+        jenv->DeleteLocalRef(pending);
+    }
+}
+#endif // __ANDROID__
+
+
+
 
 //Generate inheritable wrappers for listener objects
 %feature("director") mega::MegaRequestListener;
@@ -234,7 +392,6 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %feature("director") mega::MegaTreeProcessor;
 %feature("director") mega::MegaGfxProcessor;
 
-
 #ifdef SWIGJAVA
 
 #if SWIG_VERSION < 0x030000
@@ -248,12 +405,19 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %typemap(directorin, descriptor="[B") (char *bitmapData, size_t size)
 %{ 
 	jbyteArray jb = (jenv)->NewByteArray($2);
+	MEGAJNI_CHECK(jenv, "bitmap NewByteArray");
 	$input = jb;
 %}
 %typemap(directorargout) (char *bitmapData, size_t size)
 %{ 
-	jenv->GetByteArrayRegion($input, 0, $2, (jbyte *)$1);
-	jenv->DeleteLocalRef($input);
+	if ($input && $1 && $2 > 0) {
+        jenv->GetByteArrayRegion($input, 0, $2, (jbyte*)$1);
+        MEGAJNI_CHECK(jenv, "bitmap GetByteArrayRegion");
+    }
+    if ($input) {
+        jenv->DeleteLocalRef($input);
+        MEGAJNI_CHECK(jenv, "bitmap DeleteLocalRef");
+    }
 %}
 #endif
 

@@ -85,10 +85,33 @@ class PartialDownloadCallback: public common::PartialDownloadCallback
     }
 
     // Called when the download has experienced some failure.
-    auto failed(Error, int) -> std::variant<Abort, Retry> override
+    auto failed(Error result, int retries) -> std::variant<Abort, Retry> override
     {
-        // Always abort the download.
-        return Abort();
+        // Failure isn't due to a retryable error.
+        if (!retryable(result))
+            return Abort();
+
+        // Or if we've already retried the download too many times.
+        if (retries >= 5)
+            return Abort();
+
+        // Retry the download.
+        return Retry(deciseconds(20));
+    }
+
+    // Check if result is a retryable error.
+    bool retryable(const Error& result) const
+    {
+        // Client's being torn down or the download has been cancelled.
+        if (result == API_EINCOMPLETE)
+            return false;
+
+        // File's been taken down because it breached our terms and conditions.
+        if (result == API_ETOOMANY && result.hasExtraInfo())
+            return false;
+
+        // Retry all other failures.
+        return true;
     }
 
 public:
@@ -142,20 +165,6 @@ TEST_F(PartialDownloadTests, DISABLED_measure_average_fetch_times)
             -> std::variant<Abort, Continue> override
         {
             return Continue();
-        }
-
-        // Called when the download has experienced some failure.
-        auto failed(Error result, int retries) -> std::variant<Abort, Retry> override
-        {
-            // Retry a maximum of five times.
-            if (result != API_EAGAIN || retries >= 5)
-                return Abort();
-
-            // Convenience.
-            using ::mega::common::deciseconds;
-
-            // Retry after 200ms.
-            return Retry(deciseconds(20));
         }
 
     public:
