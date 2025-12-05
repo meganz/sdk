@@ -3453,23 +3453,18 @@ private:
 #ifdef ENABLE_SYNC
     /**
      * @brief
-     * The purpose of this function is to execute before the user's provided
-     * login callback so that we can perform some administrative functions
-     * necessary to bootstrap the sync engine.
+     * The purpose of this function is to be executed just after getting/setting
+     * the keys but before enabling the syncs.
      *
      * One of these duties is to ensure that the user has a set of JSCD user
      * attributes, another is to safely inject these attributes along with
      * the client's master key into the sync engine.
      *
      * @param callback
-     * The function that should be called when login has completed.
-     *
-     * @param result
-     * The result of our attempt to log the user in.
+     * The function that should be called when the task has completed.
      */
-    void injectSyncSensitiveData(CommandLogin::Completion callback,
-                                 Error result);
 #endif // ENABLE_SYNC
+    void injectSyncSensitiveData(CommandLogin::Completion callback);
 
     /**
      * @brief

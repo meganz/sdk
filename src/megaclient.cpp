@@ -13774,25 +13774,6 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
     // Is the user fully logged on?
     auto isFullyLoggedIn = loggedin() == FULLACCOUNT;
 
-#ifdef ENABLE_SYNC
-    // Only generate JSCD and friends for fully logged-in accounts.
-    if (isFullyLoggedIn)
-    {
-        // Capture the client's response tag as apps may require it.
-        completion = [completion = std::move(completion), tag = restag, this](error result)
-        {
-            auto restorer = makeScopedValue(restag, tag);
-            completion(result);
-        }; // completion
-
-        // Wrap the user's completion function so that we also initialize the sync engine.
-        completion = [completion = std::move(completion), this](error result) {
-            // Initialize the sync engine and call the user's completion function.
-            injectSyncSensitiveData(std::move(completion), result);
-        }; // completion
-    }
-#endif // ENABLE_SYNC
-
     assert(!mV1PswdVault || accountversion == 1);
 
     if (accountversion == 1 && mV1PswdVault)
@@ -16110,23 +16091,12 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             // Make sure that our own user is defined
             finduser(me, 1);
 
-            // we need this one to ensure we have the sync config read/write key for example
-            getuserdata(0, [this, fetchtag, loadSyncs, nocache](string*, string*, string*, error e)
+            auto startFetchNodes = [this, fetchtag, loadSyncs, nocache](Error e)
             {
                 if (e != API_OK)
                 {
-                    LOG_err << "Pre-failing fetching nodes: unable not get user data";
-                    restag = fetchtag;
-                    fetchingnodes = false;
-                    app->fetchnodes_result(e);
-                    return;
-                }
-
-                if (loggedin() == FULLACCOUNT || loggedin() == EPHEMERALACCOUNTPLUSPLUS ||
-                    loggedin() == CONFIRMEDACCOUNT)
-                {
-                    initializekeys();
-                    loadAuthrings();
+                    // Notify and continue with or without JSCD attribute.
+                    LOG_warn << "Unable to retrieve JSCD attribute. Continue fetchnodes.";
                 }
 
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync
@@ -16179,7 +16149,40 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                             }
                         });
                 }
-            });
+            };
+
+            auto getUserDataCompletion =
+                [this,
+                 fetchtag,
+                 startFetchNodes = std::move(startFetchNodes)](string*, string*, string*, error e)
+            {
+                if (e != API_OK)
+                {
+                    LOG_err << "Pre-failing fetching nodes: unable to get user data";
+                    restag = fetchtag;
+                    fetchingnodes = false;
+                    app->fetchnodes_result(e);
+                    return;
+                }
+
+                if (loggedin() == FULLACCOUNT || loggedin() == EPHEMERALACCOUNTPLUSPLUS ||
+                    loggedin() == CONFIRMEDACCOUNT)
+                {
+                    initializekeys();
+                    loadAuthrings();
+                }
+
+#ifdef ENABLE_SYNC
+                if (loggedin() == FULLACCOUNT)
+                {
+                    injectSyncSensitiveData(std::move(startFetchNodes));
+                    return;
+                }
+#endif
+                startFetchNodes(API_OK);
+            };
+
+            getuserdata(0, std::move(getUserDataCompletion));
 
             fetchtimezone();
         }
@@ -24770,17 +24773,10 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
 
 #ifdef ENABLE_SYNC
 
-void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
-                                         Error result)
+void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback)
 {
     // Sanity.
     assert(callback);
-
-    // Couldn't log the user in.
-    if (result != API_OK)
-    {
-        return callback(result);
-    }
 
     // Called when the JSCD user attributes have been retrieved.
     auto retrieved = [callback = std::move(callback), this]
