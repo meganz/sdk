@@ -15997,22 +15997,18 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
-        auto onuserdataCompletion = [this,
-                                     fetchnodesTag
-#ifdef ENABLE_SYNC // maybe_unused not allowed for lambda captures
-                                     ,
-                                     loadSyncs
-#endif
-        ](string*, string*, string*, error e)
-        {
-            restag = fetchnodesTag;
 
-            // upon ug completion
+        auto startCachedFetchNodes = [this
+#ifdef ENABLE_SYNC // maybe_unused not allowed for lambda captures
+                                      ,
+                                      loadSyncs
+#endif
+        ](Error e)
+        {
             if (e != API_OK)
             {
-                LOG_err << "Session load failed: unable to get user data";
-                app->fetchnodes_result(API_EINTERNAL);
-                return; //from completion function
+                // Notify and continue with or without JSCD attribute.
+                LOG_warn << "Unable to retrieve JSCD attribute. Continue loading from cache.";
             }
 
             WAIT_CLASS::bumpds();
@@ -16028,13 +16024,16 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             scsn.setScsn(cachedscsn);
             LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
 
-            assert(isClientType(ClientType::VPN) ||  // minimal fetch for VPN does not receive nodes
-                   mNodeManager.getNodeCount() > 0); // otherwise if you see this please investigate why (before we alter the db)
+            assert(
+                isClientType(ClientType::VPN) || // minimal fetch for VPN does not receive nodes
+                mNodeManager.getNodeCount() >
+                    0); // otherwise if you see this please investigate why (before we alter the db)
 
-            assert(isClientType(ClientType::VPN) || // minimal fetch for VPN does not receive nodes
-                   !mNodeManager.getRootNodeFiles().isUndef() ||  // we should know this by now - if
-                   (isClientType(ClientType::PASSWORD_MANAGER) && // not, why not, please investigate
-                    !mNodeManager.getRootNodeVault().isUndef())); // (before we alter the db)
+            assert(
+                isClientType(ClientType::VPN) || // minimal fetch for VPN does not receive nodes
+                !mNodeManager.getRootNodeFiles().isUndef() || // we should know this by now - if
+                (isClientType(ClientType::PASSWORD_MANAGER) && // not, why not, please investigate
+                 !mNodeManager.getRootNodeVault().isUndef())); // (before we alter the db)
 
             if (loggedIntoWritableFolder())
             {
@@ -16042,7 +16041,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                 // so as to include it in subsequent put nodes
                 if (std::shared_ptr<Node> n = nodeByHandle(mNodeManager.getRootNodeFiles()))
                 {
-                    n->sharekey.reset(new SymmCipher(key)); //we use the "master key", in this case the secret share key
+                    n->sharekey.reset(new SymmCipher(
+                        key)); // we use the "master key", in this case the secret share key
                 }
             }
 
@@ -16060,6 +16060,30 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
         };
 
+        auto onuserdataCompletion = [this,
+                                     fetchnodesTag,
+                                     startCachedFetchNodes = std::move(
+                                         startCachedFetchNodes)](string*, string*, string*, error e)
+        {
+            restag = fetchnodesTag;
+
+            // upon ug completion
+            if (e != API_OK)
+            {
+                LOG_err << "Session load failed: unable to get user data";
+                app->fetchnodes_result(API_EINTERNAL);
+                return; // from completion function
+            }
+
+#ifdef ENABLE_SYNC
+            if (loggedin() == FULLACCOUNT)
+            {
+                injectSyncSensitiveData(std::move(startCachedFetchNodes));
+                return;
+            }
+#endif
+            startCachedFetchNodes(API_OK);
+        };
 
         if (!loggedIntoFolder())
         {
@@ -24802,6 +24826,7 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback)
                                            sizeof(key.key));
 
         // Inject sensitive data into the sync engine.
+        LOG_debug << "JSCD retrieved. Injecting data to the sync system.";
         syncs.injectSyncSensitiveData(std::move(sensitiveData));
 
         // Let the user know that JSCD has been successfully retrieved.
