@@ -24713,6 +24713,7 @@ ScDbStateRecord ScDbStateRecord::unserialize(const std::string& data)
     return result;
 }
 
+#ifdef ENABLE_SYNC
 void MegaClient::getJSCData(GetJSCDataCallback callback)
 {
     // Sanity.
@@ -24771,8 +24772,6 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
           bind(&MegaClient::JSCDataCreated, this, std::move(callback), _1));
 }
 
-#ifdef ENABLE_SYNC
-
 void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback)
 {
     // Sanity.
@@ -24791,7 +24790,7 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback)
                 fatalError(ErrorReason::REASON_ERROR_NO_JSCD);
             }
 
-            // This shouldn't prevent the user from logging on, however.
+            // This shouldn't prevent the user from continue using the account.
             return callback(API_OK);
         }
 
@@ -24805,15 +24804,13 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback)
         // Inject sensitive data into the sync engine.
         syncs.injectSyncSensitiveData(std::move(sensitiveData));
 
-        // Let the user know that they're logged in.
+        // Let the user know that JSCD has been successfully retrieved.
         callback(API_OK);
     }; // retrieved
 
     // Try and retrieve the JSC data.
     getJSCData(std::move(retrieved));
 }
-
-#endif // ENABLE_SYNC
 
 void MegaClient::JSCDataCreated(GetJSCDataCallback& callback,
                                 Error result)
@@ -24903,6 +24900,7 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     // Pass attributes to callback.
     callback(std::move(data), API_OK);
 }
+#endif // ENABLE_SYNC
 
 // Call "wmip" command.
 void MegaClient::getMyIp(CommandGetMyIP::Cb&& completion)

@@ -3437,6 +3437,7 @@ public:
     fuse::Service mFuseService;
 
 private:
+#ifdef ENABLE_SYNC
     /**
      * @brief
      * This function will create the user's JSCD user attributes. If
@@ -3450,7 +3451,6 @@ private:
      */
     void createJSCData(GetJSCDataCallback callback);
 
-#ifdef ENABLE_SYNC
     /**
      * @brief
      * The purpose of this function is to be executed just after getting/setting
@@ -3463,7 +3463,6 @@ private:
      * @param callback
      * The function that should be called when the task has completed.
      */
-#endif // ENABLE_SYNC
     void injectSyncSensitiveData(CommandLogin::Completion callback);
 
     /**
@@ -3505,6 +3504,7 @@ private:
     void JSCDataRetrieved(GetJSCDataCallback& callback,
                           Error result,
                           std::unique_ptr<string_map> store);
+#endif // ENABLE_SYNC
 
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;
