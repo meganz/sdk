@@ -198,12 +198,8 @@ public:
     {
         SUCCESS = 0,
         FAILED = -1,
-        // In following filters, PAUSED is not supported and would be treated as FAILED
-        // "<": Every time processChunk started
-        // ">": Every time processChunk ended
-        // "": The first chunk in the stream
-        // "E": Failed to parse due to invalid format
-        // Also for pure number string ("-123 "), PAUSED is not supported
+        // PAUSED is only supported in KEY:VALUE filters.
+        // For any other filter, PAUSED would be treated as FAILED
         PAUSED = 1,
     };
 
@@ -270,20 +266,6 @@ protected:
     // Check if there are any pending filter markers indicating that processing failed
     bool chunkProcessingFinishedSuccessfully(std::map<std::string, FilterCallback>* filters);
 
-    // Store paused state
-    void processPaused(m_off_t offsetFromLastPos, const char startChar = '\0');
-
-    // Check if this filter should be skipped (already processed before pause)
-    bool shouldSkip(const std::string& filter, m_off_t currentOffset);
-
-    // Record this filter as processed in the right filter level
-    inline void recordProcessedFilter(const std::string& filter, m_off_t currentEndOffset)
-    {
-        m_off_t relativeOffset = currentEndOffset - mFilterLevelStack.back().startOffset;
-        mFilterLevelStack.back().processedInnerFilters.insert(
-            std::make_pair(filter, relativeOffset));
-    }
-
     // Position of the character being processed (not owned by this object)
     const char* mPos = nullptr;
 
@@ -316,26 +298,6 @@ protected:
 
     // the parsing has failed
     bool mFailed = false;
-
-    // Information about filter levels that are waiting for their filter to be triggered
-    struct FilterLevelInfo
-    {
-        // Path of this filter level
-        std::string path;
-        // Offset from data start to this filter's start position
-        m_off_t startOffset;
-        // Set of inner filter paths that have been processed (relative offset from this level's
-        // start)
-        std::set<std::pair<std::string, m_off_t>> processedInnerFilters;
-    };
-
-    // Stack of filter levels waiting for their filter callbacks
-    std::vector<FilterLevelInfo> mFilterLevelStack;
-
-    // Processed inner filters that should be skipped on resume (when outer filter was paused)
-    // Key: filter path
-    // Value: relative offset from the paused outer filter's start
-    std::set<std::pair<std::string, m_off_t>> mSkipFilters;
 
 }; // JSONSplitter
 

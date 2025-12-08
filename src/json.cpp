@@ -27,7 +27,6 @@
 
 #include <cctype>
 #include <cstdint>
-#include <numeric>
 
 namespace mega {
 
@@ -1097,79 +1096,6 @@ void JSONSplitter::clear()
     mStarting = true;
     mFinished = false;
     mFailed = false;
-    mFilterLevelStack.clear();
-    mSkipFilters.clear();
-}
-
-static std::map<char, char> matchBrackets = {{']', '['}, {'}', '{'}};
-
-void JSONSplitter::processPaused(m_off_t offsetFromLastPos, const char startChar)
-{
-    // Save the complete parsing state to restore later
-    if (startChar)
-    {
-        mExpectValue = 1;
-        // We need to fallback to the last object/array
-        bool breakLoop = false;
-        for (int i = static_cast<int>(mStack.size()) - 1; i >= 0; --i)
-        {
-            const std::string& stackEntry = mStack[static_cast<size_t>(i)];
-            if (stackEntry[0] == startChar)
-            {
-                breakLoop = true;
-                // Restore mLastName from the stack entry being removed
-                // Stack entry format is: startChar + propertyName (e.g., "{a" means object with
-                // name "a")
-                if (stackEntry.size() > 1)
-                {
-                    mLastName = stackEntry.substr(1);
-                }
-                else
-                {
-                    mLastName = "";
-                }
-            }
-            // Get the size before erasing
-            size_t stackEntrySize = stackEntry.size();
-            mStack.erase(mStack.begin() + i);
-            mCurrentPath.resize(mCurrentPath.size() - stackEntrySize);
-            if (breakLoop)
-            {
-                break;
-            }
-        }
-
-        // Also clear filter level stack for this paused level
-        mFilterLevelStack.clear();
-    }
-
-    mProcessedBytes = offsetFromLastPos;
-
-    std::string stackStr = joinStrings(mStack.begin(), mStack.end(), ",");
-    LOG_debug << "JSON after PAUSED state -- processed bytes: [" << mProcessedBytes
-              << "], last name: [" << mLastName << "], expect value: [" << mExpectValue
-              << "], current path: [" << mCurrentPath << "], stack: [" << stackStr
-              << "], skip filters count: [" << mSkipFilters.size() << "]";
-}
-
-bool JSONSplitter::shouldSkip(const std::string& filter, m_off_t currentOffset)
-{
-    // Check if this filter should be skipped (already processed before pause)
-    if (!mSkipFilters.empty() && !mFilterLevelStack.empty())
-    {
-        // Check relative to the outermost filter's start
-        auto skipKey = std::make_pair(filter, currentOffset);
-        if (mSkipFilters.find(skipKey) != mSkipFilters.end())
-        {
-            JSON_CHUNK_PROCESSING << "JSON skipping already processed filter: " << filter
-                                  << ", at offset: " << currentOffset;
-
-            // Re-record as processed for potential subsequent pauses
-            recordProcessedFilter(filter, currentOffset);
-            return true;
-        }
-    }
-    return false;
 }
 
 m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, const char* data)
@@ -1196,7 +1122,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
     mPos = data;
     mLastPos = data;
 
-    // Normal continuation: skip the data that was already processed during the previous call
+    // Skip the data that was already processed during the previous call
     mPos += mProcessedBytes;
     mProcessedBytes = 0;
 
@@ -1241,23 +1167,11 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
             mStack.push_back(c + mLastName);
             mCurrentPath.append(mStack.back());
 
-            JSON_CHUNK_PROCESSING << "JSON starting path: " << mCurrentPath
-                                  << ", mLastName: " << mLastName
-                                  << ", mFilterLevelStack.size: " << mFilterLevelStack.size();
+            JSON_CHUNK_PROCESSING << "JSON starting path: " << mCurrentPath;
             if (filters && filters->find(mCurrentPath) != filters->end())
             {
-                // a filter is configured for this path
-                // Always update mLastPos for normal processing flow
+                // a filter is configured for this path - recurse
                 mLastPos = mPos;
-
-                // Push this level onto the filter stack (needed for PAUSED scenario tracking)
-                FilterLevelInfo levelInfo;
-                levelInfo.path = mCurrentPath;
-                levelInfo.startOffset = mPos - data;
-                mFilterLevelStack.push_back(std::move(levelInfo));
-
-                JSON_CHUNK_PROCESSING << "JSON pushed filter level: " << mCurrentPath
-                                      << ", startOffset: " << (mPos - data);
             }
 
             mPos++;
@@ -1266,7 +1180,6 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
         }
         else if (c == ']' || c == '}')
         {
-            char closeChar = c;
             if (mExpectValue < 0)
             {
                 LOG_err << "Malformed JSON - premature closure";
@@ -1302,100 +1215,37 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                 }
 
                 auto filterit = filters->find(filter);
-                JSON_CHUNK_PROCESSING << "JSON checking closure filter: " << filter
-                                      << ", found: " << (filterit != filters->end())
-                                      << ", mFilterLevelStack.size: " << mFilterLevelStack.size()
-                                      << ", mSkipFilters.size: " << mSkipFilters.size();
                 if (filterit != filters->end() && filterit->second)
                 {
-                    if (!shouldSkip(filter, mPos - data))
+                    JSON_CHUNK_PROCESSING
+                        << "JSON object/array callback for path: " << filter
+                        << " Data: " << std::string(mLastPos, static_cast<size_t>(mPos - mLastPos));
+
+                    JSON jsonData(mLastPos);
+                    auto& callback = filterit->second;
+                    if (CallbackResult::SUCCESS != callback(&jsonData))
                     {
-                        // Always use mLastPos as the start position for this filter.
-                        // In normal flow, mLastPos points to this filter's start.
-                        // In PAUSED resume flow, inner filters are skipped but mLastPos
-                        // is still updated, so the callback receives only the remaining data.
-                        const char* filterStartPos = mLastPos;
-
-                        JSON_CHUNK_PROCESSING
-                            << "JSON object/array callback for path: " << filter << " Data: "
-                            << std::string(filterStartPos,
-                                           static_cast<size_t>(mPos - filterStartPos));
-
-                        JSON jsonData(filterStartPos);
-                        auto& callback = filterit->second;
-                        auto result = callback(&jsonData);
-                        if (result == CallbackResult::FAILED)
-                        {
-                            LOG_err << "Parsing error processing streaming filter: " << filter
-                                    << " Data: "
-                                    << std::string(filterStartPos,
-                                                   static_cast<size_t>(mPos - filterStartPos));
-                            parseError(filters);
-                            return 0;
-                        }
-                        else if (result == CallbackResult::PAUSED)
-                        {
-                            LOG_debug << "JSON paused at path: " << mCurrentPath;
-
-                            // Save processed inner filters for skip on resume
-                            if (!mFilterLevelStack.empty())
-                            {
-                                auto& currentLevel = mFilterLevelStack.back();
-
-                                // Collect all processed inner filters from this level
-                                // Offsets are relative to currentLevel's start
-                                mSkipFilters = std::move(currentLevel.processedInnerFilters);
-
-                                // For PAUSED, return to this filter's start position using
-                                // startOffset, so it will be reprocessed on resume
-                                auto consumedBytes = currentLevel.startOffset;
-                                processPaused(0, matchBrackets[closeChar]);
-                                return consumedBytes;
-                            }
-
-                            // No filter level stack (shouldn't happen for normal object/array
-                            // filters) For # filter, the mFilterLevelStack might be empty
-                            auto consumedBytes = filterStartPos - data;
-                            processPaused(0, matchBrackets[closeChar]);
-                            return consumedBytes;
-                        }
-
-                        // Callbacks should consume the exact amount of JSON, except the last one
-                        if (mCurrentPath != "{" && jsonData.pos != mPos)
-                        {
-                            // I'm not aborting the parsing here because no errors were detected
-                            // during the processing, so probably the callback just ignored some
-                            // data that it didn't need. Anyway it would be good to check this when
-                            // it happens to fix it.
-                            LOG_warn
-                                << (mPos - jsonData.pos)
-                                << " bytes were not processed by the following streaming filter: "
-                                << filter;
-                            assert(false);
-                        }
+                        LOG_err << "Parsing error processing streaming filter: " << filter
+                                << " Data: "
+                                << std::string(mLastPos, static_cast<size_t>(mPos - mLastPos));
+                        parseError(filters);
+                        return 0;
                     }
 
-                    // Pop from filter level stack if this was a tracked filter level
-                    if (!mFilterLevelStack.empty() && mFilterLevelStack.back().path == filter)
+                    // Callbacks should consume the exact amount of JSON, except the last one
+                    if (mCurrentPath != "{" && jsonData.pos != mPos)
                     {
-                        mFilterLevelStack.pop_back();
-
-                        // Clear skip filters when outermost filter completes successfully
-                        if (mFilterLevelStack.empty())
-                        {
-                            mSkipFilters.clear();
-                        }
+                        // I'm not aborting the parsing here because no errors were detected during
+                        // the processing so probably the callback just ignored some data that it
+                        // didn't need. Anyway it would be good to check this when it happens to fix
+                        // it.
+                        LOG_warn << (mPos - jsonData.pos)
+                                 << " bytes were not processed by the following streaming filter: "
+                                 << filter;
+                        assert(false);
                     }
 
-                    // Always update mLastPos for normal processing flow
                     mLastPos = mPos;
-
-                    // Record this filter as processed in the outer level (for potential PAUSED
-                    // scenarios)
-                    if (!mFilterLevelStack.empty())
-                    {
-                        recordProcessedFilter(filter, mPos - data);
-                    }
                 }
             }
 
@@ -1448,75 +1298,26 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                     auto filterit = filters->find(filter);
                     if (filterit != filters->end() && filterit->second)
                     {
-                        if (!shouldSkip(filter, (mPos + t) - data))
+                        JSON_CHUNK_PROCESSING
+                            << "JSON string value callback for: " << filter
+                            << " Data: " << std::string(mPos, static_cast<size_t>(t));
+
+                        JSON jsonData(mPos);
+                        auto& callback = filterit->second;
+                        auto result = callback(&jsonData);
+                        if (result == CallbackResult::FAILED)
                         {
-                            JSON_CHUNK_PROCESSING
-                                << "JSON string value callback for: " << filter
-                                << " Data: " << std::string(mPos, static_cast<size_t>(t));
-
-                            JSON jsonData(mPos);
-                            auto& callback = filterit->second;
-                            auto result = callback(&jsonData);
-                            if (result == CallbackResult::FAILED)
-                            {
-                                LOG_err << "Parsing error processing streaming filter: " << filter
-                                        << " Data: " << std::string(mPos, static_cast<size_t>(t));
-                                parseError(filters);
-                                return 0;
-                            }
-                            else if (result == CallbackResult::PAUSED)
-                            {
-                                LOG_debug << "JSON paused at path: " << mCurrentPath;
-
-                                // If there's an outer filter, need to resume from outer filter's
-                                // start
-                                if (!mFilterLevelStack.empty())
-                                {
-                                    auto& outermostLevel = mFilterLevelStack.front();
-
-                                    // Collect only SUCCESSFULLY processed inner filters
-                                    // The current filter (which PAUSED) should NOT be skipped on
-                                    // resume
-                                    mSkipFilters.clear();
-                                    for (auto& level: mFilterLevelStack)
-                                    {
-                                        for (const auto& inner: level.processedInnerFilters)
-                                        {
-                                            m_off_t adjustedOffset =
-                                                inner.second +
-                                                (level.startOffset - outermostLevel.startOffset);
-                                            mSkipFilters.insert(
-                                                std::make_pair(inner.first, adjustedOffset));
-                                        }
-                                    }
-
-                                    // Do NOT record current filter as processed - it needs to be
-                                    // retried on resume Return bytes up to outermost filter's start
-                                    // We need to reprocess from outer filter's start, so use same
-                                    // logic as object PAUSED
-                                    auto consumedBytes = outermostLevel.startOffset;
-                                    const char* outerStartChar = data + consumedBytes;
-                                    // Find the bracket type to properly restore stack state
-                                    char bracketType = *outerStartChar; // Should be '{' or '['
-                                    processPaused(0, bracketType);
-                                    return consumedBytes;
-                                }
-
-                                // No outer filter, use original behavior
-                                auto consumedBytes = mLastPos - data;
-                                processPaused(mPos - mLastPos);
-                                return consumedBytes;
-                            }
-
-                            // Record this filter as processed in the outer level (for potential
-                            // PAUSED scenarios)
-                            if (!mFilterLevelStack.empty())
-                            {
-                                recordProcessedFilter(filter, (mPos + t) - data);
-                            }
+                            LOG_err << "Parsing error processing streaming filter: " << filter
+                                    << " Data: " << std::string(mPos, static_cast<size_t>(t));
+                            parseError(filters);
+                            return 0;
                         }
-
-                        // Always update mLastPos (whether callback was called or skipped)
+                        else if (result == CallbackResult::PAUSED)
+                        {
+                            auto consumedBytes = mLastPos - data;
+                            mProcessedBytes = mPos - mLastPos;
+                            return consumedBytes;
+                        }
                         mLastPos = mPos + t;
                     }
                 }
