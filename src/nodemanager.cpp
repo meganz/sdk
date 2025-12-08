@@ -59,6 +59,11 @@ bool NodeSearchFilter::isValidCategory(const MimeType_t category, const nodetype
         return false;
     if (mMimeCategory == MIME_TYPE_ALL_DOCS && isDocType(category))
         return true;
+    if (mMimeCategory == MIME_TYPE_ALL_VISUAL_MEDIA &&
+        (category == MIME_TYPE_PHOTO || category == MIME_TYPE_VIDEO))
+    {
+        return true;
+    }
     return category == mMimeCategory;
 }
 

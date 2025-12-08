@@ -63,6 +63,8 @@ static const string UPFILE      = "file1.txt";
 static const string DOWNFILE    = "file2.txt";
 static const string EMPTYFILE = "empty-file.txt";
 static const string IMAGEFILE   = "logo.png";
+static const string VIDEOFILE = "sample_video.mp4";
+static const string AUDIOFILE = "test_cover_png.mp3";
 static const string& AVATARSRC = IMAGEFILE;
 static const string AVATARDST = "deleteme.png";
 static const string IMAGEFILE_C = "logo.encrypted.png";
@@ -14206,8 +14208,7 @@ TEST_F(SdkTest, SdkTestAudioFileAttributes)
 {
     LOG_info << "___TEST Audio thumbnail and metadata___";
 
-    static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
-    ASSERT_TRUE(getFileFromArtifactory("test-data/" + AUDIO_FILENAME, AUDIO_FILENAME));
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + AUDIOFILE, AUDIOFILE));
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
 
@@ -14215,7 +14216,7 @@ TEST_F(SdkTest, SdkTestAudioFileAttributes)
     ASSERT_EQ(MegaError::API_OK,
               doStartUpload(0,
                             nullptr,
-                            AUDIO_FILENAME.c_str(),
+                            AUDIOFILE.c_str(),
                             rootnode.get(),
                             nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
@@ -14223,8 +14224,8 @@ TEST_F(SdkTest, SdkTestAudioFileAttributes)
                             false /*isSourceTemporary*/,
                             false /*startFirst*/,
                             nullptr /*cancelToken*/))
-        << "Cannot upload test file " << AUDIO_FILENAME;
-    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(AUDIO_FILENAME.c_str(), rootnode.get()));
+        << "Cannot upload test file " << AUDIOFILE;
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(AUDIOFILE.c_str(), rootnode.get()));
     ASSERT_TRUE(node);
 
     ASSERT_EQ(node->getDuration(), 2) << "Duration of the audio file is not correct.";
@@ -18745,6 +18746,59 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
 
     ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
 
+    const char imageFile[] = "test.png";
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + IMAGEFILE, imageFile))
+        << "Cannot get " << IMAGEFILE << " from artifactory";
+
+    const char audioFile[] = "test.mp3";
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + AUDIOFILE, audioFile))
+        << "Cannot get " << AUDIOFILE << " from artifactory";
+
+    const char videoFile[] = "test.mp4";
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + VIDEOFILE, videoFile))
+        << "Cannot get " << VIDEOFILE << " from artifactory";
+
+    MegaHandle handleImageFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &handleImageFile,
+                            imageFile,
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << imageFile;
+    MegaHandle handleAudioFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &handleAudioFile,
+                            audioFile,
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << audioFile;
+
+    MegaHandle handleVideoFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &handleVideoFile,
+                            videoFile,
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << videoFile;
+
     const char txtFile[] = "test.txt";
     MegaHandle handleTxtFile = UNDEF;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleTxtFile, PUBLICFILE.c_str(),
@@ -18886,7 +18940,32 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleWithoutExtensionFile);
     ASSERT_EQ(nodeList->get(1)->getHandle(), handleUnkownExtensionFile);
 
+    filterResults->byCategory(MegaApi::FILE_TYPE_AUDIO);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleAudioFile);
+
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleImageFile);
+
+    filterResults->byCategory(MegaApi::FILE_TYPE_VIDEO);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
+    ASSERT_EQ(nodeList->size(), 1) << *nodeList;
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleVideoFile);
+
+    filterResults->byCategory(MegaApi::FILE_TYPE_ALL_VISUAL_MEDIA); // any of {PHOTO, VIDEO}
+    nodeList.reset(megaApi[0]->search(filterResults.get(),
+                                      MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
+    ASSERT_EQ(nodeList->size(), 2) << *nodeList;
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleVideoFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleImageFile);
+
     deleteFile(PUBLICFILE);
+    deleteFile(imageFile);
+    deleteFile(audioFile);
+    deleteFile(videoFile);
 }
 
 /**
