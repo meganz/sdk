@@ -18,14 +18,15 @@
  * You should have received a copy of the license along with this
  * program.
  */
-#include <cctype>
-#include <cstdint>
-
 #include "mega/json.h"
+
 #include "mega/base64.h"
-#include "mega/megaclient.h"
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
+#include "mega/megaclient.h"
+
+#include <cctype>
+#include <cstdint>
 
 namespace mega {
 
@@ -1097,7 +1098,7 @@ void JSONSplitter::clear()
     mFailed = false;
 }
 
-m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)> > *filters, const char *data)
+m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, const char* data)
 {
     if (hasFailed() || hasFinished())
     {
@@ -1111,7 +1112,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
         {
             JSON jsonData("");
             auto& callback = filterit->second;
-            if (!callback(&jsonData))
+            if (CallbackResult::SUCCESS != callback(&jsonData))
             {
                 LOG_err << "Error starting the processing of a chunk";
             }
@@ -1134,7 +1135,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
             {
                 JSON jsonData("");
                 auto& callback = filterit->second;
-                if (!callback(&jsonData))
+                if (CallbackResult::SUCCESS != callback(&jsonData))
                 {
                     LOG_err << "Parsing error processing first streaming filter"
                             << " Data: " << data;
@@ -1222,7 +1223,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
 
                     JSON jsonData(mLastPos);
                     auto& callback = filterit->second;
-                    if (!callback(&jsonData))
+                    if (CallbackResult::SUCCESS != callback(&jsonData))
                     {
                         LOG_err << "Parsing error processing streaming filter: " << filter
                                 << " Data: "
@@ -1234,10 +1235,13 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                     // Callbacks should consume the exact amount of JSON, except the last one
                     if (mCurrentPath != "{" && jsonData.pos != mPos)
                     {
-                        // I'm not aborting the parsing here because no errors were detected during the processing
-                        // so probably the callback just ignored some data that it didn't need.
-                        // Anyway it would be good to check this when it happens to fix it.
-                        LOG_warn << (mPos - jsonData.pos) << " bytes were not processed by the following streaming filter: " << filter;
+                        // I'm not aborting the parsing here because no errors were detected during
+                        // the processing so probably the callback just ignored some data that it
+                        // didn't need. Anyway it would be good to check this when it happens to fix
+                        // it.
+                        LOG_warn << (mPos - jsonData.pos)
+                                 << " bytes were not processed by the following streaming filter: "
+                                 << filter;
                         assert(false);
                     }
 
@@ -1300,14 +1304,20 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
 
                         JSON jsonData(mPos);
                         auto& callback = filterit->second;
-                        if (!callback(&jsonData))
+                        auto result = callback(&jsonData);
+                        if (result == CallbackResult::FAILED)
                         {
                             LOG_err << "Parsing error processing streaming filter: " << filter
                                     << " Data: " << std::string(mPos, static_cast<size_t>(t));
                             parseError(filters);
                             return 0;
                         }
-
+                        else if (result == CallbackResult::PAUSED)
+                        {
+                            auto consumedBytes = mLastPos - data;
+                            mProcessedBytes = mPos - mLastPos;
+                            return consumedBytes;
+                        }
                         mLastPos = mPos + t;
                     }
                 }
@@ -1385,7 +1395,8 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
                             << " Data: " << std::string(mLastPos, static_cast<size_t>(j));
 
                         auto& callback = filterit->second;
-                        if (!callback(&jsonData))
+                        auto result = callback(&jsonData);
+                        if (result != CallbackResult::SUCCESS)
                         {
                             LOG_err << "Parsing error processing error streaming filter"
                                     << " Data: " << std::string(mLastPos, static_cast<size_t>(j));
@@ -1481,7 +1492,7 @@ int JSONSplitter::numEnd()
     return -1;
 }
 
-void JSONSplitter::parseError(std::map<string, std::function<bool (JSON *)> > *filters)
+void JSONSplitter::parseError(std::map<string, FilterCallback>* filters)
 {
     if (filters)
     {
@@ -1502,14 +1513,15 @@ void JSONSplitter::parseError(std::map<string, std::function<bool (JSON *)> > *f
     assert(false);
 }
 
-bool JSONSplitter::chunkProcessingFinishedSuccessfully(std::map<std::string, std::function<bool(JSON*)>>* filters)
+bool JSONSplitter::chunkProcessingFinishedSuccessfully(
+    std::map<std::string, FilterCallback>* filters)
 {
     auto filterit = filters->find(">");
     if (filterit != filters->end())
     {
         JSON jsonData("");
         auto& callback = filterit->second;
-        if (!callback(&jsonData))
+        if (CallbackResult::SUCCESS != callback(&jsonData))
         {
             return false;
         }
