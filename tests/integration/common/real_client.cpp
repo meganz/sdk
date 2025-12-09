@@ -142,7 +142,7 @@ Error RealClient::fetch(bool ignoreCache)
         nodesCurrent(false);
 
         // Ask the client to describe our cloud content.
-        mClient->fetchnodes(ignoreCache, true, false);
+        mClient->fetchnodes(ignoreCache, !mClient->syncsAlreadyLoadedOnStatecurrent, false);
 
         // Let the client know it has work to do.
         mClient->waiter->notify();
