@@ -3400,21 +3400,6 @@ public:
     void answerSurvey(const CommandAnswerSurvey::Answer& answer,
                       CommandAnswerSurvey::Completion&& completion);
 
-    using GetJSCDataCallback = std::function<void(JSCData, Error)>;
-
-    /**
-     * @brief
-     * This function will retrieve the user's JSCD user attributes and pass
-     * them to the provided callback.
-     *
-     * If the user does not have any JSCD user attributes, this function
-     * will create them and pass them to the provided callback.
-     *
-     * @param callback
-     * The function that should receive the user's JSCD user attributes.
-     */
-    void getJSCData(GetJSCDataCallback callback);
-
     void getMyIp(CommandGetMyIP::Cb&& completion);
 
     void getSubscriptionCancellationDetails(
@@ -3438,6 +3423,22 @@ public:
 
 private:
 #ifdef ENABLE_SYNC
+
+    using GetJSCDataCallback = std::function<void(JSCData, Error)>;
+
+    /**
+     * @brief
+     * This function will retrieve the user's JSCD user attributes and pass
+     * them to the provided callback.
+     *
+     * If the user does not have any JSCD user attributes, this function
+     * will create them and pass them to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes.
+     */
+    void getJSCData(GetJSCDataCallback callback);
+
     /**
      * @brief
      * This function will create the user's JSCD user attributes. If
