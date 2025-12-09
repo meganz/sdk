@@ -8442,7 +8442,9 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     ASSERT_TRUE(matched);
 }
 
-TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
+// Test disabled after SDK-5758
+// JSCD data is now loaded after the fetchnodes, not the login.
+TEST_F(SyncTest, DISABLED_BasicSync_ClientToSDKConfigMigration)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = std::chrono::seconds(4);
