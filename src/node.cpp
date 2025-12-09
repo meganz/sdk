@@ -2262,6 +2262,15 @@ void LocalNode::trimRareFields()
     }
 }
 
+void LocalNode::resetMacComputationIfAny()
+{
+    if (rareFields && rareFields->macComputation)
+    {
+        rareFields->macComputation.reset();
+        trimRareFields();
+    }
+}
+
 unique_ptr<LocalPath> LocalNode::cloneShortname() const
 {
     return unique_ptr<LocalPath>(
@@ -3310,6 +3319,8 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
 
     if (compRes == NODE_COMP_DIFFERS_MTIME)
     {
+        LOG_debug << sync->syncname << "Updating fingerprint mtime of "
+                  << transferSP->getLocalname() << " to " << fingerprint.mtime;
         uploadPtr->updateFingerprintMtime(fingerprint.mtime);
         return true;
     }

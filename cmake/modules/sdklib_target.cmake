@@ -60,6 +60,7 @@ set(SDKLIB_HEADERS
     include/mega/file.h
     include/mega/sync.h
     include/mega/syncfilter.h
+    include/mega/syncinternals/mac_computation_state.h
     include/mega/syncinternals/syncinternals_logging.h
     include/mega/syncinternals/syncinternals.h
     include/mega/syncinternals/synciuploadthrottlingmanager.h

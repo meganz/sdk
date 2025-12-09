@@ -856,7 +856,10 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder,
     sourceFsid = fsid;
     sourceLocalname = localname;
     wasJustMtimeChanged = justMtimeChanged;
-    mMetaMac = metamac != INVALID_META_MAC ? metamac : std::optional<int64_t>{std::nullopt};
+    if (metamac != INVALID_META_MAC)
+    {
+        mMetaMac.emplace(metamac);
+    }
 
     LOG_debug << "[SyncUpload_inClient()] Name: '" << getLocalname() << "'. Source local name: '"
               << sourceLocalname.toPath(false) << "'. Source fsid: " << fsid

@@ -10,6 +10,7 @@
 
 #include "mega/db.h"
 #include "mega/node.h"
+#include "mega/syncinternals/mac_computation_state.h"
 
 #include <optional>
 
@@ -493,54 +494,7 @@ void clientDownload(MegaClient& mc,
 *  SYNC COMPARISONS  *
 \********************/
 
-/**
- * @brief Configurable limits for MAC computation throttling.
- *
- * These values control how many concurrent MAC computations can run
- * and how much total data can be in-flight at once.
- *
- * IMPORTANT: We track CHUNKS in flight, not total file sizes. This allows
- * small files to proceed even when a large file is being processed, since
- * large files only have one chunk in flight at a time.
- *
- * Memory Usage Calculation:
- * - Each file has at most 1 chunk in memory at a time (sync reads, passes to worker)
- * - Max memory = min(maxConcurrentFiles, maxChunksInFlight) × chunkBufferSize
- * - With defaults: min(8, 10) × 10MB = 80MB maximum
- *
- * The chunk buffer also includes padding for cipher block alignment:
- * - Actual allocation = chunkBufferSize + SymmCipher::BLOCKSIZE (16 bytes)
- */
-struct MacComputationLimits
-{
-    // Maximum number of files that can have MAC computation in progress simultaneously
-    // Default: 8 files (allows good parallelism without excessive memory)
-    // Using uint32_t for fixed size across platforms (32-bit safety)
-    uint32_t maxConcurrentFiles = 8;
-
-    // Maximum number of chunks in flight across all files
-    // Since each file has at most 1 chunk in flight, this effectively limits memory.
-    // Default: 10 chunks (100MB theoretical max, but limited by maxConcurrentFiles to ~80MB)
-    uint32_t maxChunksInFlight = 10;
-
-    // Size of each read buffer (matches MacComputationInProgress::BUFFER_SIZE)
-    // Each chunk is read, processed for MAC, then released before next chunk.
-    // Using int64_t for file sizes (m_off_t may vary by platform)
-    static constexpr int64_t chunkBufferSize = 10 * 1024 * 1024; // 10MB
-
-    /**
-     * @brief Calculate maximum memory usage for chunk buffers.
-     *
-     * @return Maximum bytes that could be allocated for chunk buffers.
-     */
-    constexpr int64_t maxMemoryUsage() const
-    {
-        // Each file has at most 1 chunk in flight
-        const uint32_t effectiveChunks = std::min(maxConcurrentFiles, maxChunksInFlight);
-        // Add SymmCipher::BLOCKSIZE (16 bytes) padding per chunk
-        return static_cast<int64_t>(effectiveChunks) * (chunkBufferSize + 16);
-    }
-};
+constexpr uint32_t kDefaultMaxConcurrentMacComputations = 8;
 
 /**
  * @brief Throttle for MAC computation to prevent resource exhaustion.
@@ -549,36 +503,25 @@ struct MacComputationLimits
  * Prevents the sync engine from overwhelming the system with too many
  * simultaneous MAC calculations.
  *
- * IMPORTANT: We track FILES and CHUNKS separately:
- * - Files: Number of files with active MAC computation
- * - Chunks: Number of chunks currently being processed (each ~10MB in memory)
- *
- * This design allows small files to proceed even when large files are being
- * processed, because large files only keep one chunk in memory at a time.
+ * We track FILES only (one chunk at a time per file).
  *
  * Usage:
  * - Call tryAcquireFile() before starting MAC computation for a new file
  * - Call releaseFile() when file computation completes
- * - Call tryAcquireChunk() before queueing a chunk for processing
- * - Call releaseChunk() when chunk processing completes
  */
 class MacComputationThrottle
 {
 public:
-    explicit MacComputationThrottle(const MacComputationLimits& limits = {}):
-        mLimits(limits)
+    explicit MacComputationThrottle(
+        uint32_t maxConcurrentFiles = kDefaultMaxConcurrentMacComputations):
+        mMaxConcurrentFiles(maxConcurrentFiles)
     {}
 
-    /**
-     * @brief Try to acquire a slot for a new file's MAC computation.
-     *
-     * @return true if slot acquired, false if at file limit
-     */
     bool tryAcquireFile()
     {
         std::lock_guard<std::mutex> lock(mMutex);
 
-        if (mCurrentFiles >= mLimits.maxConcurrentFiles)
+        if (mCurrentFiles >= mMaxConcurrentFiles)
         {
             return false;
         }
@@ -587,9 +530,6 @@ public:
         return true;
     }
 
-    /**
-     * @brief Release a file slot after MAC computation completes.
-     */
     void releaseFile()
     {
         std::lock_guard<std::mutex> lock(mMutex);
@@ -597,92 +537,16 @@ public:
         --mCurrentFiles;
     }
 
-    /**
-     * @brief Try to acquire a chunk slot for processing.
-     *
-     * @return true if slot acquired, false if at chunk limit
-     */
-    bool tryAcquireChunk()
-    {
-        std::lock_guard<std::mutex> lock(mMutex);
-
-        if (mCurrentChunks >= mLimits.maxChunksInFlight)
-        {
-            return false;
-        }
-
-        ++mCurrentChunks;
-        return true;
-    }
-
-    /**
-     * @brief Release a chunk slot after processing completes.
-     */
-    void releaseChunk()
-    {
-        std::lock_guard<std::mutex> lock(mMutex);
-        assert(mCurrentChunks > 0);
-        --mCurrentChunks;
-    }
-
-    /**
-     * @brief Check if a new file could be accepted.
-     */
-    bool wouldAcceptFile() const
-    {
-        std::lock_guard<std::mutex> lock(mMutex);
-        return mCurrentFiles < mLimits.maxConcurrentFiles;
-    }
-
-    /**
-     * @brief Check if a new chunk could be accepted.
-     */
-    bool wouldAcceptChunk() const
-    {
-        std::lock_guard<std::mutex> lock(mMutex);
-        return mCurrentChunks < mLimits.maxChunksInFlight;
-    }
-
-    /**
-     * @brief Get current number of files being processed.
-     */
     uint32_t currentFiles() const
     {
         std::lock_guard<std::mutex> lock(mMutex);
         return mCurrentFiles;
     }
 
-    /**
-     * @brief Get current number of chunks in flight.
-     */
-    uint32_t currentChunks() const
-    {
-        std::lock_guard<std::mutex> lock(mMutex);
-        return mCurrentChunks;
-    }
-
-    /**
-     * @brief Get the limits configuration.
-     */
-    const MacComputationLimits& limits() const
-    {
-        return mLimits;
-    }
-
-    /**
-     * @brief Update limits (use with caution - may cause temporary over-limit state).
-     */
-    void setLimits(const MacComputationLimits& limits)
-    {
-        std::lock_guard<std::mutex> lock(mMutex);
-        mLimits = limits;
-    }
-
 private:
     mutable std::mutex mMutex;
-    MacComputationLimits mLimits;
-    uint32_t mCurrentFiles = 0;
-    uint32_t mCurrentChunks = 0;
+    uint32_t mMaxConcurrentFiles;
+    uint32_t mCurrentFiles{0};
 };
 
 /**
@@ -704,6 +568,20 @@ private:
 using FsCloudComparisonResult = std::tuple<node_comparison_result, int64_t, int64_t>;
 
 /**
+ * @brief Quick fingerprint comparison without MAC computation.
+ *
+ * Compares type, size, CRC, and mtime. Returns a conclusive result if possible,
+ * or std::nullopt if only mtime differs (indicating MAC computation is needed).
+ *
+ * @return std::optional with:
+ *         - NODE_COMP_EQUAL if fingerprints fully match (including mtime)
+ *         - NODE_COMP_DIFFERS_FP if fingerprints differ in type/size/CRC
+ *         - std::nullopt if only mtime differs (MAC needed to determine equality)
+ */
+std::optional<FsCloudComparisonResult> quickFingerprintComparison(const CloudNode& cn,
+                                                                  const FSNode& fs);
+
+/**
  * @brief Compares fsNode with cloudNode using async MAC computation.
  *
  * For synced files that have a LocalNode. If fingerprints match or differ in more than mtime,
@@ -721,20 +599,47 @@ FsCloudComparisonResult syncEqualFsCloudExcludingMtimeAsync(MegaClient& mc,
                                                             const LocalPath& fsNodeFullPath,
                                                             LocalNode& syncNode);
 
+/***********************************\
+*  CLONE CANDIDATE MAC COMPUTATION  *
+\***********************************/
+
 /**
- * @brief Compares fsNode with cloudNode using blocking MAC computation.
- *
- * For unsynced files without a LocalNode. If fingerprints match or differ in more than mtime,
- * returns immediately. If only mtime differs, performs blocking MAC computation.
- *
- * @return Comparison result. Never returns NODE_COMP_PENDING (blocks until complete).
- *
- * @note METAMACs are only computed if fingerprints differ only in mtime.
+ * @brief Status for clone MAC computation (init/check/compute).
  */
-FsCloudComparisonResult syncEqualFsCloudExcludingMtimeSync(MegaClient& mc,
-                                                           const CloudNode& cn,
-                                                           const FSNode& fs,
-                                                           const LocalPath& fsNodeFullPath);
+enum class CloneMacStatus
+{
+    Pending, // Computing or throttled
+    Ready, // Computed MAC available
+    Failed, // Computation error / candidate invalidated
+    NoCandidates, // No clone candidates or cannot start
+};
+
+/**
+ * @brief Check and advance pending clone candidate MAC computation.
+ *
+ * Called from resolve_upsync when upload exists. Advances computation and
+ * returns status. When Ready, upload.mMetaMac contains the computed MAC
+ * for use with findCloneNodeCandidate.
+ *
+ */
+CloneMacStatus checkPendingCloneMac(MegaClient& mc, SyncUpload_inClient& upload);
+
+/**
+ * @brief Process the result of clone candidate MAC computation.
+ *
+ * Processes the result of clone candidate MAC computation and decides the next action:
+ * - If MAC is ready, proceeds with clone candidate search.
+ * - If MAC failed, falls back to full upload.
+ * - If no candidates, continues with full upload.
+ */
+void processCloneMacResult(MegaClient& mc,
+                           TransferDbCommitter& committer,
+                           std::shared_ptr<SyncUpload_inClient> upload,
+                           const VersioningOption vo,
+                           const bool queueFirst,
+                           const NodeHandle ovHandleIfShortcut,
+                           const CloneMacStatus macStatus);
+
 } // namespace mega
 
 #endif // ENABLE_SYNC

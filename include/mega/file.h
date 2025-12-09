@@ -24,6 +24,10 @@
 
 #include "filesystem.h"
 
+#ifdef ENABLE_SYNC
+#include "syncinternals/mac_computation_state.h"
+#endif
+
 namespace mega {
 
 enum class CollisionResolution : uint8_t
@@ -227,7 +231,7 @@ struct SyncTransfer_inClient: public File
 
     // Whether the terminated SyncTransfer_inClient was already notified to the apps/in the logs
     std::atomic<bool> terminatedReasonAlreadyKnown{false};
-    std::optional<int64_t> mMetaMac;
+    std::optional<int64_t> mMetaMac{std::nullopt};
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient
@@ -280,8 +284,8 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
      *  - put nodes of clone
      *  - update mtime of node in cloud
      */
-    bool upsyncStarted = false;
-    bool upsyncFailed = false;
+    std::atomic<bool> upsyncStarted{false};
+    std::atomic<bool> upsyncFailed{false};
     std::atomic<bool> wasStarted{false};
     std::atomic<bool> wasUpsyncCompleted{false};
     // Valid when wasUpsyncCompleted is true.
@@ -312,6 +316,14 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
 
     void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
     void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);
+
+    /**
+     * @brief State for async MAC computation when looking for clone candidates.
+     *
+     * Used to pre-compute MAC before calling findCloneNodeCandidate, avoiding
+     * blocking the client thread for large files.
+     */
+    std::shared_ptr<MacComputationState> macComputation;
 };
 
 /**

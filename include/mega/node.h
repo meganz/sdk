@@ -28,6 +28,7 @@
 #include "file.h"
 #include "filefingerprint.h"
 #include "syncfilter.h"
+#include "syncinternals/mac_computation_state.h"
 #include "syncinternals/syncuploadthrottlingfile.h"
 #include "utils.h"
 
@@ -919,128 +920,11 @@ struct MEGA_API LocalNode
          * - Sync thread holds shared_ptr in RareFields
          * - Worker thread captures weak_ptr in lambda
          * - If LocalNode is deleted, weak_ptr.lock() returns nullptr and computation is abandoned
+         *
+         * Note: MacComputationState is defined in syncinternals/mac_computation_state.h
+         * for reuse in both CSF (here) and clone candidate (SyncUpload_inClient) scenarios.
          */
-        struct MacComputationInProgress
-        {
-            // Validation context (immutable after construction)
-            const FileFingerprint localFp;
-            const FileFingerprint cloudFp;
-            const NodeHandle cloudHandle;
-            const handle fsid;
-
-            // File info
-            const m_off_t totalSize;
-            const LocalPath filePath;
-
-            // Cipher params (copied from cloud node, safe for any thread)
-            std::array<byte, SymmCipher::KEYLENGTH> transferkey{};
-            int64_t ctriv = 0;
-            int64_t expectedMac = 0;
-
-            // Progress tracking
-            m_off_t currentPosition = 0;
-
-            // Accumulated chunk MACs - protected by mutex
-            mutable std::mutex macsMutex;
-            chunkmac_map partialMacs;
-
-            // Buffer size for reading chunks (10MB)
-            static constexpr m_off_t BUFFER_SIZE = 10 * 1024 * 1024;
-
-            // State flags (atomic for thread safety)
-            std::atomic<bool> chunkInProgress{false}; // True while worker processing
-            std::atomic<bool> completed{false}; // True when all chunks done
-            std::atomic<bool> failed{false}; // True if read/compute error
-
-            // Throttle tracking - true if we've acquired a slot from MacComputationThrottle
-            bool throttleSlotAcquired{false};
-
-            // Result fields - valid after completed=true
-            node_comparison_result result{NODE_COMP_PENDING};
-            int64_t localMac{INVALID_META_MAC};
-            int64_t remoteMac{INVALID_META_MAC};
-
-            MacComputationInProgress(const FileFingerprint& localFp_,
-                                     const FileFingerprint& cloudFp_,
-                                     const NodeHandle cloudHandle_,
-                                     const handle fsid_,
-                                     const m_off_t totalSize_,
-                                     const LocalPath& filePath_):
-                localFp(localFp_),
-                cloudFp(cloudFp_),
-                cloudHandle(cloudHandle_),
-                fsid(fsid_),
-                totalSize(totalSize_),
-                filePath(filePath_)
-            {}
-
-            /**
-             * @brief Thread-safe: called by worker thread when chunk MAC is computed.
-             */
-            void addChunkMacs(chunkmac_map&& chunkMacs, m_off_t newPosition)
-            {
-                std::lock_guard<std::mutex> g(macsMutex);
-                chunkMacs.copyEntriesTo(partialMacs);
-                currentPosition = newPosition;
-            }
-
-            /**
-             * @brief Thread-safe: called by worker thread when computation completes.
-             */
-            void setComplete(const node_comparison_result res,
-                             const int64_t localM,
-                             const int64_t remoteM)
-            {
-                result = res;
-                localMac = localM;
-                remoteMac = remoteM;
-                chunkInProgress.store(false, std::memory_order_release);
-                completed.store(true, std::memory_order_release);
-            }
-
-            /**
-             * @brief Thread-safe: called by worker thread on error.
-             */
-            void setFailed()
-            {
-                result = NODE_COMP_EREAD;
-                chunkInProgress.store(false, std::memory_order_release);
-                failed.store(true, std::memory_order_release);
-            }
-
-            /**
-             * @brief Thread-safe: check if ready for next chunk or complete.
-             */
-            bool isChunkInProgress() const
-            {
-                return chunkInProgress.load(std::memory_order_acquire);
-            }
-
-            bool isReady() const
-            {
-                return completed.load(std::memory_order_acquire);
-            }
-
-            bool hasFailed() const
-            {
-                return failed.load(std::memory_order_acquire);
-            }
-
-            /**
-             * @brief Check if the stored context still matches the current row state.
-             */
-            bool contextMatches(const handle currentFsid,
-                                const NodeHandle currentCloudHandle,
-                                const FileFingerprint& currentLocalFp,
-                                const FileFingerprint& currentCloudFp) const
-            {
-                return currentFsid == fsid && currentCloudHandle == cloudHandle &&
-                       currentLocalFp.equalExceptMtime(localFp) &&
-                       currentCloudFp.equalExceptMtime(cloudFp);
-            }
-        };
-
-        shared_ptr<MacComputationInProgress> macComputation;
+        shared_ptr<MacComputationState> macComputation;
 
         weak_ptr<MovePending> movePendingFrom;
         shared_ptr<MovePending> movePendingTo;
@@ -1061,6 +945,7 @@ struct MEGA_API LocalNode
     bool hasRare() { return !!rareFields; }
     RareFields& rare();
     void trimRareFields();
+    void resetMacComputationIfAny();
 
     // use this one to skip the hasRare check, if it doesn't exist a reference to a blank one is returned
     const RareFields& rareRO() const;

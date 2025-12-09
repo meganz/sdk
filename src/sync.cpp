@@ -23,6 +23,7 @@
 #include <cctype>
 #include <future>
 #include <memory>
+#include <string_view>
 #include <type_traits>
 
 #ifdef ENABLE_SYNC
@@ -32,6 +33,7 @@
 #include "mega/megaclient.h"
 #include "mega/scoped_helpers.h"
 #include "mega/sync.h"
+#include "mega/syncinternals/syncinternals.h"
 #include "mega/syncinternals/syncinternals_logging.h"
 #include "mega/syncinternals/syncuploadthrottlingmanager.h"
 #include "mega/tlv.h"
@@ -55,6 +57,37 @@ const unsigned Sync::MAX_CLOUD_DEPTH = 64;
 using namespace std::chrono_literals;
 const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{100ms};
 const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{10s};
+
+static bool handleCloneMacStatusFromSyncThread(Syncs& syncs,
+                                               std::shared_ptr<SyncUpload_inClient> upload,
+                                               const CloneMacStatus macStatus,
+                                               const bool queueFirst,
+                                               const NodeHandle& ovHandleIfShortcut)
+{
+    if (!upload)
+    {
+        return false;
+    }
+
+    if (macStatus == CloneMacStatus::Ready || macStatus == CloneMacStatus::Failed)
+    {
+        syncs.queueClient(
+            [upload, queueFirst, ovHandleIfShortcut, macStatus](MegaClient& mc,
+                                                                TransferDbCommitter& committer)
+            {
+                processCloneMacResult(mc,
+                                      committer,
+                                      upload,
+                                      UseLocalVersioningFlag,
+                                      queueFirst,
+                                      ovHandleIfShortcut,
+                                      macStatus);
+            });
+        return true;
+    }
+
+    return false;
+}
 
 bool PerSyncStats::operator==(const PerSyncStats& other)
 {
@@ -2211,6 +2244,19 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                     {},
                     {sourceSyncNode->getLocalPath(), PathProblem::DetectedHardLink},
                     {fullPath.localPath, PathProblem::DetectedHardLink}));
+
+                // Cancel any pending upload work (including MAC computation)
+                // associated with this LocalNode so we don't leave transfers
+                // in-flight while the hard-link stall is active.
+                if (row.syncNode)
+                {
+                    if (row.syncNode->transferSP)
+                    {
+                        row.syncNode->resetTransfer(nullptr);
+                    }
+
+                    row.syncNode->resetMacComputationIfAny();
+                }
 
                 // Don't try and synchronize our associate.
                 markSiblingSourceRow();
@@ -8643,7 +8689,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
     return !earlyExit;
 }
 
-std::string Sync::logTriplet(const SyncRow& row, const SyncPath& fullPath) const
+std::string Sync::logTriplet(const SyncRow& row, const SyncPath& fullPath)
 {
     static constexpr std::string_view PREFIX{" triplet: "};
     static constexpr std::string_view NULLPATH{"(null)"};
@@ -9012,12 +9058,14 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         return keepSyncItem;
     }
 
-    if (downloadPtr->wasFileTransferCompleted && downloadPtr->wasDistributed)
+    if (auto onlyMtimeUpdated =
+            downloadPtr->wasFileTransferCompleted && downloadPtr->wasDistributed;
+        onlyMtimeUpdated)
     {
+        assert(downloadPtr->wasJustMtimeChanged);
         SYNC_verbose << syncname << "Download setmtime change only at "
                      << logTriplet(row, fullPath);
 
-        // mtime change only
         assert(row.syncNode->syncedFingerprint.size == row.fsNode->fingerprint.size);
         assert(row.syncNode->syncedFingerprint.crc == row.fsNode->fingerprint.crc);
         assert(row.syncNode->syncedFingerprint.mtime != row.fsNode->fingerprint.mtime);
@@ -9661,6 +9709,44 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                 return resolve_rowMatched(row, parentRow, fullPath, pflsc);
             }
 
+            // Handle mtime-only difference in both sides. We need to establish a baseline by
+            // setting syncedFingerprint to the older mtime side, so the newer side "wins" and syncs
+            // over.
+            if (fsCloudJustMtimeChanged && !cloudSyncNodeEqual && !fsSyncNodeEqual)
+            {
+                const bool localIsNewer =
+                    row.fsNode->fingerprint.mtime > row.cloudNode->fingerprint.mtime;
+                // Files have same content (verified by MAC) but different mtime
+                if (localIsNewer || isBackup())
+                {
+                    if (localIsNewer)
+                    {
+                        // Cloud is older -> local will sync up (cloud gets local's mtime)
+                        LOG_verbose << syncname
+                                    << "CSF mtime-only diff: setting syncedFp to "
+                                       "cloud (older). Local mtime will sync up."
+                                    << logTriplet(row, fullPath);
+                    }
+                    else // isBackup
+                    {
+                        LOG_verbose << syncname
+                                    << "CSF mtime-only diff: cloud is newer, but it is a backup, "
+                                       "so setting syncedFp to cloud. Local mtime will sync up."
+                                    << logTriplet(row, fullPath);
+                    }
+                    cloudSyncNodeEqual = true;
+                }
+                else
+                {
+                    // Local is older -> cloud will sync down (local gets cloud's mtime)
+                    LOG_verbose << syncname
+                                << "CSF mtime-only diff: setting syncedFp to "
+                                   "local (older). Cloud mtime will sync down."
+                                << logTriplet(row, fullPath);
+                    fsSyncNodeEqual = true;
+                }
+            }
+
             if (cloudSyncNodeEqual)
             {
                 // fsNode changed, upload the change
@@ -9892,51 +9978,28 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
         }
 
-        // Use blocking MAC computation for CXF case (no LocalNode for async state)
-        auto [fsCloudEqualRes, fcMacLocal, fcMacRemote] =
-            syncEqualFsCloudExcludingMtimeSync(syncs.mClient,
-                                               *row.cloudNode,
-                                               *row.fsNode,
-                                               fullPath.localPath);
-
-        if (fsCloudEqualRes == NODE_COMP_EREAD)
+        if (auto quickResult = quickFingerprintComparison(*row.cloudNode, *row.fsNode);
+            quickResult.has_value())
         {
-            createStallIssueEread();
-            return false;
-        }
-
-        // Item exists locally and remotely but we haven't synced them previously.
-        if (fsCloudEqualRes == NODE_COMP_EQUAL)
-        {
-            // If they are equal then join them with a Localnode
-            return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
-        }
-        else if (fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME)
-        {
-            // They differ in mtime, so we pick the one with newer mtime for reference
-            // We create the sync node from the one with older mtime, so the sync will take the
-            // change from the different side.
-            if (const bool prepareSyncNodeForSyncDownload =
-                    row.fsNode->fingerprint.mtime < row.cloudNode->fingerprint.mtime;
-                prepareSyncNodeForSyncDownload)
+            // Fingerprints fully match or differ in more than mtime (type, size, CRC)
+            if (auto fsCloudEqualRes = std::get<0>(*quickResult);
+                fsCloudEqualRes == NODE_COMP_EQUAL)
             {
-                LOG_verbose << "CXF case with mtime only difference, remote one has newer mtime: "
-                               "prepare sync node for resolve downsync"
-                            << logTriplet(row, fullPath);
                 return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
             }
             else
             {
-                LOG_verbose << "CXF case with mtime only difference, local one has newer mtime: "
-                               "prepare sync node for resolve upsync"
-                            << logTriplet(row, fullPath);
-                return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
+                return resolve_userIntervention(row, fullPath);
             }
         }
-        else
-        {
-            return resolve_userIntervention(row, fullPath);
-        }
+
+        LOG_verbose << "CXF case with fingerprint match except mtime, creating LocalNode for "
+                       "async MAC verification in CSF. "
+                    << "Local mtime: " << row.fsNode->fingerprint.mtime
+                    << ", Cloud mtime: " << row.cloudNode->fingerprint.mtime
+                    << logTriplet(row, fullPath);
+
+        return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
     }
     case SRT_XXF:
     {
@@ -10516,6 +10579,39 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
     return false;
 }
 
+namespace
+{
+
+void logUnreflectedTransferChanges(std::string_view context,
+                                   const shared_ptr<SyncTransfer_inClient>& transfer,
+                                   const bool justMtimeChanged,
+                                   const int64_t metamac,
+                                   const SyncRow& row,
+                                   const SyncPath& fullPath)
+{
+    if (!transfer)
+    {
+        return;
+    }
+
+    if (transfer->wasJustMtimeChanged != justMtimeChanged)
+    {
+        LOG_warn << context << ": wasJustMtimeChanged unreflected change from "
+                 << transfer->wasJustMtimeChanged << " to " << justMtimeChanged << " for "
+                 << transfer->getLocalname() << Sync::logTriplet(row, fullPath);
+    }
+
+    if (transfer->mMetaMac.has_value() && transfer->mMetaMac.value() != INVALID_META_MAC &&
+        metamac != INVALID_META_MAC && transfer->mMetaMac.value() != metamac)
+    {
+        LOG_warn << context << ": mMetaMac unreflected changed from " << transfer->mMetaMac.value()
+                 << " to " << metamac << " for " << transfer->getLocalname()
+                 << Sync::logTriplet(row, fullPath);
+    }
+}
+
+} // anonymous namespace
+
 bool Sync::resolve_upsync(SyncRow& row,
                           SyncRow& parentRow,
                           SyncPath& fullPath,
@@ -10585,9 +10681,12 @@ bool Sync::resolve_upsync(SyncRow& row,
             std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
         if (existingUpload && !existingUpload->upsyncStarted)
         {
-            existingUpload->wasJustMtimeChanged = justMtimeChanged;
-            existingUpload->mMetaMac =
-                metamac != INVALID_META_MAC ? metamac : std::optional<int64_t>{std::nullopt};
+            logUnreflectedTransferChanges("resolve_upsync",
+                                          existingUpload,
+                                          justMtimeChanged,
+                                          metamac,
+                                          row,
+                                          fullPath);
 
             // keep the name and target folder details current:
             // if it's just a case change in a case insensitive name, use the updated
@@ -10824,6 +10923,23 @@ bool Sync::resolve_upsync(SyncRow& row,
         }
         else
         {
+            if (existingUpload->wasStarted)
+            {
+                if (const auto macStatus = checkPendingCloneMac(syncs.mClient, *existingUpload);
+                    macStatus == CloneMacStatus::Ready || macStatus == CloneMacStatus::Failed)
+                {
+                    if (handleCloneMacStatusFromSyncThread(syncs,
+                                                           existingUpload,
+                                                           macStatus,
+                                                           existingUpload->name == ".megaignore",
+                                                           row.cloudNode ? row.cloudNode->handle :
+                                                                           NodeHandle()))
+                    {
+                        return false; // Revisit after client processes
+                    }
+                }
+            }
+
             if (!pflsc.alreadyUploadingCount)
             {
                 if (existingUpload->wasStarted)
@@ -11044,8 +11160,12 @@ bool Sync::resolve_downsync(SyncRow& row,
             // terminated and completed transfers are checked for early in syncItem()
             else
             {
-                existingDownload->wasJustMtimeChanged = justMtimeChanged;
-                existingDownload->mMetaMac = metamac;
+                logUnreflectedTransferChanges("resolve_downsync",
+                                              existingDownload,
+                                              justMtimeChanged,
+                                              metamac,
+                                              row,
+                                              fullPath);
                 if (!pflsc.alreadyDownloadingCount)
                 {
                     SYNC_verbose << syncname << "Download already in progress -> completed: "
