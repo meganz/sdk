@@ -149,6 +149,7 @@ TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
     if (internalFormats)
     {
         EXPECT_EQ(formats.find(internalFormats), 0); // the formats starts with internalFormats, extra part are not checked here for simplicity
+        EXPECT_TRUE(formats.back() == '.'); // ends with '.'
     }
     else
     {

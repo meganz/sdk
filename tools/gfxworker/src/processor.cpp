@@ -71,7 +71,7 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
 //
 std::string GfxProcessor::supportedformats() const
 {
-    std::string extraFormatsByWorker = ".tif.exr.pic.pct.tiff.pict";
+    std::string extraFormatsByWorker = ".tif.exr.pic.pct.tiff.pict.";
     auto formats = mGfxProvider->supportedformats();
     return formats ? std::string(formats) + extraFormatsByWorker : "";
 }
