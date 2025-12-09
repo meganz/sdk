@@ -3400,21 +3400,6 @@ public:
     void answerSurvey(const CommandAnswerSurvey::Answer& answer,
                       CommandAnswerSurvey::Completion&& completion);
 
-    using GetJSCDataCallback = std::function<void(JSCData, Error)>;
-
-    /**
-     * @brief
-     * This function will retrieve the user's JSCD user attributes and pass
-     * them to the provided callback.
-     *
-     * If the user does not have any JSCD user attributes, this function
-     * will create them and pass them to the provided callback.
-     *
-     * @param callback
-     * The function that should receive the user's JSCD user attributes.
-     */
-    void getJSCData(GetJSCDataCallback callback);
-
     void getMyIp(CommandGetMyIP::Cb&& completion);
 
     void getSubscriptionCancellationDetails(
@@ -3437,6 +3422,23 @@ public:
     fuse::Service mFuseService;
 
 private:
+#ifdef ENABLE_SYNC
+
+    using GetJSCDataCallback = std::function<void(JSCData, Error)>;
+
+    /**
+     * @brief
+     * This function will retrieve the user's JSCD user attributes and pass
+     * them to the provided callback.
+     *
+     * If the user does not have any JSCD user attributes, this function
+     * will create them and pass them to the provided callback.
+     *
+     * @param callback
+     * The function that should receive the user's JSCD user attributes.
+     */
+    void getJSCData(GetJSCDataCallback callback);
+
     /**
      * @brief
      * This function will create the user's JSCD user attributes. If
@@ -3450,26 +3452,21 @@ private:
      */
     void createJSCData(GetJSCDataCallback callback);
 
-#ifdef ENABLE_SYNC
+    using InjectJSCDataCallback = std::function<void(error)>;
+
     /**
      * @brief
-     * The purpose of this function is to execute before the user's provided
-     * login callback so that we can perform some administrative functions
-     * necessary to bootstrap the sync engine.
+     * The purpose of this function is to be executed just after getting/setting
+     * the keys but before enabling the syncs.
      *
      * One of these duties is to ensure that the user has a set of JSCD user
      * attributes, another is to safely inject these attributes along with
      * the client's master key into the sync engine.
      *
      * @param callback
-     * The function that should be called when login has completed.
-     *
-     * @param result
-     * The result of our attempt to log the user in.
+     * The function that should be called when the task has completed.
      */
-    void injectSyncSensitiveData(CommandLogin::Completion callback,
-                                 Error result);
-#endif // ENABLE_SYNC
+    void injectSyncSensitiveData(InjectJSCDataCallback callback);
 
     /**
      * @brief
@@ -3510,6 +3507,7 @@ private:
     void JSCDataRetrieved(GetJSCDataCallback& callback,
                           Error result,
                           std::unique_ptr<string_map> store);
+#endif // ENABLE_SYNC
 
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;
