@@ -3452,6 +3452,8 @@ private:
      */
     void createJSCData(GetJSCDataCallback callback);
 
+    using InjectJSCDataCallback = std::function<void(error)>;
+
     /**
      * @brief
      * The purpose of this function is to be executed just after getting/setting
@@ -3464,7 +3466,7 @@ private:
      * @param callback
      * The function that should be called when the task has completed.
      */
-    void injectSyncSensitiveData(CommandLogin::Completion callback);
+    void injectSyncSensitiveData(InjectJSCDataCallback callback);
 
     /**
      * @brief

@@ -24804,7 +24804,7 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
           bind(&MegaClient::JSCDataCreated, this, std::move(callback), _1));
 }
 
-void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback)
+void MegaClient::injectSyncSensitiveData(std::function<void(error)> callback)
 {
     // Sanity.
     assert(callback);
