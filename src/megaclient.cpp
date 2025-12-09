@@ -18551,59 +18551,98 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
     }
 }
 
+std::string MegaClient::getDailyDebrisName(const m_time_t& ts) const
+{
+    struct tm tms;
+    char dailyDebrisNameBuf[32];
+    struct tm* ptm = m_localtime(ts, &tms);
+    snprintf(dailyDebrisNameBuf,
+             sizeof(dailyDebrisNameBuf),
+             "%04d-%02d-%02d",
+             ptm->tm_year + 1900,
+             ptm->tm_mon + 1,
+             ptm->tm_mday);
+    return dailyDebrisNameBuf;
+}
+
+std::shared_ptr<Node> MegaClient::getSyncdebrisDaily(std::shared_ptr<Node> binSyncDebrisNode,
+                                                     const std::string& dailyDebrisName)
+{
+    if (!binSyncDebrisNode)
+    {
+        assert(false && "getSyncdebrisDailyByName: //bin/SyncDebris/ provided node is null");
+        return nullptr;
+    }
+
+    // locate //bin/SyncDebris/yyyy-mm-dd
+    if (std::shared_ptr<Node> n = childnodebyname(binSyncDebrisNode.get(), dailyDebrisName.c_str());
+        n && n->type == FOLDERNODE)
+    {
+        return n;
+    }
+    return nullptr;
+}
+
+std::tuple<std::shared_ptr<Node>, std::shared_ptr<Node>, std::shared_ptr<Node>, std::string>
+    MegaClient::getSyncdebrisDailyAndAncestors(const m_time_t& ts)
+{
+    const auto dailyDebrisName = getDailyDebrisName(ts);
+    std::shared_ptr<Node> binNode = nodeByHandle(mNodeManager.getRootNodeRubbish());
+    if (!binNode)
+    {
+        return {nullptr, nullptr, nullptr, dailyDebrisName};
+    }
+    assert(binNode->type == RUBBISHNODE);
+
+    std::shared_ptr<Node> binSyncDebrisNode =
+        childnodebynametype(binNode.get(), SYNCDEBRISFOLDERNAME, FOLDERNODE);
+    if (!binSyncDebrisNode)
+    {
+        return {binNode, nullptr, nullptr, dailyDebrisName};
+    }
+
+    auto dailysyncDebrisNode = getSyncdebrisDaily(binSyncDebrisNode, dailyDebrisName);
+    return {binNode, binSyncDebrisNode, dailysyncDebrisNode, dailyDebrisName};
+}
 
 std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
 {
-    std::shared_ptr<Node> binNode = nodeByHandle(mNodeManager.getRootNodeRubbish());
+    bool foundDebrisNode = false;
+    const m_time_t now = m_time();
+    const m_time_t currentminute = now / 60;
+    const std::string prefix{clientname + ". getOrCreateSyncdebrisFolder: "};
+
+    auto [binNode, syncDebrisNode, dailySyncDebrisNode, dailyDebrisName] =
+        getSyncdebrisDailyAndAncestors(now);
     if (!binNode)
     {
         return nullptr;
     }
-    assert(binNode->type == RUBBISHNODE);
 
-    bool foundDebris = false;
-
-    m_time_t ts = m_time();
-    struct tm tms;
-    char buf[32];
-    struct tm* ptm = m_localtime(ts, &tms);
-    snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
-
-    // locate //bin/SyncDebris
-    std::shared_ptr<Node> n;
-    if ((n = childnodebynametype(binNode.get(), SYNCDEBRISFOLDERNAME, FOLDERNODE)))
+    foundDebrisNode = syncDebrisNode != nullptr;
+    if (syncDebrisNode && dailySyncDebrisNode)
     {
-        binNode = n;
-        foundDebris = true;
-
-        // locate //bin/SyncDebris/yyyy-mm-dd
-        if ((n = childnodebyname(binNode.get(), buf)) && n->type == FOLDERNODE)
-        {
-            binNode = n;
-            return binNode; // all set to send node to this one
-        }
+        return dailySyncDebrisNode;
     }
 
-    // not found, so create whatever is missing (but don't attempt too frequently)
-    m_time_t currentminute = ts / 60;
     if (syncdebrisadding || syncdebrisminute == currentminute)
     {
+        // avoid excesive attempts to create daily debris
         return nullptr;
     }
 
+    LOG_debug << prefix << "Creating cloud daily SyncDebris and daily folder: " << dailyDebrisName;
     syncdebrisadding = true;
     syncdebrisminute = currentminute;
-    LOG_debug << clientname << "Creating cloud daily SyncDebris and daily folder: " << buf;
 
     // create missing component(s) of the sync debris folder of the day
     vector<NewNode> nnVec;
     SymmCipher tkey;
     string tattrstring;
     AttrMap tattrs;
+    nnVec.resize((foundDebrisNode) ? 1 : 2);
 
-    nnVec.resize((foundDebris) ? 1 : 2);
-
-    for (size_t i = nnVec.size(); i--; )
+    for (size_t i = nnVec.size(); i--;)
     {
         auto nn = &nnVec[i];
 
@@ -18616,7 +18655,7 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
         rng.genblock((byte*)nn->nodekey.data(), FOLDERNODEKEYLENGTH);
 
         // set new name, encrypt and attach attributes
-        tattrs.map['n'] = (i || foundDebris) ? buf : SYNCDEBRISFOLDERNAME;
+        tattrs.map['n'] = (i || foundDebrisNode) ? dailyDebrisName : SYNCDEBRISFOLDERNAME;
         tattrs.getjson(&tattrstring);
         tkey.setkey((const byte*)nn->nodekey.data(), FOLDERNODE);
         nn->attrstring.reset(new string);
@@ -18627,26 +18666,61 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
     pitag.purpose = PitagPurpose::Sync;
     pitag.trigger = PitagTrigger::SyncAlgorithm;
     pitag.nodeType = PitagNodeType::Folder;
+
+    const auto parentNodeHandle =
+        syncDebrisNode ? syncDebrisNode->nodeHandle() : binNode->nodeHandle();
+
     queueCommand(new CommandPutNodes(
         this,
-        binNode->nodeHandle(),
+        parentNodeHandle,
         NULL,
         NoVersioning,
         std::move(nnVec),
         0,
         PUTNODES_SYNCDEBRIS,
         nullptr,
-        [this](const Error&,
-               targettype_t,
-               vector<NewNode>&,
-               bool /*targetOverride*/,
-               int /*tag*/,
-               const map<string, string>& /*fileHandles*/)
+        [this, prefix, now, auxDebrisName = dailyDebrisName](
+            const Error& e,
+            targettype_t,
+            vector<NewNode>&,
+            bool /*targetOverride*/,
+            int /*tag*/,
+            const map<string, string>& /*fileHandles*/)
         {
             syncdebrisadding = false;
+            if (e != API_OK)
+            {
+                LOG_err << prefix << "Putnodes failed for creating (" << auxDebrisName
+                        << "). errorCode(" << e << "). Calling execmovetosyncdebris anyway";
+            }
+
+            auto [binNode, binSyncDebrisNode, dailySyncDebrisNode, dailyDebrisName] =
+                getSyncdebrisDailyAndAncestors(now);
+            if (!binNode)
+            {
+                LOG_err << prefix << "binNode not found. Calling execmovetosyncdebris anyway";
+            }
+
+            if (!binSyncDebrisNode)
+            {
+                LOG_err << prefix
+                        << "binSyncDebrisNode not found. Calling execmovetosyncdebris anyway";
+            }
+
+            if (!dailySyncDebrisNode)
+            {
+                // [TODO_SDK-5014]: improve this case
+                LOG_err << prefix << "daily cloud SyncDebris folder (" << dailyDebrisName
+                        << ") not found. Calling execmovetosyncdebris anyway";
+            }
+            else
+            {
+                assert(dailyDebrisName == auxDebrisName);
+                LOG_debug << prefix << "daily cloud SyncDebris folder (" << dailyDebrisName
+                          << ") putnodes finished successfully. Trigger remaining debris moves: "
+                          << pendingDebris.size();
+            }
             // on completion, send the queued nodes
-            LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: "
-                      << pendingDebris.size();
             execmovetosyncdebris(nullptr, nullptr, false, false);
         },
         false,
@@ -18654,7 +18728,6 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
         pitag));
     return nullptr;
 }
-
 #endif
 
 string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& text)

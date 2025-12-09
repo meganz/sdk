@@ -2413,6 +2413,45 @@ public:
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault, bool isInshare);
 
+    /**
+     * @brief Get the daily SyncDebris folder name for a given timestamp.
+     *
+     * @param timestamp to generate daily SyncDebris folder name from
+     * @return String that contains the daily SyncDebris folder name
+     */
+    std::string getDailyDebrisName(const m_time_t& ts) const;
+
+    /**
+     * @brief Get the daily SyncDebris folder for a given timestamp.
+     *
+     * This function locates the daily folder inside the SyncDebris folder for the specified
+     * timestamp.
+     *
+     * @param binSyncDebrisNode Shared pointer to the //bin/SyncDebris node
+     * @param dailyDebrisName Daily SyncDebris folder name
+     * @return Shared pointer to the daily SyncDebris node (nullptr if not found)
+     */
+    std::shared_ptr<Node> getSyncdebrisDaily(std::shared_ptr<Node> binSyncDebrisNode,
+                                             const std::string& dailyDebrisName);
+
+    /**
+     * @brief Get the daily SyncDebris folder and all its ancestor nodes
+     *
+     * This function retrieves the complete path from the rubbish bin root to
+     * the daily SyncDebris folder for the specified timestamp. It returns all
+     * intermediate nodes in the hierarchy: rubbish bin, SyncDebris folder,
+     * and the daily folder.
+     *
+     * @param ts Timestamp to generate the daily folder name from
+     * @return Tuple containing:
+     *         - Shared pointer to the rubbish bin node (nullptr if not found)
+     *         - Shared pointer to the //bin/SyncDebris node (nullptr if not found)
+     *         - Shared pointer to the daily SyncDebris node (nullptr if not found)
+     *         - String with the daily folder name in yyyy-mm-dd format
+     */
+    std::tuple<std::shared_ptr<Node>, std::shared_ptr<Node>, std::shared_ptr<Node>, std::string>
+        getSyncdebrisDailyAndAncestors(const m_time_t& ts);
+
     std::shared_ptr<Node> getOrCreateSyncdebrisFolder();
     struct pendingDebrisRecord {
         NodeHandle nodeHandle;
