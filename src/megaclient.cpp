@@ -16062,8 +16062,12 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
 
         auto onuserdataCompletion = [this,
                                      fetchnodesTag,
-                                     startCachedFetchNodes = std::move(
-                                         startCachedFetchNodes)](string*, string*, string*, error e)
+                                     startCachedFetchNodes = std::move(startCachedFetchNodes)
+#ifdef ENABLE_SYNC // maybe_unused not allowed for lambda captures
+                                         ,
+                                     loadSyncs
+#endif
+        ](string*, string*, string*, error e)
         {
             restag = fetchnodesTag;
 
@@ -16076,7 +16080,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             }
 
 #ifdef ENABLE_SYNC
-            if (loggedin() == FULLACCOUNT)
+            if (loggedin() == FULLACCOUNT && loadSyncs)
             {
                 injectSyncSensitiveData(std::move(startCachedFetchNodes));
                 return;
@@ -16175,10 +16179,14 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                 }
             };
 
-            auto getUserDataCompletion =
-                [this,
-                 fetchtag,
-                 startFetchNodes = std::move(startFetchNodes)](string*, string*, string*, error e)
+            auto getUserDataCompletion = [this,
+                                          fetchtag,
+                                          startFetchNodes = std::move(startFetchNodes)
+#ifdef ENABLE_SYNC // maybe_unused not allowed for lambda captures
+                                              ,
+                                          loadSyncs
+#endif
+            ](string*, string*, string*, error e)
             {
                 if (e != API_OK)
                 {
@@ -16197,7 +16205,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                 }
 
 #ifdef ENABLE_SYNC
-                if (loggedin() == FULLACCOUNT)
+                if (loggedin() == FULLACCOUNT && loadSyncs)
                 {
                     injectSyncSensitiveData(std::move(startFetchNodes));
                     return;
