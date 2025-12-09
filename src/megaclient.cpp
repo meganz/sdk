@@ -15998,13 +15998,16 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
 
-        auto startCachedFetchNodes = [this
+        auto startCachedFetchNodes = [this,
+                                      fetchnodesTag
 #ifdef ENABLE_SYNC // maybe_unused not allowed for lambda captures
                                       ,
                                       loadSyncs
 #endif
         ](Error e)
         {
+            restag = fetchnodesTag;
+
             if (e != API_OK)
             {
                 // Notify and continue with or without JSCD attribute.
@@ -16069,12 +16072,11 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
 #endif
         ](string*, string*, string*, error e)
         {
-            restag = fetchnodesTag;
-
             // upon ug completion
             if (e != API_OK)
             {
                 LOG_err << "Session load failed: unable to get user data";
+                restag = fetchnodesTag;
                 app->fetchnodes_result(API_EINTERNAL);
                 return; // from completion function
             }
