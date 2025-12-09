@@ -1314,6 +1314,10 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                         }
                         else if (result == CallbackResult::PAUSED)
                         {
+                            if (!chunkProcessingFinishedSuccessfully(filters))
+                            {
+                                LOG_err << "Error finishing the processing of a chunk after paused";
+                            }
                             auto consumedBytes = mLastPos - data;
                             mProcessedBytes = mPos - mLastPos;
                             return consumedBytes;
