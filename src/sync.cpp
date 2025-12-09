@@ -4103,6 +4103,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
 
     UnifiedSync* usPtr = nullptr;
 
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mConfig.mBackupId == backupId)
@@ -5343,6 +5344,7 @@ treestate_t Syncs::getSyncStateForLocalPath(handle backupId, const LocalPath& lp
 bool Syncs::getSyncStateForLocalPath(const LocalPath& lp, treestate_t& ts, nodetype_t& nt, SyncConfig& sc)
 {
     assert(onSyncThread());
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& us : mSyncVec)
     {
         if (us->mSync && us->mConfig.mLocalPath.isContainingPathOf(lp))
@@ -6555,6 +6557,7 @@ void Syncs::stopSyncsInErrorState()
 
     // An error has occurred, and it's time to destroy the in-RAM structures
     // If the sync db should be kept, then we already null'd the sync->syncstatecache
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& unifiedSync : mSyncVec)
     {
         if (unifiedSync->mSync &&
@@ -6579,6 +6582,7 @@ void Syncs::purgeRunningSyncs_inThread()
     // Any syncs that are running should be resumed on next start.
     // We stop the syncs here, but don't call the client to say they are stopped.
     // And localnode databases are preserved.
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mSync)
@@ -6683,6 +6687,7 @@ void Syncs::disableSyncByBackupId_inThread(handle backupId, SyncError syncError,
 {
     assert(onSyncThread());
 
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto i = mSyncVec.size(); i--; )
     {
         auto& us = *mSyncVec[i];
@@ -7033,6 +7038,7 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
     assert(onSyncThread());
     LOG_debug << "Unloading sync: " << toHandle(id);
 
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto i = mSyncVec.size(); i--; )
     {
         if (mSyncVec[i]->mConfig.mBackupId == id)
@@ -7052,7 +7058,6 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
             // we don't call sync_removed back since the sync is not deleted
             // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
 
-            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             mSyncVec.erase(mSyncVec.begin() + static_cast<long>(i));
             return true;
         }
@@ -7075,6 +7080,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
         // Special case backward compatibility for MEGAsync
         // The syncs will be disabled, if the user logs back in they can then manually re-enable.
 
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         for (auto& us : mSyncVec)
         {
             if (us->mConfig.getEnabled())
@@ -7086,6 +7092,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
     else // if logging out and syncs won't be kept...
     {
         // regardless of that, we de-register all syncs/backups in Backup Centre
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         for (auto& us : mSyncVec)
         {
             std::function<void()> onFinalDeregister = nullptr;
@@ -7135,7 +7142,8 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
     // NULL the statecachetable databases for Syncs first, then Sync destruction won't remove LocalNodes from them
     // If we are deleting syncs then just remove() the database direct
 
-    for (auto i = mSyncVec.size(); i--; )
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
+    for (auto i = mSyncVec.size(); i--;)
     {
         if (Sync* sync = mSyncVec[i]->mSync.get())
         {
@@ -7146,6 +7154,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
             }
         }
     }
+    syncVecMutexLock.unlock();
 
     if (mSyncConfigStore)
     {
@@ -7251,15 +7260,13 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
         return;
     }
 
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     // There should be no syncs yet.
     assert(mSyncVec.empty());
 
+    for (auto& config: configs)
     {
-        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-        for (auto& config : configs)
-        {
-            mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
-        }
+        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
     }
 
     for (auto& us : mSyncVec)
@@ -7272,6 +7279,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 {
     assert(onSyncThread());
 
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& unifiedSync : mSyncVec)
     {
         if (!unifiedSync->mSync)
@@ -11872,6 +11880,7 @@ void Syncs::processTriggerLocalpaths()
         triggers.swap(triggerLocalpaths);
     }
 
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     if (mSyncVec.empty()) return;
 
     for (auto& lp : triggers)
@@ -11908,7 +11917,11 @@ void Syncs::processTriggerHandles()
         triggers.swap(triggerHandles);
     }
 
-    if (mSyncVec.empty()) return;
+    {
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+        if (mSyncVec.empty())
+            return;
+    }
 
     for (auto& t : triggers)
     {
@@ -12978,6 +12991,7 @@ void Syncs::syncLoop()
         waiter->bumpds();
 
         // Process filesystem notifications.
+        std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
         for (auto& us : mSyncVec)
         {
             if (Sync* sync = us->mSync.get())
@@ -12988,6 +13002,7 @@ void Syncs::syncLoop()
                 }
             }
         }
+        syncVecMutexlock.unlock();
 
         processTriggerHandles();
         processTriggerLocalpaths();
@@ -13007,6 +13022,7 @@ void Syncs::syncLoop()
 
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
+        syncVecMutexlock.lock();
         for (auto& us : mSyncVec)
         {
             vector<pair<handle, int>> sdsBackups;
@@ -13155,6 +13171,7 @@ void Syncs::syncLoop()
                 }
             }
         };
+        syncVecMutexlock.unlock();
 
         stopSyncsInErrorState();
 
@@ -13199,6 +13216,7 @@ void Syncs::syncLoop()
 
         unsigned skippedForScanning = 0;
 
+        syncVecMutexlock.lock();
         for (auto& us : mSyncVec)
         {
             Sync* sync = us->mSync.get();
@@ -13338,6 +13356,7 @@ void Syncs::syncLoop()
                 }
             }
         }
+        syncVecMutexlock.unlock();
 
         if (mTransferPauseFlagsChanged.load())
         {
@@ -13515,6 +13534,7 @@ void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle
     queueSync([=](){
 
         assert(onSyncThread());
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         for (auto & us : mSyncVec)
         {
             if ((us->mConfig.mBackupId == backupId
@@ -13539,6 +13559,7 @@ bool Syncs::conflictsDetected(SyncIDtoConflictInfoMap& conflicts)
 {
     assert(onSyncThread());
     size_t totalConflicts{};
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& us: mSyncVec)
     {
         if (Sync* sync = us->mSync.get(); sync && sync->localroot->conflictsDetected())
@@ -13572,6 +13593,7 @@ size_t Syncs::conflictsDetectedCount(size_t limit) const
     assert(onSyncThread());
 
     size_t count = 0;
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& us : mSyncVec)
     {
         if (Sync* sync = us->mSync.get())
@@ -13611,6 +13633,7 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
     queueSync([=]()
         {
             list<NameConflict> nc;
+            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             for (auto& us : mSyncVec)
             {
                 if (us->mSync && (us->mConfig.mBackupId == backupId || backupId == UNDEF))
@@ -13921,6 +13944,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     {
         *nodeIsInActiveSyncQuery = false;
 
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         for (auto & us : mSyncVec)
         {
             if (us->mSync && !us->mConfig.mError)
