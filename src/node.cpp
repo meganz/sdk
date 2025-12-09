@@ -2172,6 +2172,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     scanInProgress = false;
     scanObsolete = false;
     slocalname = NULL;
+    type = ctype;
 
     if (type != FILENODE)
     {
@@ -2180,8 +2181,6 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     }
 
     mReportedSyncState = TREESTATE_NONE;
-
-    type = ctype;
 
     bumpnagleds();
 
