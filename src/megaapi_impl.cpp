@@ -23767,98 +23767,20 @@ void MegaApiImpl::importSyncConfigs(const char* configs, MegaRequestListener* li
     waiter->notify();
 }
 
-void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name, MegaHandle megaHandle, const char* remotePath,
-    long long, bool enabled, bool temporaryDisabled, MegaRequestListener* listener)
+void MegaApiImpl::copySyncDataToCache(const char*,
+                                      const char*,
+                                      MegaHandle,
+                                      const char*,
+                                      long long,
+                                      bool,
+                                      bool,
+                                      MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG, listener);
-
-    request->setNodeHandle(megaHandle);
-    if (localFolder)
+    request->performRequest = []()
     {
-        request->setFile(localFolder);
-    }
-
-    if (name)
-    {
-        request->setName(name);
-    }
-    else if (localFolder)
-    {
-        request->setName(request->getFile());
-    }
-
-    request->setLink(remotePath);
-    request->setFlag(enabled);
-    request->setNumDetails(temporaryDisabled);
-
-    request->performRequest = [this, request]()
-        {
-            const char *localPath = request->getFile();
-            if(!localPath)
-            {
-                return API_EARGS;
-            }
-
-            const char *name = request->getName();
-            const char *remotePath = request->getLink();
-
-            using CType = CacheableStatus::Type;
-            bool overStorage = client->mCachedStatus.lookup(CType::STATUS_STORAGE, MegaApi::STORAGE_STATE_UNKNOWN) >= MegaApi::STORAGE_STATE_RED;
-            bool businessExpired = client->mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) == BIZ_STATUS_EXPIRED;
-            bool blocked = client->mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1;
-
-            auto syncError = NO_SYNC_ERROR;
-            // the order is important here: a user needs to resolve blocked in order to resolve storage
-            if (overStorage)
-            {
-                syncError = STORAGE_OVERQUOTA;
-            }
-            else if (businessExpired)
-            {
-                syncError = ACCOUNT_EXPIRED;
-            }
-            else if (blocked)
-            {
-                syncError = ACCOUNT_BLOCKED;
-            }
-
-            bool enabled = request->getFlag();
-            bool temporaryDisabled = request->getNumDetails() != 0;
-
-            if (!enabled && temporaryDisabled)
-            {
-                if (!syncError)
-                {
-                    syncError = UNKNOWN_TEMPORARY_ERROR;
-                }
-            }
-
-            // Copy sync config is only used for sync migration
-            // therefore only deals with internal syncs, so drive path is empty
-            LocalPath drivePath;
-            SyncConfig syncConfig(LocalPath::fromAbsolutePath(localPath),
-                                  name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
-                                  fsfp_t(),
-                                  drivePath, enabled);
-
-            if (temporaryDisabled)
-            {
-                syncConfig.mError = syncError;
-            }
-
-            client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
-            {
-                if (e == API_OK)
-                {
-                    request->setParentHandle(backupId);
-                }
-
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            });
-
-            return API_OK;
-        };
-
+        return API_EINTERNAL;
+    };
     requestQueue.push(request);
     waiter->notify();
 }

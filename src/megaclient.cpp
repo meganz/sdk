@@ -17992,33 +17992,6 @@ SyncErrorInfo MegaClient::checkSyncConfig(const SyncConfig& syncConfig)
     return {API_OK, NO_SYNC_ERROR, NO_SYNC_WARNING};
 }
 
-void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
-{
-    string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
-
-    queueCommand(new CommandBackupPut(this,
-                                      info,
-                                      [this, config, completion](Error e, handle backupId)
-                                      {
-                                          if (!e)
-                                          {
-                                              if (ISUNDEF(backupId))
-                                              {
-                                                  e = API_EINTERNAL;
-                                              }
-                                              else
-                                              {
-                                                  auto configWithId = config;
-                                                  configWithId.mBackupId = backupId;
-                                                  e = syncs.syncConfigStoreAdd(configWithId);
-                                              }
-                                          }
-
-                                          completion(backupId, e);
-                                      }));
-}
-
 void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion)
 {
     // Kick off the import.
