@@ -66,7 +66,7 @@ public:
     // this FileWrapper shouldn't be used after call this method
     bool deleteEmptyFolder();
     // Rename an element. It is kept at same folder
-    bool rename(const std::string& newName);
+    bool rename(const std::string& newName, bool overwrite);
 
     // Returns true if it's a folder
     bool isFolder();
@@ -81,7 +81,8 @@ public:
     static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const std::string& path);
     static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const LocalPath& localPath,
                                                                      bool create,
-                                                                     bool lastIsFolder);
+                                                                     bool lastIsFolder,
+                                                                     bool failIfLastExists = false);
 
 private:
     class JavaObject
@@ -132,6 +133,7 @@ private:
     static constexpr char DELETE_FILE[] = "deleteFile";
     static constexpr char DELETE_EMPTY_FOLDER[] = "deleteFolderIfEmpty";
     static constexpr char RENAME[] = "rename";
+    static constexpr char RENAME_OVERRIDE[] = "renameOverride";
     static constexpr char CREATE_NESTED_PATH[] = "createNestedPath";
 
     void setUriData(const URIData& uriData);
@@ -144,10 +146,16 @@ private:
     static void setLocalPathURI(const std::string& path, const std::string& uri);
     static std::optional<std::string> getLocalPathURI(const std::string& path);
     static std::shared_ptr<AndroidFileWrapper>
-        getAndroidFileWrapperFromURI(const LocalPath& localPath, bool create, bool lastIsFolder);
+        getAndroidFileWrapperFromURI(const LocalPath& localPath,
+                                     bool create,
+                                     bool lastIsFolder,
+                                     bool failIfLastExists);
 
     static std::shared_ptr<AndroidFileWrapper>
-        getAndroidFileWrapperFromPath(const LocalPath& localPath, bool create, bool lastIsFolder);
+        getAndroidFileWrapperFromPath(const LocalPath& localPath,
+                                      bool create,
+                                      bool lastIsFolder,
+                                      bool failIfLastExists);
 };
 
 /**
@@ -332,7 +340,7 @@ public:
 
 private:
     LocalPath getStandartPath(const LocalPath& localPath) const;
-    bool copy(const LocalPath& oldname, const LocalPath& newName);
+    bool copy(const LocalPath& oldname, const LocalPath& newName, bool overwrite);
 };
 
 class AndroidDirNotify: public LinuxDirNotify

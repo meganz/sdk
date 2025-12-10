@@ -364,10 +364,11 @@ private:
 
 enum OpenFlag
 {
-    OPEN_RDONLY = 0x0000,
-    OPEN_WRONLY = 0x0001,
-    OPEN_RDWR = 0x0002,
-    OPEN_ACCMODE = 0x0003, /* mask for above modes */
+    OPEN_RDONLY = 0x00000000,
+    OPEN_WRONLY = 0x00000001,
+    OPEN_RDWR = 0x00000002,
+    OPEN_ACCMODE = 0x00000003, /* mask for above modes */
+    OPEN_EXCL = 0x00000800, /* error if already exists */
 };
 
 constexpr bool openRead(OpenFlag flag)
