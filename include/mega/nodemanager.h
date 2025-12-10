@@ -253,6 +253,7 @@ private:
     bool mIncludeVersions{false};
 
     static bool isDocType(const MimeType_t t);
+    static bool isVisualMediaType(const MimeType_t t);
 };
 
 class NodeSearchPage

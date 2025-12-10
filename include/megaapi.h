@@ -10187,8 +10187,8 @@ public:
      * - MegaApi::FILE_TYPE_MISC = 9
      * - MegaApi::FILE_TYPE_SPREADSHEET = 10
      * - MegaApi::FILE_TYPE_ALL_DOCS = 11  --> any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
-     * - MegaApi::FILE_TYPE_ALL_VISUAL_MEDIA = 12 --> any of {PHOTO, VIDEO}
-     * - MegaApi::FILE_TYPE_OTHERS = 13
+     * - MegaApi::FILE_TYPE_OTHERS = 12
+     * - MegaApi::FILE_TYPE_ALL_VISUAL_MEDIA = 13--> any of {PHOTO, VIDEO}
      */
     virtual void byCategory(int mimeType);
 
@@ -18349,10 +18349,10 @@ class MegaApi
                FILE_TYPE_PROGRAM,
                FILE_TYPE_MISC,
                FILE_TYPE_SPREADSHEET,
-               FILE_TYPE_ALL_DOCS,    // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
-               FILE_TYPE_ALL_VISUAL_MEDIA, // any of {PHOTO, VIDEO}
+               FILE_TYPE_ALL_DOCS, // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
                FILE_TYPE_OTHERS,
-               FILE_TYPE_LAST = FILE_TYPE_OTHERS,
+               FILE_TYPE_ALL_VISUAL_MEDIA, // any of {PHOTO, VIDEO}
+               FILE_TYPE_LAST = FILE_TYPE_ALL_VISUAL_MEDIA,
              };
 
         enum { SEARCH_TARGET_INSHARE = 0,

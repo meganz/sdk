@@ -334,7 +334,8 @@ std::optional<int> downloadNode(MegaApi* megaApi,
 
 std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
                                      const std::filesystem::path& localPath,
-                                     MegaNode* parentNode)
+                                     MegaNode* parentNode,
+                                     const char* fileName)
 {
     testing::NiceMock<MockMegaTransferListener> mtl{megaApi};
     handle nodeHandle = UNDEF;
@@ -348,7 +349,7 @@ std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
     megaApi->startUpload(localPath.u8string().c_str(),
                          parentNode ? parentNode :
                                       std::unique_ptr<MegaNode>{megaApi->getRootNode()}.get(),
-                         nullptr /*fileName*/,
+                         fileName /*fileName*/,
                          MegaApi::INVALID_CUSTOM_MOD_TIME,
                          nullptr /*appData*/,
                          false /*isSourceTemporary*/,
@@ -361,9 +362,10 @@ std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
     return std::unique_ptr<MegaNode>(megaApi->getNodeByHandle(nodeHandle));
 }
 
-std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi, LocalTempFile&& file, MegaNode* parentNode)
+std::unique_ptr<MegaNode>
+    uploadFile(MegaApi* megaApi, LocalTempFile&& file, MegaNode* parentNode, const char* fileName)
 {
-    return uploadFile(megaApi, file.getPath(), parentNode);
+    return uploadFile(megaApi, file.getPath(), parentNode, fileName);
 }
 
 handle createPasswordNode(MegaApi* megaApi,

@@ -2258,7 +2258,11 @@ void SdkTest::getAccountsForTest(const unsigned howMany,
 
         static const bool checkCredentials = true; // default value
         configureTestInstance(index, email, pass, checkCredentials, clientType);
-
+        auto proxy = std::make_unique<MegaProxy>();
+        proxy->setProxyType(MegaProxy::PROXY_CUSTOM);
+        proxy->setProxyURL("socks5h://127.0.0.1:1080");
+        megaApi[index]->setProxySettings(proxy.get());
+        megaApi[index]->retryPendingConnections();
         std::unique_ptr<RequestTracker> tracker;
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
@@ -18758,140 +18762,59 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_TRUE(getFileFromArtifactory("test-data/" + VIDEOFILE, videoFile))
         << "Cannot get " << VIDEOFILE << " from artifactory";
 
-    MegaHandle handleImageFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK,
-              doStartUpload(0,
-                            &handleImageFile,
-                            imageFile,
-                            rootnode.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/))
-        << "Cannot upload " << imageFile;
-    MegaHandle handleAudioFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK,
-              doStartUpload(0,
-                            &handleAudioFile,
-                            audioFile,
-                            rootnode.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/))
-        << "Cannot upload " << audioFile;
+    auto imageNode = sdk_test::uploadFile(megaApi[0].get(), fs::path(imageFile), rootnode.get());
+    ASSERT_TRUE(imageNode) << "Cannot upload " << imageFile;
 
-    MegaHandle handleVideoFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK,
-              doStartUpload(0,
-                            &handleVideoFile,
-                            videoFile,
-                            rootnode.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/))
-        << "Cannot upload " << videoFile;
+    auto audioNode = sdk_test::uploadFile(megaApi[0].get(), fs::path(audioFile), rootnode.get());
+    ASSERT_TRUE(audioNode) << "Cannot upload " << audioFile;
 
+    auto videoNode = sdk_test::uploadFile(megaApi[0].get(), fs::path(videoFile), rootnode.get());
+    ASSERT_TRUE(videoNode) << "Cannot upload " << videoFile;
+
+    auto publicFilePath = fs::path(PUBLICFILE);
     const char txtFile[] = "test.txt";
-    MegaHandle handleTxtFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleTxtFile, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               txtFile /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << txtFile;
+    auto txtNode = sdk_test::uploadFile(megaApi[0].get(), publicFilePath, rootnode.get(), txtFile);
+    ASSERT_TRUE(txtNode) << "Cannot upload" << txtFile;
 
-    const char progFile[] = "test.sh";
-    MegaHandle handleCodeFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               progFile /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << progFile;
+    const char codeFile[] = "test.sh";
+    auto codeNode =
+        sdk_test::uploadFile(megaApi[0].get(), publicFilePath, rootnode.get(), codeFile);
+    ASSERT_TRUE(codeNode) << "Cannot upload " << codeFile;
 
     const char pdfFile[] = "test.pdf";
-    MegaHandle handlePdfFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handlePdfFile, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               pdfFile /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << pdfFile;
+    auto pdfNode = sdk_test::uploadFile(megaApi[0].get(), publicFilePath, rootnode.get(), pdfFile);
+    ASSERT_TRUE(pdfNode) << "Cannot upload " << pdfFile;
 
     const char jsonFile[] = "test.json";
-    MegaHandle handleJsonFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleJsonFile, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               jsonFile /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << jsonFile;
+    auto jsonNode =
+        sdk_test::uploadFile(megaApi[0].get(), publicFilePath, rootnode.get(), jsonFile);
+    ASSERT_TRUE(jsonNode) << "Cannot upload " << jsonFile;
 
     const char spreadsheetFile[] = "test.ods";
-    MegaHandle handleSpreadsheetFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleSpreadsheetFile, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               spreadsheetFile /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << spreadsheetFile;
+    auto spreadsheetNode =
+        sdk_test::uploadFile(megaApi[0].get(), publicFilePath, rootnode.get(), spreadsheetFile);
+    ASSERT_TRUE(spreadsheetNode) << "Cannot upload " << spreadsheetFile;
 
     const char documentFile[] = "test.doc";
-    MegaHandle handleDocumentFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleDocumentFile, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               documentFile /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << documentFile;
+    auto documentNode =
+        sdk_test::uploadFile(megaApi[0].get(), publicFilePath, rootnode.get(), documentFile);
+    ASSERT_TRUE(documentNode) << "Cannot upload " << documentFile;
 
     const char orgFile[] = "test.org";
-    MegaHandle handleOrgFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleOrgFile, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               orgFile /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << orgFile;
+    auto orgNode = sdk_test::uploadFile(megaApi[0].get(), publicFilePath, rootnode.get(), orgFile);
+    ASSERT_TRUE(orgNode) << "Cannot upload " << orgFile;
 
     const char unkownExtensionFile[] = "test.err";
-    MegaHandle handleUnkownExtensionFile = INVALID_HANDLE;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleUnkownExtensionFile, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               unkownExtensionFile /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << unkownExtensionFile;
-    std::unique_ptr<MegaNode> unkownExtensionNode(megaApi[0]->getNodeByHandle(handleUnkownExtensionFile));
-    ASSERT_THAT(unkownExtensionNode, ::testing::NotNull());
+    auto unknownExtensionNode =
+        sdk_test::uploadFile(megaApi[0].get(), publicFilePath, rootnode.get(), unkownExtensionFile);
+    ASSERT_TRUE(unknownExtensionNode) << "Cannot upload " << unkownExtensionFile;
 
     const char withouExtensionFile[] = "test";
     RequestTracker nodeCopyTracker(megaApi[0].get());
-    megaApi[0]->copyNode(unkownExtensionNode.get(), rootnode.get(), withouExtensionFile, &nodeCopyTracker);
+    megaApi[0]->copyNode(unknownExtensionNode.get(),
+                         rootnode.get(),
+                         withouExtensionFile,
+                         &nodeCopyTracker);
     ASSERT_EQ(API_OK, nodeCopyTracker.waitForResult())
         << "Could not copy " << unkownExtensionFile << " as " << withouExtensionFile;
     MegaHandle handleWithoutExtensionFile = nodeCopyTracker.getNodeHandle();
@@ -18901,66 +18824,71 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     filterResults->byCategory(MegaApi::FILE_TYPE_PROGRAM);
     std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleCodeFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), codeNode->getHandle());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_PDF);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), pdfNode->getHandle());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
     nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_DESC));
     ASSERT_EQ(nodeList->size(), 3) << *nodeList;
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleTxtFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleOrgFile);
-    ASSERT_EQ(nodeList->get(2)->getHandle(), handleDocumentFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), txtNode->getHandle());
+    ASSERT_EQ(nodeList->get(1)->getHandle(), orgNode->getHandle());
+    ASSERT_EQ(nodeList->get(2)->getHandle(), documentNode->getHandle());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), jsonNode->getHandle());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_SPREADSHEET);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), spreadsheetNode->getHandle());
 
-    filterResults->byCategory(MegaApi::FILE_TYPE_ALL_DOCS); // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
-    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
+    filterResults->byCategory(
+        MegaApi::FILE_TYPE_ALL_DOCS); // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+    nodeList.reset(megaApi[0]->search(filterResults.get(),
+                                      MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
     ASSERT_EQ(nodeList->size(), 5) << *nodeList;
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
-    ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
-    ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
-    ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), documentNode->getHandle());
+    ASSERT_EQ(nodeList->get(1)->getHandle(), spreadsheetNode->getHandle());
+    ASSERT_EQ(nodeList->get(2)->getHandle(), orgNode->getHandle());
+    ASSERT_EQ(nodeList->get(3)->getHandle(), pdfNode->getHandle());
+    ASSERT_EQ(nodeList->get(4)->getHandle(), txtNode->getHandle());
 
-    filterResults->byCategory(MegaApi::FILE_TYPE_OTHERS); // none of {PHOTO, VIDEO, AUDIO, MISC, PROGRAM, DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
-    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
+    filterResults->byCategory(
+        MegaApi::FILE_TYPE_OTHERS); // none of {PHOTO, VIDEO, AUDIO, MISC, PROGRAM, DOCUMENT, PDF,
+                                    // PRESENTATION, SPREADSHEET}
+    nodeList.reset(megaApi[0]->search(filterResults.get(),
+                                      MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
     ASSERT_EQ(nodeList->size(), 2) << *nodeList;
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleWithoutExtensionFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleUnkownExtensionFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), unknownExtensionNode->getHandle());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_AUDIO);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleAudioFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), audioNode->getHandle());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleImageFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), imageNode->getHandle());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_VIDEO);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1) << *nodeList;
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleVideoFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), videoNode->getHandle());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_ALL_VISUAL_MEDIA); // any of {PHOTO, VIDEO}
     nodeList.reset(megaApi[0]->search(filterResults.get(),
                                       MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
     ASSERT_EQ(nodeList->size(), 2) << *nodeList;
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleVideoFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleImageFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), videoNode->getHandle());
+    ASSERT_EQ(nodeList->get(1)->getHandle(), imageNode->getHandle());
 
     deleteFile(PUBLICFILE);
     deleteFile(imageFile);
