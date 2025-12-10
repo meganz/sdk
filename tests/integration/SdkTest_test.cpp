@@ -18728,13 +18728,22 @@ TEST_F(SdkTest, SdkTestListenerRemovedWhenRequestTrackerDestroyed)
 /**
  * SdkTestGetNodeByMimetype
  * Steps:
- * - Create files (test.txt, test.sh, test.pdf, test.json, test.ods, test.doc, test.org)
- * - Search for files of type text
- * - Search for files of type program
- * - Search for files of type pdf
- * - Search for files of type document
- * - Search for files of type misc
- * - Search for files of type spreadsheet
+ * - Create files (test.txt, test.sh, test.pdf, test.json, test.ods, test.doc, test.org, test.png,
+ * test.mp3, test.mp4, test.err, test(without extension))
+ * - Search for files of type text(.txt)
+ * - Search for files of type program(.sh)
+ * - Search for files of type pdf(.pdf)
+ * - Search for files of type document(.txt, .doc, .org)
+ * - Search for files of type misc(.json)
+ * - Search for files of type org(.org)
+ * - Search for files of type spreadsheet(.ods)
+ * - Search for files of type unknown(.err)
+ * - Search for files of type audio(.mp3)
+ * - Search for files of type video(.mp4)
+ * - Search for files of type image(.png)
+ * - Search for files of type all docs(.txt, .pdf, .ods, .doc, .org)
+ * - Search for files of type all visual media(.png, .mp4)
+ * - Search for files of type others(test.err, test(without extension))
  */
 TEST_F(SdkTest, SdkTestGetNodeByMimetype)
 {
