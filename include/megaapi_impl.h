@@ -5534,7 +5534,6 @@ protected:
     static void closeTCPConnection(MegaTCPContext *tcpctx);
 
     void run();
-    void initializeAndStartListening();
 
     void answer(MegaTCPContext* tcpctx, const char *rsp, size_t rlen);
 
