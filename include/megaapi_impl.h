@@ -5432,7 +5432,9 @@ public:
 
     // Connection management
     MegaTCPServer *server;
+    // Client tcp connection handle
     uv_tcp_t tcphandle;
+    // Async handle to perform writes
     uv_async_t asynchandle;
     uv_mutex_t mutex;
     MegaApiImpl *megaApi;
@@ -5537,14 +5539,108 @@ protected:
 
     void answer(MegaTCPContext* tcpctx, const char *rsp, size_t rlen);
 
+    /**
+     * @brief Process received data from a TCP connection.
+     *
+     * Called internally by libuv when data is received on a TCP connection.
+     * Implementations should handle parsing and processing of the incoming data.
+     *
+     * @param tcpctx Pointer to the TCP context containing connection state and buffers
+     * @param nread Number of bytes read. Negative values indicate errors:
+     *              - UV_EOF: End of stream
+     *              - Other negative values: libuv error codes
+     * @param buf Buffer containing the received data (may be NULL if nread <= 0)
+     *
+     * @note This method is called from the libuv event loop thread
+     * @see uv_read_start documentation for error handling details
+     */
+    virtual void processReceivedData(MegaTCPContext* tcpctx, ssize_t nread, const uv_buf_t* buf);
 
-    //virtual methods:
-    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
-    virtual void processAsyncEvent(MegaTCPContext *tcpctx);
-    virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle) = 0;
+    /**
+     * @brief Process asynchronous write requests for a TCP connection.
+     *
+     * Called when the MegaTCPContext's async handle is triggered, typically
+     * to initiate write operations or handle pending data transmission.
+     *
+     * @param tcpctx Pointer to the TCP context that triggered the async event
+     *
+     * @note This method runs in the libuv event loop thread
+     * @note Implementations should check tcpctx->writePointers for pending data
+     */
+    virtual void processAsyncEvent(MegaTCPContext* tcpctx);
+
+    /**
+     * @brief Allocate and initialize a new TCP context for an incoming connection.
+     *
+     * Called when a new client connects to the server. The implementation should
+     * create an appropriate MegaTCPContext subclass and initialize it for the
+     * specific server type (HTTP, FTP, etc.).
+     *
+     * @param server_handle libuv stream handle for the server socket that accepted the connection
+     * @return Pointer to newly allocated MegaTCPContext, or NULL if allocation fails
+     *
+     * @note The returned context will be managed by the TCP server
+     * @note Caller is responsible for proper initialization of the context
+     */
+    virtual MegaTCPContext* initializeContext(uv_stream_t* server_handle) = 0;
+
+    /**
+     * @brief Handle completion of a write operation.
+     *
+     * Called as the libuv callback when a write operation completes (successfully or with error).
+     * Implementations should handle cleanup, error reporting, and continuation of data
+     * transmission.
+     *
+     * @param tcpctx Pointer to the TCP context that completed the write
+     * @param status Write operation status:
+     *               - 0: Success
+     *               - Negative: libuv error code indicating failure
+     *
+     * @note This method runs in the libuv event loop thread
+     * @note Implementations should check for connection closure on error
+     */
     virtual void processWriteFinished(MegaTCPContext* tcpctx, int status) = 0;
+
+    /**
+     * @brief Handle closure of the TCP context's async handle.
+     *
+     * Called when the MegaTCPContext's async handle is being closed as part
+     * of connection cleanup. Used for final resource deallocation.
+     *
+     * @param tcpctx Pointer to the TCP context whose async handle is closing
+     *
+     * @note This is part of the connection teardown sequence
+     * @note The context should not be used for async operations after this call
+     */
     virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
-    virtual bool respondNewConnection(MegaTCPContext* tcpctx) = 0; //returns true if server needs to start by reading
+
+    /**
+     * @brief Determine if the server should start reading from a new connection.
+     *
+     * Called immediately after a new connection is accepted and initialized.
+     * Some server types may need to send a response before reading (e.g., FTP servers
+     * send a welcome message), while others start by reading client requests.
+     *
+     * @param tcpctx Pointer to the newly accepted TCP context
+     * @return true if the server should immediately start reading from the connection
+     *         false if the server will handle the initial protocol exchange differently
+     *
+     * @note For HTTP servers, this typically returns true to read the HTTP request
+     * @note For FTP servers, this typically returns false to send welcome message first
+     */
+    virtual bool respondNewConnection(MegaTCPContext* tcpctx) = 0;
+
+    /**
+     * @brief Handle closure of the TCP server's exit handle.
+     *
+     * Called when the server is shutting down and its exit handle has been closed.
+     * Used for final server cleanup and resource deallocation.
+     *
+     * @param tcpServer Pointer to the TCP server that is shutting down
+     *
+     * @note This is the final callback in the server shutdown sequence
+     * @note Server should not accept new connections after this point
+     */
     virtual void processOnExitHandleClose(MegaTCPServer* tcpServer);
 
 public:
