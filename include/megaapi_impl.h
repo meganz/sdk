@@ -105,6 +105,7 @@ class MegaWaiter: public PosixWaiter
 class MegaTCPServer;
 class MegaHTTPServer;
 class MegaFTPServer;
+class MegaFTPDataServer;
 #endif
 
 typedef std::vector<int8_t> MegaSmallIntVector;
@@ -5423,7 +5424,6 @@ protected:
     int duration;
 };
 
-class MegaTCPServer;
 class MegaTCPContext : public MegaTransferListener, public MegaRequestListener
 {
 public:
@@ -5675,9 +5675,6 @@ public:
     void readData(MegaTCPContext* tcpctx);
 };
 
-
-class MegaTCServer;
-class MegaHTTPServer;
 class MegaHTTPContext : public MegaTCPContext
 {
 private:
@@ -5815,8 +5812,6 @@ public:
 
 };
 
-class MegaFTPServer;
-class MegaFTPDataServer;
 class MegaFTPContext : public MegaTCPContext
 {
 public:
@@ -5854,7 +5849,6 @@ public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
 
-class MegaFTPDataServer;
 class MegaFTPServer: public MegaTCPServer
 {
 protected:
@@ -5979,7 +5973,6 @@ public:
     string getListingLineFromNode(MegaNode *child);
 };
 
-class MegaFTPDataServer;
 class MegaFTPDataContext : public MegaTCPContext
 {
 public:
