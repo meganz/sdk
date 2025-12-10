@@ -1175,8 +1175,6 @@ public:
     bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false);
     void ensureSyncUserAttributes(PromiseBoolSP result);
     bool ensureSyncUserAttributes();
-    void copySyncConfig(SyncConfig config, PromiseHandleSP result);
-    handle copySyncConfig(const SyncConfig& config);
     bool login(const string& user, const string& pw);
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false);
     bool login_fetchnodesFromSession(const string& session);

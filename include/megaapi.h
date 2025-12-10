@@ -17508,66 +17508,15 @@ class MegaApi
                                    MegaRequestListener* const listener);
 
         /**
-         * @brief Copy sync data to SDK cache.
-         *
-         * This function is destined to allow transition from Sync management based on Apps cache into SDK
-         * based cache. You will need to call copyCachedStatus prior to this one, so that disable sync reasons are properly
-         * adjusted.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_COPY_SYNC_CONFIG
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getName - Returns the name of the sync
-         * - MegaRequest::getLink - Returns the path of the remote folder
-         * - MegaRequest::getNumber - Returns the local filesystem fingerprint
-         * - MegaRequest::getNumDetails - Returns if sync is temporarily disabled
-         * - MegaRequest::getFlag - if sync is enabled
-
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getParentHandle - backupId assigned to the sync (MegaApi::copySyncDataToCache)
-         *
-         * @param localFolder Local folder
-         * @param name Name given to the sync
-         * @param megaHandle MEGA folder
-         * @param remotePath MEGA folder path
-         * @param localfp Filesystem fingerprint
-         * @param enabled If the sync is enabled by the user
-         * @param temporaryDisabled If the sync is temporarily disabled
-         * @param listener MegaRequestListener to track this request
+         * @deprecated This version of the function is deprecated. It results on API_EINTERNAL.
          */
+        MEGA_DEPRECATED
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         /**
-         * @brief Copy sync data to SDK cache.
-         *
-         * This function is destined to allow transition from Sync management based on Apps cache into SDK
-         * based cache. You will need to call copyCachedStatus prior to this one, so that disable sync reasons are properly
-         * adjusted.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_COPY_SYNC_CONFIG
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getName - Returns the name of the sync
-         * - MegaRequest::getLink - Returns the path of the remote folder
-         * - MegaRequest::getNumber - Returns the local filesystem fingreprint
-         * - MegaRequest::getNumDetails - Returns if sync is temporarily disabled
-         * - MegaRequest::getFlag - if sync is enabled
-
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getParentHandle - backupId assigned to the sync (MegaApi::copySyncDataToCache)
-         *
-         * @param localFolder Local folder
-         * @param megaHandle MEGA folder
-         * @param remotePath MEGA folder path
-         * @param localfp Filesystem fingerprint
-         * @param enabled If the sync is enabled by the user
-         * @param temporaryDisabled If the sync is temporarily disabled
-         * @param listener MegaRequestListener to track this request
+         * @deprecated This version of the function is deprecated. It results on API_EINTERNAL.
          */
+        MEGA_DEPRECATED
         void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         /**
