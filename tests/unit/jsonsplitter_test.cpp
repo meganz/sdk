@@ -383,6 +383,89 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseAtStringValue)
     EXPECT_THAT(capturedValues, testing::ElementsAre("value1", "value2", "value3"));
 }
 
+TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseCheckStartAndEndFilters)
+{
+    std::string testJson = R"({"key1":"value1", "key2":"value2", "key3":"value3"})";
+    int callCount = 0;
+    int flag = -1;
+    std::vector<std::string> capturedValues;
+
+    // start filter
+    filters["<"] = [&flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        flag = 1;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    // end filter
+    filters[">"] = [&flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        flag = 0;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    // Filter for string values - pause at first value
+    filters["{\"key1"] =
+        [&callCount, &capturedValues, &flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_EQ(flag, 1);
+        callCount++;
+        if (callCount <= 2)
+        {
+            return JSONSplitter::CallbackResult::PAUSED;
+        }
+
+        std::string output;
+        json->storeobject(&output);
+        capturedValues.emplace_back(output);
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    filters["{\"key2"] = [&capturedValues, &flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_EQ(flag, 1);
+        std::string output;
+        json->storeobject(&output);
+        capturedValues.emplace_back(output);
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    filters["{\"key3"] = [&capturedValues, &flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_EQ(flag, 1);
+        std::string output;
+        json->storeobject(&output);
+        capturedValues.emplace_back(output);
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    // First call should pause at key1's string value
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_EQ(0, capturedValues.size());
+    EXPECT_EQ(0, flag);
+
+    // Second call should pause at key1's string value
+    consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_EQ(0, capturedValues.size());
+    EXPECT_EQ(0, flag);
+
+    // Second call should process all remaining values
+    consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
+    EXPECT_TRUE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_THAT(capturedValues, testing::ElementsAre("value1", "value2", "value3"));
+    EXPECT_EQ(0, flag);
+}
+
 TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
 {
     // Test case: Inner string filter pauses, but there's an outer object filter
