@@ -18570,17 +18570,52 @@ std::shared_ptr<Node> MegaClient::getSyncdebrisDaily(std::shared_ptr<Node> binSy
 {
     if (!binSyncDebrisNode)
     {
-        assert(false && "getSyncdebrisDailyByName: //bin/SyncDebris/ provided node is null");
+        assert(false && "getSyncdebrisDaily: //bin/SyncDebris/ provided node is null");
         return nullptr;
     }
 
     // locate //bin/SyncDebris/yyyy-mm-dd
-    if (std::shared_ptr<Node> n = childnodebyname(binSyncDebrisNode.get(), dailyDebrisName.c_str());
-        n && n->type == FOLDERNODE)
+    auto nodes = childnodesbyname(binSyncDebrisNode.get(), dailyDebrisName.c_str());
+    if (nodes.empty())
     {
-        return n;
+        return nullptr;
     }
-    return nullptr;
+
+    unsigned filesFoundWithSameName{0};
+    std::shared_ptr<Node> dailyDebrisNode;
+    std::for_each(std::begin(nodes),
+                  std::end(nodes),
+                  [&filesFoundWithSameName, &dailyDebrisNode](const auto& n)
+                  {
+                      if (n->type != FOLDERNODE)
+                      {
+                          ++filesFoundWithSameName;
+                          return;
+                      }
+
+                      if (!dailyDebrisNode || n->ctime < dailyDebrisNode->ctime)
+                      {
+                          dailyDebrisNode = n;
+                      }
+                  });
+
+    const std::string prefix{"getSyncdebrisDaily"};
+    if (nodes.size() > 1)
+    {
+        LOG_warn << prefix << "There is " << nodes.size()
+                 << " node/s with the same name than searched SyncDebris daily "
+                    "folder: "
+                 << dailyDebrisName;
+    }
+
+    if (filesFoundWithSameName)
+    {
+        LOG_warn << prefix << "There is " << filesFoundWithSameName
+                 << " File node/s with the same name than searched SyncDebris daily folder: "
+                 << dailyDebrisName;
+    }
+
+    return dailyDebrisNode;
 }
 
 std::tuple<std::shared_ptr<Node>, std::shared_ptr<Node>, std::shared_ptr<Node>, std::string>
@@ -18692,34 +18727,31 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
             {
                 LOG_err << prefix << "Putnodes failed for creating (" << auxDebrisName
                         << "). errorCode(" << e << "). Calling execmovetosyncdebris anyway";
+                return;
             }
 
             auto [binNode, binSyncDebrisNode, dailySyncDebrisNode, dailyDebrisName] =
                 getSyncdebrisDailyAndAncestors(now);
-            if (!binNode)
-            {
-                LOG_err << prefix << "binNode not found. Calling execmovetosyncdebris anyway";
-            }
-
-            if (!binSyncDebrisNode)
+            assert(binNode);
+            if (!binNode || !binSyncDebrisNode || !dailySyncDebrisNode)
             {
                 LOG_err << prefix
-                        << "binSyncDebrisNode not found. Calling execmovetosyncdebris anyway";
+                        << "PutNodes for dailySyncDebrisNode finished with API_OK, but node could "
+                           "not be retrieved from NodeManager."
+                        << " Bin: " << (binNode ? toHandle(binNode->nodehandle) : "UNDEF")
+                        << ", SyncDebris: "
+                        << (binSyncDebrisNode ? toHandle(binSyncDebrisNode->nodehandle) : "UNDEF")
+                        << ", SyncDebris Daily: "
+                        << (dailySyncDebrisNode ? toHandle(dailySyncDebrisNode->nodehandle) :
+                                                  "UNDEF");
+                return;
             }
 
-            if (!dailySyncDebrisNode)
-            {
-                // [TODO_SDK-5014]: improve this case
-                LOG_err << prefix << "daily cloud SyncDebris folder (" << dailyDebrisName
-                        << ") not found. Calling execmovetosyncdebris anyway";
-            }
-            else
-            {
-                assert(dailyDebrisName == auxDebrisName);
-                LOG_debug << prefix << "daily cloud SyncDebris folder (" << dailyDebrisName
-                          << ") putnodes finished successfully. Trigger remaining debris moves: "
-                          << pendingDebris.size();
-            }
+            LOG_debug << prefix << "daily cloud SyncDebris folder ("
+                      << toHandle(dailySyncDebrisNode->nodehandle)
+                      << ") created successfully: " << dailyDebrisName
+                      << ". Trigger remaining debris moves: " << pendingDebris.size();
+
             // on completion, send the queued nodes
             execmovetosyncdebris(nullptr, nullptr, false, false);
         },
