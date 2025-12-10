@@ -2258,11 +2258,7 @@ void SdkTest::getAccountsForTest(const unsigned howMany,
 
         static const bool checkCredentials = true; // default value
         configureTestInstance(index, email, pass, checkCredentials, clientType);
-        auto proxy = std::make_unique<MegaProxy>();
-        proxy->setProxyType(MegaProxy::PROXY_CUSTOM);
-        proxy->setProxyURL("socks5h://127.0.0.1:1080");
-        megaApi[index]->setProxySettings(proxy.get());
-        megaApi[index]->retryPendingConnections();
+
         std::unique_ptr<RequestTracker> tracker;
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
