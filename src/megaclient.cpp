@@ -18727,6 +18727,7 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
             {
                 LOG_err << prefix << "Putnodes failed for creating (" << auxDebrisName
                         << "). errorCode(" << e << "). Calling execmovetosyncdebris anyway";
+                execmovetosyncdebris(nullptr, nullptr, false, false);
                 return;
             }
 
@@ -18744,13 +18745,14 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
                         << ", SyncDebris Daily: "
                         << (dailySyncDebrisNode ? toHandle(dailySyncDebrisNode->nodehandle) :
                                                   "UNDEF");
-                return;
             }
-
-            LOG_debug << prefix << "daily cloud SyncDebris folder ("
-                      << toHandle(dailySyncDebrisNode->nodehandle)
-                      << ") created successfully: " << dailyDebrisName
-                      << ". Trigger remaining debris moves: " << pendingDebris.size();
+            else
+            {
+                LOG_debug << prefix << "daily cloud SyncDebris folder ("
+                          << toHandle(dailySyncDebrisNode->nodehandle)
+                          << ") created successfully: " << dailyDebrisName
+                          << ". Trigger remaining debris moves: " << pendingDebris.size();
+            }
 
             // on completion, send the queued nodes
             execmovetosyncdebris(nullptr, nullptr, false, false);
