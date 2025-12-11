@@ -59,6 +59,10 @@ bool NodeSearchFilter::isValidCategory(const MimeType_t category, const nodetype
         return false;
     if (mMimeCategory == MIME_TYPE_ALL_DOCS && isDocType(category))
         return true;
+    if (mMimeCategory == MIME_TYPE_ALL_VISUAL_MEDIA && isVisualMediaType(category))
+    {
+        return true;
+    }
     return category == mMimeCategory;
 }
 
@@ -114,6 +118,18 @@ bool NodeSearchFilter::isDocType(const MimeType_t t)
         case MIME_TYPE_PDF:
         case MIME_TYPE_PRESENTATION:
         case MIME_TYPE_SPREADSHEET:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool NodeSearchFilter::isVisualMediaType(const MimeType_t t)
+{
+    switch (t)
+    {
+        case MIME_TYPE_PHOTO:
+        case MIME_TYPE_VIDEO:
             return true;
         default:
             return false;

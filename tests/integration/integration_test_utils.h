@@ -210,14 +210,16 @@ std::optional<int> downloadNode(
  */
 std::unique_ptr<::mega::MegaNode> uploadFile(::mega::MegaApi* megaApi,
                                              const std::filesystem::path& localPath,
-                                             ::mega::MegaNode* parentNode = nullptr);
+                                             ::mega::MegaNode* parentNode = nullptr,
+                                             const char* fileName = nullptr);
 
 /**
  * @brief Overloaded version to upload a temp file.
  */
 std::unique_ptr<::mega::MegaNode> uploadFile(::mega::MegaApi* megaApi,
                                              LocalTempFile&& file,
-                                             ::mega::MegaNode* parentNode = nullptr);
+                                             ::mega::MegaNode* parentNode = nullptr,
+                                             const char* fileName = nullptr);
 
 ::mega::handle createPasswordNode(::mega::MegaApi* megaApi,
                                   const std::string& name,
