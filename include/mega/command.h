@@ -700,8 +700,6 @@ public:
     CommandAttachFA(MegaClient*, handle, fatype, const std::string& encryptedAttributes, int);
 };
 
-#include <array>
-
 enum class PitagPurpose : char
 {
     Unknown = '.',
