@@ -1849,11 +1849,19 @@ public:
     // server-client command processing
     void sc_storeSn(JSON& json);
     void sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChanging, bool originalAC);
+    // process an action packet
     bool sc_procActionPacket(JSON& json, std::shared_ptr<Node>& lastAPDeletedNode);
+    // process an action packet excluding a, i and st tags
+    void sc_procActionPacketWithoutCommonTags(JSON& json,
+                                              nameid name,
+                                              bool isSelfOriginating,
+                                              std::shared_ptr<Node>& lastAPDeletedNode);
     // evaluates if the sequence tag matches
     bool sc_checkSequenceTag(const string& tag);
     // check if it is ok to process the current action packet
     bool sc_checkActionPacket(JSON& json, Node* lastAPDeletedNode);
+    // check if it is ok to process the current action packet when there's no st
+    bool sc_checkActionPacketWithoutSt(nameid& cmd, Node* lastAPDeletedNode);
     // enter json object to check the action packet, then restore json position
     bool sc_checkActionPacketPreservePos(JSON& json, Node* lastAPDeletedNode);
 
