@@ -1847,8 +1847,15 @@ public:
     void closetc(bool remove = false);
 
     // server-client command processing
+    void sc_storeSn(JSON& json);
+    void sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChanging, bool originalAC);
+    bool sc_procActionPacket(JSON& json, std::shared_ptr<Node>& lastAPDeletedNode);
+    // evaluates if the sequence tag matches
     bool sc_checkSequenceTag(const string& tag);
+    // check if it is ok to process the current action packet
     bool sc_checkActionPacket(JSON& json, Node* lastAPDeletedNode);
+    // enter json object to check the action packet, then restore json position
+    bool sc_checkActionPacketPreservePos(JSON& json, Node* lastAPDeletedNode);
 
     void sc_updatenode(JSON& json);
     std::shared_ptr<Node> sc_deltree(JSON& json, bool& moveOperation);
