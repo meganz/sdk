@@ -805,7 +805,7 @@ public:
                     Completion&&,
                     bool canChangeVault,
                     const std::string& customerIpPort,
-                    const Pitag pitag);
+                    std::optional<Pitag> pitag = std::nullopt);
 };
 
 class MEGA_API CommandSetAttr: public Command

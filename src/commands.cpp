@@ -1084,7 +1084,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
                                  Completion&& resultFunction,
                                  bool canChangeVault,
                                  const string& customerIpPort,
-                                 const Pitag pitag):
+                                 std::optional<Pitag> pitag):
     mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
@@ -1115,14 +1115,17 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
 
     arg("sm", 1);
 
-    std::string pitagString;
-    pitagString += static_cast<char>(pitag.purpose);
-    pitagString += static_cast<char>(pitag.trigger);
-    pitagString += static_cast<char>(pitag.nodeType);
-    pitagString += static_cast<char>(pitag.target);
-    pitagString += static_cast<char>(pitag.importSource);
+    if (pitag)
+    {
+        std::string pitagString;
+        pitagString += static_cast<char>(pitag->purpose);
+        pitagString += static_cast<char>(pitag->trigger);
+        pitagString += static_cast<char>(pitag->nodeType);
+        pitagString += static_cast<char>(pitag->target);
+        pitagString += static_cast<char>(pitag->importSource);
 
-    arg("p", pitagString.c_str());
+        arg("p", pitagString.c_str());
+    }
 
     if (cauth)
     {

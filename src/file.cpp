@@ -21,14 +21,12 @@
 
 #include "mega/file.h"
 
-#include "mega/base64.h"
 #include "mega/command.h"
 #include "mega/heartbeats.h"
 #include "mega/logging.h"
 #include "mega/megaapp.h"
 #include "mega/megaclient.h"
 #include "mega/sync.h"
-#include "mega/tlv.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
 
@@ -550,7 +548,6 @@ void File::sendPutnodesToCloneNode(MegaClient* client,
         NodeHandle th = h;
         assert(syncxfer);
         newnode->ovhandle = ovHandle;
-        Pitag pitag;
         client->queueCommand(new CommandPutNodes(client,
                                                  th,
                                                  NULL,
@@ -561,8 +558,7 @@ void File::sendPutnodesToCloneNode(MegaClient* client,
                                                  nullptr,
                                                  std::move(completion),
                                                  canChangeVault,
-                                                 {},
-                                                 pitag)); // customerIpPort
+                                                 {})); // customerIpPort
     }
 }
 

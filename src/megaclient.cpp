@@ -9910,7 +9910,6 @@ void MegaClient::putnodes(NodeHandle h,
                           string customerIpPort,
                           CommandPutNodes::Completion&& resultFunction)
 {
-    Pitag pitag;
     queueCommand(new CommandPutNodes(this,
                                      h,
                                      NULL,
@@ -9921,8 +9920,7 @@ void MegaClient::putnodes(NodeHandle h,
                                      cauth,
                                      std::move(resultFunction),
                                      canChangeVault,
-                                     customerIpPort,
-                                     pitag));
+                                     customerIpPort));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs

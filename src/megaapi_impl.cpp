@@ -25868,7 +25868,6 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
             {
                 return e;
             }
-            Pitag pitag;
             client->queueCommand(new CommandPutNodes(client,
                                                      parentHandle,
                                                      NULL,
@@ -25879,8 +25878,7 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                                                      nullptr,
                                                      nullptr,
                                                      false,
-                                                     {},
-                                                     pitag)); // customerIpPort
+                                                     {})); // customerIpPort
             return e;
 }
 
