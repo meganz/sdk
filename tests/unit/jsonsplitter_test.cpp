@@ -721,6 +721,26 @@ TEST_F(JSONSplitterTest, ProcessUnexpectedFailure2)
     EXPECT_TRUE(splitter.hasFailed());
 }
 
+TEST_F(JSONSplitterTest, ProcessUnexpectedCloseBracketWithEmptyStack)
+{
+    std::string testJson = R"(}{}})"; // extra }
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedContentWithEmptyStack)
+{
+    std::string testJson = R"("abc","def")";
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
 // error filter can not be paused
 TEST_F(JSONSplitterTest, ProcessErrorResponseWithPause)
 {
