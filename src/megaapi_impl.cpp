@@ -10686,48 +10686,29 @@ MegaSyncList *MegaApiImpl::getSyncs()
     return syncList;
 }
 
-void MegaApiImpl::setLegacyExcludedNames(vector<string> *excludedNames)
+void MegaApiImpl::setLegacyExcludedNames(vector<string>*)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.excludedNames(
-      excludedNames ? *excludedNames : string_vector(), *client->fsaccess);
+    return;
 }
 
-void MegaApiImpl::setLegacyExcludedPaths(vector<string> *excludedPaths)
+void MegaApiImpl::setLegacyExcludedPaths(vector<string>*)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.excludedPaths(
-      excludedPaths ? *excludedPaths : string_vector());
+    return;
 }
 
-void MegaApiImpl::setLegacyExclusionLowerSizeLimit(unsigned long long limit)
+void MegaApiImpl::setLegacyExclusionLowerSizeLimit(unsigned long long)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.lowerLimit(limit);
+    return;
 }
 
-void MegaApiImpl::setLegacyExclusionUpperSizeLimit(unsigned long long limit)
+void MegaApiImpl::setLegacyExclusionUpperSizeLimit(unsigned long long)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.upperLimit(limit);
+    return;
 }
 
-MegaError* MegaApiImpl::exportLegacyExclusionRules(const char* absolutePath)
+MegaError* MegaApiImpl::exportLegacyExclusionRules(const char*)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    if (!absolutePath || !*absolutePath)
-    {
-        return new MegaErrorPrivate(API_EARGS);
-    }
-
-    auto lp = LocalPath::fromAbsolutePath(absolutePath);
-    auto result = client->syncs.createMegaignoreFromLegacyExclusions(lp);
-    return new MegaErrorPrivate(result);
+    return new MegaErrorPrivate(API_EINTERNAL);
 }
 
 long long MegaApiImpl::getNumLocalNodes()
@@ -23920,67 +23901,13 @@ void MegaApiImpl::copySyncDataToCache(const char*,
     waiter->notify();
 }
 
-void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener* listener)
+void MegaApiImpl::copyCachedStatus(int, int, int, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_CACHED_STATUS, listener);
-
-    if (blockStatus < 0) blockStatus = 999;
-    if (storageStatus < 0) storageStatus = 999;
-    if (businessStatus < 0) businessStatus = 999;
-    request->setNumber(storageStatus + 1000 * blockStatus + 1000000 * businessStatus);
-
-    request->performRequest = [this, request]()
-        {
-            auto number = request->getNumber();
-            int businessStatusValue = static_cast<int>(number / 1000000);
-            number = number % 1000000;
-            int blockedStatusValue =  static_cast<int>(number / 1000);
-            int storageStatusValue = static_cast<int>(number % 1000);
-
-            using CType = CacheableStatus::Type;
-            auto loadAndPersist = [this](CType type, int value) -> error
-            {
-                if (value == 999)
-                {
-                    LOG_verbose << "Ignoring not valid status in migration: " << CacheableStatus::typeToStr(type) << " = " << value;
-                    return API_OK; //received invalid value: not to be used
-                }
-
-                if (int64_t oldValue = client->mCachedStatus.lookup(type, 999) != 999)
-                {
-                    LOG_verbose << "Ignoring already present status in migration: " << CacheableStatus::typeToStr(type) << " = " << value
-                                << " existing = " << oldValue;
-                    return API_OK;
-                }
-
-                client->mCachedStatus.loadCachedStatus(type, value);
-                return API_OK;
-            };
-
-            error e = API_OK;
-            auto subE = loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);
-            if (!e)
-            {
-                e = subE;
-            }
-            subE = loadAndPersist(CType::STATUS_BUSINESS, businessStatusValue);
-            if (!e)
-            {
-                e = subE;
-            }
-            subE = loadAndPersist(CType::STATUS_BLOCKED, blockedStatusValue);
-            if (!e)
-            {
-                e = subE;
-            }
-
-            if (!e)
-            {
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-            }
-            return e;
-        };
-
+    request->performRequest = []()
+    {
+        return API_EINTERNAL;
+    };
     requestQueue.push(request);
     waiter->notify();
 }

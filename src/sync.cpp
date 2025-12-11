@@ -4062,13 +4062,10 @@ UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
     mNextHeartbeat.reset(new HeartBeatSyncInfo());
 }
 
-void Syncs::confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique_ptr<DefaultFilterChain>& resultIfDfc, unique_ptr<string_vector>& resultIfMegaignoreDefault)
+void Syncs::confirmOrCreateDefaultMegaignore(unique_ptr<DefaultFilterChain>& resultIfDfc,
+                                             unique_ptr<string_vector>& resultIfMegaignoreDefault)
 {
-    // In a new install, we would populate .megaignore.default with the default defaults.
-    // But when upgrading an old MEGAsync that has syncs and legacy rules, copy
-    // those legacy rules to .megaignore.default.  transitionToMegaignore tells us which it is.
-
-    resultIfDfc.reset(new DefaultFilterChain(transitionToMegaignore ? mLegacyUpgradeFilterChain : mNewSyncFilterChain));
+    resultIfDfc.reset(new DefaultFilterChain(mNewSyncFilterChain));
 
     // However, if .megaignore.default already exists, then use that one of course.
     // If it doesn't exist yet, write it.
@@ -4077,13 +4074,13 @@ void Syncs::confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique
     defaultpath.appendWithSeparator(LocalPath::fromRelativePath(".megaignore.default"), false);
     if (!fsaccess->fileExistsAt(defaultpath))
     {
-        LOG_info << "Writing .megaignore.default according to upgrade flag: " << transitionToMegaignore << " at " << defaultpath;
+        LOG_info << "Writing .megaignore.default at " << defaultpath;
         if (!resultIfDfc->create(defaultpath, false, *fsaccess, false))
         {
             LOG_err << "Failed to write .megaignore.default";
         }
     }
-    else if (!transitionToMegaignore)
+    else
     {
         // If we are in transitionToMegaignore, don't load from the default as it will lose
         // the absolute paths which might be relevant for a particular sync
@@ -4102,33 +4099,6 @@ void Syncs::confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique
         LOG_err << "Failed to load .megaignore.default, going with default defaults instead";
         resultIfMegaignoreDefault.reset();
     }
-}
-
-error Syncs::createMegaignoreFromLegacyExclusions(const LocalPath& targetPath)
-{
-    LOG_info << "Writing .megaignore with legacy exclusion rules at " << targetPath;
-
-    // Check whether the file already exists
-    auto targetPathWithFileName = targetPath;
-    targetPathWithFileName.appendWithSeparator(IGNORE_FILE_NAME, false);
-    if (fsaccess->fileExistsAt(targetPathWithFileName))
-    {
-        LOG_err << "Failed to write " << targetPathWithFileName
-                << " because the file already exists";
-        return API_EEXIST;
-    }
-
-    // Safely copy the legacy filter chain
-    auto legacyFilterChain = std::make_unique<DefaultFilterChain>(mLegacyUpgradeFilterChain);
-
-    // Write the file
-    if (!legacyFilterChain->create(targetPath, true, *fsaccess, false))
-    {
-        LOG_err << "Failed to write " << targetPath;
-        return API_EACCESS;
-    }
-
-    return API_OK;
 }
 
 void Syncs::enableSyncByBackupId(handle backupId, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
@@ -4271,7 +4241,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         // Create a new chain so that we can add custom rules if necessary.
         unique_ptr<DefaultFilterChain> resultIfDfc;
         unique_ptr<string_vector> resultIfMegaignoreDefault;
-        confirmOrCreateDefaultMegaignore(!us.mConfig.mLegacyExclusionsIneligigble, resultIfDfc, resultIfMegaignoreDefault);
+        confirmOrCreateDefaultMegaignore(resultIfDfc, resultIfMegaignoreDefault);
         assert(resultIfDfc || resultIfMegaignoreDefault);
 
         bool writeMegaignoreFailed = false;
@@ -4376,7 +4346,6 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mEnabled = true;
     us.mConfig.mRunState = SyncRunState::Loading;
-    us.mConfig.mLegacyExclusionsIneligigble = true;
 
     // If we're a backup sync...
     if (us.mConfig.isBackup())
@@ -13021,29 +12990,25 @@ bool SyncConfigIOContext::decrypt(const string& in, string& out)
 
 bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isExternal) const
 {
-    const auto TYPE_BACKUP_ID       = makeNameid("id");
-    const auto TYPE_BACKUP_STATE    = makeNameid("bs");
-    const auto TYPE_CHANGE_METHOD   = makeNameid("cm");
-    const auto TYPE_ENABLED         = makeNameid("en");
-    const auto TYPE_FILESYSTEM_FP   = makeNameid("fp");
-    const auto TYPE_FILESYSTEM_FU   = makeNameid("fu");
-    const auto TYPE_ROOT_FSID       = makeNameid("rf");
-    const auto TYPE_LAST_ERROR      = makeNameid("le");
-    const auto TYPE_LAST_WARNING    = makeNameid("lw");
-    const auto TYPE_NAME            = makeNameid("n");
-    const auto TYPE_SCAN_INTERVAL   = makeNameid("si");
-    const auto TYPE_SOURCE_PATH     = makeNameid("sp");
-    const auto TYPE_SYNC_TYPE       = makeNameid("st");
-    const auto TYPE_TARGET_HANDLE   = makeNameid("th");
-    const auto TYPE_TARGET_PATH     = makeNameid("tp");
-    const auto TYPE_LEGACY_INELIGIB = makeNameid("li");
+    const auto TYPE_BACKUP_ID = makeNameid("id");
+    const auto TYPE_BACKUP_STATE = makeNameid("bs");
+    const auto TYPE_CHANGE_METHOD = makeNameid("cm");
+    const auto TYPE_ENABLED = makeNameid("en");
+    const auto TYPE_FILESYSTEM_FP = makeNameid("fp");
+    const auto TYPE_FILESYSTEM_FU = makeNameid("fu");
+    const auto TYPE_ROOT_FSID = makeNameid("rf");
+    const auto TYPE_LAST_ERROR = makeNameid("le");
+    const auto TYPE_LAST_WARNING = makeNameid("lw");
+    const auto TYPE_NAME = makeNameid("n");
+    const auto TYPE_SCAN_INTERVAL = makeNameid("si");
+    const auto TYPE_SOURCE_PATH = makeNameid("sp");
+    const auto TYPE_SYNC_TYPE = makeNameid("st");
+    const auto TYPE_TARGET_HANDLE = makeNameid("th");
+    const auto TYPE_TARGET_PATH = makeNameid("tp");
 
     // Temporary storage.
     std::uint64_t fsFingerprint = 0;
     std::string   fsUUID;
-
-    // Assume legacy exclusions are eligible.
-    config.mLegacyExclusionsIneligigble = false;
 
     for ( ; ; )
     {
@@ -13138,10 +13103,6 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
             reader.storebinary(&config.mOriginalPathOfRemoteRootNode);
             break;
 
-        case TYPE_LEGACY_INELIGIB:
-            config.mLegacyExclusionsIneligigble = reader.getbool();
-            break;
-
         default:
             if (!reader.storeobject())
             {
@@ -13212,7 +13173,6 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg("bs", config.mBackupState);
     writer.arg("cm", config.mChangeDetectionMethod);
     writer.arg("si", config.mScanIntervalSec);
-    writer.arg("li", config.mLegacyExclusionsIneligigble);
     writer.endobject();
 }
 
