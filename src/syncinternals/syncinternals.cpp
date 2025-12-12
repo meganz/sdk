@@ -851,15 +851,13 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
                           << " [localMac=" << localMac << ", remoteMac=" << remoteMac << ", path='"
                           << fsNodeFullPath << "']";
 
-                macComp.reset();
-                syncNode.trimRareFields();
+                syncNode.resetMacComputationIfAny();
                 return {compRes, localMac, remoteMac};
             }
             else if (result == MacAdvanceResult::Failed)
             {
                 LOG_debug << logPre << "Failed: " << fsNodeFullPath;
-                macComp.reset();
-                syncNode.trimRareFields();
+                syncNode.resetMacComputationIfAny();
                 return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
             }
             else
@@ -1039,8 +1037,10 @@ CloneMacStatus initCloneCandidateMacComputation(MegaClient& mc, SyncUpload_inCli
         auto result = advanceMacComputation(mc, upload.macComputation, logPre);
         if (result == MacAdvanceResult::Failed)
         {
+            LOG_debug << logPre << "Failed to start computation of MAC for "
+                      << upload.getLocalname();
             upload.macComputation.reset();
-            return CloneMacStatus::Failed; // Treat as unable to start
+            return CloneMacStatus::Failed;
         }
     }
     else
@@ -1097,8 +1097,8 @@ CloneMacStatus checkPendingCloneMac(MegaClient& mc, SyncUpload_inClient& upload)
 
         if (!valid)
         {
-            LOG_debug << logPre
-                      << "Candidate removed/changed, aborting MAC: " << upload.getLocalname();
+            LOG_debug << logPre << "Candidate removed/changed, aborting computation of MAC for "
+                      << upload.getLocalname();
             upload.macComputation.reset();
             return CloneMacStatus::Failed;
         }
@@ -1156,17 +1156,24 @@ void processCloneMacResult(MegaClient& mc,
             if (auto cloneNodeCandidate =
                     findCloneNodeCandidate(mc, *upload, true /*excludeMtime*/))
             {
+                LOG_debug << "processCloneMacResult: Proceeding with clone of candidate node for "
+                          << upload->getLocalname();
                 upload->cloneNode(mc, cloneNodeCandidate, ovHandleIfShortcut);
                 return;
             }
+            LOG_warn
+                << "processCloneMacResult: MAC was computed, but no clone candidate matched for "
+                << upload->getLocalname() << " !! Falling back to full upload";
             break;
 
         case CloneMacStatus::Failed:
-            // MAC failed - fall back to full upload.
+            LOG_warn << "processCloneMacResult: MAC computation failed for "
+                     << upload->getLocalname() << " !! Falling back to full upload";
             break;
 
         case CloneMacStatus::NoCandidates:
-            // Nothing to do - continue to full upload path below.
+            LOG_warn << "processCloneMacResult: No clone candidates found for "
+                     << upload->getLocalname() << ". Falling back to full upload";
             break;
     }
 

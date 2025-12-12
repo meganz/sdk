@@ -533,7 +533,12 @@ public:
     void releaseFile()
     {
         std::lock_guard<std::mutex> lock(mMutex);
-        assert(mCurrentFiles > 0);
+        if (mCurrentFiles == 0)
+        {
+            assert(false && "MacComputationThrottle: releaseFile called but no files are currently "
+                            "being processed");
+            return;
+        }
         --mCurrentFiles;
     }
 
