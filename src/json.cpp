@@ -894,7 +894,7 @@ void JSONWriter::arg(const char* name, m_off_t n)
 
 void JSONWriter::addcomma()
 {
-    if (mJson.size() && !strchr("[{", mJson.back()))
+    if (!mJson.empty() && !strchr("[{", mJson.back()))
     {
         mJson.append(",");
     }
@@ -1261,7 +1261,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
             mStack.pop_back();
             mExpectValue = 0;
 
-            if (!mStack.size())
+            if (mStack.empty())
             {
                 assert(mCurrentPath.empty());
 
@@ -1395,7 +1395,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
             mPos += j;
             mExpectValue = 0;
 
-            if (!mStack.size())
+            if (mStack.empty())
             {
                 assert(mCurrentPath.empty());
 
