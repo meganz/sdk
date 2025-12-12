@@ -24,6 +24,8 @@ protected:
                          int accessType = MegaShare::ACCESS_READWRITE);
 
     // Remove a share ensuring node changes are notified.
+    void removeShareAtoB(MegaNode* node, unsigned apiIndexA, unsigned apiIndexB);
+
     // Use mApi[0] and mApi[1]
     void removeShareAtoB(MegaNode* node);
 

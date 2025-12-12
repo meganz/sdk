@@ -82,21 +82,32 @@ void SdkTestShare::createShareAtoB(MegaNode* node, bool waitForA, bool waitForB,
     createShareAtoB(node, {0, waitForA}, {1, waitForB}, accessType);
 }
 
-void SdkTestShare::removeShareAtoB(MegaNode* node)
+void SdkTestShare::removeShareAtoB(MegaNode* node, unsigned apiIndexA, unsigned apiIndexB)
 {
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
-                                                                 MegaNode::CHANGE_TYPE_OUTSHARE,
-                                                                 mApi[0].nodeUpdated);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
-                                                                 MegaNode::CHANGE_TYPE_REMOVED,
-                                                                 mApi[1].nodeUpdated);
-    ASSERT_NO_FATAL_FAILURE(shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN));
-    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))
+    assert(apiIndexA < mApi.size());
+    assert(apiIndexB < mApi.size());
+
+    mApi[apiIndexA].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(node->getHandle(),
+                                  MegaNode::CHANGE_TYPE_OUTSHARE,
+                                  mApi[apiIndexA].nodeUpdated);
+    mApi[apiIndexB].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(node->getHandle(),
+                                  MegaNode::CHANGE_TYPE_REMOVED,
+                                  mApi[apiIndexB].nodeUpdated);
+    ASSERT_NO_FATAL_FAILURE(
+        shareFolder(node, mApi[apiIndexB].email.c_str(), MegaShare::ACCESS_UNKNOWN, apiIndexA));
+    ASSERT_TRUE(waitForResponse(&mApi[apiIndexA].nodeUpdated))
         << "Node update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))
+    ASSERT_TRUE(waitForResponse(&mApi[apiIndexB].nodeUpdated))
         << "Node update not received after " << maxTimeout << " seconds";
     resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    mApi[apiIndexA].nodeUpdated = mApi[apiIndexB].nodeUpdated = false;
+}
+
+void SdkTestShare::removeShareAtoB(MegaNode* node)
+{
+    removeShareAtoB(node, 0, 1);
 }
 
 void SdkTestShare::resetCredentialsIfContactFound(const unsigned i, const unsigned j)
