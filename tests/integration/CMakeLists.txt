@@ -48,6 +48,7 @@ target_sources(test_integration
     sdk_test_pitag.cpp
     SdkTestFolderController_test.cpp
     sdk_test_share.cpp
+    sdk_test_share_nested.cpp
 
     passwordManager/SdkTestPasswordManager.cpp
     passwordManager/SdkTestPasswordManager.h
