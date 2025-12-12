@@ -9066,11 +9066,15 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         SYNC_verbose << syncname << "Download setmtime change only at "
                      << logTriplet(row, fullPath);
 
-        assert(row.syncNode->syncedFingerprint.size == row.fsNode->fingerprint.size);
-        assert(row.syncNode->syncedFingerprint.crc == row.fsNode->fingerprint.crc);
-        assert(row.syncNode->syncedFingerprint.mtime != row.fsNode->fingerprint.mtime);
         assert(row.syncNode->realScannedFingerprint == row.syncNode->scannedFingerprint);
-        assert(row.syncNode->syncedFingerprint.equalExceptMtime(row.syncNode->scannedFingerprint));
+        if (row.syncNode->syncedFingerprint.isvalid)
+        {
+            assert(row.syncNode->syncedFingerprint.size == row.fsNode->fingerprint.size);
+            assert(row.syncNode->syncedFingerprint.crc == row.fsNode->fingerprint.crc);
+            assert(row.syncNode->syncedFingerprint.mtime != row.fsNode->fingerprint.mtime);
+            assert(
+                row.syncNode->syncedFingerprint.equalExceptMtime(row.syncNode->scannedFingerprint));
+        }
         assert(row.fsNode->fingerprint.equalExceptMtime(*downloadPtr));
 
         auto& fsAccess = *syncs.fsaccess;

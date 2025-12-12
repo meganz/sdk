@@ -186,6 +186,89 @@ protected:
             waitForSyncAndVerifyTransfer(targetPathInSync, st, tt, isFullUploadExpected));
     }
 
+    enum class CxfMtimeDirection
+    {
+        Increase,
+        Decrease
+    };
+
+    void runAsyncMacComputationForCxfCase(const std::string& logPre,
+                                          const CxfMtimeDirection direction)
+    {
+        auto cleanup = setCleanupFunction();
+        LOG_debug << logPre << "Test started";
+
+        static constexpr size_t FILE_SIZE =
+            (5 * 1024 * 1024) + (2 * 1024) + 3; // 5MB + 2KB + 3 bytes
+        const fs::path testFilePath = fs::absolute(getLocalTmpDir() / "test_file_cxf.dat");
+
+        LOG_debug << logPre << "1. Creating test file";
+        {
+            auto st = addSyncListenerTracker(testFilePath.string());
+            ASSERT_TRUE(st);
+            auto localFile = std::make_shared<sdk_test::LocalTempFile>(testFilePath, FILE_SIZE);
+            mLocalFiles.emplace_back(localFile);
+            auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+            ASSERT_EQ(status, std::future_status::ready) << "File sync timed out";
+            ASSERT_EQ(errCode, API_OK) << "File sync failed";
+        }
+
+        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+        auto [getMtimeOk, originalMtime] =
+            mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(testFilePath.u8string()));
+        ASSERT_TRUE(getMtimeOk) << "Failed to get original mtime";
+
+        LOG_debug << logPre << "2. Removing sync (simulating logout without file deletion)";
+        removeTestSync();
+
+        LOG_debug << logPre << "3. Updating file mtime";
+        const m_time_t newMtime = direction == CxfMtimeDirection::Increase ?
+                                      originalMtime + MIN_ALLOW_MTIME_DIFFERENCE :
+                                      originalMtime - MIN_ALLOW_MTIME_DIFFERENCE;
+        ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(testFilePath.u8string()),
+                                             newMtime));
+
+        LOG_debug << logPre << "4. Re-adding sync (SRT_CXF case - no LocalNodes exist)";
+        ASSERT_NO_FATAL_FAILURE(
+            initiateSync(getLocalTmpDirU8string(), SYNC_REMOTE_PATH, mBackupId));
+
+        LOG_debug << logPre << "5. Waiting for sync to complete with async MAC recomputation";
+        {
+            auto st = addSyncListenerTracker(testFilePath.string());
+            ASSERT_TRUE(st);
+            auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+            ASSERT_EQ(status, std::future_status::ready) << "File sync timed out";
+            ASSERT_EQ(errCode, API_OK) << "File sync failed";
+        }
+
+        auto backupNode = getBackupNode();
+        ASSERT_TRUE(backupNode) << "Backup node not found";
+
+        std::unique_ptr<MegaNode> cloudNode(
+            megaApi[0]->getChildNodeOfType(backupNode.get(), "test_file_cxf.dat", FILENODE));
+        ASSERT_TRUE(cloudNode) << "Cloud node not found after re-sync";
+
+        auto cloudNodeMtime = cloudNode->getModificationTime();
+        if (direction == CxfMtimeDirection::Increase)
+        {
+            ASSERT_EQ(cloudNodeMtime, newMtime)
+                << "Cloud node mtime should match the updated local mtime after CXF sync";
+        }
+        else
+        {
+            auto [getMtimeLocalOk, localMtime] =
+                mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(testFilePath.u8string()));
+            ASSERT_TRUE(getMtimeLocalOk) << "Failed to get local mtime after CXF resync";
+            ASSERT_GT(cloudNodeMtime, newMtime) << "Cloud node mtime should be newer than the last "
+                                                   "local changed mtime after CXF sync";
+            ASSERT_EQ(localMtime, cloudNodeMtime)
+                << "Local file mtime should match cloud after CXF resync when cloud is newer";
+        }
+
+        LOG_debug << logPre << "Test completed successfully";
+    }
+
     void runAsyncMacNonBlockingScenario(const std::string& logPre,
                                         const std::string& namePrefix,
                                         const bool startFromCxf)
@@ -1038,77 +1121,6 @@ TEST_F(SdkTestSyncUploadsOperations, AsyncMacComputationDoesNotBlockSmallFiles)
 }
 
 /**
- * @brief Tests async MAC computation for SRT_CXF case (local logout/relog).
- *
- * This exercises the scenario where LocalNodes are lost (logout/relog) but files
- * remain in sync folder. Upon re-sync, files with mtime-only differences use
- * async MAC computation as unsynced nodes are re-processed.
- *
- * The test verifies that the sync eventually completes correctly.
- */
-TEST_F(SdkTestSyncUploadsOperations, AsyncMacComputationForCxfCase)
-{
-    static const std::string logPre{"AsyncMacComputationForCxfCase: "};
-    auto cleanup = setCleanupFunction();
-    LOG_debug << logPre << "Test started";
-
-    // Create a moderately sized file to test the async MAC path after CXF
-    static constexpr size_t FILE_SIZE = (5 * 1024 * 1024) + (2 * 1024) + 3; // 5MB + 2KB + 3 bytes
-    const fs::path testFilePath = fs::absolute(getLocalTmpDir() / "test_file_cxf.dat");
-
-    LOG_debug << logPre << "1. Creating test file";
-    {
-        auto st = addSyncListenerTracker(testFilePath.string());
-        ASSERT_TRUE(st);
-        auto localFile = std::make_shared<sdk_test::LocalTempFile>(testFilePath, FILE_SIZE);
-        mLocalFiles.emplace_back(localFile);
-        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
-        ASSERT_EQ(status, std::future_status::ready) << "File sync timed out";
-        ASSERT_EQ(errCode, API_OK) << "File sync failed";
-    }
-
-    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
-
-    // Record original mtime
-    auto [getMtimeOk, originalMtime] =
-        mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(testFilePath.u8string()));
-    ASSERT_TRUE(getMtimeOk) << "Failed to get original mtime";
-
-    LOG_debug << logPre << "2. Removing sync (simulating logout without file deletion)";
-    removeTestSync();
-
-    LOG_debug << logPre << "3. Updating file mtime";
-    const m_time_t newMtime = originalMtime + MIN_ALLOW_MTIME_DIFFERENCE;
-    ASSERT_TRUE(
-        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(testFilePath.u8string()), newMtime));
-
-    LOG_debug << logPre << "4. Re-adding sync (SRT_CXF case - no LocalNodes exist)";
-    ASSERT_NO_FATAL_FAILURE(initiateSync(getLocalTmpDirU8string(), SYNC_REMOTE_PATH, mBackupId));
-
-    LOG_debug << logPre << "5. Waiting for sync to complete with async MAC recomputation";
-    {
-        auto st = addSyncListenerTracker(testFilePath.string());
-        ASSERT_TRUE(st);
-        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
-        ASSERT_EQ(status, std::future_status::ready) << "File sync timed out";
-        ASSERT_EQ(errCode, API_OK) << "File sync failed";
-    }
-
-    // Verify the cloud node has the updated mtime
-    auto backupNode = getBackupNode();
-    ASSERT_TRUE(backupNode) << "Backup node not found";
-
-    std::unique_ptr<MegaNode> cloudNode(
-        megaApi[0]->getChildNodeOfType(backupNode.get(), "test_file_cxf.dat", FILENODE));
-    ASSERT_TRUE(cloudNode) << "Cloud node not found after re-sync";
-
-    ASSERT_EQ(cloudNode->getModificationTime(), newMtime)
-        << "Cloud node mtime should match the updated local mtime after CXF sync";
-
-    LOG_debug << logPre << "Test completed successfully";
-}
-
-/**
  * @brief Tests async MAC computation does not block small files when resyncing from CXF state.
  *
  * Creates two small files and one large file, updates mtimes, removes and re-adds the sync (CXF),
@@ -1121,6 +1133,29 @@ TEST_F(SdkTestSyncUploadsOperations, AsyncMacComputationDoesNotBlockSmallFilesFr
     LOG_debug << logPre << "Test started";
 
     ASSERT_NO_FATAL_FAILURE(runAsyncMacNonBlockingScenario(logPre, "cxf_", true));
+}
+
+/**
+ * @brief Tests async MAC computation for SRT_CXF case (local logout/relog).
+ *
+ * This exercises the scenario where LocalNodes are lost (logout/relog) but files
+ * remain in sync folder. Upon re-sync, files with mtime-only differences use
+ * async MAC computation as unsynced nodes are re-processed.
+ *
+ * The test verifies that the sync eventually completes correctly.
+ */
+TEST_F(SdkTestSyncUploadsOperations, AsyncMacComputationForCxfCase_LocalNewer)
+{
+    ASSERT_NO_FATAL_FAILURE(
+        runAsyncMacComputationForCxfCase("AsyncMacComputationForCxfCase_LocalNewer: ",
+                                         CxfMtimeDirection::Increase));
+}
+
+TEST_F(SdkTestSyncUploadsOperations, AsyncMacComputationForCxfCase_CloudNewer)
+{
+    ASSERT_NO_FATAL_FAILURE(
+        runAsyncMacComputationForCxfCase("AsyncMacComputationForCxfCase_CloudNewer: ",
+                                         CxfMtimeDirection::Decrease));
 }
 
 /**
