@@ -3,7 +3,7 @@
 
 #include "SdkTest_test.h"
 
-class SdkTestShare: public SdkTest
+class SdkTestShare: public virtual SdkTest
 {
 protected:
     struct Party

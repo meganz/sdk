@@ -19,6 +19,9 @@
  * program.
  */
 
+#ifndef SDKTEST_TEST_H
+#define SDKTEST_TEST_H
+
 #include "../include/megaapi.h"
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
@@ -1879,3 +1882,5 @@ Error setAccountLevel(MegaApi& client, requestArgs... args)
     // Return client's result to caller.
     return tracker.waitForResult();
 }
+
+#endif // SDKTEST_TEST_H
