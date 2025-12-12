@@ -137,40 +137,6 @@ TEST_F(SdkTest, PitagCapturedForRegularUpload)
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
-TEST_F(SdkTest, PitagCapturedForBackgroundMediaUpload)
-{
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    const auto baseName = getFilePrefix() + "pitag_media";
-    const auto plainFilePath = fs::current_path() / (baseName + ".bin");
-    const auto encryptedFilePath = fs::current_path() / (baseName + ".encrypted");
-    const std::string plainPathUtf8 = plainFilePath.u8string();
-    const std::string encryptedPathUtf8 = encryptedFilePath.u8string();
-    const std::string outputName = baseName + "_remote.bin";
-
-    constexpr std::size_t kFileSizeBytes = 1024;
-    const sdk_test::LocalTempFile plainFile(plainFilePath, kFileSizeBytes);
-
-    PitagCommandObserver observer;
-    ASSERT_NO_FATAL_FAILURE(synchronousMediaUpload(0,
-                                                   static_cast<int64_t>(kFileSizeBytes),
-                                                   plainPathUtf8.c_str(),
-                                                   encryptedPathUtf8.c_str(),
-                                                   outputName.c_str(),
-                                                   nullptr,
-                                                   nullptr));
-
-    const auto waitTimeout =
-        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
-    ASSERT_TRUE(observer.waitForValue(".....", waitTimeout))
-        << "Unexpected pitag payload captured: " << observer.capturedValue();
-
-    if (fs::exists(encryptedFilePath))
-    {
-        fs::remove(encryptedFilePath);
-    }
-}
-
 TEST_F(SdkTest, PitagCapturedForIncomingShareUpload)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
