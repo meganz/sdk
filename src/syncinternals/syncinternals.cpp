@@ -245,50 +245,36 @@ struct FindCloneNodeCandidatePredicate
     {
         static const std::string logPre{"FindCloneCandidate: "};
         const auto nodePath = node.displayname();
-        node_comparison_result compRes = NODE_COMP_EQUAL;
-        std::string compResStr;
-        if (mUpload.mMetaMac.has_value() && mUpload.mMetaMac.value() != INVALID_META_MAC)
-        {
-            // Avoid calculating metamac again by using precalculated one
-            compRes =
-                CompareNodeWithProvidedMacAndFpExcludingMtime(&node, mUpload, *mUpload.mMetaMac);
-            compResStr = nodeComparisonResultToStr(compRes);
-            LOG_debug << logPre
-                      << "CompareNodeWithProvidedMacAndFpExcludingMtime res: " << compResStr
-                      << " [path = " << nodePath << "]";
-        }
-        else
-        {
-            const auto [auxRes, _] =
-                CompareLocalFileWithNodeMacAndFpExludingMtime(mClient,
-                                                              mUpload.getLocalname(),
-                                                              mUpload,
-                                                              &node,
-                                                              false /*debugMode*/);
 
-            compRes = auxRes;
-            compResStr = nodeComparisonResultToStr(compRes);
-            LOG_debug << logPre
-                      << "CompareLocalFileWithNodeMacAndFpExcludingMtime res: " << compResStr
-                      << " [path = " << nodePath << "]";
+        if (!mUpload.mMetaMac.has_value() || mUpload.mMetaMac.value() == INVALID_META_MAC)
+        {
+            LOG_err << logPre << "mMetaMac "
+                    << (mUpload.mMetaMac.has_value() ? "has invalid meta MAC" : "is not set")
+                    << " for " << nodePath << " !! Skip cloning node";
+            assert(false && (("mMetaMac is not set for " + std::string(nodePath)).c_str()));
+            return false;
         }
 
-        if (compRes == NODE_COMP_EQUAL || compRes == NODE_COMP_DIFFERS_MTIME)
+        const auto compRes =
+            CompareNodeWithProvidedMacAndFpExcludingMtime(&node, mUpload, *mUpload.mMetaMac);
+        const auto compResStr = nodeComparisonResultToStr(compRes);
+
+        if (compRes != NODE_COMP_EQUAL && compRes != NODE_COMP_DIFFERS_MTIME)
         {
-            // Found a candidate that matches content
-            if (node.hasZeroKey())
-            {
-                LOG_warn << "Clone node key is a zero key!! Avoid cloning node [path = '"
-                         << node.displaypath() << "', sourceLocalname = '"
-                         << mUpload.sourceLocalname << "']";
-                mClient.sendevent(99486, "Node has a zerokey");
-                mFoundCandidateHasZeroKey = true;
-            }
-            LOG_debug << logPre << compResStr << " -> return true [path = " << nodePath << "]";
-            return true; // Done searching (zero key or valid node)
+            LOG_err << logPre << compResStr << " -> return false [path = " << nodePath << "]";
+            return false;
         }
-        LOG_debug << logPre << compResStr << " -> return false [path = " << nodePath << "]";
-        return false; // keep searching
+
+        if (node.hasZeroKey())
+        {
+            LOG_warn << "Clone node key is a zero key!! Avoid cloning node [path = '" << nodePath
+                     << "', sourceLocalname = '" << mUpload.sourceLocalname << "']";
+            mClient.sendevent(99486, "Node has a zerokey");
+            mFoundCandidateHasZeroKey = true;
+        }
+
+        LOG_debug << logPre << compResStr << " -> return true [path = " << nodePath << "]";
+        return true;
     }
 
     /**
@@ -304,6 +290,15 @@ std::shared_ptr<Node> findCloneNodeCandidate(MegaClient& mc,
                                              const SyncUpload_inClient& upload,
                                              const bool excludeMtime)
 {
+    if (!upload.mMetaMac.has_value() || upload.mMetaMac.value() == INVALID_META_MAC)
+    {
+        LOG_warn << "findCloneNodeCandidate: mMetaMac "
+                 << (upload.mMetaMac.has_value() ? "has invalid meta MAC" : "is not set") << " for "
+                 << upload.getLocalname() << " !! Skip cloning node";
+        assert(false && ("mMetaMac is not set for " + upload.getLocalname().toPath(false)).c_str());
+        return nullptr;
+    }
+
     FindCloneNodeCandidatePredicate predicate{
         mc,
         upload,
