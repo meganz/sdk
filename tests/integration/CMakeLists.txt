@@ -10,6 +10,7 @@ target_sources(test_integration
     test.h
     integration_test_utils.h
     mock_listeners.h
+    sdk_test_share.h
 
     env_var_accounts.cpp
     main.cpp
@@ -28,7 +29,6 @@ target_sources(test_integration
     SdkTestSyncPrevalidation_test.cpp
     Sync_test.cpp
     one_question_survey_test.cpp
-    share_test.cpp
     integration_test_utils.cpp
     DisableBackupSync_test.cpp
     SdkTestTransferMaxSpeeds_test.cpp
@@ -47,6 +47,7 @@ target_sources(test_integration
     sdk_test_lockless_cs_channel.cpp
     sdk_test_pitag.cpp
     SdkTestFolderController_test.cpp
+    sdk_test_share.cpp
 
     passwordManager/SdkTestPasswordManager.cpp
     passwordManager/SdkTestPasswordManager.h
