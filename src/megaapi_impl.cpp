@@ -33121,7 +33121,6 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 }
 #endif
 
-// todo: a lot of this function is the same as initializeAndStartListening, we should factor them (maybe call that one from this one?)
 void MegaTCPServer::run()
 {
     LOG_debug << " Running tcp server: " << port << " TLS=" << useTLS;
@@ -33232,93 +33231,6 @@ void MegaTCPServer::run()
         LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
     }
     LOG_debug << "UV loop thread exit";
-}
-
-void MegaTCPServer::initializeAndStartListening()
-{
-#ifdef ENABLE_EVT_TLS
-    if (useTLS)
-    {
-        if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
-        {
-            LOG_err << "Unable to init evt ctx";
-            port = 0;
-            uv_sem_post(&semaphoreStartup);
-            uv_sem_post(&semaphoreEnd);
-            return;
-        }
-        evtrequirescleaning = true;
-        evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
-    }
-#endif
-
-    uv_loop_init(&uv_loop);
-
-    uv_async_init(&uv_loop, &exit_handle, onCloseRequested);
-    exit_handle.data = this;
-
-    uv_tcp_init(&uv_loop, &server);
-    server.data = this;
-
-    uv_tcp_keepalive(&server, 0, 0);
-
-    union {
-        struct sockaddr_in6 ipv6;
-        struct sockaddr_in ipv4;
-    } address;
-
-    if (useIPv6)
-    {
-        if (localOnly)
-        {
-            uv_ip6_addr("::1", port, &address.ipv6);
-        }
-        else
-        {
-            uv_ip6_addr("::", port, &address.ipv6);
-        }
-    }
-    else
-    {
-        if (localOnly)
-        {
-            uv_ip4_addr("127.0.0.1", port, &address.ipv4);
-        }
-        else
-        {
-            uv_ip4_addr("0.0.0.0", port, &address.ipv4);
-        }
-    }
-
-    uv_connection_cb onNewClientCB;
-#ifdef ENABLE_EVT_TLS
-    if (useTLS)
-    {
-         onNewClientCB = onNewClient_tls;
-    }
-    else
-    {
-#endif
-        onNewClientCB = onNewClient;
-#ifdef ENABLE_EVT_TLS
-    }
-#endif
-
-    if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
-        || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
-    {
-        LOG_err << "TCP failed to bind/listen port = " << port;
-        port = 0;
-        uv_async_send(&exit_handle);
-        //This is required in case uv_loop was already running so as to free references to "this".
-        // a uv_sem_post will be required there, so that we can delete the server accordingly
-        return;
-    }
-
-    LOG_info << "TCP" << (useTLS ? "(tls)" : "") << " server started on port " << port;
-    started = true;
-    uv_sem_post(&semaphoreStartup);
-    LOG_debug << "UV loop already alive!";
 }
 
 void MegaTCPServer::stop(bool doNotWait)
