@@ -2380,6 +2380,36 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
     }
 }
 
+void SdkTest::loginSameAccountsForTest(const unsigned copyIndex)
+{
+    ASSERT_GT(mApi.size(), copyIndex)
+        << "Invalid copy index" << copyIndex << " for mApi size " << mApi.size();
+
+    const std::string prefix{"SdkTest::loginSameAccountsForTest()"};
+    LOG_debug << prefix << ": establishing second session with same credentials";
+
+    mApi.resize(mApi.size() + 1);
+    megaApi.resize(megaApi.size() + 1);
+
+    const unsigned index = static_cast<unsigned>(megaApi.size() - 1);
+    const string email = mApi[copyIndex].email;
+    const string pass = mApi[copyIndex].pwd;
+    configureTestInstance(index, email, pass, true, MegaApi::CLIENT_TYPE_DEFAULT);
+
+    std::unique_ptr<RequestTracker> tracker;
+    tracker = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
+    auto loginResult = tracker->waitForResult();
+    ASSERT_EQ(API_OK, loginResult)
+        << prefix << ": Failed to establish a login/session for account"
+        << ": " << mApi[index].email << ": " << MegaError::getErrorString(loginResult);
+
+    auto fntracker = asyncRequestFetchnodes(index);
+    ASSERT_EQ(API_OK, fntracker->waitForResult())
+        << prefix << ": Failed to fetchnodes for account " << mApi[index].email;
+    ASSERT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
+    cleanupCatchupWithApi(index, cleanupCatchupTimeoutSecs);
+}
+
 void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string& message)
 {
     //--- Add account as contact ---
@@ -9801,6 +9831,9 @@ TEST_F(SdkTest, SdkRecentsTest)
     LOG_info << "___TEST SdkRecentsTest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    // login another account using the same credentials
+    loginSameAccountsForTest(0);
+
     const auto updloadFile =
         [this, rootnode = std::unique_ptr<MegaNode>(megaApi[0]->getRootNode())](
             const std::string& fname,
@@ -9808,18 +9841,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     {
         deleteFile(fname);
         sdk_test::LocalTempFile f(fname, contents);
-        auto err = doStartUpload(0,
-                                 nullptr,
-                                 fname.c_str(),
-                                 rootnode.get(),
-                                 nullptr /*fileName*/,
-                                 ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                 nullptr /*appData*/,
-                                 false /*isSourceTemporary*/,
-                                 false /*startFirst*/,
-                                 nullptr /*cancelToken*/);
-        ASSERT_EQ(API_OK, err) << "Cannot upload test file [" << fname << "] (error: " << err
-                               << ")";
+        sdk_test::uploadFile(megaApi[0].get(), fname, rootnode.get());
     };
 
     const std::string filename1 = UPFILE;
@@ -9859,33 +9881,117 @@ TEST_F(SdkTest, SdkRecentsTest)
     updloadFile(filename2, "update");
 
     synchronousCatchup(0, maxTimeout);
+    synchronousCatchup(1, maxTimeout);
+
+    const auto getRecentActionBuckets = [this](unsigned int index,
+                                               unsigned days,
+                                               unsigned maxnodes,
+                                               bool optExcludeSensitives,
+                                               mega::ErrorCodes expectedCode,
+                                               vector<string_vector>& expectedVec,
+                                               bool simple = false)
+    {
+        RequestTracker tracker(megaApi[index].get());
+        simple ?
+            megaApi[index]->getRecentActionsAsync(days, maxnodes, &tracker) :
+            megaApi[index]->getRecentActionsAsync(days, maxnodes, optExcludeSensitives, &tracker);
+
+        ASSERT_EQ(tracker.waitForResult(), expectedCode);
+        if (expectedCode != API_OK)
+        {
+            return;
+        }
+        std::unique_ptr<MegaRecentActionBucketList> buckets{
+            tracker.request->getRecentActions()->copy()};
+
+        ASSERT_TRUE(buckets != nullptr);
+        EXPECT_TRUE(bucketsToVector(*buckets) == expectedVec);
+    };
+
+    vector<string_vector> expectedEmpty = {};
+    LOG_debug << "# SdkRecentsTest: Get all recent actions with invalid days=0";
+    getRecentActionBuckets(0, 0, 10, false, API_EARGS, expectedEmpty);
+    getRecentActionBuckets(0, 0, 10, false, API_EARGS, expectedEmpty, true);
+
+    LOG_debug << "# SdkRecentsTest: Get all recent actions with invalid maxnodes=0";
+    getRecentActionBuckets(0, 1, 0, false, API_EARGS, expectedEmpty);
+    getRecentActionBuckets(0, 1, 0, false, API_EARGS, expectedEmpty, true);
 
     LOG_debug << "# SdkRecentsTest: Get all recent actions (no exclusion)";
-    RequestTracker trackerAll(megaApi[0].get());
-    megaApi[0]->getRecentActionsAsync(1, 10, false, &trackerAll);
+    vector<string_vector> expectedInclude = {{filename2, filename1},
+                                             {filename1bkp2, filename1bkp1}};
+    getRecentActionBuckets(0, 1, 10, false, API_OK, expectedInclude);
+    getRecentActionBuckets(1, 1, 10, false, API_OK, expectedInclude);
 
-    ASSERT_EQ(trackerAll.waitForResult(), API_OK);
-    std::unique_ptr<MegaRecentActionBucketList> buckets{
-        trackerAll.request->getRecentActions()->copy()};
-
-    ASSERT_TRUE(buckets != nullptr);
-    auto bucketsVec = bucketsToVector(*buckets);
-    ASSERT_TRUE(bucketsVec.size() > 1);
-    EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2, filename1));
-    EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
+    LOG_debug << "# SdkRecentsTest: Get 2 recent actions (no exclusion)";
+    vector<string_vector> expectedIncludeMax2 = {{filename2, filename1}};
+    getRecentActionBuckets(0, 1, 2, false, API_OK, expectedIncludeMax2);
 
     LOG_debug << "# SdkRecentsTest: Get recent actions excluding sensitive nodes";
-    RequestTracker trackerExclude(megaApi[0].get());
-    megaApi[0]->getRecentActionsAsync(1, 10, true, &trackerExclude);
+    vector<string_vector> expectedExclude = {{filename2}, {filename1bkp2, filename1bkp1}};
+    getRecentActionBuckets(0, 1, 10, true, API_OK, expectedExclude);
+    getRecentActionBuckets(0, 1, 10, true, API_OK, expectedExclude, true);
 
-    ASSERT_EQ(trackerExclude.waitForResult(), API_OK);
-    buckets.reset(trackerExclude.request->getRecentActions()->copy());
+    LOG_debug << "# SdkRecentsTest: Get 1 recent actions excluding sensitive nodes";
+    vector<string_vector> expectedExcludeMax1 = {{filename2}};
+    getRecentActionBuckets(0, 1, 1, true, API_OK, expectedExcludeMax1);
 
-    ASSERT_TRUE(buckets != nullptr);
-    bucketsVec = bucketsToVector(*buckets);
-    ASSERT_TRUE(bucketsVec.size() > 1);
-    EXPECT_THAT(bucketsVec[0], testing::ElementsAre(filename2));
-    EXPECT_THAT(bucketsVec[1], testing::ElementsAre(filename1bkp2, filename1bkp1));
+    WaitMillisec(1000);
+    const auto setClearRecentsUpTo = [this](MegaTimeStamp timestamp, mega::ErrorCodes expectedCode)
+    {
+        // set user attributes to ensure SDK is working properly before clearing recents
+        RequestTracker trackerSetAttr(megaApi[0].get());
+        megaApi[0]->clearRecentActionHistory(timestamp, &trackerSetAttr);
+        ASSERT_EQ(trackerSetAttr.waitForResult(), expectedCode);
+        EXPECT_EQ(trackerSetAttr.request->getNumber(), timestamp);
+    };
+
+    const auto verifyClearRecentsUpTo = [this](unsigned index = 0, m_time_t timestamp)
+    {
+        // get user attributes to ensure SDK is working properly after clearing recents
+        RequestTracker trackerGetAttr(megaApi[index].get());
+        megaApi[index]->getUserAttribute(MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP,
+                                         &trackerGetAttr);
+        ASSERT_EQ(trackerGetAttr.waitForResult(), API_OK);
+        EXPECT_EQ(trackerGetAttr.request->getNumber(), timestamp);
+    };
+
+    m_time_t now = m_time();
+    LOG_debug << "# SdkRecentsTest: Clear recent actions up to now";
+    setClearRecentsUpTo(now, API_OK);
+
+    LOG_debug << "# SdkRecentsTest: Get all recent actions after clear";
+    getRecentActionBuckets(0, 1, 10, false, API_OK, expectedEmpty);
+    verifyClearRecentsUpTo(0, now);
+
+    WaitMillisec(1000);
+    synchronousCatchup(1, maxTimeout);
+    LOG_debug
+        << "# SdkRecentsTest: the second account fetched the attribute automatically after clear";
+    getRecentActionBuckets(1, 1, 10, false, API_OK, expectedEmpty);
+    verifyClearRecentsUpTo(1, now);
+
+    updloadFile(filename1, "update after clear");
+    WaitMillisec(1000);
+    synchronousCatchup(0, maxTimeout);
+
+    LOG_debug << "# SdkRecentsTest: Get all recent actions after clear and one new action";
+    vector<string_vector> expectedAfterClear = {{filename1}};
+    getRecentActionBuckets(0, 1, 10, false, API_OK, expectedAfterClear);
+
+    LOG_debug << "# SdkRecentsTest: Clear recent actions up to invalid value 0";
+    setClearRecentsUpTo(0, API_EARGS);
+    verifyClearRecentsUpTo(0, now);
+
+    LOG_debug << "# SdkRecentsTest: Clear recent actions up to invalid value -1";
+    setClearRecentsUpTo(-1, API_EARGS);
+    verifyClearRecentsUpTo(0, now);
+
+    LOG_debug << "# SdkRecentsTest: Get USER_ATTR_RECENT_CLEAR_TIMESTAMP after login";
+    releaseMegaApi(0);
+    releaseMegaApi(1);
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    verifyClearRecentsUpTo(0, now);
 }
 
 TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)

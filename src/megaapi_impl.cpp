@@ -8612,6 +8612,7 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
         case ATTR_PWM_BASE:
         case ATTR_LAST_READ_NOTIFICATION:
         case ATTR_LAST_ACTIONED_BANNER:
+        case ATTR_RECENT_CLEAR_TIMESTAMP:
         // undocumented types, allowed only for testing:
         case ATTR_KEYS:
         case ATTR_DEV_OPT:
@@ -16639,6 +16640,19 @@ void MegaApiImpl::getua_completion(unique_ptr<string_map> uaRecords,
                 else
                 {
                     e = API_ENOENT;
+                }
+                break;
+            }
+            case MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP:
+            {
+                MegaTimeStamp time = formatRecentClearTimestamp(stringMap.get());
+                if (MegaClient::isValidMegaTimeStamp(time))
+                {
+                    request->setNumber(time);
+                }
+                else
+                {
+                    e = API_EINTERNAL;
                 }
                 break;
             }
@@ -26349,6 +26363,11 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 
         m_time_t since = m_time() - days * 86400;
 
+        MegaTimeStamp sinceClearHistory = getRecentClearTimestamp();
+        LOG_debug << "Recent actions clear history timestamp: " << sinceClearHistory;
+
+        since = std::max(since, sinceClearHistory);
+
         recentactions_vector v;
         if (withExcludeSensitives)
         {
@@ -26368,6 +26387,80 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP);
+    request->setNumber(until);
+
+    request->performRequest = [this, request]()
+    {
+        MegaTimeStamp time = request->getNumber();
+        if (!MegaClient::isValidMegaTimeStamp(time))
+        {
+            return API_EARGS;
+        }
+        MegaStringMapPrivate stringMap;
+        string key = "t";
+        string buf = std::to_string(time);
+        stringMap.set(key.c_str(), Base64::btoa(buf).c_str());
+        request->setMegaStringMap(&stringMap);
+
+        return performRequest_setAttrUser(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+MegaTimeStamp MegaApiImpl::getRecentClearTimestamp()
+{
+    mega::User* user = client->finduser(client->me);
+    if (user == nullptr)
+    {
+        return 0;
+    }
+
+    const UserAttribute* attr = user->getAttribute(ATTR_RECENT_CLEAR_TIMESTAMP);
+    if (attr == nullptr || attr->value().empty())
+    {
+        return 0;
+    }
+
+    std::unique_ptr<string_map> records{tlv::containerToRecords(attr->value(), client->key)};
+    if (!records || records->empty())
+    {
+        return 0;
+    }
+
+    // convert to MegaStringMap for easier handling
+    std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(records.get(), true));
+    return formatRecentClearTimestamp(stringMap.get());
+}
+
+MegaTimeStamp MegaApiImpl::formatRecentClearTimestamp(MegaStringMap* stringMap)
+{
+    MegaTimeStamp recentClearTimestamp = 0;
+    const char* base64timestr = stringMap->get("t");
+    if (base64timestr)
+    {
+        string timestampStr;
+        Base64::atob(base64timestr, timestampStr);
+        char* endptr;
+        MegaTimeStamp timestamp = strtoll(timestampStr.c_str(), &endptr, 10);
+        if (endptr == timestampStr || *endptr != '\0' || timestamp == LLONG_MAX ||
+            timestamp == LLONG_MIN || timestamp < 0)
+        {
+            recentClearTimestamp = -1; // invalid timestamp
+        }
+        else
+        {
+            recentClearTimestamp = timestamp;
+        }
+    }
+    return recentClearTimestamp;
 }
 
 #ifdef ENABLE_CHAT

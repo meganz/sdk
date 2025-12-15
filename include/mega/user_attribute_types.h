@@ -63,6 +63,7 @@ enum attr_t
     ATTR_S4 = 49, // private - non-encrypted - char array (1/0) <-- TBD
     ATTR_S4_CONTAINER = 50, // private - non-encrypted - char array (B64 node's handle) <-- TBD
     ATTR_DEV_OPT = 51, // private - encrypted - byte array
+    ATTR_RECENT_CLEAR_TIMESTAMP = 52, // private - encrypted - byte array - non-versioned
 };
 
 enum UserAttributeScope : char

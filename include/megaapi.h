@@ -5537,6 +5537,8 @@ class MegaRequest
          * - MegaApi::createPublicChat - Returns if chat room is a meeting room
          * - MegaApi::fetchAds - Returns a bitmap flag used to communicate with the API
          * - MegaApi::queryAds - Returns a bitmap flag used to communicate with the API
+         * - MegaApi::clearRecentActionHistory - Returns the epoch time in seconds to set as the
+         * recent action history clear timestamp
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -10682,6 +10684,8 @@ class MegaApi
             USER_ATTR_S4 = 49, // private - non-encrypted - char array
             USER_ATTR_S4_CONTAINER = 50, // private - non-encrypted - char array
             USER_ATTR_DEV_OPT = 51, // private - encrypted - byte array
+            USER_ATTR_RECENT_CLEAR_TIMESTAMP =
+                52, // private - encrypted - byte array - non-versioned
         };
 
         enum {
@@ -19656,6 +19660,20 @@ class MegaApi
                                    unsigned maxnodes,
                                    bool excludeSensitives,
                                    MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Clear the recent actions history on the account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP
+         * - MegaRequest::getNumber - Returns the epoch time in seconds to set as the recent action
+         * history clear timestamp
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Process a node tree using a MegaTreeProcessor implementation

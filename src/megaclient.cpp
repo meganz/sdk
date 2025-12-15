@@ -7506,6 +7506,7 @@ void MegaClient::sc_userattr(JSON& json)
                                     case ATTR_DEVICE_NAMES:
                                     case ATTR_JSON_SYNC_CONFIG_DATA:
                                     case ATTR_SYNC_DESIRED_STATE:
+                                    case ATTR_RECENT_CLEAR_TIMESTAMP:
                                     {
                                         if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) &&
                                             mKeyManager.generation())

@@ -1280,6 +1280,8 @@ public:
                                bool checkCredentials = true,
                                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void releaseMegaApi(unsigned int apiIndex);
+    //
+    void loginSameAccountsForTest(const unsigned copyIndex);
 
     void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
     void inviteContact(unsigned apiIndex, const string &email, const string& message, const int action);
