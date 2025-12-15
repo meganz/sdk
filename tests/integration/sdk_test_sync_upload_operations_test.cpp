@@ -1355,9 +1355,7 @@ TEST_F(SdkTestSyncUploadsOperations, PreComputedMacForCloneCandidatesNonBlocking
     LOG_debug << logPre << "2. Creating temp files for upload to cloud";
 
     // Create temp files outside sync folder using LocalTempFile
-    const fs::path tempDir =
-        fs::temp_directory_path() / ("clone_test_" + std::to_string(m_time(nullptr)));
-    fs::create_directories(tempDir);
+    const fs::path tempDir = makeProcessTempDir("clone_test");
 
     auto largeTempFile =
         std::make_shared<sdk_test::LocalTempFile>(tempDir / "a_large_file.dat", LARGE_FILE_SIZE);
@@ -1546,9 +1544,7 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnLocalDelete)
     ASSERT_TRUE(candidatesFolder);
 
     // Create temp file for upload using LocalTempFile
-    const fs::path tempDir =
-        fs::temp_directory_path() / ("clone_del_" + std::to_string(m_time(nullptr)));
-    fs::create_directories(tempDir);
+    const fs::path tempDir = makeProcessTempDir("clone_del");
 
     auto tempFile =
         std::make_shared<sdk_test::LocalTempFile>(tempDir / "large_clone_del.dat", LARGE_FILE_SIZE);
@@ -1635,9 +1631,7 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnCloudDelete)
     ASSERT_TRUE(candidatesFolder);
 
     // Create temp file for upload using LocalTempFile
-    const fs::path tempDir =
-        fs::temp_directory_path() / ("clone_cloud_del_" + std::to_string(m_time(nullptr)));
-    fs::create_directories(tempDir);
+    const fs::path tempDir = makeProcessTempDir("clone_cloud_del");
 
     auto tempFile =
         std::make_shared<sdk_test::LocalTempFile>(tempDir / "large_cloud_del.dat", LARGE_FILE_SIZE);
