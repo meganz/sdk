@@ -894,7 +894,7 @@ void JSONWriter::arg(const char* name, m_off_t n)
 
 void JSONWriter::addcomma()
 {
-    if (mJson.size() && !strchr("[{", mJson[mJson.size() - 1]))
+    if (!mJson.empty() && !strchr("[{", mJson.back()))
     {
         mJson.append(",");
     }
@@ -1187,8 +1187,15 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                 return 0;
             }
 
-            char open = mStack[mStack.size() - 1][0];
-            if (!mStack.size() || (c == ']' && open != '[') || (c == '}' && open != '{'))
+            if (mStack.empty())
+            {
+                LOG_err << "Malformed JSON - unexpected closing bracket with empty stack";
+                parseError(filters);
+                return 0;
+            }
+
+            char open = mStack.back()[0];
+            if ((c == ']' && open != '[') || (c == '}' && open != '{'))
             {
                 LOG_err << "Malformed JSON - mismatched close";
                 parseError(filters);
@@ -1254,7 +1261,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
             mStack.pop_back();
             mExpectValue = 0;
 
-            if (!mStack.size())
+            if (mStack.empty())
             {
                 assert(mCurrentPath.empty());
 
@@ -1278,7 +1285,13 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
             }
 
             mPos++;
-            mExpectValue = mStack[mStack.size() - 1][0] == '[';
+            if (mStack.empty())
+            {
+                LOG_err << "Malformed JSON - unexpected content with empty stack";
+                parseError(filters);
+                return 0;
+            }
+            mExpectValue = mStack.back()[0] == '[';
         }
         else if (c == '"')
         {
@@ -1382,7 +1395,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
             mPos += j;
             mExpectValue = 0;
 
-            if (!mStack.size())
+            if (mStack.empty())
             {
                 assert(mCurrentPath.empty());
 
