@@ -1096,6 +1096,7 @@ void JSONSplitter::clear()
     mStarting = true;
     mFinished = false;
     mFailed = false;
+    mPaused = false;
 }
 
 m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, const char* data)
@@ -1117,6 +1118,11 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                 LOG_err << "Error starting the processing of a chunk";
             }
         }
+    }
+
+    if (hasPaused())
+    {
+        mPaused = false;
     }
 
     mPos = data;
@@ -1333,6 +1339,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                             }
                             auto consumedBytes = mLastPos - data;
                             mProcessedBytes = mPos - mLastPos;
+                            mPaused = true;
                             return consumedBytes;
                         }
                         mLastPos = mPos + t;
@@ -1466,6 +1473,11 @@ bool JSONSplitter::hasFinished()
 bool JSONSplitter::hasFailed()
 {
     return mFailed;
+}
+
+bool JSONSplitter::hasPaused()
+{
+    return mPaused;
 }
 
 bool JSONSplitter::isStarting()
