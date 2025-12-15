@@ -25792,7 +25792,6 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
             {
                 return e;
             }
-
             client->queueCommand(new CommandPutNodes(client,
                                                      parentHandle,
                                                      NULL,

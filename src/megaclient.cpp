@@ -9903,8 +9903,12 @@ void MegaClient::putnodes(NodeHandle h,
                                      customerIpPort));
 }
 
-// drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
-void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
+// drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs
+// to helpdesk
+void MegaClient::putnodes(const char* user,
+                          vector<NewNode>&& newnodes,
+                          int tag,
+                          CommandPutNodes::Completion&& completion)
 {
     if (!finduser(user, 0) && !user)
     {
@@ -18569,6 +18573,10 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
         makeattr(&tkey, nn->attrstring, tattrstring.c_str());
     }
 
+    Pitag pitag;
+    pitag.purpose = PitagPurpose::Sync;
+    pitag.trigger = PitagTrigger::SyncAlgorithm;
+    pitag.nodeType = PitagNodeType::Folder;
     queueCommand(new CommandPutNodes(
         this,
         binNode->nodeHandle(),
@@ -18592,7 +18600,8 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
             execmovetosyncdebris(nullptr, nullptr, false, false);
         },
         false,
-        {})); // customerIpPort
+        {}, // customerIpPort
+        pitag));
     return nullptr;
 }
 

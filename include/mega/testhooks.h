@@ -36,7 +36,6 @@ namespace mega {
 #ifndef NDEBUG
     #define MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 #endif
-
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
     struct MEGA_API HttpReq;
