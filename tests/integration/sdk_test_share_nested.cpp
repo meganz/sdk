@@ -230,7 +230,7 @@ TEST_F(SdkTestShareNested, BasicNestedShares)
         ASSERT_NO_FATAL_FAILURE(verifyContactCredentials(sharerIndex, shareeBobIndex));
     }
 
-    // Share folder "folderA" to Alice and subfolder "folderB" to Bob
+    LOG_info << logPre << "Share folder \"folderA\" to Alice and subfolder \"folderB\" to Bob";
     auto sharerFolderANode = getNodeByPath(FOLDER_A);
     auto sharerFolderBNode = getNodeByPath(string(FOLDER_A) + "/" + FOLDER_B);
     ASSERT_TRUE(sharerFolderANode) << "folder \"folderA\" not found.";
@@ -244,14 +244,16 @@ TEST_F(SdkTestShareNested, BasicNestedShares)
                                             {shareeBobIndex, true},
                                             MegaShare::ACCESS_FULL));
 
-    // Ensure that the sharer, Alice and Bob can see the same nodes and that the tree is decrypted.
+    LOG_info << logPre
+             << "Ensure that the sharer, Alice and Bob can see the same nodes and that the tree is "
+                "decrypted.";
     ASSERT_NO_FATAL_FAILURE(
         matchTree(sharerFolderANode->getHandle(), sharerIndex, shareeAliceIndex));
     ASSERT_NO_FATAL_FAILURE(matchTree(sharerFolderBNode->getHandle(), sharerIndex, shareeBobIndex));
     ASSERT_NO_FATAL_FAILURE(
         matchTree(sharerFolderBNode->getHandle(), shareeAliceIndex, shareeBobIndex));
 
-    // Logout and resume session to ensure that all is correct after fetching nodes.
+    LOG_info << logPre << "Logout and login to ensure that all is correct after fetching nodes.";
     ASSERT_NO_FATAL_FAILURE(logout(sharerIndex, false, maxTimeout));
     ASSERT_NO_FATAL_FAILURE(login(sharerIndex));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(sharerIndex));
@@ -262,8 +264,9 @@ TEST_F(SdkTestShareNested, BasicNestedShares)
     ASSERT_NO_FATAL_FAILURE(login(shareeBobIndex));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(shareeBobIndex));
 
-    // Check again that the sharer, Alice and Bob can see the same nodes and that the tree is
-    // decrypted.
+    LOG_info << logPre
+             << "Check again that the sharer, Alice and Bob can see the same nodes and that "
+                "the tree is decrypted.";
     ASSERT_NO_FATAL_FAILURE(
         matchTree(sharerFolderANode->getHandle(), sharerIndex, shareeAliceIndex));
     ASSERT_NO_FATAL_FAILURE(matchTree(sharerFolderBNode->getHandle(), sharerIndex, shareeBobIndex));
