@@ -1424,6 +1424,20 @@ void SdkTest::onEvent(MegaApi* s, MegaEvent* event)
     }
 }
 
+void SdkTest::login(unsigned int apiIndex, int timeout)
+{
+    // Only for instances already configured.
+    ASSERT_GT(mApi.size(), apiIndex);
+    ASSERT_FALSE(mApi[apiIndex].email.empty());
+    ASSERT_FALSE(mApi[apiIndex].pwd.empty());
+
+    auto tracker{
+        asyncRequestLogin(apiIndex, mApi[apiIndex].email.c_str(), mApi[apiIndex].pwd.c_str())};
+    auto loginResult{tracker->waitForResult(timeout)};
+    ASSERT_EQ(API_OK, loginResult)
+        << "Login failure account #" << apiIndex << ": " << MegaError::getErrorString(loginResult);
+}
+
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
     RequestTracker rt(megaApi[apiIndex].get());

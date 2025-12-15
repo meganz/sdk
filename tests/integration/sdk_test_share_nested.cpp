@@ -244,7 +244,26 @@ TEST_F(SdkTestShareNested, BasicNestedShares)
                                             {shareeBobIndex, true},
                                             MegaShare::ACCESS_FULL));
 
-    // Ensure that the sharer, Alice and Bob can see the same node and that it is decrypted.
+    // Ensure that the sharer, Alice and Bob can see the same nodes and that the tree is decrypted.
+    ASSERT_NO_FATAL_FAILURE(
+        matchTree(sharerFolderANode->getHandle(), sharerIndex, shareeAliceIndex));
+    ASSERT_NO_FATAL_FAILURE(matchTree(sharerFolderBNode->getHandle(), sharerIndex, shareeBobIndex));
+    ASSERT_NO_FATAL_FAILURE(
+        matchTree(sharerFolderBNode->getHandle(), shareeAliceIndex, shareeBobIndex));
+
+    // Logout and resume session to ensure that all is correct after fetching nodes.
+    ASSERT_NO_FATAL_FAILURE(logout(sharerIndex, false, maxTimeout));
+    ASSERT_NO_FATAL_FAILURE(login(sharerIndex));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(sharerIndex));
+    ASSERT_NO_FATAL_FAILURE(logout(shareeAliceIndex, false, maxTimeout));
+    ASSERT_NO_FATAL_FAILURE(login(shareeAliceIndex));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(shareeAliceIndex));
+    ASSERT_NO_FATAL_FAILURE(logout(shareeBobIndex, false, maxTimeout));
+    ASSERT_NO_FATAL_FAILURE(login(shareeBobIndex));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(shareeBobIndex));
+
+    // Check again that the sharer, Alice and Bob can see the same nodes and that the tree is
+    // decrypted.
     ASSERT_NO_FATAL_FAILURE(
         matchTree(sharerFolderANode->getHandle(), sharerIndex, shareeAliceIndex));
     ASSERT_NO_FATAL_FAILURE(matchTree(sharerFolderBNode->getHandle(), sharerIndex, shareeBobIndex));
