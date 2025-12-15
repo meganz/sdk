@@ -2449,7 +2449,9 @@ void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned invi
     ASSERT_NO_FATAL_FAILURE(getContactRequest(inviteIndex, false));
 
     mApi[invitorIndex].contactRequestUpdated = mApi[inviteIndex].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(replyContact(mApi[inviteIndex].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_NO_FATAL_FAILURE(replyContact(mApi[inviteIndex].cr.get(),
+                                         MegaContactRequest::REPLY_ACTION_ACCEPT,
+                                         inviteIndex));
     ASSERT_TRUE(waitForResponse(&mApi[inviteIndex].contactRequestUpdated))   // at the target side (auxiliar account)
             << "Contact request creation not received after " << maxTimeout << " seconds";
     ASSERT_TRUE(waitForResponse(&mApi[invitorIndex].contactRequestUpdated))   // at the source side (main account)
