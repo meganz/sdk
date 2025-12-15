@@ -317,6 +317,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
     void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);
 
+#ifdef ENABLE_SYNC
     /**
      * @brief State for async MAC computation when looking for clone candidates.
      *
@@ -324,6 +325,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
      * blocking the client thread for large files.
      */
     std::shared_ptr<MacComputationState> macComputation;
+#endif
 };
 
 /**
