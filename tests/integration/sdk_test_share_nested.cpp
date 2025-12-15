@@ -35,6 +35,53 @@ public:
         return false;
     }
 
+    // Create a file node in the remote account.
+    // Optionally, it will be validate in apiIndexB acount.
+    void createRemoteFileNode(unsigned apiIndexA,
+                              const sdk_test::FileNodeInfo& fileInfo,
+                              MegaNode* rootnode,
+                              std::optional<unsigned> apiIndexB)
+    {
+        bool checkA{false};
+        bool checkB{false};
+        mApi[apiIndexA].mOnNodesUpdateCompletion =
+            createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, checkA);
+        if (apiIndexB)
+        {
+            mApi[*apiIndexB].mOnNodesUpdateCompletion =
+                createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, checkB);
+        }
+        sdk_test::LocalTempFile localFile{fileInfo.name, fileInfo.size};
+        MegaHandle file1Handle = INVALID_HANDLE;
+        ASSERT_EQ(MegaError::API_OK,
+                  doStartUpload(apiIndexA,
+                                &file1Handle,
+                                fileInfo.name.c_str(),
+                                rootnode,
+                                nullptr /*fileName*/,
+                                fileInfo.mtime,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/))
+            << "Failure uploading a file";
+
+        ASSERT_TRUE(waitForResponse(&checkA)) << "New node not received on client " << apiIndexA
+                                              << " after " << maxTimeout << " seconds";
+        if (apiIndexB)
+        {
+            ASSERT_TRUE(waitForResponse(&checkB))
+                << "New node not received on client " << *apiIndexB << " after " << maxTimeout
+                << " seconds";
+        }
+        resetOnNodeUpdateCompletionCBs();
+        std::unique_ptr<MegaNode> nodeFile{megaApi[apiIndexA]->getNodeByHandle(file1Handle)};
+        ASSERT_NE(nodeFile, nullptr)
+            << "Cannot get the node for the updated file (error: " << mApi[apiIndexA].lastError
+            << ")";
+        setNodeAdditionalAttributes(fileInfo, nodeFile);
+    }
+
     void matchTree(const MegaHandle rootHandle, unsigned apiIndexA, unsigned apiIndexB) const
     {
         const std::unique_ptr<MegaNode> rootNodeA{megaApi[apiIndexA]->getNodeByHandle(rootHandle)};
