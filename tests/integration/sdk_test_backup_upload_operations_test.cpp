@@ -85,12 +85,16 @@ public:
      * @param localFilePathAbs Absolute path to the local file to be created.
      * @param contents The file contents to be written.
      * @param customMtime Optional custom modification time.
+     * @param expectFullUpload If true, expects a transfer to occur (onTransferStart/Finish).
+     *        If false, expects only sync state change (file may be cloned from existing node).
+     *        Default is true for backward compatibility.
      * @return Pair (success, shared pointer to the created LocalTempFile).
      */
     std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
         createLocalFileAndWaitForSync(const fs::path& localFilePathAbs,
                                       const std::string_view contents,
-                                      std::optional<fs::file_time_type> customMtime);
+                                      std::optional<fs::file_time_type> customMtime,
+                                      bool expectFullUpload = true);
 
     /**
      * @brief Moves deconfigured backup nodes into a cloud folder.
@@ -202,7 +206,8 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
     SdkTestBackupUploadsOperations::createLocalFileAndWaitForSync(
         const fs::path& localFilePathAbs,
         const std::string_view contents,
-        std::optional<fs::file_time_type> customMtime)
+        std::optional<fs::file_time_type> customMtime,
+        bool expectFullUpload)
 {
     if (!mMtl)
     {
@@ -212,12 +217,13 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
 
     if (!mMslFiles)
     {
-        LOG_err << "createLocalFileAndWaitForSync: invalid transfer listener";
+        LOG_err << "createLocalFileAndWaitForSync: invalid sync listener";
         return {false, nullptr};
     }
 
-    std::shared_ptr<SyncUploadOperationsTransferTracker> tt;
-    if (tt = addTransferListenerTracker(localFilePathAbs.string()); !tt)
+    // Always add transfer tracker to verify behavior (transfer vs clone)
+    auto tt = addTransferListenerTracker(localFilePathAbs.string());
+    if (!tt)
     {
         LOG_err << "Cannot add TransferListenerTracker for: " << localFilePathAbs.string();
         return {false, nullptr};
@@ -226,33 +232,55 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
     auto st = addSyncListenerTracker(localFilePathAbs.string());
     if (!st)
     {
+        LOG_err << "Cannot add SyncListenerTracker for: " << localFilePathAbs.string();
         return {false, nullptr};
     }
 
     auto localFile = createLocalFile(localFilePathAbs, contents, customMtime);
+
+    // Wait for sync state change (always expected)
     auto [stFutStatus, stErrCode] = st->waitForCompletion(COMMON_TIMEOUT);
     if (stFutStatus != std::future_status::ready)
     {
-        LOG_err << "onTransferFinish not received for: " << localFilePathAbs;
+        LOG_err << "Sync state change not received for: " << localFilePathAbs;
         return {false, nullptr};
     }
 
     if (stErrCode != API_OK)
     {
-        LOG_err << "Transfer failed (" << localFilePathAbs << ")";
+        LOG_err << "Sync failed for: " << localFilePathAbs;
         return {false, nullptr};
     }
 
-    auto [ttFutStatus, ttErrCode] = tt->waitForCompletion(COMMON_TIMEOUT);
-    if (ttFutStatus != std::future_status::ready)
+    // Wait for transfer with appropriate timeout:
+    // - Full upload: wait with COMMON_TIMEOUT for completion
+    // - Clone: wait briefly (30s) and expect timeout (no transfer should occur)
+    const auto transferTimeout = expectFullUpload ? COMMON_TIMEOUT : std::chrono::seconds(30);
+    auto [ttFutStatus, ttErrCode] = tt->waitForCompletion(transferTimeout);
+
+    const auto expectedTransferStatus =
+        expectFullUpload ? std::future_status::ready : std::future_status::timeout;
+    if (ttFutStatus != expectedTransferStatus)
     {
-        LOG_err << "onTransferFinish not received for: " << localFilePathAbs;
+        LOG_err << "Unexpected transfer status for: " << localFilePathAbs
+                << " [expectFullUpload: " << expectFullUpload << "]";
         return {false, nullptr};
     }
 
-    if (ttErrCode != API_OK)
+    // Verify transfer start count matches expectation
+    const int expectedTransferStartCount = expectFullUpload ? 1 : 0;
+    if (tt->transferStartCount.load() != expectedTransferStartCount)
     {
-        LOG_err << "Transfer failed (" << localFilePathAbs << ")";
+        LOG_err << "Transfer started count mismatch for: " << localFilePathAbs
+                << " [expected: " << expectedTransferStartCount
+                << ", actual: " << tt->transferStartCount.load() << "]";
+        return {false, nullptr};
+    }
+
+    // Verify transfer succeeded if we expected a full upload
+    if (expectFullUpload && ttErrCode != API_OK)
+    {
+        LOG_err << "Transfer failed for: " << localFilePathAbs;
         return {false, nullptr};
     }
 
@@ -534,10 +562,16 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
     {
         auto auxMtime = mtime + std::chrono::seconds(MIN_ALLOW_MTIME_DIFFERENCE * i);
         std::string filename = "file" + std::to_string(i);
-        LOG_debug << logPre << "#### TC " << std::to_string(i) << "Creating local file `"
+        LOG_debug << logPre << "#### TC " << std::to_string(i) << " Creating local file `"
                   << filename << "` in Backup dir ####";
-        auto [res, localFile] =
-            createLocalFileAndWaitForSync(localBasePath / filename, "abcde", auxMtime);
+
+        // First file triggers a full upload. Subsequent files with same content
+        // but different mtime will be cloned (no transfer expected).
+        const bool expectFullUpload = (i == 1);
+        auto [res, localFile] = createLocalFileAndWaitForSync(localBasePath / filename,
+                                                              "abcde",
+                                                              auxMtime,
+                                                              expectFullUpload);
 
         ASSERT_TRUE(res) << "Cannot create local file `" << filename << "`";
         localFiles.push_back(localFile);
@@ -685,8 +719,11 @@ TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
                   << "` in Backup dir ####";
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
+        // First file triggers a full upload. Subsequent files with same content
+        // but different mtime will be cloned (no transfer expected).
+        const bool expectFullUpload = (i == 1);
         auto [res, localFile] =
-            createLocalFileAndWaitForSync(localBasePath / fn, "abcde", auxMtime);
+            createLocalFileAndWaitForSync(localBasePath / fn, "abcde", auxMtime, expectFullUpload);
 
         ASSERT_TRUE(res) << "Cannot sync local file `" << fn << "`";
         localFiles.push_back({localFile, auxMtime});

@@ -2535,6 +2535,29 @@ std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
     return {localMac, remoteMac};
 }
 
+std::string nodeComparisonResultToStr(const node_comparison_result result)
+{
+    switch (result)
+    {
+        case NODE_COMP_EREAD:
+            return "NODE_COMP_EREAD";
+        case NODE_COMP_EARGS:
+            return "NODE_COMP_EARGS";
+        case NODE_COMP_PENDING:
+            return "NODE_COMP_PENDING";
+        case NODE_COMP_EQUAL:
+            return "NODE_COMP_EQUAL";
+        case NODE_COMP_DIFFERS_FP:
+            return "NODE_COMP_DIFFERS_FP";
+        case NODE_COMP_DIFFERS_MAC:
+            return "NODE_COMP_DIFFERS_MAC";
+        case NODE_COMP_DIFFERS_MTIME:
+            return "NODE_COMP_DIFFERS_MTIME";
+        default:
+            return "NODE_COMP_UNKNOWN";
+    }
+}
+
 node_comparison_result CompareMacAndFpExcludingMtime(const FileFingerprint& fp1,
                                                      const FileFingerprint& fp2,
                                                      const int64_t metamac1,
@@ -2592,6 +2615,10 @@ node_comparison_result CompareNodeWithProvidedMacAndFpExcludingMtime(const Node*
     const char* iva = &node->nodekey()[SymmCipher::KEYLENGTH];
     const int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     auto areEqualMacs = precalcMetamac == remoteMac;
+    const auto areEqualMtimes = fp.mtime == node->mtime;
+    LOG_debug << "[CompareNodeWithProvidedMacAndFpExcludingMtime] areEqualMacs = " << areEqualMacs
+              << ", areEqualMtimes = " << areEqualMtimes;
+
     if (!areEqualMacs)
     {
         // It doesn't matter that FPs are equal as METAMAC comparison show that they are
@@ -2634,12 +2661,16 @@ std::pair<node_comparison_result, int64_t>
     if (auto fa = client.fsaccess->newfileaccess();
         fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
     {
+        LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs BEGIN...";
         auto [areEqualMacs, mac] = CompareLocalFileMetaMacWithNodeKey(fa.get(),
                                                                       node->nodekey(),
                                                                       node->type,
                                                                       path.toPath(false));
 
         auto sameMtime = fp.mtime == node->mtime;
+        LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs END... [sameMtime = "
+                  << sameMtime << "]";
+
         if (debugMode && sameMtime)
         {
             areEqualMacs ?

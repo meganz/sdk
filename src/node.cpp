@@ -2250,21 +2250,24 @@ void LocalNode::trimRareFields()
     {
         if (!scanInProgress) rareFields->scanRequest.reset();
 
-        if (!rareFields->scanBlocked &&
-            !rareFields->scanRequest &&
-            rareFields->movePendingFrom.expired() &&
-            !rareFields->movePendingTo &&
-            !rareFields->moveFromHere &&
-            !rareFields->moveToHere &&
-            !rareFields->filterChain &&
-            !rareFields->badlyFormedIgnoreFilePath &&
-            !rareFields->createFolderHere &&
-            !rareFields->removeNodeHere &&
-            rareFields->unlinkHere.expired() &&
-            rareFields->localFSRenamedToThisName.empty())
+        if (!rareFields->scanBlocked && !rareFields->scanRequest &&
+            rareFields->movePendingFrom.expired() && !rareFields->movePendingTo &&
+            !rareFields->moveFromHere && !rareFields->moveToHere && !rareFields->filterChain &&
+            !rareFields->badlyFormedIgnoreFilePath && !rareFields->createFolderHere &&
+            !rareFields->removeNodeHere && rareFields->unlinkHere.expired() &&
+            rareFields->localFSRenamedToThisName.empty() && !rareFields->macComputation)
         {
             rareFields.reset();
         }
+    }
+}
+
+void LocalNode::resetMacComputationIfAny()
+{
+    if (rareFields && rareFields->macComputation)
+    {
+        rareFields->macComputation.reset();
+        trimRareFields();
     }
 }
 
@@ -3226,11 +3229,11 @@ void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download, 
 {
     resetTransfer(download);
     sync->syncs.queueClient(
-        [syncUpload = std::move(download), queueFirst](MegaClient& mc,
-                                                       TransferDbCommitter& committer)
+        [syncDownload = std::move(download), queueFirst](MegaClient& mc,
+                                                         TransferDbCommitter& committer)
         {
-            syncUpload->selfKeepAlive = syncUpload;
-            clientDownload(mc, committer, std::move(syncUpload), queueFirst);
+            syncDownload->selfKeepAlive = syncDownload;
+            clientDownload(mc, committer, std::move(syncDownload), queueFirst);
         });
 }
 
@@ -3316,6 +3319,8 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
 
     if (compRes == NODE_COMP_DIFFERS_MTIME)
     {
+        LOG_debug << sync->syncname << "Updating fingerprint mtime of "
+                  << transferSP->getLocalname() << " to " << fingerprint.mtime;
         uploadPtr->updateFingerprintMtime(fingerprint.mtime);
         return true;
     }

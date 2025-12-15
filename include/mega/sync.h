@@ -636,7 +636,7 @@ public:
     bool syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
 
-    string logTriplet(const SyncRow& row, const SyncPath& fullPath) const;
+    static std::string logTriplet(const SyncRow& row, const SyncPath& fullPath);
 
     // resolve_* functions are to do with managing the various cases syncing a single item
     // they all return true/false depending on whether the node is now in sync
@@ -1846,7 +1846,21 @@ public:
     // by setting this flag
     bool mBackupRestrictionsEnabled = true;
 
+    // Throttle for MAC computation to prevent resource exhaustion
+    // Limits concurrent MAC computations and total data in flight
+    MacComputationThrottle mMacComputationThrottle;
+
     std::atomic<int> completedPassCount{0};
+
+    MacComputationThrottle& macComputationThrottle()
+    {
+        return mMacComputationThrottle;
+    }
+
+    const MacComputationThrottle& macComputationThrottle() const
+    {
+        return mMacComputationThrottle;
+    }
 
 private:
 

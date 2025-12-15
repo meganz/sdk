@@ -11819,6 +11819,9 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
         case NODE_COMP_EARGS:
             errMsg += "Arguments error";
             break;
+        case NODE_COMP_PENDING:
+            errMsg += "MAC computation pending";
+            break;
         case NODE_COMP_DIFFERS_FP:
             errMsg += "Local file and Node fingerprints mismatch";
             break;

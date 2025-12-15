@@ -10,6 +10,7 @@
 
 #include "mega/db.h"
 #include "mega/node.h"
+#include "mega/syncinternals/mac_computation_state.h"
 
 #include <optional>
 
@@ -493,33 +494,157 @@ void clientDownload(MegaClient& mc,
 *  SYNC COMPARISONS  *
 \********************/
 
+constexpr uint32_t kDefaultMaxConcurrentMacComputations = 8;
+
 /**
- * @brief Compares a fsNode with a cloudNode based on fingerprint (Excluding mtime) and METAMAC.
+ * @brief Throttle for MAC computation to prevent resource exhaustion.
  *
- * @param mc Reference to the MegaClient
- * @param cn CloudNode representing the remote node.
- * @param fs FSNode representing the local filesystem node.
- * @param fsNodeFullPath Full local path to the filesystem node.
- * @return `std::tuple<node_comparison_result, int64_t, int64_t>` where:
- *         - The first element is a `node_comparison_result` indicating:
- *              + NODE_COMP_EARGS: Invalid arguments
- *              + NODE_COMP_EREAD: Error reading the local file.
- *              + NODE_COMP_EQUAL: Fingerprints match including mtime
- *              + NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more
- * than mtime (CRC, Size, isValid).
- *              + NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
- *              + NODE_COMP_DIFFERS_MAC: Fingerprints differ in mtime and METAMACs also differ.
- *         - The second element is the local MetaMAC, or INVALID_META_MAC if not computed.
- *         - The third element is the remote MetaMAC, or INVALID_META_MAC if not computed.
+ * Thread-safe class that tracks and limits concurrent MAC computations.
+ * Prevents the sync engine from overwhelming the system with too many
+ * simultaneous MAC calculations.
  *
- * @note METAMACs are only computed and compared if both fingerprints only differs in mtime to avoid
- * performance issues
+ * We track FILES only (one chunk at a time per file).
+ *
+ * Usage:
+ * - Call tryAcquireFile() before starting MAC computation for a new file
+ * - Call releaseFile() when file computation completes
  */
-std::tuple<node_comparison_result, int64_t, int64_t>
-    syncEqualFsCloudExcludingMtime(MegaClient& mc,
-                                   const CloudNode& cn,
-                                   const FSNode& fs,
-                                   const LocalPath& fsNodeFullPath);
+class MacComputationThrottle
+{
+public:
+    explicit MacComputationThrottle(
+        uint32_t maxConcurrentFiles = kDefaultMaxConcurrentMacComputations):
+        mMaxConcurrentFiles(maxConcurrentFiles)
+    {}
+
+    bool tryAcquireFile()
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+
+        if (mCurrentFiles >= mMaxConcurrentFiles)
+        {
+            return false;
+        }
+
+        ++mCurrentFiles;
+        return true;
+    }
+
+    void releaseFile()
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+        if (mCurrentFiles == 0)
+        {
+            assert(false && "MacComputationThrottle: releaseFile called but no files are currently "
+                            "being processed");
+            return;
+        }
+        --mCurrentFiles;
+    }
+
+    uint32_t currentFiles() const
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+        return mCurrentFiles;
+    }
+
+private:
+    mutable std::mutex mMutex;
+    uint32_t mMaxConcurrentFiles;
+    uint32_t mCurrentFiles{0};
+};
+
+/**
+ * @brief Result type for fingerprint/MAC comparisons.
+ *
+ * Returns `std::tuple<node_comparison_result, int64_t, int64_t>` where:
+ *  - The first element is a `node_comparison_result` indicating:
+ *       + NODE_COMP_EARGS: Invalid arguments
+ *       + NODE_COMP_EREAD: Error reading the local file.
+ *       + NODE_COMP_PENDING: MAC computation initiated but not yet complete (async mode only)
+ *       + NODE_COMP_EQUAL: Fingerprints match including mtime
+ *       + NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more
+ *                               than mtime (CRC, Size, isValid).
+ *       + NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
+ *       + NODE_COMP_DIFFERS_MAC: Fingerprints differ in mtime and METAMACs also differ.
+ *  - The second element is the local MetaMAC, or INVALID_META_MAC if not computed.
+ *  - The third element is the remote MetaMAC, or INVALID_META_MAC if not computed.
+ */
+using FsCloudComparisonResult = std::tuple<node_comparison_result, int64_t, int64_t>;
+
+/**
+ * @brief Quick fingerprint comparison without MAC computation.
+ *
+ * Compares type, size, CRC, and mtime. Returns a conclusive result if possible,
+ * or std::nullopt if only mtime differs (indicating MAC computation is needed).
+ *
+ * @return std::optional with:
+ *         - NODE_COMP_EQUAL if fingerprints fully match (including mtime)
+ *         - NODE_COMP_DIFFERS_FP if fingerprints differ in type/size/CRC
+ *         - std::nullopt if only mtime differs (MAC needed to determine equality)
+ */
+std::optional<FsCloudComparisonResult> quickFingerprintComparison(const CloudNode& cn,
+                                                                  const FSNode& fs);
+
+/**
+ * @brief Compares fsNode with cloudNode using async MAC computation.
+ *
+ * For synced files that have a LocalNode. If fingerprints match or differ in more than mtime,
+ * returns immediately. If only mtime differs, initiates or checks async MAC computation
+ * stored in LocalNode::RareFields.
+ *
+ * @param syncNode Reference to the LocalNode for storing async MAC computation state.
+ * @return Comparison result. Returns NODE_COMP_PENDING if MAC computation in progress.
+ *
+ * @note METAMACs are only computed if fingerprints differ only in mtime.
+ */
+FsCloudComparisonResult syncEqualFsCloudExcludingMtimeAsync(MegaClient& mc,
+                                                            const CloudNode& cn,
+                                                            const FSNode& fs,
+                                                            const LocalPath& fsNodeFullPath,
+                                                            LocalNode& syncNode);
+
+/***********************************\
+*  CLONE CANDIDATE MAC COMPUTATION  *
+\***********************************/
+
+/**
+ * @brief Status for clone MAC computation (init/check/compute).
+ */
+enum class CloneMacStatus
+{
+    Pending, // Computing or throttled
+    Ready, // Computed MAC available
+    Failed, // Computation error / candidate invalidated
+    NoCandidates, // No clone candidates or cannot start
+};
+
+/**
+ * @brief Check and advance pending clone candidate MAC computation.
+ *
+ * Called from resolve_upsync when upload exists. Advances computation and
+ * returns status. When Ready, upload.mMetaMac contains the computed MAC
+ * for use with findCloneNodeCandidate.
+ *
+ */
+CloneMacStatus checkPendingCloneMac(MegaClient& mc, SyncUpload_inClient& upload);
+
+/**
+ * @brief Process the result of clone candidate MAC computation.
+ *
+ * Processes the result of clone candidate MAC computation and decides the next action:
+ * - If MAC is ready, proceeds with clone candidate search.
+ * - If MAC failed, falls back to full upload.
+ * - If no candidates, continues with full upload.
+ */
+void processCloneMacResult(MegaClient& mc,
+                           TransferDbCommitter& committer,
+                           std::shared_ptr<SyncUpload_inClient> upload,
+                           const VersioningOption vo,
+                           const bool queueFirst,
+                           const NodeHandle ovHandleIfShortcut,
+                           const CloneMacStatus macStatus);
+
 } // namespace mega
 
 #endif // ENABLE_SYNC

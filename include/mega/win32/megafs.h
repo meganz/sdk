@@ -75,6 +75,7 @@ public:
     bool unlinklocal(const LocalPath&) override;
     bool rmdirlocal(const LocalPath&) override;
     bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
+    std::pair<bool, m_time_t> getmtimelocal(const LocalPath&) override;
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
@@ -175,8 +176,20 @@ public:
 
     bool fopen(const LocalPath&, bool read, bool write, FSLogging,
                DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent) override;
-    bool fopen_impl(const LocalPath&, bool read, bool write, FSLogging,
-                    bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent);
+    bool fopen_impl(const LocalPath&,
+                    bool read,
+                    bool write,
+                    FSLogging,
+                    bool async,
+                    DirAccess* iteratingDir,
+                    bool ignoreAttributes,
+                    bool skipcasecheck,
+                    LocalPath* actualLeafNameIfDifferent,
+                    bool shareDelete = false);
+
+    // Open for MAC computation - includes FILE_SHARE_DELETE so file can be moved/deleted while open
+    bool fopenForMacRead(const LocalPath& path, FSLogging fsl) override;
+
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     void fclose() override;
