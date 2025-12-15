@@ -204,7 +204,50 @@ private:
     }
 };
 
-TEST_F(SdkTestShareNested, build)
+/**
+ * @brief Basic test for nested shares
+ *
+ * It tests the basic functionality, creating a nested share and ensuring
+ * that all peers can see their respective files.
+ *
+ */
+TEST_F(SdkTestShareNested, BasicNestedShares)
 {
     const auto logPre = getLogPrefix();
+
+    LOG_info << "Starting body of " << logPre;
+
+    // Make sharer and sharees contacts.
+    ASSERT_NO_FATAL_FAILURE(
+        inviteTestAccount(sharerIndex, shareeAliceIndex, "Sharer inviting Alice"))
+        << "Failure inviting Alice";
+    ASSERT_NO_FATAL_FAILURE(inviteTestAccount(sharerIndex, shareeBobIndex, "Sharer inviting Bob"))
+        << "Failure inviting Bob";
+
+    if (gManualVerification)
+    {
+        ASSERT_NO_FATAL_FAILURE(verifyContactCredentials(sharerIndex, shareeAliceIndex));
+        ASSERT_NO_FATAL_FAILURE(verifyContactCredentials(sharerIndex, shareeBobIndex));
+    }
+
+    // Share folder "folderA" to Alice and subfolder "folderB" to Bob
+    auto sharerFolderANode = getNodeByPath(FOLDER_A);
+    auto sharerFolderBNode = getNodeByPath(string(FOLDER_A) + "/" + FOLDER_B);
+    ASSERT_TRUE(sharerFolderANode) << "folder \"folderA\" not found.";
+    ASSERT_TRUE(sharerFolderBNode) << "folder \"folderB\" not found.";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(sharerFolderANode.get(),
+                                            {sharerIndex, true},
+                                            {shareeAliceIndex, true},
+                                            MegaShare::ACCESS_FULL));
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(sharerFolderBNode.get(),
+                                            {sharerIndex, true},
+                                            {shareeBobIndex, true},
+                                            MegaShare::ACCESS_FULL));
+
+    // Ensure that the sharer, Alice and Bob can see the same node and that it is decrypted.
+    ASSERT_NO_FATAL_FAILURE(
+        matchTree(sharerFolderANode->getHandle(), sharerIndex, shareeAliceIndex));
+    ASSERT_NO_FATAL_FAILURE(matchTree(sharerFolderBNode->getHandle(), sharerIndex, shareeBobIndex));
+    ASSERT_NO_FATAL_FAILURE(
+        matchTree(sharerFolderBNode->getHandle(), shareeAliceIndex, shareeBobIndex));
 }
