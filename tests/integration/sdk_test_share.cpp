@@ -135,6 +135,21 @@ void SdkTestShare::resetCredential(unsigned apiIndexA, unsigned apiIndexB)
     }
 }
 
+void SdkTestShare::verifyContactCredentials(unsigned apiIndexA, unsigned apiIndexB)
+{
+    if (!areCredentialsVerified(apiIndexA, mApi[apiIndexB].email))
+    {
+        ASSERT_NO_FATAL_FAILURE(verifyCredentials(apiIndexA, mApi[apiIndexB].email));
+        ASSERT_NO_FATAL_FAILURE(areCredentialsVerified(apiIndexA, mApi[apiIndexB].email));
+    }
+
+    if (!areCredentialsVerified(apiIndexB, mApi[apiIndexA].email))
+    {
+        ASSERT_NO_FATAL_FAILURE(verifyCredentials(apiIndexB, mApi[apiIndexA].email));
+        ASSERT_NO_FATAL_FAILURE(areCredentialsVerified(apiIndexB, mApi[apiIndexA].email));
+    }
+}
+
 void SdkTestShare::addContactsAndVerifyCredential(unsigned fromApiIndex, unsigned toApiIndex)
 {
     mApi[fromApiIndex].contactRequestUpdated = mApi[toApiIndex].contactRequestUpdated = false;
@@ -159,10 +174,7 @@ void SdkTestShare::addContactsAndVerifyCredential(unsigned fromApiIndex, unsigne
 
     // Verify credentials:
     LOG_verbose << "TestSharesContactVerification :  Verify A and B credentials";
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(fromApiIndex, mApi[toApiIndex].email));
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(toApiIndex, mApi[fromApiIndex].email));
-    ASSERT_TRUE(areCredentialsVerified(fromApiIndex, mApi[toApiIndex].email));
-    ASSERT_TRUE(areCredentialsVerified(toApiIndex, mApi[fromApiIndex].email));
+    verifyContactCredentials(fromApiIndex, toApiIndex);
 }
 
 std::pair<MegaHandle, std::unique_ptr<MegaNode>> SdkTestShare::createFolder(unsigned int apiIndex,

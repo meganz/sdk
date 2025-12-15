@@ -35,6 +35,9 @@ protected:
     // Reset credential between two accounts
     void resetCredential(unsigned apiIndexA, unsigned apiIndexB);
 
+    // Verify contact credentials between two accounts.
+    void verifyContactCredentials(unsigned apiIndexA, unsigned apiIndexB);
+
     void addContactsAndVerifyCredential(unsigned apiIndexA, unsigned apiIndexB);
 
     std::pair<MegaHandle, std::unique_ptr<MegaNode>> createFolder(unsigned int apiIndex,
