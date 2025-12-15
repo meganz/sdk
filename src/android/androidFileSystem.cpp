@@ -1407,6 +1407,17 @@ bool AndroidFileSystemAccess::setmtimelocal(const LocalPath& path, m_time_t mtim
     return LinuxFileSystemAccess::setmtimelocal(standardPath, mtime);
 }
 
+std::pair<bool, m_time_t> getmtimelocal(const LocalPath& path)
+{
+    auto standardPath = getStandartPath(path);
+    if (standardPath.empty())
+    {
+        return {false, 0};
+    }
+
+    return LinuxFileSystemAccess::getmtimelocal(standardPath);
+}
+
 bool AndroidFileSystemAccess::chdirlocal(LocalPath& path) const
 {
     path = getStandartPath(path);
