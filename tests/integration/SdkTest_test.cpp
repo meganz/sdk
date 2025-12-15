@@ -9887,7 +9887,7 @@ TEST_F(SdkTest, SdkRecentsTest)
                                                unsigned days,
                                                unsigned maxnodes,
                                                bool optExcludeSensitives,
-                                               mega::ErrorCodes expectedCode,
+                                               ::mega::ErrorCodes expectedCode,
                                                vector<string_vector>& expectedVec,
                                                bool simple = false)
     {
@@ -9937,7 +9937,8 @@ TEST_F(SdkTest, SdkRecentsTest)
     getRecentActionBuckets(0, 1, 1, true, API_OK, expectedExcludeMax1);
 
     WaitMillisec(1000);
-    const auto setClearRecentsUpTo = [this](MegaTimeStamp timestamp, mega::ErrorCodes expectedCode)
+    const auto setClearRecentsUpTo =
+        [this](MegaTimeStamp timestamp, ::mega::ErrorCodes expectedCode)
     {
         // set user attributes to ensure SDK is working properly before clearing recents
         RequestTracker trackerSetAttr(megaApi[0].get());
@@ -9946,7 +9947,7 @@ TEST_F(SdkTest, SdkRecentsTest)
         EXPECT_EQ(trackerSetAttr.request->getNumber(), timestamp);
     };
 
-    const auto verifyClearRecentsUpTo = [this](unsigned index = 0, m_time_t timestamp)
+    const auto verifyClearRecentsUpTo = [this](unsigned index, m_time_t timestamp)
     {
         // get user attributes to ensure SDK is working properly after clearing recents
         RequestTracker trackerGetAttr(megaApi[index].get());
