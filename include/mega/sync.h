@@ -636,7 +636,7 @@ public:
     bool syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
 
-    string logTriplet(const SyncRow& row, const SyncPath& fullPath) const;
+    static std::string logTriplet(const SyncRow& row, const SyncPath& fullPath);
 
     // resolve_* functions are to do with managing the various cases syncing a single item
     // they all return true/false depending on whether the node is now in sync
@@ -648,12 +648,22 @@ public:
     bool resolve_makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter);
-    bool resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
-    bool resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc);
+    bool resolve_upsync(SyncRow& row,
+                        SyncRow& parentRow,
+                        SyncPath& fullPath,
+                        PerFolderLogSummaryCounts& pflsc,
+                        const int64_t metamac,
+                        const bool justMtimeChanged);
+    bool resolve_downsync(SyncRow& row,
+                          SyncRow& parentRow,
+                          SyncPath& fullPath,
+                          bool alreadyExists,
+                          PerFolderLogSummaryCounts& pflsc,
+                          const int64_t metamac,
+                          const bool justMtimeChanged);
     bool resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
 
-    bool syncEqual(const CloudNode&, const FSNode&);
     bool syncEqual(const CloudNode&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
@@ -1836,7 +1846,21 @@ public:
     // by setting this flag
     bool mBackupRestrictionsEnabled = true;
 
+    // Throttle for MAC computation to prevent resource exhaustion
+    // Limits concurrent MAC computations and total data in flight
+    MacComputationThrottle mMacComputationThrottle;
+
     std::atomic<int> completedPassCount{0};
+
+    MacComputationThrottle& macComputationThrottle()
+    {
+        return mMacComputationThrottle;
+    }
+
+    const MacComputationThrottle& macComputationThrottle() const
+    {
+        return mMacComputationThrottle;
+    }
 
 private:
 

@@ -14,6 +14,8 @@
 
 #include <gmock/gmock.h>
 
+#include <atomic>
+
 using namespace sdk_test;
 using namespace testing;
 
@@ -82,6 +84,15 @@ std::string SdkTestSyncNodesOperations::getLocalTmpDirU8string() const
 std::unique_ptr<MegaSync> SdkTestSyncNodesOperations::getSync() const
 {
     return std::unique_ptr<MegaSync>(megaApi[0]->getSyncByBackupId(mBackupId));
+}
+
+fs::path SdkTestSyncNodesOperations::makeProcessTempDir(const std::string& dirName) const
+{
+    static std::atomic<uint64_t> counter{0};
+    const auto uniqueSuffix = getThisThreadIdStr() + "_" + std::to_string(counter.fetch_add(1));
+    const auto tempDir = fs::path("tmp") / (dirName + "_" + uniqueSuffix);
+    fs::create_directories(tempDir);
+    return tempDir;
 }
 
 void SdkTestSyncNodesOperations::moveRemoteNode(const std::string& sourcePath,

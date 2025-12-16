@@ -18135,14 +18135,18 @@ TEST_F(SdkTest, SdkTestUploads)
     const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
 
     constexpr auto fileSize = 160000000;
+    unsigned idx = 0;
 
     const auto create16MBFile = [&]()
     {
+        // Add idx to the end of file to ensure that all files are created with different content,
+        // otherwise SDK won't perform a full upload
+        ASSERT_LT(++idx, 10) << "Index value out of bounds";
         deleteFile(UPFILE.c_str());
         std::ofstream file(fs::u8path(UPFILE), ios::out);
         ASSERT_TRUE(file) << "Couldn't create " << UPFILE;
         constexpr auto numLines = 10000000;
-        constexpr auto lineStr = "160MB test file "; // 16 characters
+        const string lineStr = "160MB test file" + std::to_string(idx); // 16 characters
         for (int l = 0; l < numLines; ++l)
         {
             file << lineStr;

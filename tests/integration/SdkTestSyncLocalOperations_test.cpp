@@ -95,14 +95,14 @@ public:
         megaApi[0]->addListener(&mockTransferListener);
 
         std::filesystem::rename(localTmpPath() / source, localTmpPath() / target);
-        sdk_test::createFile(localTmpPath() / source, 950);
-
-        auto trFut = finishedTransfer.get_future();
         auto rnFut = finishedRename.get_future();
+        auto futureRenameStatus = rnFut.wait_for(COMMON_TIMEOUT);
+        ASSERT_EQ(futureRenameStatus, std::future_status::ready) << "Timeout rename";
+
+        sdk_test::createRandomFile(localTmpPath() / source, 950);
+        auto trFut = finishedTransfer.get_future();
         auto futureStatus = trFut.wait_for(COMMON_TIMEOUT);
         ASSERT_EQ(futureStatus, std::future_status::ready) << "Timeout transfer";
-        futureStatus = rnFut.wait_for(COMMON_TIMEOUT);
-        ASSERT_EQ(futureStatus, std::future_status::ready) << "Timeout rename";
 
         megaApi[0]->removeListener(&mockNodesListener);
         megaApi[0]->removeListener(&mockTransferListener);
@@ -237,6 +237,10 @@ public:
         const auto targetOriginalHash = hashFileHex(localTmpPath() / target);
 
         std::filesystem::rename(localTmpPath() / source, localTmpPath() / target);
+        auto rnFut = finishedRename.get_future();
+        auto futureRnStatus = rnFut.wait_for(COMMON_TIMEOUT);
+        ASSERT_EQ(futureRnStatus, std::future_status::ready) << "Timeout rename";
+
         const std::filesystem::path sourcePath = localTmpPath() / source;
         sdk_test::createRandomFile(sourcePath, 950);
 
@@ -245,7 +249,6 @@ public:
         auto trFut = finishedTransfer.get_future();
         auto trFilenameFut = gotFileName.get_future();
         auto errorTransferFut = errorTransfer.get_future();
-        auto rnFut = finishedRename.get_future();
         auto futureStatus = trFut.wait_for(COMMON_TIMEOUT);
 
         ASSERT_EQ(futureStatus, std::future_status::ready) << "Timeout transfer";
@@ -253,8 +256,6 @@ public:
         ASSERT_EQ(futureStatus, std::future_status::ready) << "Timeout transfer get name";
         futureStatus = errorTransferFut.wait_for(COMMON_TIMEOUT);
         ASSERT_EQ(futureStatus, std::future_status::ready) << "Timeout transfer get error";
-        futureStatus = rnFut.wait_for(COMMON_TIMEOUT);
-        ASSERT_EQ(futureStatus, std::future_status::ready) << "Timeout rename";
 
         megaApi[0]->removeListener(&mockNodesListener);
         megaApi[0]->removeListener(&mockTransferListener);

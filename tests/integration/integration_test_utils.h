@@ -162,12 +162,52 @@ std::optional<std::vector<std::string>>
 void getDeviceNames(::mega::MegaApi* megaApi, std::unique_ptr<::mega::MegaStringMap>& output);
 
 /**
+ * @brief Get the special folder for backups (`My Backups`)
+ * @return a pair with the result of retrieving MegaApi::USER_ATTR_MY_BACKUPS_FOLDER attr and the
+ * handle of node in case it exists
+ */
+std::pair<bool, ::mega::MegaHandle> getMyBackupsFolder(::mega::MegaApi* megaApi);
+
+/**
+ * @brief Creates the special folder for backups (`My backups`)
+ * It creates a new folder inside the Vault rootnode and later stores the node's
+ * handle in a user's attribute, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER.
+ *
+ * Apps should first check if this folder exists already, by calling
+ * MegaApi::getUserAttribute for the corresponding attribute.
+ *
+ * @param name Localized name for "My backups" folder
+ * @return a pair with the result of setting MegaApi::USER_ATTR_MY_BACKUPS_FOLDER attr and the
+ * handle of Node in case it could be created
+ *
+ * @see MegaApi::setMyBackupsFolder for more details
+ */
+std::pair<bool, ::mega::MegaHandle> setMyBackupsFolder(::mega::MegaApi* megaApi,
+                                                       const std::string& name);
+
+/**
  * @brief Ensures there is at least one device visible to the given megaApi instance. This is
  * required to enable the creation of backup syncs for instance.
  *
  * If there are no devices, a new one is created with the name "Jenkins " + timestamp
  */
-void ensureAccountDeviceName(::mega::MegaApi* megaApi);
+void ensureAccountDeviceNamesAttrExists(::mega::MegaApi* megaApi);
+
+/**
+ * @brief Ensures that special folder for backups (`My backups`) exists.
+ *
+ * In case `My backups` folder doesn't exists, this function will create it, and return the name of
+ * the folder, otherwise this method just returns the folder name
+ *
+ * @param name Localized name for "My backups" folder in case it doesn't exists and we need to
+ * create it
+ * @return a pair with the result of setting/retrieving MegaApi::USER_ATTR_MY_BACKUPS_FOLDER attr
+ * and the name of the folder in case it exists
+ *
+ * @see `setMyBackupsFolder` and `getMyBackupsFolder`
+ */
+std::pair<bool, std::string> ensureMyBackupsFolderExists(::mega::MegaApi* megaApi,
+                                                         const std::string& name);
 
 /**
  * @brief Returns true if value matches the given matcher and also executes EXPECT_THAT

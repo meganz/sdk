@@ -165,6 +165,21 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 
     if (sqlite3_create_function(db,
+                                u8"getFingerprintExcludingMtime",
+                                1,
+                                SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+                                0,
+                                &SqliteAccountState::getFingerprintExcludingMtime,
+                                0,
+                                0) != SQLITE_OK)
+    {
+        LOG_err << "Data base error(sqlite3_create_function getFingerprintExcludingMtime): "
+                << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    if (sqlite3_create_function(db,
                                 u8"getSizeFromNodeCounter",
                                 1,
                                 SQLITE_UTF8 | SQLITE_DETERMINISTIC,
@@ -192,13 +207,15 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 
     // Create specific table for handle nodes
-    std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
-                      "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
-                      "type tinyint, mimetypeVirtual tinyint AS (getmimetype(name)) VIRTUAL, "
-                      "sizeVirtual int64 AS (getSizeFromNodeCounter(counter)) VIRTUAL,"
-                      "share tinyint, fav tinyint, ctime int64, mtime int64 DEFAULT 0, "
-                      "flags int64, counter BLOB NOT NULL, "
-                      "node BLOB NOT NULL, label tinyint DEFAULT 0, description text, tags text)";
+    std::string sql =
+        "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
+        "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
+        "type tinyint, mimetypeVirtual tinyint AS (getmimetype(name)) VIRTUAL, "
+        "fingerprintVirtual BLOB AS (getFingerprintExcludingMtime(fingerprint)) VIRTUAL, "
+        "sizeVirtual int64 AS (getSizeFromNodeCounter(counter)) VIRTUAL,"
+        "share tinyint, fav tinyint, ctime int64, mtime int64 DEFAULT 0, "
+        "flags int64, counter BLOB NOT NULL, "
+        "node BLOB NOT NULL, label tinyint DEFAULT 0, description text, tags text)";
 
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
@@ -212,21 +229,30 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // if needed:
     vector<NewColumn> newCols{
         {"mtime",
-         "int64 DEFAULT 0",                                    NodeData::COMPONENT_MTIME,
-         NewColumn::extractDataFromNodeData<MTimeType>                                                                                      },
+         "int64 DEFAULT 0",
+         NodeData::COMPONENT_MTIME,
+         NewColumn::extractDataFromNodeData<MTimeType>},
         {"label",
-         "tinyint DEFAULT 0",                                  NodeData::COMPONENT_LABEL,
-         NewColumn::extractDataFromNodeData<LabelType>                                                                                      },
+         "tinyint DEFAULT 0",
+         NodeData::COMPONENT_LABEL,
+         NewColumn::extractDataFromNodeData<LabelType>},
         {"mimetypeVirtual",
-         "tinyint AS (getmimetype(name)) VIRTUAL",             NodeData::COMPONENT_NONE,
-         nullptr                                                                                                                            },
+         "tinyint AS (getmimetype(name)) VIRTUAL",
+         NodeData::COMPONENT_NONE,
+         nullptr},
+        {"fingerprintVirtual",
+         "BLOB AS (getFingerprintExcludingMtime(fp)) VIRTUAL",
+         NodeData::COMPONENT_NONE,
+         nullptr},
         {"description",
-         "text",                                               NodeData::COMPONENT_DESCRIPTION,
-         NewColumn::extractDataFromNodeData<DescriptionType>                                                                                },
-        {"tags",            "text",                            NodeData::COMPONENT_TAGS,        NewColumn::extractDataFromNodeData<TagsType>},
+         "text",
+         NodeData::COMPONENT_DESCRIPTION,
+         NewColumn::extractDataFromNodeData<DescriptionType>},
+        {"tags", "text", NodeData::COMPONENT_TAGS, NewColumn::extractDataFromNodeData<TagsType>},
         {"sizeVirtual",
-         "int64 AS (getSizeFromNodeCounter(counter)) VIRTUAL", NodeData::COMPONENT_NONE,
-         nullptr                                                                                                                            },
+         "int64 AS (getSizeFromNodeCounter(counter)) VIRTUAL",
+         NodeData::COMPONENT_NONE,
+         nullptr},
     };
 
     if (!addAndPopulateColumns(db, std::move(newCols)))
@@ -1205,6 +1231,14 @@ void SqliteAccountState::createIndexes(bool enableIndexesForSearching)
         LOG_err << "Data base error while creating index (fingerprintindex): " << sqlite3_errmsg(db);
     }
 
+    sql = "CREATE INDEX IF NOT EXISTS fingerprintvirtualindex on nodes (fingerprintVirtual)";
+    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_err << "Data base error while creating index (fingerprintvirtualindex): "
+                << sqlite3_errmsg(db);
+    }
+
 #if defined( __ANDROID__) || defined(USE_IOS)
     sql = "CREATE INDEX IF NOT EXISTS origFingerprintindex on nodes (origFingerprint)";
     result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
@@ -1328,8 +1362,8 @@ void SqliteAccountState::finalise()
     sqlite3_finalize(mStmtNodeTagsBelow);
     mStmtNodeTagsBelow = nullptr;
 
-    sqlite3_finalize(mStmtNodesByFp);
-    mStmtNodesByFp = nullptr;
+    sqlite3_finalize(mStmtNodesByFpNoMtime);
+    mStmtNodesByFpNoMtime = nullptr;
 
     sqlite3_finalize(mStmtNodeByFp);
     mStmtNodeByFp = nullptr;
@@ -2179,7 +2213,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
     return result;
 }
 
-bool SqliteAccountState::getNodesByFingerprint(const std::string &fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized> > &nodes)
+bool SqliteAccountState::getNodesByFingerprintNoMtime(
+    const std::string& fingerprint,
+    std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes)
 {
     if (!db)
     {
@@ -2187,29 +2223,37 @@ bool SqliteAccountState::getNodesByFingerprint(const std::string &fingerprint, s
     }
 
     int sqlResult = SQLITE_OK;
-    if (!mStmtNodesByFp)
+    if (!mStmtNodesByFpNoMtime)
     {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE fingerprint = ?", -1, &mStmtNodesByFp, NULL);
+        sqlResult = sqlite3_prepare_v2(
+            db,
+            "SELECT nodehandle, counter, node FROM nodes WHERE fingerprintVirtual = ?",
+            -1,
+            &mStmtNodesByFpNoMtime,
+            NULL);
     }
 
     bool result = false;
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_blob(mStmtNodesByFp, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_blob(mStmtNodesByFpNoMtime,
+                                           1,
+                                           fingerprint.data(),
+                                           (int)fingerprint.size(),
+                                           SQLITE_STATIC)) == SQLITE_OK)
         {
-            result = processSqlQueryNodes(mStmtNodesByFp, nodes);
+            result = processSqlQueryNodes(mStmtNodesByFpNoMtime, nodes);
         }
     }
 
     if (sqlResult != SQLITE_OK)
     {
-        errorHandler(sqlResult, "get nodes by fingerprint", false);
+        errorHandler(sqlResult, "get nodes by getNodesByFingerprintNoMtime", false);
     }
 
-    sqlite3_reset(mStmtNodesByFp);
+    sqlite3_reset(mStmtNodesByFpNoMtime);
 
     return result;
-
 }
 
 bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, mega::NodeSerialized &node, NodeHandle& handle)
@@ -2621,6 +2665,41 @@ void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sql
     int result = (fileName && *fileName && Node::getExtension(ext, fileName) && !ext.empty()) ?
                  Node::getMimetype(ext) : MimeType_t::MIME_TYPE_OTHERS;
     sqlite3_result_int(context, result);
+}
+
+void SqliteAccountState::getFingerprintExcludingMtime(sqlite3_context* context,
+                                                      int argc,
+                                                      sqlite3_value** argv)
+{
+    if (argc != 1)
+    {
+        LOG_err << "Invalid parameters for getFingerprintExcludingMtime (argc=" << argc << ")";
+        sqlite3_result_null(context);
+        return;
+    }
+
+    const unsigned char* input = static_cast<const unsigned char*>(sqlite3_value_blob(argv[0]));
+    const int len = sqlite3_value_bytes(argv[0]);
+    if (!input)
+    {
+        sqlite3_result_null(context);
+        return;
+    }
+
+    if (len < 33)
+    {
+        LOG_err << "getFingerprintExcludingMtime: invalid fingerprint blob size (len=" << len
+                << ")";
+        assert(false && "getFingerprintExcludingMtime(): invalid fingerprint blob size");
+        sqlite3_result_null(context);
+        return;
+    }
+
+    std::array<uint8_t, 25> result;
+    std::copy_n(input, 8, result.begin()); // Copy size
+    std::copy_n(input + 16, 16, result.begin() + 8); // Ignore mtime and copy CRC
+    std::copy_n(input + 32, 1, result.begin() + 24); // Copy isValid
+    sqlite3_result_blob(context, result.data(), static_cast<int>(result.size()), SQLITE_TRANSIENT);
 }
 
 void SqliteAccountState::userMatchFilter(sqlite3_context* context, int argc, sqlite3_value** argv)

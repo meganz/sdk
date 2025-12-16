@@ -2251,21 +2251,24 @@ void LocalNode::trimRareFields()
     {
         if (!scanInProgress) rareFields->scanRequest.reset();
 
-        if (!rareFields->scanBlocked &&
-            !rareFields->scanRequest &&
-            rareFields->movePendingFrom.expired() &&
-            !rareFields->movePendingTo &&
-            !rareFields->moveFromHere &&
-            !rareFields->moveToHere &&
-            !rareFields->filterChain &&
-            !rareFields->badlyFormedIgnoreFilePath &&
-            !rareFields->createFolderHere &&
-            !rareFields->removeNodeHere &&
-            rareFields->unlinkHere.expired() &&
-            rareFields->localFSRenamedToThisName.empty())
+        if (!rareFields->scanBlocked && !rareFields->scanRequest &&
+            rareFields->movePendingFrom.expired() && !rareFields->movePendingTo &&
+            !rareFields->moveFromHere && !rareFields->moveToHere && !rareFields->filterChain &&
+            !rareFields->badlyFormedIgnoreFilePath && !rareFields->createFolderHere &&
+            !rareFields->removeNodeHere && rareFields->unlinkHere.expired() &&
+            rareFields->localFSRenamedToThisName.empty() && !rareFields->macComputation)
         {
             rareFields.reset();
         }
+    }
+}
+
+void LocalNode::resetMacComputationIfAny()
+{
+    if (rareFields && rareFields->macComputation)
+    {
+        rareFields->macComputation.reset();
+        trimRareFields();
     }
 }
 
@@ -2479,6 +2482,7 @@ void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath, vector<SyncRow>
 
                 ++nChecked;
                 auto generated = row.syncNode->getScannedFSDetails();
+                //[SDK-5551_TODO] -> Do we need to add metamac comparison at equivalent to?
                 if (!generated.equivalentTo(*row.fsNode)) return;
             }
         }
@@ -3225,26 +3229,26 @@ bool LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload,
 void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download, bool queueFirst)
 {
     resetTransfer(download);
-
-    sync->syncs.queueClient([download, queueFirst](MegaClient& mc, TransferDbCommitter& committer)
+    sync->syncs.queueClient(
+        [syncDownload = std::move(download), queueFirst](MegaClient& mc,
+                                                         TransferDbCommitter& committer)
         {
-            download->selfKeepAlive = download;
-            mc.startxfer(GET, download.get(), committer, false, queueFirst, false, NoVersioning, nullptr, mc.nextreqtag());
+            syncDownload->selfKeepAlive = syncDownload;
+            clientDownload(mc, committer, std::move(syncDownload), queueFirst);
         });
-
 }
 
 void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
 {
     if (transferSP)
     {
-        if (!transferSP->wasTerminated &&
-            !transferSP->wasCompleted)
+        if (!transferSP->wasTerminated && !transferSP->wasFileTransferCompleted)
         {
             LOG_debug << "Abandoning old transfer, and queueing its cancel on client thread";
 
             // this flag allows in-progress transfers to self-cancel
             transferSP->wasRequesterAbandoned = true;
+            transferSP->wasJustMtimeChanged = false;
 
             // also queue an operation on the client thread to cancel it if it's queued
             auto tsp = transferSP;
@@ -3269,24 +3273,41 @@ void LocalNode::updateTransferLocalname()
 }
 
 bool LocalNode::transferResetUnlessMatched(const direction_t dir,
-                                           const FileFingerprint& fingerprint)
+                                           const FileFingerprint& fingerprint,
+                                           const int64_t metamac)
 {
     if (!transferSP)
         return true;
 
     const auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
-
     const bool transferDirectionNeedsToChange = dir != (uploadPtr ? PUT : GET);
+    auto different = false;
+    auto compRes = NODE_COMP_EQUAL;
+    auto transferMetamac =
+        transferSP->mMetaMac.has_value() ? transferSP->mMetaMac.value() : INVALID_META_MAC;
 
-    const auto different =
-        transferDirectionNeedsToChange || transferSP->fingerprint() != fingerprint;
+    if (transferMetamac != INVALID_META_MAC && metamac != INVALID_META_MAC)
+    {
+        compRes = CompareMacAndFpExcludingMtime(transferSP->fingerprint(),
+                                                fingerprint,
+                                                transferSP->mMetaMac.value(),
+                                                metamac);
+
+        different = transferDirectionNeedsToChange || compRes != NODE_COMP_EQUAL;
+    }
+    else
+    {
+        different = transferDirectionNeedsToChange || transferSP->fingerprint() != fingerprint;
+    }
 
     const auto transferTerminatedAndIsRetryable = transferSP->wasTerminated &&
                                                   transferSP->mError != API_EKEY &&
                                                   transferSP->mError != API_EBLOCKED;
 
     if (!different && !transferTerminatedAndIsRetryable)
+    {
         return true;
+    }
 
     if (uploadPtr && !mUploadThrottling.handleAbortUpload(*uploadPtr,
                                                           transferDirectionNeedsToChange,
@@ -3294,7 +3315,15 @@ bool LocalNode::transferResetUnlessMatched(const direction_t dir,
                                                           sync->syncs.maxUploadsBeforeThrottle(),
                                                           transferSP->getLocalname()))
     {
-        return !uploadPtr->putnodesStarted;
+        return !uploadPtr->upsyncStarted;
+    }
+
+    if (compRes == NODE_COMP_DIFFERS_MTIME)
+    {
+        LOG_debug << sync->syncname << "Updating fingerprint mtime of "
+                  << transferSP->getLocalname() << " to " << fingerprint.mtime;
+        uploadPtr->updateFingerprintMtime(fingerprint.mtime);
+        return true;
     }
 
     LOG_debug << sync->syncname << "Cancelling superseded transfer of "

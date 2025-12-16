@@ -108,7 +108,9 @@ public:
                           const std::string& pattern = "")
         -> std::optional<std::set<std::string>> override;
 
-    bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
+    bool getNodesByFingerprintNoMtime(
+        const std::string& fingerprint,
+        std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getNodeByFingerprint(const std::string& fingerprint,
                               mega::NodeSerialized& node,
                               NodeHandle& handle) override;
@@ -148,6 +150,12 @@ public:
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    // Method called when query uses 'getFingerprintExcludingMtime'
+    // Gets the node's fingerprint excluding mtime
+    static void getFingerprintExcludingMtime(sqlite3_context* context,
+                                             int argc,
+                                             sqlite3_value** argv);
+
     // Method called when query uses 'getSizeFromNodeCounter'
     // Gets the node size from node counter (blob)
     static void getSizeFromNodeCounter(sqlite3_context* context, int argc, sqlite3_value** argv);
@@ -179,7 +187,7 @@ private:
     std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
     std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
     sqlite3_stmt* mStmtNodeTagsBelow = nullptr;
-    sqlite3_stmt* mStmtNodesByFp = nullptr;
+    sqlite3_stmt* mStmtNodesByFpNoMtime = nullptr;
     sqlite3_stmt* mStmtNodeByFp = nullptr;
     sqlite3_stmt* mStmtNodeByOrigFp = nullptr;
     sqlite3_stmt* mStmtChildNode = nullptr;

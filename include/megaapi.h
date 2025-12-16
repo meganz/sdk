@@ -16357,44 +16357,53 @@ class MegaApi
         /**
          * @brief Upload a file to support
          *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         * If the status of the business account is expired, onTransferFinish will be called with
+         * the error code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning
+         * message similar to "Your business account is overdue, please contact your administrator."
          *
          * For folders, onTransferFinish will be called with error MegaError:API_EARGS;
          *
          * @param localPath Local path of the file
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it
+         * when the upload finishes. This parameter is intended to automatically delete temporary
+         * files that are only created to be uploaded. Use this parameter with caution. Set it to
+         * true only if you are sure about what are you doing.
          * @param listener MegaTransferListener to track this transfer
+         *
+         * @note In case we find a node in cloud drive with the same content but a different mtime
+         * than the file to be uploaded, this function will try to update it's mtime instead of
+         * starting a new file upload. If setting the mtime fails, the transfer will fail with
+         * API_EWRITE.
          */
         void startUploadForSupport(const char* localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder
          *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         * If the status of the business account is expired, onTransferFinish will be called with
+         * the error code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning
+         * message similar to "Your business account is overdue, please contact your administrator."
          *
-         * When user wants to upload a batch of items that at least contains one folder, SDK mutex will be partially
-         * locked until:
+         * When user wants to upload a batch of items that at least contains one folder, SDK mutex
+         * will be partially locked until:
          *  - we have received onTransferStart for every file in the batch
-         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
-         *    for every folder in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage ==
+         * MegaTransfer::STAGE_TRANSFERRING_FILES for every folder in the batch
          *
-         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
-         * This method will cancel all transfers(not finished yet).
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by
+         * calling CancelToken::cancel(true). This method will cancel all transfers(not finished
+         * yet).
          *
          * Important considerations:
-         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
-         *    of those transfers.
+         *  - A cancel token instance can be shared by multiple transfers, and calling
+         * CancelToken::cancel(true) will affect all of those transfers.
          *
-         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
-         *    that shares the same cancel token instance.
+         *  - It's app responsibility, to keep cancel token instance alive until receive
+         * MegaTransferListener::onTransferFinish for all MegaTransfers that shares the same cancel
+         * token instance.
          *
-         * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
+         * For more information about MegaTransfer stages please refer to onTransferUpdate
+         * documentation.
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -16410,9 +16419,10 @@ class MegaApi
          * the appData of the old transfer, using a '!' separator if the old transfer had already
          * appData.
          *  + If you don't need this param provide NULL as value
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it
+         * when the upload finishes. This parameter is intended to automatically delete temporary
+         * files that are only created to be uploaded. Use this parameter with caution. Set it to
+         * true only if you are sure about what are you doing.
          *  + If you don't need this param provide false as value
          * @param startFirst puts the transfer on top of the upload queue
          *  + If you don't need this param provide false as value
@@ -16420,6 +16430,11 @@ class MegaApi
          * This param is required to be able to cancel the transfer safely.
          * App retains the ownership of this param.
          * @param listener MegaTransferListener to track this transfer
+         *
+         * @note In case we find a node in cloud drive with the same content but a different mtime
+         * than the file to be uploaded, this function will try to update it's mtime instead of
+         * starting a new file upload. If setting the mtime fails, the transfer will fail with
+         * API_EWRITE.
          */
         void startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData, bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener=NULL);
 
@@ -16428,14 +16443,14 @@ class MegaApi
          *
          * This method should be used ONLY to share by chat a local file. In case the file
          * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
-         * this method will force a new upload from the scratch (ensuring the file attributes are set),
-         * instead of doing a remote copy.
+         * this method will force a new upload from the scratch (ensuring the file attributes are
+         * set), instead of doing a remote copy.
          *
          * This method always puts the transfer on top of the upload queue.
          *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         * If the status of the business account is expired, onTransferFinish will be called with
+         * the error code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning
+         * message similar to "Your business account is overdue, please contact your administrator."
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -16446,11 +16461,17 @@ class MegaApi
          * fails with the error API_EEXISTS and the appData of the new transfer is appended to
          * the appData of the old transfer, using a '!' separator if the old transfer had already
          * appData.
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it
+         * when the upload finishes. This parameter is intended to automatically delete temporary
+         * files that are only created to be uploaded. Use this parameter with caution. Set it to
+         * true only if you are sure about what are you doing.
          * @param fileName Custom file name for the file or folder in MEGA
          * @param listener MegaTransferListener to track this transfer
+         *
+         * @note In case we find a node in cloud drive with the same content but a different mtime
+         * than the file to be uploaded, this function will try to update it's mtime instead of
+         * starting a new file upload. If setting the mtime fails, the transfer will fail with
+         * API_EWRITE.
          */
         void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = NULL);
 
@@ -19243,6 +19264,19 @@ class MegaApi
          * @return List of nodes with the same fingerprint
          */
         MegaNodeList *getNodesByFingerprint(const char* fingerprint);
+
+        /**
+         * @brief Returns all nodes that have a fingerprint (ignoring modification time)
+         *
+         * If there isn't any node in the account with that fingerprint, this function returns an
+         * empty MegaNodeList.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param fingerprint Fingerprint to check
+         * @return List of nodes with the same fingerprint (ignoring modification time)
+         */
+        MegaNodeList* getNodesByFingerprintIgnoringMtime(const char* fingerprint);
 
         /**
          * @brief Returns nodes that have an originalFingerprint equal to the supplied value

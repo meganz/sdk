@@ -42,7 +42,7 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
     }
 
     // mtime differs - cannot be equal
-    if (abs(lhs.mtime-rhs.mtime) > 2)
+    if (abs(lhs.mtime - rhs.mtime) > FS_MTIME_TOLERANCE_SECS)
     {
         return false;
     }
@@ -66,11 +66,27 @@ bool FileFingerprint::EqualExceptValidFlag(const FileFingerprint& rhs) const
 {
     // same as == but not checking valid
     if (size != rhs.size) return false;
-    if (abs(mtime-rhs.mtime) > 2) return false;
+    if (abs(mtime - rhs.mtime) > FS_MTIME_TOLERANCE_SECS)
+        return false;
     return !memcmp(crc.data(), rhs.crc.data(), sizeof crc);
 }
 
 bool FileFingerprint::equalExceptMtime(const FileFingerprint& rhs) const
+{
+    if (this->size != rhs.size)
+    {
+        return false;
+    }
+
+    if (!this->isvalid || !rhs.isvalid)
+    {
+        return false;
+    }
+
+    return !memcmp(this->crc.data(), rhs.crc.data(), sizeof this->crc);
+}
+
+bool FileFingerprint::equalExceptMtimeAndIsValid(const FileFingerprint& rhs) const
 {
     return (memcmp(this->crc.data(), rhs.crc.data(), sizeof rhs.crc) == 0 &&
             this->size == rhs.size);
@@ -80,6 +96,16 @@ bool FileFingerprint::serialize(string *d) const
 {
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)&mtime, sizeof(mtime));
+    d->append((const char*)crc.data(), sizeof(crc));
+    d->append((const char*)&isvalid, sizeof(isvalid));
+
+    return true;
+}
+
+bool FileFingerprint::serializeExcludingMtime(string* d) const
+{
+    d->reserve(sizeof(size) + sizeof(crc) + sizeof(isvalid));
+    d->append((const char*)&size, sizeof(size));
     d->append((const char*)crc.data(), sizeof(crc));
     d->append((const char*)&isvalid, sizeof(isvalid));
 
@@ -455,5 +481,19 @@ bool FileFingerprintCmp::operator()(const FileFingerprint &a, const FileFingerpr
      return operator()(&a, &b);
 }
 
+bool FileFingerprintCmpNoMtime::operator()(const FileFingerprint* a, const FileFingerprint* b) const
+{
+    if (a->size < b->size)
+        return true;
 
+    if (a->size > b->size)
+        return false;
+
+    return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
+}
+
+bool FileFingerprintCmpNoMtime::operator()(const FileFingerprint& a, const FileFingerprint& b) const
+{
+    return operator()(&a, &b);
+}
 } // mega

@@ -34,6 +34,14 @@ struct MEGA_API InputStreamAccess
     virtual ~InputStreamAccess() { }
 };
 
+// Tolerance threshold (in seconds) for filesystem modification time comparisons
+constexpr unsigned FS_MTIME_TOLERANCE_SECS = 2;
+
+/* IMPORTANT:
+ * In case we want to perform a `mtime` update, the new value must be greater than
+ * `FS_MTIME_TOLERANCE_SECS` respect the previous one, otherwise it won't be detected
+ */
+constexpr unsigned MIN_ALLOW_MTIME_DIFFERENCE = FS_MTIME_TOLERANCE_SECS + 1;
 
 // sparse file fingerprint, including size and mtime
 struct MEGA_API FileFingerprint : public Cacheable
@@ -65,6 +73,12 @@ struct MEGA_API FileFingerprint : public Cacheable
     // Includes size, CRC, mtime, and isvalid
     // Be wary that these must be used in pair; do not mix with serializefingerprint pair
     bool serialize(string* d) const override;
+
+    // Includes size, CRC, and isvalid (mtime is not included)
+    // This method can be used to serialize a file fingerprint without mtime, that could be used to
+    // find nodes with same content but only differs in mtime.
+    // Note: This method should not be used to serialize fingerprints that will be stored on Db
+    bool serializeExcludingMtime(string* d) const;
     static unique_ptr<FileFingerprint> unserialize(const char*& ptr, const char* end);
 
     // convenience function for clear comparisons etc, referring to (this) base class
@@ -74,10 +88,17 @@ struct MEGA_API FileFingerprint : public Cacheable
 
     bool EqualExceptValidFlag(const FileFingerprint& rhs) const;
     bool equalExceptMtime(const FileFingerprint& rhs) const;
+    bool equalExceptMtimeAndIsValid(const FileFingerprint& rhs) const;
 };
 
 // orders transfers by file fingerprints, ordered by size / mtime / sparse CRC
 struct MEGA_API FileFingerprintCmp
+{
+    bool operator()(const FileFingerprint* a, const FileFingerprint* b) const;
+    bool operator()(const FileFingerprint& a, const FileFingerprint& b) const;
+};
+
+struct MEGA_API FileFingerprintCmpNoMtime
 {
     bool operator()(const FileFingerprint* a, const FileFingerprint* b) const;
     bool operator()(const FileFingerprint& a, const FileFingerprint& b) const;

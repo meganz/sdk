@@ -4505,6 +4505,11 @@ MegaNodeList *MegaApi::getNodesByFingerprint(const char *fingerprint)
     return pImpl->getNodesByFingerprint(fingerprint);
 }
 
+MegaNodeList* MegaApi::getNodesByFingerprintIgnoringMtime(const char* fingerprint)
+{
+    return pImpl->getNodesByFingerprint(fingerprint, true);
+}
+
 MegaNodeList *MegaApi::getNodesByOriginalFingerprint(const char* originalFingerprint, MegaNode* parent)
 {
     return pImpl->getNodesByOriginalFingerprint(originalFingerprint, parent);

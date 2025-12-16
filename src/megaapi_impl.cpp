@@ -13350,7 +13350,7 @@ MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint)
     return MegaNodePrivate::fromNode(getNodeByFingerprintInternal(fingerprint).get());
 }
 
-MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
+MegaNodeList* MegaApiImpl::getNodesByFingerprint(const char* fingerprint, const bool excludeMtime)
 {
     unique_ptr<FileFingerprint> fp(MegaApiImpl::getFileFingerprintInternal(fingerprint));
     if (!fp)
@@ -13359,7 +13359,7 @@ MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
     }
 
     SdkMutexGuard g(sdkMutex);
-    sharedNode_vector nodes = client->mNodeManager.getNodesByFingerprint(*fp);
+    sharedNode_vector nodes = client->mNodeManager.getNodesByFingerprint(*fp, excludeMtime);
     return new MegaNodeListPrivate(nodes);
 }
 
@@ -18962,6 +18962,81 @@ void MegaApiImpl::updateBackups()
     }
 }
 
+bool MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
+                                  MegaTransferPrivate* transfer,
+                                  const m_time_t newMtime,
+                                  const int nextTag)
+{
+    if (!transfer)
+    {
+        LOG_err << "updateNodeMtime: invalid transfer";
+        assert(false);
+        return false;
+    }
+
+    if (!node)
+    {
+        LOG_err << "updateNodeMtime: invalid node";
+        assert(false);
+        return false;
+    }
+
+    LOG_debug << "Updating mtime to node(" << toNodeHandle(node->nodeHandle()) << ")";
+    transfer->setState(MegaTransfer::STATE_QUEUED);
+    transferMap[nextTag] = transfer;
+    transfer->setTag(nextTag);
+    transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
+    transfer->setStartTime(Waiter::ds);
+    transfer->setUpdateTime(Waiter::ds);
+    fireOnTransferStart(transfer);
+    transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
+    transfer->setSpeed(0);
+    transfer->setMeanSpeed(0);
+    transfer->setState(MegaTransfer::STATE_COMPLETING);
+    fireOnTransferUpdate(transfer);
+
+    const auto immediateErrCode = client->updateNodeMtime(
+        node,
+        newMtime,
+        [this, nextTag](NodeHandle h, Error e)
+        {
+            MegaTransferPrivate* transfer =
+                static_cast<MegaTransferPrivate*>(getTransferByTag(nextTag));
+            if (!transfer)
+            {
+                LOG_debug << "updateNodeMtime for node(" << toNodeHandle(h)
+                          << ") has finished with errorCode(" << e << "), but transfer with tag("
+                          << nextTag << ") does not exists anymore";
+                return;
+            }
+
+            if (e)
+            {
+                LOG_debug << "updateNodeMtime could not update mtime for node(" << toNodeHandle(h)
+                          << "), errorCode(" << e << ")";
+                transfer->setState(MegaTransfer::STATE_FAILED);
+                fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_EWRITE));
+            }
+            else
+            {
+                LOG_debug << "updateNodeMtime has finished successfully for node("
+                          << toNodeHandle(h) << ")";
+
+                transfer->setState(MegaTransfer::STATE_COMPLETED);
+                fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(e));
+            }
+        });
+
+    if (immediateErrCode != API_OK)
+    {
+        LOG_debug << "updateNodeMtime immediate error for node(" << toNodeHandle(node->nodehandle)
+                  << ")";
+        return false;
+    }
+
+    return true;
+}
+
 MegaFilePut*
     MegaApiImpl::createMegaFileForRemoteCopyTransfer(MegaTransferPrivate& megaTransfer,
                                                      std::shared_ptr<Node> prevNodeSameName,
@@ -19025,7 +19100,12 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
         return false;
     }
 
-    return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType())
+    auto name =
+        fileNode->getName() ? fileNode->getName() : std::optional<std::string>(std::nullopt);
+    return CompareLocalFileMetaMacWithNodeKey(fa,
+                                              *fileNode->getNodeKey(),
+                                              fileNode->getType(),
+                                              name)
         .first;
 }
 
@@ -19278,7 +19358,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                 if (transfer->fingerprint_filetype == FILENODE)
                 {
-
                     FileFingerprint fp_forCloud = transfer->fingerprint_onDisk;
                     // don't clone an existing node unless it also already has the overridden mtime
                     // don't think that an existing file at this path is the right file unless it also has the overridden mtime
@@ -19287,12 +19366,19 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         fp_forCloud.mtime = mtime;
                     }
 
-                    auto finishTransferSameNodeNameFoundInTarget =
-                        [transfer, nextTag, this](const handle h)
+                    auto immediateFinishSameNodeNameFoundInTarget =
+                        [nextTag, this](MegaTransferPrivate* transfer, const handle h)
                     {
-                        LOG_debug << "Previous node exists with same name in target node, and the "
-                                     "upload is not forced: "
-                                  << Base64Str<MegaClient::NODEHANDLE>(h);
+                        if (!transfer)
+                        {
+                            LOG_err << "finishTransferSameNodeNameFoundInTarget: invalid transfer";
+                            assert(false);
+                            return;
+                        }
+
+                        LOG_debug << "Another node(" << toNodeHandle(h)
+                                  << ") with same name, FP and MAC exists in target, and the "
+                                  << "upload is not forced.";
                         transfer->setState(MegaTransfer::STATE_QUEUED);
                         transferMap[nextTag] = transfer;
                         transfer->setTag(nextTag);
@@ -19301,6 +19387,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         transfer->setStartTime(Waiter::ds);
                         transfer->setUpdateTime(Waiter::ds);
                         fireOnTransferStart(transfer);
+
                         transfer->setNodeHandle(h);
                         transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
                         transfer->setSpeed(0);
@@ -19337,20 +19424,39 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         }
                         else if (forceToUpload =
                                      hasToForceUpload(*prevNodeSameName.get(), *transfer);
-                                 !forceToUpload &&
-                                 CompareLocalFileWithNodeFpAndMac(*client,
-                                                                  wLocalPath,
-                                                                  fp_forCloud,
-                                                                  prevNodeSameName.get())
-                                         .first == NODE_COMP_EQUAL)
+                                 !forceToUpload)
                         {
-                            LOG_debug
-                                << "Another node ("
-                                << Base64Str<MegaClient::NODEHANDLE>(prevNodeSameName->nodehandle)
-                                << ") with same name, FP and MAC exists in target "
-                                   "node.";
-                            finishTransferSameNodeNameFoundInTarget(prevNodeSameName->nodehandle);
-                            break;
+                            auto [compRes, _] = CompareLocalFileWithNodeMacAndFpExludingMtime(
+                                *client,
+                                wLocalPath,
+                                fp_forCloud,
+                                prevNodeSameName.get(),
+                                true /*debugMode*/);
+
+                            if (compRes == NODE_COMP_DIFFERS_MTIME)
+                            {
+                                if (auto succeeded = updateNodeMtime(prevNodeSameName,
+                                                                     transfer,
+                                                                     fp_forCloud.mtime,
+                                                                     nextTag);
+                                    succeeded)
+                                {
+                                    e = API_OK; // In case of mtime update, Transfer
+                                                // (Start/Update/Finish) is delegated to
+                                                // updateNodeMtime so ensure `e` is API OK to avoid
+                                                // duplicated actions
+                                    break;
+                                }
+                                // Fallback setmtime failed with immediate error, so let's try with
+                                // clone node/regular upload
+                            }
+                            else if (compRes == NODE_COMP_EQUAL)
+                            {
+                                immediateFinishSameNodeNameFoundInTarget(
+                                    transfer,
+                                    prevNodeSameName->nodehandle);
+                                break;
+                            }
                         }
                         // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
                         // is not NODE_COMP_EQUAL, just continue with transfer
@@ -19362,29 +19468,38 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     {
                         std::shared_ptr<Node> sameNodeFpFound;
                         sharedNode_vector nodes =
-                            client->mNodeManager.getNodesByFingerprint(fp_forCloud);
+                            client->mNodeManager.getNodesByFingerprint(fp_forCloud,
+                                                                       true /*excludeMtime*/);
 
                         const auto alreadyCheckedSameNodeNameInTarget = !skipSearchBySameName;
                         bool sameNodeSameNameInTarget{false};
                         for (auto& n: nodes)
                         {
-                            if (!hasToForceUpload(*n.get(), *transfer) &&
-                                CompareLocalFileWithNodeFpAndMac(*client,
-                                                                 wLocalPath,
-                                                                 fp_forCloud,
-                                                                 n.get())
-                                        .first == NODE_COMP_EQUAL)
+                            if (!hasToForceUpload(*n.get(), *transfer))
                             {
-                                sameNodeFpFound = n;
-                                sameNodeSameNameInTarget =
-                                    (sameNodeFpFound->parent && parent) &&
-                                    (sameNodeFpFound->parent->nodeHandle() ==
-                                     parent->nodeHandle()) &&
-                                    (fileName == sameNodeFpFound->displayname());
+                                auto [compRes, _] = CompareLocalFileWithNodeMacAndFpExludingMtime(
+                                    *client,
+                                    wLocalPath,
+                                    fp_forCloud,
+                                    n.get(),
+                                    true /*debugMode*/);
 
-                                if (alreadyCheckedSameNodeNameInTarget || sameNodeSameNameInTarget)
+                                if (compRes == NODE_COMP_EQUAL ||
+                                    compRes == NODE_COMP_DIFFERS_MTIME)
                                 {
-                                    break;
+                                    sameNodeFpFound = n;
+                                    sameNodeSameNameInTarget =
+                                        (sameNodeFpFound->parent && parent) &&
+                                        (sameNodeFpFound->parent->nodeHandle() ==
+                                         parent->nodeHandle()) &&
+                                        (fileName == sameNodeFpFound->displayname());
+
+                                    if (alreadyCheckedSameNodeNameInTarget ||
+                                        sameNodeSameNameInTarget)
+                                    {
+                                        // There only can be one node with same name in target node
+                                        break;
+                                    }
                                 }
                             }
                             // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
@@ -19393,24 +19508,39 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                         if (sameNodeFpFound)
                         {
+                            const auto differentMtime{fp_forCloud.mtime != sameNodeFpFound->mtime};
                             if (sameNodeSameNameInTarget)
                             {
-                                LOG_debug << "Another node ("
-                                          << Base64Str<MegaClient::NODEHANDLE>(
-                                                 sameNodeFpFound->nodehandle)
-                                          << ") with same name, FP and MAC exists in target "
-                                             "node.";
-
-                                finishTransferSameNodeNameFoundInTarget(
-                                    sameNodeFpFound->nodehandle);
-                                break;
+                                if (differentMtime)
+                                {
+                                    if (auto succeeded = updateNodeMtime(sameNodeFpFound,
+                                                                         transfer,
+                                                                         fp_forCloud.mtime,
+                                                                         nextTag);
+                                        succeeded)
+                                    {
+                                        e = API_OK; // In case of mtime update, Transfer
+                                                    // (Start/Update/Finish) is delegated to
+                                                    // updateNodeMtime so ensure `e` is API OK to
+                                                    // avoid duplicated actions
+                                        break;
+                                    }
+                                    // Fallback setmtime failed with immediate error, so let's try
+                                    // with clone node
+                                }
+                                else
+                                {
+                                    immediateFinishSameNodeNameFoundInTarget(
+                                        transfer,
+                                        sameNodeFpFound->nodehandle);
+                                    break;
+                                }
                             }
 
-                            LOG_debug
-                                << "Another node ("
-                                << Base64Str<MegaClient::NODEHANDLE>(sameNodeFpFound->nodehandle)
-                                << ") with same FP and MAC exists in target node. Perform remote "
-                                   "copy";
+                            LOG_debug << "Another node ("
+                                      << toNodeHandle(sameNodeFpFound->nodehandle)
+                                      << ") with same FP and MAC exists in Cloud. Perform remote "
+                                         "copy";
 
                             currentTransfer = transfer;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -19421,14 +19551,17 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transfer->setUpdateTime(Waiter::ds);
 
                             auto f = createMegaFileForRemoteCopyTransfer(*transfer,
-                                                                         prevNodeSameName,
+                                                                         sameNodeFpFound,
                                                                          committer);
-                            e = client->transferRemoteCopy(f,
-                                                           sameNodeFpFound,
-                                                           transfer->getFileName(),
-                                                           parent,
-                                                           nextTag,
-                                                           inboxTarget);
+                            e = client->transferRemoteCopy(
+                                f,
+                                sameNodeFpFound,
+                                transfer->getFileName(),
+                                parent,
+                                nextTag,
+                                differentMtime ? fp_forCloud :
+                                                 std::optional<FileFingerprint>{std::nullopt},
+                                inboxTarget);
 
                             if (e == API_OK)
                             {

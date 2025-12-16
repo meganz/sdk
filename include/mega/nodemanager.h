@@ -337,7 +337,13 @@ public:
                           const std::set<NodeHandle>& handles,
                           const std::string& pattern = {}) -> std::optional<std::set<std::string>>;
 
-    sharedNode_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
+    /**
+     * @brief Retrieves all nodes matching the specified file fingerprint.
+     * @param excludeMtime If true, ignores `mtime` when comparing fingerprints.
+     * @return A vector of shared pointers to matching `Node` objects.
+     */
+    sharedNode_vector getNodesByFingerprint(const FileFingerprint& fingerprint,
+                                            const bool excludeMtime = false);
     sharedNode_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
     std::shared_ptr<Node> getNodeByFingerprint(FileFingerprint &fingerprint);
 
@@ -526,7 +532,7 @@ private:
         void clear();
     } rootnodes;
 
-    class FingerprintContainer : public fingerprint_set
+    class FingerprintContainer: public fingerprintNoMtime_set
     {
     public:
         bool allFingerprintsAreLoaded(const FileFingerprint *fingerprint) const;
@@ -537,7 +543,7 @@ private:
     private:
         // it stores all FileFingerprint that have been looked up in DB, so it
         // avoid the DB query for future lookups (includes non-existing (yet) fingerprints)
-        std::set<FileFingerprint, FileFingerprintCmp> mAllFingerprintsLoaded;
+        std::set<FileFingerprint, FileFingerprintCmpNoMtime> mAllFingerprintsLoaded;
     };
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
@@ -582,7 +588,7 @@ private:
     NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, std::shared_ptr<Node> node, bool isInRubbish);
 
     // Container storing FileFingerprint* (Node* in practice) ordered by fingerprint
-    FingerprintContainer mFingerPrints;
+    FingerprintContainer mFingerPrintsNoMtime;
 
     // Return a node from Data base, node shouldn't be in RAM previously
     shared_ptr<Node> getNodeFromDataBase(NodeHandle handle);
@@ -639,7 +645,8 @@ private:
                                          CancelToken cancelToken = CancelToken(),
                                          bool includeVersions = false);
 
-    sharedNode_vector getNodesByFingerprint_internal(const FileFingerprint& fingerprint);
+    sharedNode_vector getNodesByFingerprint_internal(const FileFingerprint& fingerprint,
+                                                     const bool excludeMtime);
     sharedNode_vector getNodesByOrigFingerprint_internal(const std::string& fingerprint, Node *parent);
     std::shared_ptr<Node> getNodeByFingerprint_internal(FileFingerprint &fingerprint);
     std::shared_ptr<Node> childNodeByNameType_internal(const Node *parent, const std::string& name, nodetype_t nodeType);

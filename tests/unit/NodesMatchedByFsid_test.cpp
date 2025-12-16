@@ -204,7 +204,7 @@ TEST(NodesMatchedByFSIDTest, DifferentFingerprintDueToMtime)
     ASSERT_EQ(areNodesMatchedByFsidEquivalent(sourceNodeAttributes,
                                               targetNodeAttributes,
                                               BASIC_SOURCE_CONTEXT),
-              NodeMatchByFSIDResult::DifferentFingerprint);
+              NodeMatchByFSIDResult::DifferentFingerprintOnlyMtime);
 }
 
 /**

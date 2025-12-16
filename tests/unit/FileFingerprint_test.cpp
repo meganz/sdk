@@ -262,7 +262,7 @@ TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfMTime)
 {
     mega::FileFingerprint ffp;
     ffp.isvalid = true;
-    ffp.mtime = 3; // difference must be at least 3
+    ffp.mtime = mega::FS_MTIME_TOLERANCE_SECS + 1; // difference must be at least 3
 
     mega::FileFingerprint ffp2;
     ffp2.isvalid = true;

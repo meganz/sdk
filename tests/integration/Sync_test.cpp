@@ -6165,8 +6165,11 @@ public:
 
     void confirmModels()
     {
+        LOG_debug << "Confirm model client 0...";
         confirmModel(*client0, model0, backupId0);
+        LOG_debug << "Confirm model client 1...";
         confirmModel(*client1, model1, backupId1);
+        LOG_debug << "After confirming models...";
     }
 
     const fs::path localRoot0() const
@@ -6216,6 +6219,8 @@ public:
 
 TEST_F(SyncFingerprintCollisionTest, DifferentMacSameName)
 {
+    static const std::string logPre{"SyncFingerprintCollisionTest.DifferentMacSameName : "};
+
     auto data0 = randomData(arbitraryFileLength);
     auto data1 = data0;
     const auto path0 = localRoot0() / "d_0" / "a";
@@ -6226,36 +6231,94 @@ TEST_F(SyncFingerprintCollisionTest, DifferentMacSameName)
     client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
-    // Wait for the engine to process any further changes.
     waitOnSyncs();
 
-    // Alter MAC but leave fingerprint untouched.
+    LOG_debug << logPre << "0. Alter MAC but leave fp untouched";
     data1[0x41] = static_cast<char>(~data1[0x41]);
 
     // Prepare the file outside of the sync's view.
     auto stamp = fs::last_write_time(path0);
+    ASSERT_TRUE(
+        createFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
 
-    ASSERT_TRUE(createFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
-
+    LOG_debug << logPre << "0. Move file after altering MAC";
     prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
+    LOG_debug << logPre << "0. File moved after altering MAC";
+
     client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
-
-    // Wait for the engine to process changes.
     waitOnSyncs();
 
+    LOG_debug << logPre << "0. Adding model files and confirming models";
     addModelFile(model0, "d/d_0", "a", data0);
     addModelFile(model0, "d/d_1", "a", data1);
     addModelFile(model1, "d/d_0", "a", data0);
-#ifdef SRW_NEEDED_FOR_THIS_ONE
-    addModelFile(model1, "d/d_1", "a", data1); // SRW gets this one right
-#else
-    addModelFile(model1, "d/d_1", "a", data1); // with treatAsIfFileDataEqual we can get this one right
-#endif
+    addModelFile(model1, "d/d_1", "a", data1);
     model1.ensureLocalDebrisTmpLock("d");
-
     confirmModels();
+    LOG_debug << logPre << "0. Models confirmed after adding model files";
+
+    LOG_debug << logPre << "1. Data change keeping mtime";
+
+    data1[0x41] = static_cast<char>(~data1[0x42]);
+    {
+        std::unique_ptr<FSACCESS_CLASS> fa(std::make_unique<FSACCESS_CLASS>());
+        auto [succeed, oldMtime] =
+            fa->getmtimelocal(LocalPath::fromAbsolutePath((path1).u8string()));
+        ASSERT_TRUE(succeed);
+
+        std::ofstream file(path1, std::ios::binary);
+        file.write(data1.data(), static_cast<std::streamsize>(data1.size()));
+        file.close();
+
+        ASSERT_TRUE(fa->setmtimelocal(LocalPath::fromAbsolutePath((path1).u8string()), oldMtime));
+        auto [succeed2, newMtime] =
+            fa->getmtimelocal(LocalPath::fromAbsolutePath((path1).u8string()));
+        ASSERT_TRUE(succeed2);
+        ASSERT_EQ(oldMtime, newMtime);
+    }
+    waitOnSyncs();
+
+    // Update model0 data to data1 so local content matches
+    // Do not update model1 because we expect the previous change NOT to be reflected in the cloud,
+    // so model1 shouldn't have synced it
+
+    LOG_debug << logPre << "1. Confirm models after data change";
+    model0.findnode("d/d_1/a")->content = data1;
+    confirmModels();
+    LOG_debug << logPre << "1. Models confirmed after data change keeping mtime";
+
+    LOG_debug << logPre << "2. Change mtime local";
+    prepareForNodeUpdates();
+    std::unique_ptr<FSACCESS_CLASS> mFsAccess;
+    mFsAccess = std::make_unique<FSACCESS_CLASS>();
+    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath((path1).u8string()), m_time(nullptr));
+    client0->triggerPeriodicScanEarly(backupId0);
+    waitForNodeUpdates();
+    waitOnSyncs();
+
+    // Now we expect this change to have been reflected in the cloud and c1 should have reflected
+    // the change
+    LOG_debug << logPre << "2. Confirm models after changing mtime local";
+    model1.movetosynctrash("d/d_1/a", "d");
+    addModelFile(model1, "d/d_1", "a", data1);
+    confirmModels();
+    LOG_debug << logPre << "2. Models confirmed after changing mtime local";
+
+    LOG_debug << logPre
+              << "3. Change mtime local again, this time fp differs in mtime and MACs are equals, "
+                 "there shall be no download but a setmtime change";
+    prepareForNodeUpdates();
+    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath((path1).u8string()), m_time(nullptr));
+    client0->triggerPeriodicScanEarly(backupId0);
+    waitForNodeUpdates();
+    waitOnSyncs();
+
+    LOG_debug << logPre << "3. Confirm models after changing mtime keeping same MAC";
+    confirmModels();
+
+    LOG_debug << logPre << "3. Models confirmed after changing mtime keeping same MAC";
 }
 
 TEST_F(SyncFingerprintCollisionTest, DifferentMacDifferentName)

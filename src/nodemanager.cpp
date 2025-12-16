@@ -816,16 +816,17 @@ sharedNode_vector NodeManager::getNodesWithLinks()
     return getNodesWithSharesOrLink_internal(ShareType_t::LINK);
 }
 
-sharedNode_vector NodeManager::getNodesByFingerprint(const FileFingerprint& fingerprint)
+sharedNode_vector NodeManager::getNodesByFingerprint(const FileFingerprint& fingerprint,
+                                                     const bool excludeMtime)
 {
     LockGuard g(mMutex);
-    return getNodesByFingerprint_internal(fingerprint);
+    return getNodesByFingerprint_internal(fingerprint, excludeMtime);
 }
 
-sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerprint& fingerprint)
+sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerprint& fingerprint,
+                                                              const bool excludeMtime)
 {
     assert(mMutex.owns_lock());
-
     sharedNode_vector nodes;
     if (!mTable || mNodes.empty())
     {
@@ -833,32 +834,44 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerpr
         return nodes;
     }
 
-    // Take first nodes in RAM
     std::set<NodeHandle> fpLoaded;
-    auto p = mFingerPrints.equal_range(&fingerprint);
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+
+    // Take first nodes in RAM
+    auto p = mFingerPrintsNoMtime.equal_range(&fingerprint);
     for (auto it = p.first; it != p.second; ++it)
     {
         const auto node = static_cast<const Node*>(*it);
-        fpLoaded.emplace(node->nodeHandle());
-        std::shared_ptr<Node> sharedNode = node->mNodePosition->second.getNodeInRam();
-        assert(sharedNode && "Node loaded at fingerprint map should have a node in RAM ");
-        nodes.push_back(std::move(sharedNode));
+        if (excludeMtime || (node->mtime == fingerprint.mtime))
+        {
+            fpLoaded.emplace(node->nodeHandle());
+            std::shared_ptr<Node> sharedNode = node->mNodePosition->second.getNodeInRam();
+            assert(sharedNode && "Node loaded at fingerprint map should have a node in RAM ");
+            nodes.push_back(std::move(sharedNode));
+        }
     }
 
     // If all fingerprints are loaded at DB, it isn't necessary search in DB
-    if (mFingerPrints.allFingerprintsAreLoaded(&fingerprint))
+    if (mFingerPrintsNoMtime.allFingerprintsAreLoaded(&fingerprint))
     {
         return nodes;
     }
 
     // Look for nodes at DB
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    std::string fingerprintString;
-    fingerprint.FileFingerprint::serialize(&fingerprintString);
-    mTable->getNodesByFingerprint(fingerprintString, nodesFromTable);
+    std::string fingerprintNoMtimeStr;
+    fingerprint.FileFingerprint::serializeExcludingMtime(&fingerprintNoMtimeStr);
+    mTable->getNodesByFingerprintNoMtime(fingerprintNoMtimeStr, nodesFromTable);
+
+    /*
+     * It’s important to add the `fingerprint` received as param to `mAllFingerprintsLoaded` before
+     * processing the retrieved nodes from the DB, as upon node unserialization, the LRU cache will
+     * properly manage them by inserting into `mFingerPrintsNoMtime` and removing them from both
+     * `mFingerPrintsNoMtime` and `mAllFingerprintsLoaded`.
+     */
+    mFingerPrintsNoMtime.setAllFingerprintLoaded(&fingerprint);
     if (nodesFromTable.size())
     {
-        for (const auto& nodeIt : nodesFromTable)
+        for (const auto& nodeIt: nodesFromTable)
         {
             // avoid to load already loaded nodes (found at mFingerPrints)
             if (fpLoaded.find(nodeIt.first) == fpLoaded.end())
@@ -880,13 +893,13 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(const FileFingerpr
                     }
                 }
 
-                nodes.push_back(std::move(node));
+                if (excludeMtime || node->mtime == fingerprint.mtime)
+                {
+                    nodes.push_back(std::move(node));
+                }
             }
         }
     }
-
-    mFingerPrints.setAllFingerprintLoaded(&fingerprint);
-
     return nodes;
 }
 
@@ -930,8 +943,8 @@ std::shared_ptr<Node> NodeManager::getNodeByFingerprint_internal(FileFingerprint
         return nullptr;
     }
 
-    auto it = mFingerPrints.find(&fingerprint);
-    if (it != mFingerPrints.end())
+    auto it = mFingerPrintsNoMtime.find(&fingerprint);
+    if (it != mFingerPrintsNoMtime.end())
     {
         const auto n = static_cast<const Node*>(*it);
         assert(n);
@@ -1423,7 +1436,7 @@ void NodeManager::cleanNodes_internal()
 {
     assert(mMutex.owns_lock());
 
-    mFingerPrints.clear();
+    mFingerPrintsNoMtime.clear();
     mNodes.clear();
     mCacheLRU.clear();
     mNodeToWriteInDb.reset();
@@ -2065,10 +2078,10 @@ FingerprintPosition NodeManager::insertFingerprint_internal(Node *node)
     // since it will be invalid once node is written to DB
     if (node->type == FILENODE && mNodeToWriteInDb.get() != node)
     {
-        return mFingerPrints.insert(node);
+        return mFingerPrintsNoMtime.insert(node);
     }
 
-    return mFingerPrints.end();
+    return mFingerPrintsNoMtime.end();
 }
 
 void NodeManager::removeFingerprint(Node *node, bool unloadNode)
@@ -2081,15 +2094,16 @@ void NodeManager::removeFingerprint_internal(Node *node, bool unloadNode)
 {
     assert(mMutex.owns_lock());
 
-    if (node->type == FILENODE && node->mFingerPrintPosition != mFingerPrints.end())  // remove from mFingerPrints
+    if (node->type == FILENODE &&
+        node->mFingerPrintPosition != mFingerPrintsNoMtime.end()) // remove from mFingerPrints
     {
-        mFingerPrints.erase(node->mFingerPrintPosition);
-        node->mFingerPrintPosition = mFingerPrints.end();
+        mFingerPrintsNoMtime.erase(node->mFingerPrintPosition);
+        node->mFingerPrintPosition = mFingerPrintsNoMtime.end();
 
         if (unloadNode)
         {
             FileFingerprint fingerPrint = *node;
-            mFingerPrints.removeAllFingerprintLoaded(&fingerPrint);
+            mFingerPrintsNoMtime.removeAllFingerprintLoaded(&fingerPrint);
         }
     }
 }
@@ -2097,7 +2111,7 @@ void NodeManager::removeFingerprint_internal(Node *node, bool unloadNode)
 FingerprintPosition NodeManager::invalidFingerprintPos()
 {
     // no locking for this one, it returns a constant
-    return mFingerPrints.end();
+    return mFingerPrintsNoMtime.end();
 }
 
 std::list<std::shared_ptr<Node> >::const_iterator NodeManager::invalidCacheLRUPos() const
@@ -2354,14 +2368,15 @@ void NodeManager::FingerprintContainer::setAllFingerprintLoaded(const mega::File
     mAllFingerprintsLoaded.insert(*fingerprint);
 }
 
-void NodeManager::FingerprintContainer::removeAllFingerprintLoaded(const FileFingerprint* fingerprint)
+void NodeManager::FingerprintContainer::removeAllFingerprintLoaded(
+    const FileFingerprint* fingerprint)
 {
     mAllFingerprintsLoaded.erase(*fingerprint);
 }
 
 void NodeManager::FingerprintContainer::clear()
 {
-    fingerprint_set::clear();
+    fingerprintNoMtime_set::clear();
     mAllFingerprintsLoaded.clear();
 }
 

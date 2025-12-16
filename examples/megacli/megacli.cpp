@@ -11712,7 +11712,8 @@ void DemoAppFolder::nodes_updated(sharedNode_vector* nodes, int count)
 
 void exec_metamac(autocomplete::ACState& s)
 {
-    std::shared_ptr<Node> node = nodebypath(s.words[2].s.c_str());
+    auto p = s.words[2].s.c_str();
+    std::shared_ptr<Node> node = nodebypath(p);
     if (!node || node->type != FILENODE)
     {
         cerr << s.words[2].s
@@ -11745,7 +11746,10 @@ void exec_metamac(autocomplete::ACState& s)
         remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     }
 
-    auto result = generateMetaMac(cipher, *ifAccess, remoteIv);
+    auto result = generateMetaMac(cipher,
+                                  *ifAccess,
+                                  remoteIv,
+                                  p ? p : std::optional<std::string>{std::nullopt});
     if (!result.first)
     {
         cerr << "Failed to generate metamac for: "
@@ -11799,29 +11803,33 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
         return;
     }
 
-    const auto [compRes, localFileMac] = CompareLocalFileWithNodeFpAndMac(*client,
-                                                                          localPath,
-                                                                          localFileFp,
-                                                                          node.get(),
-                                                                          true /*debugMode*/);
+    const auto [compRes, localFileMac] =
+        CompareLocalFileWithNodeMacAndFpExludingMtime(*client,
+                                                      localPath,
+                                                      localFileFp,
+                                                      node.get(),
+                                                      true /*debugMode*/);
 
     std::string errMsg{"Node and file content comparisson: "};
     switch (compRes)
     {
-        case NODE_COMP_INVALID_NODE_TYPE:
-            errMsg += "Invalid node type";
-            break;
         case NODE_COMP_EREAD:
             errMsg += "Local file read error";
             break;
         case NODE_COMP_EARGS:
             errMsg += "Arguments error";
             break;
+        case NODE_COMP_PENDING:
+            errMsg += "MAC computation pending";
+            break;
         case NODE_COMP_DIFFERS_FP:
             errMsg += "Local file and Node fingerprints mismatch";
             break;
         case NODE_COMP_DIFFERS_MAC:
             errMsg += "Local file and Node MetaMacs mismatch";
+            break;
+        case NODE_COMP_DIFFERS_MTIME:
+            errMsg += "Local file and Node are equal except mtime";
             break;
         case NODE_COMP_EQUAL:
             errMsg += "Both items are completly equal";

@@ -28,9 +28,13 @@
 #include "file.h"
 #include "filefingerprint.h"
 #include "syncfilter.h"
+#include "syncinternals/mac_computation_state.h"
 #include "syncinternals/syncuploadthrottlingfile.h"
+#include "utils.h"
 
+#include <atomic>
 #include <bitset>
+#include <mutex>
 
 namespace mega {
 
@@ -130,9 +134,8 @@ struct NodeCounter
     NodeCounter() = default;
 };
 
-typedef std::multiset<const FileFingerprint*, FileFingerprintCmp> fingerprint_set;
-typedef fingerprint_set::iterator FingerprintPosition;
-
+typedef std::multiset<const FileFingerprint*, FileFingerprintCmpNoMtime> fingerprintNoMtime_set;
+typedef fingerprintNoMtime_set::iterator FingerprintPosition;
 
 class NodeManagerNode
 {
@@ -894,6 +897,35 @@ struct MEGA_API LocalNode
             LocalNode* sourcePtr = nullptr;
         };
 
+        /**
+         * @brief Tracks an ongoing incremental MAC (Message Authentication Code) computation.
+         *
+         * When comparing local and cloud files that differ only in mtime, we need to compute
+         * the MetaMAC to determine if contents actually match. This computation can be slow
+         * for large files, so it runs incrementally across sync iterations using worker threads.
+         *
+         * Architecture:
+         * - Sync thread reads file in large chunks (10-20MB) with FILE_SHARE_DELETE
+         * - Worker thread (mAsyncQueue) computes MACs for chunks
+         * - Progress tracked across sync iterations
+         * - File opened/closed per chunk to minimize lock duration
+         *
+         * Thread safety:
+         * - Context fields are immutable after construction
+         * - chunkInProgress flag: sync thread sets true before queueing, worker clears when done
+         * - completed flag: worker sets when all chunks processed
+         * - partialMacs protected by mutex (worker writes, sync reads only when !chunkInProgress)
+         *
+         * Lifetime:
+         * - Sync thread holds shared_ptr in RareFields
+         * - Worker thread captures weak_ptr in lambda
+         * - If LocalNode is deleted, weak_ptr.lock() returns nullptr and computation is abandoned
+         *
+         * Note: MacComputationState is defined in syncinternals/mac_computation_state.h
+         * for reuse in both CSF (here) and clone candidate (SyncUpload_inClient) scenarios.
+         */
+        shared_ptr<MacComputationState> macComputation;
+
         weak_ptr<MovePending> movePendingFrom;
         shared_ptr<MovePending> movePendingTo;
 
@@ -913,6 +945,7 @@ struct MEGA_API LocalNode
     bool hasRare() { return !!rareFields; }
     RareFields& rare();
     void trimRareFields();
+    void resetMacComputationIfAny();
 
     // use this one to skip the hasRare check, if it doesn't exist a reference to a blank one is returned
     const RareFields& rareRO() const;
@@ -1069,7 +1102,9 @@ struct MEGA_API LocalNode
      * @todo Improve accuracy of the matching criteria, considering additional factors beyond
      * fingerprints.
      */
-    bool transferResetUnlessMatched(const direction_t, const FileFingerprint& fingerprint);
+    bool transferResetUnlessMatched(const direction_t,
+                                    const FileFingerprint& fingerprint,
+                                    const int64_t metamac);
 
     shared_ptr<SyncTransfer_inClient> transferSP;
 
@@ -1216,6 +1251,16 @@ private:
      */
     UploadThrottlingFile mUploadThrottling;
 
+    /**
+     * @brief Timestamp of last completed mtime-only sync operation (upload or download).
+     *
+     * Used to throttle MAC computations for files with frequently changing mtime.
+     * Files like .eml on Windows can have mtime updates every few seconds, causing
+     * repeated expensive MAC computations. This timestamp allows us to skip MAC
+     * computation if a recent mtime-only operation just completed.
+     */
+    std::chrono::steady_clock::time_point mLastMtimeOnlyOpTime{};
+
 public:
     /**
      * @brief Sets the mUploadThrottling flag to bypass throttling.
@@ -1248,6 +1293,44 @@ public:
     unsigned uploadCounter() const
     {
         return mUploadThrottling.uploadCounter();
+    }
+
+    /**
+     * @brief Records that an mtime-only sync operation completed.
+     *
+     * Called after successful mtime-only upload (clone/setattr) or download.
+     * This timestamp is used to throttle MAC computations for files with
+     * frequently changing mtime.
+     */
+    void recordMtimeOnlyOperation()
+    {
+        mLastMtimeOnlyOpTime = std::chrono::steady_clock::now();
+    }
+
+    /**
+     * @brief Checks if MAC computation should be throttled due to recent mtime-only operation.
+     *
+     * @param throttleWindow Time window to throttle after last mtime-only operation.
+     * @return true if MAC computation should be skipped for now (too recent).
+     */
+    bool shouldThrottleMacComputation(std::chrono::seconds throttleWindow) const
+    {
+        if (mLastMtimeOnlyOpTime == std::chrono::steady_clock::time_point{})
+        {
+            return false;
+        }
+        auto elapsed = std::chrono::steady_clock::now() - mLastMtimeOnlyOpTime;
+        return elapsed < throttleWindow;
+    }
+
+    /**
+     * @brief Clears the mtime-only operation timestamp.
+     *
+     * Called when actual content (not just mtime) changes, to reset throttling.
+     */
+    void clearMtimeOnlyOpTime()
+    {
+        mLastMtimeOnlyOpTime = {};
     }
 };
 

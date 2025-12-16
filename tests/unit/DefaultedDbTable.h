@@ -52,12 +52,6 @@ public:
         //throw NotImplemented{__func__};
     }
 
-    bool getNodesByFingerprint(
-        const std::string& /*fingerprint*/,
-        std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
-    {
-        return false;
-    }
     bool getNodeByFingerprint(const std::string&, mega::NodeSerialized&, mega::NodeHandle&) override
     {
         return false;
@@ -73,6 +67,13 @@ public:
     }
 
     bool getNodesWithSharesOrLink(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::ShareType_t) override
+    {
+        return false;
+    }
+
+    bool getNodesByFingerprintNoMtime(
+        const std::string&,
+        std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
         return false;
     }

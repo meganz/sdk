@@ -255,16 +255,51 @@ void getDeviceNames(MegaApi* megaApi, std::unique_ptr<MegaStringMap>& output)
     ASSERT_TRUE(rl.waitForFinishOrTimeout(3min));
 }
 
-void ensureAccountDeviceName(MegaApi* megaApi)
+std::pair<bool, MegaHandle> getMyBackupsFolder(MegaApi* megaApi)
+{
+    MegaHandle h = UNDEF;
+    NiceMock<MockRequestListener> rl{megaApi};
+    const auto expectedErr = Pointee(Property(&MegaError::getErrorCode, API_OK));
+    EXPECT_CALL(rl, onRequestFinish(_, _, expectedErr))
+        .WillOnce(
+            [&h, &rl](MegaApi*, MegaRequest* req, MegaError*)
+            {
+                h = req->getNodeHandle();
+                rl.markAsFinished();
+            });
+
+    megaApi->getUserAttribute(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER, &rl);
+    const auto res = rl.waitForFinishOrTimeout(3min);
+    return {res, h};
+}
+
+std::pair<bool, MegaHandle> setMyBackupsFolder(MegaApi* megaApi, const std::string& name)
+{
+    MegaHandle h = UNDEF;
+    NiceMock<MockRequestListener> rl{megaApi};
+    const auto expectedErr = Pointee(Property(&MegaError::getErrorCode, API_OK));
+    EXPECT_CALL(rl, onRequestFinish(_, _, expectedErr))
+        .WillOnce(
+            [&h, &rl](MegaApi*, MegaRequest* req, MegaError*)
+            {
+                h = req->getNodeHandle();
+                rl.markAsFinished();
+            });
+
+    megaApi->setMyBackupsFolder(name.c_str(), &rl);
+    const auto res = rl.waitForFinishOrTimeout(3min);
+    return {res, h};
+}
+
+void ensureAccountDeviceNamesAttrExists(MegaApi* megaApi)
 {
     std::unique_ptr<MegaStringMap> devices;
-    ASSERT_NO_FATAL_FAILURE(getDeviceNames(megaApi, devices));
-    ASSERT_TRUE(devices);
+    getDeviceNames(megaApi, devices);
 
-    // There are already available devices
-    if (devices->size() != 0)
+    if (devices && devices->size() != 0)
         return;
 
+    // Set device names attr in case is not set
     const std::string deviceName = "Jenkins " + getCurrentTimestamp(true);
     const std::string deviceId = megaApi->getDeviceId();
     devices->set(deviceId.c_str(), deviceName.c_str());
@@ -272,6 +307,30 @@ void ensureAccountDeviceName(MegaApi* megaApi)
     rl.setErrorExpectations(API_OK);
     megaApi->setUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, devices.get(), &rl);
     ASSERT_TRUE(rl.waitForFinishOrTimeout(MAX_TIMEOUT));
+}
+
+std::pair<bool, std::string> ensureMyBackupsFolderExists(MegaApi* megaApi, const std::string& name)
+{
+    auto getMyBackupsNode = [megaApi](MegaHandle h) -> std::pair<bool, std::string>
+    {
+        std::unique_ptr<MegaNode> myBackupsNode;
+        if (myBackupsNode.reset(megaApi->getNodeByHandle(h)); myBackupsNode)
+        {
+            return {true, myBackupsNode->getName()};
+        }
+        return {false, {}};
+    };
+
+    if (auto [succeeded, h] = getMyBackupsFolder(megaApi); succeeded && h != UNDEF)
+    {
+        return getMyBackupsNode(h);
+    }
+
+    if (auto [succeeded, h] = setMyBackupsFolder(megaApi, name); succeeded && h != UNDEF)
+    {
+        return getMyBackupsNode(h);
+    }
+    return {false, {}};
 }
 
 std::optional<int> downloadNode(MegaApi* megaApi,

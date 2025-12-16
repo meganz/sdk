@@ -4297,7 +4297,8 @@ public:
         char* getFingerprint(const char* filePath);
         char *getFingerprint(MegaInputStream *inputStream, int64_t mtime);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
-        MegaNodeList *getNodesByFingerprint(const char* fingerprint);
+        MegaNodeList* getNodesByFingerprint(const char* fingerprint,
+                                            const bool excludeMtime = false);
         MegaNodeList *getNodesByOriginalFingerprint(const char* originalfingerprint, MegaNode* parent);
         MegaNode *getExportableNodeByFingerprint(const char *fingerprint, const char *name = NULL);
         MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
@@ -5140,6 +5141,10 @@ public:
         unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr, m_off_t availableDiskSpace = 0);
         void updateBackups();
 
+        bool updateNodeMtime(std::shared_ptr<Node> node,
+                             MegaTransferPrivate* transfer,
+                             const m_time_t newMtime,
+                             const int nextTag);
         MegaFilePut* createMegaFileForRemoteCopyTransfer(MegaTransferPrivate& megaTransfer,
                                                          std::shared_ptr<Node> prevNodeSameName,
                                                          TransferDbCommitter& committer);

@@ -517,22 +517,26 @@ void File::sendPutnodesToCloneNode(MegaClient* client,
     assert(newnode->nodekey.size() == FILENODEKEYLENGTH);
 
     // copy attrs
-    AttrMap attrs;
-    attrs.map = nodeToClone->attrs.map;
-    attr_map::iterator it = attrs.map.find(AttrMap::string2nameid("rr"));
-    if (it != attrs.map.end())
+    AttrMap tmpAttrs;
+    tmpAttrs.map = nodeToClone->attrs.map;
+
+    // Serialize fsNode fp, overriding nodeToClone’s attrs.
+    serializefingerprint(&tmpAttrs.map['c']);
+
+    attr_map::iterator it = tmpAttrs.map.find(AttrMap::string2nameid("rr"));
+    if (it != tmpAttrs.map.end())
     {
         LOG_debug << "Removing rr attribute for clone";
-        attrs.map.erase(it);
+        tmpAttrs.map.erase(it);
     }
     newnode->type = FILENODE;
     newnode->parenthandle = UNDEF;
 
     // store filename
-    attrs.map['n'] = name;
+    tmpAttrs.map['n'] = name;
 
     string tattrstring;
-    attrs.getjson(&tattrstring);
+    tmpAttrs.getjson(&tattrstring);
 
     newnode->attrstring.reset(new string);
     MegaClient::makeattr(client->getRecycledTemporaryTransferCipher((byte*)newnode->nodekey.data(), FILENODE),
@@ -645,8 +649,8 @@ void SyncTransfer_inClient::completed(Transfer*, [[maybe_unused]] putsource_t so
     // do not allow the base class to submit putnodes immediately
     //File::completed(t, source);
 
-    assert(!wasCompleted);
-    wasCompleted = true;
+    assert(!wasFileTransferCompleted);
+    wasFileTransferCompleted = true;
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
@@ -662,6 +666,44 @@ void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
         c->pendingattrstring(uploadHandle, &fileAttr);
 
     SyncTransfer_inClient::completed(t, source);
+}
+
+void SyncUpload_inClient::fullUpload(MegaClient& client,
+                                     TransferDbCommitter& committer,
+                                     const VersioningOption vo,
+                                     const bool queueFirst)
+{
+    // Reset flags that signal transfer stage status
+    wasFileTransferCompleted = false;
+    upsyncStarted = false;
+    tag = client.nextreqtag();
+    selfKeepAlive = shared_from_this();
+    client.startxfer(PUT, this, committer, false, queueFirst, false, vo, nullptr, tag);
+}
+
+void SyncUpload_inClient::cloneNode(MegaClient& client,
+                                    std::shared_ptr<Node> cloneNodeCandidate,
+                                    const NodeHandle ovHandleIfShortcut)
+{
+    // We have found a candidate node to clone with a valid key, call putNodesToCloneNode.
+    const auto displayPath = cloneNodeCandidate->displaypath();
+    LOG_debug << "Cloning node rather than sync uploading: " << displayPath << " for "
+              << sourceLocalname;
+
+    // completion function is supplied to putNodes command
+    sendPutnodesToCloneNode(&client, ovHandleIfShortcut, cloneNodeCandidate.get());
+    // Set `true` even though no actual data transfer occurred, we're sending putnodes to clone
+    // node instead
+    wasFileTransferCompleted = true;
+    upsyncStarted = true;
+}
+
+bool SyncUpload_inClient::updateNodeMtime(MegaClient* client,
+                                          std::shared_ptr<Node> node,
+                                          const m_time_t newMtime,
+                                          std::function<void(NodeHandle, Error)>&& completion)
+{
+    return client->updateNodeMtime(node, newMtime, std::move(completion));
 }
 
 void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle)
@@ -700,17 +742,17 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
             if (auto s = self.lock())
             {
                 // Then track the result of its putnodes request.
-                s->putnodesFailed = e != API_OK;
+                s->upsyncFailed = e != API_OK;
 
                 // Capture the handle if the putnodes was successful.
-                if (!s->putnodesFailed)
+                if (!s->upsyncFailed)
                 {
                     assert(!nn.empty());
-                    s->putnodesResultHandle.set6byte(nn.front().mAddedHandle);
+                    s->upsyncResultHandle.set6byte(nn.front().mAddedHandle);
                 }
 
                 // Let the engine know the putnodes has completed.
-                s->wasPutnodesCompleted.store(true);
+                s->wasUpsyncCompleted.store(true);
             }
 
             if (auto s = stts.lock())
@@ -763,17 +805,17 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
             if (auto s = self.lock())
             {
                 // Then track the result of its putnodes request.
-                s->putnodesFailed = e != API_OK;
+                s->upsyncFailed = e != API_OK;
 
                 // Capture the handle if the putnodes was successful.
-                if (!s->putnodesFailed)
+                if (!s->upsyncFailed)
                 {
                     assert(!nn.empty());
-                    s->putnodesResultHandle.set6byte(nn.front().mAddedHandle);
+                    s->upsyncResultHandle.set6byte(nn.front().mAddedHandle);
                 }
 
                 // Let the engine know the putnodes has completed.
-                s->wasPutnodesCompleted.store(true);
+                s->wasUpsyncCompleted.store(true);
             }
 
             if (auto s = stts.lock())
@@ -795,9 +837,16 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
         syncThreadSafeState->mCanChangeVault);
 }
 
-SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
-        const string& nodeName, const FileFingerprint& ff, shared_ptr<SyncThreadsafeState> stss,
-        handle fsid, const LocalPath& localname, bool fromInshare)
+SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder,
+                                         const LocalPath& fullPath,
+                                         const string& nodeName,
+                                         const FileFingerprint& ff,
+                                         shared_ptr<SyncThreadsafeState> stss,
+                                         handle fsid,
+                                         const LocalPath& localname,
+                                         bool fromInshare,
+                                         const int64_t metamac,
+                                         const bool justMtimeChanged)
 {
     *static_cast<FileFingerprint*>(this) = ff;
 
@@ -824,6 +873,11 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
 
     sourceFsid = fsid;
     sourceLocalname = localname;
+    wasJustMtimeChanged = justMtimeChanged;
+    if (metamac != INVALID_META_MAC)
+    {
+        mMetaMac.emplace(metamac);
+    }
 
     LOG_debug << "[SyncUpload_inClient()] Name: '" << getLocalname() << "'. Source local name: '"
               << sourceLocalname.toPath(false) << "'. Source fsid: " << fsid
@@ -832,13 +886,13 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
 
 SyncUpload_inClient::~SyncUpload_inClient()
 {
-    if (!wasTerminated && !wasCompleted)
+    if (!wasTerminated && !wasFileTransferCompleted)
     {
         assert(wasRequesterAbandoned);
         transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
     }
 
-    if (wasCompleted && wasPutnodesCompleted)
+    if (wasFileTransferCompleted && wasUpsyncCompleted)
     {
         syncThreadSafeState->transferComplete(PUT, size);
     }
@@ -847,7 +901,7 @@ SyncUpload_inClient::~SyncUpload_inClient()
         syncThreadSafeState->transferFailed(PUT, size);
     }
 
-    if (putnodesStarted)
+    if (upsyncStarted)
     {
         syncThreadSafeState->removeExpectedUpload(h, name);
     }
@@ -868,6 +922,21 @@ void SyncUpload_inClient::prepare(FileSystemAccess&)
     }
 
     //todo: localNode.treestate(TREESTATE_SYNCING);
+}
+
+void SyncUpload_inClient::updateFingerprintMtime(const m_time_t newMtime)
+{
+    if (wasStarted)
+    {
+        assert(false && "Trying to update fingerprint with the upload alredy started");
+        return;
+    }
+
+    LOG_debug << "[SyncUpload_inClient::updateFingerprintMtime] Name: '" << getLocalname()
+              << "'. Source fsid: " << sourceFsid << ". Prev mTime: " << mtime
+              << ". New mTime: " << newMtime;
+
+    mtime = newMtime;
 }
 
 void SyncUpload_inClient::updateFingerprint(const FileFingerprint& newFingerprint)
@@ -893,8 +962,13 @@ void SyncUpload_inClient::updateFingerprint(const FileFingerprint& newFingerprin
     FileFingerprint::operator=(newFingerprint);
 }
 
-SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare,
-        shared_ptr<SyncThreadsafeState> stss, const FileFingerprint& overwriteFF)
+SyncDownload_inClient::SyncDownload_inClient(CloudNode& n,
+                                             const LocalPath& clocalname,
+                                             bool fromInshare,
+                                             shared_ptr<SyncThreadsafeState> stss,
+                                             const FileFingerprint& overwriteFF,
+                                             const int64_t metamac,
+                                             const bool justMtimeChanged)
 {
     h = n.handle;
     *(FileFingerprint*)this = n.fingerprint;
@@ -907,7 +981,8 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& cloc
 
     syncThreadSafeState = std::move(stss);
     syncThreadSafeState->transferBegin(GET, size);
-
+    wasJustMtimeChanged = justMtimeChanged;
+    mMetaMac = metamac;
     LOG_debug << "[SyncDownload_inClient()] Name: '" << getLocalname() << "'. Handle: " << h
               << ". Cloud Fingerprint: " << fingerprintDebugString()
               << ". Local Fingerprint (overwrite): " << overwriteFF.fingerprintDebugString();
@@ -915,7 +990,7 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& cloc
 
 SyncDownload_inClient::~SyncDownload_inClient()
 {
-    if (!wasTerminated && !wasCompleted)
+    if (!wasTerminated && !wasFileTransferCompleted)
     {
         assert(wasRequesterAbandoned);
         transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
@@ -924,7 +999,7 @@ SyncDownload_inClient::~SyncDownload_inClient()
     if (!wasDistributed && downloadDistributor)
         downloadDistributor->removeTarget();
 
-    if (wasCompleted)
+    if (wasFileTransferCompleted)
     {
         syncThreadSafeState->transferComplete(GET, size);
     }

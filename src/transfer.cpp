@@ -887,7 +887,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                     // This check prevents changes in the fingerprint due to silent
                     // errors in setmtimelocal (returning success but not setting the
                     // modification time) that seem to happen in some Android devices.
-                    if (abs(mtime - fingerprint.mtime) <= 2)
+                    if (abs(mtime - fingerprint.mtime) <= FS_MTIME_TOLERANCE_SECS)
                     {
                         LOG_debug << fingerprintIssue << "Fixfingerprint set to true";
                         fixfingerprint = true;
