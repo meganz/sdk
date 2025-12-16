@@ -399,12 +399,12 @@ void SdkTest::TearDown()
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
     Cleanup();
-
-    releaseMegaApi(1);
-    releaseMegaApi(2);
-    if (!megaApi.empty() && megaApi[0])
+    for (unsigned i = 0; i < megaApi.size(); ++i)
     {
-        releaseMegaApi(0);
+        if (megaApi[i])
+        {
+            releaseMegaApi(i);
+        }
     }
     out() << "Teardown done, test exiting";
 }
@@ -9841,7 +9841,8 @@ TEST_F(SdkTest, SdkRecentsTest)
     {
         deleteFile(fname);
         sdk_test::LocalTempFile f(fname, contents);
-        sdk_test::uploadFile(megaApi[0].get(), fname, rootnode.get());
+        auto node = sdk_test::uploadFile(megaApi[0].get(), fname, rootnode.get());
+        ASSERT_TRUE(node) << "Cannot upload " << fname;
     };
 
     const std::string filename1 = UPFILE;
@@ -9965,8 +9966,8 @@ TEST_F(SdkTest, SdkRecentsTest)
     getRecentActionBuckets(0, 1, 10, false, API_OK, expectedEmpty);
     verifyClearRecentsUpTo(0, now);
 
-    WaitMillisec(1000);
-    synchronousCatchup(1, maxTimeout);
+    // wait a bit to ensure the other account fetches the updated attribute
+    WaitMillisec(3000);
     LOG_debug
         << "# SdkRecentsTest: the second account fetched the attribute automatically after clear";
     getRecentActionBuckets(1, 1, 10, false, API_OK, expectedEmpty);
@@ -9988,11 +9989,11 @@ TEST_F(SdkTest, SdkRecentsTest)
     setClearRecentsUpTo(-1, API_EARGS);
     verifyClearRecentsUpTo(0, now);
 
-    LOG_debug << "# SdkRecentsTest: Get USER_ATTR_RECENT_CLEAR_TIMESTAMP after login";
-    releaseMegaApi(0);
-    releaseMegaApi(1);
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    verifyClearRecentsUpTo(0, now);
+    LOG_debug << "# SdkRecentsTest: Get all recent actions after login and getuserdata";
+    // login another account using the same credentials
+    loginSameAccountsForTest(0);
+    getRecentActionBuckets(2, 1, 10, false, API_OK, expectedAfterClear);
+    verifyClearRecentsUpTo(2, now);
 }
 
 TEST_F(SdkTest, SdkTestStreamingRaidedTransferWithConnectionFailures)

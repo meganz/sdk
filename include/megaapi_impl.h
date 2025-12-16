@@ -4332,7 +4332,7 @@ public:
                                            bool* optExcludeSensitives,
                                            MegaRequestListener* listener = NULL);
         MegaTimeStamp getRecentClearTimestamp();
-        MegaTimeStamp formatRecentClearTimestamp(MegaStringMap* stringMap);
+        MegaTimeStamp formatRecentClearTimestamp(string_map* records);
 
     public:
         void getRecentActionsAsync(unsigned days,

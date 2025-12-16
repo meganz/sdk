@@ -19662,17 +19662,25 @@ class MegaApi
                                    MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Clear the recent actions history on the account
+         * @brief Clear the account’s recent actions history up to a given timestamp.
          *
-         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type
+         * This method clears the recent actions history on the account by setting a
+         * “recent clear” timestamp. All actions that occurred at or before the given
+         * timestamp are considered cleared.
+         *
+         * The associated request type for this operation is
+         * MegaRequest::TYPE_SET_ATTR_USER.
+         *
+         * Valid data available in the MegaRequest object received in callbacks:
+         * - MegaRequest::getParamType - Returns the user attribute type
          * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP
-         * - MegaRequest::getNumber - Returns the epoch time in seconds to set as the recent action
-         * history clear timestamp
+         * - MegaRequest::getNumber - Returns the epoch time (in seconds) used as the recent
+         * actions history clear timestamp.
          *
-         * @param listener MegaRequestListener to track this request
+         * @param until     Epoch time (in seconds). Recent actions up to this time will be cleared.
+         * @param listener  Optional MegaRequestListener to track this request.
          */
+
         void clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener = nullptr);
 
         /**

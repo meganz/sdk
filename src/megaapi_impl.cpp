@@ -16531,6 +16531,21 @@ void MegaApiImpl::getua_completion(unique_ptr<string_map> uaRecords,
             return;
         }   // end of get+set
 
+        if (request->getParamType() == MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP)
+        {
+            MegaTimeStamp time = formatRecentClearTimestamp(&records);
+            if (MegaClient::isValidMegaTimeStamp(time))
+            {
+                request->setNumber(time);
+            }
+            else
+            {
+                e = API_ENOENT;
+            }
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            return;
+        }
+
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
         std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(&records, true));
@@ -16640,19 +16655,6 @@ void MegaApiImpl::getua_completion(unique_ptr<string_map> uaRecords,
                 else
                 {
                     e = API_ENOENT;
-                }
-                break;
-            }
-            case MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP:
-            {
-                MegaTimeStamp time = formatRecentClearTimestamp(stringMap.get());
-                if (MegaClient::isValidMegaTimeStamp(time))
-                {
-                    request->setNumber(time);
-                }
-                else
-                {
-                    e = API_EINTERNAL;
                 }
                 break;
             }
@@ -26364,7 +26366,6 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
         m_time_t since = m_time() - days * 86400;
 
         MegaTimeStamp sinceClearHistory = getRecentClearTimestamp();
-        LOG_debug << "Recent actions clear history timestamp: " << sinceClearHistory;
 
         since = std::max(since, sinceClearHistory);
 
@@ -26404,8 +26405,7 @@ void MegaApiImpl::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListe
         }
         MegaStringMapPrivate stringMap;
         string key = "t";
-        string buf = std::to_string(time);
-        stringMap.set(key.c_str(), Base64::btoa(buf).c_str());
+        stringMap.set(key.c_str(), Base64Str<sizeof(time)>(reinterpret_cast<void*>(&time)));
         request->setMegaStringMap(&stringMap);
 
         return performRequest_setAttrUser(request);
@@ -26420,46 +26420,32 @@ MegaTimeStamp MegaApiImpl::getRecentClearTimestamp()
     mega::User* user = client->finduser(client->me);
     if (user == nullptr)
     {
-        return 0;
+        return MEGA_INVALID_TIMESTAMP;
     }
 
     const UserAttribute* attr = user->getAttribute(ATTR_RECENT_CLEAR_TIMESTAMP);
     if (attr == nullptr || attr->value().empty())
     {
-        return 0;
+        return MEGA_INVALID_TIMESTAMP;
     }
 
     std::unique_ptr<string_map> records{tlv::containerToRecords(attr->value(), client->key)};
     if (!records || records->empty())
     {
-        return 0;
+        return MEGA_INVALID_TIMESTAMP;
     }
-
-    // convert to MegaStringMap for easier handling
-    std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(records.get(), true));
-    return formatRecentClearTimestamp(stringMap.get());
+    return formatRecentClearTimestamp(records.get());
 }
 
-MegaTimeStamp MegaApiImpl::formatRecentClearTimestamp(MegaStringMap* stringMap)
+MegaTimeStamp MegaApiImpl::formatRecentClearTimestamp(mega::string_map* records)
 {
-    MegaTimeStamp recentClearTimestamp = 0;
-    const char* base64timestr = stringMap->get("t");
-    if (base64timestr)
+    MegaTimeStamp recentClearTimestamp = MEGA_INVALID_TIMESTAMP;
+    auto it = records->find("t");
+    if (it == records->end() || it->second.size() != sizeof(recentClearTimestamp))
     {
-        string timestampStr;
-        Base64::atob(base64timestr, timestampStr);
-        char* endptr;
-        MegaTimeStamp timestamp = strtoll(timestampStr.c_str(), &endptr, 10);
-        if (endptr == timestampStr || *endptr != '\0' || timestamp == LLONG_MAX ||
-            timestamp == LLONG_MIN || timestamp < 0)
-        {
-            recentClearTimestamp = -1; // invalid timestamp
-        }
-        else
-        {
-            recentClearTimestamp = timestamp;
-        }
+        return recentClearTimestamp;
     }
+    recentClearTimestamp = *(reinterpret_cast<MegaTimeStamp*>(it->second.data()));
     return recentClearTimestamp;
 }
 
