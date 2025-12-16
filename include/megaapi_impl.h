@@ -5140,6 +5140,10 @@ public:
         unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr, m_off_t availableDiskSpace = 0);
         void updateBackups();
 
+        void updateNodeMtime(std::shared_ptr<Node> node,
+                             MegaTransferPrivate* transfer,
+                             const m_time_t newMtime,
+                             const int nextTag);
         MegaFilePut* createMegaFileForRemoteCopyTransfer(MegaTransferPrivate& megaTransfer,
                                                          std::shared_ptr<Node> prevNodeSameName,
                                                          TransferDbCommitter& committer);

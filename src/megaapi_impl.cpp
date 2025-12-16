@@ -18960,6 +18960,82 @@ void MegaApiImpl::updateBackups()
     }
 }
 
+void MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
+                                  MegaTransferPrivate* transfer,
+                                  const m_time_t newMtime,
+                                  const int nextTag)
+{
+    if (!transfer)
+    {
+        LOG_err << "updateNodeMtime: invalid transfer";
+        assert(false);
+        return;
+    }
+
+    if (!node)
+    {
+        LOG_err << "updateNodeMtime: invalid node";
+        assert(false);
+        transfer->setState(MegaTransfer::STATE_FAILED);
+        fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_EWRITE));
+        return;
+    }
+
+    LOG_debug << "Updating mtime to node(" << toNodeHandle(node->nodeHandle()) << ")";
+    transfer->setState(MegaTransfer::STATE_QUEUED);
+    transferMap[nextTag] = transfer;
+    transfer->setTag(nextTag);
+    transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
+    transfer->setStartTime(Waiter::ds);
+    transfer->setUpdateTime(Waiter::ds);
+    fireOnTransferStart(transfer);
+    transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
+    transfer->setSpeed(0);
+    transfer->setMeanSpeed(0);
+    transfer->setState(MegaTransfer::STATE_COMPLETING);
+    fireOnTransferUpdate(transfer);
+
+    const auto immediateErrCode = client->updateNodeMtime(
+        node,
+        newMtime,
+        [this, nextTag](NodeHandle h, Error e)
+        {
+            MegaTransferPrivate* transfer =
+                static_cast<MegaTransferPrivate*>(getTransferByTag(nextTag));
+            if (!transfer)
+            {
+                LOG_debug << "updateNodeMtime for node(" << toNodeHandle(h)
+                          << ") has finished with errorCode(" << e << "), but transfer with tag("
+                          << nextTag << ") does not exists anymore";
+                return;
+            }
+
+            if (e)
+            {
+                LOG_debug << "updateNodeMtime could not update mtime for node(" << toNodeHandle(h)
+                          << "), errorCode(" << e << ")";
+                transfer->setState(MegaTransfer::STATE_FAILED);
+                fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_EWRITE));
+            }
+            else
+            {
+                LOG_debug << "updateNodeMtime has finished successfully for node("
+                          << toNodeHandle(h) << ")";
+
+                transfer->setState(MegaTransfer::STATE_COMPLETED);
+                fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(e));
+            }
+        });
+
+    if (immediateErrCode != API_OK)
+    {
+        LOG_debug << "updateNodeMtime immediate error for node(" << toNodeHandle(node->nodehandle)
+                  << ")";
+        transfer->setState(MegaTransfer::STATE_FAILED);
+        fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_EWRITE));
+    }
+}
+
 MegaFilePut*
     MegaApiImpl::createMegaFileForRemoteCopyTransfer(MegaTransferPrivate& megaTransfer,
                                                      std::shared_ptr<Node> prevNodeSameName,
@@ -19317,90 +19393,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         transfer->setMeanSpeed(0);
                         transfer->setState(MegaTransfer::STATE_COMPLETED);
                         fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_OK));
-                    };
-
-                    auto updateNodeMtime = [this](std::shared_ptr<Node> node,
-                                                  MegaTransferPrivate* transfer,
-                                                  const m_time_t newMtime,
-                                                  int nextTag)
-                    {
-                        if (!transfer)
-                        {
-                            LOG_err << "updateNodeMtime: invalid transfer";
-                            assert(false);
-                            return;
-                        }
-
-                        if (!node)
-                        {
-                            LOG_err << "updateNodeMtime: invalid node";
-                            assert(false);
-                            transfer->setState(MegaTransfer::STATE_FAILED);
-                            fireOnTransferFinish(transfer,
-                                                 std::make_unique<MegaErrorPrivate>(API_EAPPKEY));
-                            return;
-                        }
-
-                        LOG_debug << "Updating mtime to node(" << toNodeHandle(node->nodeHandle())
-                                  << ")";
-                        transfer->setState(MegaTransfer::STATE_QUEUED);
-                        transferMap[nextTag] = transfer;
-                        transfer->setTag(nextTag);
-                        transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
-                        transfer->setStartTime(Waiter::ds);
-                        transfer->setUpdateTime(Waiter::ds);
-                        fireOnTransferStart(transfer);
-                        transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
-                        transfer->setSpeed(0);
-                        transfer->setMeanSpeed(0);
-                        transfer->setState(MegaTransfer::STATE_COMPLETING);
-                        fireOnTransferUpdate(transfer);
-
-                        const auto immediateErrCode = client->updateNodeMtime(
-                            node,
-                            newMtime,
-                            [this, nextTag](NodeHandle h, Error e)
-                            {
-                                MegaTransferPrivate* transfer =
-                                    static_cast<MegaTransferPrivate*>(getTransferByTag(nextTag));
-                                if (!transfer)
-                                {
-                                    LOG_debug << "updateNodeMtime for node(" << toNodeHandle(h)
-                                              << ") has finished with errorCode(" << e
-                                              << "), but transfer with tag(" << nextTag
-                                              << ") does not exists anymore";
-                                    return;
-                                }
-
-                                if (e)
-                                {
-                                    LOG_debug << "updateNodeMtime could not update mtime for node("
-                                              << toNodeHandle(h) << "), errorCode(" << e << ")";
-                                    transfer->setState(MegaTransfer::STATE_FAILED);
-                                    fireOnTransferFinish(
-                                        transfer,
-                                        std::make_unique<MegaErrorPrivate>(API_EAPPKEY));
-                                }
-                                else
-                                {
-                                    LOG_debug
-                                        << "updateNodeMtime has finished successfully for node("
-                                        << toNodeHandle(h) << ")";
-
-                                    transfer->setState(MegaTransfer::STATE_COMPLETED);
-                                    fireOnTransferFinish(transfer,
-                                                         std::make_unique<MegaErrorPrivate>(e));
-                                }
-                            });
-
-                        if (immediateErrCode != API_OK)
-                        {
-                            LOG_debug << "updateNodeMtime immediate error for node("
-                                      << toNodeHandle(node->nodehandle) << ")";
-                            transfer->setState(MegaTransfer::STATE_FAILED);
-                            fireOnTransferFinish(transfer,
-                                                 std::make_unique<MegaErrorPrivate>(API_EAPPKEY));
-                        }
                     };
 
                     auto forceToUpload{false};
