@@ -140,34 +140,10 @@ TEST_F(SdkTest, PitagCapturedForIncomingShareUpload)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    const auto [shareeEmail, shareePass] = getEnvVarAccounts().getVarValues(1);
-    ASSERT_FALSE(shareeEmail.empty());
-
     std::unique_ptr<MegaNode> ownerRoot{megaApi[0]->getRootNode()};
     ASSERT_TRUE(ownerRoot) << "Unable to get root node for owner account";
 
-    ASSERT_EQ(API_OK,
-              synchronousInviteContact(0,
-                                       shareeEmail.c_str(),
-                                       "pitag incoming share",
-                                       MegaContactRequest::INVITE_ACTION_ADD))
-        << "Failed to invite contact before sharing";
-
-    auto incomingRequestAvailable = [this]()
-    {
-        std::unique_ptr<MegaContactRequestList> list{megaApi[1]->getIncomingContactRequests()};
-        return list && list->size() > 0;
-    };
-    ASSERT_TRUE(WaitFor(incomingRequestAvailable, defaultTimeoutMs))
-        << "Sharee did not receive contact request";
-
-    std::unique_ptr<MegaContactRequestList> requestList{megaApi[1]->getIncomingContactRequests()};
-    std::unique_ptr<MegaContactRequest> contactRequest{requestList->get(0)->copy()};
-    ASSERT_EQ(API_OK,
-              synchronousReplyContactRequest(1,
-                                             contactRequest.get(),
-                                             MegaContactRequest::REPLY_ACTION_ACCEPT))
-        << "Sharee failed to accept contact request";
+    inviteTestAccount(0, 1, "Hi!!");
 
     const std::string folderName = getFilePrefix() + "incomingShare";
     RequestTracker folderTracker(megaApi[0].get());
@@ -178,11 +154,8 @@ TEST_F(SdkTest, PitagCapturedForIncomingShareUpload)
         megaApi[0]->getNodeByHandle(folderTracker.request->getNodeHandle())};
     ASSERT_TRUE(folderNode) << "Unable to obtain shared folder node";
 
-    ASSERT_EQ(API_OK, doOpenShareDialog(0, folderNode.get())) << "Failed to prepare node share key";
-
-    ASSERT_EQ(API_OK,
-              synchronousShare(0, folderNode.get(), shareeEmail.c_str(), MegaShare::ACCESS_FULL))
-        << "Failed to share folder";
+    ASSERT_NO_FATAL_FAILURE(
+        shareFolder(folderNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
 
     auto inShareAvailable = [this]()
     {
@@ -215,8 +188,8 @@ TEST_F(SdkTest, PitagCapturedForIncomingShareUpload)
                             &tracker);
     ASSERT_EQ(API_OK, tracker.waitForResult());
 
-    const auto waitTimeout =
-        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    constexpr auto timeout = 3s; // short timeout, it has to be available
+    const auto waitTimeout = std::chrono::duration_cast<std::chrono::milliseconds>(timeout);
     ASSERT_TRUE(observer.waitForValue("U.fi.", waitTimeout))
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }

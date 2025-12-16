@@ -761,6 +761,8 @@ struct Pitag
     PitagNodeType nodeType = PitagNodeType::NotApplicable;
     PitagTarget target = PitagTarget::NotApplicable;
     PitagImportSource importSource = PitagImportSource::NotApplicable;
+
+    std::string toString() const;
 };
 
 class MEGA_API CommandPutNodes: public Command
