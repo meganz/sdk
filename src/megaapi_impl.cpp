@@ -18960,7 +18960,7 @@ void MegaApiImpl::updateBackups()
     }
 }
 
-void MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
+bool MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
                                   MegaTransferPrivate* transfer,
                                   const m_time_t newMtime,
                                   const int nextTag)
@@ -18969,16 +18969,14 @@ void MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
     {
         LOG_err << "updateNodeMtime: invalid transfer";
         assert(false);
-        return;
+        return false;
     }
 
     if (!node)
     {
         LOG_err << "updateNodeMtime: invalid node";
         assert(false);
-        transfer->setState(MegaTransfer::STATE_FAILED);
-        fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_EWRITE));
-        return;
+        return false;
     }
 
     LOG_debug << "Updating mtime to node(" << toNodeHandle(node->nodeHandle()) << ")";
@@ -19031,9 +19029,10 @@ void MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
     {
         LOG_debug << "updateNodeMtime immediate error for node(" << toNodeHandle(node->nodehandle)
                   << ")";
-        transfer->setState(MegaTransfer::STATE_FAILED);
-        fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_EWRITE));
+        return false;
     }
+
+    return true;
 }
 
 MegaFilePut*
@@ -19434,14 +19433,20 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                             if (compRes == NODE_COMP_DIFFERS_MTIME)
                             {
-                                updateNodeMtime(prevNodeSameName,
-                                                transfer,
-                                                fp_forCloud.mtime,
-                                                nextTag);
-                                e = API_OK; // In case of mtime update, Transfer
-                                            // (Start/Update/Finish) is delegated to updateNodeMtime
-                                            // so ensure `e` is API OK to avoid duplicated actions
-                                break;
+                                if (auto succeeded = updateNodeMtime(prevNodeSameName,
+                                                                     transfer,
+                                                                     fp_forCloud.mtime,
+                                                                     nextTag);
+                                    succeeded)
+                                {
+                                    e = API_OK; // In case of mtime update, Transfer
+                                                // (Start/Update/Finish) is delegated to
+                                                // updateNodeMtime so ensure `e` is API OK to avoid
+                                                // duplicated actions
+                                    break;
+                                }
+                                // Fallback setmtime failed with immediate error, so let's try with
+                                // clone node/regular upload
                             }
                             else if (compRes == NODE_COMP_EQUAL)
                             {
@@ -19506,23 +19511,28 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             {
                                 if (differentMtime)
                                 {
-                                    updateNodeMtime(sameNodeFpFound,
-                                                    transfer,
-                                                    fp_forCloud.mtime,
-                                                    nextTag);
-                                    e = API_OK; // In case of mtime update, Transfer
-                                                // (Start/Update/Finish) is delegated to
-                                                // updateNodeMtime so ensure `e` is API OK to avoid
-                                                // duplicated actions
-                                    break;
+                                    if (auto succeeded = updateNodeMtime(sameNodeFpFound,
+                                                                         transfer,
+                                                                         fp_forCloud.mtime,
+                                                                         nextTag);
+                                        succeeded)
+                                    {
+                                        e = API_OK; // In case of mtime update, Transfer
+                                                    // (Start/Update/Finish) is delegated to
+                                                    // updateNodeMtime so ensure `e` is API OK to
+                                                    // avoid duplicated actions
+                                        break;
+                                    }
+                                    // Fallback setmtime failed with immediate error, so let's try
+                                    // with clone node
                                 }
                                 else
                                 {
                                     immediateFinishSameNodeNameFoundInTarget(
                                         transfer,
                                         sameNodeFpFound->nodehandle);
+                                    break;
                                 }
-                                break;
                             }
 
                             LOG_debug << "Another node ("
