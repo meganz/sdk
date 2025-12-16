@@ -5538,6 +5538,7 @@ bool MegaClient::procsc(JSON& json)
                 // It will also process the latest command response associated (by the Sequence Tag)
                 // with the latest AP processed here.
                 sc_checkSequenceTag(string());
+                json.leavearray();
                 insca = false;
             }
         }
@@ -5749,8 +5750,6 @@ bool MegaClient::sc_procActionPacket(JSON& json, std::shared_ptr<Node>& lastAPDe
         json.leaveobject();
         return true;
     }
-
-    json.leavearray();
 
     return false;
 }
