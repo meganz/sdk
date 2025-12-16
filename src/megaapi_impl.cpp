@@ -19549,7 +19549,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transfer->setUpdateTime(Waiter::ds);
 
                             auto f = createMegaFileForRemoteCopyTransfer(*transfer,
-                                                                         prevNodeSameName,
+                                                                         sameNodeFpFound,
                                                                          committer);
                             e = client->transferRemoteCopy(
                                 f,
