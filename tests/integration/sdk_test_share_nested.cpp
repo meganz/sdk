@@ -137,9 +137,11 @@ private:
     {
         ASSERT_TRUE(nodeA && nodeB) << "Invalid nodes in the comparision.";
         ASSERT_EQ(nodeA->getHandle(), nodeB->getHandle())
-            << "Handles don't match. " << nodeA->getHandle() << " vs " << nodeB->getHandle();
+            << "Handles don't match. " << toNodeHandle(nodeA->getHandle()) << " vs "
+            << toNodeHandle(nodeB->getHandle());
         ASSERT_TRUE(nodeA->isNodeKeyDecrypted() || nodeB->isNodeKeyDecrypted())
-            << "Node is not decryptable in both accounts " << apiIndexA << " and " << apiIndexB;
+            << "Node " << toNodeHandle(nodeA->getHandle())
+            << " is not decryptable in both accounts " << apiIndexA << " and " << apiIndexB;
         ASSERT_FALSE(nodeA->isNodeKeyDecrypted() && !nodeB->isNodeKeyDecrypted())
             << "Account " << apiIndexB << " can't decrypt " << nodeA->getName();
         ASSERT_FALSE(!nodeA->isNodeKeyDecrypted() && nodeB->isNodeKeyDecrypted())
@@ -177,7 +179,10 @@ private:
                                     << "in the " << apiIndexA << " account.";
             auto itChildNodeB = indexB.find(childNodeA->getHandle());
             ASSERT_NE(itChildNodeB, indexB.end())
-                << "Can't find " << childNodeA->getName() << "in the " << apiIndexB << " account";
+                << "Can't find "
+                << (childNodeA->isNodeKeyDecrypted() ? childNodeA->getName() :
+                                                       toNodeHandle(childNodeA->getHandle()))
+                << " in the " << apiIndexB << " account";
             auto childNodeB = itChildNodeB->second;
             if (childNodeA->isFolder() && childNodeB->isFolder())
             {
