@@ -1,11 +1,10 @@
 #include "env_var_accounts.h"
 #include "integration_test_utils.h"
+#include "mega/testhooks.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
-#define MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
-#include "mega/testhooks.h"
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 #include <chrono>
 #include <condition_variable>
