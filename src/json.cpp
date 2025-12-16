@@ -1120,10 +1120,7 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
         }
     }
 
-    if (hasPaused())
-    {
-        mPaused = false;
-    }
+    mPaused = false;
 
     mPos = data;
     mLastPos = data;
