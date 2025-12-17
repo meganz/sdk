@@ -12,6 +12,7 @@
 #include "mega/node.h"
 #include "mega/syncinternals/mac_computation_state.h"
 
+#include <cstdint>
 #include <optional>
 
 namespace mega
@@ -554,10 +555,18 @@ private:
     uint32_t mCurrentFiles{0};
 };
 
+enum class FingerprintMismatch : std::uint8_t
+{
+    None = 0,
+    MtimeOnly,
+    CrcOnly,
+    Other,
+};
+
 /**
  * @brief Result type for fingerprint/MAC comparisons.
  *
- * Returns `std::tuple<node_comparison_result, int64_t, int64_t>` where:
+ * Returns `std::tuple<node_comparison_result, int64_t, int64_t, FingerprintMismatch>` where:
  *  - The first element is a `node_comparison_result` indicating:
  *       + NODE_COMP_EARGS: Invalid arguments
  *       + NODE_COMP_EREAD: Error reading the local file.
@@ -569,8 +578,10 @@ private:
  *       + NODE_COMP_DIFFERS_MAC: Fingerprints differ in mtime and METAMACs also differ.
  *  - The second element is the local MetaMAC, or INVALID_META_MAC if not computed.
  *  - The third element is the remote MetaMAC, or INVALID_META_MAC if not computed.
+ *  - The fourth element categorizes the fingerprint mismatch (when determinable without MAC).
  */
-using FsCloudComparisonResult = std::tuple<node_comparison_result, int64_t, int64_t>;
+using FsCloudComparisonResult =
+    std::tuple<node_comparison_result, int64_t, int64_t, FingerprintMismatch>;
 
 /**
  * @brief Quick fingerprint comparison without MAC computation.

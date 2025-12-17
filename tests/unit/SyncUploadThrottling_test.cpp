@@ -107,16 +107,17 @@ protected:
         const bool fromInshare{false};
 
         // Create the SyncUpload_inClient
-        mSyncUpload = std::make_shared<SyncUpload_inClient>(mDummyHandle,
-                                                            dummyFullPath,
-                                                            mNodeName,
-                                                            mInitialFingerprint,
-                                                            mMockSyncThreadsafeState,
-                                                            fsid,
-                                                            dummyLocalName,
-                                                            fromInshare,
-                                                            INVALID_META_MAC,
-                                                            false /*justMtimeChanged*/);
+        mSyncUpload =
+            std::make_shared<SyncUpload_inClient>(mDummyHandle,
+                                                  dummyFullPath,
+                                                  mNodeName,
+                                                  mInitialFingerprint,
+                                                  mMockSyncThreadsafeState,
+                                                  fsid,
+                                                  dummyLocalName,
+                                                  fromInshare,
+                                                  INVALID_META_MAC,
+                                                  SyncTransfer_inClient::AttributeOnlyUpdate::None);
         mSyncUpload->wasRequesterAbandoned = true; // We do not finish uploads.
     }
 

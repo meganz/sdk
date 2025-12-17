@@ -6,12 +6,16 @@
 #include "mega/base64.h"
 #ifdef ENABLE_SYNC
 
+#include "mega/crypto/cryptopp.h"
 #include "mega/megaclient.h"
 #include "mega/sync.h"
 #include "mega/syncinternals/syncinternals.h"
 #include "mega/syncinternals/syncinternals_logging.h"
 #include "mega/utils.h"
 
+#include <array>
+#include <cstdint>
+#include <limits>
 #include <memory>
 
 namespace mega
@@ -337,6 +341,101 @@ std::shared_ptr<Node> findCloneNodeCandidate(MegaClient& mc,
 
 CloneMacStatus initCloneCandidateMacComputation(MegaClient& mc, SyncUpload_inClient& upload);
 
+namespace
+{
+
+constexpr std::uint64_t LEGACY_CRC_WINDOW_BYTES = 64; // 4 * sizeof(FileFingerprint::crc)
+constexpr unsigned LEGACY_CRC_LANES = 4;
+constexpr unsigned LEGACY_CRC_BLOCKS_PER_LANE = 32;
+constexpr std::uint32_t LEGACY_SPARSE_DENOM =
+    static_cast<std::uint32_t>(LEGACY_CRC_LANES * LEGACY_CRC_BLOCKS_PER_LANE - 1); // 127
+
+// The old buggy 32-bit computation could only overflow once (size - windowBytes) * idx crosses
+// 2^32.
+constexpr std::uint64_t LEGACY_OVERFLOW_MIN_SIZE =
+    (static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) / LEGACY_SPARSE_DENOM) +
+    LEGACY_CRC_WINDOW_BYTES;
+
+[[nodiscard]] m_off_t legacySparseOffset32Bug(const m_off_t size,
+                                              const unsigned lane,
+                                              const unsigned block) noexcept
+{
+    const auto sizeU64 = static_cast<std::uint64_t>(size);
+    const auto clampMax = sizeU64 - LEGACY_CRC_WINDOW_BYTES;
+
+    const std::uint32_t sz32 = static_cast<std::uint32_t>(sizeU64);
+    const std::uint32_t idx32 =
+        static_cast<std::uint32_t>(lane * LEGACY_CRC_BLOCKS_PER_LANE + block); // 0..127
+
+    const std::uint32_t numer = static_cast<std::uint32_t>(
+        (sz32 - static_cast<std::uint32_t>(LEGACY_CRC_WINDOW_BYTES)) * idx32); // wraps
+    const std::uint32_t off32 = LEGACY_SPARSE_DENOM ? (numer / LEGACY_SPARSE_DENOM) : 0;
+
+    const auto off64 = static_cast<std::uint64_t>(off32);
+    return static_cast<m_off_t>(off64 > clampMax ? clampMax : off64);
+}
+
+[[nodiscard]] bool computeLegacyBuggySparseCrc(MegaClient& mc,
+                                               const LocalPath& path,
+                                               const m_off_t expectedSize,
+                                               std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut)
+{
+    if (expectedSize <= static_cast<m_off_t>(LEGACY_CRC_WINDOW_BYTES) ||
+        static_cast<std::uint64_t>(expectedSize) <= LEGACY_OVERFLOW_MIN_SIZE)
+    {
+        return false;
+    }
+
+    auto fa = mc.fsaccess->newfileaccess();
+    if (!fa || !fa->fopen(path, FSLogging::logOnError) || fa->type != FILENODE)
+    {
+        return false;
+    }
+
+    // Only proceed if the file still matches what the sync thread decided to act on.
+    if (fa->size != expectedSize)
+    {
+        return false;
+    }
+
+    if (!fa->openf(FSLogging::logOnError))
+    {
+        return false;
+    }
+
+    std::array<byte, LEGACY_CRC_WINDOW_BYTES> block{};
+    std::int32_t crcval = 0;
+
+    for (unsigned lane = 0; lane < LEGACY_CRC_LANES; ++lane)
+    {
+        HashCRC32 crc32;
+
+        for (unsigned j = 0; j < LEGACY_CRC_BLOCKS_PER_LANE; ++j)
+        {
+            const auto offset = legacySparseOffset32Bug(expectedSize, lane, j);
+            if (!fa->frawread(block.data(),
+                              static_cast<unsigned long>(block.size()),
+                              offset,
+                              true,
+                              FSLogging::logOnError))
+            {
+                fa->closef();
+                return false;
+            }
+
+            crc32.add(block.data(), static_cast<unsigned>(block.size()));
+        }
+
+        crc32.get(reinterpret_cast<byte*>(&crcval));
+        crcOut[lane] = static_cast<std::int32_t>(htonl(static_cast<std::uint32_t>(crcval)));
+    }
+
+    fa->closef();
+    return true;
+}
+
+} // anonymous namespace
+
 void clientUpload(MegaClient& mc,
                   TransferDbCommitter& committer,
                   std::shared_ptr<SyncUpload_inClient> upload,
@@ -345,10 +444,32 @@ void clientUpload(MegaClient& mc,
                   const NodeHandle ovHandleIfShortcut)
 {
     assert(!upload->wasStarted);
+
+    const auto startCloneOrFullUpload =
+        [&mc, vo, queueFirst, ovHandleIfShortcut](std::shared_ptr<SyncUpload_inClient> u)
+    {
+        mc.syncs.queueClient(
+            [uploadWptr = u->weak_from_this(), vo, queueFirst, ovHandleIfShortcut](
+                MegaClient& mc,
+                TransferDbCommitter& committer)
+            {
+                if (auto u = uploadWptr.lock())
+                {
+                    const auto macState = initCloneCandidateMacComputation(mc, *u);
+                    processCloneMacResult(mc,
+                                          committer,
+                                          u,
+                                          vo,
+                                          queueFirst,
+                                          ovHandleIfShortcut,
+                                          macState);
+                }
+            });
+    };
+
     auto mtimeCompletion = [&mc,
-                            vo,
-                            queueFirst,
                             ovHandleIfShortcut,
+                            startCloneOrFullUpload,
                             uploadWptr = upload->weak_from_this()](NodeHandle h, Error e)
     {
         if (auto u = uploadWptr.lock())
@@ -371,7 +492,7 @@ void clientUpload(MegaClient& mc,
                     << "). Falling back to Cloning node";
 
             u->upsyncStarted = false;
-            u->wasJustMtimeChanged = false;
+            u->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
             if (!u->mMetaMac.has_value())
             {
                 LOG_err << "clientUpload (Update mTime): mMetaMac is not set for "
@@ -387,25 +508,39 @@ void clientUpload(MegaClient& mc,
                 return;
             }
 
-            // We need to queue full opload operation again as commiter provided to
-            // clientUpload may not be valid
             LOG_err << "clientUpload (Update mTime): No clone candidate found for Node("
-                    << toNodeHandle(h) << "). Falling back to full upload transfer";
+                    << toNodeHandle(h) << "). Falling back to full upload transfer / cloning";
+            startCloneOrFullUpload(std::move(u));
+        }
+    };
 
-            mc.syncs.queueClient(
-                [uploadWptr = u->weak_from_this(), vo, queueFirst](MegaClient& mc,
-                                                                   TransferDbCommitter& committer)
-                {
-                    if (auto u = uploadWptr.lock())
-                    {
-                        u->fullUpload(mc, committer, vo, queueFirst);
-                    }
-                });
+    auto crcCompletion =
+        [startCloneOrFullUpload, uploadWptr = upload->weak_from_this()](NodeHandle h, Error e)
+    {
+        if (auto u = uploadWptr.lock())
+        {
+            u->upsyncFailed = false;
+
+            if (e == API_OK)
+            {
+                u->upsyncResultHandle = h;
+                u->wasUpsyncCompleted.store(true);
+                return;
+            }
+
+            LOG_err << "clientUpload (Update CRC): Error(" << e << "), Node(" << toNodeHandle(h)
+                    << "). Falling back to full upload transfer / cloning";
+
+            u->upsyncStarted = false;
+            u->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
+
+            startCloneOrFullUpload(std::move(u));
         }
     };
 
     upload->wasStarted = true;
-    if (upload->wasJustMtimeChanged)
+    const auto attributeOnlyUpdate = upload->attributeOnlyUpdate.load();
+    if (attributeOnlyUpdate == SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly)
     {
         auto parent = mc.nodeByHandle(upload->h);
         auto node = parent ? mc.childnodebyname(parent.get(), upload->name.c_str()) : nullptr;
@@ -423,6 +558,7 @@ void clientUpload(MegaClient& mc,
             }
             LOG_warn << "clientUpload: UpdateMtime immediate error. Falling back to full upload "
                         "transfer / Cloning node";
+            upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
         }
         else
         {
@@ -430,7 +566,55 @@ void clientUpload(MegaClient& mc,
                      << (!parent ? "Parent Node not found" : "Cloud Node not found")
                      << ". Falling back to full upload transfer / Cloning node";
             assert(false);
+            upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
         }
+    }
+    else if (attributeOnlyUpdate == SyncTransfer_inClient::AttributeOnlyUpdate::CrcOnly)
+    {
+        auto parent = mc.nodeByHandle(upload->h);
+        auto node = parent ? mc.childnodebyname(parent.get(), upload->name.c_str()) : nullptr;
+
+        if (node)
+        {
+            const auto& cloudFp = node->fingerprint();
+            const auto& localFp = upload->fingerprint();
+
+            if (cloudFp.isvalid && localFp.isvalid && cloudFp.size == localFp.size &&
+                cloudFp.mtime == localFp.mtime &&
+                memcmp(cloudFp.crc.data(), localFp.crc.data(), sizeof(cloudFp.crc)) != 0)
+            {
+                std::array<std::int32_t, LEGACY_CRC_LANES> legacyCrc{};
+                if (computeLegacyBuggySparseCrc(mc,
+                                                upload->getLocalname(),
+                                                localFp.size,
+                                                legacyCrc) &&
+                    memcmp(legacyCrc.data(), cloudFp.crc.data(), sizeof(cloudFp.crc)) == 0)
+                {
+                    if (auto immediateResult =
+                            mc.updateNodeFingerprint(node, localFp, std::move(crcCompletion));
+                        immediateResult == API_OK)
+                    {
+                        upload->wasFileTransferCompleted = true;
+                        upload->upsyncStarted = true;
+                        return;
+                    }
+
+                    LOG_warn << "clientUpload: UpdateCRC immediate error. Falling back to full "
+                                "upload transfer / Cloning node";
+                    upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
+                }
+            }
+        }
+        else
+        {
+            LOG_warn << "clientUpload: "
+                     << (!parent ? "Parent Node not found" : "Cloud Node not found")
+                     << ". Falling back to full upload transfer / Cloning node";
+            upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
+        }
+
+        // If we didn't early-return, proceed with the normal clone/full-upload path.
+        upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
     }
 
     assert(!upload->macComputation);
@@ -447,7 +631,8 @@ void clientDownload(MegaClient& mc,
                     std::shared_ptr<SyncDownload_inClient> download,
                     const bool queueFirst)
 {
-    if (download->wasJustMtimeChanged)
+    if (download->attributeOnlyUpdate.load() ==
+        SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly)
     {
         if (auto cloudNode = mc.nodeByHandle(download->h); cloudNode)
         {
@@ -502,17 +687,53 @@ std::optional<FsCloudComparisonResult> quickFingerprintComparison(const CloudNod
                                                                   const FSNode& fs)
 {
     static const std::string logPre{"quickFingerprintComparison: "};
+    const auto mismatchKind = [&]() -> FingerprintMismatch
+    {
+        if (cn.type != fs.type)
+        {
+            return FingerprintMismatch::Other;
+        }
+
+        if (cn.type != FILENODE)
+        {
+            return FingerprintMismatch::None;
+        }
+
+        const auto& a = fs.fingerprint;
+        const auto& b = cn.fingerprint;
+
+        if (a.size != b.size || !a.isvalid || !b.isvalid)
+        {
+            return FingerprintMismatch::Other;
+        }
+
+        const bool crcEqual = memcmp(a.crc.data(), b.crc.data(), sizeof(a.crc)) == 0;
+        const bool sameMtime = a.mtime == b.mtime;
+
+        if (crcEqual)
+        {
+            return sameMtime ? FingerprintMismatch::None : FingerprintMismatch::MtimeOnly;
+        }
+
+        return sameMtime ? FingerprintMismatch::CrcOnly : FingerprintMismatch::Other;
+    };
 
     // Different types -> cannot be equal
     if (cn.type != fs.type)
     {
-        return FsCloudComparisonResult{NODE_COMP_DIFFERS_FP, INVALID_META_MAC, INVALID_META_MAC};
+        return FsCloudComparisonResult{NODE_COMP_DIFFERS_FP,
+                                       INVALID_META_MAC,
+                                       INVALID_META_MAC,
+                                       FingerprintMismatch::Other};
     }
 
     // Folders don't need MAC comparison
     if (cn.type != FILENODE)
     {
-        return FsCloudComparisonResult{NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
+        return FsCloudComparisonResult{NODE_COMP_EQUAL,
+                                       INVALID_META_MAC,
+                                       INVALID_META_MAC,
+                                       FingerprintMismatch::None};
     }
 
     // Check fingerprint (CRC, size, isValid) excluding mtime
@@ -524,14 +745,20 @@ std::optional<FsCloudComparisonResult> quickFingerprintComparison(const CloudNod
                      << cn.fingerprint.isvalid << ")";
             assert(fs.fingerprint.isvalid && cn.fingerprint.isvalid);
         }
-        return FsCloudComparisonResult{NODE_COMP_DIFFERS_FP, INVALID_META_MAC, INVALID_META_MAC};
+        return FsCloudComparisonResult{NODE_COMP_DIFFERS_FP,
+                                       INVALID_META_MAC,
+                                       INVALID_META_MAC,
+                                       mismatchKind()};
     }
 
     // Full fingerprint match including mtime -> equal
     // IMPORTANT: We accept fingerprint collision risk here to avoid expensive MAC computation
     if (fs.fingerprint.mtime == cn.fingerprint.mtime)
     {
-        return FsCloudComparisonResult{NODE_COMP_EQUAL, INVALID_META_MAC, INVALID_META_MAC};
+        return FsCloudComparisonResult{NODE_COMP_EQUAL,
+                                       INVALID_META_MAC,
+                                       INVALID_META_MAC,
+                                       FingerprintMismatch::None};
     }
 
     // mtime differs but everything else matches -> MAC computation needed
@@ -817,7 +1044,7 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
     if (syncNode.shouldThrottleMacComputation(MAC_THROTTLE_WINDOW))
     {
         LOG_verbose << logPre << "Throttled (recent mtime-only op): " << fsNodeFullPath;
-        return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
+        return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC, FingerprintMismatch::Other};
     }
 
     // Check for existing computation
@@ -852,18 +1079,28 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
                           << fsNodeFullPath << "']";
 
                 syncNode.resetMacComputationIfAny();
-                return {compRes, localMac, remoteMac};
+                return {compRes,
+                        localMac,
+                        remoteMac,
+                        compRes == NODE_COMP_DIFFERS_MTIME ? FingerprintMismatch::MtimeOnly :
+                                                             FingerprintMismatch::Other};
             }
             else if (result == MacAdvanceResult::Failed)
             {
                 LOG_debug << logPre << "Failed: " << fsNodeFullPath;
                 syncNode.resetMacComputationIfAny();
-                return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
+                return {NODE_COMP_EREAD,
+                        INVALID_META_MAC,
+                        INVALID_META_MAC,
+                        FingerprintMismatch::Other};
             }
             else
             {
                 // Pending - return and wait
-                return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
+                return {NODE_COMP_PENDING,
+                        INVALID_META_MAC,
+                        INVALID_META_MAC,
+                        FingerprintMismatch::Other};
             }
         }
     }
@@ -875,7 +1112,7 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
     {
         LOG_verbose << logPre << "Throttle full, deferring: " << fsNodeFullPath
                     << " [files=" << mc.syncs.macComputationThrottle().currentFiles() << "]";
-        return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
+        return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC, FingerprintMismatch::Other};
     }
 
     // Create new computation state
@@ -896,7 +1133,7 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
     int64_t expectedMac = initMacComputationFromNode(mc, cn.handle, *macComp, logPre);
     if (expectedMac == INVALID_META_MAC)
     {
-        return {NODE_COMP_EARGS, INVALID_META_MAC, INVALID_META_MAC};
+        return {NODE_COMP_EARGS, INVALID_META_MAC, INVALID_META_MAC, FingerprintMismatch::Other};
     }
     macComp->context->expectedMac = expectedMac;
 
@@ -912,10 +1149,10 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
     if (result == MacAdvanceResult::Failed)
     {
         syncNode.resetMacComputationIfAny();
-        return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC};
+        return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC, FingerprintMismatch::Other};
     }
 
-    return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC};
+    return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC, FingerprintMismatch::Other};
 }
 
 } // anonymous namespace
@@ -938,7 +1175,9 @@ FsCloudComparisonResult syncEqualFsCloudExcludingMtimeAsync(MegaClient& mc,
     {
         if (auto pendingUpload =
                 std::dynamic_pointer_cast<SyncUpload_inClient>(syncNode.transferSP);
-            pendingUpload && pendingUpload->wasJustMtimeChanged &&
+            pendingUpload &&
+            pendingUpload->attributeOnlyUpdate.load() ==
+                SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly &&
             pendingUpload->fingerprint().equalExceptMtime(fs.fingerprint))
         {
             // Optional sanity: warn if MetaMAC was not captured (unlikely).
@@ -952,7 +1191,10 @@ FsCloudComparisonResult syncEqualFsCloudExcludingMtimeAsync(MegaClient& mc,
 
             LOG_debug << "syncEqualFsCloudExcludingMtimeAsync: reuse mtime-only pending upload, "
                       << "skipping MAC recomputation: " << fsNodeFullPath;
-            return {NODE_COMP_DIFFERS_MTIME, INVALID_META_MAC, INVALID_META_MAC};
+            return {NODE_COMP_DIFFERS_MTIME,
+                    INVALID_META_MAC,
+                    INVALID_META_MAC,
+                    FingerprintMismatch::MtimeOnly};
         }
     }
 
