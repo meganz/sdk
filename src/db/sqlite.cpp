@@ -241,7 +241,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
          NodeData::COMPONENT_NONE,
          nullptr},
         {"fingerprintVirtual",
-         "BLOB AS (getFingerprintExcludingMtime(fp)) VIRTUAL",
+         "BLOB AS (getFingerprintExcludingMtime(fingerprint)) VIRTUAL",
          NodeData::COMPONENT_NONE,
          nullptr},
         {"description",
