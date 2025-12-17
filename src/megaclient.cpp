@@ -5562,8 +5562,7 @@ void MegaClient::sc_storeSn(JSON& json)
     }
 }
 
-void MegaClient::sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChanging,
-                            const bool originalAC)
+void MegaClient::sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChanging, bool originalAC)
 {
     if (!useralerts.isDeletedSharedNodesStashEmpty())
     {
@@ -5709,7 +5708,7 @@ void MegaClient::sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChangin
 #endif
 }
 
-bool MegaClient::sc_checkActionPacketPreservePos(JSON& json, const Node* const lastAPDeletedNode)
+bool MegaClient::sc_checkActionPacketPreservePos(JSON& json, const Node* lastAPDeletedNode)
 {
     auto actionpacketStart = json.pos;
     if (json.enterobject())
@@ -5755,8 +5754,8 @@ bool MegaClient::sc_procActionPacket(JSON& json, std::shared_ptr<Node>& lastAPDe
 }
 
 void MegaClient::sc_procActionPacketWithoutCommonTags(JSON& json,
-                                                      const nameid name,
-                                                      const bool isSelfOriginating,
+                                                      nameid name,
+                                                      bool isSelfOriginating,
                                                       std::shared_ptr<Node>& lastAPDeletedNode)
 {
     bool moveOperation = false; // true if "d" packet has "m":1
@@ -6729,7 +6728,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
 // this action packet or if we have to wait.
 // True: Action Packet can be processed.
 // False: Stop processing Action Packets, wait for cs response.
-bool MegaClient::sc_checkActionPacket(JSON& json, const Node* const lastAPDeletedNode)
+bool MegaClient::sc_checkActionPacket(JSON& json, const Node* lastAPDeletedNode)
 {
     nameid cmd = 0;
 
@@ -6759,8 +6758,7 @@ bool MegaClient::sc_checkActionPacket(JSON& json, const Node* const lastAPDelete
     }
 }
 
-bool MegaClient::sc_checkActionPacketWithoutSt(const nameid cmd,
-                                               const Node* const lastAPDeletedNode)
+bool MegaClient::sc_checkActionPacketWithoutSt(nameid cmd, const Node* lastAPDeletedNode)
 {
     if (cmd == makeNameid("t") && lastAPDeletedNode &&
         dynamic_cast<CommandMoveNode*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
