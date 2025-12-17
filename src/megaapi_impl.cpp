@@ -16540,7 +16540,7 @@ void MegaApiImpl::getua_completion(unique_ptr<string_map> uaRecords,
             }
             else
             {
-                e = API_ENOENT;
+                e = API_EINTERNAL;
             }
             fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
             return;
@@ -26437,7 +26437,7 @@ MegaTimeStamp MegaApiImpl::getRecentClearTimestamp()
     return formatRecentClearTimestamp(records.get());
 }
 
-MegaTimeStamp MegaApiImpl::formatRecentClearTimestamp(mega::string_map* records)
+MegaTimeStamp MegaApiImpl::formatRecentClearTimestamp(string_map* records)
 {
     MegaTimeStamp recentClearTimestamp = MEGA_INVALID_TIMESTAMP;
     auto it = records->find("t");
@@ -26445,7 +26445,7 @@ MegaTimeStamp MegaApiImpl::formatRecentClearTimestamp(mega::string_map* records)
     {
         return recentClearTimestamp;
     }
-    recentClearTimestamp = *(reinterpret_cast<MegaTimeStamp*>(it->second.data()));
+    memcpy(&recentClearTimestamp, it->second.data(), sizeof(recentClearTimestamp));
     return recentClearTimestamp;
 }
 
