@@ -1029,7 +1029,8 @@ TEST_F(SdkTestSyncUploadsOperations, CloneNodeWithDifferentMtime)
     LocalTempDir outsideDirCleanup(outsideLocalDir);
     const fs::path outsideLocalPath = outsideLocalDir / originalFileName;
 
-    LOG_debug << logPre << "1b. Creating random file outside sync at: " << outsideLocalPath;
+    LOG_debug << logPre
+              << "1b. Creating random file outside sync at: " << outsideLocalPath.u8string();
     createRandomFile(outsideLocalPath, fileSize);
 
     LOG_debug << logPre << "2. Creating unique remote folder to manually upload the file: "
@@ -1056,13 +1057,14 @@ TEST_F(SdkTestSyncUploadsOperations, CloneNodeWithDifferentMtime)
     LOG_debug << logPre << "2c. Original uploaded file mtime: " << originalMtime;
 
     const m_time_t newMtimeTimeT = m_time(nullptr) + MIN_ALLOW_MTIME_DIFFERENCE;
-    LOG_debug << logPre << "3. Changing local file mtime to: " << newMtimeTimeT;
+    LOG_debug << logPre << "3. Changing local file mtime to: " << newMtimeTimeT << " seconds";
     ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(outsideLocalPath.u8string()),
                                          newMtimeTimeT))
         << "Failed to set mtime on file outside sync";
 
     const fs::path insideSyncPath = fs::absolute(getLocalTmpDir() / clonedFileName);
-    LOG_debug << logPre << "4. Moving file into sync and waiting for sync (no transfer expected)";
+    LOG_debug << logPre << "4. Moving file into sync and waiting for sync (no transfer expected): "
+              << insideSyncPath.u8string();
     ASSERT_NO_FATAL_FAILURE(moveFileIntoSyncAndVerify(outsideLocalPath,
                                                       insideSyncPath,
                                                       false /*isFullUploadExpected*/,

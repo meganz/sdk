@@ -242,13 +242,13 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
     auto [stFutStatus, stErrCode] = st->waitForCompletion(COMMON_TIMEOUT);
     if (stFutStatus != std::future_status::ready)
     {
-        LOG_err << "Sync state change not received for: " << localFilePathAbs;
+        LOG_err << "Sync state change not received for: " << localFilePathAbs.u8string();
         return {false, nullptr};
     }
 
     if (stErrCode != API_OK)
     {
-        LOG_err << "Sync failed for: " << localFilePathAbs;
+        LOG_err << "Sync failed for: " << localFilePathAbs.u8string();
         return {false, nullptr};
     }
 
@@ -262,7 +262,7 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
         expectFullUpload ? std::future_status::ready : std::future_status::timeout;
     if (ttFutStatus != expectedTransferStatus)
     {
-        LOG_err << "Unexpected transfer status for: " << localFilePathAbs
+        LOG_err << "Unexpected transfer status for: " << localFilePathAbs.u8string()
                 << " [expectFullUpload: " << expectFullUpload << "]";
         return {false, nullptr};
     }
@@ -271,7 +271,7 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
     const int expectedTransferStartCount = expectFullUpload ? 1 : 0;
     if (tt->transferStartCount.load() != expectedTransferStartCount)
     {
-        LOG_err << "Transfer started count mismatch for: " << localFilePathAbs
+        LOG_err << "Transfer started count mismatch for: " << localFilePathAbs.u8string()
                 << " [expected: " << expectedTransferStartCount
                 << ", actual: " << tt->transferStartCount.load() << "]";
         return {false, nullptr};
@@ -280,7 +280,7 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
     // Verify transfer succeeded if we expected a full upload
     if (expectFullUpload && ttErrCode != API_OK)
     {
-        LOG_err << "Transfer failed for: " << localFilePathAbs;
+        LOG_err << "Transfer failed for: " << localFilePathAbs.u8string();
         return {false, nullptr};
     }
 

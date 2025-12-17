@@ -9077,10 +9077,9 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         }
         assert(row.fsNode->fingerprint.equalExceptMtime(*downloadPtr));
 
-        auto& fsAccess = *syncs.fsaccess;
-        auto& targetPath = fullPath.localPath;
-
-        assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, targetPath, *downloadPtr));
+        assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(*syncs.fsaccess,
+                                                             fullPath.localPath,
+                                                             *downloadPtr));
 
         SYNC_verbose
             << syncname
