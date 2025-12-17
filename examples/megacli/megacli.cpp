@@ -2401,43 +2401,15 @@ public:
     {
         if (populated)
         {
-            string attrstring;
-            SymmCipher key;
-            NewNode* t = &nn[--nc];
-
-            // copy node
-            t->source = NEW_NODE;
-            t->type = n->type;
-            t->nodehandle = n->nodehandle;
-            t->parenthandle = n->parent ? n->parent->nodehandle : UNDEF;
-
-            // copy key (if file) or generate new key (if folder)
-            if (n->type == FILENODE)
-            {
-                t->nodekey = n->nodekey();
-            }
-            else
-            {
-                byte buf[FOLDERNODEKEYLENGTH];
-                mc->rng.genblock(buf, sizeof buf);
-                t->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
-            }
-
-            key.setkey((const byte*) t->nodekey.data(), n->type);
-
-            AttrMap tattrs;
-            tattrs.map = n->attrs.map;
-            nameid rrname = AttrMap::string2nameid("rr");
-            attr_map::iterator it = tattrs.map.find(rrname);
-            if (it != tattrs.map.end())
-            {
-                LOG_debug << "Removing rr attribute";
-                tattrs.map.erase(it);
-            }
-
-            t->attrstring.reset(new string);
-            tattrs.getjson(&attrstring);
-            mc->makeattr(&key, t->attrstring, attrstring.c_str());
+            mc->putnodes_prepareCopy(nn,
+                                     nc,
+                                     n->type,
+                                     n->nodehandle,
+                                     n->parent ? n->parent->nodehandle : UNDEF,
+                                     n->nodekey(),
+                                     n->attrs,
+                                     false,
+                                     false);
         }
         else
         {
@@ -2892,7 +2864,7 @@ public:
         --stack->filesLeft;
         if (!stack->empty())
         {
-            client->reqs.add(new FileFindCommand(stack, client));
+            client->queueCommand(new FileFindCommand(stack, client));
         }
         else if (!stack->filesLeft)
         {
@@ -2947,7 +2919,7 @@ void exec_find(autocomplete::ACState& s)
             {
                 for (int i = 0; i < 25 && !q->empty(); ++i)
                 {
-                    client->reqs.add(new FileFindCommand(q, client));
+                    client->queueCommand(new FileFindCommand(q, client));
                 }
             }
         }
@@ -4115,14 +4087,17 @@ void exec_backupcentre(autocomplete::ACState& s)
                 {
                     if (purgeFlag)
                     {
-                        client->reqs.add(new CommandBackupRemove(client, d.backupId,[&](Error e)
-                        {
-                            if (e)
+                        client->queueCommand(new CommandBackupRemove(
+                            client,
+                            d.backupId,
+                            [&](Error e)
                             {
-                                cout << "Backup Center - failed to purge id: " << toHandle(d.backupId) << endl;
-                            }
-                        }));
-
+                                if (e)
+                                {
+                                    cout << "Backup Center - failed to purge id: "
+                                         << toHandle(d.backupId) << endl;
+                                }
+                            }));
                     }
                     else
                     {
@@ -6580,7 +6555,7 @@ void exec_get(autocomplete::ACState& s)
         {
             cout << "Checking link..." << endl;
 
-            client->mReqsLockless.add(new CommandGetFile(
+            client->queueCommand(new CommandGetFile(
                 client,
                 key,
                 FILENODEKEYLENGTH,
@@ -10766,6 +10741,14 @@ void DemoApp::enumeratequotaitems_result(const Product& product)
         cout << "\tAndroid ID: " << product.androidid << "\n";
         cout << "\tTest Category: " << product.testCategory << "\n";
         cout << "\tTrial Days: " << product.trialDays << endl;
+
+        if (product.mobileOffer)
+        {
+            cout << "\tMobile offer"
+                 << "\n";
+            cout << "\t\tId: " << product.mobileOffer->id << "\n";
+            cout << "\t\tUat: " << product.mobileOffer->uat << "\n";
+        }
     }
     else // Business plan (type == 1)
     {
@@ -11865,13 +11848,13 @@ void exec_banner(autocomplete::ACState& s)
     {
         cout << "Retrieving banner info..." << endl;
 
-        client->reqs.add(new CommandGetBanners(client));
+        client->queueCommand(new CommandGetBanners(client));
     }
     else if (s.words.size() == 3 && s.words[1].s == "dismiss")
     {
         cout << "Dismissing banner with id " << s.words[2].s << "..." << endl;
 
-        client->reqs.add(new CommandDismissBanner(client, stoi(s.words[2].s), m_time(nullptr)));
+        client->queueCommand(new CommandDismissBanner(client, stoi(s.words[2].s), m_time(nullptr)));
     }
 }
 

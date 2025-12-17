@@ -24,6 +24,7 @@
 #include "mega/command.h"
 #include "mega/fileattributefetch.h"
 #include "mega/heartbeats.h"
+#include "mega/json.h"
 #include "mega/mediafileattribute.h"
 #include "mega/megaapp.h"
 #include "mega/testhooks.h"
@@ -603,6 +604,8 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     {
         arg("ssl", 2);
     }
+
+    mLockless = true;
 }
 
 void CommandDirectRead::cancel()
@@ -2567,6 +2570,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
 
         unique_ptr<BusinessPlan> bizPlan;
         unique_ptr<CurrencyData> currencyData;
+        std::optional<MobileOffer> mobileOffer;
 
         bool finished = false;
         bool readingL = false;
@@ -2911,6 +2915,54 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     }
                 }
                 break;
+                case makeNameid("mo"): // mobile offer
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "entering `mobile offer` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    MobileOffer temporalMobileOffer;
+
+                    bool readingMo{true};
+                    while (readingMo)
+                    {
+                        switch (json.getnameid())
+                        {
+                            case makeNameid("id"):
+                                temporalMobileOffer.id = json.getname();
+                                break;
+                            case makeNameid("uat"):
+                                temporalMobileOffer.uat = json.getbool();
+                                break;
+                            case EOO:
+                                readingMo = false;
+                                mobileOffer = std::move(temporalMobileOffer);
+                                break;
+                            default:
+                                if (!json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse mobile offer sub objects";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "leaving `mobile offer` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    break;
+                }
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
@@ -2972,7 +3024,8 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                          android_id.c_str(),
                                          testCategory,
                                          std::move(bizPlan),
-                                         trialDays};
+                                         trialDays,
+                                         std::move(mobileOffer)};
             client->app->enumeratequotaitems_result(productData);
         }
     }
@@ -4359,6 +4412,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     std::string sds, sdsVersion;
     string s4, s4Version;
     string s4container, s4containerVersion;
+    string devOpt, devOptVersion;
 
     bool uspw = false;
     string userStorageLevel, versionUserStorageLevel;
@@ -4526,6 +4580,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         case makeNameid("+sigPubk"):
             parseUserAttribute(json, sigPubk, versionSigPubk);
+            break;
+        case makeNameid("^!devopt"):
+            parseUserAttribute(json, devOpt, devOptVersion);
             break;
 
         case makeNameid("pf"): // Pro Flexi plan (similar to business)
@@ -5255,6 +5312,16 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     u->removeAttribute(ATTR_S4_CONTAINER);
                     client->mS4Container.store(NodeHandle());
+                }
+
+                if (devOpt.size() && devOptVersion.size())
+                {
+                    changes |=
+                        u->updateAttributeIfDifferentVersion(ATTR_DEV_OPT, devOpt, devOptVersion);
+                }
+                else
+                {
+                    u->removeAttribute(ATTR_DEV_OPT);
                 }
 
                 if (changes)
@@ -6403,10 +6470,13 @@ CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, int
 
     ph = cph;
     havekey = ckey ? true : false;
+
     if (havekey)
     {
         memcpy(key, ckey, sizeof key);
     }
+
+    mLockless = true;
     tag = client->reqtag;
     op = cop;
 }
@@ -6918,7 +6988,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
             assert(!mNodeTreeIsChanging.owns_lock());
             mNodeTreeIsChanging = std::unique_lock<recursive_mutex>(client->nodeTreeMutex);
         }
-        return true;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Parsing of chunk finished
@@ -6927,7 +6997,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                      {
                          assert(mNodeTreeIsChanging.owns_lock());
                          mNodeTreeIsChanging.unlock();
-                         return true;
+                         return JSONSplitter::CallbackResult::SUCCESS;
                      });
 
     // Node objects (one by one)
@@ -6947,9 +7017,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                                  // does nothing when MegaClient::fetchingnodes is true
                                  ) != 1)
             {
-                return false;
+                return JSONSplitter::CallbackResult::FAILED;
             }
-            return json->leaveobject();
+            return JSONSplitter::ResultFromBool(json->leaveobject());
         });
 
     // Node versions (one by one)
@@ -6973,7 +7043,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         // character ']' and this call doesn't have any effect.
         json->enterarray();
 
-        return json->leavearray();
+        return JSONSplitter::ResultFromBool(json->leavearray());
     });
 
     // End of node versions array
@@ -6984,11 +7054,11 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     {
         if (!json->enterobject())
         {
-            return false;
+            return JSONSplitter::CallbackResult::FAILED;
         }
 
         client->readokelement(json);
-        return json->leaveobject();
+        return JSONSplitter::ResultFromBool(json->leaveobject());
     });
 
     // Outgoing shares (one by one)
@@ -6996,11 +7066,11 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     {
         if (!json->enterobject())
         {
-            return false;
+            return JSONSplitter::CallbackResult::FAILED;
         }
 
         client->readoutshareelement(json);
-        return json->leaveobject();
+        return JSONSplitter::ResultFromBool(json->leaveobject());
     });
 
     // Pending shares (one by one)
@@ -7012,7 +7082,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         client->mergenewshares(0);
 
         json->enterarray();
-        return json->leavearray();
+        return JSONSplitter::ResultFromBool(json->leavearray());
     });
 
     // End of pending shares array
@@ -7023,9 +7093,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     {
         if (client->readuser(json, false) != 1)
         {
-            return false;
+            return JSONSplitter::CallbackResult::FAILED;
         }
-        return json->leaveobject();
+        return JSONSplitter::ResultFromBool(json->leaveobject());
     });
 
     // sn tag
@@ -7035,28 +7105,29 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                          // Not applying the scsn until the end of the parsing
                          // because it could arrive before nodes
                          // (despite at the moment it is arriving at the end)
-                         return json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn;
+                         return JSONSplitter::ResultFromBool(
+                             json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn);
                      });
 
     // st tag
     mFilters.emplace("{\"st",
                      [this](JSON* json)
                      {
-                         return json->storeobject(&mSt);
+                         return JSONSplitter::ResultFromBool(json->storeobject(&mSt));
                      });
 
     // Incoming contact requests
     mFilters.emplace("{[ipc", [client](JSON *json)
     {
         client->readipc(json);
-        return true;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Outgoing contact requests
     mFilters.emplace("{[opc", [client](JSON *json)
     {
         client->readopc(json);
-        return true;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Public links (one by one)
@@ -7066,14 +7137,14 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         {
             json->leaveobject();
         }
-        return true;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Sets and Elements
     mFilters.emplace("{{aesp", [client](JSON *json)
     {
         client->procaesp(*json); // continue even if it failed, it's not critical
-        return true;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Parsing finished
@@ -7094,7 +7165,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
             client->mScDbStateRecord.seqTag = mSt;
         }
 
-        return parsingFinished();
+        return JSONSplitter::ResultFromBool(parsingFinished());
     });
 
     // Numeric error, either a number or an error object {"err":XXX}
@@ -7109,7 +7180,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         checkError(e, *json);
         client->fetchingnodes = false;
         client->app->fetchnodes_result(e);
-        return true;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     // Parsing error
@@ -7123,7 +7194,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
                          client->fetchingnodes = false;
                          client->mNodeManager.cleanNodes();
                          client->app->fetchnodes_result(API_EINTERNAL);
-                         return true;
+                         return JSONSplitter::CallbackResult::SUCCESS;
                      });
 
 #ifdef ENABLE_CHAT
@@ -7132,14 +7203,14 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     {
         // List of chatrooms
         client->procmcf(json);
-        return true;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     f = mFilters.emplace("{[mcpna", [client](JSON *json)
     {
         // nodes shared in chatrooms
         client->procmcna(json);
-        return true;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
     mFilters.emplace("{[mcna", f.first->second);
 
@@ -7147,7 +7218,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     {
         // scheduled meetings
         client->procmcsm(json);
-        return true;
+        return JSONSplitter::CallbackResult::SUCCESS;
     });
 #endif
 }

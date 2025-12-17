@@ -142,7 +142,7 @@ Error RealClient::fetch(bool ignoreCache)
         nodesCurrent(false);
 
         // Ask the client to describe our cloud content.
-        mClient->fetchnodes(ignoreCache, true, false);
+        mClient->fetchnodes(ignoreCache, !mClient->syncsAlreadyLoadedOnStatecurrent, false);
 
         // Let the client know it has work to do.
         mClient->waiter->notify();
@@ -541,7 +541,7 @@ void RealClient::get(GetCallback callback,
                                                               std::placeholders::_2));
 
     // Ask the client to execute this request.
-    mClient->reqs.add(request.get());
+    mClient->queueCommand(request.get());
 
     // Client now owns the request.
     request.release();

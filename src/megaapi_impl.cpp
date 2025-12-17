@@ -5421,6 +5421,8 @@ bool MegaRequestPrivate::causesLocklessRequest(const int type)
     switch (type)
     {
         case TYPE_GET_DOWNLOAD_URLS:
+        case TYPE_GET_PUBLIC_NODE:
+        case TYPE_IMPORT_LINK:
             return true;
         default:
             return false;
@@ -8612,6 +8614,7 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
         case ATTR_LAST_ACTIONED_BANNER:
         // undocumented types, allowed only for testing:
         case ATTR_KEYS:
+        case ATTR_DEV_OPT:
             getUserAttr(email_or_handle, type, nullptr, 0, listener);
             break;
         default:
@@ -8656,6 +8659,7 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
         case ATTR_SIG_RSA_PUBK:
         case ATTR_PWD_REMINDER:
         case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_DEV_OPT:
             setUserAttr(type, value, listener);
             break;
         default:
@@ -21250,7 +21254,7 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                 return API_EARGS;
             }
 
-            client->mReqsLockless.add(new CommandGetFile(
+            client->queueCommand(new CommandGetFile(
                 client,
                 (const byte*)node->nodekey().data(),
                 node->nodekey().size(),
@@ -22051,6 +22055,22 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 else if (type == ATTR_ENABLE_TEST_SURVEYS)
                 {
                     performRequest_enableTestSurveys(request);
+                }
+                else if (type == ATTR_DEV_OPT)
+                {
+                    if (!value)
+                    {
+                        return API_EARGS;
+                    }
+
+                    client->putua(type,
+                                  reinterpret_cast<const byte*>(value),
+                                  static_cast<unsigned>(strlen(value)),
+                                  -1,
+                                  UNDEF,
+                                  0,
+                                  0,
+                                  std::move(putuaCompletion));
                 }
                 else
                 {
@@ -24815,11 +24835,15 @@ void MegaApiImpl::setChatOption(MegaHandle chatid, int option, bool enabled, Meg
                 return API_EARGS;
             }
 
-            client->reqs.add(new CommandSetChatOptions(client, chatid, request->getAccess() /*option*/, request->getFlag() /*enabled*/,
-            [request, this] (Error e)
-            {
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }));
+            client->queueCommand(new CommandSetChatOptions(
+                client,
+                chatid,
+                request->getAccess() /*option*/,
+                request->getFlag() /*enabled*/,
+                [request, this](Error e)
+                {
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                }));
             return API_OK;
         };
 
@@ -25658,24 +25682,31 @@ void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullF
 
             NodeOrUploadHandle nuh(NodeHandle().set6byte(nodeHandle));
 
-            client->reqs.add(new CommandPutFA(std::move(nuh), faType, forceSSL, -1, fullSize, getIp,
-            [this, request](Error e, const std::string &url, const std::vector<std::string> &ips)
-            {
-                assert(e != API_OK || !url.empty());
-                if (e == API_OK && !url.empty())
+            client->queueCommand(new CommandPutFA(
+                std::move(nuh),
+                faType,
+                forceSSL,
+                -1,
+                fullSize,
+                getIp,
+                [this,
+                 request](Error e, const std::string& url, const std::vector<std::string>& ips)
                 {
-                    request->setName(url.c_str());
-                    if (!ips.empty())
+                    assert(e != API_OK || !url.empty());
+                    if (e == API_OK && !url.empty())
                     {
-                        request->setLink(ips.at(0).c_str());
+                        request->setName(url.c_str());
+                        if (!ips.empty())
+                        {
+                            request->setLink(ips.at(0).c_str());
+                        }
+                        if (ips.size() > 1)
+                        {
+                            request->setText(ips.at(1).c_str());
+                        }
                     }
-                    if (ips.size() > 1)
-                    {
-                        request->setText(ips.at(1).c_str());
-                    }
-                }
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }));
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                }));
             return API_OK;
         };
 
@@ -25688,7 +25719,7 @@ error MegaApiImpl::performRequest_getBackgroundUploadURL(MegaRequestPrivate* req
             //if not using MegaBackgroundMediaUpload, ask for IPs
             bool getIp = !request->getMegaBackgroundMediaUploadPtr();
 
-            client->reqs.add(new CommandGetPutUrl(
+            client->queueCommand(new CommandGetPutUrl(
                 request->getNumber(),
                 request->getFlag() | client->usehttps,
                 getIp,
@@ -25838,17 +25869,17 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                 return e;
             }
 
-            client->reqs.add(new CommandPutNodes(client,
-                                                 parentHandle,
-                                                 NULL,
-                                                 UseLocalVersioningFlag,
-                                                 std::move(newnodes),
-                                                 request->getTag(),
-                                                 PUTNODES_APP,
-                                                 nullptr,
-                                                 nullptr,
-                                                 false,
-                                                 {})); // customerIpPort
+            client->queueCommand(new CommandPutNodes(client,
+                                                     parentHandle,
+                                                     NULL,
+                                                     UseLocalVersioningFlag,
+                                                     std::move(newnodes),
+                                                     request->getTag(),
+                                                     PUTNODES_APP,
+                                                     nullptr,
+                                                     nullptr,
+                                                     false,
+                                                     {})); // customerIpPort
             return e;
 }
 
@@ -25902,7 +25933,7 @@ void MegaApiImpl::checkSMSVerificationCode(const char* verificationCode, MegaReq
             // the response to the code's verification, the following block can be deleted
             if (e == API_OK)
             {
-                client->reqs.add(new CommandGetUserData(client, client->reqtag, nullptr));
+                client->queueCommand(new CommandGetUserData(client, client->reqtag, nullptr));
             }
             return e;
         };
@@ -25916,10 +25947,10 @@ void MegaApiImpl::getCountryCallingCodes(MegaRequestListener* listener)
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES, listener);
 
     request->performRequest = [this]()
-        {
-            client->reqs.add(new CommandGetCountryCallingCodes{ client });
-            return API_OK;
-        };
+    {
+        client->queueCommand(new CommandGetCountryCallingCodes{client});
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -25949,10 +25980,10 @@ void MegaApiImpl::getBanners(MegaRequestListener* listener)
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_BANNERS, listener);
 
     request->performRequest = [this]()
-        {
-            client->reqs.add(new CommandGetBanners(client));
-            return API_OK;
-        };
+    {
+        client->queueCommand(new CommandGetBanners(client));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -25965,10 +25996,11 @@ void MegaApiImpl::dismissBanner(int id, MegaRequestListener* listener)
     request->setNumber(m_time(nullptr)); // timestamp
 
     request->performRequest = [this, request]()
-        {
-            client->reqs.add(new CommandDismissBanner(client, request->getParamType(), request->getNumber()));
-            return API_OK;
-        };
+    {
+        client->queueCommand(
+            new CommandDismissBanner(client, request->getParamType(), request->getNumber()));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -26013,7 +26045,7 @@ error MegaApiImpl::performRequest_backupPut(MegaRequestPrivate* request)
                     return API_EARGS;
                 }
 
-                client->reqs.add(new CommandBackupPut(client, info, nullptr));
+                client->queueCommand(new CommandBackupPut(client, info, nullptr));
             }
             else // update an existing sync/backup
             {
@@ -26025,7 +26057,7 @@ error MegaApiImpl::performRequest_backupPut(MegaRequestPrivate* request)
                     return API_EARGS;
                 }
 
-                client->reqs.add(new CommandBackupPut(client, info, nullptr));
+                client->queueCommand(new CommandBackupPut(client, info, nullptr));
             }
             return API_OK;
 }
@@ -26036,11 +26068,16 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener* listene
     request->setParentHandle(backupId);
 
     request->performRequest = [this, request]()
-        {
-            client->reqs.add(new CommandBackupRemove(client, request->getParentHandle(),
-                [request, this](Error e) { fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e)); }));
-            return API_OK;
-        };
+    {
+        client->queueCommand(new CommandBackupRemove(
+            client,
+            request->getParentHandle(),
+            [request, this](Error e)
+            {
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            }));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -26134,7 +26171,7 @@ void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progr
 
     request->performRequest = [this, request]()
     {
-        client->reqs.add(new CommandBackupPutHeartBeat(
+        client->queueCommand(new CommandBackupPutHeartBeat(
             client,
             (MegaHandle)request->getParentHandle(),
             CommandBackupPutHeartBeat::SPHBStatus(request->getAccess()),
@@ -26170,16 +26207,20 @@ void MegaApiImpl::startChatCall(MegaHandle chatid, bool notRinging, MegaRequestL
             }
 
             const bool notRinging = request->getFlag();
-            client->reqs.add(new CommandMeetingStart(client, chatid, notRinging, [request, this](Error e, std::string sfuUrl, handle callid)
-            {
-                if (e == API_OK)
+            client->queueCommand(new CommandMeetingStart(
+                client,
+                chatid,
+                notRinging,
+                [request, this](Error e, std::string sfuUrl, handle callid)
                 {
-                    request->setParentHandle(callid);
-                    request->setText(sfuUrl.c_str());
-                }
+                    if (e == API_OK)
+                    {
+                        request->setParentHandle(callid);
+                        request->setText(sfuUrl.c_str());
+                    }
 
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }));
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                }));
             return API_OK;
         };
 
@@ -26202,15 +26243,19 @@ void MegaApiImpl::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequest
                 return API_EARGS;
             }
 
-            client->reqs.add(new CommandMeetingJoin(client, chatid, callid, [request, this](Error e, std::string sfuUrl)
-            {
-                if (e == API_OK)
+            client->queueCommand(new CommandMeetingJoin(
+                client,
+                chatid,
+                callid,
+                [request, this](Error e, std::string sfuUrl)
                 {
-                    request->setText(sfuUrl.c_str());
-                }
+                    if (e == API_OK)
+                    {
+                        request->setText(sfuUrl.c_str());
+                    }
 
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }));
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                }));
             return API_OK;
         };
 
@@ -26249,10 +26294,15 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
                 return API_EACCESS;
             }
 
-            client->reqs.add(new CommandMeetingEnd(client, chatid, callid, reason, [request, this](Error e)
-            {
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }));
+            client->queueCommand(new CommandMeetingEnd(
+                client,
+                chatid,
+                callid,
+                reason,
+                [request, this](Error e)
+                {
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                }));
             return API_OK;
         };
 
@@ -26280,10 +26330,14 @@ void MegaApiImpl::ringIndividualInACall(MegaHandle chatid, MegaHandle userid, Me
             return API_ENOENT;
         }
 
-        client->reqs.add(new CommandRingUser(client, chatid, userid, [request, this](Error e)
-        {
-            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-        }));
+        client->queueCommand(new CommandRingUser(
+            client,
+            chatid,
+            userid,
+            [request, this](Error e)
+            {
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            }));
         return API_OK;
     };
 
@@ -26426,17 +26480,22 @@ void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* sch
                 return API_EARGS;
             }
 
-            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, schedMeeting->scheduledMeeting(), chatTitle, [request, this] (Error e, const ScheduledMeeting* sm)
-            {
-                if (sm)
+            client->queueCommand(new CommandScheduledMeetingAddOrUpdate(
+                client,
+                schedMeeting->scheduledMeeting(),
+                chatTitle,
+                [request, this](Error e, const ScheduledMeeting* sm)
                 {
-                    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
-                    l->insert(new MegaScheduledMeetingPrivate(sm));
-                    request->setMegaScheduledMeetingList(l.get());
-                }
+                    if (sm)
+                    {
+                        std::unique_ptr<MegaScheduledMeetingList> l(
+                            MegaScheduledMeetingList::createInstance());
+                        l->insert(new MegaScheduledMeetingPrivate(sm));
+                        request->setMegaScheduledMeetingList(l.get());
+                    }
 
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }));
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                }));
             return API_OK;
         };
 
@@ -26461,10 +26520,14 @@ void MegaApiImpl::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, 
                 return API_ENOENT;
             }
 
-            client->reqs.add(new CommandScheduledMeetingRemove(client, chatid, schedId, [request, this] (Error e)
-            {
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }));
+            client->queueCommand(new CommandScheduledMeetingRemove(
+                client,
+                chatid,
+                schedId,
+                [request, this](Error e)
+                {
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                }));
             return API_OK;
         };
 
@@ -26489,20 +26552,26 @@ void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, M
                 return API_ENOENT;
             }
 
-            client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedId, [request, this](Error e, const std::vector<std::unique_ptr<ScheduledMeeting>> *result)
-            {
-                if (result && !result->empty())
+            client->queueCommand(new CommandScheduledMeetingFetch(
+                client,
+                chatid,
+                schedId,
+                [request, this](Error e,
+                                const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
                 {
-                    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
-                    for (auto const &sm : *result)
+                    if (result && !result->empty())
                     {
-                        l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+                        std::unique_ptr<MegaScheduledMeetingList> l(
+                            MegaScheduledMeetingList::createInstance());
+                        for (auto const& sm: *result)
+                        {
+                            l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+                        }
+                        request->setMegaScheduledMeetingList(l.get());
                     }
-                    request->setMegaScheduledMeetingList(l.get());
-                }
 
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }));
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                }));
             return API_OK;
         };
 
@@ -26531,19 +26600,28 @@ void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp s
                 return API_ENOENT;
             }
 
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, since, until, count, true /*byDemand*/, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
-            {
-                if (result && !result->empty())
+            client->queueCommand(new CommandScheduledMeetingFetchEvents(
+                client,
+                chatid,
+                since,
+                until,
+                count,
+                true /*byDemand*/,
+                [request, this](Error e,
+                                const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
                 {
-                    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
-                    for (auto const& sm: *result)
+                    if (result && !result->empty())
                     {
-                        l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+                        std::unique_ptr<MegaScheduledMeetingList> l(
+                            MegaScheduledMeetingList::createInstance());
+                        for (auto const& sm: *result)
+                        {
+                            l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+                        }
+                        request->setMegaScheduledMeetingList(l.get());
                     }
-                    request->setMegaScheduledMeetingList(l.get());
-                }
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            }));
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                }));
             return API_OK;
         };
 
@@ -26706,21 +26784,27 @@ void MegaApiImpl::fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publ
             return API_EARGS;
         }
 
-        client->reqs.add(new CommandFetchAds(client, flags, ads->getVector(), request->getNodeHandle(), [request, this](Error e, string_map value)
-        {
-           if (e == API_OK)
-           {
-               std::unique_ptr<MegaStringMap> stringMap = std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
-               for (const auto& itMap : value)
-               {
-                   stringMap->set(itMap.first.c_str(), itMap.second.c_str());
-               }
+        client->queueCommand(new CommandFetchAds(
+            client,
+            flags,
+            ads->getVector(),
+            request->getNodeHandle(),
+            [request, this](Error e, string_map value)
+            {
+                if (e == API_OK)
+                {
+                    std::unique_ptr<MegaStringMap> stringMap =
+                        std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
+                    for (const auto& itMap: value)
+                    {
+                        stringMap->set(itMap.first.c_str(), itMap.second.c_str());
+                    }
 
-               request->setMegaStringMap(stringMap.get());
-           }
+                    request->setMegaStringMap(stringMap.get());
+                }
 
-           fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-        }));
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            }));
 
         return API_OK;
     };
@@ -26743,11 +26827,16 @@ void MegaApiImpl::queryAds(int adFlags, MegaHandle publicHandle, MegaRequestList
             return API_EARGS;
         }
 
-        client->reqs.add(new CommandQueryAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
-        {
-           if (e == API_OK) request->setNumDetails(value);
-           fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-        }));
+        client->queueCommand(new CommandQueryAds(
+            client,
+            flags,
+            request->getNodeHandle(),
+            [request, this](Error e, int value)
+            {
+                if (e == API_OK)
+                    request->setNumDetails(value);
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            }));
 
         return API_OK;
     };
@@ -29735,6 +29824,38 @@ int mega::MegaPricingPrivate::getLocalPrice(int productIndex)
     return 0;
 }
 
+bool MegaPricingPrivate::hasMobileOffers(int productIndex) const
+{
+    if (auto index = static_cast<size_t>(productIndex); index < products.size())
+    {
+        return products[index].mobileOffer.has_value();
+    }
+
+    return false;
+}
+
+std::string mega::MegaPricingPrivate::getMobileOfferId(int productIndex) const
+{
+    if (auto index = static_cast<size_t>(productIndex);
+        index < products.size() && products[index].mobileOffer.has_value())
+    {
+        return products[index].mobileOffer->id;
+    }
+
+    return {};
+}
+
+bool mega::MegaPricingPrivate::hasMobileOfferUat(int productIndex) const
+{
+    if (auto index = static_cast<size_t>(productIndex);
+        index < products.size() && products[index].mobileOffer.has_value())
+    {
+        return products[index].mobileOffer->uat;
+    }
+
+    return {};
+}
+
 const char *MegaPricingPrivate::getDescription(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
@@ -30602,50 +30723,30 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
 {
     if (allocated)
     {
-        NewNode* t = &nn[--nc];
-
-        // copy key (if file) or generate new key (if folder)
-        if (n->getType() == FILENODE)
-        {
-            t->nodekey = *(n->getNodeKey());
-        }
-        else
-        {
-            byte buf[FOLDERNODEKEYLENGTH];
-            client->rng.genblock(buf,sizeof buf);
-            t->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
-        }
-
-        t->attrstring.reset(new string);
-        if (n->isPublic())
-        {
-            t->source = NEW_PUBLIC;
-        }
-        else
-        {
-            t->source = NEW_NODE;
-        }
-
-        SymmCipher key;
+        // prepare map of attributes
         AttrMap attrs;
-
-        key.setkey((const byte*)t->nodekey.data(),n->getType());
-        string sname = n->getName();
-        LocalPath::utf8_normalize(&sname);
-        attrs.map['n'] = sname;
-
+        {
+            string sname = n->getName();
+            LocalPath::utf8_normalize(&sname);
+            attrs.map['n'] = sname;
+        }
         {
             string sfp = MegaNodePrivate::removeAppPrefixFromFingerprint(n->getFingerprint());
-            if (!sfp.empty()) attrs.map['c'] = std::move(sfp);
+            if (!sfp.empty())
+            {
+                attrs.map['c'] = std::move(sfp);
+            }
         }
 
-        string attrstring;
-        attrs.getjson(&attrstring);
-        client->makeattr(&key, t->attrstring, attrstring.c_str());
-
-        t->nodehandle = n->getHandle();
-        t->type = (nodetype_t)n->getType();
-        t->parenthandle = n->getParentHandle() ? n->getParentHandle() : UNDEF;
+        client->putnodes_prepareCopy(nn,
+                                     nc,
+                                     static_cast<nodetype_t>(n->getType()),
+                                     n->getHandle(),
+                                     n->getParentHandle() ? n->getParentHandle() : UNDEF,
+                                     *n->getNodeKey(),
+                                     attrs,
+                                     false,
+                                     n->isPublic());
     }
     else
     {

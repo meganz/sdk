@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include "mega/common/badge.h"
 #include "mega/hashcash.h"
 #include "mega/heartbeats.h"
 #include "mega/logging.h"
@@ -1095,7 +1096,7 @@ void MegaClient::updateStateInBC(handle bkpId, CommandBackupPut::SPState newStat
                 info.deviceId = d.deviceId;
                 info.state = newState;
                 info.subState = d.syncSubstate;
-                reqs.add(new CommandBackupPut(this, info, updateSds));
+                queueCommand(new CommandBackupPut(this, info, updateSds));
             }
             else
             {
@@ -1255,7 +1256,7 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
                 }
 
                 // step 2: remove backup/sync
-                reqs.add(new CommandBackupRemove(this, bkpId, updateSds));
+                queueCommand(new CommandBackupRemove(this, bkpId, updateSds));
                 return;
             }
 
@@ -1266,7 +1267,7 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
 
 void MegaClient::getBackupInfo(std::function<void(const Error&, const vector<CommandBackupSyncFetch::Data>&)> f)
 {
-    reqs.add(new CommandBackupSyncFetch(f));
+    queueCommand(new CommandBackupSyncFetch(f));
 }
 
 void MegaClient::setFolderLinkAccountAuth(const char *auth)
@@ -1437,18 +1438,20 @@ int MegaClient::nextreqtag()
 
 void MegaClient::getrecoverylink(const char *email, bool hasMasterkey)
 {
-    reqs.add(new CommandGetRecoveryLink(this, email,
-                hasMasterkey ? RECOVER_WITH_MASTERKEY : RECOVER_WITHOUT_MASTERKEY));
+    queueCommand(new CommandGetRecoveryLink(this,
+                                            email,
+                                            hasMasterkey ? RECOVER_WITH_MASTERKEY :
+                                                           RECOVER_WITHOUT_MASTERKEY));
 }
 
 void MegaClient::queryrecoverylink(const char *code)
 {
-    reqs.add(new CommandQueryRecoveryLink(this, code));
+    queueCommand(new CommandQueryRecoveryLink(this, code));
 }
 
 void MegaClient::getprivatekey(const char *code)
 {
-    reqs.add(new CommandGetPrivateKey(this, code));
+    queueCommand(new CommandGetPrivateKey(this, code));
 }
 
 void MegaClient::confirmrecoverylink(const char* code,
@@ -1473,7 +1476,13 @@ void MegaClient::confirmrecoverylink(const char* code,
             memcpy(encryptedMasterKey, masterkeyptr, sizeof encryptedMasterKey);
             pwcipher.ecb_encrypt(encryptedMasterKey);
 
-            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, encryptedMasterKey, NULL));
+            queueCommand(new CommandConfirmRecoveryLink(this,
+                                                        code,
+                                                        (byte*)&loginHash,
+                                                        sizeof(loginHash),
+                                                        NULL,
+                                                        encryptedMasterKey,
+                                                        NULL));
         }
         else
         {
@@ -1490,7 +1499,13 @@ void MegaClient::confirmrecoverylink(const char* code,
             // and encrypt the master key to the new password
             pwcipher.ecb_encrypt(newmasterkey);
 
-            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, newmasterkey, initialSession));
+            queueCommand(new CommandConfirmRecoveryLink(this,
+                                                        code,
+                                                        (byte*)&loginHash,
+                                                        sizeof(loginHash),
+                                                        NULL,
+                                                        newmasterkey,
+                                                        initialSession));
         }
     }
     else
@@ -1523,7 +1538,13 @@ void MegaClient::confirmrecoverylink(const char* code,
             byte encryptedMasterKey[SymmCipher::KEYLENGTH];
             memcpy(encryptedMasterKey, masterkeyptr, sizeof encryptedMasterKey);
             cipher.ecb_encrypt(encryptedMasterKey);
-            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, encryptedMasterKey, NULL));
+            queueCommand(new CommandConfirmRecoveryLink(this,
+                                                        code,
+                                                        (byte*)hashedauthkey.data(),
+                                                        SymmCipher::KEYLENGTH,
+                                                        clientkey,
+                                                        encryptedMasterKey,
+                                                        NULL));
         }
         else
         {
@@ -1539,24 +1560,30 @@ void MegaClient::confirmrecoverylink(const char* code,
 
             // and encrypt the master key to the new password
             cipher.ecb_encrypt(newmasterkey);
-            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, newmasterkey, initialSession));
+            queueCommand(new CommandConfirmRecoveryLink(this,
+                                                        code,
+                                                        (byte*)hashedauthkey.data(),
+                                                        SymmCipher::KEYLENGTH,
+                                                        clientkey,
+                                                        newmasterkey,
+                                                        initialSession));
         }
     }
 }
 
 void MegaClient::getcancellink(const char *email, const char *pin)
 {
-    reqs.add(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT, pin));
+    queueCommand(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT, pin));
 }
 
 void MegaClient::confirmcancellink(const char *code)
 {
-    reqs.add(new CommandConfirmCancelLink(this, code));
+    queueCommand(new CommandConfirmCancelLink(this, code));
 }
 
 void MegaClient::getemaillink(const char *email, const char *pin)
 {
-    reqs.add(new CommandGetEmailLink(this, email, 1, pin));
+    queueCommand(new CommandGetEmailLink(this, email, 1, pin));
 }
 
 void MegaClient::confirmemaillink(const char *code, const char *email, const byte *pwkey)
@@ -1566,42 +1593,42 @@ void MegaClient::confirmemaillink(const char *code, const char *email, const byt
         SymmCipher pwcipher(pwkey);
         string emailstr = email;
         uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
-        reqs.add(new CommandConfirmEmailLink(this, code, email, (const byte*)&loginHash, true));
+        queueCommand(new CommandConfirmEmailLink(this, code, email, (const byte*)&loginHash, true));
     }
     else
     {
-        reqs.add(new CommandConfirmEmailLink(this, code, email, NULL, true));
+        queueCommand(new CommandConfirmEmailLink(this, code, email, NULL, true));
     }
 }
 
 void MegaClient::contactlinkcreate(bool renew)
 {
-    reqs.add(new CommandContactLinkCreate(this, renew));
+    queueCommand(new CommandContactLinkCreate(this, renew));
 }
 
 void MegaClient::contactlinkquery(handle h)
 {
-    reqs.add(new CommandContactLinkQuery(this, h));
+    queueCommand(new CommandContactLinkQuery(this, h));
 }
 
 void MegaClient::contactlinkdelete(handle h)
 {
-    reqs.add(new CommandContactLinkDelete(this, h));
+    queueCommand(new CommandContactLinkDelete(this, h));
 }
 
 void MegaClient::multifactorauthsetup(const char *pin)
 {
-    reqs.add(new CommandMultiFactorAuthSetup(this, pin));
+    queueCommand(new CommandMultiFactorAuthSetup(this, pin));
 }
 
 void MegaClient::multifactorauthcheck(const char *email)
 {
-    reqs.add(new CommandMultiFactorAuthCheck(this, email));
+    queueCommand(new CommandMultiFactorAuthCheck(this, email));
 }
 
 void MegaClient::multifactorauthdisable(const char *pin)
 {
-    reqs.add(new CommandMultiFactorAuthDisable(this, pin));
+    queueCommand(new CommandMultiFactorAuthDisable(this, pin));
 }
 
 void MegaClient::fetchtimezone()
@@ -1641,17 +1668,17 @@ void MegaClient::fetchtimezone()
         }
     }
 
-    reqs.add(new CommandFetchTimeZone(this, "", timeoffset.c_str()));
+    queueCommand(new CommandFetchTimeZone(this, "", timeoffset.c_str()));
 }
 
 void MegaClient::keepmealive(int type, bool enable)
 {
-    reqs.add(new CommandKeepMeAlive(this, type, enable));
+    queueCommand(new CommandKeepMeAlive(this, type, enable));
 }
 
 void MegaClient::getpsa(bool urlSupport)
 {
-    reqs.add(new CommandGetPSA(urlSupport, this));
+    queueCommand(new CommandGetPSA(urlSupport, this));
 }
 
 void MegaClient::acknowledgeuseralerts()
@@ -2392,7 +2419,11 @@ void MegaClient::exec()
                                     if (std::shared_ptr<Node> n = nodeByHandle(fa->th.nodeHandle()))
                                     {
                                         LOG_debug << "Attaching file attribute to Node";
-                                        reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
+                                        queueCommand(new CommandAttachFA(this,
+                                                                         n->nodehandle,
+                                                                         fa->type,
+                                                                         fah,
+                                                                         fa->tag));
                                     }
                                     else
                                     {
@@ -2601,7 +2632,7 @@ void MegaClient::exec()
                         // fetches pending for this unconnected channel - dispatch fresh connection
                         LOG_debug << "Getting fresh download URL";
                         fc->timeout.reset();
-                        reqs.add(new CommandGetFA(this, cit->first, fc->fahref));
+                        queueCommand(new CommandGetFA(this, cit->first, fc->fahref));
                         fc->req.status = REQ_INFLIGHT;
                     }
                     else
@@ -3403,7 +3434,7 @@ void MegaClient::exec()
         if (!scpaused && jsonsc.pos)
         {
             // FIXME: reload in case of bad JSON
-            if (procsc())
+            if (procsc(jsonsc))
             {
                 // completed - initiate next SC request
                 jsonsc.pos = nullptr;
@@ -4812,14 +4843,7 @@ void MegaClient::dispatchTransfers()
                                         return true;
                                     });
 
-                        if (ts->pendingcmd->isLockless())
-                        {
-                            mReqsLockless.add(ts->pendingcmd);
-                        }
-                        else
-                        {
-                            reqs.add(ts->pendingcmd);
-                        }
+                        queueCommand(ts->pendingcmd);
                     }
 
                     LOG_debug << "Activating transfer";
@@ -5062,8 +5086,9 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
     loggingout++;
 
-    auto sendFinalLogout = [keepSyncConfigsFile, completion, this](){
-        reqs.add(new CommandLogout(this, std::move(completion), keepSyncConfigsFile));
+    auto sendFinalLogout = [keepSyncConfigsFile, completion, this]()
+    {
+        queueCommand(new CommandLogout(this, std::move(completion), keepSyncConfigsFile));
     };
 
 #ifdef ENABLE_SYNC
@@ -5359,7 +5384,7 @@ const char *MegaClient::version()
 
 void MegaClient::getlocalsslcertificate()
 {
-    reqs.add(new CommandGetLocalSSLCertificate(this));
+    queueCommand(new CommandGetLocalSSLCertificate(this));
 }
 
 void MegaClient::dnsrequest(const char *hostname)
@@ -5446,7 +5471,7 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 }
 
 // process server-client request
-bool MegaClient::procsc()
+bool MegaClient::procsc(JSON& json)
 {
     // prevent the sync thread from looking things up while we change the tree
     std::unique_lock<recursive_mutex> nodeTreeIsChanging(nodeTreeMutex);
@@ -5463,20 +5488,20 @@ bool MegaClient::procsc()
     {
         if (!insca)
         {
-            switch (jsonsc.getnameid())
+            switch (json.getnameid())
             {
                 case makeNameid("w"):
-                    jsonsc.storeobject(&scnotifyurl);
+                    json.storeobject(&scnotifyurl);
                     break;
 
                 case makeNameid("ir"):
                     // when spoonfeeding is in action, there may still be more actionpackets to be delivered.
-                    insca_notlast = jsonsc.getint() == 1;
+                    insca_notlast = json.getint() == 1;
                     break;
 
                 case makeNameid("sn"):
                     // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
-                    scsn.setScsn(&jsonsc);
+                    scsn.setScsn(&json);
                     // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
                     // when action package is processed and the seq tag matches with mCurrentSeqtag
                     assert(!mCurrentSeqtagSeen);
@@ -5654,7 +5679,7 @@ bool MegaClient::procsc()
                     return true;
 
                 case makeNameid("a"):
-                    if (jsonsc.enterarray())
+                    if (json.enterarray())
                     {
                         LOG_debug << "Processing action packets for " << string(sessionid, sizeof(sessionid));
                         insca = true;
@@ -5662,7 +5687,7 @@ bool MegaClient::procsc()
                     }
                     // fall through
                 default:
-                    if (!jsonsc.storeobject())
+                    if (!json.storeobject())
                     {
                         LOG_err << "Error parsing sc request";
                         return true;
@@ -5674,38 +5699,38 @@ bool MegaClient::procsc()
         {
             bool moveOperation = false; // true if "d" packet has "m":1
 
-            auto actionpacketStart = jsonsc.pos;
-            if (jsonsc.enterobject())
+            auto actionpacketStart = json.pos;
+            if (json.enterobject())
             {
                 // Check if it is ok to process the current action packet.
-                if (!sc_checkActionPacket(lastAPDeletedNode.get()))
+                if (!sc_checkActionPacket(json, lastAPDeletedNode.get()))
                 {
                     // We can't continue actionpackets until we know the next mCurrentSeqtag to match against, wait for the CS request to deliver it.
                     assert(reqs.cmdsInflight());
-                    jsonsc.pos = actionpacketStart;
+                    json.pos = actionpacketStart;
                     return false;
                 }
             }
-            jsonsc.pos = actionpacketStart;
+            json.pos = actionpacketStart;
 
-            if (jsonsc.enterobject())
+            if (json.enterobject())
             {
                 // the "a" attribute is guaranteed to be the first in the object
-                if (jsonsc.getnameid() == makeNameid("a"))
+                if (json.getnameid() == makeNameid("a"))
                 {
                     if (!statecurrent)
                     {
                         fnstats.actionPackets++;
                     }
 
-                    name = jsonsc.getnameidvalue();
+                    name = json.getnameidvalue();
 
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
                     // "a" element if present)
-                    if (fetchingnodes || !Utils::startswith(jsonsc.pos, "\"i\":\"") ||
-                        memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid) ||
-                        jsonsc.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
+                    if (fetchingnodes || !Utils::startswith(json.pos, "\"i\":\"") ||
+                        memcmp(json.pos + 5, sessionid, sizeof sessionid) ||
+                        json.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
                         name == 't') // we still set 'i' on move commands to produce backward
                                      // compatible actionpackets, so don't skip those here
                     {
@@ -5716,7 +5741,7 @@ bool MegaClient::procsc()
                         {
                             case name_id::u:
                                 // node update
-                                sc_updatenode();
+                                sc_updatenode(json);
                                 break;
 
                             case makeNameid("t"):
@@ -5725,7 +5750,7 @@ bool MegaClient::procsc()
                                 {
                                     if (!loggedIntoFolder())
                                         useralerts.beginNotingSharedNodes();
-                                    handle originatingUser = sc_newnodes();
+                                    handle originatingUser = sc_newnodes(json);
                                     mergenewshares(1);
                                     if (!loggedIntoFolder())
                                         useralerts.convertNotedSharedNodes(true, originatingUser);
@@ -5735,13 +5760,13 @@ bool MegaClient::procsc()
 
                             case name_id::d:
                                 // node deletion
-                                lastAPDeletedNode = sc_deltree(moveOperation);
+                                lastAPDeletedNode = sc_deltree(json, moveOperation);
                                 break;
 
                             case makeNameid("s"):
                             case makeNameid("s2"):
                                 // share addition/update/revocation
-                                if (sc_shares())
+                                if (sc_shares(json))
                                 {
                                     int creqtag = reqtag;
                                     reqtag = 0;
@@ -5752,23 +5777,23 @@ bool MegaClient::procsc()
 
                             case name_id::c:
                                 // contact addition/update
-                                sc_contacts();
+                                sc_contacts(json);
                                 break;
 
                             case makeNameid("fa"):
                                 // file attribute update
-                                sc_fileattr();
+                                sc_fileattr(json);
                                 break;
 
                             case makeNameid("ua"):
                                 // user attribute update
-                                sc_userattr();
+                                sc_userattr(json);
                                 break;
 
                             case name_id::psts:
                             case name_id::psts_v2:
                             case makeNameid("ftr"):
-                                if (sc_upgrade(name))
+                                if (sc_upgrade(json, name))
                                 {
                                     app->account_updated();
                                     abortbackoff(true);
@@ -5776,37 +5801,37 @@ bool MegaClient::procsc()
                                 break;
 
                             case name_id::pses:
-                                sc_paymentreminder();
+                                sc_paymentreminder(json);
                                 break;
 
                             case name_id::ipc:
                                 // incoming pending contact request (to us)
-                                sc_ipc();
+                                sc_ipc(json);
                                 break;
 
                             case makeNameid("opc"):
                                 // outgoing pending contact request (from us)
-                                sc_opc();
+                                sc_opc(json);
                                 break;
 
                             case name_id::upci:
                                 // incoming pending contact request update (accept/deny/ignore)
-                                sc_upc(true);
+                                sc_upc(json, true);
                                 break;
 
                             case name_id::upco:
                                 // outgoing pending contact request update (from them, accept/deny/ignore)
-                                sc_upc(false);
+                                sc_upc(json, false);
                                 break;
 
                             case makeNameid("ph"):
                                 // public links handles
-                                sc_ph();
+                                sc_ph(json);
                                 break;
 
                             case makeNameid("se"):
                                 // set email
-                                sc_se();
+                                sc_se(json);
                                 break;
 #ifdef ENABLE_CHAT
                             case makeNameid("mcpc"):
@@ -5815,72 +5840,72 @@ bool MegaClient::procsc()
                             } // fall-through
                             case makeNameid("mcc"):
                                 // chat creation / peer's invitation / peer's removal
-                                sc_chatupdate(readingPublicChat);
+                                sc_chatupdate(json, readingPublicChat);
                                 break;
 
                             case makeNameid("mcfpc"): // fall-through
                             case makeNameid("mcfc"):
                                 // chat flags update
-                                sc_chatflags();
+                                sc_chatflags(json);
                                 break;
 
                             case makeNameid("mcpna"): // fall-through
                             case makeNameid("mcna"):
                                 // granted / revoked access to a node
-                                sc_chatnode();
+                                sc_chatnode(json);
                                 break;
 
                             case name_id::mcsmp:
                                 // scheduled meetings updates
-                                sc_scheduledmeetings();
+                                sc_scheduledmeetings(json);
                                 break;
 
                             case name_id::mcsmr:
                                 // scheduled meetings removal
-                                sc_delscheduledmeeting();
+                                sc_delscheduledmeeting(json);
                                 break;
 #endif
                             case makeNameid("uac"):
-                                sc_uac();
+                                sc_uac(json);
                                 break;
 
                             case makeNameid("la"):
                                 // last acknowledged
-                                sc_la();
+                                sc_la(json);
                                 break;
 
                             case makeNameid("ub"):
                                 // business account update
-                                sc_ub();
+                                sc_ub(json);
                                 break;
 
                             case makeNameid("sqac"):
                                 // storage quota allowance changed
-                                sc_sqac();
+                                sc_sqac(json);
                                 break;
 
                             case makeNameid("asp"):
                                 // new/update of a Set
-                                sc_asp();
+                                sc_asp(json);
                                 break;
 
                             case makeNameid("ass"):
-                                sc_ass();
+                                sc_ass(json);
                                 break;
 
                             case makeNameid("asr"):
                                 // removal of a Set
-                                sc_asr();
+                                sc_asr(json);
                                 break;
 
                             case makeNameid("aep"):
                                 // new/update of a Set Element
-                                sc_aep();
+                                sc_aep(json);
                                 break;
 
                             case makeNameid("aer"):
                                 // removal of a Set Element
-                                sc_aer();
+                                sc_aer(json);
                                 break;
                             case makeNameid("pk"):
                                 // pending keys
@@ -5889,7 +5914,7 @@ bool MegaClient::procsc()
 
                             case makeNameid("uec"):
                                 // User Email Confirm (uec)
-                                sc_uec();
+                                sc_uec(json);
                                 break;
 
                             case makeNameid("cce"):
@@ -5900,7 +5925,7 @@ bool MegaClient::procsc()
                     }
                 }
 
-                jsonsc.leaveobject();
+                json.leaveobject();
 
                 if (!moveOperation)
                 {
@@ -5914,7 +5939,7 @@ bool MegaClient::procsc()
                 // It will also process the latest command response associated (by the Sequence Tag)
                 // with the latest AP processed here.
                 sc_checkSequenceTag(string());
-                jsonsc.leavearray();
+                json.leavearray();
                 insca = false;
             }
         }
@@ -6471,7 +6496,7 @@ void MegaClient::activatefa()
         LOG_debug << "Adding file attribute to the active queue";
 
         fa->status = REQ_GET_URL;  // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
-        reqs.add(fa->getURLForFACmd());
+        queueCommand(fa->getURLForFACmd());
     }
 }
 
@@ -6565,7 +6590,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
 
 void MegaClient::getpubliclinkinfo(handle h)
 {
-    reqs.add(new CommandFolderLinkInfo(this, h));
+    queueCommand(new CommandFolderLinkInfo(this, h));
 }
 
 error MegaClient::smsverificationsend(const string& phoneNumber, bool reVerifyingWhitelisted)
@@ -6575,10 +6600,10 @@ error MegaClient::smsverificationsend(const string& phoneNumber, bool reVerifyin
         return API_EARGS;
     }
 
-    reqs.add(new CommandSMSVerificationSend(this, phoneNumber, reVerifyingWhitelisted));
+    queueCommand(new CommandSMSVerificationSend(this, phoneNumber, reVerifyingWhitelisted));
     if (reVerifyingWhitelisted)
     {
-        reqs.add(new CommandGetUserData(this, reqtag, nullptr));
+        queueCommand(new CommandGetUserData(this, reqtag, nullptr));
     }
 
     return API_OK;
@@ -6591,7 +6616,7 @@ error MegaClient::smsverificationcheck(const std::string &verificationCode)
         return API_EARGS;
     }
 
-    reqs.add(new CommandSMSVerificationCheck(this, verificationCode));
+    queueCommand(new CommandSMSVerificationCheck(this, verificationCode));
 
     return API_OK;
 }
@@ -6708,26 +6733,26 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
 // this action packet or if we have to wait.
 // True: Action Packet can be processed.
 // False: Stop processing Action Packets, wait for cs response.
-bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
+bool MegaClient::sc_checkActionPacket(JSON& json, Node* lastAPDeletedNode)
 {
     nameid cmd = 0;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("a"): // action referred by the packet
-            cmd = jsonsc.getnameid();
+            cmd = json.getnameid();
             break;
 
         case makeNameid("i"): // id of the client who made the action triggering this packet
-            jsonsc.storeobject();
+            json.storeobject();
             break;
 
         case makeNameid("st"): // sequence tag
         {
             string tag;
-            jsonsc.storeobject(&tag);
+            json.storeobject(&tag);
             return sc_checkSequenceTag(tag);
         }
 
@@ -6752,7 +6777,7 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
 
 
 // server-client node update processing
-void MegaClient::sc_updatenode()
+void MegaClient::sc_updatenode(JSON& json)
 {
     handle h = UNDEF;
     handle u = 0;
@@ -6761,22 +6786,22 @@ void MegaClient::sc_updatenode()
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("n"):
-                h = jsonsc.gethandle();
+                h = json.gethandle();
                 break;
 
             case name_id::u:
-                u = jsonsc.gethandle(USERHANDLE);
+                u = json.gethandle(USERHANDLE);
                 break;
 
             case makeNameid("at"):
-                a = jsonsc.getvalue();
+                a = json.getvalue();
                 break;
 
             case makeNameid("ts"):
-                ts = jsonsc.getint();
+                ts = json.getint();
                 break;
 
             case EOO:
@@ -6837,7 +6862,7 @@ void MegaClient::sc_updatenode()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -6932,7 +6957,7 @@ void MegaClient::readtree(JSON* j)
     {
         for (;;)
         {
-            switch (jsonsc.getnameid())
+            switch (j->getnameid())
             {
                 case makeNameid("f"):
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
@@ -6977,7 +7002,7 @@ void MegaClient::readtree(JSON* j)
                     return;
 
                 default:
-                    if (!jsonsc.storeobject())
+                    if (!j->storeobject())
                     {
                         return;
                     }
@@ -6987,30 +7012,30 @@ void MegaClient::readtree(JSON* j)
 }
 
 // server-client newnodes processing
-handle MegaClient::sc_newnodes()
+handle MegaClient::sc_newnodes(JSON& json)
 {
     handle originatingUser = UNDEF;
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("t"):
-                readtree(&jsonsc);
+                readtree(&json);
                 break;
 
             case name_id::u:
-                readusers(&jsonsc, true);
+                readusers(&json, true);
                 break;
 
             case makeNameid("ou"):
-                originatingUser = jsonsc.gethandle(USERHANDLE);
+                originatingUser = json.gethandle(USERHANDLE);
                 break;
 
             case EOO:
                 return originatingUser;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return originatingUser;
                 }
@@ -7023,7 +7048,7 @@ handle MegaClient::sc_newnodes()
 // - n/o/u[/okd] (share deletion)
 // - n/o/u/k/r/ts[/ok][/ha] (share addition) (k can be asymmetric)
 // returns 0 in case of a share addition or error, 1 otherwise
-bool MegaClient::sc_shares()
+bool MegaClient::sc_shares(JSON& json)
 {
     handle h = UNDEF;
     handle oh = UNDEF;
@@ -7043,10 +7068,10 @@ bool MegaClient::sc_shares()
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("p"): // Pending contact request handle for an s2 packet
-                p = jsonsc.gethandle(PCRHANDLE);
+                p = json.gethandle(PCRHANDLE);
                 break;
 
             case makeNameid("op"):
@@ -7054,43 +7079,43 @@ bool MegaClient::sc_shares()
                 break;
 
             case makeNameid("n"): // share node
-                h = jsonsc.gethandle();
+                h = json.gethandle();
                 break;
 
             case makeNameid("o"): // owner user
-                oh = jsonsc.gethandle(USERHANDLE);
+                oh = json.gethandle(USERHANDLE);
                 break;
 
             case name_id::u: // target user
-                uh = jsonsc.is(EXPORTEDLINK) ? 0 : jsonsc.gethandle(USERHANDLE);
+                uh = json.is(EXPORTEDLINK) ? 0 : json.gethandle(USERHANDLE);
                 break;
 
             case makeNameid("ou"):
-                ou = jsonsc.gethandle(USERHANDLE);
+                ou = json.gethandle(USERHANDLE);
                 break;
 
             case makeNameid("ok"): // owner key
-                ok = jsonsc.getvalue();
+                ok = json.getvalue();
                 break;
 
             case makeNameid("okd"):
-                okremoved = (jsonsc.getint() == 1); // owner key removed
+                okremoved = (json.getint() == 1); // owner key removed
                 break;
 
             case makeNameid("ha"): // outgoing share signature
-                have_ha = Base64::atob(jsonsc.getvalue(), ha, sizeof ha) == sizeof ha;
+                have_ha = Base64::atob(json.getvalue(), ha, sizeof ha) == sizeof ha;
                 break;
 
             case makeNameid("r"): // share access level
-                r = (accesslevel_t)jsonsc.getint();
+                r = (accesslevel_t)json.getint();
                 break;
 
             case makeNameid("ts"): // share timestamp
-                ts = jsonsc.getint();
+                ts = json.getint();
                 break;
 
             case makeNameid("k"): // share key
-                sk = jsonsc.getvalue();
+                sk = json.getvalue();
                 break;
 
             case EOO:
@@ -7246,7 +7271,7 @@ bool MegaClient::sc_shares()
                 return false;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return false;
                 }
@@ -7254,7 +7279,7 @@ bool MegaClient::sc_shares()
     }
 }
 
-bool MegaClient::sc_upgrade(nameid paymentType)
+bool MegaClient::sc_upgrade(JSON& json, nameid paymentType)
 {
     string result;
     bool success = false;
@@ -7263,18 +7288,18 @@ bool MegaClient::sc_upgrade(nameid paymentType)
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("it"):
-                itemclass = int(jsonsc.getint()); // itemclass,  0=Pro, 1=Business, 2=Feature
+                itemclass = int(json.getint()); // itemclass,  0=Pro, 1=Business, 2=Feature
                 break;
 
             case makeNameid("p"):
-                proNumber = int(jsonsc.getint()); // Account level
+                proNumber = int(json.getint()); // Account level
                 break;
 
             case makeNameid("r"):
-                jsonsc.storeobject(&result);
+                json.storeobject(&result);
                 if (result == "s")
                 {
                    success = true;
@@ -7291,7 +7316,7 @@ bool MegaClient::sc_upgrade(nameid paymentType)
                 return success;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return false;
                 }
@@ -7299,16 +7324,16 @@ bool MegaClient::sc_upgrade(nameid paymentType)
     }
 }
 
-void MegaClient::sc_paymentreminder()
+void MegaClient::sc_paymentreminder(JSON& json)
 {
     m_time_t expiryts = 0;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("ts"):
-            expiryts = int(jsonsc.getint()); // timestamp
+            expiryts = int(json.getint()); // timestamp
             break;
 
         case EOO:
@@ -7319,7 +7344,7 @@ void MegaClient::sc_paymentreminder()
             return;
 
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 return;
             }
@@ -7329,21 +7354,21 @@ void MegaClient::sc_paymentreminder()
 
 // user/contact updates come in the following format:
 // u:[{c/m/ts}*] - Add/modify user/contact
-void MegaClient::sc_contacts()
+void MegaClient::sc_contacts(JSON& json)
 {
     handle ou = UNDEF;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case name_id::u:
                 useralerts.startprovisional();
-                readusers(&jsonsc, true);
+                readusers(&json, true);
                 break;
 
             case makeNameid("ou"):
-                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                ou = json.gethandle(MegaClient::USERHANDLE);
                 break;
 
             case EOO:
@@ -7351,7 +7376,7 @@ void MegaClient::sc_contacts()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7360,22 +7385,22 @@ void MegaClient::sc_contacts()
 }
 
 // server-client file attribute update
-void MegaClient::sc_fileattr()
+void MegaClient::sc_fileattr(JSON& json)
 {
     std::shared_ptr<Node> n = NULL;
     const char* fa = NULL;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("fa"):
-                fa = jsonsc.getvalue();
+                fa = json.getvalue();
                 break;
 
             case makeNameid("n"):
                 handle h;
-                if (!ISUNDEF(h = jsonsc.gethandle()))
+                if (!ISUNDEF(h = json.gethandle()))
                 {
                     n = nodebyhandle(h);
                 }
@@ -7391,7 +7416,7 @@ void MegaClient::sc_fileattr()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7400,7 +7425,7 @@ void MegaClient::sc_fileattr()
 }
 
 // server-client user attribute update notification
-void MegaClient::sc_userattr()
+void MegaClient::sc_userattr(JSON& json)
 {
     handle uh = UNDEF;
     User *u = NULL;
@@ -7412,31 +7437,31 @@ void MegaClient::sc_userattr()
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case name_id::u:
-                uh = jsonsc.gethandle(USERHANDLE);
+                uh = json.gethandle(USERHANDLE);
                 break;
 
             case makeNameid("ua"):
-                if (jsonsc.enterarray())
+                if (json.enterarray())
                 {
-                    while (jsonsc.storeobject(&ua))
+                    while (json.storeobject(&ua))
                     {
                         ualist.push_back(ua);
                     }
-                    jsonsc.leavearray();
+                    json.leavearray();
                 }
                 break;
 
             case makeNameid("v"):
-                if (jsonsc.enterarray())
+                if (json.enterarray())
                 {
-                    while (jsonsc.storeobject(&uav))
+                    while (json.storeobject(&uav))
                     {
                         uavlist.push_back(uav);
                     }
-                    jsonsc.leavearray();
+                    json.leavearray();
                 }
                 break;
 
@@ -7583,7 +7608,7 @@ void MegaClient::sc_userattr()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7592,7 +7617,7 @@ void MegaClient::sc_userattr()
 }
 
 // Incoming pending contact additions or updates, always triggered by the creator (reminders, deletes, etc)
-void MegaClient::sc_ipc()
+void MegaClient::sc_ipc(JSON& json)
 {
     // fields: m, ts, uts, rts, dts, msg, p, ps
     m_time_t ts = 0;
@@ -7608,31 +7633,31 @@ void MegaClient::sc_ipc()
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("m"):
-                m = jsonsc.getvalue();
+                m = json.getvalue();
                 break;
             case makeNameid("ts"):
-                ts = jsonsc.getint();
+                ts = json.getint();
                 break;
             case makeNameid("uts"):
-                uts = jsonsc.getint();
+                uts = json.getint();
                 break;
             case makeNameid("rts"):
-                rts = jsonsc.getint();
+                rts = json.getint();
                 break;
             case makeNameid("dts"):
-                dts = jsonsc.getint();
+                dts = json.getint();
                 break;
             case makeNameid("msg"):
-                msg = jsonsc.getvalue();
+                msg = json.getvalue();
                 break;
             case makeNameid("clv"):
-                clv = jsonsc.getint();
+                clv = json.getint();
                 break;
             case makeNameid("p"):
-                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                p = json.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
                 done = true;
@@ -7700,7 +7725,7 @@ void MegaClient::sc_ipc()
 
                 break;
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7709,7 +7734,7 @@ void MegaClient::sc_ipc()
 }
 
 // Outgoing pending contact additions or updates, always triggered by the creator (reminders, deletes, etc)
-void MegaClient::sc_opc()
+void MegaClient::sc_opc(JSON& json)
 {
     // fields: e, m, ts, uts, rts, dts, msg, p
     m_time_t ts = 0;
@@ -7725,31 +7750,31 @@ void MegaClient::sc_opc()
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("e"):
-                e = jsonsc.getvalue();
+                e = json.getvalue();
                 break;
             case makeNameid("m"):
-                m = jsonsc.getvalue();
+                m = json.getvalue();
                 break;
             case makeNameid("ts"):
-                ts = jsonsc.getint();
+                ts = json.getint();
                 break;
             case makeNameid("uts"):
-                uts = jsonsc.getint();
+                uts = json.getint();
                 break;
             case makeNameid("rts"):
-                rts = jsonsc.getint();
+                rts = json.getint();
                 break;
             case makeNameid("dts"):
-                dts = jsonsc.getint();
+                dts = json.getint();
                 break;
             case makeNameid("msg"):
-                msg = jsonsc.getvalue();
+                msg = json.getvalue();
                 break;
             case makeNameid("p"):
-                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                p = json.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
                 done = true;
@@ -7798,7 +7823,7 @@ void MegaClient::sc_opc()
 
                 break;
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7807,7 +7832,7 @@ void MegaClient::sc_opc()
 }
 
 // Incoming pending contact request updates, always triggered by the receiver of the request (accepts, denies, etc)
-void MegaClient::sc_upc(bool incoming)
+void MegaClient::sc_upc(JSON& json, bool incoming)
 {
     // fields: p, uts, s, m
     m_time_t uts = 0;
@@ -7819,22 +7844,22 @@ void MegaClient::sc_upc(bool incoming)
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("m"):
-                m = jsonsc.getvalue();
+                m = json.getvalue();
                 break;
             case makeNameid("uts"):
-                uts = jsonsc.getint();
+                uts = json.getint();
                 break;
             case makeNameid("s"):
-                s = int(jsonsc.getint());
+                s = int(json.getint());
                 break;
             case makeNameid("p"):
-                p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                p = json.gethandle(MegaClient::PCRHANDLE);
                 break;
             case makeNameid("ou"):
-                ou = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                ou = json.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
                 done = true;
@@ -7901,7 +7926,7 @@ void MegaClient::sc_upc(bool incoming)
 
                 break;
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -7909,7 +7934,7 @@ void MegaClient::sc_upc(bool incoming)
     }
 }
 // Public links updates
-void MegaClient::sc_ph()
+void MegaClient::sc_ph(JSON& json)
 {
     // fields: h, ph, d, n, ets
     handle h = UNDEF;
@@ -7927,38 +7952,38 @@ void MegaClient::sc_ph()
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("h"):
-            h = jsonsc.gethandle(MegaClient::NODEHANDLE);
+            h = json.gethandle(MegaClient::NODEHANDLE);
             break;
         case makeNameid("ph"):
-            ph = jsonsc.gethandle(MegaClient::NODEHANDLE);
+            ph = json.gethandle(MegaClient::NODEHANDLE);
             break;
         case makeNameid("w"):
-            static_cast<void>(jsonsc.storeobject(&authKey));
+            static_cast<void>(json.storeobject(&authKey));
             break;
         case name_id::d:
-            deleted = (jsonsc.getint() == 1);
+            deleted = (json.getint() == 1);
             break;
         case makeNameid("n"):
-            created = (jsonsc.getint() == 1);
+            created = (json.getint() == 1);
             break;
         case name_id::u:
-            updated = (jsonsc.getint() == 1);
+            updated = (json.getint() == 1);
             break;
         case makeNameid("down"):
             {
-                int down = int(jsonsc.getint());
+                int down = int(json.getint());
                 takendown = (down == 1);
                 reinstated = (down == 0);
             }
             break;
         case makeNameid("ets"):
-            ets = jsonsc.getint();
+            ets = json.getint();
             break;
         case makeNameid("ts"):
-            cts = jsonsc.getint();
+            cts = json.getint();
             break;
         case EOO:
             done = true;
@@ -8010,7 +8035,7 @@ void MegaClient::sc_ph()
 
             break;
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 return;
             }
@@ -8018,7 +8043,7 @@ void MegaClient::sc_ph()
     }
 }
 
-void MegaClient::sc_se()
+void MegaClient::sc_se(JSON& json)
 {
     // fields: e, s
     string email;
@@ -8029,16 +8054,16 @@ void MegaClient::sc_se()
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("e"):
-            jsonsc.storeobject(&email);
+            json.storeobject(&email);
             break;
         case name_id::u:
-            uh = jsonsc.gethandle(USERHANDLE);
+            uh = json.gethandle(USERHANDLE);
             break;
         case makeNameid("s"):
-            status = int(jsonsc.getint());
+            status = int(json.getint());
             break;
         case EOO:
             done = true;
@@ -8081,7 +8106,7 @@ void MegaClient::sc_se()
 
             break;
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 return;
             }
@@ -8090,7 +8115,7 @@ void MegaClient::sc_se()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::sc_chatupdate(bool readingPublicChat)
+void MegaClient::sc_chatupdate(JSON& json, bool readingPublicChat)
 {
     // fields: id, u, cs, n, g, ou, ct, ts, m, ck
     handle chatid = UNDEF;
@@ -8113,65 +8138,65 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     bool done = false;
     while (!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("id"):
-                chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                chatid = json.gethandle(MegaClient::CHATHANDLE);
                 break;
 
             case name_id::u: // list of users participating in the chat (+privileges)
-                userpriv = readuserpriv(&jsonsc);
+                userpriv = readuserpriv(&json);
                 break;
 
             case makeNameid("cs"):
-                shard = int(jsonsc.getint());
+                shard = int(json.getint());
                 break;
 
             case makeNameid("n"): // the new user, for notification purposes (not used)
-                upnotif = readuserpriv(&jsonsc);
+                upnotif = readuserpriv(&json);
                 break;
 
             case makeNameid("g"):
-                group = jsonsc.getbool();
+                group = json.getbool();
                 break;
 
             case makeNameid("ou"):
-                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                ou = json.gethandle(MegaClient::USERHANDLE);
                 break;
 
             case makeNameid("ct"):
-                jsonsc.storeobject(&title);
+                json.storeobject(&title);
                 break;
 
             case makeNameid("ts"): // actual creation timestamp
-                ts = jsonsc.getint();
+                ts = json.getint();
                 break;
 
             case makeNameid("m"):
                 assert(readingPublicChat);
-                publicchat = jsonsc.getbool();
+                publicchat = json.getbool();
                 break;
 
             case makeNameid("ck"):
                 assert(readingPublicChat);
-                jsonsc.storeobject(&unifiedkey);
+                json.storeobject(&unifiedkey);
                 break;
 
             case makeNameid("mr"):
                 assert(readingPublicChat);
-                meeting = jsonsc.getbool();
+                meeting = json.getbool();
                 break;
 
             case makeNameid("w"): // waiting room
-                waitingRoom = jsonsc.getbool();
+                waitingRoom = json.getbool();
                 break;
 
             case makeNameid("sr"): // speak request
-                speakRequest = jsonsc.getbool();
+                speakRequest = json.getbool();
                 break;
 
             case makeNameid("oi"): // open invite
-                openInvite = jsonsc.getbool();
+                openInvite = json.getbool();
                 break;
 
             case EOO:
@@ -8302,7 +8327,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 break;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     delete upnotif;
                     return;
@@ -8311,7 +8336,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     }
 }
 
-void MegaClient::sc_chatnode()
+void MegaClient::sc_chatnode(JSON& json)
 {
     handle chatid = UNDEF;
     handle h = UNDEF;
@@ -8321,28 +8346,28 @@ void MegaClient::sc_chatnode()
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("g") :
                 // access granted
-                g = jsonsc.getbool();
+                g = json.getbool();
                 break;
 
             case makeNameid("r"):
                 // access revoked
-                r = jsonsc.getbool();
+                r = json.getbool();
                 break;
 
             case makeNameid("id"):
-                chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                chatid = json.gethandle(MegaClient::CHATHANDLE);
                 break;
 
             case makeNameid("n"):
-                h = jsonsc.gethandle(MegaClient::NODEHANDLE);
+                h = json.gethandle(MegaClient::NODEHANDLE);
                 break;
 
             case name_id::u:
-                uh = jsonsc.gethandle(MegaClient::USERHANDLE);
+                uh = json.gethandle(MegaClient::USERHANDLE);
                 break;
 
             case EOO:
@@ -8387,7 +8412,7 @@ void MegaClient::sc_chatnode()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -8395,21 +8420,21 @@ void MegaClient::sc_chatnode()
     }
 }
 
-void MegaClient::sc_chatflags()
+void MegaClient::sc_chatflags(JSON& json)
 {
     bool done = false;
     handle chatid = UNDEF;
     byte flags = 0;
     while(!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("id"):
-                chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                chatid = json.gethandle(MegaClient::CHATHANDLE);
                 break;
 
             case makeNameid("f"):
-                flags = byte(jsonsc.getint());
+                flags = byte(json.getint());
                 break;
 
             case EOO:
@@ -8434,7 +8459,7 @@ void MegaClient::sc_chatflags()
             }
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -8444,7 +8469,7 @@ void MegaClient::sc_chatflags()
 }
 
 // process mcsmr action packet
-void MegaClient::sc_delscheduledmeeting()
+void MegaClient::sc_delscheduledmeeting(JSON& json)
 {
     bool done = false;
     handle schedId = UNDEF;
@@ -8452,14 +8477,14 @@ void MegaClient::sc_delscheduledmeeting()
 
     while(!done)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("id"):
-                schedId = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                schedId = json.gethandle(MegaClient::CHATHANDLE);
                 break;
 
             case makeNameid("ou"):
-                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                ou = json.gethandle(MegaClient::USERHANDLE);
                 break;
 
             case EOO:
@@ -8493,7 +8518,7 @@ void MegaClient::sc_delscheduledmeeting()
             }
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return;
                 }
@@ -8503,14 +8528,15 @@ void MegaClient::sc_delscheduledmeeting()
 }
 
 // process mcsmp action packet (parse just 1 scheduled meeting per AP)
-void MegaClient::sc_scheduledmeetings()
+void MegaClient::sc_scheduledmeetings(JSON& json)
 {
     handle ou = UNDEF;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     UserAlert::UpdatedScheduledMeeting::Changeset cs;
     handle_set childMeetingsDeleted;
 
-    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs, &childMeetingsDeleted);
+    error e =
+        parseScheduledMeetings(schedMeetings, false, &json, true, &ou, &cs, &childMeetingsDeleted);
     if (e != API_OK)
     {
         LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
@@ -8609,15 +8635,15 @@ void MegaClient::createUpdatedSMAlert(const handle& ou, handle chatid, handle sm
 
 #endif
 
-void MegaClient::sc_uac()
+void MegaClient::sc_uac(JSON& json)
 {
     string email;
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("m"):
-                jsonsc.storeobject(&email);
+                json.storeobject(&email);
                 break;
 
             case EOO:
@@ -8632,7 +8658,7 @@ void MegaClient::sc_uac()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     LOG_warn << "Failed to parse `uac` action packet";
                     return;
@@ -8641,21 +8667,21 @@ void MegaClient::sc_uac()
     }
 }
 
-void MegaClient::sc_uec()
+void MegaClient::sc_uec(JSON& json)
 {
     handle u = UNDEF;
     string email;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("m"):
-                jsonsc.storeobject(&email);
+                json.storeobject(&email);
                 break;
 
             case name_id::u:
-                u = jsonsc.gethandle(USERHANDLE);
+                u = json.gethandle(USERHANDLE);
                 break;
 
             case EOO:
@@ -8675,7 +8701,7 @@ void MegaClient::sc_uec()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     LOG_warn << "Failed to parse `uec` action packet";
                     return;
@@ -8684,15 +8710,15 @@ void MegaClient::sc_uec()
     }
 }
 
-void MegaClient::sc_sqac()
+void MegaClient::sc_sqac(JSON& json)
 {
     m_off_t gb = -1;
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("gb"):
-                gb = jsonsc.getint(); // should there be a notification about this?
+                gb = json.getint(); // should there be a notification about this?
                 break;
 
             case EOO:
@@ -8708,7 +8734,7 @@ void MegaClient::sc_sqac()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     LOG_warn << "Failed to parse `sqac` action packet";
                     return;
@@ -8731,61 +8757,71 @@ void MegaClient::sc_pk()
         return;
     }
 
-    reqs.add(new CommandPendingKeys(this,
-    [this] (Error e, std::string lastcompleted, std::shared_ptr<std::map<handle, std::map<handle, std::string>>> keys)
-    {
-        if (e)
+    queueCommand(new CommandPendingKeys(
+        this,
+        [this](Error e,
+               std::string lastcompleted,
+               std::shared_ptr<std::map<handle, std::map<handle, std::string>>> keys)
         {
-            LOG_debug << "No share keys: " << e;
-
-            if (mKeyManager.promotePendingShares())
+            if (e)
             {
-                LOG_warn << "Promoting pending shares without new keys (received before contact keys?)";
-                mKeyManager.commit([this]()
+                LOG_debug << "No share keys: " << e;
+
+                if (mKeyManager.promotePendingShares())
+                {
+                    LOG_warn << "Promoting pending shares without new keys (received before "
+                                "contact keys?)";
+                    mKeyManager.commit(
+                        [this]()
+                        {
+                            // Changes to apply in the commit
+                            mKeyManager.promotePendingShares();
+                        }); // No completion callback in this case
+                }
+                return;
+            }
+
+            mKeyManager.commit(
+                [this, keys]()
                 {
                     // Changes to apply in the commit
-                    mKeyManager.promotePendingShares();
-                }); // No completion callback in this case
-            }
-            return;
-        }
-
-        mKeyManager.commit(
-        [this, keys]()
-        {
-            // Changes to apply in the commit
-            LOG_debug << "Processing pending keys";
-            for (const auto& kv : *keys.get())
-            {
-                for (const auto& kv2 : kv.second)
-                {
-                    handle userHandle = kv.first;
-                    handle shareHandle = kv2.first;
-                    std::string key = kv2.second;
-
-                    mKeyManager.addPendingInShare(toNodeHandle(shareHandle), userHandle, key);
-                }
-            }
-
-            mKeyManager.promotePendingShares();
-        },
-        [this, lastcompleted](error e)
-        {
-            if (e == API_OK)
-            {
-                LOG_debug << "All pending keys were processed";
-                reqs.add(new CommandPendingKeys(this, lastcompleted, [] (Error e)
-                {
-                    if (e)
+                    LOG_debug << "Processing pending keys";
+                    for (const auto& kv: *keys.get())
                     {
-                        LOG_err << "Error deleting pending keys";
-                        return;
+                        for (const auto& kv2: kv.second)
+                        {
+                            handle userHandle = kv.first;
+                            handle shareHandle = kv2.first;
+                            std::string key = kv2.second;
+
+                            mKeyManager.addPendingInShare(toNodeHandle(shareHandle),
+                                                          userHandle,
+                                                          key);
+                        }
                     }
-                    LOG_debug << "Pending keys deleted";
-                }));
-            }
-        });
-    }));
+
+                    mKeyManager.promotePendingShares();
+                },
+                [this, lastcompleted](error e)
+                {
+                    if (e == API_OK)
+                    {
+                        LOG_debug << "All pending keys were processed";
+                        queueCommand(
+                            new CommandPendingKeys(this,
+                                                   lastcompleted,
+                                                   [](Error e)
+                                                   {
+                                                       if (e)
+                                                       {
+                                                           LOG_err << "Error deleting pending keys";
+                                                           return;
+                                                       }
+                                                       LOG_debug << "Pending keys deleted";
+                                                   }));
+                    }
+                });
+        }));
 }
 
 void MegaClient::sc_cce()
@@ -8794,18 +8830,18 @@ void MegaClient::sc_cce()
     app->notify_creditCardExpiry();
 }
 
-void MegaClient::sc_la()
+void MegaClient::sc_la(JSON& json)
 {
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case EOO:
             useralerts.onAcknowledgeReceived();
             return;
 
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 LOG_warn << "Failed to parse `la` action packet";
                 return;
@@ -8837,7 +8873,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
     }
 }
 
-void MegaClient::sc_ub()
+void MegaClient::sc_ub(JSON& json)
 {
     BizStatus status = BIZ_STATUS_UNKNOWN;
     BizMode mode = BIZ_MODE_UNKNOWN;
@@ -8845,14 +8881,14 @@ void MegaClient::sc_ub()
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("s"):
-                status = BizStatus(jsonsc.getint());
+                status = BizStatus(json.getint());
                 break;
 
             case makeNameid("m"):
-                mode = BizMode(jsonsc.getint());
+                mode = BizMode(json.getint());
                 break;
 
             case EOO:
@@ -8896,7 +8932,7 @@ void MegaClient::sc_ub()
                 return;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     LOG_warn << "Failed to parse `ub` action packet";
                     return;
@@ -9380,30 +9416,30 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> 
 }
 
 // server-client deletion
-std::shared_ptr<Node> MegaClient::sc_deltree(bool& moveOperation)
+std::shared_ptr<Node> MegaClient::sc_deltree(JSON& json, bool& moveOperation)
 {
     std::shared_ptr<Node> n;
     handle originatingUser = UNDEF;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
             case makeNameid("n"):
                 handle h;
 
-                if (!ISUNDEF((h = jsonsc.gethandle())))
+                if (!ISUNDEF((h = json.gethandle())))
                 {
                     n = nodebyhandle(h);
                 }
                 break;
 
             case makeNameid("m"):
-                moveOperation = jsonsc.getbool();
+                moveOperation = json.getbool();
                 break;
 
             case makeNameid("ou"):
-                originatingUser = jsonsc.gethandle(USERHANDLE);
+                originatingUser = json.gethandle(USERHANDLE);
                 break;
 
             case EOO:
@@ -9441,7 +9477,7 @@ std::shared_ptr<Node> MegaClient::sc_deltree(bool& moveOperation)
                 return moveOperation ? n : nullptr;
 
             default:
-                if (!jsonsc.storeobject())
+                if (!json.storeobject())
                 {
                     return NULL;
                 }
@@ -9697,7 +9733,7 @@ error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSe
     }
 
     // we only update the values stored in the node once the command completes successfully
-    reqs.add(new CommandSetAttr(this, n, std::move(updates), std::move(c), canChangeVault));
+    queueCommand(new CommandSetAttr(this, n, std::move(updates), std::move(c), canChangeVault));
 
     return API_OK;
 }
@@ -9810,6 +9846,60 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     makeattr(&tmpnodecipher, newnode->attrstring, attrstring.c_str());
 }
 
+void MegaClient::putnodes_prepareCopy(std::vector<NewNode>& nn,
+                                      unsigned& nc,
+                                      const nodetype_t type,
+                                      const handle nodehandle,
+                                      const handle parenthandle,
+                                      const string& nodekey,
+                                      const AttrMap& attrs,
+                                      const bool resetSensitive,
+                                      const bool isPublic)
+{
+    assert(nc > 0);
+    NewNode* t = &nn[--nc];
+
+    // copy node
+    t->source = isPublic ? NEW_PUBLIC : NEW_NODE;
+    t->type = type;
+    t->nodehandle = nodehandle;
+    t->parenthandle = parenthandle;
+
+    // copy key (if file) or generate new key (if folder)
+    if (type == FILENODE)
+    {
+        t->nodekey = nodekey;
+    }
+    else
+    {
+        byte buf[FOLDERNODEKEYLENGTH];
+        rng.genblock(buf, sizeof buf);
+        t->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
+    }
+
+    AttrMap tattrs;
+    tattrs.map = attrs.map;
+    nameid rrname = AttrMap::string2nameid("rr");
+    attr_map::iterator it = tattrs.map.find(rrname);
+    if (it != tattrs.map.end())
+    {
+        LOG_debug << "Removing rr attribute";
+        tattrs.map.erase(it);
+    }
+    if (resetSensitive && tattrs.map.erase(AttrMap::string2nameid("sen")))
+    {
+        LOG_debug << "Removing sen attribute";
+    }
+
+    string attrstring;
+    t->attrstring.reset(new string);
+    tattrs.getjson(&attrstring);
+
+    SymmCipher cipher;
+    cipher.setkey((const byte*)t->nodekey.data(), type);
+    makeattr(&cipher, t->attrstring, attrstring.c_str());
+}
+
 // send new nodes to API for processing
 void MegaClient::putnodes(NodeHandle h,
                           VersioningOption vo,
@@ -9820,17 +9910,17 @@ void MegaClient::putnodes(NodeHandle h,
                           string customerIpPort,
                           CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this,
-                                 h,
-                                 NULL,
-                                 vo,
-                                 std::move(newnodes),
-                                 tag,
-                                 PUTNODES_APP,
-                                 cauth,
-                                 std::move(resultFunction),
-                                 canChangeVault,
-                                 customerIpPort));
+    queueCommand(new CommandPutNodes(this,
+                                     h,
+                                     NULL,
+                                     vo,
+                                     std::move(newnodes),
+                                     tag,
+                                     PUTNODES_APP,
+                                     cauth,
+                                     std::move(resultFunction),
+                                     canChangeVault,
+                                     customerIpPort));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
@@ -9867,7 +9957,7 @@ void MegaClient::putFileAttributes(handle h, fatype t, const string& encryptedAt
         return;
     }
 
-    reqs.add(new CommandAttachFA(this, h, t, encryptedAttributes, tag));
+    queueCommand(new CommandAttachFA(this, h, t, encryptedAttributes, tag));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -10074,7 +10164,7 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
     // rewrite keys of foreign nodes that are moved out of an outbound share
     rewriteforeignkeys(n);
 
-    reqs.add(
+    queueCommand(
         new CommandMoveNode(this, n, p, syncdel, prevparenthandle, std::move(c), canChangeVault));
 
     return API_OK;
@@ -10306,19 +10396,19 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this,
-                                n->nodeHandle(),
-                                kv,
-                                tag,
-                                std::move(resultFunction),
-                                canChangeVault));
+    queueCommand(new CommandDelNode(this,
+                                    n->nodeHandle(),
+                                    kv,
+                                    tag,
+                                    std::move(resultFunction),
+                                    canChangeVault));
 
     return API_OK;
 }
 
 void MegaClient::unlinkversions()
 {
-    reqs.add(new CommandDelVersions(this));
+    queueCommand(new CommandDelVersions(this));
 }
 
 // Converts a string in UTF8 to array of int32 in the same way than Webclient converts a string in UTF16 to array of 32-bit elements
@@ -11858,7 +11948,7 @@ void MegaClient::prelogin(const char *email, CommandPrelogin::Completion complet
     if (!completion)
         completion = bind(&MegaApp::prelogin_result, app, _1, _2, _3, _4);
 
-    reqs.add(new CommandPrelogin(this, std::move(completion), email));
+    queueCommand(new CommandPrelogin(this, std::move(completion), email));
 }
 
 // create new session
@@ -11876,7 +11966,14 @@ void MegaClient::login(const char* email, const byte* pwkey, const char* pin, Co
     byte sek[SymmCipher::KEYLENGTH];
     rng.genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, std::move(completion), email, (byte*)&emailhash, sizeof(emailhash), sek, 0, pin));
+    queueCommand(new CommandLogin(this,
+                                  std::move(completion),
+                                  email,
+                                  (byte*)&emailhash,
+                                  sizeof(emailhash),
+                                  sek,
+                                  0,
+                                  pin));
 }
 
 // create new session (v2)
@@ -11904,7 +12001,14 @@ void MegaClient::login2(const char *email, const byte *derivedKey, const char* p
     byte sek[SymmCipher::KEYLENGTH];
     rng.genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, std::move(completion), email, authKey, SymmCipher::KEYLENGTH, sek, 0, pin));
+    queueCommand(new CommandLogin(this,
+                                  std::move(completion),
+                                  email,
+                                  authKey,
+                                  SymmCipher::KEYLENGTH,
+                                  sek,
+                                  0,
+                                  pin));
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash, CommandLogin::Completion completion)
@@ -11917,19 +12021,24 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     byte sek[SymmCipher::KEYLENGTH];
     rng.genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, std::move(completion), email, (byte*)&emailhash, sizeof(emailhash), sek));
+    queueCommand(new CommandLogin(this,
+                                  std::move(completion),
+                                  email,
+                                  (byte*)&emailhash,
+                                  sizeof(emailhash),
+                                  sek));
 }
 
 void MegaClient::getuserdata(int tag, std::function<void(string*, string*, string*, error)> completion)
 {
     cachedug = false;
 
-    reqs.add(new CommandGetUserData(this, tag, std::move(completion)));
+    queueCommand(new CommandGetUserData(this, tag, std::move(completion)));
 }
 
 void MegaClient::getmiscflags()
 {
-    reqs.add(new CommandGetMiscFlags(this));
+    queueCommand(new CommandGetMiscFlags(this));
 }
 
 void MegaClient::getpubkey(const char *user)
@@ -11968,7 +12077,8 @@ void MegaClient::login(string session, CommandLogin::Completion completion)
         byte sek[SymmCipher::KEYLENGTH];
         rng.genblock(sek, sizeof sek);
 
-        reqs.add(new CommandLogin(this, std::move(completion), NULL, NULL, 0, sek, sessionversion));
+        queueCommand(
+            new CommandLogin(this, std::move(completion), NULL, NULL, 0, sek, sessionversion));
         fetchtimezone();
     }
     else if (!session.empty() && session[0] == 2)
@@ -12045,7 +12155,7 @@ error MegaClient::validatepwd(const char* pswd)
         uint64_t emailhash = stringhash64(&lcemail, &pwcipher);
         vector<byte> eh((byte*)&emailhash, (byte*)&emailhash + sizeof(emailhash) / sizeof(byte));
 
-        reqs.add(new CommandValidatePassword(this, lcemail.c_str(), eh));
+        queueCommand(new CommandValidatePassword(this, lcemail.c_str(), eh));
 
         return API_OK;
 
@@ -12054,7 +12164,7 @@ error MegaClient::validatepwd(const char* pswd)
     {
         vector<byte> dk = deriveKey(pswd, accountsalt, 2 * SymmCipher::KEYLENGTH);
         dk = vector<byte>(dk.data() + SymmCipher::KEYLENGTH, dk.data() + 2 * SymmCipher::KEYLENGTH);
-        reqs.add(new CommandValidatePassword(this, u->email.c_str(), dk));
+        queueCommand(new CommandValidatePassword(this, u->email.c_str(), dk));
 
         return API_OK;
     }
@@ -12171,12 +12281,12 @@ int MegaClient::dumpsession(string& session)
 
 void MegaClient::resendverificationemail()
 {
-    reqs.add(new CommandResendVerificationEmail(this));
+    queueCommand(new CommandResendVerificationEmail(this));
 }
 
 void MegaClient::resetSmsVerifiedPhoneNumber()
 {
-    reqs.add(new CommandResetSmsVerifiedPhoneNumber(this));
+    queueCommand(new CommandResetSmsVerifiedPhoneNumber(this));
 }
 
 error MegaClient::copysession()
@@ -12188,7 +12298,7 @@ error MegaClient::copysession()
         return (loggedin() == NOTLOGGEDIN) ? API_ENOENT : API_EACCESS;
     }
 
-    reqs.add(new CommandCopySession(this));
+    queueCommand(new CommandCopySession(this));
     return API_OK;
 }
 
@@ -12227,13 +12337,13 @@ string MegaClient::sessiontransferdata(const char *url, string *session)
 
 void MegaClient::killsession(handle session)
 {
-    reqs.add(new CommandKillSessions(this, session));
+    queueCommand(new CommandKillSessions(this, session));
 }
 
 // Kill all sessions (except current)
 void MegaClient::killallsessions()
 {
-    reqs.add(new CommandKillSessions(this));
+    queueCommand(new CommandKillSessions(this));
 }
 
 void MegaClient::opensctable()
@@ -12666,7 +12776,7 @@ void MegaClient::queuepubkeyreq(User* u, std::unique_ptr<PubKeyAction> pka)
         if (!u->pubkrequested)
         {
             u->pkrs.back()->cmd = new CommandPubKeyRequest(this, u);
-            reqs.add(u->pkrs.back()->cmd);
+            queueCommand(u->pkrs.back()->cmd);
             u->pubkrequested = true;
         }
     }
@@ -12716,7 +12826,7 @@ void MegaClient::rewriteforeignkeys(std::shared_ptr<Node> n)
 
     if (nodekeyrewrite.size())
     {
-        reqs.add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
+        queueCommand(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
         nodekeyrewrite.clear();
     }
 }
@@ -12971,43 +13081,56 @@ void MegaClient::setshare(std::shared_ptr<Node> n, const char* user, accesslevel
     {
         User *u = getUserForSharing(user);
         handle nodehandle = n->nodehandle;
-        reqs.add(new CommandSetShare(this, n, u, a, 0, NULL, writable, personal_representation, tag,
-        [this, u, total, nodehandle, completion](Error e, bool writable)
-        {
-            if (!e && total == 1)
+        queueCommand(new CommandSetShare(
+            this,
+            n,
+            u,
+            a,
+            0,
+            NULL,
+            writable,
+            personal_representation,
+            tag,
+            [this, u, total, nodehandle, completion](Error e, bool writable)
             {
-                if (mKeyManager.isShareKeyInUse(nodehandle))
+                if (!e && total == 1)
                 {
-                    LOG_debug << "Last share: disabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(nodehandle);
-                    mKeyManager.commit(
-                        [this, nodehandle]()
+                    if (mKeyManager.isShareKeyInUse(nodehandle))
+                    {
+                        LOG_debug << "Last share: disabling in-use flag for the sharekey in "
+                                     "KeyManager. nh: "
+                                  << toNodeHandle(nodehandle);
+                        mKeyManager.commit(
+                            [this, nodehandle]()
+                            {
+                                mKeyManager.setSharekeyInUse(nodehandle, false);
+                            },
+                            [completion, writable](error commitError)
+                            {
+                                completion(commitError, writable);
+                            });
+                    }
+                    else
+                    {
+                        if (mKeyManager.isShareKeyTrusted(nodehandle))
                         {
-                            mKeyManager.setSharekeyInUse(nodehandle, false);
-                        },
-                        [completion, writable](error commitError)
-                        {
-                            completion(commitError, writable);
-                        });
+                            LOG_warn << "in-use flag was already disabled for the sharekey in "
+                                        "KeyManager when removing the last share. nh: "
+                                     << toNodeHandle(nodehandle);
+                        }
+                        completion(e, writable);
+                    }
                 }
                 else
                 {
-                    if (mKeyManager.isShareKeyTrusted(nodehandle))
-                    {
-                        LOG_warn << "in-use flag was already disabled for the sharekey in KeyManager when removing the last share. nh: " << toNodeHandle(nodehandle);
-                    }
                     completion(e, writable);
                 }
-            }
-            else
-            {
-                completion(e, writable);
-            }
 
-            if (u && u->isTemporary)
-            {
-                delete u;
-            }
-        }));
+                if (u && u->isTemporary)
+                {
+                    delete u;
+                }
+            }));
         return;
     }
 
@@ -13076,52 +13199,71 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
             return;
         }
 
-        reqs.add(new CommandSetShare(this, n, user, a, newshare, NULL, writable, msg.c_str(), tag,
-        [this, user, newshare, nodehandle, completion](Error e, bool writable)
-        {
-            if (!e)
+        queueCommand(new CommandSetShare(
+            this,
+            n,
+            user,
+            a,
+            newshare,
+            NULL,
+            writable,
+            msg.c_str(),
+            tag,
+            [this, user, newshare, nodehandle, completion](Error e, bool writable)
             {
-                if (mKeyManager.isShareKeyTrusted(nodehandle) && !mKeyManager.isShareKeyInUse(nodehandle))
+                if (!e)
                 {
-                    if (!newshare)
+                    if (mKeyManager.isShareKeyTrusted(nodehandle) &&
+                        !mKeyManager.isShareKeyInUse(nodehandle))
                     {
-                        LOG_warn << "in-use flag for the sharekey in KeyManager is not set but the node was already shared. nh: " << toNodeHandle(nodehandle);
-                    }
+                        if (!newshare)
+                        {
+                            LOG_warn << "in-use flag for the sharekey in KeyManager is not set but "
+                                        "the node was already shared. nh: "
+                                     << toNodeHandle(nodehandle);
+                        }
 
-                    LOG_debug << "Enabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(nodehandle);
-                    mKeyManager.commit(
-                        [this, nodehandle]()
+                        LOG_debug << "Enabling in-use flag for the sharekey in KeyManager. nh: "
+                                  << toNodeHandle(nodehandle);
+                        mKeyManager.commit(
+                            [this, nodehandle]()
+                            {
+                                mKeyManager.setSharekeyInUse(nodehandle, true);
+                            },
+                            [completion, writable](error commitError)
+                            {
+                                completion(commitError, writable);
+                            });
+                    }
+                    else
+                    {
+                        if (!mKeyManager.isShareKeyTrusted(nodehandle)) // Legacy share
                         {
-                            mKeyManager.setSharekeyInUse(nodehandle, true);
-                        },
-                        [completion, writable](error commitError)
+                            LOG_debug << "in-use flag for the sharekey in KeyManager not set. "
+                                         "Share Key is not trusted. nh: "
+                                      << toNodeHandle(nodehandle);
+                        }
+                        else if (newshare) // trusted, bit set but was not shared.
                         {
-                            completion(commitError, writable);
-                        });
+                            LOG_err << "in-use flag for the sharekey in KeyManager is already set "
+                                       "but the node was not being shared before. nh: "
+                                    << toNodeHandle(nodehandle);
+                            string msg =
+                                "in-use flag already set for a node with no previous active share";
+                            sendevent(99479, msg.c_str());
+                            assert(!newshare && msg.c_str());
+                        }
+                        completion(e, writable);
+                    }
                 }
                 else
                 {
-                    if (!mKeyManager.isShareKeyTrusted(nodehandle)) // Legacy share
-                    {
-                        LOG_debug << "in-use flag for the sharekey in KeyManager not set. Share Key is not trusted. nh: " << toNodeHandle(nodehandle);
-                    }
-                    else if (newshare) // trusted, bit set but was not shared.
-                    {
-                        LOG_err << "in-use flag for the sharekey in KeyManager is already set but the node was not being shared before. nh: " << toNodeHandle(nodehandle);
-                        string msg = "in-use flag already set for a node with no previous active share";
-                        sendevent(99479, msg.c_str());
-                        assert(!newshare && msg.c_str());
-                    }
                     completion(e, writable);
                 }
-            }
-            else
-            {
-                completion(e, writable);
-            }
 
-            if (user && user->isTemporary) delete user;
-        }));
+                if (user && user->isTemporary)
+                    delete user;
+            }));
     };
 
     if (userID.size() || newShareKey) // share with a user or folder-link requiring new sharekey
@@ -13165,18 +13307,24 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
 // Add/delete/remind outgoing pending contact request
 void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, CommandSetPendingContact::Completion completion)
 {
-    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink, std::move(completion)));
+    queueCommand(new CommandSetPendingContact(this,
+                                              temail,
+                                              action,
+                                              msg,
+                                              oemail,
+                                              contactLink,
+                                              std::move(completion)));
 }
 
 void MegaClient::updatepcr(handle p, ipcactions_t action, CommandUpdatePendingContact::Completion completion)
 {
-    reqs.add(new CommandUpdatePendingContact(this, p, action, std::move(completion)));
+    queueCommand(new CommandUpdatePendingContact(this, p, action, std::move(completion)));
 }
 
 // enumerate Pro account purchase options (not fully implemented)
 void MegaClient::purchase_enumeratequotaitems(const std::optional<std::string>& countryCode)
 {
-    reqs.add(new CommandEnumerateQuotaItems(countryCode, this));
+    queueCommand(new CommandEnumerateQuotaItems(countryCode, this));
 }
 
 // begin a new purchase (FIXME: not fully implemented)
@@ -13190,18 +13338,27 @@ void MegaClient::purchase_additem(int itemclass, handle item, unsigned price,
                                   const char* currency, unsigned tax, const char* country,
                                   handle lastPublicHandle, int phtype, int64_t ts)
 {
-    reqs.add(new CommandPurchaseAddItem(this, itemclass, item, price, currency, tax, country, lastPublicHandle, phtype, ts));
+    queueCommand(new CommandPurchaseAddItem(this,
+                                            itemclass,
+                                            item,
+                                            price,
+                                            currency,
+                                            tax,
+                                            country,
+                                            lastPublicHandle,
+                                            phtype,
+                                            ts));
 }
 
 // obtain payment URL for given provider
 void MegaClient::purchase_checkout(int gateway)
 {
-    reqs.add(new CommandPurchaseCheckout(this, gateway));
+    queueCommand(new CommandPurchaseCheckout(this, gateway));
 }
 
 void MegaClient::submitpurchasereceipt(int type, const char *receipt, handle lph, int phtype, int64_t ts)
 {
-    reqs.add(new CommandSubmitPurchaseReceipt(this, type, receipt, lph, phtype, ts));
+    queueCommand(new CommandSubmitPurchaseReceipt(this, type, receipt, lph, phtype, ts));
 }
 
 error MegaClient::creditcardstore(const char *ccplain)
@@ -13310,24 +13467,29 @@ error MegaClient::creditcardstore(const char *ccplain)
     std::replace( base64cc.begin(), base64cc.end(), '-', '+');
     std::replace( base64cc.begin(), base64cc.end(), '_', '/');
 
-    reqs.add(new CommandCreditCardStore(this, base64cc.data(), last4.c_str(), expm.c_str(), expy.c_str(), hexHash.data()));
+    queueCommand(new CommandCreditCardStore(this,
+                                            base64cc.data(),
+                                            last4.c_str(),
+                                            expm.c_str(),
+                                            expy.c_str(),
+                                            hexHash.data()));
     return API_OK;
 }
 
 void MegaClient::creditcardquerysubscriptions()
 {
-    reqs.add(new CommandCreditCardQuerySubscriptions(this));
+    queueCommand(new CommandCreditCardQuerySubscriptions(this));
 }
 
 void MegaClient::creditcardcancelsubscriptions(
     const CommandCreditCardCancelSubscriptions::CancelSubscription& cancelSubscription)
 {
-    reqs.add(new CommandCreditCardCancelSubscriptions(this, cancelSubscription));
+    queueCommand(new CommandCreditCardCancelSubscriptions(this, cancelSubscription));
 }
 
 void MegaClient::getpaymentmethods()
 {
-    reqs.add(new CommandGetPaymentMethods(this));
+    queueCommand(new CommandGetPaymentMethods(this));
 }
 
 // delete or block an existing contact
@@ -13338,7 +13500,7 @@ error MegaClient::removecontact(const char* email, visibility_t show, CommandRem
         return API_EARGS;
     }
 
-    reqs.add(new CommandRemoveContact(this, email, show, std::move(completion)));
+    queueCommand(new CommandRemoveContact(this, email, show, std::move(completion)));
 
     return API_OK;
 }
@@ -13439,7 +13601,15 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle
 
     if (!needversion)
     {
-        reqs.add(new CommandPutUA(this, at, av, avl, tag, lastPublicHandle, phtype, ts, std::move(completion)));
+        queueCommand(new CommandPutUA(this,
+                                      at,
+                                      av,
+                                      avl,
+                                      tag,
+                                      lastPublicHandle,
+                                      phtype,
+                                      ts,
+                                      std::move(completion)));
     }
     else
     {
@@ -13451,7 +13621,7 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle
             completion(API_EEXPIRED);
             return;
         }
-        reqs.add(new CommandPutUAVer(this, at, av, avl, tag, std::move(completion)));
+        queueCommand(new CommandPutUAVer(this, at, av, avl, tag, std::move(completion)));
     }
 }
 
@@ -13503,7 +13673,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
         }
     }
 
-    reqs.add(new CommandPutMultipleUAVer(this, attrs, tag, std::move(completion)));
+    queueCommand(new CommandPutMultipleUAVer(this, attrs, tag, std::move(completion)));
 }
 
 /**
@@ -13556,7 +13726,14 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::C
         }
         else // never created or expired
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, completionErr, completionBytes, completionTLV));
+            queueCommand(new CommandGetUA(this,
+                                          u->uid.c_str(),
+                                          at,
+                                          NULL,
+                                          tag,
+                                          completionErr,
+                                          completionBytes,
+                                          completionTLV));
             return false;
         }
     }
@@ -13567,13 +13744,20 @@ void MegaClient::getua(const char *email_handle, const attr_t at, const char *ph
 {
     if (email_handle && at != ATTR_UNKNOWN)
     {
-        reqs.add(new CommandGetUA(this, email_handle, at, ph, (ctag != -1) ? ctag : reqtag, ce, cb, ctlv));
+        queueCommand(new CommandGetUA(this,
+                                      email_handle,
+                                      at,
+                                      ph,
+                                      (ctag != -1) ? ctag : reqtag,
+                                      ce,
+                                      cb,
+                                      ctlv));
     }
 }
 
 void MegaClient::getUserEmail(const char* userID)
 {
-    reqs.add(new CommandGetUserEmail(this, userID));
+    queueCommand(new CommandGetUserEmail(this, userID));
 }
 
 void MegaClient::loginResult(CommandLogin::Completion completion,
@@ -13589,25 +13773,6 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
 
     // Is the user fully logged on?
     auto isFullyLoggedIn = loggedin() == FULLACCOUNT;
-
-#ifdef ENABLE_SYNC
-    // Only generate JSCD and friends for fully logged-in accounts.
-    if (isFullyLoggedIn)
-    {
-        // Capture the client's response tag as apps may require it.
-        completion = [completion = std::move(completion), tag = restag, this](error result)
-        {
-            auto restorer = makeScopedValue(restag, tag);
-            completion(result);
-        }; // completion
-
-        // Wrap the user's completion function so that we also initialize the sync engine.
-        completion = [completion = std::move(completion), this](error result) {
-            // Initialize the sync engine and call the user's completion function.
-            injectSyncSensitiveData(std::move(completion), result);
-        }; // completion
-    }
-#endif // ENABLE_SYNC
 
     assert(!mV1PswdVault || accountversion == 1);
 
@@ -13744,7 +13909,12 @@ void MegaClient::upgradeAccountToV2(const string& pwd, int ctag, std::function<v
 
     fillCypheredAccountDataV2(pwd.c_str(), clientRandomValue, encmasterkey, hashedauthkey, salt);
 
-    reqs.add(new CommandAccountVersionUpgrade(std::move(clientRandomValue), std::move(encmasterkey), std::move(hashedauthkey), std::move(salt), ctag, completion));
+    queueCommand(new CommandAccountVersionUpgrade(std::move(clientRandomValue),
+                                                  std::move(encmasterkey),
+                                                  std::move(hashedauthkey),
+                                                  std::move(salt),
+                                                  ctag,
+                                                  completion));
 }
 // -------- end of Account upgrade to V2
 
@@ -13753,7 +13923,7 @@ void MegaClient::delua(const char *an)
 {
     if (an)
     {
-        reqs.add(new CommandDelUA(this, an));
+        queueCommand(new CommandDelUA(this, an));
     }
 }
 #endif
@@ -13765,7 +13935,7 @@ void MegaClient::senddevcommand(const char* command,
                                 int us,
                                 const char* abs_c)
 {
-    reqs.add(new CommandSendDevCommand(this, command, email, q, bs, us, abs_c));
+    queueCommand(new CommandSendDevCommand(this, command, email, q, bs, us, abs_c));
 }
 
 void MegaClient::transfercacheadd(Transfer *transfer, TransferDbCommitter* committer)
@@ -14241,22 +14411,22 @@ void MegaClient::getaccountdetails(std::shared_ptr<AccountDetails> ad, bool stor
 {
     if (storage || transfer || pro)
     {
-        reqs.add(new CommandGetUserQuota(this, ad, storage, transfer, pro, source));
+        queueCommand(new CommandGetUserQuota(this, ad, storage, transfer, pro, source));
     }
 
     if (transactions)
     {
-        reqs.add(new CommandGetUserTransactions(this, ad));
+        queueCommand(new CommandGetUserTransactions(this, ad));
     }
 
     if (purchases)
     {
-        reqs.add(new CommandGetUserPurchases(this, ad));
+        queueCommand(new CommandGetUserPurchases(this, ad));
     }
 
     if (sessions)
     {
-        reqs.add(new CommandGetUserSessions(this, ad));
+        queueCommand(new CommandGetUserSessions(this, ad));
     }
 }
 
@@ -14294,13 +14464,13 @@ void MegaClient::getstorageinfo(std::function<void(const StorageInfo&, Error)> c
                              std::placeholders::_1,
                              std::placeholders::_2);
 
-        return reqs.add(new CommandGetUserQuota(this,
-                                                std::make_shared<AccountDetails>(),
-                                                true  /* storage */,
-                                                false /* transfer */,
-                                                false /* pro */,
-                                                -1 /* source */,
-                                                std::move(callback)));
+        return queueCommand(new CommandGetUserQuota(this,
+                                                    std::make_shared<AccountDetails>(),
+                                                    true /* storage */,
+                                                    false /* transfer */,
+                                                    false /* pro */,
+                                                    -1 /* source */,
+                                                    std::move(callback)));
     }
 
     // Ask the NM for our root node's storage info.
@@ -14321,7 +14491,7 @@ void MegaClient::getstorageinfo(std::function<void(const StorageInfo&, Error)> c
 
 void MegaClient::querytransferquota(m_off_t size)
 {
-    reqs.add(new CommandQueryTransferQuota(this, size));
+    queueCommand(new CommandQueryTransferQuota(this, size));
 }
 
 // export node link
@@ -14443,14 +14613,14 @@ void MegaClient::requestPublicLink(Node* n,
                                    int tag,
                                    CommandSetPH::CompletionType f)
 {
-    reqs.add(new CommandSetPH(this, n, del, ets, writable, megaHosted, tag, std::move(f)));
+    queueCommand(new CommandSetPH(this, n, del, ets, writable, megaHosted, tag, std::move(f)));
 }
 
 // open exported file link
 // formats supported: ...#!publichandle!key, publichandle!key or file/<ph>[<params>][#<key>]
 void MegaClient::openfilelink(handle ph, const byte* fileKey)
 {
-    reqs.add(new CommandGetPH(this, ph, fileKey, 1)); // check link
+    queueCommand(new CommandGetPH(this, ph, fileKey, 1)); // check link
 }
 
 /* Format of password-protected links
@@ -14715,7 +14885,7 @@ void MegaClient::whyamiblocked()
     getmiscflags();
 
     // queue the actual request
-    reqs.add(new CommandWhyAmIblocked(this));
+    queueCommand(new CommandWhyAmIblocked(this));
 }
 
 void MegaClient::setBlocked(bool value)
@@ -14812,7 +14982,12 @@ error MegaClient::changePasswordV1(User* u, const char* password, const char* pi
 
     string email = u->email;
     uint64_t stringhash = stringhash64(&email, &pwcipher);
-    reqs.add(new CommandSetMasterKey(this, newkey, (const byte*)&stringhash, sizeof(stringhash), NULL, pin));
+    queueCommand(new CommandSetMasterKey(this,
+                                         newkey,
+                                         (const byte*)&stringhash,
+                                         sizeof(stringhash),
+                                         NULL,
+                                         pin));
     return API_OK;
 }
 
@@ -14826,8 +15001,13 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     fillCypheredAccountDataV2(password, clientRandomValue, encmasterkey, hashedauthkey, salt);
 
     // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
-    reqs.add(new CommandSetMasterKey(this, encmasterkey.data(), reinterpret_cast<const byte*>(hashedauthkey.data()), SymmCipher::KEYLENGTH,
-                                     clientRandomValue.data(), pin, &salt));
+    queueCommand(new CommandSetMasterKey(this,
+                                         encmasterkey.data(),
+                                         reinterpret_cast<const byte*>(hashedauthkey.data()),
+                                         SymmCipher::KEYLENGTH,
+                                         clientRandomValue.data(),
+                                         pin,
+                                         &salt));
     return API_OK;
 }
 
@@ -14885,13 +15065,13 @@ void MegaClient::createephemeral()
     key.setkey(pwbuf);
     key.ecb_encrypt(keybuf);
 
-    reqs.add(new CommandCreateEphemeralSession(this, keybuf, pwbuf, sscbuf));
+    queueCommand(new CommandCreateEphemeralSession(this, keybuf, pwbuf, sscbuf));
 }
 
 void MegaClient::resumeephemeral(handle uh, const byte* pw, int ctag)
 {
     ephemeralSession = true;
-    reqs.add(new CommandResumeEphemeralSession(this, uh, pw, ctag ? ctag : reqtag));
+    queueCommand(new CommandResumeEphemeralSession(this, uh, pw, ctag ? ctag : reqtag));
 }
 
 void MegaClient::resumeephemeralPlusPlus(const std::string& session)
@@ -14906,7 +15086,7 @@ void MegaClient::resumeephemeralPlusPlus(const std::string& session)
 
 void MegaClient::cancelsignup()
 {
-    reqs.add(new CommandCancelSignup(this));
+    queueCommand(new CommandCancelSignup(this));
 }
 
 void MegaClient::createephemeralPlusPlus()
@@ -14943,18 +15123,24 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
 
     accountversion = 2;
     accountsalt = salt;
-    reqs.add(new CommandSendSignupLink2(this, email, name, clientrandomvalue, encmasterkey, (byte*)hashedauthkey.data(), ctag ? ctag : reqtag));
+    queueCommand(new CommandSendSignupLink2(this,
+                                            email,
+                                            name,
+                                            clientrandomvalue,
+                                            encmasterkey,
+                                            (byte*)hashedauthkey.data(),
+                                            ctag ? ctag : reqtag));
     return string((const char*)derivedKey.data(), derivedKey.size());
 }
 
 void MegaClient::resendsignuplink2(const char *email, const char *name)
 {
-    reqs.add(new CommandSendSignupLink2(this, email, name));
+    queueCommand(new CommandSendSignupLink2(this, email, name));
 }
 
 void MegaClient::confirmsignuplink2(const byte *code, unsigned len)
 {
-    reqs.add(new CommandConfirmSignupLink2(this, code, len));
+    queueCommand(new CommandConfirmSignupLink2(this, code, len));
 }
 
 // generate and configure encrypted private key, plaintext public key
@@ -14987,11 +15173,11 @@ void MegaClient::setkeypair()
 
     key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), privks.size());
 
-    reqs.add(new CommandSetKeyPair(this,
-                                   (const byte*)privks.data(),
-                                   unsigned(privks.size()),
-                                   (const byte*)pubks.data(),
-                                   unsigned(pubks.size())));
+    queueCommand(new CommandSetKeyPair(this,
+                                       (const byte*)privks.data(),
+                                       unsigned(privks.size()),
+                                       (const byte*)pubks.data(),
+                                       unsigned(pubks.size())));
 
     mKeyManager.setPostRegistration(true);
 }
@@ -15811,22 +15997,21 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
-        auto onuserdataCompletion = [this,
-                                     fetchnodesTag
+
+        auto startCachedFetchNodes = [this,
+                                      fetchnodesTag
 #ifdef ENABLE_SYNC // maybe_unused not allowed for lambda captures
-                                     ,
-                                     loadSyncs
+                                      ,
+                                      loadSyncs
 #endif
-        ](string*, string*, string*, error e)
+        ](Error e)
         {
             restag = fetchnodesTag;
 
-            // upon ug completion
             if (e != API_OK)
             {
-                LOG_err << "Session load failed: unable to get user data";
-                app->fetchnodes_result(API_EINTERNAL);
-                return; //from completion function
+                // Notify and continue with or without JSCD attribute.
+                LOG_warn << "Unable to retrieve JSCD attribute. Continue loading from cache.";
             }
 
             WAIT_CLASS::bumpds();
@@ -15842,13 +16027,16 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             scsn.setScsn(cachedscsn);
             LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
 
-            assert(isClientType(ClientType::VPN) ||  // minimal fetch for VPN does not receive nodes
-                   mNodeManager.getNodeCount() > 0); // otherwise if you see this please investigate why (before we alter the db)
+            assert(
+                isClientType(ClientType::VPN) || // minimal fetch for VPN does not receive nodes
+                mNodeManager.getNodeCount() >
+                    0); // otherwise if you see this please investigate why (before we alter the db)
 
-            assert(isClientType(ClientType::VPN) || // minimal fetch for VPN does not receive nodes
-                   !mNodeManager.getRootNodeFiles().isUndef() ||  // we should know this by now - if
-                   (isClientType(ClientType::PASSWORD_MANAGER) && // not, why not, please investigate
-                    !mNodeManager.getRootNodeVault().isUndef())); // (before we alter the db)
+            assert(
+                isClientType(ClientType::VPN) || // minimal fetch for VPN does not receive nodes
+                !mNodeManager.getRootNodeFiles().isUndef() || // we should know this by now - if
+                (isClientType(ClientType::PASSWORD_MANAGER) && // not, why not, please investigate
+                 !mNodeManager.getRootNodeVault().isUndef())); // (before we alter the db)
 
             if (loggedIntoWritableFolder())
             {
@@ -15856,7 +16044,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                 // so as to include it in subsequent put nodes
                 if (std::shared_ptr<Node> n = nodeByHandle(mNodeManager.getRootNodeFiles()))
                 {
-                    n->sharekey.reset(new SymmCipher(key)); //we use the "master key", in this case the secret share key
+                    n->sharekey.reset(new SymmCipher(
+                        key)); // we use the "master key", in this case the secret share key
                 }
             }
 
@@ -15874,6 +16063,33 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
         };
 
+        auto onuserdataCompletion = [this,
+                                     fetchnodesTag,
+                                     startCachedFetchNodes = std::move(startCachedFetchNodes)
+#ifdef ENABLE_SYNC // maybe_unused not allowed for lambda captures
+                                         ,
+                                     loadSyncs
+#endif
+        ](string*, string*, string*, error e)
+        {
+            // upon ug completion
+            if (e != API_OK)
+            {
+                LOG_err << "Session load failed: unable to get user data";
+                restag = fetchnodesTag;
+                app->fetchnodes_result(API_EINTERNAL);
+                return; // from completion function
+            }
+
+#ifdef ENABLE_SYNC
+            if (loggedin() == FULLACCOUNT && loadSyncs)
+            {
+                injectSyncSensitiveData(std::move(startCachedFetchNodes));
+                return;
+            }
+#endif
+            startCachedFetchNodes(API_OK);
+        };
 
         if (!loggedIntoFolder())
         {
@@ -15905,23 +16121,12 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             // Make sure that our own user is defined
             finduser(me, 1);
 
-            // we need this one to ensure we have the sync config read/write key for example
-            getuserdata(0, [this, fetchtag, loadSyncs, nocache](string*, string*, string*, error e)
+            auto startFetchNodes = [this, fetchtag, loadSyncs, nocache](Error e)
             {
                 if (e != API_OK)
                 {
-                    LOG_err << "Pre-failing fetching nodes: unable not get user data";
-                    restag = fetchtag;
-                    fetchingnodes = false;
-                    app->fetchnodes_result(e);
-                    return;
-                }
-
-                if (loggedin() == FULLACCOUNT || loggedin() == EPHEMERALACCOUNTPLUSPLUS ||
-                    loggedin() == CONFIRMEDACCOUNT)
-                {
-                    initializekeys();
-                    loadAuthrings();
+                    // Notify and continue with or without JSCD attribute.
+                    LOG_warn << "Unable to retrieve JSCD attribute. Continue fetchnodes.";
                 }
 
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync
@@ -15934,11 +16139,11 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                 if (!isClientType(ClientType::PASSWORD_MANAGER) ||
                     (isClientType(ClientType::PASSWORD_MANAGER) && !partialFetchRoot.isUndef()))
                 {
-                    reqs.add(new CommandFetchNodes(this,
-                                                   fetchtag,
-                                                   nocache,
-                                                   loadSyncs,
-                                                   partialFetchRoot));
+                    queueCommand(new CommandFetchNodes(this,
+                                                       fetchtag,
+                                                       nocache,
+                                                       loadSyncs,
+                                                       partialFetchRoot));
                 }
                 else
                 {
@@ -15953,20 +16158,20 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                             {
                                 // Force request attribute, attribute change isn't received,
                                 // it's generated before fetch nodes
-                                reqs.add(new CommandGetUA(this,
-                                                          ownuser()->uid.c_str(),
-                                                          ATTR_PWM_BASE,
-                                                          nullptr,
-                                                          -1,
-                                                          nullptr,
-                                                          nullptr,
-                                                          nullptr));
+                                queueCommand(new CommandGetUA(this,
+                                                              ownuser()->uid.c_str(),
+                                                              ATTR_PWM_BASE,
+                                                              nullptr,
+                                                              -1,
+                                                              nullptr,
+                                                              nullptr,
+                                                              nullptr));
 
-                                reqs.add(new CommandFetchNodes(this,
-                                                               fetchtag,
-                                                               nocache,
-                                                               loadSyncs,
-                                                               newNode->nodeHandle()));
+                                queueCommand(new CommandFetchNodes(this,
+                                                                   fetchtag,
+                                                                   nocache,
+                                                                   loadSyncs,
+                                                                   newNode->nodeHandle()));
                             }
                             else
                             {
@@ -15974,14 +16179,51 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                             }
                         });
                 }
-            });
+            };
+
+            auto getUserDataCompletion = [this,
+                                          fetchtag,
+                                          startFetchNodes = std::move(startFetchNodes)
+#ifdef ENABLE_SYNC // maybe_unused not allowed for lambda captures
+                                              ,
+                                          loadSyncs
+#endif
+            ](string*, string*, string*, error e)
+            {
+                if (e != API_OK)
+                {
+                    LOG_err << "Pre-failing fetching nodes: unable to get user data";
+                    restag = fetchtag;
+                    fetchingnodes = false;
+                    app->fetchnodes_result(e);
+                    return;
+                }
+
+                if (loggedin() == FULLACCOUNT || loggedin() == EPHEMERALACCOUNTPLUSPLUS ||
+                    loggedin() == CONFIRMEDACCOUNT)
+                {
+                    initializekeys();
+                    loadAuthrings();
+                }
+
+#ifdef ENABLE_SYNC
+                if (loggedin() == FULLACCOUNT && loadSyncs)
+                {
+                    injectSyncSensitiveData(std::move(startFetchNodes));
+                    return;
+                }
+#endif
+                startFetchNodes(API_OK);
+            };
+
+            getuserdata(0, std::move(getUserDataCompletion));
 
             fetchtimezone();
         }
         else
         {
             actionpacketsCurrent = false;
-            reqs.add(new CommandFetchNodes(this, reqtag, nocache, loadSyncs));
+            queueCommand(new CommandFetchNodes(this, reqtag, nocache, loadSyncs));
         }
     }
 }
@@ -17755,24 +17997,26 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
     string deviceIdHash = getDeviceidHash();
     BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
-    reqs.add( new CommandBackupPut(this, info,
-                                  [this, config, completion](Error e, handle backupId) {
-        if (!e)
-        {
-            if (ISUNDEF(backupId))
-            {
-                e = API_EINTERNAL;
-            }
-            else
-            {
-                auto configWithId = config;
-                configWithId.mBackupId = backupId;
-                e = syncs.syncConfigStoreAdd(configWithId);
-            }
-        }
+    queueCommand(new CommandBackupPut(this,
+                                      info,
+                                      [this, config, completion](Error e, handle backupId)
+                                      {
+                                          if (!e)
+                                          {
+                                              if (ISUNDEF(backupId))
+                                              {
+                                                  e = API_EINTERNAL;
+                                              }
+                                              else
+                                              {
+                                                  auto configWithId = config;
+                                                  configWithId.mBackupId = backupId;
+                                                  e = syncs.syncConfigStoreAdd(configWithId);
+                                              }
+                                          }
 
-        completion(backupId, e);
-    }));
+                                          completion(backupId, e);
+                                      }));
 }
 
 void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion)
@@ -17895,7 +18139,7 @@ void MegaClient::setSyncUploadThrottleParamsFromAPI()
         handleSetThrottleResult(result);
     };
 
-    reqs.add(
+    queueCommand(
         new CommandSetThrottlingParams(*this, std::move(commandSetThrottlingParamsCompletion)));
 
     mSetSyncUploadThrottleParamsFromAPILastTime = std::chrono::steady_clock::now();
@@ -17975,27 +18219,30 @@ void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncErro
     // Add the sync.
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
-    reqs.add(new CommandBackupPut(this, info,
-        [this, config, completion, logname, excludedPath](Error e, handle backupId) mutable {
-        if (ISUNDEF(backupId) && !e)
+    queueCommand(new CommandBackupPut(
+        this,
+        info,
+        [this, config, completion, logname, excludedPath](Error e, handle backupId) mutable
         {
-            LOG_debug << "Request for backupId failed for sync add";
-            e = API_EFAILED;
-        }
+            if (ISUNDEF(backupId) && !e)
+            {
+                LOG_debug << "Request for backupId failed for sync add";
+                e = API_EFAILED;
+            }
 
-        if (e)
-        {
-            LOG_warn << "Failed to register heartbeat record for new sync. Error: " << int(e);
-            completion(e, config.mError, backupId);
-        }
-        else
-        {
-            // if we got this far, the syncConfig is kept (in db and in memory)
-            config.mBackupId = backupId;
+            if (e)
+            {
+                LOG_warn << "Failed to register heartbeat record for new sync. Error: " << int(e);
+                completion(e, config.mError, backupId);
+            }
+            else
+            {
+                // if we got this far, the syncConfig is kept (in db and in memory)
+                config.mBackupId = backupId;
 
-            syncs.appendNewSync(config, true, completion, true, logname, excludedPath);
-        }
-    }));
+                syncs.appendNewSync(config, true, completion, true, logname, excludedPath);
+            }
+        }));
 }
 
 
@@ -18369,7 +18616,7 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
         makeattr(&tkey, nn->attrstring, tattrstring.c_str());
     }
 
-    reqs.add(new CommandPutNodes(
+    queueCommand(new CommandPutNodes(
         this,
         binNode->nodeHandle(),
         NULL,
@@ -19237,7 +19484,8 @@ void MegaClient::setchunkfailed(string* url)
 void MegaClient::reportevent(const char* event, const char* details)
 {
     LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
-    reqs.add(new CommandSendReport(this, event, details, Base64Str<MegaClient::USERHANDLE>(me)));
+    queueCommand(
+        new CommandSendReport(this, event, details, Base64Str<MegaClient::USERHANDLE>(me)));
 }
 
 void MegaClient::reportevent(const char* event, const char* details, int tag)
@@ -19344,13 +19592,13 @@ void MegaClient::userfeedbackstore(const char *message)
     Base64::btoa((byte *)useragent.data(), int(useragent.size()), (char *)base64userAgent.data());
     type.append(base64userAgent);
 
-    reqs.add(new CommandSendReport(this, type.c_str(), message, NULL));
+    queueCommand(new CommandSendReport(this, type.c_str(), message, NULL));
 }
 
 void MegaClient::sendevent(int event, const char *desc, const char* viewId, bool addJourneyId)
 {
     LOG_warn << clientname << "Event " << event << ": " << desc;
-    reqs.add(new CommandSendEvent(this, event, desc, addJourneyId, viewId));
+    queueCommand(new CommandSendEvent(this, event, desc, addJourneyId, viewId));
 }
 
 void MegaClient::sendevent(int event, const char *message, int tag, const char *viewId, bool addJourneyId)
@@ -19363,33 +19611,41 @@ void MegaClient::sendevent(int event, const char *message, int tag, const char *
 
 void MegaClient::supportticket(const char *message, int type)
 {
-    reqs.add(new CommandSupportTicket(this, message, type));
+    queueCommand(new CommandSupportTicket(this, message, type));
 }
 
 void MegaClient::cleanrubbishbin()
 {
-    reqs.add(new CommandCleanRubbishBin(this));
+    queueCommand(new CommandCleanRubbishBin(this));
 }
 
 #ifdef ENABLE_CHAT
 void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector* userpriv, const string_map* userkeymap, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
-    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom, chatOptions, schedMeeting));
+    queueCommand(new CommandChatCreate(this,
+                                       group,
+                                       publicchat,
+                                       userpriv,
+                                       userkeymap,
+                                       title,
+                                       meetingRoom,
+                                       chatOptions,
+                                       schedMeeting));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)
 {
-    reqs.add(new CommandChatInvite(this, chatid, uh, (privilege_t) priv, unifiedkey, title));
+    queueCommand(new CommandChatInvite(this, chatid, uh, (privilege_t)priv, unifiedkey, title));
 }
 
 void MegaClient::removeFromChat(handle chatid, handle uh)
 {
-    reqs.add(new CommandChatRemove(this, chatid, uh));
+    queueCommand(new CommandChatRemove(this, chatid, uh));
 }
 
 void MegaClient::getUrlChat(handle chatid)
 {
-    reqs.add(new CommandChatURL(this, chatid));
+    queueCommand(new CommandChatURL(this, chatid));
 }
 
 void MegaClient::setChatMode(TextChat* chat, bool pubChat)
@@ -19470,72 +19726,72 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
 
 void MegaClient::grantAccessInChat(handle chatid, handle h, const char* peer)
 {
-    reqs.add(new CommandChatGrantAccess(this, chatid, h, peer));
+    queueCommand(new CommandChatGrantAccess(this, chatid, h, peer));
 }
 
 void MegaClient::removeAccessInChat(handle chatid, handle h, const char* peer)
 {
-    reqs.add(new CommandChatRemoveAccess(this, chatid, h, peer));
+    queueCommand(new CommandChatRemoveAccess(this, chatid, h, peer));
 }
 
 void MegaClient::updateChatPermissions(handle chatid, handle uh, int priv)
 {
-    reqs.add(new CommandChatUpdatePermissions(this, chatid, uh, (privilege_t) priv));
+    queueCommand(new CommandChatUpdatePermissions(this, chatid, uh, (privilege_t)priv));
 }
 
 void MegaClient::truncateChat(handle chatid, handle messageid)
 {
-    reqs.add(new CommandChatTruncate(this, chatid, messageid));
+    queueCommand(new CommandChatTruncate(this, chatid, messageid));
 }
 
 void MegaClient::setChatTitle(handle chatid, const char *title)
 {
-    reqs.add(new CommandChatSetTitle(this, chatid, title));
+    queueCommand(new CommandChatSetTitle(this, chatid, title));
 }
 
 void MegaClient::getChatPresenceUrl()
 {
-    reqs.add(new CommandChatPresenceURL(this));
+    queueCommand(new CommandChatPresenceURL(this));
 }
 
 void MegaClient::registerPushNotification(int deviceType, const char *token)
 {
-    reqs.add(new CommandRegisterPushNotification(this, deviceType, token));
+    queueCommand(new CommandRegisterPushNotification(this, deviceType, token));
 }
 
 void MegaClient::archiveChat(handle chatid, bool archived)
 {
-    reqs.add(new CommandArchiveChat(this, chatid, archived));
+    queueCommand(new CommandArchiveChat(this, chatid, archived));
 }
 
 void MegaClient::richlinkrequest(const char *url)
 {
-    reqs.add(new CommandRichLink(this, url));
+    queueCommand(new CommandRichLink(this, url));
 }
 
 void MegaClient::chatlink(handle chatid, bool del, bool createifmissing)
 {
-    reqs.add(new CommandChatLink(this, chatid, del, createifmissing));
+    queueCommand(new CommandChatLink(this, chatid, del, createifmissing));
 }
 
 void MegaClient::chatlinkurl(handle publichandle)
 {
-    reqs.add(new CommandChatLinkURL(this, publichandle));
+    queueCommand(new CommandChatLinkURL(this, publichandle));
 }
 
 void MegaClient::chatlinkclose(handle chatid, const char *title)
 {
-    reqs.add(new CommandChatLinkClose(this, chatid, title));
+    queueCommand(new CommandChatLinkClose(this, chatid, title));
 }
 
 void MegaClient::chatlinkjoin(handle publichandle, const char *unifiedkey)
 {
-    reqs.add(new CommandChatLinkJoin(this, publichandle, unifiedkey));
+    queueCommand(new CommandChatLinkJoin(this, publichandle, unifiedkey));
 }
 
 void MegaClient::setchatretentiontime(handle chatid, unsigned period)
 {
-    reqs.add(new CommandSetChatRetentionTime(this, chatid, period));
+    queueCommand(new CommandSetChatRetentionTime(this, chatid, period));
 }
 
 error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>& schedMeetings,
@@ -20065,12 +20321,12 @@ void MegaClient::reportInvalidSchedMeeting(const ScheduledMeeting* sched)
 
 void MegaClient::getaccountachievements(AchievementsDetails *details)
 {
-    reqs.add(new CommandGetMegaAchievements(this, details));
+    queueCommand(new CommandGetMegaAchievements(this, details));
 }
 
 void MegaClient::getmegaachievements(AchievementsDetails *details)
 {
-    reqs.add(new CommandGetMegaAchievements(this, details, false));
+    queueCommand(new CommandGetMegaAchievements(this, details, false));
 }
 
 bool MegaClient::startDriveMonitor()
@@ -20320,14 +20576,18 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
         encrAttrs.reset(new string(std::move(enc)));
     }
 
-    reqs.add(new CommandPutSet(this, std::move(s), std::move(encrAttrs), std::move(encrSetKey), completion));
+    queueCommand(new CommandPutSet(this,
+                                   std::move(s),
+                                   std::move(encrAttrs),
+                                   std::move(encrSetKey),
+                                   completion));
 }
 
 void MegaClient::removeSet(handle setID, std::function<void(Error)> completion)
 {
     if (getSet(setID))
     {
-        reqs.add(new CommandRemoveSet(this, setID, completion));
+        queueCommand(new CommandRemoveSet(this, setID, completion));
     }
     else if (completion)
     {
@@ -20393,7 +20653,8 @@ void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Err
         }
     }
 
-    reqs.add(new CommandPutSetElements(this, std::move(els), std::move(encrDetails), completion));
+    queueCommand(
+        new CommandPutSetElements(this, std::move(els), std::move(encrDetails), completion));
 }
 
 
@@ -20479,7 +20740,11 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
         encrAttrs.reset(new string(std::move(enc)));
     }
 
-    reqs.add(new CommandPutSetElement(this, std::move(el), std::move(encrAttrs), std::move(encrKey), completion));
+    queueCommand(new CommandPutSetElement(this,
+                                          std::move(el),
+                                          std::move(encrAttrs),
+                                          std::move(encrKey),
+                                          completion));
 }
 
 void MegaClient::removeSetElements(handle setID,
@@ -20504,7 +20769,7 @@ void MegaClient::removeSetElements(handle setID,
     // Do not validate Element ids here. Let the API return error for invalid ones,
     // to allow valid ones to be removed.
 
-    reqs.add(new CommandRemoveSetElements(this, setID, std::move(eids), completion));
+    queueCommand(new CommandRemoveSetElements(this, setID, std::move(eids), completion));
 }
 
 void MegaClient::removeSetElement(handle setID, handle eid, std::function<void(Error)> completion)
@@ -20518,7 +20783,7 @@ void MegaClient::removeSetElement(handle setID, handle eid, std::function<void(E
         return;
     }
 
-    reqs.add(new CommandRemoveSetElement(this, setID, eid, completion));
+    queueCommand(new CommandRemoveSetElement(this, setID, eid, completion));
 }
 
 bool MegaClient::procaesp(JSON& j)
@@ -21320,10 +21585,10 @@ const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
     return &added;
 }
 
-void MegaClient::sc_asp()
+void MegaClient::sc_asp(JSON& json)
 {
     Set s;
-    error e = readSet(jsonsc, s);
+    error e = readSet(json, s);
     if (e != API_OK)
     {
         LOG_err << "Sets: Failed to parse `asp` action packet";
@@ -21363,17 +21628,17 @@ void MegaClient::sc_asp()
     }
 }
 
-void MegaClient::sc_asr()
+void MegaClient::sc_asr(JSON& json)
 {
     handle setId = UNDEF;
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("id"):
             {
-            setId = jsonsc.gethandle(MegaClient::SETHANDLE);
-            break;
+                setId = json.gethandle(MegaClient::SETHANDLE);
+                break;
             }
 
         case EOO:
@@ -21385,7 +21650,7 @@ void MegaClient::sc_asr()
             return;
 
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 LOG_warn << "Sets: Failed to parse `asr` action packet";
                 return;
@@ -21394,10 +21659,10 @@ void MegaClient::sc_asr()
     }
 }
 
-void MegaClient::sc_aep()
+void MegaClient::sc_aep(JSON& json)
 {
     SetElement el;
-    if (readElement(jsonsc, el) != API_OK)
+    if (readElement(json, el) != API_OK)
     {
         LOG_err << "Sets: `aep` action packet: failed to parse data";
         return;
@@ -21425,21 +21690,21 @@ void MegaClient::sc_aep()
     addOrUpdateSetElement(std::move(el));
 }
 
-void MegaClient::sc_aer()
+void MegaClient::sc_aer(JSON& json)
 {
     handle elemId = UNDEF;
     handle setId = UNDEF;
 
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (json.getnameid())
         {
         case makeNameid("id"):
-            elemId = jsonsc.gethandle(MegaClient::SETELEMENTHANDLE);
+            elemId = json.gethandle(MegaClient::SETELEMENTHANDLE);
             break;
 
         case makeNameid("s"):
-            setId = jsonsc.gethandle(MegaClient::SETHANDLE);
+            setId = json.gethandle(MegaClient::SETHANDLE);
             break;
 
           case EOO:
@@ -21451,7 +21716,7 @@ void MegaClient::sc_aer()
             return;
 
         default:
-            if (!jsonsc.storeobject())
+            if (!json.storeobject())
             {
                 LOG_warn << "Sets: Failed to parse `aer` action packet";
                 return;
@@ -21469,7 +21734,7 @@ error MegaClient::readExportedSet(JSON& j, Set& s)
     bool isDown = false;
     for (;;)
     {
-        switch (jsonsc.getnameid())
+        switch (j.getnameid())
         {
         case makeNameid("s"):
             s.setId(j.gethandle(MegaClient::SETHANDLE));
@@ -21626,10 +21891,10 @@ error MegaClient::readSetsPublicHandles(JSON& j, map<handle, Set>& sets)
     return e;
 }
 
-void MegaClient::sc_ass()
+void MegaClient::sc_ass(JSON& json)
 {
     Set s;
-    const error e = readExportedSet(jsonsc, s);
+    const error e = readExportedSet(json, s);
 
     if (e != API_OK)
     {
@@ -21673,7 +21938,7 @@ void MegaClient::exportSet(handle setID, bool makePublic, std::function<void(Err
         else
         {
             Set s(*setToBeUpdated);
-            reqs.add(new CommandExportSet(this, std::move(s), makePublic, completion));
+            queueCommand(new CommandExportSet(this, std::move(s), makePublic, completion));
         }
     }
     else
@@ -21733,7 +21998,7 @@ void MegaClient::fetchSetInPreviewMode(std::function<void(Error, Set*, elementsm
         }
         completion(e, s, els);
     };
-    reqs.add(new CommandFetchSet(this, clientUpdateOnCompletion));
+    queueCommand(new CommandFetchSet(this, clientUpdateOnCompletion));
 }
 
 error MegaClient::fetchPublicSet(const char* publicSetLink,
@@ -22033,7 +22298,7 @@ void MegaClient::setEmail(User* u, const string& email)
 
 Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)
 {
-    reqs.add(new CommandABTestActive(this, flag, std::move(completion)));
+    queueCommand(new CommandABTestActive(this, flag, std::move(completion)));
     return API_OK;
 }
 
@@ -22054,32 +22319,35 @@ StringKeyPair MegaClient::generateVpnKeyPair()
 // Call "vpnr" command.
 void MegaClient::getVpnRegions(CommandGetVpnRegions::Cb&& completion)
 {
-    reqs.add(new CommandGetVpnRegions(this, std::move(completion)));
+    queueCommand(new CommandGetVpnRegions(this, std::move(completion)));
 }
 
 // Call "vpng" command.
 void MegaClient::getVpnCredentials(CommandGetVpnCredentials::Cb&& completion)
 {
-    reqs.add(new CommandGetVpnCredentials(this, std::move(completion)));
+    queueCommand(new CommandGetVpnCredentials(this, std::move(completion)));
 }
 
 // Call "vpnp" command.
 void MegaClient::putVpnCredential(std::string&& vpnRegion, CommandPutVpnCredential::Cb&& completion)
 {
     auto vpnKeyPair = generateVpnKeyPair();
-    reqs.add(new CommandPutVpnCredential(this, std::move(vpnRegion), std::move(vpnKeyPair), std::move(completion)));
+    queueCommand(new CommandPutVpnCredential(this,
+                                             std::move(vpnRegion),
+                                             std::move(vpnKeyPair),
+                                             std::move(completion)));
 }
 
 // Call "vpnd" command.
 void MegaClient::delVpnCredential(int slotID, CommandDelVpnCredential::Cb&& completion)
 {
-    reqs.add(new CommandDelVpnCredential(this, slotID, std::move(completion)));
+    queueCommand(new CommandDelVpnCredential(this, slotID, std::move(completion)));
 }
 
 // Call "vpnc" command.
 void MegaClient::checkVpnCredential(std::string&& userPubKey, CommandDelVpnCredential::Cb&& completion)
 {
-    reqs.add(new CommandCheckVpnCredential(this, std::move(userPubKey), std::move(completion)));
+    queueCommand(new CommandCheckVpnCredential(this, std::move(userPubKey), std::move(completion)));
 }
 
 // Generate the credential string.
@@ -22134,7 +22402,7 @@ string MegaClient::generateVpnCredentialString(const std::string& host,
 void MegaClient::getNetworkConnectivityTestServerInfo(
     CommandGetNetworkConnectivityTestServerInfo::Completion&& completion)
 {
-    reqs.add(new CommandGetNetworkConnectivityTestServerInfo(this, std::move(completion)));
+    queueCommand(new CommandGetNetworkConnectivityTestServerInfo(this, std::move(completion)));
 }
 
 void MegaClient::runNetworkConnectivityTest(
@@ -22220,7 +22488,7 @@ void MegaClient::sendNetworkConnectivityTestEvent(const NetworkConnectivityTestR
 
 void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion)
 {
-    reqs.add(new CommandFetchCreditCard(this, std::move(completion)));
+    queueCommand(new CommandFetchCreditCard(this, std::move(completion)));
 }
 
 const char* const MegaClient::NODE_ATTR_PASSWORD_MANAGER = "pwm";
@@ -22287,7 +22555,8 @@ void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManage
                           encryptedKey.data(), newNode->nodekey.size());
     newNode->nodekey.assign(reinterpret_cast<char*>(encryptedKey.data()), encryptedKey.size());
 
-    reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rTag, std::move(cbRequest)));
+    queueCommand(
+        new CommandCreatePasswordManagerBase(this, std::move(newNode), rTag, std::move(cbRequest)));
 }
 
 error MegaClient::createPasswordEntry(const char* name,
@@ -22703,24 +22972,24 @@ std::string MegaClient::generatePasswordChars(const bool useUpper,
 
 void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
 {
-    reqs.add(new CommandGetNotifications(this, onResult));
+    queueCommand(new CommandGetNotifications(this, onResult));
 }
 
 void MegaClient::getActiveSurveyTriggerActions(
     CommandGetActiveSurveyTriggerActions::Completion&& completion)
 {
-    reqs.add(new CommandGetActiveSurveyTriggerActions(this, std::move(completion)));
+    queueCommand(new CommandGetActiveSurveyTriggerActions(this, std::move(completion)));
 }
 
 void MegaClient::getSurvey(unsigned int triggerActionId, CommandGetSurvey::Completion&& completion)
 {
-    reqs.add(new CommandGetSurvey(this, triggerActionId, std::move(completion)));
+    queueCommand(new CommandGetSurvey(this, triggerActionId, std::move(completion)));
 }
 
 void MegaClient::answerSurvey(const CommandAnswerSurvey::Answer& answer,
                               CommandAnswerSurvey::Completion&& completion)
 {
-    reqs.add(new CommandAnswerSurvey(this, answer, std::move(completion)));
+    queueCommand(new CommandAnswerSurvey(this, answer, std::move(completion)));
 }
 
 std::pair<uint32_t, uint32_t> MegaClient::getFlag(const char* flagName)
@@ -23331,18 +23600,22 @@ bool KeyManager::promotePendingShares()
                     std::string encryptedKey = encryptShareKeyTo(u->userhandle, shareit->second.first);
                     if (encryptedKey.size())
                     {
-                        mClient.reqs.add(new CommandPendingKeys(&mClient, u->userhandle, nodehandle, (byte *)encryptedKey.data(),
-                        [uid](Error err)
-                        {
-                            if (err)
+                        mClient.queueCommand(new CommandPendingKeys(
+                            &mClient,
+                            u->userhandle,
+                            nodehandle,
+                            (byte*)encryptedKey.data(),
+                            [uid](Error err)
                             {
-                                LOG_err << "Error sending share key: " << err;
-                            }
-                            else
-                            {
-                                LOG_debug << "Share key correctly sent";
-                            }
-                        }));
+                                if (err)
+                                {
+                                    LOG_err << "Error sending share key: " << err;
+                                }
+                                else
+                                {
+                                    LOG_debug << "Share key correctly sent";
+                                }
+                            }));
 
                         keysToDelete.push_back(uid);
                         attributeUpdated = true;
@@ -23744,7 +24017,7 @@ void KeyManager::updateAttribute(std::function<void (Error)> completion)
 
                       mClient.sendevent(99462, "KeyMgr / Versioning clash for ^!keys");
 
-                      mClient.reqs.add(new CommandGetUA(
+                      mClient.queueCommand(new CommandGetUA(
                           &mClient,
                           ownUser->uid.c_str(),
                           ATTR_KEYS,
@@ -24474,6 +24747,7 @@ ScDbStateRecord ScDbStateRecord::unserialize(const std::string& data)
     return result;
 }
 
+#ifdef ENABLE_SYNC
 void MegaClient::getJSCData(GetJSCDataCallback callback)
 {
     // Sanity.
@@ -24532,19 +24806,10 @@ void MegaClient::createJSCData(GetJSCDataCallback callback)
           bind(&MegaClient::JSCDataCreated, this, std::move(callback), _1));
 }
 
-#ifdef ENABLE_SYNC
-
-void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
-                                         Error result)
+void MegaClient::injectSyncSensitiveData(std::function<void(error)> callback)
 {
     // Sanity.
     assert(callback);
-
-    // Couldn't log the user in.
-    if (result != API_OK)
-    {
-        return callback(result);
-    }
 
     // Called when the JSCD user attributes have been retrieved.
     auto retrieved = [callback = std::move(callback), this]
@@ -24559,7 +24824,7 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
                 fatalError(ErrorReason::REASON_ERROR_NO_JSCD);
             }
 
-            // This shouldn't prevent the user from logging on, however.
+            // This shouldn't prevent the user from continue using the account.
             return callback(API_OK);
         }
 
@@ -24571,17 +24836,16 @@ void MegaClient::injectSyncSensitiveData(CommandLogin::Completion callback,
                                            sizeof(key.key));
 
         // Inject sensitive data into the sync engine.
+        LOG_debug << "JSCD retrieved. Injecting data to the sync system.";
         syncs.injectSyncSensitiveData(std::move(sensitiveData));
 
-        // Let the user know that they're logged in.
+        // Let the user know that JSCD has been successfully retrieved.
         callback(API_OK);
     }; // retrieved
 
     // Try and retrieve the JSC data.
     getJSCData(std::move(retrieved));
 }
-
-#endif // ENABLE_SYNC
 
 void MegaClient::JSCDataCreated(GetJSCDataCallback& callback,
                                 Error result)
@@ -24671,11 +24935,12 @@ void MegaClient::JSCDataRetrieved(GetJSCDataCallback& callback,
     // Pass attributes to callback.
     callback(std::move(data), API_OK);
 }
+#endif // ENABLE_SYNC
 
 // Call "wmip" command.
 void MegaClient::getMyIp(CommandGetMyIP::Cb&& completion)
 {
-    reqs.add(new CommandGetMyIP(this, std::move(completion)));
+    queueCommand(new CommandGetMyIP(this, std::move(completion)));
 }
 
 // Call "gsc" command.
@@ -24684,10 +24949,26 @@ void MegaClient::getSubscriptionCancellationDetails(
     unsigned int gatewayId,
     CommandGetSubscriptionCancellationDetails::CompletionCallback&& completion)
 {
-    reqs.add(new CommandGetSubscriptionCancellationDetails(this,
-                                                           originalTransactionId,
-                                                           gatewayId,
-                                                           std::move(completion)));
+    queueCommand(new CommandGetSubscriptionCancellationDetails(this,
+                                                               originalTransactionId,
+                                                               gatewayId,
+                                                               std::move(completion)));
+}
+
+void MegaClient::queueCommand(Command* command)
+{
+    // Convenience.
+    using common::Badge;
+
+    // Sanity.
+    assert(command);
+
+    // Transmit lockless commands on the lockless CS channel.
+    if (command->isLockless())
+        return mReqsLockless.add({}, command);
+
+    // Transmit lockfull commands on the standard CS channel.
+    reqs.add({}, command);
 }
 
 void MegaClient::processHashcashSendevent()
