@@ -266,6 +266,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromStart)
     EXPECT_EQ(consumed, 0);
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_EQ(0, capturedData.size());
 
     // No need to purge because the consumed length is 0
@@ -274,6 +275,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromStart)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
     EXPECT_THAT(capturedData, testing::ElementsAre("d", "x"));
 }
 
@@ -312,6 +314,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromMiddle)
     EXPECT_EQ(consumed, 16); // {"a":[{"a": "d",
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_THAT(capturedData, testing::ElementsAre("d"));
 
     // Must purge consumed bytes before next call
@@ -321,6 +324,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromMiddle)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
     EXPECT_THAT(capturedData, testing::ElementsAre("d", "x"));
 }
 
@@ -366,6 +370,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseAtStringValue)
     EXPECT_EQ(consumed, 0);
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_EQ(0, capturedValues.size());
 
     // Second call should pause at key1's string value
@@ -373,6 +378,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseAtStringValue)
     EXPECT_EQ(consumed, 0);
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_EQ(0, capturedValues.size());
 
     // Second call should process all remaining values
@@ -380,6 +386,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseAtStringValue)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
     EXPECT_THAT(capturedValues, testing::ElementsAre("value1", "value2", "value3"));
 }
 
@@ -446,6 +453,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseCheckStartAndEndFilters)
     EXPECT_EQ(consumed, 0);
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_EQ(0, capturedValues.size());
     EXPECT_EQ(0, flag);
 
@@ -454,6 +462,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseCheckStartAndEndFilters)
     EXPECT_EQ(consumed, 0);
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_EQ(0, capturedValues.size());
     EXPECT_EQ(0, flag);
 
@@ -462,6 +471,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseCheckStartAndEndFilters)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
     EXPECT_THAT(capturedValues, testing::ElementsAre("value1", "value2", "value3"));
     EXPECT_EQ(0, flag);
 }
@@ -511,6 +521,7 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
     EXPECT_EQ(consumed, 5); // {"a":  - up to outer filter start
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_EQ(1, innerCallCount);
     EXPECT_EQ(0, outerCallCount); // Outer not reached yet
     EXPECT_EQ(0, capturedInnerValues.size());
@@ -524,6 +535,7 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
     EXPECT_EQ(2, innerCallCount); // Inner called again
     EXPECT_EQ(1, outerCallCount); // Outer called
     EXPECT_THAT(capturedInnerValues, testing::ElementsAre("abc"));
