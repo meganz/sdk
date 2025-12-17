@@ -17704,20 +17704,19 @@ bool MegaClient::execdirectreads()
     CodeCounter::ScopeTimer ccst(performanceStats.execdirectreads);
 
     bool r = false;
-    DirectReadSlot* drs;
 
-    if (drq.size() < MAXDRSLOTS)
+    if (drss.size() < MAXDRSLOTS)
     {
         // fill slots
         for (dr_list::iterator it = drq.begin(); it != drq.end(); it++)
         {
             if (!(*it)->drs)
             {
-                drs = new DirectReadSlot(*it);
-                (*it)->drs = drs;
+                (*it)->drs = new DirectReadSlot(*it);
                 r = true;
 
-                if (drq.size() >= MAXDRSLOTS) break;
+                if (drss.size() >= MAXDRSLOTS)
+                    break;
             }
         }
     }
