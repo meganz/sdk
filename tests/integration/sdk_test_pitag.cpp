@@ -102,9 +102,13 @@ private:
     bool mCaptured{false};
     std::string mLastValue;
 };
+
+class SdkTestPitag: public SdkTest
+{};
+
 } // anonymous namespace
 
-TEST_F(SdkTest, PitagCapturedForRegularUpload)
+TEST_F(SdkTestPitag, PitagCapturedForRegularUpload)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -136,7 +140,41 @@ TEST_F(SdkTest, PitagCapturedForRegularUpload)
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
-TEST_F(SdkTest, PitagCapturedForIncomingShareUpload)
+TEST_F(SdkTestPitag, PitagCapturedForCreateFolder)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << "Unable to get root node";
+
+    PitagCommandObserver observer;
+
+    createFolder(0, "Folder", rootNode.get());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("F.FD.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitag, PitagCapturedForUploadWithFolderController)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << "Unable to get root node";
+
+    PitagCommandObserver observer;
+
+    createFolder(0, "Folder", rootNode.get());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("F.FD.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitag, PitagCapturedForIncomingShareUpload)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 

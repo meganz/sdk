@@ -955,7 +955,8 @@ public:
                   int tag,
                   bool canChangeVault,
                   std::string customerIpPort = {},
-                  CommandPutNodes::Completion&& completion = nullptr);
+                  CommandPutNodes::Completion&& completion = nullptr,
+                  std::optional<Pitag> pitag = std::nullopt);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);

@@ -9934,7 +9934,8 @@ void MegaClient::putnodes(NodeHandle h,
                           int tag,
                           bool canChangeVault,
                           string customerIpPort,
-                          CommandPutNodes::Completion&& resultFunction)
+                          CommandPutNodes::Completion&& resultFunction,
+                          std::optional<Pitag> pitag)
 {
     queueCommand(new CommandPutNodes(this,
                                      h,
@@ -9946,7 +9947,8 @@ void MegaClient::putnodes(NodeHandle h,
                                      cauth,
                                      std::move(resultFunction),
                                      canChangeVault,
-                                     customerIpPort));
+                                     customerIpPort,
+                                     pitag));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs
@@ -10211,9 +10213,28 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
     putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault);
     const char* cauth = nullptr;
 
+    const bool inIncomingShare = parent && parent->matchesOrHasAncestorMatching(
+                                               [](const Node& node)
+                                               {
+                                                   return node.inshare != nullptr;
+                                               });
+
+    Pitag pitag;
+    pitag.purpose = PitagPurpose::CreateFolder;
+    pitag.nodeType = PitagNodeType::Folder;
+    pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+
     // newNode.nodekey will be encrypted with user's MK in Command construction
     // using existing logic with default client->app->putnodes_result as callback for completion
-    putnodes(parent->nodeHandle(), VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
+    putnodes(parent->nodeHandle(),
+             VersioningOption::NoVersioning,
+             std::move(nn),
+             cauth,
+             rTag,
+             canChangeVault,
+             {},
+             nullptr,
+             pitag);
 
     return API_OK;
 }

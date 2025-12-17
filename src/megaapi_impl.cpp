@@ -31188,6 +31188,19 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         // use a weak_ptr in case this operation was cancelled, and 'this' object doesn't exist
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
+
+        auto parent = megaApi->client->mNodeManager.getNodeByHandle(
+            NodeHandle().set6byte(tree.megaNode->getHandle()));
+        const bool inIncomingShare = parent && parent->matchesOrHasAncestorMatching(
+                                                   [](const Node& node)
+                                                   {
+                                                       return node.inshare != nullptr;
+                                                   });
+
+        Pitag pitag;
+        pitag.purpose = PitagPurpose::CreateFolder;
+        pitag.nodeType = PitagNodeType::Folder;
+        pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
         megaapiThreadClient()->putnodes(
             NodeHandle().set6byte(tree.megaNode->getHandle()),
             UseLocalVersioningFlag,
@@ -31228,7 +31241,8 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                            r == batchResult_batchesComplete);
 
                 }
-            });
+            },
+            pitag);
 
         unsigned existing = 0, total = 0;
         mUploadTree.recursiveCountFolders(existing, total);
