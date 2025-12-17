@@ -26405,7 +26405,8 @@ void MegaApiImpl::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListe
         }
         MegaStringMapPrivate stringMap;
         string key = "t";
-        stringMap.set(key.c_str(), Base64Str<sizeof(time)>(reinterpret_cast<void*>(&time)));
+        auto b64 = Base64Str<sizeof(time)>(reinterpret_cast<void*>(&time));
+        stringMap.set(key.c_str(), (Base64::btoa(b64.chars)).c_str());
         request->setMegaStringMap(&stringMap);
 
         return performRequest_setAttrUser(request);
@@ -26441,11 +26442,16 @@ MegaTimeStamp MegaApiImpl::formatRecentClearTimestamp(string_map* records)
 {
     MegaTimeStamp recentClearTimestamp = MEGA_INVALID_TIMESTAMP;
     auto it = records->find("t");
-    if (it == records->end() || it->second.size() != sizeof(recentClearTimestamp))
+    if (it == records->end())
     {
         return recentClearTimestamp;
     }
-    memcpy(&recentClearTimestamp, it->second.data(), sizeof(recentClearTimestamp));
+    string value = Base64::atob(it->second);
+    if (value.size() != sizeof(recentClearTimestamp))
+    {
+        return recentClearTimestamp;
+    }
+    memcpy(&recentClearTimestamp, value.data(), sizeof(recentClearTimestamp));
     return recentClearTimestamp;
 }
 
