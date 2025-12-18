@@ -401,10 +401,7 @@ void SdkTest::TearDown()
     Cleanup();
     for (unsigned i = 0; i < megaApi.size(); ++i)
     {
-        if (megaApi[i])
-        {
-            releaseMegaApi(i);
-        }
+        releaseMegaApi(i);
     }
     out() << "Teardown done, test exiting";
 }
@@ -837,6 +834,11 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
             // Contact is removed from main account
             currentPerApi.requestFlags[MegaRequest::TYPE_REMOVE_CONTACT] = true;
             currentPerApi.userUpdated = true;
+        }
+
+        if (u->hasChanged(MegaUser::CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP))
+        {
+            ++currentPerApi.recentClearTimeUpdatedCount;
         }
         currentPerApi.callCustomCallbackCheck(u->getHandle());
     }
@@ -2380,7 +2382,7 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
     }
 }
 
-void SdkTest::loginSameAccountsForTest(const unsigned copyIndex)
+void SdkTest::loginSameAccountsForTest(unsigned copyIndex)
 {
     ASSERT_GT(mApi.size(), copyIndex)
         << "Invalid copy index" << copyIndex << " for mApi size " << mApi.size();
@@ -9852,21 +9854,15 @@ TEST_F(SdkTest, SdkRecentsTest)
     // Delays are added to ensure ordering in recent actions
     LOG_debug << "# SdkRecentsTest: uploading file " << filename1;
     updloadFile(filename1, "");
-    WaitMillisec(1000);
 
     LOG_debug << "# SdkRecentsTest: uploading file " << filename1bkp1;
     updloadFile(filename1bkp1, "");
-    WaitMillisec(1000);
 
     LOG_debug << "# SdkRecentsTest: uploading file " << filename1bkp2;
     updloadFile(filename1bkp2, "");
-    WaitMillisec(1000);
 
     LOG_debug << "# SdkRecentsTest: updating file " << filename1;
     updloadFile(filename1, "update");
-    WaitMillisec(1000);
-
-    synchronousCatchup(0, maxTimeout);
 
     LOG_debug << "# SdkRecentsTest: Marking file " << filename1 << " as sensitive";
     std::unique_ptr<MegaNode> f1node(megaApi[0]->getNodeByPath(("/" + filename1).c_str()));
@@ -9876,12 +9872,11 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     LOG_debug << "# SdkRecentsTest: uploading file " << filename2;
     updloadFile(filename2, "");
-    WaitMillisec(1000);
 
     LOG_debug << "# SdkRecentsTest: updating file " << filename2;
     updloadFile(filename2, "update");
 
-    synchronousCatchup(0, maxTimeout);
+    // make sure account 1 is fully synced with server
     synchronousCatchup(1, maxTimeout);
 
     const auto getRecentActionBuckets = [this](unsigned int index,
@@ -9937,6 +9932,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     vector<string_vector> expectedExcludeMax1 = {{filename2}};
     getRecentActionBuckets(0, 1, 1, true, API_OK, expectedExcludeMax1);
 
+    // wait a bit to ensure clear recent timestamp is larger than the last recent action timestamp
     WaitMillisec(1000);
     const auto setClearRecentsUpTo =
         [this](MegaTimeStamp timestamp, ::mega::ErrorCodes expectedCode)
@@ -9959,6 +9955,8 @@ TEST_F(SdkTest, SdkRecentsTest)
     };
 
     m_time_t now = m_time();
+    int& recentClearTimeUpdatedCount = mApi[1].recentClearTimeUpdatedCount = 0;
+
     LOG_debug << "# SdkRecentsTest: Clear recent actions up to now";
     setClearRecentsUpTo(now, API_OK);
 
@@ -9966,16 +9964,20 @@ TEST_F(SdkTest, SdkRecentsTest)
     getRecentActionBuckets(0, 1, 10, false, API_OK, expectedEmpty);
     verifyClearRecentsUpTo(0, now);
 
-    // wait a bit to ensure the other account fetches the updated attribute
-    WaitMillisec(3000);
+    // wait for 2 update, 1 is for SC action packet, 1 is for automatically fetching
+    ASSERT_TRUE(WaitFor(
+        [&recentClearTimeUpdatedCount]()
+        {
+            return recentClearTimeUpdatedCount == 2;
+        },
+        10 * 1000));
     LOG_debug
         << "# SdkRecentsTest: the second account fetched the attribute automatically after clear";
     getRecentActionBuckets(1, 1, 10, false, API_OK, expectedEmpty);
     verifyClearRecentsUpTo(1, now);
+    EXPECT_EQ(recentClearTimeUpdatedCount, 2);
 
     updloadFile(filename1, "update after clear");
-    WaitMillisec(1000);
-    synchronousCatchup(0, maxTimeout);
 
     LOG_debug << "# SdkRecentsTest: Get all recent actions after clear and one new action";
     vector<string_vector> expectedAfterClear = {{filename1}};

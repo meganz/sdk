@@ -2377,6 +2377,7 @@ class MegaUser
             CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
             CHANGE_APPS_PREFS                       = 0x40000000,
             CHANGE_CC_PREFS                         = 0x80000000,
+            CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000,
         };
 
         /**
@@ -2484,6 +2485,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_CC_PREFS       = 0x80000000
          * Check if content consumption prefs have changed
+         *
+         * - MegaUser::CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000
+         * Check if the timestamp for clearing recent actions history has changed
          *
          * @return true if this user has an specific change
          */

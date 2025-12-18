@@ -827,7 +827,9 @@ bool User::setChanged(attr_t at)
         case ATTR_ENABLE_TEST_SURVEYS:
             changed.enableTestSurveys = true;
             break;
-
+        case ATTR_RECENT_CLEAR_TIMESTAMP:
+            changed.recentClearTimestamp = true;
+            break;
         default:
             return false;
     }

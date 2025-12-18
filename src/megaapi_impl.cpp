@@ -2535,6 +2535,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_CC_PREFS;
     }
+    if (user->changed.recentClearTimestamp)
+    {
+        changed |= MegaUser::CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP;
+    }
     // Don't need to notify about user->changed.enableTestSurveys
 }
 
